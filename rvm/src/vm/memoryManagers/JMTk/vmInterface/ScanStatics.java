@@ -69,7 +69,7 @@ public class ScanStatics
     boolean result = true;
     for ( int slot=0; slot<numSlots; slot++ ) {
       if ( ! VM_Statics.isReference(slot) ) continue;
-      VM_Address ref = VM_Magic.getMemoryAddress(slots.add(slot << LG_WORD_SIZE));
+      VM_Address ref = VM_Magic.getMemoryAddress(slots.add(slot << LOG_WORD_SIZE));
       if ( (!ref.isZero()) && !VM_GCUtil.validRef(ref) ) {
 	VM.sysWrite("\nScanStatics.validateRefs:bad ref in slot "); VM.sysWrite(slot,false); VM.sysWrite("\n");
 	VM.sysWriteHex(slot); VM.sysWrite(" ");

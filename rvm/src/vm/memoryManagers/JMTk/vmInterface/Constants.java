@@ -22,6 +22,10 @@ public interface Constants {
   static final int MBYTE_SIZE = 1<<LOG_MBYTE_SIZE;
   static final int LOG_PAGE_SIZE = 12;
   static final int PAGE_SIZE = 1<<LOG_PAGE_SIZE;
+
+  static final int LG_WORDSIZE = LOG_WORD_SIZE;  // for external compatability
+  static final int WORDSIZE = WORD_SIZE;
+
   /*
    * Data Fields that control the allocation of memory
    * subpools for the heap; allocate from 
