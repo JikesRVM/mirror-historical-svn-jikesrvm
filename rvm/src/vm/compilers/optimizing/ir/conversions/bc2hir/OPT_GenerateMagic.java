@@ -291,7 +291,7 @@ class OPT_GenerateMagic implements OPT_Operators,
       bc2ir.appendInstruction(call);
     } else if (methodName == VM_MagicNames.threadAsCollectorThread) {
       OPT_RegisterOperand reg = 
-        gc.temps.makeTemp(VM_TypeReference.findOrCreate(VM_SystemClassLoader.getVMClassLoader(), 
+        gc.temps.makeTemp(VM_TypeReference.findOrCreate(VM_BootstrapClassLoader.getVMClassLoader(), 
                                                         VM_Atom.findOrCreateAsciiAtom("Lcom/ibm/JikesRVM/VM_CollectorThread;")));
       bc2ir.appendInstruction(Move.create(REF_MOVE, reg, bc2ir.popRef()));
       bc2ir.push(reg.copyD2U());
@@ -301,7 +301,7 @@ class OPT_GenerateMagic implements OPT_Operators,
       bc2ir.push(reg.copyD2U());
     } else if (methodName == VM_MagicNames.objectAsThread) {
       OPT_RegisterOperand reg = 
-        gc.temps.makeTemp(VM_TypeReference.findOrCreate(VM_SystemClassLoader.getVMClassLoader(), 
+        gc.temps.makeTemp(VM_TypeReference.findOrCreate(VM_BootstrapClassLoader.getVMClassLoader(), 
                                                         VM_Atom.findOrCreateAsciiAtom("Lcom/ibm/JikesRVM/VM_Thread;")));
       bc2ir.appendInstruction(Move.create(REF_MOVE, reg, bc2ir.popRef()));
       bc2ir.push(reg.copyD2U());
@@ -327,13 +327,13 @@ class OPT_GenerateMagic implements OPT_Operators,
       bc2ir.push(reg.copyD2U());
     } else if (methodName == VM_MagicNames.addressAsThread) {
       OPT_RegisterOperand reg = 
-        gc.temps.makeTemp(VM_TypeReference.findOrCreate(VM_SystemClassLoader.getVMClassLoader(),
+        gc.temps.makeTemp(VM_TypeReference.findOrCreate(VM_BootstrapClassLoader.getVMClassLoader(),
                                                         VM_Atom.findOrCreateAsciiAtom("Lcom/ibm/JikesRVM/VM_Thread;")));
       bc2ir.appendInstruction(Move.create(REF_MOVE, reg, bc2ir.popAddress()));
       bc2ir.push(reg.copyD2U());
     } else if (methodName == VM_MagicNames.addressAsRegisters) {
       OPT_RegisterOperand reg = 
-        gc.temps.makeTemp(VM_TypeReference.findOrCreate(VM_SystemClassLoader.getVMClassLoader(),
+        gc.temps.makeTemp(VM_TypeReference.findOrCreate(VM_BootstrapClassLoader.getVMClassLoader(),
                                                         VM_Atom.findOrCreateAsciiAtom("Lcom/ibm/JikesRVM/VM_Registers;")));
       bc2ir.appendInstruction(Move.create(REF_MOVE, reg, bc2ir.popAddress()));
       bc2ir.push(reg.copyD2U());

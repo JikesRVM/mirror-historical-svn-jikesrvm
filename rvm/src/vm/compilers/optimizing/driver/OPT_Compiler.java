@@ -134,7 +134,7 @@ public class OPT_Compiler implements VM_Callbacks.AppRunStartMonitor {
    * @param options compiler options for compiling the class
    */
   private static void loadSpecialClass (String klassName, OPT_Options options) {
-    VM_TypeReference tRef = VM_TypeReference.findOrCreate(VM_SystemClassLoader.getVMClassLoader(), 
+    VM_TypeReference tRef = VM_TypeReference.findOrCreate(VM_BootstrapClassLoader.getVMClassLoader(), 
                                                           VM_Atom.findOrCreateAsciiAtom(klassName));
     VM_Class klass = (VM_Class)tRef.peekResolvedType();
     VM_Method[] methods = klass.getDeclaredMethods();
