@@ -243,7 +243,6 @@ public class VM extends VM_Properties implements VM_Constants,
     // Initialize java.lang.System.out, java.lang.System.err, java.lang.System.in
     VM_FileSystem.initializeStandardStreams();
 
-
     ///////////////////////////////////////////////////////////////
     // The VM is now fully booted.                               //
     // By this we mean that we can execute arbitrary Java code.  //
@@ -263,8 +262,6 @@ public class VM extends VM_Properties implements VM_Constants,
     //
     if (verboseBoot >= 1) VM.sysWriteln("Initializing runtime compiler");
     VM_RuntimeCompiler.boot();
-
-    setDefaultSystemProperties();
 
     // Process remainder of the VM's command line arguments.
     if (verboseBoot >= 1) VM.sysWriteln("Late stage processing of command line");
@@ -338,24 +335,6 @@ public class VM extends VM_Properties implements VM_Constants,
     VM.sysWrite("vm: Please specify a class to execute.\n");
     VM.sysWrite("vm:   You can invoke the VM with the \"-help\" flag for usage information.\n");
     VM.sysExit(VM.exitStatusBogusCommandLineArg);
-  }
-
-
-  /** Define some new properties for the System.properties object.  We can
-   * only do this once the VM is actually booted.  
-   *
-   * (TODO This code might be better placed somewhere else.  It is also 
-   * quite possible that there is some other way we have of setting the
-   * default system properties) */ 
-  private static void setDefaultSystemProperties() {
-    String classPath = VM_ClassLoader.getVmRepositories();
-
-    System.setProperty("java.boot.class.path", classPath);
-
-    /* sun.boot.class.path is not necessary, yes, but possibly useful; Steve
-     * Augart has seen at least one piece of code on the web that reads
-     * this. */ 
-    System.setProperty("sun.boot.class.path", classPath);
   }
 
 
