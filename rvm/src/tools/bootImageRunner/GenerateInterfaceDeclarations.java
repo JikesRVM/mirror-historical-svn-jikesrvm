@@ -180,6 +180,17 @@ class GenerateInterfaceDeclarations extends Shared {
     
     Class vmClass = getClassNamed("com.ibm.JikesRVM.VM");
 
+    if (verbose > 0) {
+      ep("  Enabling verboseClassLoading...");
+      setVerboseClassLoading(vmClass, true);
+      epln("verbose class loading enabled.");
+    
+      ep("  Enabling TraceClassLoading...");
+      setTraceClassLoading(vmClass, true);
+      epln("trace class loading enabled.");
+    }
+    
+
     //-#if DebugForAlternateReality
 //     epln("initializeVM(): The VM Class's class loader is: "
 //          + vmClass.getClassLoader());
@@ -204,5 +215,27 @@ class GenerateInterfaceDeclarations extends Shared {
     if (verbose > 0)
       epln("...completing initializeVM()");
     return vmClass;
+  }
+
+  /** VM_Options.TraceClassLoading is more verbose than -verbose:class */
+  static void setTraceClassLoading(Class vmClass, boolean val) {
+    final String fieldName = "TraceClassLoading";
+    setBoolField(vmClass, fieldName, val);
+  }
+    
+  /** This handles -verbose:class */
+  static void setVerboseClassLoading(Class vmClass, boolean val) {
+    final String fieldName = "verboseClassLoading";
+    
+    setBoolField(vmClass, fieldName, val);
+    
+//     Field f;
+//     try {
+//       f = vmClass.getField(fieldName);
+//     } catch (NoSuchFieldException e) {
+//       reportTrouble("Unable to find a field named " + fieldName
+//                     + "in " + vmClass.toString() , e);
+//     }
+//     f.setBoolean(null, val);
   }
 }
