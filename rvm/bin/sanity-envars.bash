@@ -63,9 +63,11 @@ function checkenv () {
 		example = "$RVM_ROOT/rvm/config/i686-pc-linux or $RVM_ROOT/rvm/config/powerpc-ibm-aix4.3.3.0"
 		;;
 
+
  	    ## What configuration will run the system?
 	    RVM_TARGET_CONFIG )
-		chekenv RVM_HOST_CONFIG;
+		# example="$RVM_ROOT/rvm/config/i686-pc-linux";
+		checkenv RVM_HOST_CONFIG;
 		example="RVM_HOST_CONFIG" ;;
 	    
 	esac
