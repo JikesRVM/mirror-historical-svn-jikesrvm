@@ -136,7 +136,7 @@ class Emitters extends Shared {
     }
   }
 
-  void emitCDeclarationsForJavaType (String Cname, VM_Class cls) {
+  void emitCDeclarationsForJavaType (String cname, VM_Class cls) {
     // How many instance fields are there?
     //
     VM_Field[] allFields = cls.getDeclaredFields();
@@ -166,7 +166,7 @@ class Emitters extends Shared {
 
     // Emit field declarations
     //
-    p("struct " + Cname + " {\n");
+    p("struct " + cname + " {\n");
     for (int i = 0; i<fields.length; i++) {
       VM_Field field = fields[i].f;
       VM_TypeReference t = field.getType();
