@@ -61,7 +61,7 @@ public interface VM_AllocatorHeaderConstants extends VM_JavaHeaderConstants {
   /*
    * Values that VM_CommonAllocatorHeader requires that we define.
    */
-  static final int GC_BARRIER_BIT_IDX  = 1; 
-  static final int GC_FORWARDED        = REQUESTED_BITS == 2 ? 1 : 4; // (01 or 1x0)
-  static final int GC_BEING_FORWARDED  = REQUESTED_BITS == 2 ? 3 : 5; // (11 or 1x1)
+  static final int GC_BARRIER_BIT_IDX  = REQUESTED_BITS - 1; // msb of GC bits
+  static final int GC_FORWARDED        = FORWARDING_PTR_OVERLAYS_TIB ? 2 : 1; // x10 or 01
+  static final int GC_BEING_FORWARDED  = 3; // x11
 }
