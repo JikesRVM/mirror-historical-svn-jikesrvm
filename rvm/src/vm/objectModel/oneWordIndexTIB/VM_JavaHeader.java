@@ -135,16 +135,21 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
     if (VM.VerifyAssertions) VM.assert(TIB_SHIFT == 2);
     int ME = 31 - TIB_SHIFT;
     int MB = HASH_STATE_BITS;
-    if (VM_Collector.MOVES_OBJECTS) {
+    if (VM_Collector.MOVES_OBJECTS && VM.writingBootImage) {
+      // The collector may have laid down a forwarding pointer 
+      // in place of the TIB word.  Check for this fringe case
+      // and handle it by following the forwarding pointer to
+      // find the TIB.
+      // We only have to build this extra check into the bootimage code
+      // since all code used by the collector should be in the bootimage.
+      // TODO: be more selective by marking a subset of the bootimage classes
+      //       with a special interface that indicates that this conditional redirect 
+      //       is required.
       if (VM.VerifyAssertions) {
 	VM.assert(dest != 0);
 	VM.assert(VM_AllocatorHeader.GC_FORWARDING_MASK == 0x00000003);
 	VM.assert(VM_AllocatorHeader.GC_FORWARDED != VM_Collector.MARK_VALUE);
       }
-      // The collector may have laid down a forwarding pointer 
-      // in place of the TIB word.  Check for this fringe case
-      // and handle it by following the forwarding pointer to
-      // find the TIB.
       asm.emitL   (dest, TIB_OFFSET, object);
       asm.emitANDI(0, dest, VM_AllocatorHeader.GC_FORWARDING_MASK);
       asm.emitBEQ (5);  // if dest & FORWARDING_MASK == 0; then dest has a valid tib index
