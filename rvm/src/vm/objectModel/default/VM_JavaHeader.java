@@ -613,23 +613,5 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
                 address, new OPT_IntConstantOperand(TIB_OFFSET), 
                 null, GuardedUnary.getClearGuard(s));
   }
-
-  /**
-   * Mutate a IG_CLASS_TEST instruction to the LIR
-   * instructions required to implement it.
-   *
-   * @param s the IG_CLASS_TEST instruction to lower
-   * @param ir the enclosing OPT_IR
-   */
-  public static void lowerIG_CLASS_TEST(OPT_Instruction s, OPT_IR ir) {
-    IfCmp.mutate(s, INT_IFCMP, null, 
-		 OPT_ConvertToLowLevelIR.getTIB(s, ir, 
-						InlineGuard.getClearValue(s), 
-						InlineGuard.getClearGuard(s)), 
-		 OPT_ConvertToLowLevelIR.getTIB(s, ir, InlineGuard.getGoal(s).asType()), 
-		 OPT_ConditionOperand.NOT_EQUAL(), 
-		 InlineGuard.getClearTarget(s),
-		 InlineGuard.getClearBranchProfile(s));
-  }
   //-#endif
 }

@@ -586,16 +586,5 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
   public static void lowerGET_OBJ_TIB(OPT_Instruction s, OPT_IR ir) {
     VM_JavaHeader.lowerGET_OBJ_TIB(s, ir);
   }
-
-  /**
-   * Mutate a IG_CLASS_TEST instruction to the LIR
-   * instructions required to implement it.
-   *
-   * @param s the IG_CLASS_TEST instruction to lower
-   * @param ir the enclosing OPT_IR
-   */
-  public static void lowerIG_CLASS_TEST(OPT_Instruction s, OPT_IR ir) {
-    VM_JavaHeader.lowerIG_CLASS_TEST(s, ir);
-  }
   //-#endif
 }

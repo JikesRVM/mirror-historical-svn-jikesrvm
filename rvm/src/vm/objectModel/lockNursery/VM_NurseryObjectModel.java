@@ -1,9 +1,5 @@
 // $Id$
 
-//-#if RVM_WITH_OPT_COMPILER
-import instructionFormats.*;
-//-#endif
-
 /**
  * Defines shared support for one-word headers in the 
  * JikesRVM object model. <p>
@@ -25,9 +21,6 @@ import instructionFormats.*;
 public class VM_NurseryObjectModel implements VM_Uninterruptible, 
 					      VM_JavaHeaderConstants,
 					      VM_Constants
-					      //-#if RVM_WITH_OPT_COMPILER
-					      ,OPT_Operators
-					      //-#endif
 {
 
   private static final int OTHER_HEADER_BYTES = VM_AllocatorHeader.NUM_BYTES_HEADER + VM_MiscHeader.NUM_BYTES_HEADER;
@@ -438,24 +431,4 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
       return VM_LockNursery.findOrCreate(o, create);
     }
   }
-
-  //-#if RVM_WITH_OPT_COMPILER
-  /**
-   * Mutate a IG_CLASS_TEST instruction to the LIR
-   * instructions required to implement it.
-   *
-   * @param s the IG_CLASS_TEST instruction to lower
-   * @param ir the enclosing OPT_IR
-   */
-  public static void lowerIG_CLASS_TEST(OPT_Instruction s, OPT_IR ir) {
-    IfCmp.mutate(s, INT_IFCMP, null, 
-		 OPT_ConvertToLowLevelIR.getTIB(s, ir, 
-						InlineGuard.getClearValue(s), 
-						InlineGuard.getClearGuard(s)), 
-		 OPT_ConvertToLowLevelIR.getTIB(s, ir, InlineGuard.getGoal(s).asType()), 
-		 OPT_ConditionOperand.NOT_EQUAL(), 
-		 InlineGuard.getClearTarget(s),
-		 InlineGuard.getClearBranchProfile(s));
-  }
-  //-#endif
 }
