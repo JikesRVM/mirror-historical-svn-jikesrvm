@@ -2341,7 +2341,8 @@ public class VM_Allocator
    * @return  true if already marked, false if not marked & this invocation marked it.
    */
   static boolean
-    gc_setMarkLarge (int tref) { 
+    gc_setMarkLarge (int ref) { 
+    int tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
     int ij, temp, statusWord, statusAddr;
     int page_num = (tref - largeHeapStartAddress ) >> 12;
     boolean result = (largeSpaceMark[page_num] != 0);
@@ -2379,7 +2380,7 @@ public class VM_Allocator
     }
        
     // Need to turn back on barrier bit *always*
-    Object objRef = VM_Magic.addressAsObject(tref - OBJECT_PTR_ADJUSTMENT);
+    Object objRef = VM_Magic.addressAsObject(ref);
     VM_ObjectModel.initializeAvailableByte(objRef); // make it safe for write barrier to change bit non-atomically
     VM_AllocatorHeader.setBarrierBit(objRef);
 
@@ -2392,7 +2393,8 @@ public class VM_Allocator
   *  set the corresponding mark byte on
   */
   static  boolean
-  gc_setMarkSmall (int tref) {
+  gc_setMarkSmall (int ref) {
+    int tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
     int  blkndx, slotno, size, ij;
     blkndx  = (tref - smallHeapStartAddress) >> LOG_GC_BLOCKSIZE ;
     VM_BlockControl  this_block = VM_Magic.addressAsBlockControl(blocks[blkndx]);
@@ -2438,17 +2440,17 @@ public class VM_Allocator
     if (ref == 0) return;    
 
     // accomodate that ref might be outside space
-    int tref = ref + OBJECT_PTR_ADJUSTMENT;	
+    int tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
 
     if ( tref >= smallHeapStartAddress && tref <  smallHeapEndAddress) {
       // object allocated in small object runtime heap
-      if (!gc_setMarkSmall(tref))
+      if (!gc_setMarkSmall(ref))
 	VM_GCWorkQueue.putToWorkBuffer(ref);
       return;
     }
 
     if ( tref >= largeHeapStartAddress && tref < largeHeapEndAddress) {
-      if (!gc_setMarkLarge(tref)) 
+      if (!gc_setMarkLarge(ref)) 
 	VM_GCWorkQueue.putToWorkBuffer(ref);
       return;
     }
@@ -2893,10 +2895,10 @@ public class VM_Allocator
     // beyond 0x80000000 and java signed integer compares will be wrong
     //
     if ( objRef >= minLargeRef ) {
-      int tref = objRef + OBJECT_PTR_ADJUSTMENT;
+      int tref = VM_ObjectModel.getPointerInMemoryRegion(objRef);
       int page_num = (tref - largeHeapStartAddress  ) >> 12;
       if ( largeSpaceGen[page_num] == 0 ) {  // new large object
-	if (!gc_setMarkLarge(tref)) {
+	if (!gc_setMarkLarge(objRef)) {
 	  // we marked it, so put to workqueue
 	  VM_GCWorkQueue.putToWorkBuffer( objRef );
 	}
@@ -3040,10 +3042,10 @@ public class VM_Allocator
       
 	// a minor collection: mark and scan (and age) only NEW large objects
 	if ( ref >= minLargeRef ) {
-	  tref = ref + OBJECT_PTR_ADJUSTMENT;
+	  tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
 	  page_num = (tref - largeHeapStartAddress  ) >> 12;
 	  if ( largeSpaceGen[page_num] == 0 ) {  // new large object
-	    if (!gc_setMarkLarge(tref)) {
+	    if (!gc_setMarkLarge(ref)) {
 	      // we marked it, so put to workqueue for later scanning
 	      VM_GCWorkQueue.putToWorkBuffer( ref );
 	    }
@@ -3504,7 +3506,7 @@ public class VM_Allocator
 
       if ( ref > smallHeapStartAddress && ref <= smallHeapEndAddress+4 ) {
 	//  locate mark array entry for the object
-	int  tref = ref + OBJECT_PTR_ADJUSTMENT;
+	int  tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
 	int blkndx  = (tref - smallHeapStartAddress) >> LOG_GC_BLOCKSIZE ;
 	VM_BlockControl  this_block = VM_Magic.addressAsBlockControl(blocks[blkndx]);
 	int  offset   = tref - this_block.baseAddr;
@@ -3530,7 +3532,7 @@ public class VM_Allocator
     // becomes finalizable.
     //
     if (VM.VerifyAssertions) VM.assert(ref >= minLargeRef);
-    int tref = ref + OBJECT_PTR_ADJUSTMENT;
+    int tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
     int page_num = (tref - largeHeapStartAddress ) >> 12;
     if (largeSpaceMark[page_num] != 0)
       return true;   // marked, still live, le.value is OK
@@ -3542,7 +3544,7 @@ public class VM_Allocator
       return true;   // not marked, but old, le.value is OK
     
     // if here, have garbage large object, mark live, and enqueue for scanning
-    gc_setMarkLarge(tref);
+    gc_setMarkLarge(ref);
     VM_GCWorkQueue.putToWorkBuffer(ref);
     le.pointer = VM_Magic.addressAsObject(ref);
     le.value = -1;
@@ -4016,10 +4018,10 @@ public class VM_Allocator
     // beyond 0x80000000 and java signed integer compares will be wrong
     //
     if ( ref >= minLargeRef ) {
-      tref = ref + OBJECT_PTR_ADJUSTMENT;
+      tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
       page_num = (tref - largeHeapStartAddress  ) >> 12;
       if ( largeSpaceGen[page_num] == 0 ) {  // new large object
-	if (!gc_setMarkLarge(tref))
+	if (!gc_setMarkLarge(ref))
 	  // we marked it, so put to workqueue
 	  VM_GCWorkQueue.putToWorkBuffer( ref );
       }
