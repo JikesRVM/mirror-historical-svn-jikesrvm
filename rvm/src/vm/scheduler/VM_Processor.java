@@ -28,7 +28,7 @@ final class VM_Processor implements VM_Uninterruptible,  VM_Constants, VM_GCCons
   // found blocked in native code
   //
   static int            numberNativeProcessors   = 0;
-  static Object         nativeProcessorCountLock = new Object();
+  static VM_Synchronizer nativeProcessorCountLock = new VM_Synchronizer();
   static VM_Processor[] nativeProcessors         = new VM_Processor[100];
 
   // fields to track attached processors - processors created for user
