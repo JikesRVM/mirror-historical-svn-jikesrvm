@@ -1,4 +1,4 @@
-package com.ibm.JikesRVM.GenerateInterfaceDeclarations;
+// package com.ibm.JikesRVM.GenerateInterfaceDeclarations;
 import java.lang.reflect.Field;
 
 class DoubleEmitter 

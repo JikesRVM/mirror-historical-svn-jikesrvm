@@ -1,4 +1,4 @@
-package com.ibm.JikesRVM.GenerateInterfaceDeclarations;
+// package com.ibm.JikesRVM.GenerateInterfaceDeclarations;
 
 import com.ibm.JikesRVM.classloader.VM_Field;
 import com.ibm.JikesRVM.classloader.VM_Class;

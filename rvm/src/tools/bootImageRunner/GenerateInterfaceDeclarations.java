@@ -3,7 +3,7 @@
  */
 //$Id$
 
-package com.ibm.JikesRVM.GenerateInterfaceDeclarations;
+// package com.ibm.JikesRVM.GenerateInterfaceDeclarations;
 
 
 import  java.io.*;
@@ -93,7 +93,10 @@ class GenerateInterfaceDeclarations extends Shared {
       System.exit(-1);
     }
 
-    /* Load and initialize the VM class first.  This should help us out. */
+    /* Load and initialize the VM class first.  This should help us out.
+     * There is an alternate reality class loader built into Jikes RVM.  We
+     * can use that, OR we can use one that is included with these sources if
+     * we want to. */
     Shared.altCL 
       = AlternateRealityClassLoader.init(alternateRealityClasspath, 
                                          alternateRealityNativeLibDir);

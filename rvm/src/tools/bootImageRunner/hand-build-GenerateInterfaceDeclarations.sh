@@ -34,5 +34,5 @@ $RVM_BUILD/jbuild.tool com/ibm/JikesRVM/GenerateInterfaceDeclarations/GenerateIn
 # FAILS: $HOST_JAVA_RT -Xmx200M	com.ibm.JikesRVM.GenerateInterfaceDeclarations.GenerateInterfaceDeclarations  -alternateRealityClasspath .:$JAL_BUILD/RVM.classes:$JAL_BUILD/RVM.classes/rvmrt.jar -alternateRealityNativeLibDir $JAL_BUILD -out declarations.out -ia 0x43000000
 ## We need to add the RVM to the Classpath, since we will have 
 ## trouble otherwise reading the AlternateRealityClassloader
-$HOST_JAVA_RT 	  -classpath .:$JAL_BUILD/RVM.classes:$JAL_BUILD/RVM.classes/rvmrt.jar -Xmx200M	com.ibm.JikesRVM.GenerateInterfaceDeclarations.GenerateInterfaceDeclarations  -alternateRealityClasspath $JAL_BUILD/RVM.classes/jksvm.jar:$JAL_BUILD/RVM.classes/rvmrt.jar -alternateRealityNativeLibDir $JAL_BUILD -out declarations.out -ia 0x43000000
+$HOST_JAVA_RT 	  -classpath .:$JAL_BUILD/RVM.classes:$JAL_BUILD/RVM.classes/rvmrt.jar -Xmx200M	GenerateInterfaceDeclarations  -alternateRealityClasspath $JAL_BUILD/RVM.classes/jksvm.jar:$JAL_BUILD/RVM.classes/rvmrt.jar -alternateRealityNativeLibDir $JAL_BUILD -out declarations.out -ia 0x43000000
 # $HOST_JAVA_RT -Xmx200M	  -classpath .:$JAL_BUILD/RVM.classes:$JAL_BUILD/RVM.classes/rvmrt.jar	  com.ibm.JikesRVM.GenerateInterfaceDeclarations.GenerateInterfaceDeclarations -out declarations.out -ia 0x43000000

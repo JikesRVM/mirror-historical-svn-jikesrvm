@@ -1,4 +1,4 @@
-package com.ibm.JikesRVM.GenerateInterfaceDeclarations;
+// package com.ibm.JikesRVM.GenerateInterfaceDeclarations;
 
 import  java.io.PrintStream;
 
