@@ -16,16 +16,6 @@ public final class VM_AllocatorHeader extends VM_CommonAllocatorHeader
   implements VM_Uninterruptible {
 
   /**
-   * How many bytes are used by all GC header fields?
-   */
-  static final int NUM_BYTES_HEADER = 0;
-
-  /**
-   * How many available bits does the GC header want to use?
-   */
-  static final int REQUESTED_BITS = COMMON_REQUESTED_BITS + 0;
-
-  /**
    * Perform any required initialization of the GC portion of the header.
    * 
    * @param ref the object ref to the storage to be initialized
@@ -34,10 +24,7 @@ public final class VM_AllocatorHeader extends VM_CommonAllocatorHeader
    * @param isScalar are we initializing a scalar (true) or array (false) object?
    */
   public static void initializeHeader(Object ref, Object[] tib, int size, boolean isScalar) {
-    // set mark bit in status word, if initial (unmarked) value is not 0      
-    if (VM_Allocator.MARK_VALUE==0) writeMarkBit(ref, GC_MARK_BIT_MASK);
-    
-
+    // nothing to do (no bytes of GC header)
   }
 
   /**

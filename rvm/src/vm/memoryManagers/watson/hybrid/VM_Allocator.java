@@ -259,9 +259,12 @@ public class VM_Allocator
     // set free block count for triggering major collection
     majorCollectionThreshold = nurserySize/GC_BLOCKSIZE;
 
+    arrayOfIntType = VM_Array.getPrimitiveArrayType( 10 /*code for INT*/ ); // XXX
+    arrayOfByteType = VM_Array.getPrimitiveArrayType( 8 /*code for BYTE*/ ); // XXX
+    byteArrayTIB = arrayOfByteType.getTypeInformationBlock();
+
     //      GET STORAGE FOR BLOCKS ARRAY FROM OPERATING SYSTEM
-    VM_Array intArrayType =  VM_Array.getPrimitiveArrayType(10);
-    int blocks_array_size = intArrayType.getInstanceSize(num_blocks);
+    int blocks_array_size = arrayOfIntType.getInstanceSize(num_blocks);
     if ((blocks_array_storage = VM.sysCall1(bootrecord.sysMallocIP, blocks_array_size)) == 0) {
       VM.sysWrite(" In boot, call to sysMalloc returned 0 \n");
       VM.shutdown(1800);
@@ -274,7 +277,7 @@ public class VM_Allocator
     }
 
     blocks = (int[])(VM_ObjectModel.initializeArray(blocks_array_storage,
-						    intArrayType.getTypeInformationBlock(),
+						    arrayOfIntType.getTypeInformationBlock(),
 						    num_blocks, blocks_array_size));
 
     // index for highest page in heap
@@ -317,8 +320,6 @@ public class VM_Allocator
 	
     // create synchronization objects
     sysLockFree	      = new VM_ProcessorLock();
-
-    arrayOfIntType = VM_Array.getPrimitiveArrayType( 10 /*code for INT*/ ); // XXX
 
     VM_GCUtil.boot();
 
@@ -797,7 +798,9 @@ public class VM_Allocator
   static final boolean  writeBarrier = true;      // MUST BE TRUE FOR THIS STORAGE MANAGER
   static final boolean  movesObjects = true;
 
-  static VM_Type arrayOfIntType;   // VM_Type of int[], to detect code objects
+  static VM_Array arrayOfIntType;   // VM_Type of int[], to detect code objects
+  static VM_Array arrayOfByteType;
+  static Object[] byteArrayTIB;
 
   final static int  OUT_OF_BLOCKS = -1;
 
@@ -1295,7 +1298,6 @@ public class VM_Allocator
     // alloc_block.alloc_size.  This value only goes up during the running
     // of the VM.
        
-    VM_Array byteArrayType = VM_Array.getPrimitiveArrayType(8);
     if (alloc_block.mark != null) {
       if (size <= alloc_block.alloc_size) {
 	VM_Magic.setMemoryWord(VM_Magic.objectAsAddress(alloc_block.mark) +
@@ -1304,16 +1306,16 @@ public class VM_Allocator
       }
       else {		// free the existing array space
 	VM.sysCall1(bootrecord.sysFreeIP,
-		    VM_ObjectModel.arrayRefToBaseAddress(alloc_block.mark,  byteArrayType));
+		    VM_Magic.objectAsAddress(alloc_block.mark) - VM_ObjectModel.computeHeaderSize(arrayOfByteType));
       }
     }
-    int mark_array_size = (byteArrayType.getInstanceSize(size) + 3) & ~3;
+    int mark_array_size = getByteArrayInstanceSize(size);
     if ((location = VM.sysCall1(bootrecord.sysMallocIP, mark_array_size)) == 0) {
       VM.sysWrite(" In getnewblock, call to sysMalloc returned 0 \n");
       VM.shutdown(1800);
     }
     if (VM.VerifyAssertions) VM.assert((location & 3) == 0);// check full wd
-    alloc_block.mark = (byte[]) VM_ObjectModel.initializeArray(location, byteArrayType.getTypeInformationBlock(), size, mark_array_size);
+    alloc_block.mark = VM_Magic.objectAsByteArray(VM_ObjectModel.initializeArray(location, byteArrayTIB, size, mark_array_size));
     return 0;
   }
        
@@ -1336,7 +1338,6 @@ public class VM_Allocator
     alloc_block.nextblock = OUT_OF_BLOCKS;  // this is last block in list for thissize
     alloc_block.slotsize  = GC_SIZEVALUES[ndx];
     int size = GC_BLOCKSIZE/GC_SIZEVALUES[ndx] ;     
-    VM_Array byteArrayType = VM_Array.getPrimitiveArrayType(8);
     if (alloc_block.mark != null)  {
       if (size <= alloc_block.alloc_size) {
 	VM_Magic.setMemoryWord(VM_Magic.objectAsAddress(alloc_block.mark) +
@@ -1344,17 +1345,18 @@ public class VM_Allocator
 	return 0;
       }
       else {		// free the existing array space
-	VM.sysCall1(bootrecord.sysFreeIP, VM_ObjectModel.arrayRefToBaseAddress(alloc_block.mark, byteArrayType));
+	VM.sysCall1(bootrecord.sysFreeIP, 
+		    VM_Magic.objectAsAddress(alloc_block.mark) - VM_ObjectModel.computeHeaderSize(arrayOfByteType));
       }
     }
     // get space for alloc arrays from AIX.
-    int mark_array_size = (byteArrayType.getInstanceSize(size) + 3) & ~3;
+    int mark_array_size = getByteArrayInstanceSize(size);
     if ((location = VM.sysCall1(bootrecord.sysMallocIP, mark_array_size)) == 0) {
       VM.sysWrite(" In getnewblockx, call to sysMalloc returned 0 \n");
       VM.shutdown(1800);
     }
     if (VM.VerifyAssertions) VM.assert((location & 3) == 0);// check full wd
-    alloc_block.mark = (byte[]) VM_ObjectModel.initializeArray(location, byteArrayType.getTypeInformationBlock(), size, mark_array_size);
+    alloc_block.mark = VM_Magic.objectAsByteArray(VM_ObjectModel.initializeArray(location, byteArrayTIB, size, mark_array_size));
 
     return theblock;
   }
@@ -2943,14 +2945,15 @@ public class VM_Allocator
       return toObj;
     }
 
+
     // We are the GC thread that must copy the object, so do it.
     Object[] tib = VM_ObjectModel.getTIB(fromObj);
     VM_Type type = VM_Magic.objectAsType(tib[TIB_TYPE_INDEX]);
     if (VM.VerifyAssertions) VM.assert(validRef(type));
     if (type.isClassType()) {
       VM_Class classType = type.asClass();
-      int size = classType.getInstanceSize();
-      int toAddress = gc_getMatureSpace(size);
+      int numBytes = VM_ObjectModel.bytesRequiredWhenCopied(fromObj, classType);
+      int toAddress = gc_getMatureSpace(numBytes);
       if (toAddress == 0) {
 	// reach here means that no space was available for this thread
         // in mature, noncopying space, therefore 
@@ -2962,14 +2965,13 @@ public class VM_Allocator
 	outOfSmallHeapSpace = true;
 	return fromObj;
       }
-      int fromAddress = VM_ObjectModel.scalarRefToBaseAddress(fromObj, classType);
-      VM_Memory.aligned32Copy(toAddress, fromAddress, size);
-      toObj = VM_ObjectModel.baseAddressToScalarRef(toAddress, tib, size);
+      forwardingPtr |= VM_AllocatorHeader.GC_BARRIER_BIT_MASK;     // set barrier bit 
+      toObj = VM_ObjectModel.moveObject(toAddress, fromObj, numBytes, classType, tib, forwardingPtr);
     } else {
       VM_Array arrayType = type.asArray();
       int numElements = VM_Magic.getArrayLength(fromObj);
-      int size = (arrayType.getInstanceSize(numElements) + 3) & ~3;
-      int toAddress   = gc_getMatureSpace(size);
+      int numBytes = VM_ObjectModel.bytesRequiredWhenCopied(fromObj, arrayType, numElements);
+      int toAddress = gc_getMatureSpace(numBytes);
       if (toAddress == 0) {
 	// reach here means that no space was available for this thread
         // in mature, noncopying space, therefore
@@ -2981,18 +2983,14 @@ public class VM_Allocator
 	outOfSmallHeapSpace = true;
 	return fromObj;
       }
-      int fromAddress = VM_ObjectModel.arrayRefToBaseAddress(fromObj, arrayType);
-      VM_Memory.aligned32Copy(toAddress, fromAddress, size);
+      forwardingPtr |= VM_AllocatorHeader.GC_BARRIER_BIT_MASK;     // set barrier bit 
+      toObj = VM_ObjectModel.moveObject(toAddress, fromObj, numBytes, arrayType, tib, forwardingPtr);
       if (arrayType == arrayOfIntType) {
 	// sync all arrays of ints - must sync moved code instead of sync'ing chunks when full
-	VM_Memory.sync(toAddress, size);
+	VM_Memory.sync(toAddress, numBytes);
       }
-      toObj = VM_ObjectModel.baseAddressToArrayRef(toAddress, tib, size);
     }
 
-    // restore original bit pattern of available bits word in copied object
-    // set the barrier bit if write barrier
-    VM_ObjectModel.writeAvailableBitsWord(toObj, forwardingPtr | VM_AllocatorHeader.GC_BARRIER_BIT_MASK);
     VM_ObjectModel.initializeAvailableByte(toObj); // make it safe for write barrier to access barrier bit non-atmoically
 
     VM_Magic.sync(); // make changes viewable to other processors 
@@ -4028,6 +4026,13 @@ public class VM_Allocator
     }
     return ref;
   }
+
+  static int getByteArrayInstanceSize (int numelts) {
+    int bytes = VM_ObjectModel.computeArrayHeaderSize(arrayOfByteType) + numelts;
+    int round = (bytes + (WORDSIZE - 1)) & ~(WORDSIZE - 1);
+    return round;
+  }
+
 
 }   // VM_Allocator
 
