@@ -140,6 +140,16 @@ public class VM_Entrypoints implements VM_Constants {
 
   //-#if RVM_WITH_JMTK
   public static final VM_Field lockField = getField("Lcom/ibm/JikesRVM/memoryManagers/JMTk/Lock;", "lock","I");
+  public static final VM_Field lockThreadField = getField("Lcom/ibm/JikesRVM/memoryManagers/JMTk/Lock;", "thread","Lcom/ibm/JikesRVM/VM_Thread;");
+  public static final VM_Field lockStartField = getField("Lcom/ibm/JikesRVM/memoryManagers/JMTk/Lock;", "start","D");
+  public static final VM_Field tailField = getField("Lcom/ibm/JikesRVM/memoryManagers/JMTk/LocalSSB;", "tail","Lcom/ibm/JikesRVM/VM_Address;");
+  public static final VM_Field SQCFField = getField("Lcom/ibm/JikesRVM/memoryManagers/JMTk/SharedQueue;", "completionFlag","I");
+  public static final VM_Field SQNCField = getField("Lcom/ibm/JikesRVM/memoryManagers/JMTk/SharedQueue;", "numClients","I");
+  public static final VM_Field SQNCWField = getField("Lcom/ibm/JikesRVM/memoryManagers/JMTk/SharedQueue;", "numClientsWaiting","I");
+  public static final VM_Field SQheadField = getField("Lcom/ibm/JikesRVM/memoryManagers/JMTk/SharedQueue;", "head","Lcom/ibm/JikesRVM/VM_Address;");
+  public static final VM_Field SQtailField = getField("Lcom/ibm/JikesRVM/memoryManagers/JMTk/SharedQueue;", "tail","Lcom/ibm/JikesRVM/VM_Address;");
+  public static final VM_Field LQheadField = getField("Lcom/ibm/JikesRVM/memoryManagers/JMTk/LocalQueue;", "head","Lcom/ibm/JikesRVM/VM_Address;");
+  public static final VM_Field SQBEField = getField("Lcom/ibm/JikesRVM/memoryManagers/JMTk/SharedQueue;", "bufsenqueued","I");
   public static final VM_Field synchronizedCounterField = getField("Lcom/ibm/JikesRVM/memoryManagers/JMTk/SynchronizedCounter;", "count", "I");
   //-#endif
 

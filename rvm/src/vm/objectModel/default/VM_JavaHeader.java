@@ -168,6 +168,25 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
     return size;
   }
 
+  public static VM_Address objectStartRef(VM_Address obj)
+    throws VM_PragmaInline {
+    Object[] tib = VM_ObjectModel.getTIB(obj);
+    VM_Type type = VM_Magic.objectAsType(tib[VM_TIBLayoutConstants.TIB_TYPE_INDEX]);
+//     VM.sysWrite("obj: "); VM.sysWrite(obj); 
+    VM_Address rtn;
+    if (type.isClassType()) {
+//       VM.sysWrite(", scalar cell: ");
+      VM_Class classType = type.asClass();
+      int bytes = VM_ObjectModel.bytesRequiredWhenCopied(obj, classType);
+      rtn = obj.sub(VM_JavaHeader.SCALAR_PADDING_BYTES + bytes);
+    } else {
+//       VM.sysWrite(", array cell: ");
+      rtn = obj.add(VM_ObjectModel.getHeaderEndOffset(null));
+    }
+//     VM.sysWrite(rtn); VM.sysWrite(" m\n");
+    return rtn;
+  }
+
   /**
    * Copy an object to the given raw storage address
    */
@@ -481,7 +500,8 @@ VM.sysWriteln("Moving hashed array: ", toAddress);
     int ref = ptr + size + SCALAR_PADDING_BYTES;
     // (TIB set by BootImageWriter2)
 
-    if (VM_Interface.NEEDS_WRITE_BARRIER) {
+    //    if (VM_Interface.NEEDS_WRITE_BARRIER) {
+    if (false) {
       // must set barrier bit for bootimage objects
       if (ADDRESS_BASED_HASHING) {
 	bootImage.setFullWord(ref + STATUS_OFFSET, VM_AllocatorHeader.GC_BARRIER_BIT_MASK);
@@ -525,7 +545,8 @@ VM.sysWriteln("Moving hashed array: ", toAddress);
     int ref = ptr + ARRAY_HEADER_SIZE;
     // (TIB set by BootImageWriter2; array length set by VM_ObjectModel)
 
-    if (VM_Interface.NEEDS_WRITE_BARRIER) {
+    //    if (VM_Interface.NEEDS_WRITE_BARRIER) {
+    if (false) {
       // must set barrier bit for bootimage objects
       if (ADDRESS_BASED_HASHING) {
 	bootImage.setFullWord(ref + STATUS_OFFSET, VM_AllocatorHeader.GC_BARRIER_BIT_MASK);
