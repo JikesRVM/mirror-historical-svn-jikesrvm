@@ -26,29 +26,46 @@
 
 # Where are we?
 # These expressions are bash internal shorthand that handles, respectively,
-#"dirname" and "basename":
-mydir="${0%/*}"
+# "basename" and "dirname"
 ME="${0##*/}"
+mydir="${0%/*}"
+function croak_nousage () {
+    # Display the error message.  If it's a multi-line error message, indent
+    # the second and subsequent lines by a few spaces.
+    echo "${ME}: $*" | sed -e '2,$s/^/     /' >&2
+    trap '' EXIT
+    exit 1
+}
 
-echo >&2 ${ME}: "XXX This code is an experimental port to Bash.  Builds fine,"
-echo >&2 ${ME}: "XXX runs a simple test case just fine."
-echo >&2 ${ME}: "XXX We'll merge it in to the main sources as soon as it's"
-echo >&2 ${ME}: "XXX been beaten on a bit."
-echo >&2 ${ME}: "XXX  	--Steve Augart"
-echo >&2 ""
+[[ $mydir && $mydir != $ME ]] || mydir="${RVM_ROOT:?$ME: You must set the RVM_ROOT variable before you run this program.}/rvm/bin"
+
+experimental_warning () {
+    echo >&2 ${ME}: "XXX This code is an experimental port to Bash.  Builds fine,"
+    echo >&2 ${ME}: "XXX runs a simple test case just fine."
+    echo >&2 ${ME}: "XXX We'll merge it in to the main sources as soon as it's"
+    echo >&2 ${ME}: "XXX been beaten on a bit."
+    echo >&2 ${ME}: "XXX  	--Steve Augart"
+    echo >&2 ""
+}
+# experimental_warning
+
 
 #----------------------#
-# SECTION 0 - Setup  #
+# SECTION 0 - Setup    #
 #----------------------#
 
 
 # Stop immediately if any programs we call return errors.
 #
+trap 'echo >&2 "$ME: some command we just ran (probably with a final argument of \"$_\") returned an error; aborting execution.  Please Fix this."' EXIT
 set -e;
 
 # Who we are.
 #
-. ${mydir}/sanity-envars.bash;		# sets ME, defines checkenv()
+sanity_env="${mydir}/sanity-envars.bash"
+[[ -f $sanity_env ]] || croak_nonusage "Internal error: Cannot find the file sanity-envars.bash ($sanity_env); something is badly broken."
+[[ -r $sanity_env ]] || croak_nonusage "Internal error: Cannot read the file sanity-envars.bash ($sanity_env); something is badly broken.  You might check the file permissions or user id you used to extract Jikes RVM."
+. "${sanity_env}";		# sets ME, defines checkenv()
 
 ## Place where source files reside.
 checkenv RVM_ROOT
@@ -363,6 +380,7 @@ while ((1)); do
     case "$1" in 
 	"-help" ) 
 	    help_message;
+	    trap '' EXIT
 	    exit 0; ;;
 	"-D" )
  	    shift
@@ -385,13 +403,7 @@ function croak () {
     # the second and subsequent lines by a few spaces.
     echo "${ME}: $*" | sed -e '2,$s/^/     /' >&2
     echo >&2 "${ME}: Type \"${ME} -help\" for usage information."
-    exit 1
-}
-
-function croak_nousage () {
-    # Display the error message.  If it's a multi-line error message, indent
-    # the second and subsequent lines by a few spaces.
-    echo "${ME}: $*" | sed -e '2,$s/^/     /' >&2
+    trap '' EXIT
     exit 1
 }
 
@@ -460,11 +472,13 @@ BOOTIMAGE_WRITER_DIR_STR="${ROOT_DIRECTORY_STR}/rvm/src/tools/bootImageWriter"
 
 # Check configuration options for sanity.
 function checkConfigurationOptions {
-    (( ! RVM_WITHOUT_INTERCEPT_BLOCKING_SYSTEM_CALLS )) \
-	&& (( RVM_WITH_NATIVE_DAEMON_PROCESSOR )) \
-	&& croak_nousage "\
+    if (( ! RVM_WITHOUT_INTERCEPT_BLOCKING_SYSTEM_CALLS )) \
+	&& (( RVM_WITH_NATIVE_DAEMON_PROCESSOR ))
+    then
+	croak_nousage "\
 If RVM_WITHOUT_INTERCEPT_BLOCKING_SYSTEM_CALLS is not specified,\
-then RVM_WITH_NATIVE_DAEMON_PROCESSOR must not be specified"
+then RVM_WITH_NATIVE_DAEMON_PROCESSOR must not be specified";
+    fi
 }
 
 # Emit list of source tree directories whose java files comprise the current configuration.
@@ -2234,7 +2248,11 @@ if [[ -e ${BUILD_DIRECTORY} ]]; then # old directory exists
       read response
       if [[ ${response} != y && ${response} != 'yes' ]]; then
          echo "${ME}: operation aborted, nothing written"
-         exit 0 # to keep make happy
+         trap '' EXIT
+	 ## Why on earth do we want to keep Make happy in this situation?
+	 ## Do we not want it to get upset?
+	 
+         exit 1 # to keep make happy
       fi
    fi
    ( cd ${BUILD_DIRECTORY} && rm -rf * )
@@ -2333,3 +2351,4 @@ if [[ ${quiet} != 1 ]]; then
     echo "${ME}:    rvm <vm-args> classname <application-args>"
   fi
 fi
+trap '' EXIT
