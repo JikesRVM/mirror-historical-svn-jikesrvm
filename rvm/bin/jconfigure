@@ -1137,7 +1137,7 @@ function emitController () {
 	$ROOT_DIRECTORY_STR/rvm/bin/jBuildClasspathJar --check
 	
 	if [[ \$CLEAN_FLAG = -clean ]]; then
-	    rm -rf \$TOOL_DIRECTORY_STR
+	    rm -rf $TOOL_DIRECTORY_STR
 	    timeit ./jbuild.expand      -clean
 	    timeit ./jbuild.copy        -clean
 	    timeit ./jbuild.compile     -clean
