@@ -46,6 +46,7 @@ public class VM_Allocator
 
   static final VM_Array intArrayType  = VM_ClassLoader.findOrCreateType(VM_Atom.findOrCreateAsciiAtom("[I")).asArray();
   static final VM_Array byteArrayType = VM_ClassLoader.findOrCreateType(VM_Atom.findOrCreateAsciiAtom("[B")).asArray();
+  private static final int byteArrayHeaderSize = VM_ObjectModel.computeArrayHeaderSize(byteArrayType);
   static Object[] byteArrayTIB;
 
 
@@ -1068,7 +1069,7 @@ public class VM_Allocator
       return theblock;
     }
     else {    // free the existing array space
-	free(VM_Magic.objectAsAddress(alloc_block.mark) - VM_ObjectModel.computeHeaderSize(byteArrayType));
+      free(VM_Magic.objectAsAddress(alloc_block.mark) - byteArrayHeaderSize);
     }
   }
   // get space for alloc arrays from AIX.
@@ -1175,7 +1176,7 @@ public class VM_Allocator
       return 0;
     }
     else {    // free the existing array space
-	free(VM_Magic.objectAsAddress(alloc_block.mark) - VM_ObjectModel.computeHeaderSize(byteArrayType));
+      free(VM_Magic.objectAsAddress(alloc_block.mark) - byteArrayHeaderSize);
     }
   }
 
@@ -3136,7 +3137,7 @@ public class VM_Allocator
 
 
       static int getByteArrayInstanceSize (int numelts) {
-	  int bytes = VM_ObjectModel.computeArrayHeaderSize(byteArrayType) + numelts;
+	  int bytes = byteArrayHeaderSize + numelts;
 	  int round = (bytes + (WORDSIZE - 1)) & ~(WORDSIZE - 1);
 	  return round;
       }
