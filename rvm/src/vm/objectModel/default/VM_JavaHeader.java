@@ -38,23 +38,24 @@ import instructionFormats.*;
  * @author Dave Grove
  * @author Derek Lieber
  */
-public final class VM_JavaHeader implements VM_Uninterruptible 
+public final class VM_JavaHeader implements VM_JavaHeaderConstants, 
+					    VM_Uninterruptible 
 					    //-#if RVM_WITH_OPT_COMPILER
 					    ,OPT_Operators
 					    //-#endif
-					    {
+{
 
-  private static final int OTHER_HEADER_BYTES = 
-    VM_MiscHeader.NUM_BYTES_HEADER + VM_AllocatorHeader.NUM_BYTES_HEADER;
-  private static final int SCALAR_HEADER_SIZE = OTHER_HEADER_BYTES + 8;
+  // TIB + STATUS + OTHER_HEADER_BYTES
+  private static final int SCALAR_HEADER_SIZE = 8 + VM_AllocatorHeader.NUM_BYTES_HEADER + VM_MiscHeader.NUM_BYTES_HEADER;
+  // SCALAR + ARRAY LENGTH;
   private static final int ARRAY_HEADER_SIZE = SCALAR_HEADER_SIZE + 4;
 
   // note that the pointer to a scalar actually points 4 bytes above the
   // scalar object.
   private static final int SCALAR_PADDING_BYTES = 4;
 
-  private static final int STATUS_OFFSET  = -8  - OTHER_HEADER_BYTES;
-  private static final int TIB_OFFSET     = -12 - OTHER_HEADER_BYTES;
+  private static final int STATUS_OFFSET  = -8;
+  private static final int TIB_OFFSET     = -12;
 
   private static final int AVAILABLE_BITS_OFFSET = VM.LITTLE_ENDIAN ? (STATUS_OFFSET) : (STATUS_OFFSET + 3);
   
@@ -66,9 +67,6 @@ public final class VM_JavaHeader implements VM_Uninterruptible
   public static final int NUM_THIN_LOCK_BITS = VM_Collector.MOVES_OBJECTS ? 20 : 24;
   /** How many bits to shift to get the thin lock? */
   public static final int THIN_LOCK_SHIFT    = VM_Collector.MOVES_OBJECTS ? 12 : 8;
-
-  /** How many bits in the header are available for the GC and MISC headers? */
-  public static final int NUM_AVAILABLE_BITS = VM_Collector.MOVES_OBJECTS ? 2 : 8;
 
   /**
    * How small is the minimum object header size? 
@@ -83,46 +81,13 @@ public final class VM_JavaHeader implements VM_Uninterruptible
   }
 
   /**
-   * Given a reference to an object of a given class, what is the offset in 
-   * bytes to the bottom word of
-   * the header?
-   */
-  public static int getHeaderEndOffset(VM_Class klass) {
-    return TIB_OFFSET;
-  }
-
-  /**
-   * Given a reference, what is the offset in bytes to the bottom word of
-   * the MISC header?
-   */
-  public static int getMiscHeaderEndOffset() {
-    return TIB_OFFSET + 8 + VM_AllocatorHeader.NUM_BYTES_HEADER;
-  }
-
-  /**
    * Given a reference, return an address which is guaranteed to be inside
    * the memory region allocated to the object.
    *
    * TODO: try to deprecate this?  Seems ugly.
    */
   public static ADDRESS getPointerInMemoryRegion(ADDRESS ref) {
-    return ref - 8;
-  }
-
-  /**
-   * Return the offset of the array length field from an object reference
-   * (in bytes)
-   */
-  public static int getArrayLengthOffset() {
-    return -4;
-  }
-
-  /**
-   * Return the offset to array element 0 from an object reference (in
-   * bytes)
-   */
-  public static int getArrayElementOffset() {
-    return 0;
+    return ref + TIB_OFFSET;
   }
 
   /**

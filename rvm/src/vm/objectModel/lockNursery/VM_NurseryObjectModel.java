@@ -7,66 +7,54 @@
  * a two-word header for scalar objects of classes with synchronized
  * methods.<p>
  *
- * If there are no "other header bytes",
- * an object of an "unsynchronized" class is layed out as:
+ * An object of an "unsynchronized" class is layed out as:
  *
  * <pre>
- * low memory                    high memory
- * field n |...| field 1 | field 0 | TIB word | phantom word |
- *                                                           ^
- *                                                           |
- *                                                    object reference
+ * low memory                                                                        high memory
+ * field n |...| field 1 | field 0 | MISC HEADER | GC HEADER | TIB word |             
+ *                                                                                  ^
+ *                                                                                  |
+ *                                                                           object reference
  * </pre>
  *
- * If there are no "other header bytes",
- * an object of an "synchronized" class is layed out as
+ * An object of an "synchronized" class is layed out as
  *
  * <pre>
- * low memory                                      high memory
- * field n |...| field 1 | field 0 | TIB word | status word |
- *                                                          ^
- *                                                          |
- *                                                  object reference
+ * low memory                                                                         high memory
+ * field n |...| field 1 | field 0 | MISC HEADER | GC HEADER | TIB word | status word |
+ *                                                                                    ^
+ *                                                                                    |
+ *                                                                             object reference
  * </pre>
  *
- * If there are no "other header bytes",
- * an array is layed out as
+ * An array is layed out as
  * <pre>
- * low memory                                        high memory
- * TIB word | length | element 0 | element 1 | .... | element n |
- *                   ^
- *                   |
- *            object reference
+ * low memory                                                                         high memory
+ * MISC HEADER | GC HEADER | TIB word | length | element 0 | element 1 | .... | element n |
+ *                                             ^
+ *                                             |
+ *                                       object reference
  *
  * The TIB word holds some identifier of the TIB, which may vary by object
- * model.
- * <p>
- *
- * TODO: this object model does not currently support GC or MISC header bytes.
- *  we need to fix VM_ObjectModel to support this correctly. <p>
+ * model. <p>
  *
  * The status word, if present, holds the thin lock.<p>
  * 
- * <p> Currently, in this object model, the hash code is the object's
- * address.  So this object model is only to be used for the markSweep
- * allocator.
- * 
- * <p> Locking occurs through a lock nursery.
+ * <p> Locking occurs through a lock nursery for unsynchronized classes.
  * 
  * @author David Bacon
  * @author Steve Fink
  * @author Dave Grove
  */
-public class VM_NurseryObjectModel implements VM_Uninterruptible, VM_Constants
+public class VM_NurseryObjectModel implements VM_Uninterruptible, 
+					      VM_JavaHeaderConstants,
+					      VM_Constants
 					    //-#if RVM_WITH_OPT_COMPILER
 					    ,OPT_Operators
 					    //-#endif
 {
 
-  private static final int OTHER_HEADER_BYTES = 
-    VM_MiscHeader.NUM_BYTES_HEADER + VM_AllocatorHeader.NUM_BYTES_HEADER;
-
-  private static final int ONE_WORD_HEADER_SIZE = 4;
+  private static final int ONE_WORD_HEADER_SIZE = 4 + VM_AllocatorHeader.NUM_BYTES_HEADER + VM_MiscHeader.NUM_BYTES_HEADER;
   private static final int THIN_LOCK_SIZE = 4;
   private static final int ARRAY_HEADER_SIZE = ONE_WORD_HEADER_SIZE + 4;
   
@@ -74,10 +62,11 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible, VM_Constants
   // scalar object.
   private static final int SCALAR_PADDING_BYTES = 4;
 
-  protected static final int TIB_OFFSET     = -8 - OTHER_HEADER_BYTES;
+  protected static final int TIB_OFFSET   = -8;
 
-  private static final int STATUS_OFFSET  = -4 - OTHER_HEADER_BYTES;
-  private static final int ARRAY_LENGTH_OFFSET  = -4 - OTHER_HEADER_BYTES;
+  private static final int STATUS_OFFSET  = -4;
+
+  private static final int AVAILABLE_BITS_OFFSET = VM.LITTLE_ENDIAN ? (TIB_OFFSET) : (TIB_OFFSET + 3);
 
   /** How many bits are allocated to a thin lock? */
   public static final int NUM_THIN_LOCK_BITS = 32;
@@ -85,19 +74,19 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible, VM_Constants
   public static final int THIN_LOCK_SHIFT    = 0;
 
   /**
+   * How many bits are used to encode the hash code state?
+   */
+  protected static final int HASH_STATE_BITS = VM_Collector.MOVES_OBJECTS ? 2 : 0;
+  protected static final int HASH_STATE_UNHASHED = 0;
+  protected static final int HASH_STATE_HASHED = 1 << NUM_AVAILABLE_BITS;
+  protected static final int HASH_STATE_HASHED_AND_MOVED = 3 << NUM_AVAILABLE_BITS;
+  protected static final int HASHCODE_OFFSET = 0;
+  
+  /**
    * How small is the minimum object header size? 
    * Used to pick chunk sizes for mark-sweep based collectors.
    */
-  public static final int MINIMUM_HEADER_SIZE = OTHER_HEADER_BYTES + 4;
-
-  /**
-   * Given a reference, what is the offset in bytes to the bottom word of
-   * the MISC header?
-   */
-  public static int getMiscHeaderEndOffset() {
-    VM.assert(NOT_REACHED);
-    return -1;
-  }
+  public static final int MINIMUM_HEADER_SIZE = ONE_WORD_HEADER_SIZE;
 
   /**
    * Given a reference to an object of a given class, what is the offset in 
@@ -119,7 +108,7 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible, VM_Constants
    * Non-atomic read of byte containing available bits
    */
   public static byte readAvailableBitsByte(Object o) {
-    return VM_Magic.getByteAtOffset(o, TIB_OFFSET);
+    return VM_Magic.getByteAtOffset(o, AVAILABLE_BITS_OFFSET);
   }
 
   /**
@@ -133,7 +122,7 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible, VM_Constants
    * Non-atomic write of byte containing available bits
    */
   public static void writeAvailableBitsByte(Object o, byte val) {
-    VM_Magic.setByteAtOffset(o, TIB_OFFSET, val);
+    VM_Magic.setByteAtOffset(o, AVAILABLE_BITS_OFFSET, val);
   }
 
   /**
@@ -187,22 +176,6 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible, VM_Constants
    */
   public static ADDRESS getPointerInMemoryRegion(ADDRESS ref) {
     return ref - 8;
-  }
-
-  /**
-   * Return the offset of the array length field from an object reference
-   * (in bytes)
-   */
-  public static int getArrayLengthOffset() {
-    return ARRAY_LENGTH_OFFSET;
-  }
-
-  /**
-   * Return the offset to array element 0 from an object reference (in
-   * bytes)
-   */
-  public static int getArrayElementOffset() {
-    return 0;
   }
 
   /**

@@ -33,15 +33,15 @@
  *
  * scalar-object layout:
  * +------+------+------+------+------------+----------+------------+- - - +
- * |fldN-1| fldx | fld1 | fld0 | JavaHeader | GCHeader | MiscHeader |      |
+ * |fldN-1| fldx | fld1 | fld0 | MiscHeader | GCHeader | JavaHeader |      |
  * +------+------+------+------+------------+----------+------------+- - - +
- *                             .                                    .      ^objref
+ *                             .                       ^ JHEND      .      ^objref
  *                             .  <----------- header ----------->  .      
  *  array-object layout:       .                                    .
  *                             +------------+----------+------------+------+------+------+------+------+
- *                             | JavaHeader | GCHeader | MiscHeader | len  | elt0 | elt1 | ...  |eltN-1|
+ *                             | MiscHeader | GCHeader | JavaHeader | len  | elt0 | elt1 | ...  |eltN-1|
  *                             +------------+----------+------------+------+------+------+------+------+
- *                                                                         ^objref
+ *                                                     ^ JHEND             ^objref
  * </pre>
  *
  * Assumptions: 
@@ -54,6 +54,8 @@
  *      The GCHeader should use buts 0..i, MiscHeader should use bits i..k.
  * <li> In a given configuration, the GCHeader and MiscHeader are a fixed number of words for 
  *      all objects.
+ * <li> JHEND is a constant for a given configuration (if the Java Header is variable size, it must grow
+ *      'away' from the object.
  * </ul>
  * 
  * This model allows efficient array access: the array pointer can be
@@ -76,12 +78,12 @@
  *         +------------+----------+------------+------+------+------+------+
  *         | JavaHeader | GCHeader | MiscHeader | fld0 | fld1 + .... | fldN |
  *         +------------+----------+------------+------+------+------+------+
- *                                              ^objref
+ *                      ^ JHEND                 ^objref
  * 
  *  +------+------------+----------+------------+------+------+------+------+
  *  | len  | JavaHeader | GCHeader | MiscHeader | elt0 | elt1 | ...  |eltN-1|
  *  +------+------------+----------+------------+------+------+------+------+
- *                                              ^objref
+ *                      ^ JHEND                 ^objref
  * </pre>
  * 
  * Note the key invariant that all elements of the header are 
@@ -94,22 +96,16 @@
  * @author Dave Grove
  * @author Derek Lieber
  */
-public final class VM_ObjectModel implements VM_Uninterruptible {
+public final class VM_ObjectModel implements VM_Uninterruptible, 
+					     VM_JavaHeaderConstants {
+
   /**
    * Given a reference to an object of a given class, 
    * what is the offset in bytes to the bottom word of
    * the header?
    */
   public static int getHeaderEndOffset(VM_Class klass) {
-    return VM_JavaHeader.getHeaderEndOffset(klass);
-  }
-
-  /**
-   * Given a reference, what is the offset in bytes to the bottom word of
-   * the MISC header?
-   */
-  public static int getMiscHeaderEndOffset() {
-    return VM_JavaHeader.getMiscHeaderEndOffset();
+    return JAVA_HEADER_END - VM_AllocatorHeader.NUM_BYTES_HEADER - VM_MiscHeader.NUM_BYTES_HEADER;
   }
 
   /**
@@ -127,15 +123,7 @@ public final class VM_ObjectModel implements VM_Uninterruptible {
    * (in bytes)
    */
   public static int getArrayLengthOffset() {
-    return VM_JavaHeader.getArrayLengthOffset();
-  }
-
-  /**
-   * Return the offset to array element 0 from an object reference (in
-   * bytes)
-   */
-  public static int getArrayElementOffset() {
-    return VM_JavaHeader.getArrayElementOffset();
+    return ARRAY_LENGTH_OFFSET;
   }
 
   /**

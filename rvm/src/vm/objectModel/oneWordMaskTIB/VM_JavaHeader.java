@@ -25,20 +25,16 @@ import instructionFormats.*;
  * @author Dave Grove
  */
 public final class VM_JavaHeader extends VM_NurseryObjectModel 
-                                            implements VM_Uninterruptible
-					    //-#if RVM_WITH_OPT_COMPILER
-					    ,OPT_Operators
-					    //-#endif
-					    {
+  implements VM_Uninterruptible
+	     //-#if RVM_WITH_OPT_COMPILER
+	     ,OPT_Operators
+	     //-#endif
+{
 
   /**
    * The number of low-order-bits of TIB that must be zero.
    */
-  private static final int LOG_TIB_ALIGNMENT = 2;
-  /** 
-   * How many bits in the header are available for the GC and MISC headers? 
-   * */
-  public static final int NUM_AVAILABLE_BITS = LOG_TIB_ALIGNMENT;
+  static final int LOG_TIB_ALIGNMENT = NUM_AVAILABLE_BITS;
 
   /**
    * The mask that defines the TIB value in the one-word header.
@@ -127,13 +123,6 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
   public static void initializeHeader(BootImageInterface bootImage, int ref, 
 				      Object[] tib, int size, boolean isScalar) {
     // (TIB set by BootImageWriter2)
-
-    // If Collector.MOVES_OBJECTS then we must preallocate hash code
-    // and set the barrier bit to avoid problems with non-atomic access
-    // to available bits byte corrupting hash code by write barrier sequence.
-    if (VM_Collector.MOVES_OBJECTS && VM_Collector.NEEDS_WRITE_BARRIER) {
-      VM.assert(NOT_REACHED);
-    }
   }
 
 

@@ -21,15 +21,14 @@ public final class VM_MiscHeader implements VM_Uninterruptible {
   // Support for GC Tracing; uses either 0 or 3 words of MISC HEADER
   ///////////////////////
 
+  private static final int MISC_HEADER_START = VM_JavaHeaderConstants.JAVA_HEADER_END - VM_AllocatorHeader.NUM_BYTES_HEADER;
+
   // offset from object ref to .oid field, in bytes
-  static final int OBJECT_OID_OFFSET       = (VM.CompileForGCTracing ?
-                                              VM_ObjectModel.getMiscHeaderEndOffset() : 0);
+  static final int OBJECT_OID_OFFSET       = (VM.CompileForGCTracing ? MISC_HEADER_START - 4 : 0);
   // offset from object ref to .link field, in bytes
-  static final int OBJECT_LINK_OFFSET      = (VM.CompileForGCTracing ?
-                                              VM_ObjectModel.getMiscHeaderEndOffset() + 4 : 0);
+  static final int OBJECT_LINK_OFFSET      = (VM.CompileForGCTracing ? MISC_HEADER_START - 8 : 0);
   // offset from object ref to OBJECT_DEATH field, in bytes
-  static final int OBJECT_DEATH_OFFSET	   = (VM.CompileForGCTracing ?
-                                              VM_ObjectModel.getMiscHeaderEndOffset() + 8 : 0);
+  static final int OBJECT_DEATH_OFFSET	   = (VM.CompileForGCTracing ? MISC_HEADER_START - 12 : 0);
   // amount by which tracing causes headers to grow
   static final int GC_TRACING_HEADER_BYTES = (VM.CompileForGCTracing ? 12 : 0);
 
@@ -37,7 +36,7 @@ public final class VM_MiscHeader implements VM_Uninterruptible {
   // Support for YYY (an example of how to add a word to all objects)
   /////////////////////////  
   // offset from object ref to yet-to-be-defined instrumentation word
-  // static final int YYY_DATA_OFFSET = (VM.YYY ? START_MISC_HEADER - CG_TRACING_HEADER_WORDS - 4 : 0)
+  // static final int YYY_DATA_OFFSET = (VM.YYY ? MISC_HEADER_START - GC_TRACING_HEADER_WORDS - 4 : 0)
   // static final int YYY_HEADER_BYTES = (VM.YYY ? 4 : 0)
 
   /**

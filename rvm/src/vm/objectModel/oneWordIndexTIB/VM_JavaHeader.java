@@ -25,35 +25,29 @@ import instructionFormats.*;
  * @author Dave Grove
  */
 public final class VM_JavaHeader extends VM_NurseryObjectModel 
-                                            implements VM_Uninterruptible,
-                                            VM_BaselineConstants
-					    //-#if RVM_WITH_OPT_COMPILER
-					    ,OPT_Operators
-					    //-#endif
-					    {
-  /**
-   * An upper bound on the JTOC size
-   */
-  private static final int LOG_JTOC_MAX_SIZE = 30;
-  /** 
-   * How many bits in the header are available for the GC and MISC headers? 
-   * */
-  public static final int NUM_AVAILABLE_BITS = 32 - LOG_JTOC_MAX_SIZE;
+  implements VM_Uninterruptible,
+	     VM_BaselineConstants
+	     //-#if RVM_WITH_OPT_COMPILER
+	     ,OPT_Operators
+	     //-#endif
+{
+  
 
   /**
-   * The mask that defines the TIB index in the one-word header.
+   * How many bits the TIB index is shifted in the header.
+   * NOTE: when this is equal to 2 then we have slightly more efficient access
+   * to the TIB, since the shifted TIB index is exactly the JTOC offset of the TIB.
    */
-  private static final int TIB_MASK = 0xffffffff << NUM_AVAILABLE_BITS;
-
+  private static final int TIB_SHIFT = NUM_AVAILABLE_BITS;
+  
   /**
-   * The mask that defines the available bits the one-word header.
-   */
-  private static final int BITS_MASK = ~TIB_MASK;
+   * Mask to extract the TIB index from the header word
+   */  
+  private static final int TIB_MASK = (0xffffffff) << TIB_SHIFT;
 
   static {
     if (VM.VerifyAssertions) {
       VM.assert(VM_MiscHeader.REQUESTED_BITS + VM_AllocatorHeader.REQUESTED_BITS <= NUM_AVAILABLE_BITS);
-      if (VM_Collector.MOVES_OBJECTS) VM.assert(NOT_REACHED);
     }
   }
 
@@ -63,7 +57,7 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
   public static Object[] getTIB(Object o) { 
     VM_Magic.pragmaInline();
     int tibWord = VM_Magic.getIntAtOffset(o,TIB_OFFSET) & TIB_MASK;
-    int tibIndex = tibWord >>> NUM_AVAILABLE_BITS;
+    int tibIndex = tibWord >>> TIB_SHIFT;
     return VM_Statics.getSlotContentsAsObjectArray(tibIndex);
   }
   
@@ -73,7 +67,7 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
   public static void setTIB(Object ref, Object[] tib) {
     VM_Magic.pragmaInline();
     int tibSlot = VM_Magic.objectAsType(tib[0]).getTibSlot();
-    int tibWord = (VM_Magic.getIntAtOffset(ref, TIB_OFFSET) & BITS_MASK) | (tibSlot << NUM_AVAILABLE_BITS);
+    int tibWord = (VM_Magic.getIntAtOffset(ref, TIB_OFFSET) & ~TIB_MASK) | (tibSlot << TIB_SHIFT);
     VM_Magic.setIntAtOffset(ref, TIB_OFFSET, tibWord);
 
   }
@@ -84,7 +78,7 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    */
   public static void setTIB(BootImageInterface bootImage, int refOffset, int tibAddr, VM_Type type) {
     int tibSlot = type.getTibSlot();
-    int tibWord = tibSlot << NUM_AVAILABLE_BITS;
+    int tibWord = tibSlot << TIB_SHIFT;
     bootImage.setAddressWord(refOffset + TIB_OFFSET, tibWord);
   }
 
@@ -104,7 +98,7 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    */
   public static ADDRESS getTIB(JDPServiceInterface jdpService, ADDRESS ptr) {
     int tibWord = jdpService.readMemory(ptr + TIB_OFFSET) & TIB_MASK;
-    int tibIndex = tibWord >>> NUM_AVAILABLE_BITS;
+    int tibIndex = tibWord >>> TIB_SHIFT;
     return jdpService.readJTOCSlot(tibIndex);
   }
 
@@ -130,13 +124,6 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
   public static void initializeHeader(BootImageInterface bootImage, int ref, 
 				      Object[] tib, int size, boolean isScalar) {
     // (TIB set by BootImageWriter2)
-
-    // If Collector.MOVES_OBJECTS then we must preallocate hash code
-    // and set the barrier bit to avoid problems with non-atomic access
-    // to available bits byte corrupting hash code by write barrier sequence.
-    if (VM_Collector.MOVES_OBJECTS && VM_Collector.NEEDS_WRITE_BARRIER) {
-      VM.assert(NOT_REACHED);
-    }
   }
 
 
@@ -151,23 +138,23 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
   //-#if RVM_FOR_POWERPC
   public static void baselineEmitLoadTIB(VM_Assembler asm, int dest, 
                                          int object) {
-    if (VM.VerifyAssertions) VM.assert(NUM_AVAILABLE_BITS == 2);
-    int ME = 31 - NUM_AVAILABLE_BITS;
+    if (VM.VerifyAssertions) VM.assert(TIB_SHIFT == 2);
+    int ME = 31 - TIB_SHIFT;
     asm.emitL(dest, TIB_OFFSET, object);
     // The following clears the low-order bits. See p.119 of PowerPC book
     asm.emitRLWINM(dest, dest, 0, 0, ME);
-    // NOTE: No shift required because NUM_AVAILABLE_BITS == 2. TODO: generalize.
+    // NOTE: No shift required because TIB_SHIFT == 2. TODO: generalize.
     // Load the result off the JTOC
     asm.emitLX(dest,JTOC,dest);
   }
   //-#elif RVM_FOR_IA32
   public static void baselineEmitLoadTIB(VM_Assembler asm, byte dest, 
                                          byte object) {
-    if (VM.VerifyAssertions) VM.assert(NUM_AVAILABLE_BITS == 2);
+    if (VM.VerifyAssertions) VM.assert(TIB_SHIFT == 2);
 
     asm.emitMOV_Reg_RegDisp(dest, object, TIB_OFFSET);
     asm.emitAND_Reg_Imm(dest,TIB_MASK);
-    // NOTE: No shift required because NUM_AVAILABLE_BITS == 2. TODO: generalize.
+    // NOTE: No shift required because TIB_SHIFT == 2. TODO: generalize.
     // Load the result off the JTOC
     asm.emitMOV_Reg_RegDisp(dest,JTOC,dest);
   }
@@ -208,12 +195,12 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
                                                                          VM_Type.IntType, headerWord, 
                                                                          new OPT_IntConstantOperand(TIB_MASK));
     // shift the tibIdx to a byte offset.
-    if (NUM_AVAILABLE_BITS > 2) {
+    if (TIB_SHIFT > 2) {
       tibOffset = OPT_ConvertToLowLevelIR.InsertBinary(s, ir, INT_USHR, VM_Type.IntType, tibOffset, 
-                                                       new OPT_IntConstantOperand(NUM_AVAILABLE_BITS - 2));
-    } else if (NUM_AVAILABLE_BITS < 2) {
+                                                       new OPT_IntConstantOperand(TIB_SHIFT- 2));
+    } else if (TIB_SHIFT < 2) {
       tibOffset = OPT_ConvertToLowLevelIR.InsertBinary(s, ir, INT_SHL, VM_Type.IntType, tibOffset, 
-                                                       new OPT_IntConstantOperand(2 - NUM_AVAILABLE_BITS));
+                                                       new OPT_IntConstantOperand(2 - TIB_SHIFT));
     }
 
     Load.mutate(s, INT_LOAD, result, ir.regpool.makeJTOCOp(ir,s), tibOffset, null);
