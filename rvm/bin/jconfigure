@@ -4,18 +4,14 @@
 #
 #$Id$
 #
-# XXX This code is still being debugged XXX
-# XXX Not Ready for prime time! -- Steve Augart XXX
-#
 # Generate control files necessary to build a particular "configuration"
 # of the Research Virtual Machine.
 #
-# Invocation:  jconfigure [-quiet] configuration-name
-#        or:   jconfigure [-quiet] configuration-name </dev/null (to suppress interactive questions)
+# See the usage message below for much more information than we could
+# possibly put in here.
 #
-# This script is organized into eight sections:
-#    0 - KSH Emulation
-#    0.5 - Setup
+# This script is organized into seven sections:
+#    0 - Setup
 #    1 - Documentation
 #    2 - Definitions of constants
 #    3 - Process RVM_TARGET_CONFIG
@@ -29,25 +25,20 @@
 # @date 17 May 2003
 
 # Where are we?
+# These expressions are bash internal shorthand that handles, respectively,
+#"dirname" and "basename":
 mydir="${0%/*}"
 ME="${0##*/}"
 
-echo >&2 ${ME}: "XXX This code is an Experimental port to Bash.  Builds fine,"
+echo >&2 ${ME}: "XXX This code is an experimental port to Bash.  Builds fine,"
 echo >&2 ${ME}: "XXX runs a simple test case just fine."
 echo >&2 ${ME}: "XXX We'll merge it in to the main sources as soon as it's"
 echo >&2 ${ME}: "XXX been beaten on a bit."
 echo >&2 ${ME}: "XXX  	--Steve Augart"
 echo >&2 ""
 
-#-----------------------------#
-# SECTION 0 - KSH Emulation   #
-#-----------------------------#
-
-
-. $mydir/ksh-print.bash
-
 #----------------------#
-# SECTION 0.5 - Setup  #
+# SECTION 0 - Setup  #
 #----------------------#
 
 
@@ -68,15 +59,17 @@ checkenv RVM_HOST_CONFIG
 ## What configuration will run the system?
 checkenv RVM_TARGET_CONFIG
 
-# If PAGER is not set, set it to "more".
-: ${PAGER=more}
-
 #---------------------------#
 # SECTION 1 - DOCUMENTATION #
 #---------------------------#
 
 function help_message () {
-   ${PAGER} <<- EOF
+
+  # If PAGER is not set, set it to "more".
+   ${PAGER=more} <<- EOF
+	Usage: ${ME} [-quiet] [-D <variable>=<value>]... <configuration-name>
+	Usage: ${ME} -help
+
 	This script generates control files necessary to build a particular
 	"configuration" of the Research Virtual Machine.
 	
@@ -89,6 +82,9 @@ function help_message () {
 	directory where files comprising the configuration are to be
 	placed.
 	
+	You can invoke this script as "${ME} < /dev/null" in order to
+	suppress interactive questions.
+
 	This script creates the \$RVM_BUILD directory and populates it with
 	a skeleton directory structure along with some scripts and control
 	files.
@@ -136,12 +132,6 @@ function help_message () {
 	EOF
 }
    
-if [[ $1 = -help ]]; then
-    help_message
-    exit 0;
-fi
-
-
 #--------------------------------------#
 # SECTION 2 - DEFINITIONS OF CONSTANTS #
 #--------------------------------------#
@@ -390,16 +380,27 @@ while ((1)); do
 done
 
 
-if [[ X"${CONFIGURATION_NAME}" = "X" ]]; then
-   echo >&2 "${ME}: please specify <configuration-name>"
-   exit 1
-fi
+function croak () {
+    # Display the error message.  If it's a multi-line error message, indent
+    # the second and subsequent lines by a few spaces.
+    echo "${ME}: $*" | sed -e '2,$s/^/     /' >&2
+    echo >&2 "${ME}: Type \"${ME} -help\" for usage information."
+    exit 1
+}
+
+function croak_nousage () {
+    # Display the error message.  If it's a multi-line error message, indent
+    # the second and subsequent lines by a few spaces.
+    echo "${ME}: $*" | sed -e '2,$s/^/     /' >&2
+    exit 1
+}
+
+[[ "${CONFIGURATION_NAME}" ]] || croak "Please specify <configuration-name>"
 
 if [[ -f "${CONFIGURATION_FILE_SOURCE}/${CONFIGURATION_NAME}" ]]; then
-   . "${CONFIGURATION_FILE_SOURCE}/${CONFIGURATION_NAME}" "${CONFIGURATION_FILE_SOURCE}"
+    . "${CONFIGURATION_FILE_SOURCE}/${CONFIGURATION_NAME}" "${CONFIGURATION_FILE_SOURCE}"
 else
-   echo >&2 "Unknown configuration ${CONFIGURATION_NAME}"
-   exit 1
+    croak "Unknown configuration ${CONFIGURATION_NAME}"
 fi
 
 # set the relative path to the object model.
@@ -459,12 +460,11 @@ BOOTIMAGE_WRITER_DIR_STR="${ROOT_DIRECTORY_STR}/rvm/src/tools/bootImageWriter"
 
 # Check configuration options for sanity.
 function checkConfigurationOptions {
-    if (( ! RVM_WITHOUT_INTERCEPT_BLOCKING_SYSTEM_CALLS )); then
-	if (( RVM_WITH_NATIVE_DAEMON_PROCESSOR )); then
-	    echo >&2 "If RVM_WITHOUT_INTERCEPT_BLOCKING_SYSTEM_CALLS is not specified, then RVM_WITH_NATIVE_DAEMON_PROCESSOR must not be specified"
-	    exit 1
-	fi
-    fi
+    (( ! RVM_WITHOUT_INTERCEPT_BLOCKING_SYSTEM_CALLS )) \
+	&& (( RVM_WITH_NATIVE_DAEMON_PROCESSOR )) \
+	&& croak_nousage "\
+If RVM_WITHOUT_INTERCEPT_BLOCKING_SYSTEM_CALLS is not specified,\
+then RVM_WITH_NATIVE_DAEMON_PROCESSOR must not be specified"
 }
 
 # Emit list of source tree directories whose java files comprise the current configuration.
@@ -906,7 +906,7 @@ function emitController () {
 	       NOLINK_FLAG=-nolink
 	       BOOTER_FLAG=-booter
 	    else
-	       echo >&2 "usage: $ME [-trace] [-demographics] [-clean] [-recompile] [-nolink] [-nobooter] [-booter]"
+	       echo >&2 "Usage: $ME [-trace] [-demographics] [-clean] [-recompile] [-nolink] [-nobooter] [-booter]"
 	       exit 1
 	    fi
 	    shift
@@ -1614,12 +1614,13 @@ EOF
      echo "   echo 'com/ibm/JikesRVM/HPM_info'           >> $PRIMORDIAL_CLASSES_STR.1"
      echo "   echo 'Lcom/ibm/JikesRVM/Java2HPM;'         >> $PRIMORDIAL_CLASSES_STR.1"
    fi
-
-   #
-   # (3) Now that we have a big file of root classes to include, process the exclusions,
-   #     find all the compiler-generated classes and convert to internal names.
-   # 
-#   echo "   \$FGREP -v -f $EXCLUDED_CLASSES_STR $PRIMORDIAL_CLASSES_STR.1 | \$FGREP -v '\$' | \$SED 's@^\./@@' | \$SED 's@\.class\$@@' | \$SED 's@^\(.*\)\$@\1\.class\\\\\n\1\$@' > $PRIMORDIAL_CLASSES_STR.2"
+   echo "\
+#
+# (3) Now that we have a big file of root classes to include, 
+#     process the exclusions,
+#     find all the compiler-generated classes,
+#     and convert to internal names."
+# Old version of below:
    echo "   \$FGREP -v -f $EXCLUDED_CLASSES_STR ${PRIMORDIAL_CLASSES_STR}.1 | \${SED} -e'/\\\$/d' -e 's@^\\./@@' -e 's@\.class\$@@' -e 's@^\\(.*\\)\$@\\1.class\\
 \\1\$@' > ${PRIMORDIAL_CLASSES_STR}.2"
    echo "   $HOST_JAR_STR tf rvmrt.jar > $PRIMORDIAL_CLASSES_STR.3"
@@ -1629,9 +1630,10 @@ EOF
    echo "   rm $PRIMORDIAL_CLASSES_STR.2"
    echo "   rm $PRIMORDIAL_CLASSES_STR.3"
 
-   # 
-   # (4) Add Array types.  NOTE: These must be in internal form.
-   #
+   echo "\
+# 
+# (4) Add Array types.  NOTE: These must be in internal form.
+#"
    echo "   echo '[Ljava/util/AbstractSet;'      >> $PRIMORDIAL_CLASSES_STR"
    echo "   echo '[Ljava/util/HashSet;'          >> $PRIMORDIAL_CLASSES_STR"
    echo "   echo '[Ljava/util/HashMap\$HashEntry;'  	    >> $PRIMORDIAL_CLASSES_STR"
@@ -1674,7 +1676,9 @@ EOF
    echo "   echo '[[I'                              >> $PRIMORDIAL_CLASSES_STR"
    echo "   echo '[[B'                              >> $PRIMORDIAL_CLASSES_STR"
    echo "   echo '[[[I'                             >> $PRIMORDIAL_CLASSES_STR"
-   # These next arrays are really arrays of primitves to Jikes RVM (even though Java doesn't think they are...)
+   echo "\
+# These next arrays are really arrays of primitves to Jikes RVM 
+#  (even though Java doesn't think they are...)"
    echo "   echo '[Lcom/ibm/JikesRVM/VM_Address;'   >> $PRIMORDIAL_CLASSES_STR"
    echo "   echo '[Lcom/ibm/JikesRVM/VM_Word;'      >> $PRIMORDIAL_CLASSES_STR"
    echo "   echo '[Lcom/ibm/JikesRVM/VM_Offset;'    >> $PRIMORDIAL_CLASSES_STR"
@@ -1688,9 +1692,9 @@ EOF
    echo "   echo '[Lcom/ibm/JikesRVM/VM_CompiledMethod;'             >> $PRIMORDIAL_CLASSES_STR"
    echo "   echo '[Lcom/ibm/JikesRVM/VM_DynamicLibrary;'             >> $PRIMORDIAL_CLASSES_STR"
 
-   echo "   echo '[Lcom/ibm/JikesRVM/classloader/VM_InterfaceMethodSignature;'   >> $PRIMORDIAL_CLASSES_STR" # for fast interface method invoker
+   echo "   echo '[Lcom/ibm/JikesRVM/classloader/VM_InterfaceMethodSignature;'   >> $PRIMORDIAL_CLASSES_STR # for fast interface method invoker"
 
-   echo "   echo '[Lcom/ibm/JikesRVM/VM_CommandLineArgs\$Prefix;' >> $PRIMORDIAL_CLASSES_STR" # for command line argument processing
+   echo "   echo '[Lcom/ibm/JikesRVM/VM_CommandLineArgs\$Prefix;' >> $PRIMORDIAL_CLASSES_STR # for command line argument processing"
 
    if (( RVM_WITH_OPT_COMPILER )); then
       echo "   echo '[[C'                       >> $PRIMORDIAL_CLASSES_STR"
@@ -1711,17 +1715,19 @@ EOF
       fi
    fi
 
-   # Add the configuration specific primordials
-   #
-   for primordial in `echo "$CONF_SPECIFIC_PRIMORDIALS_LIST"`; do
-     echo "   echo '$primordial'			>> $PRIMORDIAL_CLASSES_STR"
+   echo "\
+# Add the configuration specific primordials
+#"
+   for primordial in $CONF_SPECIFIC_PRIMORDIALS_LIST; do
+       echo "   echo '$primordial'			>> $PRIMORDIAL_CLASSES_STR"
    done
 
    echo '   echo -n "(primordials updated) "'
    echo 'fi'
 
-   # Create bootimage.
-   #
+   echo "\
+# Create bootimage.
+#"
    if (( RVM_FOR_POWERPC )); then
       ARCHITECTURE="PowerPC"
       INSTRUCTION_TYPE="int"
@@ -1841,11 +1847,10 @@ function emitBooterLinker () {
    # Allow the build directory to be different in the host/boot image
    # writing system, and on the target system.
    echo ""
-   echo 'ME=`basename $0`'
-   echo 'ROOT_DIR=`dirname $0`'
-   echo 'CURRENT_DIR=`pwd`'
+   echo 'ME="${0##*/}"'
+   echo 'ROOT_DIR="${0%/*}"'
    echo 'if [[ "$ROOT_DIR" = "." ]]; then'
-   echo '   ROOT_DIR=$CURRENT_DIR'
+   echo '   ROOT_DIR="$PWD"'
    echo 'fi'
    echo 'if [[ "$ROOT_DIR" != "$CURRENT_DIR" ]]; then'
    echo '   if [[ -f "$CURRENT_DIR"/"$ROOT_DIR"/"$ME" ]]; then'
@@ -1890,10 +1895,10 @@ function emitBooterLinker () {
    else
      CPS=$CLASSPATH_ROOT
    fi
-   echo 'SYSTEM_TYPE=`'$CPS'/classpath/config.guess`'
+   echo 'SYSTEM_TYPE=$('$CPS'/classpath/config.guess)'
    if (( RVM_FOR_AIX )); then
      echo 'for _library in' $CPS/'$SYSTEM_TYPE/native/jni/*/.libs/*.so.0; do'
-     echo '  cp $_library' $BUILD_DIRECTORY_STR'/`basename $_library so.0`a'
+     echo '  cp $_library' $BUILD_DIRECTORY_STR'/${_library##*/}.so.0a'
      echo 'done'
    else
      echo 'cp -f '$CPS'/$SYSTEM_TYPE/native/jni/*/.libs/*.so '$BUILD_DIRECTORY_STR
@@ -2224,7 +2229,7 @@ checkConfigurationOptions
 # Make a fresh start.
 #
 if [[ -e ${BUILD_DIRECTORY} ]]; then # old directory exists
-   if tty -s; then # keyboard is live (ie. this is not an automated build)
+   if [ -t 0 ]; then # keyboard is live (ie. this is not an automated build)
       echo -n "${ME}: ${BUILD_DIRECTORY} already exists, replace it? (y/n)"
       read response
       if [[ ${response} != y && ${response} != 'yes' ]]; then
@@ -2319,7 +2324,7 @@ chmod -x${PERM} ${BUILD_DIRECTORY}/security/JikesRVM.security
 echo "(control files and scripts installed) "
 
 if [[ ${quiet} != 1 ]]; then
-  if tty -s; then # keyboard is live (ie. this is not an automated build)
+  if [ -t 0 ]; then # keyboard is live (ie. this is not an automated build)
     echo "${ME}: ${CONFIGURATION_NAME} configuration is ready"
     echo "${ME}: To build it, type:"
     echo "${ME}:    cd ${BUILD_DIRECTORY}"
