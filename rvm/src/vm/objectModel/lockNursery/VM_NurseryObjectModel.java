@@ -265,13 +265,13 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
     if (VM_Collector.MOVES_OBJECTS) {
       int hashState = VM_Magic.getIntAtOffset(o, TIB_OFFSET) & HASH_STATE_MASK;
       if (hashState == HASH_STATE_HASHED) {
-	return VM_Magic.objectAsAddress(o) >> 2;
+	return VM_Magic.objectAsAddress(o) >>> 2;
       } else if (hashState == HASH_STATE_HASHED_AND_MOVED) {
 	VM_Type t = VM_Magic.getObjectType(o);
 	if (t.isArrayType()) {
-	  return VM_Magic.getIntAtOffset(o, HASHCODE_ARRAY_OFFSET);
+	  return VM_Magic.getIntAtOffset(o, HASHCODE_ARRAY_OFFSET) >>> 2;
 	} else {
-	  return VM_Magic.getIntAtOffset(o, HASHCODE_SCALAR_OFFSET);
+	  return VM_Magic.getIntAtOffset(o, HASHCODE_SCALAR_OFFSET) >>> 2;
 	}
       } else {
 	int tmp;
@@ -281,7 +281,7 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
 	return getObjectHashCode(o);
       }
     } else {
-      return VM_Magic.objectAsAddress(o) >> 2;
+      return VM_Magic.objectAsAddress(o) >>> 2;
     }
   }
 

@@ -45,8 +45,9 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
 					    //-#endif
 {
 
+  private static final int OTHER_HEADER_BYTES = VM_AllocatorHeader.NUM_BYTES_HEADER + VM_MiscHeader.NUM_BYTES_HEADER;
   // TIB + STATUS + OTHER_HEADER_BYTES
-  private static final int SCALAR_HEADER_SIZE = 8 + VM_AllocatorHeader.NUM_BYTES_HEADER + VM_MiscHeader.NUM_BYTES_HEADER;
+  private static final int SCALAR_HEADER_SIZE = 8 + OTHER_HEADER_BYTES;
   // SCALAR_HEADER + ARRAY LENGTH;
   private static final int ARRAY_HEADER_SIZE = SCALAR_HEADER_SIZE + 4;
 
@@ -58,15 +59,30 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
   private static final int TIB_OFFSET     = -12;
 
   private static final int AVAILABLE_BITS_OFFSET = VM.LITTLE_ENDIAN ? (STATUS_OFFSET) : (STATUS_OFFSET + 3);
-  
+
+  /*
+   * Stuff for 10 bit header hash code in header
+   */
   private static final int HASH_CODE_MASK  = 0x00000ffc;
   private static final int HASH_CODE_SHIFT = 2;
   private static int hashCodeGenerator; // seed for generating hash codes with copying collectors.
+
+  /*
+   * Stuff for address based hashing
+   */
+  private static final int HASH_STATE_UNHASHED         = 0x00000000;
+  private static final int HASH_STATE_HASHED           = 0x00000004;
+  private static final int HASH_STATE_HASHED_AND_MOVED = 0x0000000c;
+  private static final int HASH_STATE_MASK             = HASH_STATE_UNHASHED | HASH_STATE_HASHED | HASH_STATE_HASHED_AND_MOVED;
+  private static final int HASHCODE_SCALAR_OFFSET      = -4; // in "phantom word"
+  private static final int HASHCODE_ARRAY_OFFSET       = JAVA_HEADER_END - OTHER_HEADER_BYTES - 4; // to left of header
+  private static final int HASHCODE_BYTES              = 4;
+
   
   /** How many bits are allocated to a thin lock? */
-  public static final int NUM_THIN_LOCK_BITS = VM_Collector.MOVES_OBJECTS ? 20 : 24;
+  public static final int NUM_THIN_LOCK_BITS = ADDRESS_BASED_HASHING ? 24 : 20;
   /** How many bits to shift to get the thin lock? */
-  public static final int THIN_LOCK_SHIFT    = VM_Collector.MOVES_OBJECTS ? 12 : 8;
+  public static final int THIN_LOCK_SHIFT    = ADDRESS_BASED_HASHING ? 8 : 12;
 
   /**
    * How small is the minimum object header size? 
@@ -128,14 +144,28 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
    * how many bytes are needed when the scalar object is copied by GC?
    */
   public static int bytesRequiredWhenCopied(Object fromObj, VM_Class type) {
-    return type.getInstanceSize();
+    int size = type.getInstanceSize();
+    if (ADDRESS_BASED_HASHING) {
+      int hashState = VM_Magic.getIntAtOffset(fromObj, STATUS_OFFSET) & HASH_STATE_MASK;
+      if (hashState != HASH_STATE_UNHASHED) {
+	size += HASHCODE_BYTES;
+      }
+    }
+    return size;
   }
 
   /**
    * how many bytes are needed when the array object is copied by GC?
    */
   public static int bytesRequiredWhenCopied(Object fromObj, VM_Array type, int numElements) {
-    return (type.getInstanceSize(numElements) + 3) & ~3;
+    int size = (type.getInstanceSize(numElements) + 3) & ~3;
+    if (ADDRESS_BASED_HASHING) {
+      int hashState = VM_Magic.getIntAtOffset(fromObj, STATUS_OFFSET) & HASH_STATE_MASK;
+      if (hashState != HASH_STATE_UNHASHED) {
+	size += HASHCODE_BYTES;
+      }
+    }
+    return size;
   }
 
   /**
@@ -143,11 +173,36 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
    */
   public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, 
 				  VM_Class type, Object[] tib, int availBitsWord) {
-    int fromAddress = VM_Magic.objectAsAddress(fromObj) - numBytes - SCALAR_PADDING_BYTES;
-    VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes);
-    Object toObj = VM_Magic.addressAsObject(toAddress + numBytes + SCALAR_PADDING_BYTES);
-    VM_Magic.setIntAtOffset(toObj, STATUS_OFFSET, availBitsWord);
-    return toObj;
+    if (ADDRESS_BASED_HASHING) {
+      int hashState = availBitsWord & HASH_STATE_MASK;
+      if (hashState == HASH_STATE_UNHASHED) {
+	int fromAddress = VM_Magic.objectAsAddress(fromObj) - numBytes - SCALAR_PADDING_BYTES;
+	VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes); 
+	Object toObj = VM_Magic.addressAsObject(toAddress +  numBytes + SCALAR_PADDING_BYTES);
+	VM_Magic.setIntAtOffset(toObj, STATUS_OFFSET, availBitsWord);
+	return toObj;
+      } else if (hashState == HASH_STATE_HASHED) {
+	int data = numBytes - HASHCODE_BYTES;
+	int fromAddress = VM_Magic.objectAsAddress(fromObj) - data - SCALAR_PADDING_BYTES;
+	VM_Memory.aligned32Copy(toAddress, fromAddress, data); 
+	Object toObj = VM_Magic.addressAsObject(toAddress + data + SCALAR_PADDING_BYTES);
+	VM_Magic.setIntAtOffset(toObj, HASHCODE_SCALAR_OFFSET, VM_Magic.objectAsAddress(fromObj));
+	VM_Magic.setIntAtOffset(toObj, STATUS_OFFSET, availBitsWord | HASH_STATE_HASHED_AND_MOVED);
+	return toObj;
+      } else { // HASHED_AND_MOVED; 'phanton word' contains hash code.
+	int fromAddress = VM_Magic.objectAsAddress(fromObj) - numBytes + HASHCODE_BYTES - SCALAR_PADDING_BYTES;
+	VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes); 
+	Object toObj = VM_Magic.addressAsObject(toAddress + numBytes - HASHCODE_BYTES + SCALAR_PADDING_BYTES);
+	VM_Magic.setIntAtOffset(toObj, STATUS_OFFSET, availBitsWord);
+	return toObj;
+      }
+    } else {
+      int fromAddress = VM_Magic.objectAsAddress(fromObj) - numBytes - SCALAR_PADDING_BYTES;
+      VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes);
+      Object toObj = VM_Magic.addressAsObject(toAddress + numBytes + SCALAR_PADDING_BYTES);
+      VM_Magic.setIntAtOffset(toObj, STATUS_OFFSET, availBitsWord);
+      return toObj;
+    }
   }
 
   /**
@@ -155,11 +210,35 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
    */
   public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, 
 				  VM_Array type, Object[] tib, int availBitsWord) {
-    int fromAddress = VM_Magic.objectAsAddress(fromObj) - ARRAY_HEADER_SIZE;
-    VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes);
-    Object toObj = VM_Magic.addressAsObject(toAddress + ARRAY_HEADER_SIZE);
-    VM_Magic.setIntAtOffset(toObj, STATUS_OFFSET, availBitsWord);
-    return toObj;
+    if (ADDRESS_BASED_HASHING) {
+      int hashState = availBitsWord & HASH_STATE_MASK;
+      if (hashState == HASH_STATE_UNHASHED) {
+	int fromAddress = VM_Magic.objectAsAddress(fromObj) - ARRAY_HEADER_SIZE;
+	VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes); 
+	Object toObj = VM_Magic.addressAsObject(toAddress + ARRAY_HEADER_SIZE);
+	VM_Magic.setIntAtOffset(toObj, STATUS_OFFSET, availBitsWord);
+	return toObj;
+      } else if (hashState == HASH_STATE_HASHED) {
+	int fromAddress = VM_Magic.objectAsAddress(fromObj) - ARRAY_HEADER_SIZE;
+	VM_Memory.aligned32Copy(toAddress + HASHCODE_BYTES, fromAddress, numBytes - HASHCODE_BYTES); 
+	Object toObj = VM_Magic.addressAsObject(toAddress + ARRAY_HEADER_SIZE + HASHCODE_BYTES);
+	VM_Magic.setIntAtOffset(toObj, HASHCODE_ARRAY_OFFSET, VM_Magic.objectAsAddress(fromObj));
+	VM_Magic.setIntAtOffset(toObj, STATUS_OFFSET, availBitsWord | HASH_STATE_HASHED_AND_MOVED);
+	return toObj;
+      } else { // HASHED_AND_MOVED
+	int fromAddress = VM_Magic.objectAsAddress(fromObj) - ARRAY_HEADER_SIZE - HASHCODE_BYTES;
+	VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes); 
+	Object toObj = VM_Magic.addressAsObject(toAddress + ARRAY_HEADER_SIZE + HASHCODE_BYTES);
+	VM_Magic.setIntAtOffset(toObj, STATUS_OFFSET, availBitsWord);
+	return toObj;
+      }
+    } else {
+      int fromAddress = VM_Magic.objectAsAddress(fromObj) - ARRAY_HEADER_SIZE;
+      VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes);
+      Object toObj = VM_Magic.addressAsObject(toAddress + ARRAY_HEADER_SIZE);
+      VM_Magic.setIntAtOffset(toObj, STATUS_OFFSET, availBitsWord);
+      return toObj;
+    }
   }
 
   /**
@@ -176,18 +255,37 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
    * Get the hash code of an object.
    */
   public static int getObjectHashCode(Object o) { 
-    VM_Magic.pragmaInline();
-    if (VM_Collector.MOVES_OBJECTS) {
+    if (ADDRESS_BASED_HASHING) {
+      if (VM_Collector.MOVES_OBJECTS) {
+	int hashState = VM_Magic.getIntAtOffset(o, STATUS_OFFSET) & HASH_STATE_MASK;
+	if (hashState == HASH_STATE_HASHED) {
+	  return VM_Magic.objectAsAddress(o) >>> 2;
+	} else if (hashState == HASH_STATE_HASHED_AND_MOVED) {
+	  VM_Type t = VM_Magic.getObjectType(o);
+	  if (t.isArrayType()) {
+	    return VM_Magic.getIntAtOffset(o, HASHCODE_ARRAY_OFFSET) >>> 2;
+	  } else {
+	    return VM_Magic.getIntAtOffset(o, HASHCODE_SCALAR_OFFSET) >>> 2;
+	  }
+	} else {
+	  int tmp;
+	  do {
+	    tmp = VM_Magic.prepare(o, STATUS_OFFSET);
+	  } while (!VM_Magic.attempt(o, STATUS_OFFSET, tmp, tmp | HASH_STATE_HASHED));
+	  return getObjectHashCode(o);
+	}
+      } else {
+	return VM_Magic.objectAsAddress(o) >>> 2;
+      }
+    } else { // 10 bit hash code in status word
       int hashCode = (VM_Magic.getIntAtOffset(o, STATUS_OFFSET) & HASH_CODE_MASK) >> HASH_CODE_SHIFT;
       if (hashCode != 0) 
 	return hashCode; 
       return installHashCode(o);
-    } else {
-      return VM_Magic.objectAsAddress(o) >> 2;
     }
   }
   
-  /** Install a new hashcode (only used if Collector.MOVES_OBJECTS) */
+  /** Install a new hashcode (only used if !ADDRESS_BASED_HASHING) */
   private static int installHashCode(Object o) {
     VM_Magic.pragmaNoInline();
     if (VM_Collector.MOVES_OBJECTS) {

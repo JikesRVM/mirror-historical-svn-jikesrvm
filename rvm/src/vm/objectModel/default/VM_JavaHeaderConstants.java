@@ -18,7 +18,16 @@ public interface VM_JavaHeaderConstants {
 
   static final int ARRAY_LENGTH_OFFSET = -4;
 
+  /**
+   * This object model supports two schemes for hashcodes:
+   * (1) a 10 bit hash code in the object header
+   * (2) use the address of the object as its hashcode.
+   *     In a copying collector, this forces us to add a word
+   *     to copied objects that have had their hashcode taken.
+   */
+  static final boolean ADDRESS_BASED_HASHING = true;
+
   /** How many bits in the header are available for the GC and MISC headers? */
-  static final int NUM_AVAILABLE_BITS = VM_Collector.MOVES_OBJECTS ? 2 : 8;
+  static final int NUM_AVAILABLE_BITS = ADDRESS_BASED_HASHING ? 6 : 2;
 
 }
