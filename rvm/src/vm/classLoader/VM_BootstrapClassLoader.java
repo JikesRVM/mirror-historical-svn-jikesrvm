@@ -1,5 +1,5 @@
 /*
- * (C) Copyright IBM Corp 2001,2002
+ * (C) Copyright IBM Corp 2001,2002, 2004
  */
 //$Id$
 package com.ibm.JikesRVM.classloader;
@@ -54,8 +54,7 @@ public final class VM_BootstrapClassLoader extends java.lang.ClassLoader {
     return vmClassLoader;
   }
   
-
-  /**
+/**
    * Backdoor for use by VM_TypeReference.resolve when !VM.runningVM.
    * As of this writing, it is not used by any other classes. 
    * @throws NoClassDefFoundError
