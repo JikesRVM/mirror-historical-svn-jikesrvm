@@ -30,4 +30,10 @@ public interface VM_JavaHeaderConstants {
   /** How many bits in the header are available for the GC and MISC headers? */
   static final int NUM_AVAILABLE_BITS = ADDRESS_BASED_HASHING ? 6 : 2;
 
+  /**
+   * Does this object model use the same header word to contain
+   * the TIB and a forwarding pointer?
+   */
+  static final boolean FORWARDING_PTR_OVERLAYS_TIB = false;
+
 }
