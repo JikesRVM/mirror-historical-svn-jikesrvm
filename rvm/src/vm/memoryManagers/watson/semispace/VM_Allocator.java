@@ -80,6 +80,9 @@
 public class VM_Allocator
   implements VM_Constants, VM_GCConstants, VM_Uninterruptible, VM_Callbacks.ExitMonitor {
 
+  private static final VM_ImmortalHeap immortalHeap = new VM_ImmortalHeap();
+
+
   private static final boolean debugNative = false;   // temporary flag for debugging new threads pkg
 
   /**
@@ -146,7 +149,7 @@ public class VM_Allocator
   /**
    * Flag for counting bytes allocated and objects allocated
    */
-  static final boolean COUNT_ALLOCATIONS = false;
+  static final boolean COUNT_ALLOCATIONS = true;
 
   /** count times parallel GC threads attempt to mark the same object */
   private static final boolean COUNT_COLLISIONS = false;
@@ -201,7 +204,12 @@ public class VM_Allocator
     minBootRef = VM_ObjectModel.minimumObjectRef(bootrecord.startAddress);
     maxBootRef = VM_ObjectModel.maximumObjectRef(bootrecord.freeAddress);
      
-    smallHeapStartAddress = (bootrecord.freeAddress + 4095) & ~4095;  // start of heap, round to page
+    int immortalHeapSize = 1 * 1024 * 1024; // Start with a 1 MB TIB heap
+    immortalHeap.boot(bootrecord.freeAddress, immortalHeapSize);
+    int newFreeAddress = bootrecord.freeAddress + immortalHeapSize;
+
+    //smallHeapStartAddress = (bootrecord.freeAddress + 4095) & ~4095;  // start of heap, round to page
+    smallHeapStartAddress = (newFreeAddress + 4095) & ~4095;  // start of heap, round to page
     smallHeapEndAddress = bootrecord.endAddress & ~4095;       // end of heap, round down to page
     smallHeapSize = smallHeapEndAddress - smallHeapStartAddress;
     
@@ -1422,8 +1430,7 @@ public class VM_Allocator
   gc_markAndScanObject ( Object ref ) {
     int statusWord;
   
-    // ignore refs outside boot image...could print warning
-    if ( VM_Magic.objectAsAddress(ref) >= minBootRef && VM_Magic.objectAsAddress(ref) <= maxBootRef ) {
+    if (VM_GCUtil.referenceInBootImage(ref) || immortalHeap.contains(ref)) { // Object is in uncollected area, but we must mark
   
       if (!VM_AllocatorHeader.testAndMark(ref, BOOT_MARK_VALUE) )
 	return;   // object already marked with current mark value
@@ -1431,10 +1438,8 @@ public class VM_Allocator
       // if here we marked a previously unmarked object
       // add object ref to GC work queue
       VM_GCWorkQueue.putToWorkBuffer( VM_Magic.objectAsAddress(ref) );
-    }  // end of bootimage objects
-  
-    // following for large space objects
-    else if (VM_Magic.objectAsAddress(ref) >= minLargeRef) {
+    }  
+    else if (VM_Magic.objectAsAddress(ref) >= minLargeRef) { // Large space
       if (!gc_setMarkLarge(ref)) {
 	// we marked it, so put to workqueue
 	VM_GCWorkQueue.putToWorkBuffer( VM_Magic.objectAsAddress(ref) );
@@ -2019,6 +2024,12 @@ public class VM_Allocator
 
   static void
   printSummaryStatistics () {
+    if (true) {
+      VM.sysWriteln("Hash operations:    ", VM_NurseryObjectModel.hashRequests);
+      VM.sysWriteln("Unhashed -> Hashed: ", VM_NurseryObjectModel.hashTransition1);
+      VM.sysWriteln("Hashed   -> Moved:  ", VM_NurseryObjectModel.hashTransition2);
+    }
+
     int avgTime=0, avgBytes=0;
     int np = VM_Scheduler.numProcessors;
 
@@ -2152,7 +2163,6 @@ public class VM_Allocator
       VM.sysWrite(Long.toString(bytes));
       VM.sysWrite("\n");
     }
-
   }
 
   // DEBUGGING 
@@ -2396,6 +2406,23 @@ public class VM_Allocator
     }
   }
 
+    
+  static Object[] newTIB (int n) {
+      if (! VM.runningVM)
+	  return new Object[n];
+
+      VM_Array objectArray    = VM_Type.JavaLangObjectArrayType;
+      Object[] objectArrayTIB = objectArray.getTypeInformationBlock();
+      int      size           = VM_Type.JavaLangObjectArrayType.getInstanceSize(n);
+      int      storage        = immortalHeap.allocateRawMemory(size, 16, VM_JavaHeader.computeArrayHeaderSize(objectArray));
+      Object[] newtib         = (Object[]) VM_ObjectModel.initializeArray(storage, objectArrayTIB, n, size);
+
+      VM_AllocatorHeader.writeMarkBit(newtib, BOOT_MARK_VALUE);
+      VM.assert((VM_Magic.objectAsAddress(newtib) & 15) == 0);
+      return newtib;
+  }
+
+
   /**
    * Encapsulate debugging operations when storage is allocated.  Always inlined.
    * In production, all debug flags are false and this routine disappears.
@@ -2416,6 +2443,5 @@ public class VM_Allocator
           }
       }
   }
-
 
 }   // VM_Allocator

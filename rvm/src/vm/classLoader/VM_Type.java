@@ -293,7 +293,10 @@
   /**
    * supertype of all types
    */
-  public static VM_Type JavaLangObjectType;    
+  public static VM_Type JavaLangObjectType;
+
+  public static VM_Array JavaLangObjectArrayType;
+  
   public static VM_Type NativeBridgeType;
   /**
    * supertype of all exception types
@@ -567,6 +570,7 @@
     // create additional, frequently used, type descriptions
     //
     JavaLangObjectType    = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("Ljava/lang/Object;"));
+    JavaLangObjectArrayType = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("[Ljava/lang/Object;")).asArray();
     JavaLangThrowableType = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("Ljava/lang/Throwable;"));
     JavaLangStringType    = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("Ljava/lang/String;"));
     JavaLangCloneableType = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("Ljava/lang/Cloneable;"));

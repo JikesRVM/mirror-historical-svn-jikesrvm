@@ -13,7 +13,10 @@
  * @author Dave Grove
  */
 public final class VM_AllocatorHeader extends VM_CommonAllocatorHeader
-  implements VM_Uninterruptible {
+  implements VM_Uninterruptible 
+{
+  private static final VM_SideMarkVector markVector = new VM_SideMarkVector();	// Used when no GC bits are available in the object
+
 
   /**
    * How many bytes are used by all GC header fields?
@@ -21,9 +24,19 @@ public final class VM_AllocatorHeader extends VM_CommonAllocatorHeader
   static final int NUM_BYTES_HEADER = 0;
 
   /**
-   * How many available bits does the GC header want to use?
+   * How many available bits does the GC header want to use?  If enough bits are 
+   * available for the common case, use that.  Otherwise, use 0 bits and the
+   * markVector defined above will be used for mark bits in the boot image.
    */
-  static final int REQUESTED_BITS = COMMON_REQUESTED_BITS + 0;
+  static final int REQUESTED_BITS = VM_JavaHeaderConstants.NUM_AVAILABLE_BITS >= COMMON_REQUESTED_BITS ? COMMON_REQUESTED_BITS : 0;
+
+  /*
+   * Perform boot-time initialization: allocate the mark vector
+   */
+  static void boot(int bootBaseAddress, int bootHighAddress) {
+    if (VM_JavaHeader.NUM_AVAILABLE_BITS == 0)
+      markVector.boot(bootBaseAddress, bootHighAddress);
+  }
 
   /**
    * Perform any required initialization of the GC portion of the header.
@@ -59,4 +72,50 @@ public final class VM_AllocatorHeader extends VM_CommonAllocatorHeader
   public static void dumpHeader(Object ref) {
     // nothing to do (no bytes of GC header)
   }
+
+
+  /*
+   * Mark Bit
+   */
+
+  /**
+   * test to see if the mark bit has the given value
+   */
+  static boolean testMarkBit(Object ref, int value) {
+    if (VM_JavaHeader.NUM_AVAILABLE_BITS != 0)
+	return VM_CommonAllocatorHeader.testMarkBit(ref, value);
+    else
+	return markVector.testMarkBit(ref, value);
+  }
+
+  /**
+   * write the given value in the mark bit.
+   */
+  static void writeMarkBit(Object ref, int value) {
+    if (VM_JavaHeader.NUM_AVAILABLE_BITS != 0)
+	VM_CommonAllocatorHeader.writeMarkBit(ref, value);
+    else
+	markVector.writeMarkBit(ref, value);
+  }
+
+  /**
+   * atomically write the given value in the mark bit.
+   */
+  static void atomicWriteMarkBit(Object ref, int value) {
+    if (VM_JavaHeader.NUM_AVAILABLE_BITS != 0)
+	VM_CommonAllocatorHeader.atomicWriteMarkBit(ref, value);
+    else
+	markVector.atomicWriteMarkBit(ref, value);
+  }
+
+  /**
+   * used to mark boot image objects during a parallel scan of objects during GC
+   */
+  static boolean testAndMark(Object ref, int value) {
+    if (VM_JavaHeader.NUM_AVAILABLE_BITS != 0)
+	return VM_CommonAllocatorHeader.testAndMark(ref, value);
+    else
+	return markVector.testAndMark(ref, value);
+  }
+
 }

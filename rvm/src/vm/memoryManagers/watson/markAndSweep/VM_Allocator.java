@@ -481,6 +481,8 @@ public class VM_Allocator
 
   largeSpaceMark  = new short[bootrecord.largeSize/4096 + 1];
 
+  VM_AllocatorHeader.boot(bootStartAddress, bootEndAddress);
+
   VM_Callbacks.addExitMonitor(new VM_Allocator());
 
   }
@@ -2204,20 +2206,6 @@ public class VM_Allocator
   }    // gc_emptyWorkQueue
 
 
-  static  boolean
-  gc_markBootObject (int ref) {
-    //  ref should be for an object in BootImage !!!
-
-    //  test mark bit in lock word to see if already marked, if so done.
-    if (VM_AllocatorHeader.testMarkBit(VM_Magic.addressAsObject(ref), OBJECT_GC_MARK_VALUE))
-      return  true;       // object already marked, should be on queue
-
-    VM_AllocatorHeader.atomicWriteMarkBit(VM_Magic.addressAsObject(ref), OBJECT_GC_MARK_VALUE);
-
-    return  false;
-  }  //  gc_markBootObject
-
-
   //  To be able to be called from java/lang/runtime, or internally
   //
   public  static void
@@ -2639,59 +2627,6 @@ public class VM_Allocator
     VM.sysFail("gc_isLive: pointer not in a vaid heap region");
     return false;
   }
-
-  static  void
-  gc_markLive (int ref) {
-    int  tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
-
-    if (referenceInSmallHeap(ref)) {
-      //  check for live small object
-      int  blkndx, slotno, size, ij;
-      blkndx  = (tref - smallHeapStartAddress) >> LOG_GC_BLOCKSIZE ;
-      VM_BlockControl  this_block = 
-      VM_Magic.addressAsBlockControl(blocks[blkndx]);
-      int  offset   = tref - this_block.baseAddr;
-      int  slotndx  = offset/this_block.slotsize;
-      this_block.mark[slotndx]  = 1;
-      return;
-    }
-
-    if (VM_GCUtil.referenceInBootImage(ref)) {
-      //  test mark bit to see if already marked
-      VM_AllocatorHeader.writeMarkBit(VM_Magic.addressAsObject(ref), OBJECT_GC_MARK_VALUE);
-      return;    
-    }
-
-    if (referenceInLargeHeap(ref)) {
-      // set large object live
-      int  ij;
-      int  page_num = (tref - largeHeapStartAddress ) >> 12;
-
-      int  temp = largeSpaceAlloc[page_num];
-      if (temp == 1) {
-          largeSpaceMark[page_num]  = 1;
-      }
-      else  {
-        //  mark entries for both ends of the range of allocated pages
-        if (temp > 0) {
-          ij  = page_num + temp -1;
-          largeSpaceMark[ij]  = (short)-temp;
-        }
-        else  {
-          ij  = page_num + temp + 1;
-          largeSpaceMark[ij]  = (short)-temp;
-        }
-        largeSpaceMark[page_num]  = (short)temp;
-      }
-      return;
-    }
-
-    if (referenceInMallocedStorage(ref)) {
-	return;
-    }
-
-    VM.sysFail("gc_markLive: ref not in any valid heap region");
-} // gc_markLive
 
 
   static  boolean

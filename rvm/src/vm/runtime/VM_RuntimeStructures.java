@@ -99,4 +99,20 @@ class VM_RuntimeStructures implements VM_Constants {
 	
 	return new VM_DynamicLibrary[n];
     }
+
+
+    static Object[] newTIB (int n) {
+	VM_Magic.pragmaInline();
+
+	if (true) {
+	    //-#if RVM_WITH_COPYING_GC
+	    //-#if RVM_WITH_ONE_WORD_MASK_OBJECT_MODEL
+	    return VM_Allocator.newTIB(n);
+	    //-#endif
+	    //-#endif
+	}
+	
+	return new Object[n];
+    }
+
 }

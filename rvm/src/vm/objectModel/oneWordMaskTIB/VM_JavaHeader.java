@@ -34,7 +34,7 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
   /**
    * The number of low-order-bits of TIB that must be zero.
    */
-  static final int LOG_TIB_ALIGNMENT = NUM_AVAILABLE_BITS;
+  static final int LOG_TIB_ALIGNMENT = NUM_AVAILABLE_BITS + HASH_STATE_BITS; // COUNTERINTUITIVE - FIX LATER
 
   /**
    * The mask that defines the TIB value in the one-word header.
@@ -44,12 +44,12 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
   /**
    * The mask that defines the available bits the one-word header.
    */
-  private static final int BITS_MASK = ~TIB_MASK;
+  private static final int BITS_MASK = (~TIB_MASK) & (~HASH_STATE_MASK);
 
   static {
     if (VM.VerifyAssertions) {
       VM.assert(VM_MiscHeader.REQUESTED_BITS + VM_AllocatorHeader.REQUESTED_BITS <= NUM_AVAILABLE_BITS);
-      VM.assert(HASH_STATE_BITS == 0); // don't support copying collectors yet.
+      //VM.assert(HASH_STATE_BITS == 0); // don't support copying collectors yet.
     }
   }
 
@@ -58,7 +58,15 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    */
   public static Object[] getTIB(Object o) { 
     VM_Magic.pragmaInline();
-    int tibWord = VM_Magic.getIntAtOffset(o,TIB_OFFSET) & TIB_MASK;
+    int tibWord = VM_Magic.getIntAtOffset(o,TIB_OFFSET);
+    if (VM_Collector.MOVES_OBJECTS) {
+      int fmask = tibWord & VM_AllocatorHeader.GC_FORWARDING_MASK;
+      if (fmask != 0 && fmask == VM_AllocatorHeader.GC_FORWARDED) {
+	int forwardPtr = tibWord & ~VM_AllocatorHeader.GC_FORWARDING_MASK;
+	tibWord = VM_Magic.getIntAtOffset(VM_Magic.addressAsObject(forwardPtr), TIB_OFFSET);
+      }
+    }      
+    tibWord &= TIB_MASK;
     return VM_Magic.addressAsObjectArray(tibWord);
   }
   
@@ -84,11 +92,14 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
   }
 
   /**
-   * Process the TIB field during copyingGC.  NOT IMPLEMENTED, since
-   * copyingGC not currently supported.
+   * Process the TIB field during copyingGC.
    */
   public static void gcProcessTIB(int ref) {
-    VM.assert(NOT_REACHED);
+      int tibAddress = ref + TIB_OFFSET;
+      int tibWord    = VM_Magic.getMemoryWord(tibAddress);
+      int savedBits  = tibWord & ~TIB_MASK;
+      int tibNew     = VM_Allocator.processPtrValue(tibWord & TIB_MASK);
+      VM_Magic.setMemoryWord(tibAddress, tibNew | savedBits);
   }
 
   /**
@@ -98,7 +109,16 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    * @param address address of the object
    */
   public static ADDRESS getTIB(JDPServiceInterface jdpService, ADDRESS ptr) {
-    return jdpService.readMemory(ptr + TIB_OFFSET) & TIB_MASK;
+    int tibWord = jdpService.readMemory(ptr + TIB_OFFSET);
+    if (VM_Collector.MOVES_OBJECTS) {
+      int fmask = tibWord & VM_AllocatorHeader.GC_FORWARDING_MASK;
+      if (fmask != 0 && fmask == VM_AllocatorHeader.GC_FORWARDED) {
+	int forwardPtr = tibWord & ~VM_AllocatorHeader.GC_FORWARDING_MASK;
+	tibWord = jdpService.readMemory(forwardPtr + TIB_OFFSET);
+      }
+    }      
+    tibWord &= TIB_MASK;
+    return tibWord;
   }
 
   /**
@@ -113,13 +133,43 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
   public static void baselineEmitLoadTIB(VM_Assembler asm, int dest, 
                                          int object) {
     int ME = 31 - LOG_TIB_ALIGNMENT;
-    asm.emitL(dest, TIB_OFFSET, object);
-    // The following clears the low-order bits. See p.119 of PowerPC book
-    asm.emitRLWINM(dest, dest, 0, 0, ME);
+    if (VM_Collector.MOVES_OBJECTS && VM.writingBootImage) {
+      // The collector may have laid down a forwarding pointer 
+      // in place of the TIB word.  Check for this fringe case
+      // and handle it by following the forwarding pointer to
+      // find the TIB.
+      // We only have to build this extra check into the bootimage code
+      // since all code used by the collector should be in the bootimage.
+      // TODO: be more selective by marking a subset of the bootimage classes
+      //       with a special interface that indicates that this conditional redirect 
+      //       is required.
+      if (VM.VerifyAssertions) {
+	VM.assert(dest != 0);
+	VM.assert(VM_AllocatorHeader.GC_FORWARDING_MASK == 0x00000003);
+	VM.assert(VM_AllocatorHeader.GC_FORWARDED != VM_Collector.MARK_VALUE);
+      }
+      asm.emitL   (dest, TIB_OFFSET, object);
+      asm.emitANDI(0, dest, VM_AllocatorHeader.GC_FORWARDING_MASK);
+      asm.emitBEQ (5);  // if dest & FORWARDING_MASK == 0; then dest has a valid tib index
+      asm.emitCMPI(0, VM_AllocatorHeader.GC_FORWARDED);
+      // Two cases: (1) the pointer is forwarded or being forwarded
+      //            (2) the pointer is to a bootimage object that has been marked
+      asm.emitBNE (3); 
+      // It really has been forwarded; chase the forwarding pointer and get the tib word from there.
+      asm.emitRLWINM(dest, dest, 0, 0, 29);    // mask out bottom two bits of forwarding pointer
+      asm.emitL     (dest, TIB_OFFSET, dest); // get TIB word from forwarded object
+      // The following clears the high and low-order bits. See p.119 of PowerPC book
+      // Because TIB_SHIFT is 2 the masked value is a JTOC offset.
+      asm.emitRLWINM(dest, dest, 0, 0, ME);
+    } else {
+      asm.emitL(dest, TIB_OFFSET, object);
+      asm.emitRLWINM(dest, dest, 0, 0, ME);
+    }
   }
   //-#elif RVM_FOR_IA32
   public static void baselineEmitLoadTIB(VM_Assembler asm, byte dest, 
                                          byte object) {
+    VM.assert(false);
     asm.emitMOV_Reg_RegDisp(dest, object, TIB_OFFSET);
     asm.emitAND_Reg_Imm(dest,TIB_MASK);
   }

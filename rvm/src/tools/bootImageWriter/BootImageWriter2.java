@@ -441,7 +441,7 @@ public class BootImageWriter2 extends BootImageWriterMessages
       fail("can't copy jtoc: "+e);
     }
 
-    if ((jtocImageOffset + bootImageAddress) != bootRecord.tocRegister) 
+    if ((jtocImageOffset + bootImageAddress) != bootRecord.tocRegister)
       fail("mismatch in JTOC placement"+(jtocImageOffset + bootImageAddress)+","+bootRecord.tocRegister);
 
     //
