@@ -12,7 +12,7 @@
 
 import java.lang.reflect.*;
 
-class RemoteInterpreter extends InterpreterBase
+class RemoteInterpreter extends InterpreterBase implements JDPServiceInterface
 {
   static String jbiFileName = "~/jvmBuild/RVM.map";
 
@@ -767,7 +767,8 @@ class RemoteInterpreter extends InterpreterBase
     // System.out.println("X_getfield: constant pool index " + index + " of current class " + getCurrentClass() + ", for mapped object " + mappedObject);
 
     // (1) Compute pointer to the VM_Type, which should be VM_Class since we expect an object
-    int addr = JDPObjectModel.getTIBFromPlatform(mappedObject.getAddress());
+    int addr = VM_ObjectModel.getTIB(this,mappedObject.getAddress());
+    // int addr = JDPObjectModel.getTIBFromPlatform(mappedObject.getAddress());
     addr = Platform.readmem(addr);           
     // System.out.println("X_getfield: candidate object VM_Class @ " + Integer.toHexString(addr));
 
@@ -900,7 +901,8 @@ class RemoteInterpreter extends InterpreterBase
 
     // compute the address of the class object
     int addr = ((mapVM)ref).getAddress();
-    int typeAddress = JDPObjectModel.getTIBFromPlatform(addr);
+    int typeAddress = VM_ObjectModel.getTIB(this,addr);
+    // int typeAddress = JDPObjectModel.getTIBFromPlatform(addr);
     typeAddress = Platform.readmem(typeAddress);           
 
     // read the class name for the object from the JVM side
@@ -990,6 +992,14 @@ class RemoteInterpreter extends InterpreterBase
     }
   }
 
+  /**
+   * Return the contents of a memory location in the debuggee
+   *
+   * @param ptr the memory location
+   */
+  public int readMemory(ADDRESS ptr) {
+    return Platform.readmem(ptr);
+  }
 }
 
 

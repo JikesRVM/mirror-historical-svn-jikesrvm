@@ -152,6 +152,16 @@ public final class VM_JavaHeader implements VM_Uninterruptible,
   }
 
   /**
+   * Get a reference to the TIB for an object.
+   *
+   * @param jdpService
+   * @param address address of the object
+   */
+  public static ADDRESS getTIB(JDPServiceInterface jdpService, ADDRESS ptr) {
+    return jdpService.readMemory(ptr + TIB_OFFSET);
+  }
+
+  /**
    * Get the hash code of an object.
    */
   public static int getObjectHashCode(Object o) { 

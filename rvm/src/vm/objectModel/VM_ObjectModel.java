@@ -132,6 +132,16 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
   }
 
   /**
+   * Get a reference to the TIB for an object.
+   *
+   * @param jdpService
+   * @param address address of the object
+   */
+  public static ADDRESS getTIB(JDPServiceInterface jdpService, ADDRESS ptr) {
+    return VM_JavaHeader.getTIB(jdpService,ptr);
+  }
+
+  /**
    * Get the type of an object.  
    */
   public static VM_Type getObjectType(Object o) { 

@@ -50,7 +50,7 @@ import Platform;
 import java.util.*;
 import java.io.*;
 
-class mapVM {
+class mapVM implements JDPServiceInterface {
   // init flag
   static boolean initialized = false;
   static Class mapClass;
@@ -610,7 +610,8 @@ class mapVM {
    */
   public void handleAbstractClass() {
     // get the pointer to the real VM_Type on the JVM side
-    int typeAddress = JDPObjectModel.getTIBFromPlatform(address);
+    int typeAddress = VM_ObjectModel.getTIB(this,address);
+    // int typeAddress = JDPObjectModel.getTIBFromPlatform(address);
     typeAddress = Platform.readmem(typeAddress);           
 
     int descriptorAddress = Platform.readmem(typeAddress + VMTypeDescriptor_offset);
@@ -904,6 +905,15 @@ class mapVM {
    */
   public String toString() {
     return "mapVM " + type.getName() + " @ " + Integer.toHexString(address);
+  }
+
+  /**
+   * Return the contents of a memory location in the debuggee
+   *
+   * @param ptr the memory location
+   */
+  public int readMemory(ADDRESS ptr) {
+    return Platform.readmem(ptr);
   }
 
 }

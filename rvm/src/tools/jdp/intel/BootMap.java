@@ -13,7 +13,7 @@
 import java.util.*;
 import java.io.*;
  
-abstract class BootMap implements jdpConstants  {
+abstract class BootMap implements jdpConstants {
   /**
    * Pointer back to the process that owns this map
    */
@@ -1114,15 +1114,19 @@ abstract class BootMap implements jdpConstants  {
   }
 
   /**
+   * 
+   */
+
+  /**
    * Given an object address, lookup the type ID and get the class name
    * @param address an object address
    * @return the class name as string 
    * @exception if a memory is encountered while deferencing the type ID
    */
-
   public String addressToClassString(int address) throws memoryException {
     int stringAddr, size;
-    int typeAddr = owner.mem.readsafe(address + VM_ObjectLayoutConstants.OBJECT_TIB_OFFSET);
+    int typeAddr = VM_ObjectModel.getTIB(owner.mem,address); 
+    // int typeAddr = owner.mem.readsafe(address + VM_ObjectLayoutConstants.OBJECT_TIB_OFFSET);
     typeAddr = owner.mem.readsafe(typeAddr);           // this should point to the VM_Type
 
     try {
