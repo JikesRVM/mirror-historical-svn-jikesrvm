@@ -61,6 +61,9 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    * interior pointer.
    * @return The possibly moved reference.
    */
+  public static VM_Address traceObject(VM_Address obj, VM_Address objLoc) {
+    return traceObject(obj);
+  }
   public static VM_Address traceObject(VM_Address obj) {
     VM_Address addr = VM_Interface.refToAddress(obj);
     if (addr.LE(HEAP_END)) {

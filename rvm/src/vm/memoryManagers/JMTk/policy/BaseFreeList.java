@@ -252,6 +252,9 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
     if (VM.VerifyAssertions)
       VM._assert(sp.EQ(getSuperPage(cell, isSmall(sizeClass))));
     VM_Address next = getNextCell(cell);
+    if (next.EQ(VM_Address.fromInt(1))) {
+      VM.sysWrite(cell); VM.sysWrite(" "); VM.sysWrite(sp); VM.sysWrite(" "); VM.sysWrite(next); VM.sysWrite("\n"); 
+    }
     setSuperPageFreeList(sp, next);
     incInUse(sp);
     if (next.isZero()) {
@@ -635,6 +638,9 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
     throws VM_PragmaInline {
     if (VM.VerifyAssertions) {
       VM._assert(!isLarge(getSizeClass(sp)));
+      if (!(head.isZero() || sp.EQ(getSuperPage(head, isSmall(getSizeClass(sp)))))) {
+	VM.sysWrite(sp); VM.sysWrite(" "); VM.sysWrite(head); VM.sysWrite(" *\n");
+      }
       VM._assert(head.isZero() || sp.EQ(getSuperPage(head, isSmall(getSizeClass(sp)))));
     }
     VM_Magic.setMemoryAddress(sp.add(SP_FREELIST_OFFSET), head);

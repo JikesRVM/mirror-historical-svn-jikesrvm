@@ -197,6 +197,10 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
 				    endIndex);
   }
 
+  public static void arrayCopyRCWriteBarrier(VM_Address src, VM_Address tgt) 
+    throws VM_PragmaInline {
+    getPlan().arrayCopyRCWriteBarrier(src, tgt);
+  }
 
   public static void unresolvedPutfieldWriteBarrier(Object ref, int fieldID,
 						    Object value)
@@ -295,6 +299,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   //-#endif
 
   public static final boolean NEEDS_WRITE_BARRIER = Plan.needsWriteBarrier;
+  public static final boolean NEEDS_RC_WRITE_BARRIER = Plan.needsRCWriteBarrier;
   public static final boolean MOVES_OBJECTS = Plan.movesObjects;
   public static boolean useMemoryController = false;
 
@@ -368,7 +373,11 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   }
 
   public static void processPtrField (VM_Address location) throws VM_PragmaUninterruptible, VM_PragmaInline { 
-    Plan.traceObjectLocation(location);
+    VM.sysWriteln("processPtrField(LVM_Address;)V unimplmented");
+    if (VM.VerifyAssertions) VM._assert(false); // unimplemented
+  }
+  public static void processPtrField (VM_Address location, boolean root) throws VM_PragmaUninterruptible, VM_PragmaInline { 
+    Plan.traceObjectLocation(location, root);
   }
 
   public static boolean isLive(VM_Address obj) throws VM_PragmaInline {
@@ -640,6 +649,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
       forwardingPtr = Plan.resetGCBitsForCopy(fromObj, forwardingPtr,numBytes);
       VM_Address region = getPlan().allocCopy(fromObj, numBytes, true);
       Object toObj = VM_ObjectModel.moveObject(region, fromObj, numBytes, classType, forwardingPtr);
+      getPlan().postCopy(toObj, tib, numBytes, true);
       toRef = VM_Magic.objectAsAddress(toObj);
     } else {
       VM_Array arrayType = type.asArray();
@@ -648,6 +658,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
       forwardingPtr = Plan.resetGCBitsForCopy(fromObj, forwardingPtr,numBytes);
       VM_Address region = getPlan().allocCopy(fromObj, numBytes, false);
       Object toObj = VM_ObjectModel.moveObject(region, fromObj, numBytes, arrayType, forwardingPtr);
+      getPlan().postCopy(toObj, tib, numBytes, false);
       toRef = VM_Magic.objectAsAddress(toObj);
       if (arrayType == VM_Type.CodeType) {
 	// sync all moved code arrays to get icache and dcache in sync immediately.

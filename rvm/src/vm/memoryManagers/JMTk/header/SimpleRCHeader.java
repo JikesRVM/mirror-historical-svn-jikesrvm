@@ -22,23 +22,20 @@ import com.ibm.JikesRVM.VM_Memory;
  * @see VM_ObjectModel
  * 
  * @author <a href="http://cs.anu.edu.au/~Steve.Blackburn">Steve Blackburn</a>
- * @author Perry Cheng
  */
-public class MarkSweepHeader {
+public class SimpleRCHeader {
 
   /**
    * How many bytes are used by all GC header fields?
    */
-  public static final int NUM_BYTES_HEADER = 0;
+  public static final int NUM_BYTES_HEADER = 4;
+  private static final int RC_HEADER_OFFSET = VM_ObjectModel.JAVA_HEADER_END - NUM_BYTES_HEADER;
 
   /**
    * How many bits does this GC system require?
    */
   public static final int REQUESTED_BITS    = 2;
-  public static final int GC_BITS_MASK      = 0x3;
-
-  public static final int MARK_BIT_MASK     = 0x1;  // ...01
-  public static final int SMALL_OBJECT_MASK = 0x2;  // ...10
+  public static final int SMALL_OBJECT_MASK = 0x1;
 
   /**
    * Perform any required initialization of the GC portion of the header.
@@ -51,9 +48,16 @@ public class MarkSweepHeader {
   public static void initializeHeader(Object ref, Object[] tib, int size,
 				      boolean isScalar)
     throws VM_PragmaUninterruptible, VM_PragmaInline {
+    // all objects are birthed with an RC of 1
+    VM_Magic.setIntAtOffset(ref, RC_HEADER_OFFSET, 1);
     int oldValue = VM_ObjectModel.readAvailableBitsWord(ref);
-    int newValue = (oldValue & ~GC_BITS_MASK) | Plan.getInitialHeaderValue(size);
+    int newValue = (oldValue & ~SMALL_OBJECT_MASK) | Plan.getInitialHeaderValue(size);
     VM_ObjectModel.writeAvailableBitsWord(ref, newValue);
+  }
+
+  static public boolean isSmallObject(Object ref)
+    throws VM_PragmaUninterruptible, VM_PragmaInline {
+    return (VM_ObjectModel.readAvailableBitsWord(ref) & SMALL_OBJECT_MASK) == SMALL_OBJECT_MASK;
   }
 
   /**
@@ -87,66 +91,28 @@ public class MarkSweepHeader {
     // nothing to do (no bytes of GC header)
   }
 
-  /**
-   * Return true if the mark bit for an object has the given value.
-   *
-   * @param ref The object whose mark bit is to be tested
-   * @param value The value against which the mark bit will be tested
-   * @return True if the mark bit for the object has the given value.
-   */
-  static public boolean testMarkBit(Object ref, int value)
+  public static boolean isLiveRC(Object obj) 
     throws VM_PragmaUninterruptible, VM_PragmaInline {
-    return (VM_ObjectModel.readAvailableBitsWord(ref)& MARK_BIT_MASK) != value;
+    return VM_Magic.getIntAtOffset(obj, RC_HEADER_OFFSET) != 0;
   }
 
-  static public boolean isSmallObject(Object ref)
+  public static void incRC(Object object)
     throws VM_PragmaUninterruptible, VM_PragmaInline {
-    return (VM_ObjectModel.readAvailableBitsWord(ref) & SMALL_OBJECT_MASK) == SMALL_OBJECT_MASK;
+    changeRC(object, 1);
   }
 
-  /**
-   * Write a given value in the mark bit of an object
-   *
-   * @param ref The object whose mark bit is to be written
-   * @param value The value to which the mark bit will be set
-   */
-  public static void writeMarkBit(Object ref, int value)
+  public static boolean decRC(Object object)
     throws VM_PragmaUninterruptible, VM_PragmaInline {
-    int oldValue = VM_ObjectModel.readAvailableBitsWord(ref);
-    int newValue = (oldValue & ~MARK_BIT_MASK) | value;
-    VM_ObjectModel.writeAvailableBitsWord(ref, newValue);
+    return (changeRC(object, -1) == 0);
   }
 
-  /**
-   * Atomically write a given value in the mark bit of an object
-   *
-   * @param ref The object whose mark bit is to be written
-   * @param value The value to which the mark bit will be set
-   */
-  public static void atomicWriteMarkBit(Object ref, int value)
+  private static int changeRC(Object object, int delta)
     throws VM_PragmaUninterruptible, VM_PragmaInline {
     int oldValue, newValue;
     do {
-      oldValue = VM_ObjectModel.prepareAvailableBits(ref);
-      newValue = (oldValue & ~MARK_BIT_MASK) | value;
-    } while (!VM_ObjectModel.attemptAvailableBits(ref, oldValue, newValue));
-  }
-
-  /**
-   * Atomically attempt to set the mark bit of an object.  Return true
-   * if successful, false if the mark bit was already set.
-   *
-   * @param ref The object whose mark bit is to be written
-   * @param value The value to which the mark bit will be set
-   */
-  public static boolean testAndMark(Object ref, int value)
-    throws VM_PragmaUninterruptible, VM_PragmaInline {
-    int oldValue, markBit;
-    do {
-      oldValue = VM_ObjectModel.prepareAvailableBits(ref);
-      markBit = oldValue & MARK_BIT_MASK;
-      if (markBit == value) return false;
-    } while (!VM_ObjectModel.attemptAvailableBits(ref, oldValue, oldValue ^ MARK_BIT_MASK));
-    return true;
+      oldValue = VM_Magic.prepare(object, RC_HEADER_OFFSET);
+      newValue = oldValue + delta;
+    } while (!VM_Magic.attempt(object, RC_HEADER_OFFSET, oldValue, newValue));
+    return newValue;
   }
 }

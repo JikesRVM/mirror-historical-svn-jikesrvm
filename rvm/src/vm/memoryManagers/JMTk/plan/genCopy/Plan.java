@@ -44,6 +44,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
   public final static String Id = "$Id$"; 
 
   public static final boolean needsWriteBarrier = true;
+  public static final boolean needsRCWriteBarrier = false;
   public static final boolean movesObjects = true;
 
   ////////////////////////////////////////////////////////////////////////////
@@ -259,6 +260,9 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
    * interior pointer.
    * @return The possibly moved reference.
    */
+  public static VM_Address traceObject(VM_Address obj, VM_Address objLoc) {
+    return traceObject(obj);
+  }
   static public VM_Address traceObject(VM_Address obj) {
     VM_Address addr = VM_Interface.refToAddress(obj);
     if (addr.LE(HEAP_END)) {
@@ -390,7 +394,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
     }
   }
 
-  protected void allPrepare() {
+  protected void allPrepare(int id) {
     // rebind the semispace bump pointer to the appropriate semispace.
     remset.flushLocal();
     nursery.rebind(nurseryVM);
@@ -399,14 +403,15 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
       los.prepare(losVM, losMR);
     }
   }
-
+  protected final void doneComputingRoots() {
+  }
   /* We reset the state for a GC thread that is not participating in this GC
    */
   public void prepareNonParticipating() {
-    allPrepare();
+    //    allPrepare();
   }
 
-  protected void allRelease() {
+  protected void allRelease(int id) {
     if (fullHeapGC) {
        losCollector.release(los);
     }

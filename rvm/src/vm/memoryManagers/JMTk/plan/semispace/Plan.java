@@ -34,6 +34,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   public final static String Id = "$Id$"; 
 
   public static final boolean needsWriteBarrier = false;
+  public static final boolean needsRCWriteBarrier = false;
   public static final boolean movesObjects = true;
 
   ////////////////////////////////////////////////////////////////////////////
@@ -111,6 +112,10 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
       case      LOS_ALLOCATOR: Header.initializeMarkSweepHeader(ref, tib, size, isScalar); return;
       default:                 VM.sysFail("No such allocator");
     }
+  }
+
+  public final void postCopy(Object ref, Object[] tib, int size,
+			     boolean isScalar) {
   }
 
   public void show() {
@@ -242,7 +247,10 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    * interior pointer.
    * @return The possibly moved reference.
    */
-  static public VM_Address traceObject(VM_Address obj) {
+  static public VM_Address traceObject(VM_Address obj, boolean root) {
+    return traceObject(obj);  // root or non-root is of no consequence here
+  }
+  public static VM_Address traceObject(VM_Address obj) {
     VM_Address addr = VM_Interface.refToAddress(obj);
     if (addr.LE(HEAP_END)) {
       if (addr.GE(SS_START)) {
@@ -365,7 +373,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
     Immortal.prepare(immortalVM, null);
   }
 
-  protected void allPrepare() {
+  protected void allPrepare(int id) {
     // rebind the semispace bump pointer to the appropriate semispace.
     ss.rebind(((hi) ? ss1VM : ss0VM)); 
     los.prepare(losVM, losMR);
@@ -374,10 +382,10 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   /* We reset the state for a GC thread that is not participating in this GC
    */
   public void prepareNonParticipating() {
-    allPrepare();
+    allPrepare(0);
   }
 
-  protected void allRelease() {
+  protected void allRelease(int id) {
     losCollector.release(los);
   }
 
