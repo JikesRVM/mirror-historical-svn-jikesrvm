@@ -48,7 +48,7 @@ ARGS="$ARGS -Djava.home=$RVM_ROOT"
 ARGS="$ARGS -Dgnu.classpath.home.url=file:${RVM_BUILD}"
 ARGS="$ARGS -Dgnu.classpath.vm.shortname=JikesRVM"
 
-ARGS="$ARGS -Duser.home=$HOME -Duser.dir=`pwd` -Dos.name=`uname -s` -Dos.version=`uname -r` -Dos.arch=`uname -m`"
+ARGS="$ARGS -Duser.home=$HOME -Duser.dir=${PWD} -Dos.name=$(uname -s) -Dos.version=$(uname -r) -Dos.arch=$(uname -m)"
 
 # Now execute the VM
 echo set args $ARGS "$@" > $RVM_BUILD/gdb.commandlineArgs
