@@ -1872,6 +1872,7 @@ public class VM_Allocator
       }
     }
 
+    VM_ObjectModel.initializeAvailableByte(toObj); // make it safe for write barrier to access barrier bit non-atmoically
     VM_Magic.sync(); // make changes viewable to other processors 
     
     VM_AllocatorHeader.setForwardingPointer(fromObj, toObj);
