@@ -19,17 +19,67 @@ ME="${0##*/}"
 ## If the environment variable <envar> is unset, then tell the user it
 ## should be set, suggest an example value (if <example> is set), and
 ## exit fatally.
-function checkenv () {
-    local var="$1";
-    local example="$2";
 
-    if [ ! "${!var}" ]; then
-	echo -n "$ME: Please set your ${var} environment variable"
+# The variable "mydir" should be set by the program loading this library.
+[ "$mydir" ] || mydir="${0%/*}"
+
+function checkenv () {
+    local envar="$1";
+    shift;
+
+    ## Now set up an example error.  So that we can complain.
+    ## In another language I would do this in a lazy fashion (only 
+    ## set up the example error if we need it), but this isn't 
+    ## another language. 
+    local example;
+    if (( $# >= 1 )); then
+	example="$*";		# handle accidentally missing quoting..
+    else
+	local home="${HOME=/home/${USER-${LOGNAME-'me'}}}";
+	
+	case "${!envar}" in
+	    HOME ) 
+		example="$home";
+		;;
+
+	    ## Place where source files reside.
+	    RVM_ROOT ) 
+		# A heuristic for guessing RVM_ROOT: Assume the program was
+		# run from $RVM_ROOT/rvm/bin.  
+		example="${mydir%/rvm/bin}"
+		if [ "$example" = "$mydir" ]; then
+		    example="$home/rvmRoot";
+		fi
+		;;
+
+	    ## Place where RVM bootimage, booter, and runtime 
+	    ## support files will be placed. 
+	    RVM_BUILD ) example="$home/rvmBuild";
+		;;
+
+            ## What configuration will run the system?
+	    RVM_HOST_CONFIG )
+		checkenv RVM_ROOT
+		example = "$RVM_ROOT/rvm/config/i686-pc-linux or $RVM_ROOT/rvm/config/powerpc-ibm-aix4.3.3.0"
+		;;
+
+ 	    ## What configuration will run the system?
+	    RVM_TARGET_CONFIG )
+		chekenv RVM_HOST_CONFIG;
+		example="RVM_HOST_CONFIG" ;;
+	    
+	esac
+    fi
+
+    ## Now perform the testing.
+    if [ ! "${!envar}" ]; then
+	echo -n "$ME: Please set your ${envar} environment variable"
 	if [ "$example" ]; then
 	    echo "";
 	    echo -n "  (for example, to \"${example}\")"
 	fi
-	echo "."		# Period for grammar.
+	echo "."		# Supply a sentence-ending period.  
+				# (English typography.)
 	exit 1
     fi >&2
 }
