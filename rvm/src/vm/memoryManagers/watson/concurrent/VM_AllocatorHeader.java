@@ -16,19 +16,9 @@ public final class VM_AllocatorHeader extends VM_CommonAllocatorHeader
   implements VM_Uninterruptible {
 
   /**
-   * How many bytes are used by all GC header fields?
-   */
-  static final int NUM_BYTES_HEADER = 4;
-
-  /**
-   * How many available bits does the GC header want to use?
-   */
-  static final int REQUESTED_BITS = COMMON_REQUESTED_BITS + 0;
-
-  /**
    * Offset of the reference count in the object header
    */
-  static final int REFCOUNT_OFFSET  = OBJECT_HEADER_END - VM_MiscHeader.NUM_BYTES_HEADER - 4;
+  static final int REFCOUNT_OFFSET  = VM_JavaHeaderConstants.JAVA_HEADER_END - 4;
   
   /**
    * Perform any required initialization of the GC portion of the header.
@@ -39,10 +29,20 @@ public final class VM_AllocatorHeader extends VM_CommonAllocatorHeader
    * @param isScalar are we initializing a scalar (true) or array (false) object?
    */
   public static void initializeHeader(Object ref, Object[] tib, int size, boolean isScalar) {
-    // set mark bit in status word, if initial (unmarked) value is not 0      
-    if (VM_Allocator.MARK_VALUE==0) writeMarkBit(ref, GC_MARK_BIT_MASK);
-    
+    // Initialize reference count and enqueue mutation buffer operations
+    VM_Processor proc = VM_Processor.getCurrentProcessor();
+    VM_Magic.setIntAtOffset(ref, REFCOUNT_OFFSET, 1);
+    VM_RCBuffers.addTibIncAndObjectDec(VM_Magic.objectAsAddress(tib), 
+				       VM_Magic.objectAsAddress(ref), 
+				       proc);
 
+    // Mark acyclic objects green; others are black (0) by default [Note: change green to default?]
+    if (VM_Magic.objectAsType(tib[VM_TIBLayoutConstants.TIB_TYPE_INDEX]).acyclic) { 
+      VM_RCGC.setColor(VM_Magic.objectAsAddress(ref), VM_RCGC.GREEN);
+      if (VM_Allocator.RC_COUNT_EVENTS) VM_Allocator.green++;
+    } else {
+      if (VM_Allocator.RC_COUNT_EVENTS) VM_Allocator.black++;
+    }
   }
 
   /**
