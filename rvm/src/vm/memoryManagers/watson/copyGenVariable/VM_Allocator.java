@@ -849,14 +849,6 @@ public class VM_Allocator
   //
   static final int MARK_VALUE = 1;        // DO NOT CHANGE !!
   
-  // following is bit pattern written into status word during forwarding
-  // right bit should indicate "marked" next bit indicates "busy"
-  // if (MARK_VALUE==0) use -2 which has low-order 2 bits (10)
-  // if (MARK_VALUE==1) use -5 which has low-order 2 bits (11)
-  // ...could use -1, but that is too common, -5 will be more recognizable  
-  // following produces -2 or -5
-  static final int BEING_FORWARDED_PATTERN = -2 - (3*MARK_VALUE);
-  
   private static int BOOT_MARK_VALUE = 0;   // to mark bootimage objects during major GCs
   
   // ------- End of Statics --------
@@ -1861,33 +1853,25 @@ public class VM_Allocator
     // We are the GC thread that must copy the object, so do it.
     Object[] tib = VM_ObjectModel.getTIB(fromObj);
     VM_Type type = VM_Magic.objectAsType(tib[TIB_TYPE_INDEX]);
+    forwardingPtr |= VM_AllocatorHeader.GC_BARRIER_BIT_MASK;     // set barrier bit 
     if (VM.VerifyAssertions) VM.assert(validRef(type));
     if (type.isClassType()) {
       VM_Class classType = type.asClass();
-      int size = classType.getInstanceSize();
-      int toAddress = gc_getMatureSpace(size);
-      int fromAddress = VM_ObjectModel.scalarRefToBaseAddress(fromObj, classType);
-      VM_Memory.aligned32Copy(toAddress, fromAddress, size);
-      toObj = VM_ObjectModel.baseAddressToScalarRef(toAddress, tib, size);
+      int numBytes = VM_ObjectModel.bytesRequiredWhenCopied(fromObj, classType);
+      int toAddress = gc_getMatureSpace(numBytes);
+      toObj = VM_ObjectModel.moveObject(toAddress, fromObj, numBytes, classType, tib, forwardingPtr);
     } else {
       VM_Array arrayType = type.asArray();
       int numElements = VM_Magic.getArrayLength(fromObj);
-      int size = (arrayType.getInstanceSize(numElements) + 3) & ~3;
-      int toAddress   = gc_getMatureSpace(size);
-      int fromAddress = VM_ObjectModel.arrayRefToBaseAddress(fromObj, arrayType);
-      VM_Memory.aligned32Copy(toAddress, fromAddress, size);
+      int numBytes = VM_ObjectModel.bytesRequiredWhenCopied(fromObj, arrayType, numElements);
+      int toAddress = gc_getMatureSpace(numBytes);
+      toObj = VM_ObjectModel.moveObject(toAddress, fromObj, numBytes, arrayType, tib, forwardingPtr);
       if (arrayType == arrayOfIntType) {
 	// sync all arrays of ints - must sync moved code instead of sync'ing chunks when full
-	VM_Memory.sync(toAddress, size);
+	VM_Memory.sync(toAddress, numBytes);
       }
-      toObj = VM_ObjectModel.baseAddressToArrayRef(toAddress, tib, size);
     }
 
-    // restore original bit pattern of available bits word in copied object
-    // set the barrier bit if write barrier
-    VM_ObjectModel.writeAvailableBitsWord(toObj, forwardingPtr | VM_AllocatorHeader.GC_BARRIER_BIT_MASK);
-    VM_ObjectModel.initializeAvailableByte(toObj); // make it safe for write barrier to access barrier bit non-atmoically
-    
     VM_Magic.sync(); // make changes viewable to other processors 
     
     VM_AllocatorHeader.setForwardingPointer(fromObj, toObj);
