@@ -134,7 +134,7 @@ public class VM_TypeReference implements VM_SizeConstants {
   // to load a file named VM_Code.class.
 
   //   private static final ClassLoader bootstrapCL
-  //     = VM_BootstrapClassLoader.getVMClassLoader();
+  //     = VM_SystemClassLoader.getVMClassLoader();
 
   //   private static final ClassLoader alternateRealityCL 
   //     = AlternateRealityClassLoader.getAlternateRealityClassLoader();
@@ -160,7 +160,7 @@ public class VM_TypeReference implements VM_SizeConstants {
        * that here so we don't have to worry about it anywhere else in the VM.
        * 
        * */
-    ClassLoader bootstrapCL = VM_BootstrapClassLoader.getVMClassLoader();
+    ClassLoader bootstrapCL = VM_SystemClassLoader.getVMClassLoader();
     ClassLoader alternateRealityCL 
       = VM_ClassLoader.getAlternateRealityClassLoader();
 
@@ -210,7 +210,7 @@ public class VM_TypeReference implements VM_SizeConstants {
    * be created using the bootstrap classloader.
    */
   public static VM_TypeReference findOrCreate(String tn) {
-    return findOrCreate(VM_BootstrapClassLoader.getVMClassLoader(),
+    return findOrCreate(VM_SystemClassLoader.getVMClassLoader(),
                         VM_Atom.findOrCreateAsciiAtom(tn));
   }
 
@@ -554,7 +554,7 @@ public class VM_TypeReference implements VM_SizeConstants {
         // Use a special purpose backdoor to avoid creating java.lang.Class
         // objects when not running the VM (we get host JDK Class objects
         // and that just doesn't work).
-        ans = ((VM_BootstrapClassLoader)classloader).loadVMClass(name.classNameFromDescriptor());
+        ans = ((VM_SystemClassLoader)classloader).loadVMClass(name.classNameFromDescriptor());
       }
       if (VM.VerifyAssertions) 
         VM._assert(resolvedType == null || resolvedType == ans);
