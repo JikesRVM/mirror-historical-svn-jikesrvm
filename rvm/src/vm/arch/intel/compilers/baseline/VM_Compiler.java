@@ -2069,8 +2069,8 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
 	  emitDynamicLinkingSequence(T0, methodRef);
 	  int methodRefparameterWords = methodRef.getParameterWords() + 1; // +1 for "this" parameter
 	  int objectOffset = (methodRefparameterWords << 2) - 4;           // object offset into stack
-	  asm.emitMOV_Reg_RegDisp (S0, SP, objectOffset);                  // S0 has "this" parameter
-          VM_ObjectModel.baselineEmitLoadTIB(asm,S0,S0);
+	  asm.emitMOV_Reg_RegDisp (T1, SP, objectOffset);                  // S0 has "this" parameter
+          VM_ObjectModel.baselineEmitLoadTIB(asm,S0,T1);
 	  asm.emitMOV_Reg_RegIdx (S0, S0, T0, asm.BYTE, 0);                // S0 has address of virtual method
 	  genParameterRegisterLoad(methodRef, true);
 	  asm.emitCALL_Reg(S0);                                      // call virtual method
@@ -2080,8 +2080,8 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
 	  int methodRefparameterWords = methodRef.getParameterWords() + 1; // +1 for "this" parameter
 	  int methodRefOffset = methodRef.getOffset();
 	  int objectOffset = (methodRefparameterWords << 2) - WORDSIZE; // object offset into stack
-	  asm.emitMOV_Reg_RegDisp (S0, SP, objectOffset);
-          VM_ObjectModel.baselineEmitLoadTIB(asm,S0,S0);
+	  asm.emitMOV_Reg_RegDisp (T1, SP, objectOffset);
+          VM_ObjectModel.baselineEmitLoadTIB(asm,S0,T1);
 	  genParameterRegisterLoad(methodRef, true);
 	  asm.emitCALL_RegDisp(S0, methodRefOffset);
 	  genResultRegisterUnload(methodRef);
@@ -2186,17 +2186,17 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
 	  }
 	  if (resolvedMethodRef == null) {
 	    // might be a ghost ref. Call uncommon case typechecking routine to deal with this
-	    asm.emitMOV_Reg_RegDisp (S0, SP, (count-1) << 2);                       // "this" object
+	    asm.emitMOV_Reg_RegDisp (T1, SP, (count-1) << 2);                       // "this" object
 	    asm.emitPUSH_Imm(methodRef.getDictionaryId());                          // dict id of target
-	    VM_ObjectModel.baselineEmitLoadTIB(asm, S0, S0);
+	    VM_ObjectModel.baselineEmitLoadTIB(asm, S0, T1);
 	    asm.emitPUSH_Reg(S0);
 	    genParameterRegisterLoad(2);                                            // pass 2 parameter word
 	    asm.emitCALL_RegDisp(JTOC, VM_Entrypoints.unresolvedInterfaceMethodOffset);// check that "this" class implements the interface
 	  } else {
 	    asm.emitMOV_Reg_RegDisp (T0, JTOC, methodRef.getDeclaringClass().getTibOffset()); // tib of the interface method
-	    asm.emitMOV_Reg_RegDisp (S0, SP, (count-1) << 2);                                 // "this" object
+	    asm.emitMOV_Reg_RegDisp (T1, SP, (count-1) << 2);                                 // "this" object
 	    asm.emitPUSH_RegDisp(T0, TIB_TYPE_INDEX << 2);                                // type of the interface method
-	    VM_ObjectModel.baselineEmitLoadTIB(asm, S0, S0);
+	    VM_ObjectModel.baselineEmitLoadTIB(asm, S0, T1);
 	    asm.emitPUSH_Reg(S0);
 	    genParameterRegisterLoad(2);                                          // pass 2 parameter word
 	    asm.emitCALL_RegDisp(JTOC, VM_Entrypoints.mandatoryInstanceOfInterfaceOffset);// check that "this" class implements the interface
@@ -2213,8 +2213,8 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
                                                     VM_Entrypoints.hiddenSignatureIdOffset,
                                                     signatureId);
 
-	  asm.emitMOV_Reg_RegDisp (S0, SP, (count-1) << 2);                                  // "this" object
-          VM_ObjectModel.baselineEmitLoadTIB(asm,S0,S0);
+	  asm.emitMOV_Reg_RegDisp (T1, SP, (count-1) << 2);                                  // "this" object
+          VM_ObjectModel.baselineEmitLoadTIB(asm,S0,T1);
           if (VM.BuildForIndirectIMT) {
             // Load the IMT Base into S0
             asm.emitMOV_Reg_RegDisp(S0, S0, TIB_IMT_TIB_INDEX << 2);
@@ -2226,8 +2226,8 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
 		   methodRef.getDeclaringClass().isResolved()) {
 	  methodRef = methodRef.resolve();
 	  VM_Class I = methodRef.getDeclaringClass();
-	  asm.emitMOV_Reg_RegDisp (S0, SP, (count-1) << 2);                                 // "this" object
-          VM_ObjectModel.baselineEmitLoadTIB(asm,S0,S0);
+	  asm.emitMOV_Reg_RegDisp (T1, SP, (count-1) << 2);                                 // "this" object
+          VM_ObjectModel.baselineEmitLoadTIB(asm,S0,T1);
 	  asm.emitMOV_Reg_RegDisp (S0, S0, TIB_ITABLES_TIB_INDEX << 2);                     // iTables
 	  asm.emitMOV_Reg_RegDisp (S0, S0, I.getInterfaceId() << 2);                        // iTable
 	  genParameterRegisterLoad(methodRef, true);
@@ -2257,8 +2257,8 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
 	    // itable index is known at compile-time.
 	    // call "findITable" to resolve object + interface id into 
 	    // itable address
-	    asm.emitMOV_Reg_RegDisp (S0, SP, (count-1) << 2);             // "this" object
-	    VM_ObjectModel.baselineEmitLoadTIB(asm, S0, S0);
+	    asm.emitMOV_Reg_RegDisp (T0, SP, (count-1) << 2);             // "this" object
+	    VM_ObjectModel.baselineEmitLoadTIB(asm, S0, T0);
 	    asm.emitPUSH_Reg(S0);
 	    asm.emitPUSH_Imm        (I.getDictionaryId());                // interface id
 	    genParameterRegisterLoad(2);                                  // pass 2 parameter words
@@ -3439,8 +3439,8 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
     // code for      VM_Type VM_Magic.getObjectType(Object object)
     if (methodName == VM_MagicNames.getObjectType) {
       asm.emitPOP_Reg (T0);			          // object ref
-      VM_ObjectModel.baselineEmitLoadTIB(asm,T0,T0);
-      asm.emitPUSH_RegDisp(T0, TIB_TYPE_INDEX<<LG_WORDSIZE); // push VM_Type slot of TIB
+      VM_ObjectModel.baselineEmitLoadTIB(asm,S0,T0);
+      asm.emitPUSH_RegDisp(S0, TIB_TYPE_INDEX<<LG_WORDSIZE); // push VM_Type slot of TIB
       return;
     }
     
