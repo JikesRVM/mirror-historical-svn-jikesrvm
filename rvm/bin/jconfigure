@@ -823,16 +823,16 @@ cat <<- EOF
 	LDSHARED = $LDSHARED
 	JNI_NATIVE_LIBS_LD = $JNI_NATIVE_LIBS_LD
 	
-	AWK= $AWK  
+	AWK= $AWK
 	BASH = $BASH
 	CVS = $CVS
-	DIFF= $DIFF  
+	DIFF= $DIFF
 	FGREP = $FGREP
 	FIND = $FIND
 	GNU_TAR = $GNU_TAR
 	GREP = $GREP
 	MD5SUM = $MD5SUM
-	PS= $PS  
+	PS= $PS
 	SED = $SED
 	WGET = $WGET
 	XARGS = $XARGS
@@ -853,27 +853,34 @@ function emitController () {
 	set -e
 	ME=${0##*/}
 
+	# The old (until 2003 June) KSH script displayed
+	# seconds of precision to three decimal places.  The
+	# SECONDS variable in my version of Bash only returns
+	# integers.  So we do some modifications to the output
+	# format, and use TIMEFORMAT instead of SECONDS.
+	TIMEFORMAT="%3lR"	
+
 	while [[ $# != 0 ]]; do
-	   if [[ $1 = -trace ]]; then
-	      TRACE_FLAG=-trace
-	   elif [[ $1 = -demographics ]]; then
-	      DEMOGRAPHICS_FLAG=-demographics
-	   elif [[ $1 = -clean ]]; then
-	      CLEAN_FLAG=-clean
-	   elif [[ $1 = -recompile ]]; then
-	      RECOMPILE_FLAG=-recompile
-	   elif [[ $1 = -nolink ]]; then
-	      NOLINK_FLAG=-nolink
-	   elif [[ $1 = -nobooter ]]; then
-	      NOBOOTER_FLAG=-nobooter
-	   elif [[ $1 = -booter ]]; then
-	      NOLINK_FLAG=-nolink
-	      BOOTER_FLAG=-booter
-	   else
-	      echo >&2 "usage: $ME [-trace] [-demographics] [-clean] [-recompile] [-nolink] [-nobooter] [-booter]"
-	      exit 1
-	   fi
-	   shift
+	    if [[ $1 = -trace ]]; then
+	       TRACE_FLAG=-trace
+	    elif [[ $1 = -demographics ]]; then
+	       DEMOGRAPHICS_FLAG=-demographics
+	    elif [[ $1 = -clean ]]; then
+	       CLEAN_FLAG=-clean
+	    elif [[ $1 = -recompile ]]; then
+	       RECOMPILE_FLAG=-recompile
+	    elif [[ $1 = -nolink ]]; then
+	       NOLINK_FLAG=-nolink
+	    elif [[ $1 = -nobooter ]]; then
+	       NOBOOTER_FLAG=-nobooter
+	    elif [[ $1 = -booter ]]; then
+	       NOLINK_FLAG=-nolink
+	       BOOTER_FLAG=-booter
+	    else
+	       echo >&2 "usage: $ME [-trace] [-demographics] [-clean] [-recompile] [-nolink] [-nobooter] [-booter]"
+	       exit 1
+	    fi
+	    shift
 	done
 
 	
@@ -884,54 +891,42 @@ function emitController () {
 	fi
 	
 	# Ensure that we have the right version of the class libraries
-	  $JAL_ROOT/rvm/bin/jBuildClasspathJar --check
+	$JAL_ROOT/rvm/bin/jBuildClasspathJar --check
 	
 	if [[ $CLEAN_FLAG = -clean ]]; then
 EOF
-    echo "   rm -rf $TOOL_DIRECTORY_STR"
+    echo "    rm -rf $TOOL_DIRECTORY_STR"
     cat <<- 'EOF'
-	   ./jbuild.expand     $TRACE_FLAG -clean
-	   echo " $SECONDS s "
-	   ./jbuild.copy       $TRACE_FLAG -clean
-	   echo " $SECONDS s "
-	   ./jbuild.compile    $TRACE_FLAG -clean
-	   echo " $SECONDS s "
-	   ./jbuild.linkImage  $TRACE_FLAG $DEMOGRAPHICS_FLAG -clean
-	   echo " $SECONDS s "
-	   ./jbuild.linkBooter $TRACE_FLAG -clean
-	   echo " $SECONDS s "
-	   exit 0
+	    time ./jbuild.expand     $TRACE_FLAG -clean
+	    time ./jbuild.copy       $TRACE_FLAG -clean
+	    time ./jbuild.compile    $TRACE_FLAG -clean
+	    time ./jbuild.linkImage  $TRACE_FLAG $DEMOGRAPHICS_FLAG -clean
+	    time ./jbuild.linkBooter $TRACE_FLAG -clean
+	    exit 0
 	fi
 
 	if [[ $RECOMPILE_FLAG = -recompile ]]; then
-	   ./jbuild.compile $TRACE_FLAG -clean
+	    ./jbuild.compile $TRACE_FLAG -clean
 	fi
 
 EOF
     echo "if [[ -e $CLEANSE_STATUS_STR ]]; then"
     echo "   rm -rf $TOOL_DIRECTORY_STR"
     cat <<- 'EOF'
-	   ./jbuild.expand     $TRACE_FLAG -clean
-	   echo " $SECONDS s "
-	   ./jbuild.copy       $TRACE_FLAG -clean
-	   echo " $SECONDS s "
-	   ./jbuild.compile    $TRACE_FLAG -clean
-	   echo " $SECONDS s "
-	   ./jbuild.linkImage  $TRACE_FLAG $DEMOGRAPHICS_FLAG -clean
-	   echo " $SECONDS s "
-	   ./jbuild.linkBooter $TRACE_FLAG -clean
-	   echo " $SECONDS s "
+	    time ./jbuild.expand     $TRACE_FLAG -clean
+	    time ./jbuild.copy       $TRACE_FLAG -clean
+	    time ./jbuild.compile    $TRACE_FLAG -clean
+	    time ./jbuild.linkImage  $TRACE_FLAG $DEMOGRAPHICS_FLAG -clean
+	    time ./jbuild.linkBooter $TRACE_FLAG -clean
 EOF
     echo "    rm -f $CLEANSE_STATUS_STR"
     cat <<- 'EOF'
 	elif [[ $NOLINK_FLAG != -nolink ]]; then
-	   ./jbuild.linkImage  $TRACE_FLAG $DEMOGRAPHICS_FLAG -clean
-	   echo " $SECONDS s "
-	   ./jbuild.linkBooter $TRACE_FLAG -clean
-	   echo " $SECONDS s "
+	    time ./jbuild.linkImage  $TRACE_FLAG $DEMOGRAPHICS_FLAG -clean
+	    time ./jbuild.linkBooter $TRACE_FLAG -clean
 	fi
 #
-# The script, jbuild.linkBooter, will opionally run
+# The script, jbuild.linkBooter, will optionally run
 # a command specified by the user of jbuildLinkBooter
 # in the enviroment variable RVM_BUILD_COPY.
 # This variable could be set to rsh the linkBooter
@@ -940,28 +935,23 @@ EOF
 # is needed to run on all implementation of ksh,
 # including linux ksh.  Maria for Steve Blackburn
 	if [[ $BOOTER_FLAG = -booter ]]; then
-	   if [[ X"$RVM_BUILD_COPY" != X ]]; then
-	       $RVM_BUILD_COPY
-	   else
-	   	./jbuild.linkBooter $TRACE_FLAG
-	   fi
+	    if [[ X"$RVM_BUILD_COPY" != X ]]; then
+		time $RVM_BUILD_COPY
+	    else
+		time ./jbuild.linkBooter $TRACE_FLAG
+	    fi
 	else
-	   ./jbuild.expand     $TRACE_FLAG
-	   echo " $SECONDS s "
-	   ./jbuild.copy       $TRACE_FLAG
-	   echo " $SECONDS s "
-	   ./jbuild.compile    $TRACE_FLAG
-	   echo " $SECONDS s "
-	   if [[ $NOLINK_FLAG != -nolink ]]; then
-	      ./jbuild.linkImage  $TRACE_FLAG $DEMOGRAPHICS_FLAG
-	       echo " $SECONDS s "
-	      if [[ X"$RVM_BUILD_COPY" != X ]]; then
-	          $RVM_BUILD_COPY
-	      elif [[ $NOBOOTER_FLAG != -nobooter ]]; then
-	          ./jbuild.linkBooter $TRACE_FLAG
-	          echo " $SECONDS s "
-	      fi
-	   fi
+	    time ./jbuild.expand     $TRACE_FLAG
+	    time ./jbuild.copy       $TRACE_FLAG
+	    time ./jbuild.compile    $TRACE_FLAG
+	    if [[ $NOLINK_FLAG != -nolink ]]; then
+		time ./jbuild.linkImage  $TRACE_FLAG $DEMOGRAPHICS_FLAG
+		if [[ X"$RVM_BUILD_COPY" != X ]]; then
+	            time $RVM_BUILD_COPY
+		elif [[ $NOBOOTER_FLAG != -nobooter ]]; then
+		    time ./jbuild.linkBooter $TRACE_FLAG
+	       fi
+	    fi
 	fi
 EOF
 }
@@ -1870,7 +1860,7 @@ function emitBooterLinker () {
    else
      echo 'cp -f '$CPS'/$SYSTEM_TYPE/native/jni/*/.libs/*.so '$BUILD_DIRECTORY_STR
    fi
-   echo "\necho -n '(classpath native libraries copied) '"
+   echo -e "\necho -n '(classpath native libraries copied) '"
 
    # Create RunBootImage.h file.
    echo "echo \"// RunBootImage.C boot-time constants\" >> RunBootImage.h"
