@@ -31,8 +31,10 @@
 # Where are we?
 mydir="${0%/*}"
 
-echo ${0##*/} '# XXX This code is still being debugged XXX'
-echo ${0##*/} '# XXX Not Ready for prime time! -- Steve Augart XXX'
+echo >&2 ${0##*/} "XXX This code is Experimental Bash.  Appears to work,"
+echo >&2 ${0##*/} "XXX I've checked it, but it's probably not ready"
+echo >&2 ${0##*/} "XXX for prime time until it's been beaten on some more"
+echo >&2 ${0##*/} "XXX  	--Steve Augart"
 
 #-----------------------------#
 # SECTION 0 - KSH Emulation   #
@@ -867,9 +869,16 @@ function emitController () {
 	# The old (until 2003 June) KSH script displayed
 	# seconds of precision to three decimal places.  The
 	# SECONDS variable in my version of Bash only returns
-	# integers.  So we do some modifications to the output
-	# format, and use TIMEFORMAT instead of SECONDS.
-	TIMEFORMAT="%3lR"	
+	# integers.
+	function timeit () {
+	    # We can either do some modifications to the output
+	    # format, and use TIMEFORMAT instead of SECONDS...
+	    # TIMEFORMAT="%3lR"
+	    # time "$@"		
+	    # ...Or we can just deal.with integer seconds:
+	    "$@"
+	    echo "$SECONDS s"
+	}
 
 	while [[ $# != 0 ]]; do
 	    if [[ $1 = -trace ]]; then
@@ -908,11 +917,11 @@ function emitController () {
 EOF
     echo "    rm -rf $TOOL_DIRECTORY_STR"
     cat <<- 'EOF'
-	    time ./jbuild.expand     $TRACE_FLAG -clean
-	    time ./jbuild.copy       $TRACE_FLAG -clean
-	    time ./jbuild.compile    $TRACE_FLAG -clean
-	    time ./jbuild.linkImage  $TRACE_FLAG $DEMOGRAPHICS_FLAG -clean
-	    time ./jbuild.linkBooter $TRACE_FLAG -clean
+	    timeit ./jbuild.expand     $TRACE_FLAG -clean
+	    timeit ./jbuild.copy       $TRACE_FLAG -clean
+	    timeit ./jbuild.compile    $TRACE_FLAG -clean
+	    timeit ./jbuild.linkImage  $TRACE_FLAG $DEMOGRAPHICS_FLAG -clean
+	    timeit ./jbuild.linkBooter $TRACE_FLAG -clean
 	    exit 0
 	fi
 
@@ -924,17 +933,17 @@ EOF
     echo "if [[ -e $CLEANSE_STATUS_STR ]]; then"
     echo "   rm -rf $TOOL_DIRECTORY_STR"
     cat <<- 'EOF'
-	    time ./jbuild.expand     $TRACE_FLAG -clean
-	    time ./jbuild.copy       $TRACE_FLAG -clean
-	    time ./jbuild.compile    $TRACE_FLAG -clean
-	    time ./jbuild.linkImage  $TRACE_FLAG $DEMOGRAPHICS_FLAG -clean
-	    time ./jbuild.linkBooter $TRACE_FLAG -clean
+	    timeit ./jbuild.expand     $TRACE_FLAG -clean
+	    timeit ./jbuild.copy       $TRACE_FLAG -clean
+	    timeit ./jbuild.compile    $TRACE_FLAG -clean
+	    timeit ./jbuild.linkImage  $TRACE_FLAG $DEMOGRAPHICS_FLAG -clean
+	    timeit ./jbuild.linkBooter $TRACE_FLAG -clean
 EOF
     echo "    rm -f $CLEANSE_STATUS_STR"
     cat <<- 'EOF'
 	elif [[ $NOLINK_FLAG != -nolink ]]; then
-	    time ./jbuild.linkImage  $TRACE_FLAG $DEMOGRAPHICS_FLAG -clean
-	    time ./jbuild.linkBooter $TRACE_FLAG -clean
+	    timeit ./jbuild.linkImage  $TRACE_FLAG $DEMOGRAPHICS_FLAG -clean
+	    timeit ./jbuild.linkBooter $TRACE_FLAG -clean
 	fi
 #
 # The script, jbuild.linkBooter, will optionally run
@@ -947,20 +956,20 @@ EOF
 # including linux ksh.  Maria for Steve Blackburn
 	if [[ $BOOTER_FLAG = -booter ]]; then
 	    if [[ X"$RVM_BUILD_COPY" != X ]]; then
-	        time $RVM_BUILD_COPY
+	        timeit $RVM_BUILD_COPY
 	    else
-	        time ./jbuild.linkBooter $TRACE_FLAG
+	        timeit ./jbuild.linkBooter $TRACE_FLAG
 	    fi
 	else
-	    time ./jbuild.expand     $TRACE_FLAG
-	    time ./jbuild.copy       $TRACE_FLAG
-	    time ./jbuild.compile    $TRACE_FLAG
+	    timeit ./jbuild.expand     $TRACE_FLAG
+	    timeit ./jbuild.copy       $TRACE_FLAG
+	    timeit ./jbuild.compile    $TRACE_FLAG
 	    if [[ $NOLINK_FLAG != -nolink ]]; then
-	        time ./jbuild.linkImage  $TRACE_FLAG $DEMOGRAPHICS_FLAG
+	        timeit ./jbuild.linkImage  $TRACE_FLAG $DEMOGRAPHICS_FLAG
 	        if [[ X"$RVM_BUILD_COPY" != X ]]; then
-	            time $RVM_BUILD_COPY
+	            timeit $RVM_BUILD_COPY
 	        elif [[ $NOBOOTER_FLAG != -nobooter ]]; then
-	            time ./jbuild.linkBooter $TRACE_FLAG
+	            timeit  ./jbuild.linkBooter $TRACE_FLAG
 	        fi
 	    fi
 	fi
