@@ -619,7 +619,7 @@ public final class VM_Processor implements VM_Uninterruptible,  VM_Constants {
   //-#endif
 
   //-#if RVM_WITH_JMTK
-  public Plan mmPlan;
+  final public Plan mmPlan = new Plan();
   //-#endif
 
   //-#if RVM_WITH_JIKESRVM_MEMORY_MANAGERS

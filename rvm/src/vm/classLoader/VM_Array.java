@@ -82,7 +82,7 @@ public final class VM_Array extends VM_Type
    * Total size, in bytes, of an instance of this array type (including object header).
    * @return size
    */
-  public final int getInstanceSize(int numelts) throws VM_PragmaUninterruptible {
+  public final int getInstanceSize(int numelts) throws VM_PragmaUninterruptible, VM_PragmaInline {
     return VM_ObjectModel.computeArrayHeaderSize(this) + (numelts << getLogElementSize());
   }
 

@@ -23,6 +23,8 @@ import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM_Offset;
 import com.ibm.JikesRVM.VM_Magic;
 import com.ibm.JikesRVM.VM_Uninterruptible;
+import com.ibm.JikesRVM.VM_PragmaInline;
+import com.ibm.JikesRVM.VM_PragmaNoInline;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 import com.ibm.JikesRVM.VM_PragmaInterruptible;
 import com.ibm.JikesRVM.VM_Processor;
@@ -151,16 +153,16 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
       // VM.sysWrite("Proc ", VM_Processor.getCurrentProcessor().id); VM.sysWriteln(" scanning thread ", threadIndex);
       // See comment of ScanThread.scanThread
       //
-      VM_Thread th2 = VM_Magic.addressAsThread(traceObject(VM_Magic.objectAsAddress(th)));
-      traceObject(VM_Magic.objectAsAddress(th.stack));
+      VM_Thread th2 = VM_Magic.addressAsThread(Plan.traceObject(VM_Magic.objectAsAddress(th)));
+      Plan.traceObject(VM_Magic.objectAsAddress(th.stack));
       if (th.jniEnv != null) {
-	traceObject(VM_Magic.objectAsAddress(th.jniEnv));
-	traceObject(VM_Magic.objectAsAddress(th.jniEnv.JNIRefs));
+	Plan.traceObject(VM_Magic.objectAsAddress(th.jniEnv));
+	Plan.traceObject(VM_Magic.objectAsAddress(th.jniEnv.JNIRefs));
       }
-      traceObject(VM_Magic.objectAsAddress(th.contextRegisters));
-      traceObject(VM_Magic.objectAsAddress(th.contextRegisters.gprs));
-      traceObject(VM_Magic.objectAsAddress(th.hardwareExceptionRegisters));
-      traceObject(VM_Magic.objectAsAddress(th.hardwareExceptionRegisters.gprs));
+      Plan.traceObject(VM_Magic.objectAsAddress(th.contextRegisters));
+      Plan.traceObject(VM_Magic.objectAsAddress(th.contextRegisters.gprs));
+      Plan.traceObject(VM_Magic.objectAsAddress(th.hardwareExceptionRegisters));
+      Plan.traceObject(VM_Magic.objectAsAddress(th.hardwareExceptionRegisters.gprs));
       ScanThread.scanThread(th2, locations, codeLocations);
     }
 
@@ -171,11 +173,11 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
 
   // Add a gray object
   //
-  public void enqueue(VM_Address obj) {
-    values.push(obj);
+  static public void enqueue(VM_Address obj) throws VM_PragmaInline {
+    VM_Interface.getPlan().values.push(obj);
   }
 
-  private void processAllWork() {
+  private void processAllWork() throws VM_PragmaNoInline {
 
     while (true) {
       while (!values.isEmpty()) {
@@ -265,7 +267,7 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
    * interior pointer.
    * @return The possibly moved reference.
    */
-  abstract public VM_Address traceObject(VM_Address obj);
+  // abstract static public VM_Address traceObject(VM_Address obj);
 
   /**
    * Answers true if the given object will not move during this GC
@@ -274,7 +276,7 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
    * @param obj The object reference whose movability status must be answered.
    * @return whether object has moved or will not move.
    */
-  abstract public boolean hasMoved(VM_Address obj);
+  // abstract static public boolean hasMoved(VM_Address obj);
 
 
   /**
@@ -286,9 +288,9 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
    *    The object reference is <i>NOT</i> an interior pointer.
    * @return void
    */
-  final public void traceObjectLocation(VM_Address objLoc) {
+  final static public void traceObjectLocation(VM_Address objLoc) throws VM_PragmaInline {
     VM_Address obj = VM_Magic.getMemoryAddress(objLoc);
-    VM_Address newObj = traceObject(obj);
+    VM_Address newObj = Plan.traceObject(obj);
     VM_Magic.setMemoryAddress(objLoc, newObj);
   }
 
@@ -303,9 +305,9 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
    * @param interiorRef The interior reference inside obj that must be traced.
    * @return The possibly moved interior reference.
    */
-  final public VM_Address traceInteriorReference(VM_Address obj, VM_Address interiorRef) {
+  final static public VM_Address traceInteriorReference(VM_Address obj, VM_Address interiorRef) {
     VM_Offset offset = interiorRef.diff(obj);
-    VM_Address newObj = traceObject(obj);
+    VM_Address newObj = Plan.traceObject(obj);
     if (VM.VerifyAssertions) {
       if (offset.toInt() > (1<<24)) {  // There is probably no object this large
 	VM.sysWriteln("ERROR: Suspciously large delta of interior pointer from object base");

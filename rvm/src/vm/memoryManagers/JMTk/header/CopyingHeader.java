@@ -66,7 +66,7 @@ public class CopyingHeader {
    * @param isScalar are we initializing a scalar (true) or array (false) object?
    */
   public static void initializeHeader(BootImageInterface bootImage, int ref, 
-				      Object[] tib, int size, boolean isScalar) throws VM_PragmaUninterruptible {
+				      Object[] tib, int size, boolean isScalar) throws VM_PragmaUninterruptible, VM_PragmaInline {
     // nothing to do (no bytes of GC header)
   }
 
@@ -103,49 +103,49 @@ public class CopyingHeader {
   /**
    * Non-atomic read of forwarding pointer word
    */
-  static int getForwardingWord(Object base) throws VM_PragmaUninterruptible {
+  static int getForwardingWord(Object base) throws VM_PragmaUninterruptible, VM_PragmaInline {
     return VM_ObjectModel.readAvailableBitsWord(base);
   }
 
   /**
    * Has the object been forwarded?
    */
-  public static boolean isForwarded(Object base) throws VM_PragmaUninterruptible {
+  public static boolean isForwarded(Object base) throws VM_PragmaUninterruptible, VM_PragmaInline {
     return stateIsForwarded(getForwardingWord(base));
   }
 
   /**
    * Has the object been forwarded?
    */
-  public static boolean isBeingForwarded(Object base) throws VM_PragmaUninterruptible {
+  public static boolean isBeingForwarded(Object base) throws VM_PragmaUninterruptible, VM_PragmaInline {
     return stateIsBeingForwarded(getForwardingWord(base));
   }
 
   /**
    * is the state of the forwarding word forwarded?
    */
-  static boolean stateIsForwarded(int fw) throws VM_PragmaUninterruptible {
+  static boolean stateIsForwarded(int fw) throws VM_PragmaUninterruptible, VM_PragmaInline {
     return (fw & GC_FORWARDING_MASK) == GC_FORWARDED;
   }
 
   /**
    * is the state of the forwarding word being forwarded?
    */
-  static boolean stateIsBeingForwarded(int fw) throws VM_PragmaUninterruptible {
+  static boolean stateIsBeingForwarded(int fw) throws VM_PragmaUninterruptible, VM_PragmaInline {
     return (fw & GC_FORWARDING_MASK) == GC_BEING_FORWARDED;
   }
 
   /**
    * is the state of the forwarding word being forwarded?
    */
-  static boolean stateIsForwardedOrBeingForwarded(int fw) throws VM_PragmaUninterruptible {
+  static boolean stateIsForwardedOrBeingForwarded(int fw) throws VM_PragmaUninterruptible, VM_PragmaInline {
     return (fw & GC_FORWARDED) != 0;
   }
 
   /**
    * Non-atomic read of forwarding pointer word
    */
-  static Object getForwardingPointer(Object base) throws VM_PragmaUninterruptible {
+  static Object getForwardingPointer(Object base) throws VM_PragmaUninterruptible, VM_PragmaInline {
     int forwarded = getForwardingWord(base);
     return VM_Magic.addressAsObject(VM_Address.fromInt(forwarded & ~GC_FORWARDING_MASK));
   }
@@ -155,11 +155,11 @@ public class CopyingHeader {
    * (assumption, thread doing the set has done attempt to forward
    *  and owns the right to copy the object)
    */
-  static void setForwardingPointer(Object base, VM_Address ptr) throws VM_PragmaUninterruptible {
+  static void setForwardingPointer(Object base, VM_Address ptr) throws VM_PragmaUninterruptible, VM_PragmaInline {
     VM_ObjectModel.writeAvailableBitsWord(base, ptr.toInt() | GC_FORWARDED);
   }
 
-  static void setBarrierBit(Object ref) throws VM_PragmaUninterruptible {
+  static void setBarrierBit(Object ref) throws VM_PragmaUninterruptible, VM_PragmaInline {
     VM._assert(false);
   }
 

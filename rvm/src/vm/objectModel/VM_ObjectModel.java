@@ -404,7 +404,7 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
   /**
    * Compute the header size of an instance of the given type.
    */
-  public static int computeHeaderSize(VM_Type type) {
+  public static int computeHeaderSize(VM_Type type) throws VM_PragmaInline {
     return (type.dimension>0)?computeArrayHeaderSize(type.asArray()):computeScalarHeaderSize(type.asClass());
   }
 
@@ -419,7 +419,7 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
   /**
    * Compute the header size of an instance of the given type.
    */
-  public static int computeScalarHeaderSize(VM_Class type) {
+  public static int computeScalarHeaderSize(VM_Class type) throws VM_PragmaInline {
     return VM_JavaHeader.computeScalarHeaderSize(type);
   }
 

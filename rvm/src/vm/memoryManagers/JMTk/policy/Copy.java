@@ -8,6 +8,7 @@ package com.ibm.JikesRVM.memoryManagers.JMTk;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 import com.ibm.JikesRVM.VM_Uninterruptible;
+import com.ibm.JikesRVM.VM_PragmaInline;
 import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM_Magic;
 import com.ibm.JikesRVM.VM;
@@ -34,7 +35,7 @@ final class Copy extends BasePolicy implements Constants, VM_Uninterruptible {
    *
    * @param object The object to be copied.
    */
-  public static VM_Address traceObject(VM_Address object) {
+  public static VM_Address traceObject(VM_Address object) throws VM_PragmaInline {
 
     int forwardingPtr = CopyingHeader.attemptToForward(object);
     VM_Magic.isync();   // prevent instructions moving infront of attemptToForward
@@ -53,7 +54,7 @@ final class Copy extends BasePolicy implements Constants, VM_Uninterruptible {
     //
     VM_Address newObject = VM_Interface.copy(object, forwardingPtr);
     CopyingHeader.setForwardingPointer(object, newObject);
-    VM_Interface.getPlan().enqueue(newObject);       // Scan it later
+    Plan.enqueue(newObject);       // Scan it later
 
     return newObject;
   }

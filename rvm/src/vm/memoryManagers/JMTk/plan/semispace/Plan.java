@@ -140,7 +140,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    * @param isScalar True if the object occupying this space will be a scalar
    * @return The address of the first byte of the allocated region
    */
-  public VM_Address allocCopy(VM_Address original, EXTENT bytes, boolean isScalar) {
+  public VM_Address allocCopy(VM_Address original, EXTENT bytes, boolean isScalar) throws VM_PragmaInline {
     if (VM.VerifyAssertions) VM._assert(bytes < LOS_SIZE_THRESHOLD);
     return ss.alloc(isScalar, bytes);
   }
@@ -233,21 +233,15 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    * interior pointer.
    * @return The possibly moved reference.
    */
-  public VM_Address traceObject(VM_Address obj) {
+  static public VM_Address traceObject(VM_Address obj) {
     VM_Address addr = VM_Interface.refToAddress(obj);
     if (addr.LE(HEAP_END)) {
       if (addr.GE(SS_START)) {
-	if (hi) {
-	  if (addr.LT(HIGH_SS_START))
-	    return Copy.traceObject(obj);
+	if ((hi && addr.LT(HIGH_SS_START)) ||
+	    (!hi && addr.GE(HIGH_SS_START)))
+	  return Copy.traceObject(obj);
+	else
 	  return obj;
-	}
-	else {
-	  if (addr.GE(HIGH_SS_START))
-	    return Copy.traceObject(obj);
-	  return obj;
-
-	}
       }
       else if (addr.GE(LOS_START))
 	return losVM.traceObject(obj);
@@ -284,11 +278,11 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   }
 
   public static final long usedMemory() throws VM_PragmaUninterruptible {
-    return Conversions.blocksToBytes(getBlocksReserved());
+    return Conversions.blocksToBytes(getBlocksUsed());
   }
 
   public static final long totalMemory() throws VM_PragmaUninterruptible {
-    return Conversions.blocksToBytes(getTotalBlocks());
+    return Conversions.blocksToBytes(getBlocksAvail());
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -320,6 +314,13 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
     blocks += losMR.reservedBlocks();
     blocks += immortalMR.reservedBlocks();
     return blocks;
+  }
+
+  // Assuming all future allocation comes from semispace
+  //
+  private static int getBlocksAvail() {
+    int semispaceTotal = getTotalBlocks() - losMR.reservedBlocks() - immortalMR.reservedBlocks();
+    return (semispaceTotal / 2) - ssMR.reservedBlocks();
   }
 
   /**

@@ -43,7 +43,7 @@ public class ScanObject implements VM_Constants, Constants {
    *
    * @param objRef  reference for object to be scanned (as int)
    */
-  public static void scan (VM_Address objRef) throws VM_PragmaUninterruptible {
+  public static void scan (VM_Address objRef) throws VM_PragmaUninterruptible, VM_PragmaInline {
 
     if (VM.VerifyAssertions) VM._assert(!objRef.isZero());
 

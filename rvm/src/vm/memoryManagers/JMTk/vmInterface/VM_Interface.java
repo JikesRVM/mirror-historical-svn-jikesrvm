@@ -166,7 +166,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     VM_BootRecord.the_boot_record.setHeapRange(id, start, end);
   }
 
-  public static Plan getPlan() {
+  public static Plan getPlan() throws VM_PragmaInline {
     return VM_Processor.getCurrentProcessor().mmPlan;
   }
 
@@ -257,8 +257,8 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    * @param p The <code>VM_Processor</code> object.
    */
   public static final void setupProcessor(VM_Processor proc) throws VM_PragmaInterruptible {
-    if (proc.mmPlan == null)
-      proc.mmPlan = new Plan();
+    // if (proc.mmPlan == null) proc.mmPlan = new Plan();
+    if (VM.VerifyAssertions) VM._assert(proc.mmPlan != null);
   }
 
   //-#if RVM_FOR_POWERPC
@@ -292,15 +292,15 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     Util.dumpRef(ref);
   }
 
-  public static boolean validRef(VM_Address ref) {
+  public static boolean validRef(VM_Address ref) throws VM_PragmaUninterruptible, VM_PragmaInline {
     return Util.validRef(ref);
   }
 
-  public static boolean addrInVM(VM_Address address) throws VM_PragmaUninterruptible {
+  public static boolean addrInVM(VM_Address address) throws VM_PragmaUninterruptible, VM_PragmaInline {
     return VMResource.addrInVM(address);
   }
 
-  public static boolean refInVM(VM_Address ref) throws VM_PragmaUninterruptible {
+  public static boolean refInVM(VM_Address ref) throws VM_PragmaUninterruptible, VM_PragmaInline {
     return VMResource.refInVM(ref);
   }
 
@@ -316,7 +316,8 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     return Plan.DEFAULT_ALLOCATOR;
   }
 
-  public static Object allocateScalar(int size, Object [] tib, int allocator) {
+  public static Object allocateScalar(int size, Object [] tib, int allocator) 
+    throws VM_PragmaUninterruptible, VM_PragmaInline {
     AllocAdvice advice = getPlan().getAllocAdvice(null, size, null, null);
     VM_Address region = getPlan().alloc(size, true, allocator, advice);
     Object result = VM_ObjectModel.initializeScalar(region, tib, size);
@@ -324,7 +325,8 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     return result;
   }
 
-  public static Object allocateArray(int numElements, int size, Object [] tib, int allocator) {
+  public static Object allocateArray(int numElements, int size, Object [] tib, int allocator) 
+    throws VM_PragmaUninterruptible, VM_PragmaInline {
     size = (size + 3) & (~3);
     AllocAdvice advice = getPlan().getAllocAdvice(null, size, null, null);
     VM_Address region = getPlan().alloc(size, false, allocator, advice);
@@ -333,7 +335,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     return result;
   }
 
-  public static VM_Address allocateCopy(VM_Address object) {
+  public static VM_Address allocateCopy(VM_Address object) throws VM_PragmaUninterruptible, VM_PragmaInline {
     VM.sysWriteln("allocateCopy unimplmented");
     if (VM.VerifyAssertions) VM._assert(false); // unimplemented
     return VM_Address.zero();     // getPlan().allocCopy()...  FIXME
@@ -343,15 +345,15 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     VM_Finalizer.addCandidate(obj);
   }
 
-  public static VM_Address processPtrValue (VM_Address obj) throws VM_PragmaUninterruptible {
-    return getPlan().traceObject(obj);
+  public static VM_Address processPtrValue (VM_Address obj) throws VM_PragmaUninterruptible, VM_PragmaInline { 
+    return Plan.traceObject(obj);
   }
 
-  public static void processPtrField (VM_Address location) throws VM_PragmaUninterruptible {
-    getPlan().traceObjectLocation(location);
+  public static void processPtrField (VM_Address location) throws VM_PragmaUninterruptible, VM_PragmaInline { 
+    Plan.traceObjectLocation(location);
   }
 
-  public static boolean isLive(VM_Address obj) {
+  public static boolean isLive(VM_Address obj) throws VM_PragmaInline {
     return Plan.isLive(obj);
   }
 
@@ -606,7 +608,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   // Copy an object using a plan's allocCopy to get space and install the forwarding pointer.
   // On entry, "obj" must have been reserved for copying by the caller.
   //
-  public static VM_Address copy (VM_Address fromObj, int forwardingPtr) {
+  public static VM_Address copy (VM_Address fromObj, int forwardingPtr) throws VM_PragmaInline {
 
     Object[] tib = VM_ObjectModel.getTIB(fromObj);
 

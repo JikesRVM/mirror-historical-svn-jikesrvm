@@ -382,7 +382,9 @@ class OPT_GenerateMagic implements OPT_Operators, VM_RegisterConstants {
       bc2ir.pushDual(op0.copyD2U());
     } else {
       // Wasn't machine-independent, so try the machine-dependent magics next.
-      return OPT_GenerateMachineSpecificMagic.generateMagic(bc2ir, gc, meth);
+      boolean generated = OPT_GenerateMachineSpecificMagic.generateMagic(bc2ir, gc, meth);
+      if (!generated) VM.sysWriteln("Magic method not implemented: " + meth);
+      return generated;
     }
     return true;
   } // generateMagic
@@ -433,6 +435,33 @@ class OPT_GenerateMagic implements OPT_Operators, VM_RegisterConstants {
       OPT_Operand o1 = bc2ir.pop();
       OPT_RegisterOperand op0 = gc.temps.makeTemp(resultType);
       bc2ir.appendInstruction(Binary.create(INT_SUB, op0, o1, o2));
+      bc2ir.push(op0.copyD2U());
+    }
+    else if (methodName == VM_MagicNames.wordAnd) {
+      OPT_Operand o2 = bc2ir.pop();
+      OPT_Operand o1 = bc2ir.pop();
+      OPT_RegisterOperand op0 = gc.temps.makeTemp(resultType);
+      bc2ir.appendInstruction(Binary.create(INT_AND, op0, o1, o2));
+      bc2ir.push(op0.copyD2U());
+    }
+    else if (methodName == VM_MagicNames.wordOr) {
+      OPT_Operand o2 = bc2ir.pop();
+      OPT_Operand o1 = bc2ir.pop();
+      OPT_RegisterOperand op0 = gc.temps.makeTemp(resultType);
+      bc2ir.appendInstruction(Binary.create(INT_OR, op0, o1, o2));
+      bc2ir.push(op0.copyD2U());
+    }
+    else if (methodName == VM_MagicNames.wordXor) {
+      OPT_Operand o2 = bc2ir.pop();
+      OPT_Operand o1 = bc2ir.pop();
+      OPT_RegisterOperand op0 = gc.temps.makeTemp(resultType);
+      bc2ir.appendInstruction(Binary.create(INT_XOR, op0, o1, o2));
+      bc2ir.push(op0.copyD2U());
+    }
+    else if (methodName == VM_MagicNames.wordNot) {
+      OPT_Operand o1 = bc2ir.pop();
+      OPT_RegisterOperand op0 = gc.temps.makeTemp(resultType);
+      bc2ir.appendInstruction(Unary.create(INT_NOT, op0, o1));
       bc2ir.push(op0.copyD2U());
     }
     else if (methodName == VM_MagicNames.wordZero) {

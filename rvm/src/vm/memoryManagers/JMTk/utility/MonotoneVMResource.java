@@ -28,7 +28,7 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 public class MonotoneVMResource extends VMResource implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
 
-  public final static boolean PROTECT_ON_RELEASE = true;
+  public final static boolean PROTECT_ON_RELEASE = false; // true;
 
   ////////////////////////////////////////////////////////////////////////////
   //

@@ -7,10 +7,6 @@ package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Address;
-import com.ibm.JikesRVM.VM_ClassLoader;
-import com.ibm.JikesRVM.VM_SystemClassLoader;
-import com.ibm.JikesRVM.VM_EventLogger;
-import com.ibm.JikesRVM.VM_BootRecord;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 import com.ibm.JikesRVM.VM_Uninterruptible;
 
@@ -18,7 +14,7 @@ import com.ibm.JikesRVM.VM_Uninterruptible;
  * @author Perry Cheng  
  */  
 
-public class AddressSet implements VM_Uninterruptible {
+final public class AddressSet implements VM_Uninterruptible {
 
   // Deficiency in compiler prevents use of VM_Address []
   private int [] address;
@@ -37,8 +33,11 @@ public class AddressSet implements VM_Uninterruptible {
   }
 
   public void push(VM_Address addr) { 
-    if (VM.VerifyAssertions) VM._assert(!addr.isZero());
-    if (cursor >= address.length) { VM.sysFail("AddressSet overflowed"); }
+    if (VM.VerifyAssertions) {
+      VM._assert(!addr.isZero());
+      if (cursor >= address.length)  
+	VM.sysFail("AddressSet overflowed"); 
+    }
     address[cursor++] = addr.toInt(); 
   }
 

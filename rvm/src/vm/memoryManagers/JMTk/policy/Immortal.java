@@ -7,11 +7,11 @@ package com.ibm.JikesRVM.memoryManagers.JMTk;
 
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
-import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
+
 import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_ObjectModel;
-
+import com.ibm.JikesRVM.VM_PragmaInline;
 import com.ibm.JikesRVM.VM_Scheduler;
 import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.VM_Magic;
@@ -67,7 +67,7 @@ final class Immortal extends BasePolicy implements Constants, VM_Uninterruptible
    * Used to mark boot image objects during a parallel scan of objects during GC
    * Returns true if marking was done.
    */
-  static boolean testAndMark(Object ref, int value) {
+  static boolean testAndMark(Object ref, int value) throws VM_PragmaInline {
     int oldValue;
     do {
       oldValue = VM_ObjectModel.prepareAvailableBits(ref);
