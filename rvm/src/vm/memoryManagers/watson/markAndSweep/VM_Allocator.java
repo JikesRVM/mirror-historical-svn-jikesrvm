@@ -402,7 +402,8 @@ public class VM_Allocator
 
   // GET STORAGE FOR BLOCKS ARRAY FROM OPERATING SYSTEM
   //    storage for entries in blocks array: 4 bytes/ ref
-  int blocks_array_size = num_blocks * 4 + VM_ObjectModel.computeArrayHeaderSize(VM_Type.IntArrayType);
+  VM_Array intArrayType =  VM_Array.getPrimitiveArrayType(10);
+  int blocks_array_size = num_blocks * 4 + VM_ObjectModel.computeArrayHeaderSize(intArrayType);
   if ((blocks_array_storage = VM.sysCall1(bootrecord.sysMallocIP, blocks_array_size)) == 0) {
     VM.sysWrite(" In boot, call to sysMalloc returned 0 \n");
     VM.sysExit(1800);
@@ -415,7 +416,7 @@ public class VM_Allocator
   }
 
   blocks = (int[])(VM_ObjectModel.initializeArray(blocks_array_storage,
-						  VM_Type.IntArrayType.getTypeInformationBlock(),
+						  intArrayType.getTypeInformationBlock(),
 						  num_blocks, blocks_array_size));
 
   // index for highest page in heap
@@ -1026,17 +1027,18 @@ public class VM_Allocator
   alloc_block.nextblock = OUT_OF_BLOCKS;  // this is last block in list for thissize
   alloc_block.slotsize  = GC_SIZEVALUES[ndx];
   int size = GC_BLOCKSIZE/GC_SIZEVALUES[ndx] ;    
+  VM_Array byteArrayType = VM_Array.getPrimitiveArrayType(8);
   if (alloc_block.mark != null)  {
     if (size <= alloc_block.alloc_size) {
       VM_ObjectModel.setArrayLength(alloc_block.mark, size);
       return theblock;
     }
     else {    // free the existing array space
-      VM.sysCall1(bootrecord.sysFreeIP, VM_ObjectModel.arrayRefToBaseAddress(alloc_block.mark, VM_Type.ByteArrayType));
+      VM.sysCall1(bootrecord.sysFreeIP, VM_ObjectModel.arrayRefToBaseAddress(alloc_block.mark, byteArrayType));
     }
   }
   // get space for alloc arrays from AIX.
-  int mark_array_size = (VM_Type.ByteArrayType.getInstanceSize(size) + 3) & ~3;
+  int mark_array_size = (byteArrayType.getInstanceSize(size) + 3) & ~3;
   if ((location = VM.sysCall1(bootrecord.sysMallocIP, mark_array_size)) == 0) {
     VM.sysWrite(" In getnewblockx, call to sysMalloc returned 0 \n");
     VM.sysExit(1800);
@@ -1044,7 +1046,7 @@ public class VM_Allocator
 
   if (VM.VerifyAssertions) VM.assert((location & 3) == 0);// check word alignment
 
-  alloc_block.mark = (byte[]) VM_ObjectModel.initializeArray(location, VM_Type.ByteArrayType.getTypeInformationBlock(), size, mark_array_size);
+  alloc_block.mark = (byte[]) VM_ObjectModel.initializeArray(location, byteArrayType.getTypeInformationBlock(), size, mark_array_size);
 
   return theblock;
   }
@@ -1131,17 +1133,18 @@ public class VM_Allocator
   // of the VM.
 
   int temp;
+  VM_Array byteArrayType = VM_Array.getPrimitiveArrayType(8);
   if (alloc_block.mark != null) {
     if (size <= alloc_block.alloc_size) {
       VM_ObjectModel.setArrayLength(alloc_block.mark, size);
       return 0;
     }
     else {    // free the existing array space
-      VM.sysCall1(bootrecord.sysFreeIP, VM_ObjectModel.arrayRefToBaseAddress(alloc_block.mark, VM_Type.ByteArrayType));
+      VM.sysCall1(bootrecord.sysFreeIP, VM_ObjectModel.arrayRefToBaseAddress(alloc_block.mark, byteArrayType));
     }
   }
 
-  int mark_array_size = (VM_Type.ByteArrayType.getInstanceSize(size) + 3) & ~3;
+  int mark_array_size = (byteArrayType.getInstanceSize(size) + 3) & ~3;
   if ((location = VM.sysCall1(bootrecord.sysMallocIP, mark_array_size)) == 0) {
     VM.sysWrite(" In getnewblock, call to sysMalloc returned 0 \n");
     VM.sysExit(1800);
@@ -1150,7 +1153,7 @@ public class VM_Allocator
   if (VM.VerifyAssertions) VM.assert((location & 3) == 0);// check full wd
 
   alloc_block.alloc_size = size;  // remember allocated size
-  alloc_block.mark = (byte[]) VM_ObjectModel.initializeArray(location, VM_Type.ByteArrayType.getTypeInformationBlock(), size, mark_array_size);
+  alloc_block.mark = (byte[]) VM_ObjectModel.initializeArray(location, byteArrayType.getTypeInformationBlock(), size, mark_array_size);
 
   return 0;
   }

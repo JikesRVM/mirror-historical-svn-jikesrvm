@@ -290,9 +290,6 @@
   public static VM_Type DoubleType;
   public static VM_Type CharType;
 
-  public static VM_Array IntArrayType;
-  public static VM_Array ByteArrayType;
-
   /**
    * supertype of all types
    */
@@ -556,12 +553,6 @@
     CharType    = VM_ClassLoader.findOrCreatePrimitiveType
       (VM_Atom.findOrCreateAsciiAtom("char"),    
        VM_Atom.findOrCreateAsciiAtom("C"));
-
-    IntArrayType    = VM_ClassLoader.findOrCreateType
-      (VM_Atom.findOrCreateAsciiAtom("[I")).asArray();
-    ByteArrayType    = VM_ClassLoader.findOrCreateType
-      (VM_Atom.findOrCreateAsciiAtom("[B")).asArray();
-
       
     // create additional, frequently used, type descriptions
     //

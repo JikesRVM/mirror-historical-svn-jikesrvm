@@ -726,7 +726,8 @@ public class BootImageWriter2 extends BootImageWriterMessages
     // perform fixed_jtoc optimization (compile static addresses into code).
     VM_BootRecord bootRecord = VM_BootRecord.the_boot_record;
     VM_Class rvmBRType = getRvmType(bootRecord.getClass()).asClass();
-    bootRecord.tocRegister = bootImageAddress + rvmBRType.getInstanceSize() + VM_Type.IntArrayType.getInstanceSize(0);
+    VM_Array intArrayType =  VM_Array.getPrimitiveArrayType(10);
+    bootRecord.tocRegister = bootImageAddress + rvmBRType.getInstanceSize() + intArrayType.getInstanceSize(0);
 
     //
     // Compile methods and populate jtoc with literals, TIBs, and machine code.
