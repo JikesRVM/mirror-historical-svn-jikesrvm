@@ -180,23 +180,22 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase
 	  array.load();
 	  array.resolve();
 	  array.instantiate();
-	  int width = array.getLogElementSize();
-	  OPT_Operand NumberElements = NewArray.getClearSize(inst);
-	  OPT_Operand Size = null;
-	  if (NumberElements instanceof OPT_RegisterOperand) {
-	    OPT_RegisterOperand temp = NumberElements.asRegister();
+	  OPT_Operand numberElements = NewArray.getClearSize(inst);
+	  OPT_Operand size = null;
+	  if (numberElements instanceof OPT_RegisterOperand) {
+	    int width = array.getLogElementSize();
+	    OPT_RegisterOperand temp = numberElements.asRegister();
 	    if (width != 0) {
 	      temp = OPT_ConvertToLowLevelIR.InsertBinary(inst, ir, INT_SHL, 
 							  VM_Type.IntType, 
 							  temp, 
 							  new OPT_IntConstantOperand(width));
 	    }
-	    Size = OPT_ConvertToLowLevelIR.InsertBinary(inst, ir, INT_ADD, 
+	    size = OPT_ConvertToLowLevelIR.InsertBinary(inst, ir, INT_ADD, 
 							VM_Type.IntType, temp,
-							new OPT_IntConstantOperand(ARRAY_HEADER_SIZE));
+							new OPT_IntConstantOperand(VM_ObjectModel.computeArrayHeaderSize(array)));
 	  } else { 
-	    int n = NumberElements.asIntConstant().value;
-	    Size = new OPT_IntConstantOperand((n<<width)+ARRAY_HEADER_SIZE);
+	    size = new OPT_IntConstantOperand(array.getInstanceSize(numberElements.asIntConstant().value));
 	  }
 	  //-#if RVM_WITH_GCTk_ALLOC_ADVICE
 	  if (VM.writingBootImage || GCTk_AllocAdvice.isBooted()) {
@@ -207,19 +206,19 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase
 	      int allocNum = aadvice.getAllocator();
 	      Call.mutate4(inst, CALL, NewArray.getClearResult(inst), null,
 			   OPT_MethodOperand.STATIC(VM_Entrypoints.allocAdviceQuickNewArrayMethod),
-			   NumberElements.copy(), Size, 
+			   numberElements.copy(), size, 
 			   OPT_ConvertToLowLevelIR.getTIB(inst, ir, Array),
 			   new OPT_IntConstantOperand(allocNum));
 	    } else
 	      Call.mutate3(inst, CALL, NewArray.getClearResult(inst), null,
 			   OPT_MethodOperand.STATIC(VM_Entrypoints.quickNewArrayMethod),
-			   NumberElements.copy(), Size, 
+			   numberElements.copy(), size, 
 			   OPT_ConvertToLowLevelIR.getTIB(inst, ir, Array));
 	  } else {
 	  //-#endif
 	  Call.mutate3(inst, CALL, NewArray.getClearResult(inst), null, 
 		       OPT_MethodOperand.STATIC(VM_Entrypoints.quickNewArrayMethod), 
-		       NumberElements.copy(), Size, 
+		       numberElements.copy(), size, 
 		       OPT_ConvertToLowLevelIR.getTIB(inst, ir, Array));
 	  //-#if RVM_WITH_GCTk_ALLOC_ADVICE
 	  }

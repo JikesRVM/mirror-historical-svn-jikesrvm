@@ -264,13 +264,6 @@ class OPT_GenerateMagic implements OPT_Operators, VM_RegisterConstants {
       bc2ir.appendInstruction(Unary.create(GET_TYPE_FROM_TIB, op0, 
                                            tibPtr.copyD2U()));
       bc2ir.push(op0.copyD2U());
-    } else if (methodName == VM_MagicNames.getObjectStatus) {
-      OPT_Operand val = bc2ir.popRef();
-      OPT_RegisterOperand op0 = gc.temps.makeTempInt();
-      bc2ir.appendInstruction(GuardedUnary.create(GET_OBJ_STATUS, op0, 
-                                                  val, 
-                                                  new OPT_TrueGuardOperand()));
-      bc2ir.push(op0.copyD2U());
     } else if (methodName == VM_MagicNames.getArrayLength) {
       OPT_Operand val = bc2ir.popRef();
       OPT_RegisterOperand op0 = gc.temps.makeTempInt();

@@ -260,7 +260,7 @@ class OPT_SimpleEscape extends OPT_CompilerPhase
       case INT_IFCMP_opcode:case IG_PATCH_POINT_opcode:
       case IG_CLASS_TEST_opcode:case IG_METHOD_TEST_opcode:
       case BOOLEAN_CMP_opcode:case OBJARRAY_STORE_CHECK_opcode:
-      case GET_OBJ_STATUS_opcode:case GET_OBJ_TIB_opcode:
+      case GET_OBJ_TIB_opcode:
       case GET_TYPE_FROM_TIB_opcode:case NEW_opcode:case NEWARRAY_opcode:
       case NEWOBJMULTIARRAY_opcode:case NEW_UNRESOLVED_opcode:
       case INSTANCEOF_opcode:case INSTANCEOF_NOTNULL_opcode:
@@ -420,7 +420,7 @@ class OPT_SimpleEscape extends OPT_CompilerPhase
       case REF_IFCMP_opcode:case INT_IFCMP_opcode:case IG_PATCH_POINT_opcode:
       case IG_CLASS_TEST_opcode:case IG_METHOD_TEST_opcode:
       case BOOLEAN_CMP_opcode:
-      case OBJARRAY_STORE_CHECK_opcode:case GET_OBJ_STATUS_opcode:
+      case OBJARRAY_STORE_CHECK_opcode:
       case GET_OBJ_TIB_opcode:case GET_TYPE_FROM_TIB_opcode:case NEW_opcode:
       case NEWARRAY_opcode:case NEWOBJMULTIARRAY_opcode:
       case NEW_UNRESOLVED_opcode:case INSTANCEOF_opcode:

@@ -3,6 +3,10 @@
  */
 //$Id$
 
+//-#if RVM_WITH_OPT_COMPILER
+import instructionFormats.*;
+//-#endif
+
 /**
  * Defines the JavaHeader portion of the object header for the 
  * default JikesRVM object model.
@@ -35,6 +39,9 @@
  * @author Derek Lieber
  */
 public final class VM_JavaHeader implements VM_Uninterruptible, 
+					    //-#if RVM_WITH_OPT_COMPILER
+					    OPT_Operators,
+					    //-#endif
 					    VM_ObjectModelConstants {
 
   private static final int OTHER_HEADER_BYTES = 
@@ -458,12 +465,12 @@ public final class VM_JavaHeader implements VM_Uninterruptible,
   public static void lowerIG_CLASS_TEST(OPT_Instruction s, OPT_IR ir) {
     IfCmp.mutate(s, INT_IFCMP, null, 
 		 OPT_ConvertToLowLevelIR.getTIB(s, ir, 
-						(OPT_RegisterOperand)TypeIfCmp.getClearValue(s), 
-						TypeIfCmp.getClearGuard(s)), 
-		 OPT_ConvertToLowLevelIR.getTIB(s, ir, TypeIfCmp.getType(s)), 
-		 TypeIfCmp.getClearCond(s), 
-		 TypeIfCmp.getClearTarget(s),
-		 TypeIfCmp.getClearBranchProfile(s));
+						InlineGuard.getClearValue(s), 
+						InlineGuard.getClearGuard(s)), 
+		 OPT_ConvertToLowLevelIR.getTIB(s, ir, InlineGuard.getGoal(s).asType()), 
+		 OPT_ConditionOperand.NOT_EQUAL(), 
+		 InlineGuard.getClearTarget(s),
+		 InlineGuard.getClearBranchProfile(s));
   }
   //-#endif
 }
