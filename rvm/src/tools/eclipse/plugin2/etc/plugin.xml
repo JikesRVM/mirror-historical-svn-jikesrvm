@@ -12,7 +12,7 @@
 
 -->
 <plugin
-   id="com.ibm.jikesrvm.eclipse.jdt.launching"
+   id="com.ibm.jikesrvm.launching"
    name="%pluginName"
    version="2.3.0.1"
    provider-name="JikesRVM"
