@@ -104,7 +104,8 @@ class Emitters extends Shared {
       epln("classpathConfig = " + classpathConfig);
       epln("  used class loader: " + classpathConfig.getClassLoader());
     }      
-    if (classpathConfig == localClasspathConfig) {
+    if (Shared.altCL != ClassLoader.getSystemClassLoader()
+        && classpathConfig == localClasspathConfig) {
       epln("This should never happen: classpathConfig = localClasspathConfig");
       
     }
