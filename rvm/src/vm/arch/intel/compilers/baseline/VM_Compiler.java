@@ -2188,14 +2188,14 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
 	    // might be a ghost ref. Call uncommon case typechecking routine to deal with this
 	    asm.emitMOV_Reg_RegDisp (S0, SP, (count-1) << 2);                       // "this" object
 	    asm.emitPUSH_Imm(methodRef.getDictionaryId());                          // dict id of target
-            VM_ObjectModel.baselineEmitPushTIB(asm,S0);
+            VM_ObjectModel.baselineEmitPushTIB(asm,S0); // note that this call may KILL S0
 	    genParameterRegisterLoad(2);                                            // pass 2 parameter word
 	    asm.emitCALL_RegDisp(JTOC, VM_Entrypoints.unresolvedInterfaceMethodOffset);// check that "this" class implements the interface
 	  } else {
 	    asm.emitMOV_Reg_RegDisp (T0, JTOC, methodRef.getDeclaringClass().getTibOffset()); // tib of the interface method
 	    asm.emitMOV_Reg_RegDisp (S0, SP, (count-1) << 2);                                 // "this" object
 	    asm.emitPUSH_RegDisp(T0, TIB_TYPE_INDEX << 2);                                // type of the interface method
-            VM_ObjectModel.baselineEmitPushTIB(asm,S0);
+            VM_ObjectModel.baselineEmitPushTIB(asm,S0);                           // note that this call may KILL S0
 	    genParameterRegisterLoad(2);                                          // pass 2 parameter word
 	    asm.emitCALL_RegDisp(JTOC, VM_Entrypoints.mandatoryInstanceOfInterfaceOffset);// check that "this" class implements the interface
 	  }
@@ -2256,7 +2256,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
 	    // call "findITable" to resolve object + interface id into 
 	    // itable address
 	    asm.emitMOV_Reg_RegDisp (S0, SP, (count-1) << 2);             // "this" object
-            VM_ObjectModel.baselineEmitPushTIB(asm,S0);
+            VM_ObjectModel.baselineEmitPushTIB(asm,S0);                   // note that this call may kill S0
 	    asm.emitPUSH_Imm        (I.getDictionaryId());                // interface id
 	    genParameterRegisterLoad(2);                                  // pass 2 parameter words
 	    asm.emitCALL_RegDisp    (JTOC,  VM_Entrypoints.findItableOffset); // findItableOffset(tib, id) returns iTable
@@ -3402,6 +3402,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
 	methodName == VM_MagicNames.addressAsByteArray      ||
 	methodName == VM_MagicNames.addressAsIntArray       ||
 	methodName == VM_MagicNames.addressAsObject         ||
+	methodName == VM_MagicNames.addressAsObjectArray    ||
 	methodName == VM_MagicNames.addressAsType           ||
 	methodName == VM_MagicNames.objectAsType            ||
 	methodName == VM_MagicNames.objectAsShortArray      ||
