@@ -248,7 +248,7 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
 					       OPT_ConditionOperand.NOT_EQUAL(), doneBlock.makeJumpTarget(),
 					       OPT_BranchProfileOperand.likely()));
       OPT_RegisterOperand fp = ir.regpool.makeTempInt();
-      middleBlock.appendInstruction(Binary.create(INT_AND, fp, fs.copyRO(), 
+      middleBlock.appendInstruction(Binary.create(INT_AND, fp, headerWord.copyRO(), 
 						  new OPT_IntConstantOperand(~VM_AllocatorHeader.GC_FORWARDING_MASK)));
       middleBlock.appendInstruction(Load.create(INT_LOAD, headerWord.copyRO(), fp.copyRO(), 
 						new OPT_IntConstantOperand(TIB_OFFSET), null, guard));
