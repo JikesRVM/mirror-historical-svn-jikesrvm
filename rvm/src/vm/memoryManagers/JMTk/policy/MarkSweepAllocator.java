@@ -31,6 +31,16 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
     collector = collector_;
   }
 
+  public final void sweepSmall() {
+    VM_Address sp = headSuperPage;
+    while (!sp.EQ(VM_Address.zero())) {
+      int sizeClass = getSizeClass(sp);
+      if ((sizeClass != LARGE_SIZE_CLASS) && (sizeClass <= MAX_SMALL_SIZE_CLASS))
+	collector.sweepSmallSuperPage(this, sp, sizeClass, cellSize(sizeClass));
+      sp = getNextSuperPage(sp);
+    }
+  }
+
   /**
    * Return the number of pages used by a superpage of a given size
    * class.
@@ -90,7 +100,20 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
    */
   protected final int cellHeaderSize(int sizeClass)
     throws VM_PragmaInline {
-    return (sizeClass <= MAX_SMALL_SIZE_CLASS) ? 0 : (NON_SMALL_OBJ_HEADER_SIZE + TREADMILL_HEADER_SIZE);
+    return cellHeaderSize(sizeClass <= MAX_SMALL_SIZE_CLASS);
+  }
+
+  /**
+   * Return the size of the per-cell header for cells of a given class
+   * size.
+   *
+   * @param isSmall True if the cell is a small cell
+   * @return The size of the per-cell header for cells of a given class
+   * size.
+   */
+  protected final int cellHeaderSize(boolean isSmall)
+    throws VM_PragmaInline {
+    return (isSmall) ? 0 : (NON_SMALL_OBJ_HEADER_SIZE + TREADMILL_HEADER_SIZE);
   }
 
   /**
@@ -126,9 +149,10 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
     if (small)
       collector.setInUseBit(cell);
     else {
-      VM.sysWrite("pa: "); VM.sysWrite(cell); VM.sysWrite((small ? " small\n" : " non-small\n"));
+      //      VM.sysWrite("pa: "); VM.sysWrite(cell); VM.sysWrite((small ? " small\n" : " non-small\n"));
       collector.addToTreadmill(cell);
     }
+      VM.sysWrite(cell); VM.sysWrite(" a "); VM.sysWrite(getSuperPage(cell, small)); VM.sysWrite("\n");
     //    sanity();
   };
 

@@ -97,6 +97,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   abstract protected int superPageHeaderSize(int sizeClass);
   abstract protected int cellSize(int sizeClass);
   abstract protected int cellHeaderSize(int sizeClass);
+  abstract protected int cellHeaderSize(boolean isSmall);
   abstract protected void postExpandSizeClass(VM_Address sp, int sizeClass);
   abstract protected VM_Address initializeCell(VM_Address cell, VM_Address sp,
 					       boolean small);
@@ -174,7 +175,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
    * least <code>bytes</code> bytes in size.
    */
   private final VM_Address allocLarge(boolean isScalar, EXTENT bytes) {
-    bytes += superPageHeaderSize(LARGE_SIZE_CLASS) + cellHeaderSize(LARGE_SIZE_CLASS);
+    bytes += superPageHeaderSize(LARGE_SIZE_CLASS) + cellHeaderSize(false);
     int pages = (bytes + PAGE_SIZE - 1)>>LOG_PAGE_SIZE;
     VM_Address sp = allocSuperPage(pages);
     setSizeClass(sp, LARGE_SIZE_CLASS);
@@ -463,12 +464,13 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
    * containing page.  Otherwise the first word of the cell contains
    * the address of the page.
    *
-   * @param cell The address of the first word of the cell.
+   * @param cell The address of the first word of the cell (exclusive
+   * of any sub-class specific metadata).
    * @param small True if the cell is a small cell (single page superpage).
    * @return The address of the first word of the superpage containing
    * <code>cell</code>.
    */
-  protected static final VM_Address getSuperPage(VM_Address cell, boolean small)
+  public static final VM_Address getSuperPage(VM_Address cell, boolean small)
     throws VM_PragmaInline {
     VM_Address rtn;
     //    VM.sysWrite("getSuperPage: "); VM.sysWrite(cell); VM.sysWrite((small ? " s\n" : " b\n"));
@@ -520,7 +522,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
     throws VM_PragmaInline {
     return getSuperPageLink(sp, true);
   }
-  private static final VM_Address getNextSuperPage(VM_Address sp) 
+  protected static final VM_Address getNextSuperPage(VM_Address sp) 
     throws VM_PragmaInline {
     return getSuperPageLink(sp, false);
   }
@@ -688,7 +690,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   private static final float MID_SIZE_FIT_TARGET = (float) 0.85; // 20% wastage
 
 
-  private VM_Address headSuperPage;
+  protected VM_Address headSuperPage;
   protected NewFreeListVMResource vmResource;
   protected MemoryResource memoryResource;
   protected VM_Address[] freeList;

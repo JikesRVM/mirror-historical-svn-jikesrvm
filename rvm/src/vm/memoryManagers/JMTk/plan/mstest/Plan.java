@@ -373,6 +373,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
     // release each of the collected regions
     //    ((hi) ? ss0VM : ss1VM).release();
     //    Copy.release(((hi) ? ss0VM : ss1VM), ssMR);
+    msCollector.release(ss);
     losVM.release(losVM, losMR); 
     Immortal.release(immortalVM, null);
     if (verbose > 0) {
