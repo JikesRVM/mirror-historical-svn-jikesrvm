@@ -70,16 +70,20 @@ final class AllocatorBumpPointer implements Constants, Uninterruptible extends B
    * @param bytes The number of bytes allocated
    * @return The address of the first byte of the allocated region
    */
-  public Address alloc(boolean isScalar, Extent bytes) {
+  public Address alloc(boolean isScalar, Extent bytes) throws VM_PragmaInline {
     Address oldbp = bp;
     bp += bytes;
-    if ((oldbp ^ bp) >= TRIGGER) {
-      int blocks = Conversions.bytesToBlocks(bytes);
-      memoryResource.acquire(blocks);
-      oldbp = vmResource.acquire(blocks);
-      bp = oldbp + bytes;
-    }
+    if ((oldbp ^ bp) >= TRIGGER) 
+      return allocOverflow();
     return oldbp;
+  }
+
+  public allocOverflow(Extent bytes) throws VM_PragmaNoInline {
+    int blocks = Conversions.bytesToBlocks(bytes);
+    memoryResource.acquire(blocks);
+    VM_Address start = vmResource.acquire(blocks);
+    bp = start.add(bytes);
+    return start;
   }
 
   ////////////////////////////////////////////////////////////////////////////

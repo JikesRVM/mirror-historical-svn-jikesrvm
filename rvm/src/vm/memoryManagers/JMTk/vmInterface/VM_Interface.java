@@ -16,6 +16,7 @@ import com.ibm.JikesRVM.VM_ClassLoader;
 import com.ibm.JikesRVM.VM_SystemClassLoader;
 import com.ibm.JikesRVM.VM_EventLogger;
 import com.ibm.JikesRVM.VM_BootRecord;
+import com.ibm.JikesRVM.VM_PragmaInline;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.VM_PragmaInterruptible;
@@ -25,6 +26,7 @@ import com.ibm.JikesRVM.VM_Class;
 import com.ibm.JikesRVM.VM_Atom;
 import com.ibm.JikesRVM.VM_ObjectModel;
 import com.ibm.JikesRVM.VM_Magic;
+import com.ibm.JikesRVM.VM_Memory;
 
 /*
  * @author Perry Cheng  
@@ -67,6 +69,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    */
   public static final void init () throws VM_PragmaInterruptible {
     VM_CollectorThread.init();
+    MMAP_CHUNK_BYTES = VM_Memory.getPageSize();
   }
 
 
@@ -286,8 +289,138 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   }
 
 
-  // Instance fields
+  static public int MMAP_CHUNK_BYTES = 0;
+
+  public static boolean mmap(VM_Address start, int size) {
+    VM_Address result = VM_Memory.mmap(start, size,
+				       VM_Memory.PROT_READ | VM_Memory.PROT_WRITE | VM_Memory.PROT_EXEC, 
+				       VM_Memory.MAP_PRIVATE | VM_Memory.MAP_FIXED | VM_Memory.MAP_ANONYMOUS);
+    return (result.EQ(start));
+  }
+
+  public static VM_Address refToAddress(VM_Address ref) {
+    return ref.add();
+  }
 
 
+
+
+
+  /**
+   * Allocate an array of instructions
+   * @param n The number of instructions to allocate
+   * @return The instruction array
+   */ 
+  public static INSTRUCTION[] newInstructions(int n) throws VM_PragmaInline {
+
+    if (VM.BuildForRealtimeGC) {
+      //-#if RVM_WITH_REALTIME_GC
+      return VM_SegmentedArray.newInstructions(n);
+      //-#endif
+    }
+
+    return new INSTRUCTION[n];
+  }
+
+
+  /**
+   * Allocate a stack array
+   * @param n The number of stack slots to allocate
+   * @return The stack array
+   */ 
+  public static int[] newStack(int n) throws VM_PragmaInline {
+
+    if (VM.BuildForRealtimeGC) {
+      //-#if RVM_WITH_REALTIME_GC
+      return VM_SegmentedArray.newStack(n);
+      //-#endif
+    }
+
+    return new int[n];
+  }
+
+
+  /**
+   * Allocate a stack array that will live forever and does not move
+   * @param n The number of stack slots to allocate
+   * @return The stack array
+   */ 
+  public static int[] newImmortalStack (int n) {
+
+    if (VM.runningVM) {
+      int[] stack = (int[]) VM_Allocator.immortalHeap.allocateAlignedArray(VM_Array.arrayOfIntType, n, 4096);
+      return stack;
+    }
+
+    return new int[n];
+  }
+
+  /**
+   * Allocate a contiguous int array
+   * @param n The number of ints
+   * @return The contiguous int array
+   */ 
+  public static int[] newContiguousIntArray(int n) throws VM_PragmaInline {
+
+    if (VM.BuildForRealtimeGC) {
+      //-#if RVM_WITH_REALTIME_GC
+      return VM_SegmentedArray.newIntArray(n);
+      //-#endif
+    }
+
+    return new int[n];
+  }
+
+  /**
+   * Allocate a contiguous VM_CompiledMethod array
+   * @param n The number of objects
+   * @return The contiguous object array
+   */ 
+  public static VM_CompiledMethod[] newContiguousCompiledMethodArray(int n) throws
+    VM_PragmaInline {
+
+      if (VM.BuildForRealtimeGC) {
+        //-#if RVM_WITH_REALTIME_GC
+        return VM_SegmentedArray.newContiguousCompiledMethodArray(n);
+        //-#endif
+      }
+
+      return new VM_CompiledMethod[n];
+    }
+
+  /**
+   * Allocate a contiguous VM_DynamicLibrary array
+   * @param n The number of objects
+   * @return The contiguous object array
+   */ 
+  public static VM_DynamicLibrary[] newContiguousDynamicLibraryArray(int n) throws VM_PragmaInline {
+
+    if (VM.BuildForRealtimeGC) {
+      //-#if RVM_WITH_REALTIME_GC
+      return VM_SegmentedArray.newContiguousDynamicLibraryArray(n);
+      //-#endif
+    }
+
+    return new VM_DynamicLibrary[n];
+  }
+
+
+  public static Object[] newTIB (int n) throws VM_PragmaInline {
+
+    if (true) {
+      //-#if RVM_WITH_COPYING_GC
+      //-#if RVM_WITH_ONE_WORD_MASK_OBJECT_MODEL
+      return VM_Allocator.newTIB(n);
+      //-#endif
+      //-#endif
+    }
+
+    return new Object[n];
+  }
+
+  //-#if RVM_WITH_AIX
+  final static int BOOT_START = 0x30000000;
+  final static int BOOT_SIZE  = 0x05000000;   // just an upper bound
+  //-#endif
 
 }

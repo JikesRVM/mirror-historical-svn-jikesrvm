@@ -6,7 +6,9 @@
 
 package com.ibm.JikesRVM.memoryManagers.JMTk;
 
+import com.ibm.JikesRVM.memoryManagers.vmInterface.Conversions;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Address;
@@ -46,38 +48,62 @@ public final class VMResource implements Constants, VM_Uninterruptible {
    * (i.e. at "build" time).
    */
   {
-    mapped = new boolean[MMAP_CHUNKS];
-    for (int c = 0; c < MMAP_CHUNKS; c++)
+    resources = new VMResource[MAX_VMRESOURCE];
+    lookup = new int[NUM_CHUNKS];
+    mapped = new boolean[NUM_CHUNKS];
+    for (int c = 0; c < NUM_CHUNKS; c++) {
+      lookup[c] = NONE_INDEX;
       mapped[c] = false;
+    }
+    // make the bootImage VMResource
+    VM_Resource bootImage = new VMResource(VM_Address.fromInt(VM_Interface.BOOT_START), 
+					   VM_Interface.BOOT_SIZE);  
+    VM._assert(bootImage.index == BOOT_INDEX);
   }
 
   public static void showAll () {
+    VM.sysWriteln("showAll not implemented");
     VM._assert(false);
   }
 
   public static boolean refInVM(VM_Address ref) throws VM_PragmaUninterruptible {
-      return refInAnyHeap(ref);
+    return lookupChunk(VM_Interface.refToAddress(ref)) != NONE_INDEX;
   }
 
-  public static boolean addrInVM(VM_Address address) throws VM_PragmaUninterruptible {
-      return addrInAnyHeap(address);
+  public static boolean addrInVM(VM_Address addr) throws VM_PragmaUninterruptible {
+    return lookupChunk(addr) != NONE_INDEX;
   }
 
   public static boolean refInBootImage(VM_Address ref) throws VM_PragmaUninterruptible {
-      return bootHeap.refInHeap(ref);
+    return lookupChunk(VM_Interface.refToAddress(ref)) == BOOT_INDEX;
   }
 
-  public static boolean refInHeap(VM_Address ref) throws VM_PragmaUninterruptible {
-      return (refInVM(ref) && (!refInBootImage(ref)));
-  }
-
-  public static boolean addrInBootImage(VM_Address address) throws VM_PragmaUninterruptible {
-    return bootHeap.addrInHeap(address);
+  public static boolean addrInBootImage(VM_Address addr) throws VM_PragmaUninterruptible {
+    return lookupChunk(addr) == BOOT_INDEX;
   }
 
   public static int getMaxVMResource() {
-    VM._assert(false);
-    return 0;
+    return MAX_VMRESOURCE;
+  }
+
+  ////////////////////////////////////////////////////////////////////////////
+  //
+  // Private static methods and variables
+  //
+  private static boolean mapped[];
+  private static int lookup[];      // Maps an address to corresponding VM resource.  -1 if no corresponding VM resource.
+  private static int count;         // How many VMResources exist now?
+  private static VMResource resources[];     // List of all VMResources.
+  private static int MAX_VMRESOURCE = 100;
+  private static int NONE_INDEX = -1;
+  private static int BOOT_INDEX = 0;
+  private static int LOG_CHUNK_SIZE = 20;            
+  private static int LOG_ADDRESS_SPACE = 32;
+  private static int CHUNK_SIZE = 1 << LOG_CHUNK_SIZE;   // the granularity VMResource operates at
+  private static int NUM_CHUNKS = 1 << (LOG_ADDRESS_SPACE - LOG_CHUNK_SIZE);
+
+  private static int lookupChunk(VM_Address addr) {
+    return lookup[VM_Address.toInt(addr) >> LOG_CHUNK_SIZE];
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -90,7 +116,8 @@ public final class VMResource implements Constants, VM_Uninterruptible {
   VMResource(VM_Address vmStart, Extent bytes) {
     start = vmStart;
     blocks = Conversions.bytesToBlocks(bytes);
-
+    index = count++;
+    resources[index] = this;
     // now check: block-aligned, non-conflicting
   }
 
@@ -116,24 +143,27 @@ public final class VMResource implements Constants, VM_Uninterruptible {
   
   ////////////////////////////////////////////////////////////////////////////
   //
-  // Private methods
+  // Private fields and methods
   //
+
+  private int index;
+  private VM_Address start;
+  private int blocks;
+
   private static void ensureMapped(VM_Address start, int request) {
     int chunk = Conversions.addressToMmapChunks(start);
     int sentinal = chunk + Conversions.blocksToMmapChunks(request);
     while (chunk < sentinal) {
       if (!mapped[chunk]) {
-	Runtime.mmap(Conversions.mmapChunksToAddress(chunk), MMAP_CHUNK_BYTES);
+	if (!VM_Interface.mmap(Conversions.mmapChunksToAddress(chunk), VM_Interface.MMAP_CHUNK_BYTES)) {
+	  VM.sysWriteln("ensureMapped failed");
+	  VM._assert(false);
+	}
 	mapped[chunk] = true;
       }
       chunk++;
     }
   }
 
-  ////////////////////////////////////////////////////////////////////////////
-  //
-  // Class variables
-  //
-  private static boolean mapped[];
-  
+
 }

@@ -32,19 +32,41 @@ public abstract class BasePlan implements {  // Constants {
     heapBlocks = Conversion.MBtoBlocks(Options.heapSize);
   }
 
-  private boolean gcInProgress = false;
+  private boolean gcInProgress = false;    // This flag should be turned on/off by subclasses.
 
   static public boolean gcInProgress() {
     return gcInProgress;
   }
 
-  public void collect(PointerIterator remset) {
-    gcInProgress = true;
-    roots.trace();
+  private void computeAndTraceRoots() {
+
+    VM_CollectorThread collector = VM_Magic.threadAsCollectorThread(VM_Thread.getCurrentThread());
+    AddressSet rootVals = collector.rootValues;
+    AddressSet rootLocs = collector.rootLocations;
+    AddressPairSet interiorLocs = collector.interiorLocations;
+    
+    while (!rootVals.isEmpty()) 
+      traceObject(rootVals.pop());
+    
+    while (!rootLocs.isEmpty()) 
+      traceObjectLocation(rootLocs.pop());
+    
+    if (interiorLocs != null) {
+      while (!interiorLocs.isEmpty()) {
+	VM_Address obj = interiorLocs.pop1();
+	VM_Address interiorLoc = interiorLocs.pop2();
+	VM_Address interior = VM_Magic.getMemoryAddress(interiorLoc);
+	VM_Address newInterior = traceInteriorReference(obj, interior);
+	VM_Magic.setMemoryAddress(interiorLoc, newInterior);
+      }
+    }
+  }
+
+  private void collect(PointerIterator remset) {
+    computeAndTraceRoots();
     if (remset != null)
       remset.trace();
     workqueue.trace();
-    gcInProgress = false;
   }
 
   public static int getHeapBlocks() { return heapBlocks; }
