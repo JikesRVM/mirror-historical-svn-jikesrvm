@@ -75,6 +75,7 @@ fi
 cd $RVM_ROOT
 
 dry_run=""
+declare -i toDeveloperWorks=1
 declare -i trouble=0
 while (( $# > 0 )); do
     case "$1" in
@@ -84,20 +85,22 @@ while (( $# > 0 )); do
 #	    ;;
 	-dry-run )
 	    dry_run="-succeed-immediately";
-	    shift;
 	    echo "$ME: A dry run, so we won't actually send any mail." \
 		| tee -a $RUN_LOG $MSG >&2
+	    ;;
+	-no-developerworks )
+	    toDeveloperWorks=0;
 	    ;;
 	-* )
 	    echo "$ME: Got unknown flag \"$1\"; can't go on." \
 		tee -a $RUN_LOG $MSG >&2
 	    trouble=1
-	    shift
 	    ;;
 	* )
 	    break 
 	    ;;
     esac
+    shift
 done
 
 if (( $# < 1 )); then
@@ -150,7 +153,7 @@ $RVM_ROOT/rvm/regression/NightSanityDriver $dry_run -common "-images $RVM_ROOT/i
 # Archive result files and performance results
 
 
-function archiveResults() {
+function archiveLocally() {
     if [[ ! -d $ARCHIVE ]]; then
 	echo "$ME: No archive directory named $ARCHIVE exists;" \
 	    " skipping archiving." | tee -a $VERBOSE_LOG $RUN_LOG $MSG
@@ -178,7 +181,9 @@ function archiveResults() {
 	    return $status;
 	fi
     fi >> $VERBOSE_LOG 2>&1
-    
+}
+
+function archiveToDeveloperWorks() {
     echo "sending tar to dW" >> $VERBOSE_LOG 2>&1
     if ! cd $RVM_ROOT/sanityResults; then
 	echo  "No directory or trouble with $RVM_ROOT/sanityResults; won't send tar to dW." | tee -a $RUN_LOG $VERBOSE_LOG >> $MSG;
@@ -200,8 +205,14 @@ function archiveResults() {
     return $trouble;
 }
 
-declare -i archived=0
-archiveResults && archived=1
+# Yield positive status if a full archiving happened, including 
+# transmission to developerWorks.
+function archiveResults() {
+    archiveLocally && (( toDeveloperWorks )) && archiveToDeveloperWorks;
+}
+
+declare -i archivedToDeveloperWorks=0
+archiveResults && archivedToDeveloperWorks=1
 
 # determine how many ran, failed, and passed, then build a summary line
 declare -i numran=`grep "sane" $RUN_LOG | wc -l`
@@ -254,7 +265,7 @@ if (( numjavadocErrors > 0 )) && (( numjavadocErrors < 50 )); then
     grep warning $RVM_ROOT/doc/api/javadoc.out | sort | uniq
 fi >> $MSG
 
-if (( archived )); then
+if (( archivedToDeveloperWorks )); then
     # Describe where the archive information can be found
     echo -e "\nOutput of this run is normally available (for 24 hours) at:" 
     echo "http://www-124.ibm.com/developerworks/oss/jikesrvm/sanityResults/$TRANSFER_FILE_NAME"
