@@ -1885,13 +1885,9 @@ public class VM_Allocator
 
     // restore original bit pattern of available bits word in copied object
     // set the barrier bit if write barrier
-    if (writeBarrier) {
-      VM_ObjectModel.writeAvailableBitsWord(toObj, forwardingPtr | VM_AllocatorHeader.GC_BARRIER_BIT_MASK);
-      VM_ObjectModel.initializeAvailableByte(toObj); // make it safe for write barrier to access barrier bit non-atmoically
-    } else {
-      VM_ObjectModel.writeAvailableBitsWord(toObj, forwardingPtr);
-    }
-
+    VM_ObjectModel.writeAvailableBitsWord(toObj, forwardingPtr | VM_AllocatorHeader.GC_BARRIER_BIT_MASK);
+    VM_ObjectModel.initializeAvailableByte(toObj); // make it safe for write barrier to access barrier bit non-atmoically
+    
     VM_Magic.sync(); // make changes viewable to other processors 
     
     VM_AllocatorHeader.setForwardingPointer(fromObj, toObj);
