@@ -1047,7 +1047,7 @@ function emitController () {
 	    return \$status;	# will always return 0
 	}
 
-	DEMOGRAPHICS_FLAG="" CLEAN_FLAG="" RECOMPILE_FLAG="" NOLINK_FLAG="" BOOTER_FLAG="" NOBOOTER_FLAG=""
+	DEMOGRAPHICS_FLAG="" RECOMPILE_FLAG="" NOLINK_FLAG="" BOOTER_FLAG="" NOBOOTER_FLAG=""
 	while (( \$# > 0 )); do
 	    arg="\$1"
 	    [[ \$arg != --?* ]] || arg="\${arg#-}"
@@ -2807,26 +2807,25 @@ EOF
 	function emit_ant_properties () {
 	    echo "eclipse.dir=\${ECLIPSE_INSTALL_DIR}"
 	    echo "plugin.version=\${PLUGIN_VERSION_NUMBER}"
-	    echo "# For back-compatibility"
-	    echo "jikesrvm.version=\${PLUGIN_VERSION_NUMBER}"
 	    echo "# Show extra info when building?"
 	    if tracing ant; then
 	        echo "build.trace=true"
 	    else
 	        echo "build.trace=false"
 	    fi
+	    echo "# Taken from the RVM_BUILD envar"
+	    echo "rvm.scratch=${SCRATCH_DIRECTORY_STR}"
+	    echo "build.dir=\${build_dir}"
 	}
 
 	# Pick up the configuration to learn where Ant is
 	# and to get the value Ant needs for JAVA_HOME
-	$(emitBoilerplate)
-
 	. "\${RVM_BUILD}/environment.target"
 
 	export JAVA_HOME=\${HOST_JAVA_HOME}
 
 	usage () {
-	    echo "Usage: \$ME [ --help ] [ -trace[=<args>] ] [ -v ] [ -x ]"
+	    echo "Usage: \$ME [ --help ] [ -clean ] [ -verbose ] [ -trace[=<args>] ] [ -v ] [ -x ] [-target=<target-name>]"
 	    echo "      [ -- ] [ <eclipse-install-dir> ]"
 	}
 
@@ -2839,6 +2838,9 @@ EOF
 	    echo "  3: set the environment variable ECLIPSE_INSTALL_DIR"
 	}
 
+
+	TARGET=install
+	VERBOSE_ANT=
 	while (( \$# > 0 )); do
 	    arg="\$1"
 	    if [[ \$arg = -- ]]; then
@@ -2848,14 +2850,24 @@ EOF
 	    [[ \$arg != --?* ]] || arg="\${arg#-}"
 	    if [[ \$arg = -v ]]; then
 	        VFLAG=-v
+		VERBOSE_ANT=-verbose
 	        shift
 	    elif [[ \$arg = -x ]]; then
 	        XFLAG=-x
 	        shift
+	    elif [[ \$arg = -verbose ]]; then
+	        VERBOSE_ANT=-verbose
+	        shift
+	    elif [[ \$arg == -clean ]]; then
+	        TARGET="clean"
+	        shift
 	    elif [[ \$arg == -trace* ]]; then
 	        TRACE_FLAG="\$arg"
 	        shift
-	    elif [[ \$arg = -help ]] || [[ \$arg = -help ]]; then
+	    elif [[ \$arg == -target=* ]]; then
+	        TARGET="\${arg#-target=}"
+	        shift
+	    elif [[ \$arg = -help ]]; then
 	        shift
 	        help
 	        trap '' EXIT
@@ -2865,6 +2877,9 @@ EOF
 	        usage >&2
 		trap '' EXIT
 	        exit $Exit_Status_Bad_Args
+	    else
+		break;		# Must have specified an Eclipse install dir 
+				# on the commmand line.
 	    fi
 	done
 
@@ -2880,7 +2895,9 @@ EOF
 	    trap '' EXIT
 	    exit $Exit_Status_Bad_Args;
 	fi
-	# must have Eclipse install dir specified via command line or via environment
+	# must have Eclipse install dir specified 
+	# via command line or via the process environment 
+	# or via environment.target
 	if [[ ! \${ECLIPSE_INSTALL_DIR} ]]; then
 	    echo "\$ME: You must (but didn't) specify the directory where Eclipse is installed."
 	    help;
@@ -2897,18 +2914,31 @@ EOF
 
 	# build the plugin
 	[ ! "\$VFLAG\$XFLAG" ] || set \$VFLAG \$XFLAG
-	srcdir=${ROOT_DIRECTORY_STR}/rvm/src/tools/eclipse/plugin2
-	chdir \${srcdir}
 
 	# Get the name of the package we're building.  It changes with each
 	# new version of Jikes RVM.
-	echo "Building and installing the JikesRVM-launching Eclipse plugin"
+	if [[ \$TARGET = clean ]]; then
+	    echo -n "Cleaning up "
+	elif [[ \$TARGET == \*build\* ]]; then
+	    echo -n "Building"
+	elif  [[ \$TARGET == install ]] || [[ \$TARGET = reinstall ]]; then
+	    echo "Installing"
+	else
+	    echo "Running \\"ant\\", with target=\$TARGET, on"
+	fi
+	echo " the JikesRVM-launching Eclipse plugin"
 
+	build_dir="${BUILD_DIRECTORY_STR}/plugin.eclipse"
+	mkdir -p \${build_dir}
+	propfile="\$build_dir/ant.properties"
 	if tracing jbuild || tracing ant; then
-	    echo "Setting up ant.properties"
+	    echo "Setting up \${propfile}"
 	fi
 
-	emit_ant_properties > ant.properties
+	emit_ant_properties > \${propfile}
+
+	srcdir=${ROOT_DIRECTORY_STR}/rvm/src/tools/eclipse/plugin2
+	chdir \${srcdir}
 
 	if tracing ant; then
 	    QUIET_ANT=""
@@ -2916,14 +2946,15 @@ EOF
 	    QUIET_ANT=-quiet
 	fi
 
-	cmd="\${ANT_CMD} \$QUIET_ANT install"
+	cmd="\${ANT_CMD} \$QUIET_ANT \${VERBOSE_ANT} \${TARGET}"
 	if tracing jbuild || tracing ant || tracing make ; then
 	    echo \$cmd
 	fi
 	\$cmd
 
-	echo "Installed the Plugin with version # \${PLUGIN_VERSION_NUMBER}"
-
+	if [[ \$TARGET = install ]] || [[ \$TARGET = reinstall ]]; then
+	    echo "Installed the Plugin with version # \${PLUGIN_VERSION_NUMBER}"
+	fi
 	trap '' EXIT
 	EOF
 }
