@@ -463,8 +463,8 @@ HOST_JIKES_STR1="HOST_JIKES"
 HOST_JIKES_STR="\$$HOST_JIKES_STR1"
 HOST_JAVA_STR1="HOST_JAVA_RT"
 HOST_JAVA_STR="\$$HOST_JAVA_STR1"
-HOST_PROPRIETARY_JAVA_STR1="HOST_PROPRIETARY_JAVA_RT"
-HOST_PROPRIETARY_JAVA_STR="\$$HOST_PROPRIETARY_JAVA_STR1"
+# HOST_PROPRIETARY_JAVA_STR1="HOST_PROPRIETARY_JAVA_RT" # XXX
+# HOST_PROPRIETARY_JAVA_STR="\$$HOST_PROPRIETARY_JAVA_STR1" # XXX
 HOST_JAVAC_STR1="HOST_JAVAC"
 HOST_JAVAC_STR="\$$HOST_JAVAC_STR1"
 HOST_JAVA_HOME_STR1="HOST_JAVA_HOME"
@@ -533,8 +533,6 @@ declare -i RVM_FOR_OSX=0	   # Implies PPC.
 declare -i RVM_FOR_32_ADDR=0
 declare -i RVM_FOR_64_ADDR=0
  
-declare -i RVM_BOOTIMAGE_WRITER_JIKES_RVM=1
-
 # Here are the choices for compiler components and extensions.
 # Note: baseline compiler is always built into bootimage: its presence is not controlled by any flags.
 #
@@ -639,7 +637,8 @@ function unsetEnvironment() {
 
     unset HOST_JIKES $HOST_JIKES_STR1
     unset HOST_JAVA $HOST_JAVA_STR1 
-    unset HOST_PROPRIETARY_JAVA $HOST_PROPRIETARY_JAVA_STR1 
+    unset HOST_PROPRIETARY_JAVA
+    # unset $HOST_PROPRIETARY_JAVA_STR1 # XXX
     unset HOST_JAVAC $HOST_JAVAC_STR1
     unset HOST_JAVA_HOME $HOST_JAVA_HOME_STR1 
     unset HOST_JAVADOC $HOST_JAVADOC_STR1 
@@ -1186,6 +1185,7 @@ function emitEnvironmentBash () {
 	export XARGS='$XARGS'
 	export UNZIP_CMD='$UNZIP_CMD'
 	export CLASSPATH_LIBRARIES=YES
+	export BOOTIMAGE_WRITER_VM='$BOOTIMAGE_WRITER_VM'
 EOF
     if [ "${HOST_JAVA_LD_LIBRARY_PATH-}" ]; then
 	cat <<- EOF
@@ -1194,10 +1194,9 @@ EOF
 EOF
     fi
 
-    [[ ! ${HOST_PROPRIETARY_JAVA} ]] || echo "export $HOST_PROPRIETARY_JAVA_STR1='$HOST_PROPRIETARY_JAVA'"
+#    [[ ! ${HOST_PROPRIETARY_JAVA-} ]] || echo "export $HOST_PROPRIETARY_JAVA_STR1='$HOST_PROPRIETARY_JAVA'" # XXX
     [[ ! ${CPP-} ]] || echo "export $HOST_CPP_STR1='$CPP'"
     [[ ! ${FASTJAR-} ]] || echo "export FASTJAR='$FASTJAR'"
-#    (( ! RVM_BOOTIMAGE_WRITER_JIKES_RVM )) || echo "export RVM_BOOTIMAGE_WRITER_JIKES_RVM='$RVM_BOOTIMAGE_WRITER_JIKES_RVM'"
     [[ ! ${BISON-} ]] || echo "export BISON='$BISON'"  
     [[ ! ${ANT_CMD-} ]] || echo "export ANT_CMD='$ANT_CMD'"
     echo ""
@@ -1205,6 +1204,8 @@ EOF
     echo ""
     [[ ! ${CLASSPATH_ROOT-} ]] || echo "export CLASSPATH_ROOT=$CLASSPATH_ROOT"
     echo ""
+    [[ ! ${DONOR_RVM_ROOT-} ]] || echo "export DONOR_RVM_ROOT=$DONOR_RVM_ROOT"
+    [[ ! ${DONOR_RVM_BUILD-} ]] || echo "export DONOR_RVM_BUILD=$DONOR_RVM_BUILD"
 }
 
 #
@@ -1269,10 +1270,11 @@ function emitMakefile () {
 
 	CLASSPATH_LIBRARIES = YES
 	EOF
-    (( ! RVM_BOOTIMAGE_WRITER_JIKES_RVM )) || echo "RVM_BOOTIMAGE_WRITER_JIKES_RVM = 1"
     [[ ! ${BISON-} ]] || echo "BISON = '$BISON'"  
     [[ ! ${FASTJAR-} ]] || echo "FASTJAR = '$FASTJAR'"  
     [[ ! ${BENCHMARK_ROOT-} ]] || echo "BENCHMARK_ROOT = $BENCHMARK_ROOT"
+    [[ ! ${DONOR_RVM_ROOT-} ]] || echo "DONOR_RVM_ROOT = $DONOR_RVM_ROOT"
+    [[ ! ${DONOR_RVM_BUILD-} ]] || echo "DONOR_RVM_BUILD = $DONOR_RVM_BUILD"
 }
 
 
@@ -1965,7 +1967,11 @@ function emitImageLinker () {
 
 EOF
     
+    # We may want to pick a different boot image writer
+    # makefile, depending upon what we have available.
     BOOTIMAGE_WRITER_MAKEFILE=Makefile
+    [[ -f $BOOTIMAGE_WRITER_DIR/Makefile.$BOOTIMAGE_WRITER_VM ]] \
+	&& BOOTIMAGE_WRITER_MAKEFILE=Makefile.$BOOTIMAGE_WRITER_VM
 
     cat <<- EOF
 	if [[ \$CLEAN_FLAG ]]; then
@@ -2565,8 +2571,8 @@ EOF
 	    GenerateInterfaceDeclarations -ia $BOOTIMAGE_LOAD_ADDRESS \
 	    -out $SCRATCH_DIRECTORY_STR/InterfaceDeclarations.h )
 
-	if [[ $HOST_PROPRIETARY_JAVA_STR ]]; then
-	    run $HOST_PROPRIETARY_JAVA_STR  "\${args[@]}"
+	if [[ "${GENERATE_INTERFACE_DECLARATIONS_VM-DUMMY}" != DUMMY ]]; then
+	    run ${GENERATE_INTERFACE_DECLARATIONS_VM-DUMMY} "\${args[@]}"
 	else
 	    run $HOST_JAVA_STR		 "\${args[@]}"
 	fi
