@@ -131,8 +131,8 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
       VM.sysWriteln(" + (imm) ", immortalMR.reservedBlocks());
   }
 
-  public static int getInitialMarkValue() {
-    return msCollector.getInitialMarkValue();
+  public static int getInitialHeaderValue(int size) {
+    return msCollector.getInitialHeaderValue(size);
   }
 
   /**

@@ -68,12 +68,24 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
    */
   protected final int superPageHeaderSize(int sizeClass)
     throws VM_PragmaInline {
-    if ((sizeClass != 0) && (sizeClass <= MAX_SMALL_SIZE_CLASS))
-      return BASE_SP_HEADER_SIZE + BITMAP_SIZE;
-    else 
+    if (sizeClass == 0)
       return BASE_SP_HEADER_SIZE;
+    else if (sizeClass <= MAX_SMALL_SIZE_CLASS)
+      return BASE_SP_HEADER_SIZE + SMALL_BITMAP_SIZE;
+    else 
+      return BASE_SP_HEADER_SIZE + MID_BITMAP_SIZE;
   }
 
+  public static int getCellSize(VM_Address sp) {
+    return getCellSize(getSizeClass(sp));
+  }
+ 
+  private static int getCellSize(int sizeClass) {
+    if (VM.VerifyAssertions) 
+      VM._assert(sizeClass != LARGE_SIZE_CLASS);
+
+    return cellSize[sizeClass];
+  }
   /**
    * Return the size of a cell for a given class size, *including* any
    * per-cell header space.
@@ -84,10 +96,7 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
    */
   protected final int cellSize(int sizeClass) 
     throws VM_PragmaInline {
-    if (VM.VerifyAssertions) 
-      VM._assert(sizeClass != LARGE_SIZE_CLASS);
-
-    return cellSize[sizeClass];
+    return getCellSize(sizeClass);
   }
 
   /**
@@ -147,12 +156,12 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
 				 EXTENT bytes, boolean small) {
     //    sanity();
     if (small)
-      collector.setInUseBit(cell);
+      collector.setInUseBit(cell, getSuperPage(cell, small), small);
     else {
       //      VM.sysWrite("pa: "); VM.sysWrite(cell); VM.sysWrite((small ? " small\n" : " non-small\n"));
       collector.addToTreadmill(cell);
     }
-      VM.sysWrite(cell); VM.sysWrite(" a "); VM.sysWrite(getSuperPage(cell, small)); VM.sysWrite("\n");
+//       VM.sysWrite(cell); VM.sysWrite(" a "); VM.sysWrite(getSuperPage(cell, small)); VM.sysWrite("\n");
     //    sanity();
   };
 
@@ -186,7 +195,7 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
       int inUse = 0;
       while (cursor.add(cellSize).LE(sentinal)) {
 	VM_Address cell = cursor;
-	if(MarkSweepCollector.getInUseBit(cell))
+	if(MarkSweepCollector.getInUseBit(cell, sp, true))
 	  inUse++;
 	else
 	  VM._assert(isFree(cell, sizeClass));
@@ -213,7 +222,8 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
 				    int szClass) {};
   protected final void postExpandSizeClass(VM_Address sp, int sizeClass) {};
   
-  private static final int BITMAP_SIZE = MarkSweepCollector.BITMAP_SIZE;
+  private static final int SMALL_BITMAP_SIZE = MarkSweepCollector.SMALL_BITMAP_SIZE;
+  private static final int MID_BITMAP_SIZE = 0;
   private static final int TREADMILL_HEADER_SIZE = MarkSweepCollector.TREADMILL_HEADER_SIZE;
 
   public static final int MAX_SMALL_SIZE = 512;

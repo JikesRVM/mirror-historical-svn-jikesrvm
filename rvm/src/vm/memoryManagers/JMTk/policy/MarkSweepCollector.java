@@ -106,9 +106,12 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
     return object;
   }
 
-  public final int getInitialMarkValue() 
+  public final int getInitialHeaderValue(int size) 
     throws VM_PragmaInline {
-    return markState;
+    if (size <= MAX_SMALL_SIZE)
+      return markState | MarkSweepHeader.SMALL_OBJECT_MASK;
+    else
+      return markState;
   }
 
   public final NewFreeListVMResource getVMResource() 
@@ -134,8 +137,9 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
 					VM_Address sp, int szclass, 
 					int cellSize)
     throws VM_PragmaInline {
+//     VM.sysWrite("------------ sweep -----------\n");
     VM_Address base = sp.add(BITMAP_BASE);
-    for (int pair = 0; pair < BITMAP_PAIRS; pair++) {
+    for (int pair = 0; pair < SMALL_BITMAP_PAIRS; pair++) {
       if (VM.VerifyAssertions)
 	VM._assert((INUSE_BITMAP_OFFSET == 0) 
 		   && (MARK_BITMAP_OFFSET == WORD_SIZE));
@@ -148,26 +152,31 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
       int free = mark ^ inuse;
       if (free != 0) {
 	// free them up
+// 	VM.sysWrite("--->");
+// 	VM.sysWrite(inUseBitmap); VM.sysWrite(": ");
+// 	VM.sysWriteHex(inuse); VM.sysWrite(" ");
+// 	VM.sysWriteHex(mark); VM.sysWrite(" ");
+// 	VM.sysWriteHex(free); VM.sysWrite("\n");
 	freeFromBitmap(allocator, sp, free, szclass, cellSize, pair);
 	VM_Magic.setMemoryWord(inUseBitmap, mark); 
       }
       if (mark != 0)
 	VM_Magic.setMemoryWord(markBitmap, 0);
     }
+//     VM.sysWrite("============ sweep ===========\n");
   }
   private final void freeFromBitmap(MarkSweepAllocator allocator, 
 				    VM_Address sp, int free, int szclass,
 				    int cellSize, int pair)
     throws VM_PragmaInline {
-    int baseOffset = (pair<<LOG_PAIR_GRAIN) - SMALL_OBJ_BASE;
+    int index = (pair<<LOG_WORD_BITS);
     VM_Address base = sp.add(SMALL_OBJ_BASE);
     for(int i=0; i < WORD_BITS; i++) {
       if ((free & (1<<i)) != 0) {
-	int offset = baseOffset + (i<<LOG_BITMAP_GRAIN);
-	int trueOffset = cellSize*((offset + (cellSize - 1))/cellSize);
-	VM_Address cell = base.add(trueOffset);
+	VM_Address cell = base.add((index + i)*cellSize);
+// 	VM.sysWrite("freeing "); VM.sysWrite(cell); VM.sysWrite(" "); VM.sysWrite(index+i); VM.sysWrite(" "); VM.sysWrite(szclass); VM.sysWrite("...\n");
 	allocator.free(cell, sp, szclass);
- 	VM.sysWrite(cell); VM.sysWrite(" f "); VM.sysWrite(sp); VM.sysWrite("\n");
+//  	VM.sysWrite(cell); VM.sysWrite(" f "); VM.sysWrite(sp); VM.sysWrite("\n");
       }
     }
   }
@@ -179,32 +188,37 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   private final void internalMarkObject(VM_Address object) 
     throws VM_PragmaInline {
     VM_Address cell = VM_JavaHeader.objectStartRef(object);
-//     VM.sysWrite(cell); VM.sysWrite(" m ");
+    VM_Address ref = VM_JavaHeader.getPointerInMemoryRegion(object);
+//      VM.sysWrite(cell); VM.sysWrite(" m ");
     int bytes = VM_ObjectModel.bytesRequiredWhenCopied(object);
     if (bytes <= MarkSweepAllocator.MAX_SMALL_SIZE) {
 //       VM.sysWrite(MarkSweepAllocator.getSuperPage(cell, true)); VM.sysWrite("\n");
-      setMarkBit(cell);
+      setMarkBit(cell, MarkSweepAllocator.getSuperPage(cell, true), true);
+      if (VM.VerifyAssertions)
+	VM._assert(MarkSweepHeader.isSmallObject(VM_Magic.addressAsObject(object)));
     } else {
-//       VM.sysWrite(MarkSweepAllocator.getSuperPage(cell.sub(TREADMILL_HEADER_SIZE), false)); VM.sysWrite("\n");
+//        VM.sysWrite(MarkSweepAllocator.getSuperPage(cell.sub(TREADMILL_HEADER_SIZE), false)); VM.sysWrite("\n");
       moveToTreadmill(cell, true);
+      if (VM.VerifyAssertions)
+	VM._assert(!MarkSweepHeader.isSmallObject(VM_Magic.addressAsObject(object)));
     }
   }
 
   public final boolean isOnTreadmill(VM_Address cell) {
     VM_Address next = treadmillFromHead;
-    VM.sysWrite("Treadmill: ");
-    VM.sysWrite(cell);
-    VM.sysWrite("? (");
+//     VM.sysWrite("Treadmill: ");
+//     VM.sysWrite(cell);
+//     VM.sysWrite("? (");
     while (next.NE(VM_Address.zero())) {
 //       VM.sysWrite(next);
       if (next.EQ(cell)) {
-	VM.sysWrite(")\n");
+// 	VM.sysWrite(")\n");
 	return true;
       }
 //       VM.sysWrite(", ");
       next = getNextTreadmill(next);
     }
-    VM.sysWrite(")\n");
+//     VM.sysWrite(")\n");
     return false;
   }
   
@@ -244,65 +258,86 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
     treadmillLock.release();
   }
 
-  public static void setInUseBit(VM_Address cell)
+  public static void setInUseBit(VM_Address ref, VM_Address sp, boolean small)
     throws VM_PragmaInline {
-    changeBit(cell, true, true, false);
+    changeBit(ref, sp, small, true, true, false);
   }
-  private static void unsetInUseBit(VM_Address cell)
+  private static void unsetInUseBit(VM_Address ref, VM_Address sp,
+				    boolean small)
     throws VM_PragmaInline {
-    changeBit(cell, false, true, false);
+    changeBit(ref, sp, small, false, true, false);
   }
-  private static void setMarkBit(VM_Address cell)
+  private static void setMarkBit(VM_Address ref, VM_Address sp, boolean small)
     throws VM_PragmaInline {
-    changeBit(cell, true, false, true);
+    changeBit(ref, sp, small, true, false, true);
   }
-  public static boolean getInUseBit(VM_Address cell)
+  public static boolean getInUseBit(VM_Address ref, VM_Address sp,
+				    boolean small)
     throws VM_PragmaInline {
-    return getBit(cell, true);
+    return getBit(ref, sp, small, true);
   }
-  private static boolean getMarkBit(VM_Address cell)
+  private static boolean getMarkBit(VM_Address ref, VM_Address sp, 
+				    boolean small)
     throws VM_PragmaInline {
-    return getBit(cell, false);
+    return getBit(ref, sp, small, false);
   }
-  private static void changeBit(VM_Address cell, boolean set, boolean inuse, 
-				boolean sync)
+  private static void changeBit(VM_Address ref, VM_Address sp, boolean small,
+				boolean set, boolean inuse, boolean sync)
     throws VM_PragmaInline {
-    VM_Word mask = getBitMask(cell);
-    VM_Address addr = getBitMapWord(cell, inuse);
+//      VM.sysWrite("word: "); VM.sysWrite(ref); VM.sysWrite(", "); 
+    int index = getCellIndex(ref, sp, small);
+    VM_Word mask = getBitMask(index);
+    VM_Address addr = getBitMapWord(index, sp, inuse, small);
 //     VM.sysWrite("modifying word: "); VM.sysWrite(addr); VM.sysWrite("\n");
     if (sync)
       syncSetBit(addr, mask, set);
     else
       unsyncSetBit(addr, mask, set);
+//     VM.sysWrite("--->"); VM.sysWrite(addr); VM.sysWrite(": "); VM.sysWrite(VM_Magic.getMemoryAddress(addr)); VM.sysWrite("\n");
   }
-  private static boolean getBit(VM_Address cell, boolean inuse)
+  private static boolean getBit(VM_Address ref, VM_Address sp, boolean small,
+				boolean inuse)
     throws VM_PragmaInline {
-    VM_Word mask = getBitMask(cell);
-    VM_Address addr = getBitMapWord(cell, inuse);
+    int index = getCellIndex(ref, sp, small);
+    VM_Word mask = getBitMask(index);
+    VM_Address addr = getBitMapWord(index, sp, inuse, small);
     VM_Word value = VM_Word.fromInt(VM_Magic.getMemoryWord(addr));
     return mask.EQ(value.and(mask));
   }
-  private static VM_Word getBitMask(VM_Address cell)
+  private static int getCellIndex(VM_Address ref, VM_Address sp, boolean small)
     throws VM_PragmaInline {
-    int bitnumber = (cell.toInt()>>>LOG_BITMAP_GRAIN)&(WORD_BITS-1);
+    int cellSize = MarkSweepAllocator.getCellSize(sp);
+    if (small) {
+      sp = sp.add(SMALL_OBJ_BASE);
+    } else {
+      VM._assert(false);  ///not ready yet
+      sp = sp.add(MID_OBJ_BASE);
+    }
+//     VM.sysWrite("index "); VM.sysWrite(ref); VM.sysWrite(" "); VM.sysWrite(ref.diff(sp).toInt()); VM.sysWrite(" "); VM.sysWrite(cellSize); VM.sysWrite(" "); VM.sysWrite((ref.diff(sp).toInt()/cellSize)); VM.sysWrite("\n");
+    return ref.diff(sp).toInt()/cellSize;
+  }
+  private static VM_Word getBitMask(int index)
+    throws VM_PragmaInline {
+    int bitnumber = index & (WORD_BITS - 1);
     if (VM.VerifyAssertions)
       VM._assert((bitnumber >= 0) && (bitnumber < WORD_BITS));
     return VM_Word.fromInt(1<<bitnumber);
   }
-  private static VM_Address getBitMapWord(VM_Address cell, boolean inuse)
+  private static VM_Address getBitMapWord(int index, VM_Address sp,
+					  boolean inuse, boolean small)
     throws VM_PragmaInline {
-    VM_Address base = MarkSweepAllocator.getSuperPage(cell, true).add(BITMAP_BASE);
-    int bitmapIndex = cell.toWord().and(MarkSweepAllocator.PAGE_MASK.not()).toInt()>>>(LOG_BITMAP_GRAIN + LOG_WORD_BITS);
-    int offset = bitmapIndex<<(1+LOG_WORD_SIZE);
+    int offset = (index>>LOG_WORD_BITS)<<(LOG_WORD_SIZE + 1);
     if (inuse)
       offset += INUSE_BITMAP_OFFSET;
     else
       offset += MARK_BITMAP_OFFSET;
 //     VM.sysWrite("word: "); VM.sysWrite(cell); VM.sysWrite(", "); 
-//     VM.sysWrite(bitmapIndex);  VM.sysWrite(", "); VM.sysWrite(offset); VM.sysWrite(", "); VM.sysWrite(BITMAP_SIZE); VM.sysWrite("\n");
+//     VM.sysWrite(bitmapIndex);  VM.sysWrite(", "); VM.sysWrite(offset); VM.sysWrite(", "); VM.sysWrite(SMALL_BITMAP_SIZE); VM.sysWrite("\n");
+//      VM.sysWrite(" "); VM.sysWrite(sp); VM.sysWrite(" ");VM.sysWrite(index);  VM.sysWrite(", "); VM.sysWrite(offset); VM.sysWrite(", "); VM.sysWrite(SMALL_BITMAP_SIZE); VM.sysWrite("\n");
     if (VM.VerifyAssertions)
-      VM._assert(offset < BITMAP_SIZE);
-    return base.add(offset);
+      VM._assert((small && (offset < SMALL_BITMAP_SIZE))
+		 || (!small && (offset < MID_BITMAP_SIZE)));
+    return sp.add(BITMAP_BASE + offset);
   }
   private static void unsyncSetBit(VM_Address bitMapWord, VM_Word mask, 
 				   boolean set) 
@@ -370,10 +405,13 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   //  private static final int LOG_BITMAP_GRAIN = 4;
   private static final int BITMAP_GRAIN = 1<<LOG_BITMAP_GRAIN;
   private static final int BITMAP_ENTRIES = PAGE_SIZE>>LOG_BITMAP_GRAIN;
-  private static final int BITMAP_PAIRS = BITMAP_ENTRIES>>LOG_WORD_BITS;
-  public static final int BITMAP_SIZE = 2*(BITMAP_PAIRS<<LOG_WORD_SIZE);
+  private static final int SMALL_BITMAP_PAIRS = BITMAP_ENTRIES>>LOG_WORD_BITS;
+  public static final int SMALL_BITMAP_SIZE = 2*(SMALL_BITMAP_PAIRS<<LOG_WORD_SIZE);
+  public static final int MID_BITMAP_SIZE = 2*WORD_SIZE;
   private static final int BITMAP_BASE = MarkSweepAllocator.BASE_SP_HEADER_SIZE;
-  private static final int SMALL_OBJ_BASE = BITMAP_BASE + BITMAP_SIZE;
+  private static final int MAX_SMALL_SIZE = MarkSweepAllocator.MAX_SMALL_SIZE;
+  private static final int SMALL_OBJ_BASE = BITMAP_BASE + SMALL_BITMAP_SIZE;
+  private static final int MID_OBJ_BASE = BITMAP_BASE + MID_BITMAP_SIZE;
   private static final int LOG_PAIR_GRAIN = LOG_BITMAP_GRAIN + LOG_WORD_BITS;
   private static final int INUSE_BITMAP_OFFSET = 0;
   private static final int MARK_BITMAP_OFFSET = WORD_SIZE;

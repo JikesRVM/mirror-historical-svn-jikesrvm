@@ -244,20 +244,29 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   private final void releaseSuperPageCells(VM_Address sp, int sizeClass) {
     // unlink all cells from the free list...
     // FIXME BRUTE FORCE 
+//     VM.sysWrite("releaseSuperPageCells...\n");
     VM_Address spEnd = sp.add(pagesForClassSize(sizeClass)<<LOG_PAGE_SIZE);
     VM_Address cell = freeList[sizeClass];
     VM_Address last = VM_Address.zero();
-    while (cell.NE(VM_Address.zero())) {
+    while (cell.NE(VM_Address.zero())) { 
       VM_Address next = getNextCell(cell);
+//       VM.sysWrite(cell); VM.sysWrite(" "); VM.sysWrite(next); VM.sysWrite(" ");
+//       VM.sysWrite(last); VM.sysWrite(" "); VM.sysWrite(sizeClass); // VM.sysWrite("\n");
       if (cell.GT(sp) && cell.LT(spEnd)) {
 	if (last.EQ(VM_Address.zero())) {
+// 	  VM.sysWrite(" rm front\n");
 	  freeList[sizeClass] = next;
-	} else
+	} else {
+// 	  VM.sysWrite(" rm mid\n");
 	  setNextCell(last, next);
-      } else
+	}
+      } else {
+// 	VM.sysWrite(" na\n");
 	last = cell;
+      }
       cell = next;
     }
+//     VM.sysWrite("...releaseSuperPageCells\n");
   }
   
   /**
