@@ -332,6 +332,7 @@ integer RVM_WITH_ADAPTIVE_RUNTIME_SYSTEM=0
 #
 integer RVM_WITH_DEFAULT_OBJECT_MODEL=1
 integer RVM_WITH_ONE_WORD_MASK_OBJECT_MODEL=0
+integer RVM_WITH_ONE_WORD_PTR_OBJECT_MODEL=0
 
 # Here are the choices for additional components that are under development and/or are excluded from default build.
 #
@@ -413,6 +414,8 @@ fi
 # set the relative path to the object model.
 if (( RVM_WITH_ONE_WORD_MASK_OBJECT_MODEL )); then
   OBJECT_MODEL_PATH_STR=objectModel/oneWordMaskTIB
+elif (( RVM_WITH_ONE_WORD_PTR_OBJECT_MODEL )); then
+  OBJECT_MODEL_PATH_STR=objectModel/oneWordTIBPtr
 else
   OBJECT_MODEL_PATH_STR=objectModel/default
 fi
