@@ -41,7 +41,7 @@ public class LocalQueue extends LocalSSB implements Constants, VM_Uninterruptibl
    */
   LocalQueue(SharedQueue queue) {
     super(queue);
-    setHead(VM_Address.fromInt(headSentinel(queue.getArity())));
+    setHead(headSentinel(queue.getArity()));
   }
 
   /**
@@ -51,16 +51,14 @@ public class LocalQueue extends LocalSSB implements Constants, VM_Uninterruptibl
    */
   public final void flushLocal() {
     super.flushLocal();
-    // FIXME there is a design issue here.  Should be able to do a
-    // single test (not explicitly test for zero).
-    if (!head.isZero() && head.NE(VM_Address.fromInt(headSentinel(queue.getArity())))) {
+    if (head.NE(headSentinel(queue.getArity()))) {
       closeAndEnqueueHead(queue.getArity());
-      setHead(VM_Address.fromInt(headSentinel(queue.getArity())));
+      setHead(headSentinel(queue.getArity()));
     }
   }
 
   public final void reset() {
-    setHead(VM_Address.fromInt(headSentinel(queue.getArity())));
+    setHead(headSentinel(queue.getArity()));
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -77,9 +75,7 @@ public class LocalQueue extends LocalSSB implements Constants, VM_Uninterruptibl
    * buffer must contain enough space for this many words.
    */
   protected final void checkPush(int arity) throws VM_PragmaInline {
-    // FIXME there is a design issue here.  Should be able to do a
-    // single test (not explicitly test for zero).
-    if ((bufferOffset(head) == headSentinel(arity)) || head.isZero())
+    if (VM_Address.fromInt(bufferOffset(head)).EQ(headSentinel(arity)))
       pushOverflow(arity);
     else if (VM.VerifyAssertions)
       VM._assert(bufferOffset(head) <= bufferLastOffset(arity));
@@ -98,9 +94,7 @@ public class LocalQueue extends LocalSSB implements Constants, VM_Uninterruptibl
    * false if the queue has been exhausted.
    */
   protected final boolean checkPop(int arity) throws VM_PragmaInline {
-    // FIXME there is a design issue here.  Should be able to do a
-    // single test (not explicitly test for zero).
-    if ((bufferOffset(head) == 0) || (head.EQ(VM_Address.fromInt(headSentinel(arity)))))
+    if ((bufferOffset(head) == 0) || (head.EQ(headSentinel(arity))))
       return popOverflow(arity);
     else {
       if (VM.VerifyAssertions)
@@ -151,9 +145,7 @@ public class LocalQueue extends LocalSSB implements Constants, VM_Uninterruptibl
    * @param arity The arity of this buffer (used for sanity test only).
    */
   private final void pushOverflow(int arity) throws VM_PragmaNoInline {
-    // FIXME there is a design issue here.  Should be able to do a
-    // single test (not explicitly test for zero).
-    if (!head.isZero() && head.NE(VM_Address.fromInt(headSentinel(arity)))) {
+    if (head.NE(headSentinel(arity))) {
       closeAndEnqueueHead(arity);
     }
     setHead(queue.alloc());
@@ -171,12 +163,13 @@ public class LocalQueue extends LocalSSB implements Constants, VM_Uninterruptibl
    */
   private final boolean popOverflow(int arity) throws VM_PragmaNoInline {
     do {
-      if (!head.isZero() && head.NE(VM_Address.fromInt(headSentinel(arity))))
+      if (head.NE(headSentinel(arity)))
 	queue.free(bufferStart(head));
-      setHead(queue.dequeue(arity));
-    } while (!head.isZero() && (bufferOffset(head) == 0));
+      VM_Address tmp = queue.dequeue(arity);
+      setHead(tmp.isZero() ? headSentinel(arity) : tmp);
+    } while (bufferOffset(head) == 0);
 
-    if (head.isZero())
+    if (head.EQ(headSentinel(arity)))
       return consumerStarved(arity);
     else 
       return true;
@@ -204,15 +197,17 @@ public class LocalQueue extends LocalSSB implements Constants, VM_Uninterruptibl
   private final boolean consumerStarved(int arity) {
     if (bufferOffset(tail) >= (arity<<LOG_WORD_SIZE)) {
       // entries in tail, so consume tail
-      if (head.EQ(VM_Address.fromInt(headSentinel(arity))))
+      if (head.EQ(headSentinel(arity)))
 	setHead(queue.alloc()); // no head, so alloc a new one
       VM_Address tmp = head;
       setHead(normalizeTail(arity).add(WORD_SIZE));// account for pre-decrement
       if (VM.VerifyAssertions) VM._assert(tmp.EQ(bufferStart(tmp)));
       tail = tmp.add(bufferLastOffset(arity) + WORD_SIZE);
-    } else
-      setHead(queue.dequeueAndWait(arity));
-    return !(head.isZero());
+    } else {
+      VM_Address tmp = queue.dequeueAndWait(arity);
+      setHead(tmp.isZero() ? headSentinel(arity) : tmp);
+    }
+    return head.NE(headSentinel(arity));
   }
 
   /**
@@ -223,13 +218,19 @@ public class LocalQueue extends LocalSSB implements Constants, VM_Uninterruptibl
    * @return The sentinel offset value for head buffers, used to test
    * whether a head buffer is full.
    */
-  private final int headSentinel(int arity) throws VM_PragmaInline {
-    return bufferLastOffset(arity) + WORD_SIZE;
+  private final VM_Address headSentinel(int arity) throws VM_PragmaInline {
+    return VM_Address.fromInt(bufferLastOffset(arity) + WORD_SIZE);
   }
 
+  /**
+   * We need to avoid write barriers (recursion) and array bounds
+   * checks (interruptability) in this code, so we us magic
+   *
+   * @param newHead The new value for the head variable.
+   */
   private final void setHead(VM_Address newHead)
     throws VM_PragmaInline {
-    if (VM.runningVM)
+    if (VM.runningVM)  // avoid write barrier
       VM_Magic.setIntAtOffset(this, headFieldOffset, newHead.toInt());
     else
       head = newHead;
