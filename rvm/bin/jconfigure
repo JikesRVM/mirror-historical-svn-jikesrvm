@@ -24,11 +24,32 @@
 # @author Steven Augart (Bash version)
 # @date 17 May 2003
 
-# Where are we?
-# These expressions are bash internal shorthand that handles, respectively,
-# "basename" and "dirname"
+#----------------------#
+# SECTION 0 - Setup    #
+#----------------------#
+
+# What is our name?
+# Bash internal shorthand that works like the "basename" command.
 ME="${0##*/}"
-mydir="${0%/*}"
+
+# Where are we?
+# Bash internal shorthand that works like the "dirname" command.
+mydir="${0%/*}"			# temporary; directory we were run from
+
+if [[ $mydir && $mydir != $ME ]]; then
+    # Where to find auxiliary programs:
+    bin_dir="${mydir}"
+else
+    bin_dir="${RVM_ROOT:?$ME: You must set the RVM_ROOT variable before you run this program.}/rvm/bin"
+fi
+
+# Stop immediately if any programs we call return errors.
+#
+trap 'echo >&2 "$ME: some command we just ran (probably with a final argument of \"$_\") returned an error; aborting execution.  Please Fix this."' ERR
+trap 'echo >&2 "$ME: We just exited due to an error."' EXIT
+set -e;
+
+## Complain
 function croak_nousage () {
     # Display the error message.  If it's a multi-line error message, indent
     # the second and subsequent lines by a few spaces.
@@ -37,38 +58,14 @@ function croak_nousage () {
     exit 1
 }
 
-[[ $mydir && $mydir != $ME ]] || mydir="${RVM_ROOT:?$ME: You must set the RVM_ROOT variable before you run this program.}/rvm/bin"
-
-experimental_warning () {
-    echo >&2 ${ME}: "XXX This code is an experimental port to Bash.  Builds fine,"
-    echo >&2 ${ME}: "XXX runs a simple test case just fine."
-    echo >&2 ${ME}: "XXX We'll merge it in to the main sources as soon as it's"
-    echo >&2 ${ME}: "XXX been beaten on a bit."
-    echo >&2 ${ME}: "XXX  	--Steve Augart"
-    echo >&2 ""
-}
-# experimental_warning
-
-
-#----------------------#
-# SECTION 0 - Setup    #
-#----------------------#
-
-
-# Stop immediately if any programs we call return errors.
-#
-trap 'echo >&2 "$ME: some command we just ran (probably with a final argument of \"$_\") returned an error; aborting execution.  Please Fix this."' EXIT
-set -e;
-
-# Who we are.
-#
-sanity_env="${mydir}/sanity-envars.bash"
+sanity_env="${bin_dir}/sanity-envars.bash"
 [[ -f $sanity_env ]] || croak_nonusage "Internal error: Cannot find the file sanity-envars.bash ($sanity_env); something is badly broken."
 [[ -r $sanity_env ]] || croak_nonusage "Internal error: Cannot read the file sanity-envars.bash ($sanity_env); something is badly broken.  You might check the file permissions or user id you used to extract Jikes RVM."
-. "${sanity_env}";		# sets ME, defines checkenv()
+. "${sanity_env}";		# Defines checkenv()
 
 ## Place where source files reside.
 checkenv RVM_ROOT
+
 ## Place where RVM bootimage, booter, and runtime support files will be placed.
 checkenv RVM_BUILD
 ## What configuration will host the build process?
@@ -1133,7 +1130,7 @@ FILES_HAVE_CHANGED=0
 
 # Update from directories containing sources that implement the virtual machine.
 #
-for d in $(cat' ${SOURCE_LIST_STR} '); do
+for d in $(<' ${SOURCE_LIST_STR} '); do
     if [[ ${TRACE_FLAG} = -trace ]]; then
         echo -n "${ME}: ${d}"
     fi
