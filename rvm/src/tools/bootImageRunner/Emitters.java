@@ -40,6 +40,8 @@ class Emitters extends Shared {
     p("GenerateInterfaceDeclarations.java: DO NOT EDIT");
     p("------*/\n\n");
 
+    emitGNUClasspathVersion();
+
     pln("#if defined NEED_BOOT_RECORD_DECLARATIONS || defined NEED_VIRTUAL_MACHINE_DECLARATIONS");
     pln("#include <inttypes.h>");
     Field build32 = vmClass.getField("BuildFor32Addr");
@@ -65,7 +67,7 @@ class Emitters extends Shared {
     pln("#endif /* NEED_BOOT_RECORD_INITIALIZATION */");
     pln();
 
-    emitGNUClasspathVersion();
+    //    emitGNUClasspathVersion();
 
     pln("#ifdef NEED_VIRTUAL_MACHINE_DECLARATIONS");
     emitVirtualMachineDeclarations(bootImageAddress);
@@ -581,7 +583,7 @@ class Emitters extends Shared {
     try {
       f = vmClass.getField(fieldName);
     } catch (NoSuchFieldException e) {
-      reportTrouble("Unable to find a boolean field named " + fieldName
+      reportTrouble("Unable to find a (boolean) field named " + fieldName
                     + "in the VM class", e);
       // Unreached
     }
