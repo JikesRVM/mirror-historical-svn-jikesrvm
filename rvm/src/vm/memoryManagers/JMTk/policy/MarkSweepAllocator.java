@@ -319,11 +319,16 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
    *  called exactly once.).
    */
   protected final void postAlloc(VM_Address cell, boolean isScalar,
-				 EXTENT bytes, boolean small, boolean large) {
+				 EXTENT bytes, boolean small, boolean large,
+				 boolean copy) {
     if (large)
       collector.addToTreadmill(cell, this);
-    else
+    else {
       collector.setInUseBit(cell, getSuperPage(cell, small), small);
+      if (copy) {
+	collector.setMarkBit(cell, getSuperPage(cell, small), small);
+      }
+    }
   };
 
   /**

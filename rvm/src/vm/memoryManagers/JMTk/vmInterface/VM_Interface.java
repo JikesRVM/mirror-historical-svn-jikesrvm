@@ -321,7 +321,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     AllocAdvice advice = getPlan().getAllocAdvice(null, size, null, null);
     VM_Address region = getPlan().alloc(size, true, allocator, advice);
     Object result = VM_ObjectModel.initializeScalar(region, tib, size);
-    getPlan().postAlloc(size, result, allocator);
+    getPlan().postAlloc(result, tib, size, true, allocator);
     return result;
   }
 
@@ -331,7 +331,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     AllocAdvice advice = getPlan().getAllocAdvice(null, size, null, null);
     VM_Address region = getPlan().alloc(size, false, allocator, advice);
     Object result = VM_ObjectModel.initializeArray(region, tib, numElements, size);
-    getPlan().postAlloc(size, result, allocator);
+    getPlan().postAlloc(result, tib, size, false, allocator);
     return result;
   }
 
@@ -523,7 +523,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
       int mask = ~((1 << logAlignment) - 1);
       VM_Address region = VM_Address.fromInt(tmp.toInt() & mask).sub(offset);
       Object result = VM_ObjectModel.initializeArray(region, stackTib, n, arraySize);
-      getPlan().postAlloc(arraySize, result, Plan.IMMORTAL_ALLOCATOR);
+      getPlan().postAlloc(result, stackTib, arraySize, false, Plan.IMMORTAL_ALLOCATOR);
       return (int []) result;
     }
 
@@ -614,13 +614,12 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
 
     VM_Type type = VM_Magic.objectAsType(tib[TIB_TYPE_INDEX]);
 
-    if (NEEDS_WRITE_BARRIER)
-      forwardingPtr |= VM_AllocatorHeader.GC_BARRIER_BIT_MASK;
 
     VM_Address toRef;
     if (type.isClassType()) {
       VM_Class classType = type.asClass();
       int numBytes = VM_ObjectModel.bytesRequiredWhenCopied(fromObj, classType);
+      forwardingPtr = Plan.resetGCBitsForCopy(fromObj, forwardingPtr,numBytes);
       VM_Address region = getPlan().allocCopy(fromObj, numBytes, true);
       Object toObj = VM_ObjectModel.moveObject(region, fromObj, numBytes, classType, forwardingPtr);
       toRef = VM_Magic.objectAsAddress(toObj);
@@ -628,6 +627,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
       VM_Array arrayType = type.asArray();
       int numElements = VM_Magic.getArrayLength(fromObj);
       int numBytes = VM_ObjectModel.bytesRequiredWhenCopied(fromObj, arrayType, numElements);
+      forwardingPtr = Plan.resetGCBitsForCopy(fromObj, forwardingPtr,numBytes);
       VM_Address region = getPlan().allocCopy(fromObj, numBytes, false);
       Object toObj = VM_ObjectModel.moveObject(region, fromObj, numBytes, arrayType, forwardingPtr);
       toRef = VM_Magic.objectAsAddress(toObj);

@@ -83,6 +83,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
    */
   public void prepare(VMResource vm, NewMemoryResource mr) { 
     markState = MarkSweepHeader.MARK_BIT_MASK - markState;
+    inMSCollection = true;
   }
 
   /**
@@ -94,6 +95,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
    */
   public void release(MarkSweepAllocator allocator) { 
     sweep(allocator);
+    inMSCollection = false;
   }
 
   /**
@@ -213,7 +215,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   public void addToTreadmill(VM_Address cell, MarkSweepAllocator allocator) 
     throws VM_PragmaInline {
     setTreadmillOwner(cell, VM_Magic.objectAsAddress((Object) allocator));
-    moveToTreadmill(cell, false);
+    moveToTreadmill(cell, inMSCollection, true);
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -238,7 +240,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
       VM_Address sp = MarkSweepAllocator.getSuperPage(cell, false);
       int sizeClass = MarkSweepAllocator.getSizeClass(sp);
       if (MarkSweepAllocator.isLarge(sizeClass))
-	moveToTreadmill(cell, true);
+	moveToTreadmill(cell, true, false);
       else
 	setMarkBit(cell, sp, false);
     }
@@ -327,12 +329,16 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
    * @param cell The cell to be placed on the treadmill
    * @param to If true the cell should be placed on the to-space
    * treadmill.  Otherwise it should go on the from-space treadmill.
+   * @param fresh If true then this is a new allocation, and therefore
+   * is not already on the from-space treadmill.
    */
-  private void moveToTreadmill(VM_Address cell, boolean to) 
+  private void moveToTreadmill(VM_Address cell, boolean to, boolean fresh) 
     throws VM_PragmaInline {
     MarkSweepAllocator owner = (MarkSweepAllocator) VM_Magic.addressAsObject(getTreadmillOwner(cell));
     owner.lockTreadmill();
-    if (to) {
+    if (to && !fresh) { // pre-existing instance
+      if (VM.VerifyAssertions)
+	VM._assert(isOnTreadmill(cell, owner.getTreadmillFromHead()));
       // remove from "from" treadmill
       VM_Address prev = getPrevTreadmill(cell);
       VM_Address next = getNextTreadmill(cell);
@@ -367,7 +373,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
     throws VM_PragmaInline {
     changeBit(ref, sp, small, false, true, false);
   }
-  private static void setMarkBit(VM_Address ref, VM_Address sp, boolean small)
+  public static void setMarkBit(VM_Address ref, VM_Address sp, boolean small)
     throws VM_PragmaInline {
     changeBit(ref, sp, small, true, false, true);
   }
@@ -496,6 +502,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   private int markState;
   private NewFreeListVMResource vmResource;
   private NewMemoryResource memoryResource;
+  private boolean inMSCollection = false;
 
   private static final int LOG_BITMAP_GRAIN = 3;
   private static final int BITMAP_GRAIN = 1<<LOG_BITMAP_GRAIN;

@@ -68,17 +68,19 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
    */
   public final VM_Address alloc(boolean isScalar, EXTENT bytes) 
     throws VM_PragmaInline {
-    int sizeClass = getSizeClass(isScalar, bytes);
-    boolean large = isLarge(sizeClass);
-    boolean small = isSmall(sizeClass);
-    VM_Address cell;
-    if (large)
-      cell = allocLarge(isScalar, bytes);
-    else
-      cell = allocCell(isScalar, sizeClass);
-    postAlloc(cell, isScalar, bytes, small, large);
-    VM_Memory.zero(cell, bytes);
-    return cell;
+    return alloc(isScalar, bytes, false);
+  }
+
+  /**
+   * Allocate space for a copied object
+   *
+   * @param isScalar Is the object to be allocated a scalar (or array)?
+   * @param bytes The number of bytes allocated
+   * @return The address of the first byte of the allocated cell
+   */
+  public final VM_Address allocCopy(boolean isScalar, EXTENT bytes) 
+    throws VM_PragmaInline {
+    return alloc(isScalar, bytes, true);
   }
 
   /**
@@ -136,7 +138,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   //
   abstract protected void postAlloc(VM_Address cell, boolean isScalar,
 				    EXTENT bytes, boolean small,
-				    boolean large);
+				    boolean large, boolean copy);
   abstract protected void postFreeCell(VM_Address cell, VM_Address sp,
 				       int sizeClass);
   abstract protected int pagesForClassSize(int sizeClass);
@@ -153,6 +155,29 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   //
   // Protected and private methods
   //
+  /**
+   * Allocate space for an object
+   *
+   * @param isScalar Is the object to be allocated a scalar (or array)?
+   * @param bytes The number of bytes allocated
+   * @param copy Is this object being copied (or is it a regular allocation?)
+   * @return The address of the first byte of the allocated cell
+   */
+  private final VM_Address alloc(boolean isScalar, EXTENT bytes, boolean copy) 
+    throws VM_PragmaInline {
+    int sizeClass = getSizeClass(isScalar, bytes);
+    boolean large = isLarge(sizeClass);
+    boolean small = isSmall(sizeClass);
+    VM_Address cell;
+    if (large)
+      cell = allocLarge(isScalar, bytes);
+    else
+      cell = allocCell(isScalar, sizeClass);
+    postAlloc(cell, isScalar, bytes, small, large, copy);
+    VM_Memory.zero(cell, bytes);
+    return cell;
+  }
+
   /**
    * Free a cell.  If the cell is large (own superpage) then release
    * the superpage, if not add to the super page's free list and if

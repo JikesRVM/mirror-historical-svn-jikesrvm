@@ -95,12 +95,19 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   public static void showUsage() {
       VM.sysWrite("used blocks = ", getBlocksUsed());
       VM.sysWrite(" ("); VM.sysWrite(Conversions.blocksToBytes(getBlocksUsed()) >> 20, " Mb) ");
-      VM.sysWrite("= (ms) ", msMR.reservedPages());  
+      VM.sysWrite("= (ms) ", Conversions.pagesToBlocks(msMR.reservedPages()));
       VM.sysWriteln(" + (imm) ", immortalMR.reservedBlocks());
   }
 
   public static int getInitialHeaderValue(int size) {
     return msCollector.getInitialHeaderValue(size);
+  }
+
+  public static int resetGCBitsForCopy(VM_Address fromObj, int forwardingPtr,
+				       int bytes) {
+    if (VM.VerifyAssertions)
+      VM._assert(false);  // this is not a copying collector!
+    return forwardingPtr;
   }
 
   public static final long freeMemory() throws VM_PragmaUninterruptible {
@@ -159,7 +166,8 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
     return region;
   }
   
-  public final void postAlloc(EXTENT bytes, Object obj, int allocator)
+  public final void postAlloc(Object ref, Object[] tib, int size,
+			      boolean isScalar, int allocator)
     throws VM_PragmaInline {
   }
 
@@ -300,7 +308,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   // Assuming all future allocation comes from semispace
   //
   private static int getBlocksAvail() {
-    return getTotalBlocks() - msMR.reservedPages() - immortalMR.reservedBlocks();
+    return getTotalBlocks() - Conversions.pagesToBlocks(msMR.reservedPages()) - immortalMR.reservedBlocks();
   }
 
   private static final String allocatorToString(int type) {
