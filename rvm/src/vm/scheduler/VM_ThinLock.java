@@ -13,26 +13,6 @@
  */
 final class VM_ThinLock implements VM_ThinLockConstants, VM_Uninterruptible {
 
-  static {
-    System.out.println("Debug dump of ThinLockConstants");
-    System.out.println(NUM_BITS_RC);
-    System.out.println(NUM_BITS_TID);
-
-    System.out.println(Integer.toHexString(TL_LOCK_COUNT_SHIFT));
-    System.out.println(Integer.toHexString(TL_THREAD_ID_SHIFT));
-    System.out.println(Integer.toHexString(TL_LOCK_ID_SHIFT));
-
-    System.out.println(Integer.toHexString(TL_LOCK_COUNT_UNIT));
-
-    System.out.println(Integer.toHexString(TL_LOCK_COUNT_MASK));
-    System.out.println(Integer.toHexString(TL_THREAD_ID_MASK));
-    System.out.println(Integer.toHexString(TL_LOCK_ID_MASK));
-    System.out.println(Integer.toHexString(TL_FAT_LOCK_MASK));
-    System.out.println(Integer.toHexString(TL_UNLOCK_MASK));
-
-    System.out.println("Done");
-  }
-
   ////////////////////////////////////////
   /// Support for light-weight locking ///
   ////////////////////////////////////////
