@@ -2418,7 +2418,7 @@ public class VM_Allocator
       Object[] newtib         = (Object[]) VM_ObjectModel.initializeArray(storage, objectArrayTIB, n, size);
 
       VM_AllocatorHeader.writeMarkBit(newtib, BOOT_MARK_VALUE);
-      VM.assert((VM_Magic.objectAsAddress(newtib) & 15) == 0);
+      if (VM.VerifyAssertions) VM.assert((VM_Magic.objectAsAddress(newtib) & 15) == 0);
       return newtib;
   }
 
