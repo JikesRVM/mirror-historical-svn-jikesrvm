@@ -52,7 +52,7 @@ public abstract class VM_RCGC
     // Value used by BootImageWriter to mark boot image objects as not collectable.
     // NOTE: If you change this value or the values of RED or COLORSHIFT (or RCBITS) you must change
     //       BootImageWriter.java to keep the value it uses synchronized.
-    public static final int BOOTIMAGE_REFCOUNT = (RED<<COLORSHIFT)|1; // colored red to prevent RC updates
+    public static final int BOOTIMAGE_REFCOUNT = RED|1; // colored red to prevent RC updates
 
     // COUNT FIELD(S)
 

@@ -929,9 +929,7 @@ public class VM_Allocator
 
     boolean hasFinalizer = VM_Magic.addressAsType(VM_Magic.getMemoryWord(VM_Magic.objectAsAddress(tib))).hasFinalizer();
     Object objref = allocateScalar(size, tib, hasFinalizer);
-    if (cloneSrc != null) {
-      VM_ObjectModel.initializeScalarClone(objref, cloneSrc, size);
-    }
+    VM_ObjectModel.initializeScalarClone(objref, cloneSrc, size);
 
     return objref;
   }
@@ -976,11 +974,7 @@ public class VM_Allocator
       if (DebugLink) VM_Scheduler.trace("cloneArray", "called");
 
       Object objref = allocateArray(numElements, size, tib);
-
-      if (cloneSrc != null) {
-	VM_ObjectModel.initializeArrayClone(objref, cloneSrc, size);
-      }
-
+      VM_ObjectModel.initializeArrayClone(objref, cloneSrc, size);
       return objref;
   }
 

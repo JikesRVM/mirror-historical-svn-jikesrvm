@@ -20,7 +20,7 @@ public interface VM_AllocatorHeaderConstants {
    * How many bytes are used by all GC header fields?
    */
   static final int NUM_BYTES_HEADER = 0;
-
+  
   /**
    * The only thing this collector might need header bits for is to
    * mark the bootimage objects.  If there are any bits available, 
