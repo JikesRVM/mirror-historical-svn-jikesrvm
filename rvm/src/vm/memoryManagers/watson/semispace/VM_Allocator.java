@@ -1456,9 +1456,6 @@ public class VM_Allocator
       // if isBeingForwarded, object is being copied by another GC thread; 
       // wait (should be very short) for valid ptr to be set
       if (COUNT_COLLISIONS && VM_AllocatorHeader.stateIsBeingForwarded(forwardingPtr)) collisionCount++;
-      // VM.sysWrite("before spin wait\n");
-      // VM.sysWrite(forwardingPtr);
-      // VM.sysWrite("\n");
       while (VM_AllocatorHeader.stateIsBeingForwarded(forwardingPtr)) {
 	forwardingPtr = VM_AllocatorHeader.getForwardingWord(fromObj);
       }
@@ -1536,16 +1533,15 @@ public class VM_Allocator
   private static void 
   gc_copyThreads () {
     int          i, vpa, thread_count, processor_count;
-    VM_Thread    t;
     VM_Processor vp;
     
     for ( i=0; i<VM_Scheduler.threads.length; i++ ) {
-      t = VM_Scheduler.threads[i];
+      Object t = VM_Scheduler.threads[i];
       if (t == null) continue;
       
       if ( VM_Magic.objectAsAddress(t) >= minFromRef && 
 	   VM_Magic.objectAsAddress(t) <= maxFromRef ) {
-	t = VM_Magic.objectAsThread(gc_copyObject(t, false));
+	t = gc_copyObject(t, false);
 	// change entry in threads array to point to new copy of thread
 	VM_Magic.setObjectAtOffset( VM_Scheduler.threads, i*4, t);
       }
