@@ -294,10 +294,6 @@ public abstract class VM_Configuration {
         false;
       //-#endif
 
-  // Conditional to control whether objects without synchronized methods have their locks
-  // in the lock nursery or inlined in the object.
-  public static final boolean UseLockNursery = true;
-
   //-#if RVM_FOR_IA32
   /**
    * Is ESI dedicated to always hold the processor register?

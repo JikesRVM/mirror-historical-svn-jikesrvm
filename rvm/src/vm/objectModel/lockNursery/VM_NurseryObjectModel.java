@@ -3,44 +3,16 @@
 /**
  * Defines shared support for one-word headers in the 
  * JikesRVM object model. <p>
- * This object model uses a one-word header for most scalar objects, and
- * a two-word header for scalar objects of classes with synchronized
- * methods.<p>
- *
- * An object of an "unsynchronized" class is layed out as:
- *
- * <pre>
- * low memory                                                                        high memory
- * field n |...| field 1 | field 0 | MISC HEADER | GC HEADER | TIB word |             
- *                                                                                  ^
- *                                                                                  |
- *                                                                           object reference
- * </pre>
- *
- * An object of an "synchronized" class is layed out as
- *
- * <pre>
- * low memory                                                                         high memory
- * field n |...| field 1 | field 0 | MISC HEADER | GC HEADER | TIB word | status word |
- *                                                                                    ^
- *                                                                                    |
- *                                                                             object reference
- * </pre>
- *
- * An array is layed out as
- * <pre>
- * low memory                                                                         high memory
- * MISC HEADER | GC HEADER | TIB word | length | element 0 | element 1 | .... | element n |
- *                                             ^
- *                                             |
- *                                       object reference
+ * This object model uses a one-word header for scalar objects.
+ * If a class is synchronized then a thin lock word is allocated
+ * as an "instance field" of the class.
  *
  * The TIB word holds some identifier of the TIB, which may vary by object
  * model. <p>
  *
- * The status word, if present, holds the thin lock.<p>
- * 
- * <p> Locking occurs through a lock nursery for unsynchronized classes.
+ * Locking either occurs using the thin lock allocated in the object
+ * if the class has synchronized methods or through the lock nursery
+ * for instances of other classes. <p>
  * 
  * @author David Bacon
  * @author Steve Fink
@@ -49,22 +21,18 @@
 public class VM_NurseryObjectModel implements VM_Uninterruptible, 
 					      VM_JavaHeaderConstants,
 					      VM_Constants
-					    //-#if RVM_WITH_OPT_COMPILER
-					    ,OPT_Operators
-					    //-#endif
+					      //-#if RVM_WITH_OPT_COMPILER
+					      ,OPT_Operators
+					      //-#endif
 {
 
   private static final int OTHER_HEADER_BYTES = VM_AllocatorHeader.NUM_BYTES_HEADER + VM_MiscHeader.NUM_BYTES_HEADER;
-  private static final int ONE_WORD_HEADER_SIZE = 4 + OTHER_HEADER_BYTES;
-  private static final int THIN_LOCK_SIZE = 4;
-  private static final int ARRAY_HEADER_SIZE = ONE_WORD_HEADER_SIZE + 4;
+  private static final int SCALAR_HEADER_SIZE = OTHER_HEADER_BYTES + 4; // 1 word for TIB encoding
+  private static final int ARRAY_HEADER_SIZE  = SCALAR_HEADER_SIZE + 4; // 1 word for array length
 
-  private static final int UNSYNCH_PADDING_BYTES = THIN_LOCK_SIZE;
+  private static final int SCALAR_PADDING_BYTES = 4;
 
   protected static final int TIB_OFFSET   = -8;
-
-  private static final int STATUS_OFFSET  = -4;
-
   private static final int AVAILABLE_BITS_OFFSET = VM.LITTLE_ENDIAN ? (TIB_OFFSET) : (TIB_OFFSET + 3);
 
   /** How many bits are allocated to a thin lock? */
@@ -77,24 +45,24 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    */
   protected static final int HASH_STATE_BITS = VM_Collector.MOVES_OBJECTS ? 2 : 0;
   protected static final int HASH_STATE_MASK = HASH_STATE_UNHASHED | HASH_STATE_HASHED | HASH_STATE_HASHED_AND_MOVED;
-  protected static final int HASHCODE_UNSYNCH_SCALAR_OFFSET = -4; // instead of status word
-  protected static final int HASHCODE_SYNCH_SCALAR_OFFSET = 0;    // above status word
+  protected static final int HASHCODE_SCALAR_OFFSET = -4; // in "phantom word"
   protected static final int HASHCODE_ARRAY_OFFSET = JAVA_HEADER_END - OTHER_HEADER_BYTES - 4; // to left of header
   
   /**
    * How small is the minimum object header size? 
    * Used to pick chunk sizes for mark-sweep based collectors.
    */
-  public static final int MINIMUM_HEADER_SIZE = ONE_WORD_HEADER_SIZE;
+  public static final int MINIMUM_HEADER_SIZE = SCALAR_HEADER_SIZE;
+
 
   /**
-   * Given a reference to an object of a given class, what is the offset in 
-   * bytes to the bottom word of
-   * the header?
+   * What is the offset of the 'last' byte in the class?
+   * For use by VM_ObjectModel.layoutInstanceFields
    */
-  public static int getHeaderEndOffset(VM_Class klass) {
-    return TIB_OFFSET;
+  public static int objectEndOffset(VM_Class klass) {
+    return - klass.getInstanceSizeInternal() - SCALAR_PADDING_BYTES;
   }
+
 
   /**
    * Non-atomic read of word containing available bits
@@ -171,65 +139,7 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    * the memory region allocated to the object.
    */
   public static ADDRESS getPointerInMemoryRegion(ADDRESS ref) {
-    return ref - 8;
-  }
-
-  /**
-   * Convert a scalar object reference into the low memory word of the raw
-   * storage that holds the object.
-   * 
-   * @param ref a scalar object reference
-   * @param t  the VM_Type of the object
-   */
-  protected static ADDRESS scalarRefToBaseAddress(Object ref, VM_Class t) {
-    int size = t.getInstanceSize();
-    boolean isSynchronized = t.isSynchronized;
-    return VM_Magic.objectAsAddress(ref) - size - (isSynchronized ? 0 : THIN_LOCK_SIZE);
-  }
-
-  /**
-   * Convert an array reference into the low memory word of the raw
-   * storage that holds the object.
-   * 
-   * @param ref an array reference
-   * @param t  the VM_Type of the array
-   */
-  protected static ADDRESS arrayRefToBaseAddress(Object ref, VM_Type t) {
-    if (HASH_STATE_BITS != 0) {
-      if ((VM_Magic.getIntAtOffset(ref, TIB_OFFSET) & HASH_STATE_MASK) != HASH_STATE_UNHASHED) {
-	return VM_Magic.objectAsAddress(ref) - ARRAY_HEADER_SIZE - 4;
-      }
-    }
-    return VM_Magic.objectAsAddress(ref) - ARRAY_HEADER_SIZE;
-  }
-
-  /**
-   * Convert the raw storage address ptr into a ptr to an object
-   * under the assumption that the object to be placed here is 
-   * a scalar object of size bytes which is an instance of the given tib.
-   * 
-   * @param ptr the low memory word of the raw storage to be converted.
-   * @param tib the TIB of the type that the storage will/does belong to.
-   * @param size the size in bytes of the object
-   * @return an ptr to said object.
-   */
-  protected static ADDRESS baseAddressToScalarAddress(ADDRESS ptr, Object[] tib, int size) {
-    boolean isSynchronized = ((VM_Class)tib[0]).isSynchronized;
-    return ptr + size + (isSynchronized ? 0 : THIN_LOCK_SIZE);
-  }
-
-  /**
-   * Convert the raw storage address ptr into a ptr to an object
-   * under the assumption that the object to be placed here is 
-   * a array object of size bytes which is an instance of the given tib.
-   * 
-   * @param ptr the low memory word of the raw storage to be converted.
-   * @param tib the TIB of the type that the storage will/does belong to.
-   * @param size the size in bytes of the object
-   * @return an object reference to said storage.
-   */
-  protected static ADDRESS baseAddressToArrayAddress(ADDRESS ptr, Object[] tib, int size) {
-    return ptr + ARRAY_HEADER_SIZE;
+    return ref + TIB_OFFSET;
   }
 
   /**
@@ -240,8 +150,7 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    */
   public static Object initializeScalarHeader(int ptr, Object[] tib, int size) {
     // (TIB set by VM_ObjectModel)
-    boolean isSynchronized = ((VM_Class)tib[0]).isSynchronized;
-    return VM_Magic.addressAsObject(ptr + size + (isSynchronized ? 0 : THIN_LOCK_SIZE));
+    return VM_Magic.addressAsObject(ptr + size + SCALAR_PADDING_BYTES);
   }
 
   /**
@@ -253,8 +162,7 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    */
   public static int initializeScalarHeader(BootImageInterface bootImage, int ptr, 
 					   Object[] tib, int size) {
-    boolean isSynchronized = ((VM_Class)tib[0]).isSynchronized;
-    return ptr + size + (isSynchronized ? 0 : THIN_LOCK_SIZE);
+    return ptr + size + SCALAR_PADDING_BYTES;
   }
 
   /**
@@ -265,8 +173,7 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    */
   public static Object initializeArrayHeader(int ptr, Object[] tib, int size) {
     // (TIB and array length set by VM_ObjectModel)
-    Object ref = VM_Magic.addressAsObject(ptr + ARRAY_HEADER_SIZE);
-    return ref;
+    return VM_Magic.addressAsObject(ptr + ARRAY_HEADER_SIZE);
   }
 
   /**
@@ -278,19 +185,17 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    */
   public static int initializeArrayHeader(BootImageInterface bootImage, int ptr, 
 					   Object[] tib, int size) {
-    int ref = ptr + ARRAY_HEADER_SIZE;
     // (TIB set by BootImageWriter2; array length set by VM_ObjectModel)
-    return ref;
+    return ptr + ARRAY_HEADER_SIZE;
   }
 
   /**
    * Initialize a cloned scalar object from the clone src
    */
   public static void initializeScalarClone(Object cloneDst, Object cloneSrc, int size) {
-    int cnt = size - VM_ObjectModel.computeHeaderSize(cloneSrc);
-    VM_Class klass = cloneDst.getClass().getVMType().asClass();
-    int dst = scalarRefToBaseAddress(cloneDst,klass);
-    int src = scalarRefToBaseAddress(cloneSrc,klass);
+    int cnt = size - SCALAR_HEADER_SIZE;
+    int dst = VM_Magic.objectAsAddress(cloneDst) - (size + SCALAR_PADDING_BYTES);
+    int src = VM_Magic.objectAsAddress(cloneSrc) - (size + SCALAR_PADDING_BYTES);
     VM_Memory.aligned32Copy(dst, src, cnt); 
   }
 
@@ -311,9 +216,10 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    */
   public static void dumpHeader(Object ref) {
     // TIB dumped in VM_ObjectModel
-    if (hasThinLock(ref)) {
+    int lockOffset = getThinLockOffset(ref);
+    if (lockOffset != -1) {
       VM.sysWrite(" THIN LOCK=");
-      VM.sysWriteHex(VM_Magic.getIntAtOffset(ref, STATUS_OFFSET));
+      VM.sysWriteHex(VM_Magic.getIntAtOffset(ref, lockOffset));
     }
   }
 
@@ -330,15 +236,14 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    * object reference that could refer to an object in the region.
    */
   public static int maximumObjectRef (int regionHighAddr) {
-    return regionHighAddr;
+    return regionHighAddr + SCALAR_PADDING_BYTES;
   }
 
   /**
    * Compute the header size of an instance of the given type.
    */
   public static int computeScalarHeaderSize(VM_Class type) {
-    VM_Magic.pragmaInline();
-    return ONE_WORD_HEADER_SIZE + (type.isSynchronized ? THIN_LOCK_SIZE : 0);
+    return SCALAR_HEADER_SIZE;
   }
 
   /**
@@ -362,11 +267,7 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
 	if (t.isArrayType()) {
 	  return VM_Magic.getIntAtOffset(o, HASHCODE_ARRAY_OFFSET);
 	} else {
-	  if (t.isSynchronized) {
-	    return VM_Magic.getIntAtOffset(o, HASHCODE_SYNCH_SCALAR_OFFSET);
-	  } else {
-	    return VM_Magic.getIntAtOffset(o, HASHCODE_UNSYNCH_SCALAR_OFFSET);
-	  }
+	  return VM_Magic.getIntAtOffset(o, HASHCODE_SCALAR_OFFSET);
 	}
       } else {
 	int tmp;
@@ -411,6 +312,9 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    */
   public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, 
 				  VM_Class type, Object[] tib, int availBitsWord) {
+    VM.assert(false); // TODO: finish me
+    return null;
+    /*
     int tibWord = VM_Magic.getIntAtOffset(fromObj, TIB_OFFSET);
     int hashState = tibWord & HASH_STATE_MASK;
     if (type.isSynchronized) {
@@ -475,6 +379,7 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
 	return toObj;
       }
     }
+    */
   }
 
   /**
@@ -482,6 +387,9 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    */
   public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, 
 				  VM_Array type, Object[] tib, int availBitsWord) {
+    VM.assert(false); // finish me!
+    return null;
+    /*
     int tibWord = VM_Magic.getIntAtOffset(fromObj, TIB_OFFSET);
     int hashState = tibWord & HASH_STATE_MASK;
     if (hashState == HASH_STATE_UNHASHED) {
@@ -510,48 +418,63 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
       VM_GCUtil.validRef(VM_Magic.objectAsAddress(toObj));
       return toObj;
     }
+    */
   }
 
   /**
    * Get the offset of the thin lock word in this object
    */
   public static int getThinLockOffset(Object o) {
-    if (VM.VerifyAssertions) VM.assert(hasThinLock(o));
-    return STATUS_OFFSET;
+    return VM_Magic.getObjectType(o).thinLockOffset;
   }
 
   /**
-   * Does an object have a thin lock?
+   * what is the default offset for a thin lock?
    */
-  protected static boolean hasThinLock(Object o) { 
-    return VM_Magic.getObjectType(o).isSynchronized; 
+  public static int defaultThinLockOffset() {
+    return -1;
   }
+
+  /**
+   * Allocate a thin lock word for instances of the type
+   * (if they already have one, then has no effect).
+   */
+  public static void allocateThinLock(VM_Type t) {
+    if (t.thinLockOffset == -1) {
+      if (VM.VerifyAssertions) VM.assert(t.isClassType());
+      VM_Class klass = t.asClass();
+      int fieldOffset = objectEndOffset(klass) - 4; // layout field backwards!
+      klass.thinLockOffset = fieldOffset;
+      klass.increaseInstanceSize(4);
+    }
+  }
+
 
   /**
    * fastPathLocking
    */
   public static void fastPathLock(Object o) { 
-    VM_Magic.pragmaInline();
-    if (VM.VerifyAssertions) VM.assert(hasThinLock(o));
-    VM_ThinLock.inlineLock(o, STATUS_OFFSET);
+    int lockOffset = getThinLockOffset(o);
+    if (VM.VerifyAssertions) VM.assert(lockOffset != -1);
+    VM_ThinLock.inlineLock(o, lockOffset);
   }
 
   /**
    * fastPathUnlocking
    */
   public static void fastPathUnlock(Object o) { 
-    VM_Magic.pragmaInline();
-    if (VM.VerifyAssertions) VM.assert(hasThinLock(o));
-    VM_ThinLock.inlineUnlock(o, STATUS_OFFSET);
+    int lockOffset = getThinLockOffset(o);
+    if (VM.VerifyAssertions) VM.assert(lockOffset != -1);
+    VM_ThinLock.inlineUnlock(o, lockOffset);
   }
 
   /**
    * Generic lock
    */
   public static void genericLock(Object o) { 
-    VM_Magic.pragmaInline();
-    if (hasThinLock(o)) {
-      VM_ThinLock.lock(o, STATUS_OFFSET);
+    int lockOffset = getThinLockOffset(o);
+    if (lockOffset != -1) {
+      VM_ThinLock.lock(o, lockOffset);
     } else {
       VM_LockNursery.lock(o);
     }
@@ -561,9 +484,9 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    * Generic unlock
    */
   public static void genericUnlock(Object o) {
-    VM_Magic.pragmaInline();
-    if (hasThinLock(o)) {
-      VM_ThinLock.unlock(o, STATUS_OFFSET);
+    int lockOffset = getThinLockOffset(o);
+    if (lockOffset != -1) {
+      VM_ThinLock.unlock(o, lockOffset);
     } else {
       VM_LockNursery.unlock(o);
     }
@@ -579,8 +502,9 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    * @return the heavy-weight lock on the object (if any)
    */
   public static VM_Lock getHeavyLock(Object o, boolean create) {
-    if (hasThinLock(o)) {
-      return VM_ThinLock.getHeavyLock(o, STATUS_OFFSET, create);
+    int lockOffset = getThinLockOffset(o);
+    if (lockOffset != -1) {
+      return VM_ThinLock.getHeavyLock(o, lockOffset, create);
     } else {
       return VM_LockNursery.findOrCreate(o, create);
     }

@@ -81,6 +81,14 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
   }
 
   /**
+   * What is the offset of the 'last' byte in the class?
+   * For use by VM_ObjectModel.layoutInstanceFields
+   */
+  public static int objectEndOffset(VM_Class klass) {
+    return - klass.getInstanceSizeInternal() - SCALAR_PADDING_BYTES;
+  }
+
+  /**
    * Given a reference, return an address which is guaranteed to be inside
    * the memory region allocated to the object.
    */
@@ -205,6 +213,21 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
    */
   public static int getThinLockOffset(Object o) {
     return STATUS_OFFSET;
+  }
+
+  /**
+   * what is the default offset for a thin lock?
+   */
+  public static int defaultThinLockOffset() {
+    return STATUS_OFFSET;
+  }
+
+  /**
+   * Allocate a thin lock word for instances of the type
+   * (if they already have one, then has no effect).
+   */
+  public static void allocateThinLock(VM_Type t) {
+    // nothing to do (all objects have thin locks in this object model);
   }
 
   /**

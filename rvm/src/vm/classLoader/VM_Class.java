@@ -448,6 +448,18 @@ public class VM_Class extends VM_Type
     return instanceSize;
   }
 
+  final int getInstanceSizeInternal() {
+    return instanceSize;
+  }
+
+  /**
+   * Add a field to the object; only meant to be called from VM_ObjectModel et al.
+   * must be called when lock on class object is already held (ie from resolve).
+   */
+  final void increaseInstanceSize(int numBytes) {
+    instanceSize += numBytes;
+  }
+
   /**
    * Offsets of reference-containing instance fields of this class type.
    * Offsets are with respect to object pointer -- see VM_Field.getOffset().
@@ -670,7 +682,7 @@ public class VM_Class extends VM_Type
   /**
    * total size of per-instance data, in bytes
    */
-  private int          instanceSize;           
+  private int          instanceSize;  
   /**
    * offsets of reference-containing instance fields
    */
@@ -1034,10 +1046,13 @@ public class VM_Class extends VM_Type
       superClass.load();
       superClass.resolve();
       depth = 1 + superClass.depth;
-      isSynchronized = superClass.isSynchronized;
+      thinLockOffset = superClass.thinLockOffset;
+      instanceSize = superClass.instanceSize;
+    } else {
+      instanceSize = VM_ObjectModel.computeScalarHeaderSize(this);
     }
-    if (isSynchronizedObject()) isSynchronized = true;
-    
+
+    if (isSynchronizedObject()) VM_ObjectModel.allocateThinLock(this);
 
     if (VM.verboseClassLoading) VM.sysWrite("[Preparing "+
                                             descriptor.classNameFromDescriptor()
@@ -1091,7 +1106,7 @@ public class VM_Class extends VM_Type
 	// Now deal with virtual methods
 
 	if (method.isSynchronized())
-	  isSynchronized = true;
+	  VM_ObjectModel.allocateThinLock(this);
 
 	// method could override something in superclass - check for it
 	//
@@ -1151,15 +1166,12 @@ public class VM_Class extends VM_Type
 
     // lay out instance fields
     //
-    instanceSize = VM_ObjectModel.computeScalarHeaderSize(this);
-    int fieldOffset = VM_ObjectModel.getHeaderEndOffset(this); 
+    VM_ObjectModel.layoutInstanceFields(this);
+
+    // count reference fields and update dynamic linking data structures
     int referenceFieldCount = 0;
     for (int i = 0, n = instanceFields.length; i < n; ++i) {
       VM_Field field     = instanceFields[i];
-      int      fieldSize = field.getSize();
-      fieldOffset  -= fieldSize; // lay out fields "backwards"
-      field.offset  = fieldOffset;
-      instanceSize += fieldSize;
       if (field.getType().isReferenceType())
 	referenceFieldCount += 1;
       // Should be ok to do here instead of in initialize, because

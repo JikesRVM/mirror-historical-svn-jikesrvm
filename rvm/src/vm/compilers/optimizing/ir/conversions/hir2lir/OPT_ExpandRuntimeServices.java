@@ -302,7 +302,7 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase
 	} else {
 	  OPT_Operand ref = MonitorOp.getClearRef(inst);
 	  VM_Type refType = ref.getType();
-	  if (!VM.UseLockNursery || refType.isSynchronized) {
+	  if (refType.thinLockOffset != -1) {
 	    Call.mutate1(inst, CALL, null, null, 
 			 OPT_MethodOperand.STATIC(OPT_Entrypoints.optLockMethod), 
 			 MonitorOp.getClearGuard(inst), 
@@ -323,7 +323,7 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase
 	} else {
 	    OPT_Operand ref = MonitorOp.getClearRef(inst);
 	    VM_Type refType = ref.getType();
-	    if (!VM.UseLockNursery || refType.isSynchronized) {
+	    if (refType.thinLockOffset != -1) {
 		Call.mutate1(inst, CALL, null, null, 
 			     OPT_MethodOperand.STATIC(OPT_Entrypoints.optUnlockMethod), 
 			     MonitorOp.getClearGuard(inst), 

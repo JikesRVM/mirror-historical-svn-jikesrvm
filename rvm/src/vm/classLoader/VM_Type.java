@@ -507,7 +507,7 @@
   protected int     tibSlot;      
   /**
    * instance of java.lang.Class corresponding to this type 
-   * (null --> not created yet)
+   * (null --> not created yet
    */
   private   Class   classForType; 
   /**
@@ -524,10 +524,14 @@
   protected int     depth;        
 
   /**
-   * does it statically appear that the class is synchronized?  Accessed directly
-   * instead of via accessor function because this class is not Uninterruptible.
+   * At what offset is the thin lock word to be found in instances of
+   * objects of this type?  A value of -1 indicates that the instances of
+   * this type do not have inline thin locks. <p>
+   * Accessed directly instead of via accessor function because this class is not Uninterruptible.
+   * TODO: once we have method-level uninterruptibility make this protected and
+   *       add appropriate accessor methods.
    */
-  public boolean isSynchronized;
+  public int thinLockOffset = VM_ObjectModel.defaultThinLockOffset();
 
   static void init() {
     // create primitive type descriptions

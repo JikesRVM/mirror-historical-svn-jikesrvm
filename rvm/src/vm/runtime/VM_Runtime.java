@@ -687,10 +687,7 @@ public class VM_Runtime implements VM_Constants {
    */ 
   static void unlockAndThrow (Object objToUnlock, Throwable objToThrow) {
     VM_Magic.pragmaNoInline();
-    if (VM.UseLockNursery)
-	VM_Lock.unlock(objToUnlock);
-    else
-	VM_Lock.inlineUnlock(objToUnlock);
+    VM_Lock.unlock(objToUnlock);
     athrow(objToThrow);
   }
 

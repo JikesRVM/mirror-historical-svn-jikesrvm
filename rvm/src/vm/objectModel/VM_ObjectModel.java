@@ -108,6 +108,24 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
     return JAVA_HEADER_END - VM_AllocatorHeader.NUM_BYTES_HEADER - VM_MiscHeader.NUM_BYTES_HEADER;
   }
 
+
+  /**
+   * Layout the instance fields declared in this class.
+   */
+  public static void layoutInstanceFields(VM_Class klass) {
+    int fieldOffset = VM_JavaHeader.objectEndOffset(klass);
+    VM_Field fields[] = klass.getDeclaredFields();
+    for (int i = 0, n = fields.length; i < n; ++i) {
+      VM_Field field = fields[i];
+      if (!field.isStatic()) {
+	int fieldSize = field.getSize();
+	fieldOffset -= fieldSize; // lay out fields 'backwards'
+	field.offset = fieldOffset;
+	klass.increaseInstanceSize(fieldSize);
+      }
+    }
+  }
+
   /**
    * Given a reference, return an address which is guaranteed to be inside
    * the memory region allocated to the object.
@@ -238,6 +256,21 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
    */
   public static int getThinLockOffset(Object o) {
     return VM_JavaHeader.getThinLockOffset(o);
+  }
+
+  /**
+   * what is the default offset for a thin lock?
+   */
+  public static int defaultThinLockOffset() {
+    return VM_JavaHeader.defaultThinLockOffset();
+  }
+
+  /**
+   * Allocate a thin lock word for instances of the type
+   * (if they already have one, then has no effect).
+   */
+  public static void allocateThinLock(VM_Type t) {
+    VM_JavaHeader.allocateThinLock(t);
   }
 
   /**

@@ -358,8 +358,9 @@ public final class VM_Lock implements VM_Constants, VM_Uninterruptible {
     if (t != null) t.scheduleHighPriority();
     else if (entering.isEmpty() && waiting.isEmpty()) { // heavy lock can be deflated
       // Possible project: decide on a heuristic to control when lock should be deflated
-      if ((! VM.UseLockNursery) || VM_Magic.getObjectType(o).isSynchronized) { // deflate heavy lock
-	deflate(o);
+      int lockOffset = VM_Magic.getObjectType(o).thinLockOffset;
+      if (lockOffset != -1) { // deflate heavy lock
+	deflate(o, lockOffset);
 	deflated = true;
       }
     }
@@ -376,7 +377,7 @@ public final class VM_Lock implements VM_Constants, VM_Uninterruptible {
    *
    * @param o the object from which this lock is to be disassociated
    */
-  private void deflate (Object o) {
+  private void deflate (Object o, int lockOffset) {
     if (VM.VerifyAssertions) {
       VM.assert(lockedObject == o);
       VM.assert(recursionCount == 0);
@@ -384,7 +385,7 @@ public final class VM_Lock implements VM_Constants, VM_Uninterruptible {
       VM.assert(waiting.isEmpty());
     }
     if (STATS) deflations++;
-    VM_ThinLock.deflate(o, VM_ObjectModel.getThinLockOffset(o), this);
+    VM_ThinLock.deflate(o, lockOffset, this);
     lockedObject = null;
     free(this);
   }
