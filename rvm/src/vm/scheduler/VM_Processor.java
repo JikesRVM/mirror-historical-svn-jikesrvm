@@ -141,6 +141,7 @@ public final class VM_Processor implements VM_Uninterruptible,  VM_Constants {
    * Note: This method is ONLY intended for use by VM_Thread.
    */ 
   void dispatch () {
+
     if (VM.VerifyAssertions) VM._assert(lockCount == 0);// no processor locks should be held across a thread switch
     if (VM.BuildForEventLogging && VM.EventLoggingEnabled) VM_EventLogger.logDispatchEvent();
 
@@ -154,11 +155,10 @@ public final class VM_Processor implements VM_Uninterruptible,  VM_Constants {
 
     previousThread = activeThread;
     activeThread   = newThread;
-    activeThreadStackLimit = newThread.stackLimit;
+
     //-#if RVM_FOR_IA32
     threadId       = newThread.getLockingId();
     //-#endif
-
     if (!previousThread.isDaemon && 
         idleProcessor != null && !readyQueue.isEmpty() 
         && getCurrentProcessor().processorMode != NATIVEDAEMON) { 
@@ -182,7 +182,7 @@ public final class VM_Processor implements VM_Uninterruptible,  VM_Constants {
       newThread.cpuStartTime = now;  // this thread has started running
     }
 
-    // (sets "previousThread.beingDispatched = false")
+    activeThreadStackLimit = newThread.stackLimit; // Delay this to last possible moment so we can sysWrite
     VM_Magic.threadSwitch(previousThread, newThread.contextRegisters);
   }
 

@@ -6,7 +6,6 @@
 
 package com.ibm.JikesRVM.memoryManagers.JMTk;
 
-import com.ibm.JikesRVM.memoryManagers.vmInterface.Conversions;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
@@ -37,10 +36,9 @@ public final class FreeListVMResource extends VMResource implements Constants {
   /**
    * Constructor
    */
-  FreeListVMResource(VM_Address vmStart, EXTENT bytes, byte status,
-		     String vmName) {
-    super(vmStart, bytes, status, vmName);
-    freeList = new GenericFreeList(blocks);
+  FreeListVMResource(String vmName, VM_Address vmStart, EXTENT bytes, byte status) {
+    super(vmName, vmStart, bytes, status);
+    freeList = new GenericFreeList(Conversions.bytesToBlocks(bytes));
   }
 
 
@@ -61,14 +59,15 @@ public final class FreeListVMResource extends VMResource implements Constants {
   }
 
   public final void release(VM_Address addr) {
-    int blk = Conversions.bytesToBlock(addr);
-    freeList.free(blk - Conversions.bytesToBlock(start));
+    int offset = addr.diff(start).toInt();
+    int blk = Conversions.bytesToBlocks(offset);
+    freeList.free(blk);
   }
 
   ////////////////////////////////////////////////////////////////////////////
   //
   // Private fields and methods
   //
-
-  private Address cursor;
+  private GenericFreeList freeList;
+  private VM_Address cursor;
 }

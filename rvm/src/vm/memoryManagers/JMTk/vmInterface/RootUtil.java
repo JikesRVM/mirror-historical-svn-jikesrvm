@@ -3,7 +3,9 @@
  */
 //$Id$
 
-package com.ibm.JikesRVM.memoryManagers.watson;
+package com.ibm.JikesRVM.memoryManagers.JMTk;
+
+import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 
 import com.ibm.JikesRVM.VM_Thread;
 import com.ibm.JikesRVM.VM_Type;
@@ -27,7 +29,9 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
  * @author Steve Smith
  */
 class RootUtil 
-  implements VM_Constants, VM_GCConstants {
+  implements Constants {
+
+  //-#if XXXXXXX
 
   /**
    * Scans all threads in the VM_Scheduler threads array.  A threads stack
@@ -63,7 +67,7 @@ class RootUtil
 	if (VM.VerifyAssertions) VM._assert(!fromHeap.refInHeap(ta));
 	
 	if (VM.VerifyAssertions) oldstack = t.stack;    // for verifying gc stacks not moved
-	VM_ScanObject.scanObjectOrArray(t);
+	VM_ScanObject.scan(t);
 	if (VM.VerifyAssertions) VM._assert(oldstack == t.stack);
 	
 	if (t.jniEnv != null) VM_ScanObject.scanObjectOrArray(t.jniEnv);
@@ -126,6 +130,6 @@ class RootUtil
     } 
   }
   
-
+  //-#endif
 }
 

@@ -100,14 +100,13 @@ public class VM_CollectorThread extends VM_Thread {
    * a collection, and passed to the collect method when requesting a
    * collection.
    */
-  public static VM_Handshake                       collect;
+  public static VM_Handshake                       handshake;
 
   /** Use by collector threads to rendezvous during collection */
   public static SynchronizationBarrier gcBarrier;
   
   static {
-    collect = new VM_Handshake();
-
+    handshake = new VM_Handshake();
     participantCount = new int[1];  // counter for threads starting a collection
   } 
   
@@ -298,8 +297,8 @@ public class VM_CollectorThread extends VM_Thread {
 	// notify mutators waiting on previous handshake object - actually we
 	// don't notify anymore, mutators are simply in processor ready queues
 	// waiting to be dispatched.
-	collect.notifyCompletion();
-	collect =  new VM_Handshake();  // replace handshake with new one for next collection
+	handshake.notifyCompletion();
+	handshake.reset();
 
 	// schedule the FinalizerThread, if there is work to do & it is idle
 	// THIS NOW HAPPENS DURING GC - SWITCH TO DOING IT HERE 
@@ -362,6 +361,9 @@ public class VM_CollectorThread extends VM_Thread {
       }
 
       if (MEASURE_WAIT_TIMES) resetWaitTimers();  // reset for next GC
+
+
+VM.sysWriteln("About to enable thread switching");
 
       // all collector threads enable thread switching on their processors
       // allowing waiting mutators to be scheduled and run.  The collector

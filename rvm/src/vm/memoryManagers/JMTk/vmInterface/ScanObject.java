@@ -40,44 +40,37 @@ public class ScanObject implements VM_Constants, Constants {
    *
    * @param objRef  reference for object to be scanned (as int)
    */
-  static void scanObjectOrArray(VM_Address objRef ) throws VM_PragmaUninterruptible {
+  public static void scan (VM_Address objRef) throws VM_PragmaUninterruptible {
 
     // First process the TIB to relocate it.
     // Necessary only if the allocator/collector moves objects
     // and the object model is actually storing the TIB as a pointer.
     // 
-    if (VM_Interface.MOVES_OBJECTS) {
+    if (VM_Interface.MOVES_OBJECTS) 
       VM_ObjectModel.gcProcessTIB(objRef);
-    }
 
     Object obj = VM_Magic.addressAsObject(objRef);
     Object[] tib = VM_ObjectModel.getTIB(obj);
     if (VM.VerifyAssertions) {
       if (tib == null || VM_ObjectModel.getObjectType(tib) != VM_Type.JavaLangObjectArrayType) {
         VM.sysWrite("ScanObject: tib is not Object[]\n");
-        VM.sysWrite("               objRef = ");
-        VM.sysWrite(objRef);
-        VM.sysWrite("               tib = ");
-        VM.sysWrite(VM_Magic.objectAsAddress(tib));
-        VM.sysWrite("\n");
+        VM.sysWrite("               objRef = ", objRef);
+        VM.sysWriteln("               tib = ", VM_Magic.objectAsAddress(tib));
       }
     }
     VM_Type type = VM_Magic.objectAsType(tib[TIB_TYPE_INDEX]);
     if (VM.VerifyAssertions) {
       if (type == null) {
-        VM.sysWrite("ScanObject: type is null\n");
-        VM.sysWrite("               objRef = ");
-        VM.sysWrite(objRef);
-        VM.sysWrite("\nScanObject: objRef = ");
-        VM.sysWrite(VM_Magic.objectAsAddress(type));
-        VM.sysWrite("\n");
+        VM.sysWriteln("ScanObject: type is null");
+        VM.sysWriteln("               objRef = ",objRef);
+        VM.sysWriteln("ScanObject: objRef = ", VM_Magic.objectAsAddress(type));
         VM._assert(type != null);
       }
     }
     if ( type.isClassType() ) {
       int[] referenceOffsets = type.asClass().getReferenceOffsets();
       for(int i = 0, n=referenceOffsets.length; i < n; i++) {
-        VM_Interface.processPtrField( objRef.add(referenceOffsets[i]) );
+	VM_Interface.processPtrField( objRef.add(referenceOffsets[i]) );
       }
       Statistics.profileScan(obj, 4 * referenceOffsets.length, tib);
     }
@@ -98,8 +91,8 @@ public class ScanObject implements VM_Constants, Constants {
     }
   } 
 
-  static void scanObjectOrArray( Object objRef ) throws VM_PragmaUninterruptible {
-    scanObjectOrArray( VM_Magic.objectAsAddress(objRef) );
+  static void scan (Object objRef) throws VM_PragmaUninterruptible {
+    scan(VM_Magic.objectAsAddress(objRef));
   }
 
   public static boolean validateRefs( VM_Address ref, int depth ) throws VM_PragmaUninterruptible {

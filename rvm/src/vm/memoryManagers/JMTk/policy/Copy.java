@@ -9,6 +9,7 @@ import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM_Magic;
+import com.ibm.JikesRVM.VM;
 
 /**
  * This class implements a simple copying allocator/collector.
@@ -21,11 +22,8 @@ import com.ibm.JikesRVM.VM_Magic;
 final class Copy extends BasePolicy implements Constants {
   public final static String Id = "$Id$"; 
 
-  public void prepare() {
-  }
-
-  public void release() {
-  }
+  public static void prepare(VMResource vm, MemoryResource mr) { }
+  public static void release(VMResource vm, MemoryResource mr) { }
 
   /**
    * Trace an object under a copying collection policy.
@@ -49,16 +47,15 @@ final class Copy extends BasePolicy implements Constants {
       VM_Address newObject = VM_Address.fromInt(forwardingPtr & ~CopyingHeader.GC_FORWARDING_MASK);
       return newObject;
     }
-    
 
     // We are the designated copier
     //
     VM_Address newObject = VM_Interface.copy(object, forwardingPtr);
+    CopyingHeader.setForwardingPointer(object, newObject);
     VM_Interface.getPlan().enqueue(newObject);       // Scan it later
 
     return newObject;
   }
-
 
   public static boolean isLive(VM_Address obj) {
     return CopyingHeader.isForwarded(VM_Magic.addressAsObject(obj));

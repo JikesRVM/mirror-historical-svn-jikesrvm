@@ -11,9 +11,12 @@ import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM_ObjectModel;
 import com.ibm.JikesRVM.VM_Magic;
+import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 import com.ibm.JikesRVM.VM_PragmaInterruptible;
 import com.ibm.JikesRVM.VM_PragmaInline;
 import com.ibm.JikesRVM.VM_PragmaNoInline;
+import com.ibm.JikesRVM.VM_Scheduler;
+import com.ibm.JikesRVM.VM_Thread;
 
 /**
  * This class implements a simple semi-space collector. See the Jones
@@ -58,7 +61,7 @@ public final class Plan extends BasePlan { // implements Constants
    */
   public Plan() {
     ss = new BumpPointer(ss0VM, ssMR);
-    los = new LargeObjectSpace(losVM, losMR);
+    los = new LOSPointer(losVM, losMR);
     immortal = new BumpPointer(immortalVM, immortalMR);
   }
 
@@ -72,21 +75,28 @@ public final class Plan extends BasePlan { // implements Constants
    * @return The address of the first byte of the allocated region
    */
   public VM_Address alloc(int allocator, EXTENT bytes, boolean isScalar, AllocAdvice advice) throws VM_PragmaInline {
-    if ((allocator == BP_ALLOCATOR) && (bytes <= LOS_SIZE_THRESHOLD))
-      return ss.alloc(isScalar, bytes);
-    else if (allocator == IMMORTAL_ALLOCATOR)
-      return immortal.alloc(isScalar, bytes);
-    else 
-      return los.alloc(isScalar, bytes);
+    if (VM.VerifyAssertions) VM._assert(bytes == (bytes & (~3)));
+    if (allocator == BP_ALLOCATOR && bytes > LOS_SIZE_THRESHOLD) allocator = LOS_ALLOCATOR;
+    VM_Address region;
+    switch (allocator) {
+      case       BP_ALLOCATOR: region = ss.alloc(isScalar, bytes); break;
+      case IMMORTAL_ALLOCATOR: region = immortal.alloc(isScalar, bytes); break;
+      case      LOS_ALLOCATOR: region = los.alloc(isScalar, bytes); 
+			       break;
+      default:                 region = VM_Address.zero(); VM.sysFail("No such allocator");
+    }
+    if (VM.VerifyAssertions) VM._assert(Memory.isZeroed(region, bytes));
+    return region;
   }
 
   public void postAlloc(int allocator, EXTENT bytes, Object obj) throws VM_PragmaInline {
-    if ((allocator == BP_ALLOCATOR) && (bytes <= LOS_SIZE_THRESHOLD))
-      return;
-    else if (allocator == IMMORTAL_ALLOCATOR)
-      return;
-    else 
-      los.postAlloc(obj);
+    if (allocator == BP_ALLOCATOR && bytes > LOS_SIZE_THRESHOLD) allocator = LOS_ALLOCATOR;
+    switch (allocator) {
+      case       BP_ALLOCATOR: return;
+      case IMMORTAL_ALLOCATOR: return;
+      case      LOS_ALLOCATOR: los.postAlloc(obj); return;
+      default:                 VM.sysFail("No such allocator");
+    }
   }
 
   /**
@@ -116,10 +126,7 @@ public final class Plan extends BasePlan { // implements Constants
    * @return The allocator number to be used for this allocation.
    */
   public int getAllocator(Type type, EXTENT bytes, CallSite callsite, AllocAdvice hint) {
-    if (bytes >= LOS_SIZE_THRESHOLD)
-      return LOS_ALLOCATOR;
-    else
-      return BP_ALLOCATOR;
+    return (bytes >= LOS_SIZE_THRESHOLD) ? LOS_ALLOCATOR : BP_ALLOCATOR;
   }
 
   /**
@@ -154,8 +161,16 @@ public final class Plan extends BasePlan { // implements Constants
    */
 
   public void poll() {
-    if (getBlocksReserved() > getHeapBlocks())
+    if (gcInProgress) return;
+    if (getBlocksReserved() > getHeapBlocks()) {
+      VM.sysWriteln("ss reserveBlocks = ", ssMR.reservedBlocks());
+      VM.sysWriteln("los reserveBlocks = ", losMR.reservedBlocks());
+      VM.sysWriteln("imm reserveBlocks = ", immortalMR.reservedBlocks());
+      VM.sysWriteln("heapBlocks = ", getHeapBlocks());
+      VM.sysWriteln("XXX incrementnig gccount here");
+      gcCount++;
       VM_Interface.triggerCollection();
+    }
   }
   
    
@@ -165,7 +180,7 @@ public final class Plan extends BasePlan { // implements Constants
       if (addr.GE(SS_START))
 	return Copy.isLive(obj);
       else if (addr.GE(LOS_START))
-	return los.isLive(obj);
+	return losVM.isLive(obj);
       else if (addr.GE(IMMORTAL_START))
 	return true;
     } 
@@ -183,25 +198,69 @@ public final class Plan extends BasePlan { // implements Constants
    */
   public VM_Address traceObject(VM_Address obj) {
     VM_Address addr = VM_Interface.refToAddress(obj);
+    if (VM_Magic.objectAsAddress(VM_Scheduler.threads).EQ(obj))
+      VM.sysWriteln("XXX traceObject got value (VM_Sched.threads) ");
     if (addr.LE(HEAP_END)) {
-      if (addr.GE(SS_START))
-	return Copy.traceObject(obj);
+      if (addr.GE(SS_START)) {
+	if (hi) {
+	  if (addr.LT(HIGH_SS_START))
+	    return Copy.traceObject(obj);
+	  return obj;
+	}
+	else {
+	  if (addr.GE(HIGH_SS_START))
+	    return Copy.traceObject(obj);
+	  return obj;
+
+	}
+      }
       else if (addr.GE(LOS_START))
-	return los.traceObject(obj);
+	return losVM.traceObject(obj);
       else if (addr.GE(IMMORTAL_START))
 	return Immortal.traceObject(obj);
     } // else this is not a heap pointer
     return obj;
   }
 
+  public boolean hasMoved(VM_Address obj) {
+    VM_Address addr = VM_Interface.refToAddress(obj);
+    if (addr.LE(HEAP_END)) {
+      if (addr.GE(SS_START)) 
+	return (hi ? ss1VM : ss0VM).inRange(addr);
+      else if (addr.GE(LOS_START))
+	return true;
+      else if (addr.GE(IMMORTAL_START))
+	return true;
+    } 
+    return true;
+  }
 
   /**
    * Perform a collection.
    */
-  public void collect() {
+  public void collect () {
+    VM.sysWriteln("VM_Scheduler.threads = ", VM_Magic.objectAsAddress(VM_Scheduler.threads));
+    VM_Thread.dumpAll(1);
     prepare();
     super.collect();
     release();
+    VM.sysWriteln("VM_Scheduler.threads = ", VM_Magic.objectAsAddress(VM_Scheduler.threads));
+    VM_Thread.dumpAll(1);
+  }
+
+  public static final long freeMemory() throws VM_PragmaUninterruptible {
+    VM.sysWriteln("freeMemory possibly not implemented correctly");
+    return totalMemory() - usedMemory();
+  }
+
+  public static final long usedMemory() throws VM_PragmaUninterruptible {
+    VM.sysWriteln("usedMemory possibly not implemented correctly");
+    return Conversions.blocksToBytes(ssMR.committedBlocks());
+  }
+
+  public static final long totalMemory() throws VM_PragmaUninterruptible {
+    VM.sysWriteln("totalMemory possibly not implemented correctly");
+    return Conversions.blocksToBytes(getHeapBlocks());
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -215,9 +274,8 @@ public final class Plan extends BasePlan { // implements Constants
    * @return The number of blocks reserved given the pending allocation
    */
   private int getBlocksReserved() {
-    int blocks;
 
-    blocks = ssMR.reservedBlocks();
+    int blocks = ssMR.reservedBlocks();
     // we must account for the worst case number of blocks required
     // for copying, which equals the number of semi-space blocks in
     // use plus a fudge factor which accounts for fragmentation
@@ -237,16 +295,23 @@ public final class Plan extends BasePlan { // implements Constants
     int id = barrier.rendezvous();
     if (id == 1) {
       gcInProgress = true;
+      gcCount++;
       hi = !hi;       // flip the semi-spaces
       ssMR.release();    // reset the semispace memory resource, and
       // rebind the semispace bump pointer to the appropriate semispace.
       ss.rebind(((hi) ? ss1VM : ss0VM)); 
       // prepare each of the collected regions
       Copy.prepare(((hi) ? ss0VM : ss1VM), ssMR);
-      los.prepare(losVM, losMR);
+      losVM.prepare(losVM, losMR);
       Immortal.prepare(immortalVM, null);
+      VM_Interface.prepareNonParticipating(); 
     }
+    VM_Interface.prepareParticipating();
     barrier.rendezvous();
+  }
+
+  public void prepareNonParticipating() {
+    VM.sysWriteln("Plan.prepareNonParticipating not implemented - FIXME");
   }
 
   /**
@@ -258,7 +323,7 @@ public final class Plan extends BasePlan { // implements Constants
     if (id == 1) {
       // release each of the collected regions
       Copy.release(((hi) ? ss0VM : ss1VM), ssMR);
-      los.release(losVM, losMR); 
+      losVM.release(losVM, losMR); 
       Immortal.release(immortalVM, null);
       gcInProgress = false;
     }
@@ -271,6 +336,7 @@ public final class Plan extends BasePlan { // implements Constants
   //
   private BumpPointer ss;
   private BumpPointer immortal;
+  private LOSPointer los;
   
 
   ////////////////////////////////////////////////////////////////////////////
@@ -278,12 +344,10 @@ public final class Plan extends BasePlan { // implements Constants
   // Class variables
   //
   // virtual memory regions
-  private static LargeObjectSpace los;
+  private static LOSVMResource losVM;
   private static MonotoneVMResource ss0VM;
   private static MonotoneVMResource ss1VM;
-  private static MonotoneVMResource losVM;
-  private static MonotoneVMResource immortalVM;
-  private static MonotoneVMResource bootVM;
+  private static ImmortalMonotoneVMResource immortalVM;
 
   // memory resources
   private static MemoryResource ssMR;
@@ -297,19 +361,23 @@ public final class Plan extends BasePlan { // implements Constants
   //
   // Final class variables (aka constants)
   //
-  private static final VM_Address     BOOT_START = VM_Address.fromInt(0x30000000); // check against jconfigure
-  private static final EXTENT         BOOT_SIZE  = 48 * 1024 * 1024;               // upper bound - should check at building time
-  private static final VM_Address IMMORTAL_START = VM_Address.fromInt(0x40000000);
-  private static final EXTENT      IMMORTAL_SIZE = 16 * 1024 * 1024;
+  private static final VM_Address IMMORTAL_START = VM_Address.fromInt(0x30000000);
+  private static final VM_Address     BOOT_START = IMMORTAL_START;                 // check against jconfigure
+  private static final EXTENT          BOOT_SIZE = 256 * 1024 * 1024;              // use the whole segment
+  private static final VM_Address       BOOT_END = BOOT_START.add(BOOT_SIZE);
+  private static final EXTENT      IMMORTAL_SIZE = BOOT_SIZE + 16 * 1024 * 1024;
   private static final VM_Address      LOS_START = VM_Address.fromInt(0x42000000);
   private static final EXTENT           LOS_SIZE = 48 * 1024 * 1024;
   private static final VM_Address       SS_START = VM_Address.fromInt(0x50000000);
   private static final EXTENT            SS_SIZE = 256 * 1024 * 1024;              // size of each space
-  private static final VM_Address       HEAP_END = SS_START.add(2 * SS_SIZE);
-  private static final EXTENT LOS_SIZE_THRESHOLD = 4 * 1024;
+  private static final VM_Address   LOW_SS_START = SS_START;
+  private static final VM_Address  HIGH_SS_START = SS_START.add(SS_SIZE);
+  private static final VM_Address       HEAP_END = HIGH_SS_START.add(SS_SIZE);
+  private static final EXTENT LOS_SIZE_THRESHOLD = 16 * 1024;
 
   private static final int COPY_FUDGE_BLOCKS = 1;  // Steve - fix this
 
+  public static final int DEFAULT_ALLOCATOR = 0;
   public static final int BP_ALLOCATOR = 0;
   public static final int LOS_ALLOCATOR = 1;
   public static final int IMMORTAL_ALLOCATOR = 2;
@@ -321,17 +389,14 @@ public final class Plan extends BasePlan { // implements Constants
    */
   static {
     // virtual memory resources
-    VM_Address HI_SS_START = SS_START.add(SS_SIZE);
-    ss0VM      = new MonotoneVMResource("Lower semispace", SS_START,       SS_SIZE,       
+    ss0VM      = new MonotoneVMResource("Lower semispace", LOW_SS_START,       SS_SIZE,       
 					(byte) (VMResource.IN_VM | VMResource.MOVABLE));
-    ss1VM      = new MonotoneVMResource("Upper semispace", HI_SS_START,    SS_SIZE,       
+    ss1VM      = new MonotoneVMResource("Upper semispace", HIGH_SS_START,  SS_SIZE,       
 					(byte) (VMResource.IN_VM | VMResource.MOVABLE));
-    losVM      = new MonotoneVMResource("Large obj space", LOS_START,      LOS_SIZE,      
-					VMResource.IN_VM);
-    immortalVM = new MonotoneVMResource("Immortal space",  IMMORTAL_START, IMMORTAL_SIZE, 
-					(byte) (VMResource.IN_VM | VMResource.IMMORTAL));
-    bootVM     = new MonotoneVMResource("Boot image",      BOOT_START, BOOT_SIZE, 
-					(byte) (VMResource.IN_VM | VMResource.IMMORTAL));
+    losVM      = new LOSVMResource("Large obj space", LOS_START,      LOS_SIZE,      
+				   VMResource.IN_VM);
+    immortalVM = new ImmortalMonotoneVMResource("Immortal space",  IMMORTAL_START, IMMORTAL_SIZE, BOOT_END,
+						(byte) (VMResource.IN_VM | VMResource.IMMORTAL));
     // memory resources
     ssMR = new MemoryResource();
     losMR = new MemoryResource();

@@ -37,6 +37,7 @@ public class AddressSet {
 
   public void push(VM_Address addr) { 
     if (VM.VerifyAssertions) VM._assert(!addr.isZero());
+    if (cursor >= address.length) { VM.sysFail("AddressSet overflowed"); }
     address[cursor++] = addr.toInt(); 
   }
 
@@ -44,6 +45,10 @@ public class AddressSet {
     if (cursor == 0)
       return VM_Address.zero();
     return VM_Address.fromInt(address[--cursor]);
+  }
+
+  public int size() {
+    return cursor;
   }
 
 }

@@ -67,5 +67,8 @@ public class AddressTripleSet implements VM_Uninterruptible {
     return VM_Address.fromInt(address[--cursor]);
   }
 
+  public int size() {
+    return cursor / 3;
+  }
 
 }

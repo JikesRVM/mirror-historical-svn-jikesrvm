@@ -8,6 +8,7 @@ import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Offset;
 import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 import com.ibm.JikesRVM.VM_PragmaInline;
@@ -70,7 +71,7 @@ final class RawPageAllocator implements Constants {
    * @return The number of pages freed.
    */
   public int free(VM_Address start) {
-    int freed = freeList.free(Conversions.bytesToPages(start.diff(base)));
+    int freed = freeList.free(Conversions.bytesToPages(start.diff(base).toInt()));
     memoryResource.release(Conversions.pagesToBlocks(freed));
     return freed;
   }
@@ -83,7 +84,7 @@ final class RawPageAllocator implements Constants {
    * @return The number of pages in the allocated region.
    */
   public int pages(VM_Address start) {
-    return freeList.size(Conversions.bytesToPages(start.diff(base)));
+    return freeList.size(Conversions.bytesToPages(start.diff(base).toInt()));
   }
 
   ////////////////////////////////////////////////////////////////////////////

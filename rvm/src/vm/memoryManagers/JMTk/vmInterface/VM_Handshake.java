@@ -57,6 +57,11 @@ public class VM_Handshake {
   protected boolean requestFlag;
   protected boolean completionFlag;
   
+  public void reset() {
+    requestFlag = false;
+    completionFlag = false;
+  }
+
   /**
    * Initiates a garbage collection.  Called from requestAndAwaitCompletion
    * by the first mutator thread to request a collection using the

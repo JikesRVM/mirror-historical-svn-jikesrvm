@@ -146,6 +146,7 @@ public abstract class VMResource implements Constants {
 
   public final VM_Address getStart() { return start; }
   public final VM_Address getEnd() { return end; }
+  public final boolean inRange(VM_Address s) { return (start.LE(s) && s.LT(end)); }
 
   ////////////////////////////////////////////////////////////////////////////
   //

@@ -3,9 +3,7 @@
  */
 //$Id$
 
-package com.ibm.JikesRVM.memoryManagers.watson;
-
-import com.ibm.JikesRVM.memoryManagers.vmInterface.*;
+package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
 import com.ibm.JikesRVM.VM_Magic;
 import com.ibm.JikesRVM.VM_Statics;
@@ -16,20 +14,19 @@ import com.ibm.JikesRVM.VM_Thread;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 
 /**
- * Class that supports scanning statics (the JTOC) for references
- * and processing those references
+ * Class that determines all JTOC slots (statics) that hold references
  *
- * @author Stephen Smith
  * @author Perry Cheng
  */  
 public class ScanStatics
-  implements VM_Constants, VM_GCConstants {
+  implements Constants, VM_Constants {
 
   /**
    * Scan static variables (JTOC) for object references.
    * Executed by all GC threads in parallel, with each doing a portion of the JTOC.
    */
-  static void scanStatics () throws VM_PragmaUninterruptible {
+  public static void scanStatics (AddressSet rootLocations) throws VM_PragmaUninterruptible {
+
     int numSlots = VM_Statics.getNumberOfSlots();
     VM_Address slots    = VM_Magic.objectAsAddress(VM_Statics.getSlots());
     int chunkSize = 512;
@@ -52,7 +49,7 @@ public class ScanStatics
 	// slot contains a ref of some kind.  call collector specific
 	// processPointerField, passing address of reference
 	//
-	VM_Allocator.processPtrField(slots.add(slot << LOG_WORD_SIZE));
+	rootLocations.push(slots.add(slot << LOG_WORD_SIZE));
 
       }  // end of for loop
 
@@ -62,7 +59,7 @@ public class ScanStatics
 
   }  // scanStatics
 
-
+  /*
   static boolean validateRefs () throws VM_PragmaUninterruptible {
     int numSlots = VM_Statics.getNumberOfSlots();
     VM_Address slots    = VM_Magic.objectAsAddress(VM_Statics.getSlots());
@@ -113,7 +110,6 @@ public class ScanStatics
       }  // end of for loop
     VM.sysWrite("Done\n");
   }  // dumpRefs
-
-
+*/
 
 }   // VM_ScanStatics

@@ -576,7 +576,7 @@ public class WorkQueue {
       }
       
       while (!ref.isZero()) {
-	  ScanObject.scanObjectOrArray( ref );	   
+	  ScanObject.scan(ref);	   
 	  ref = WorkQueue.getFromWorkBuffer();
       }
   }  // emptyWorkQueue

@@ -64,9 +64,7 @@ public final class VM_SystemClassLoader extends com.ibm.oti.vm.AbstractClassLoad
       try {	    
         InputStream is =
           getResourceAsStream(classDescriptor.classFileNameFromDescriptor());
-
         if (is == null) throw new NullPointerException();
-
         if (!cls.isLoaded()) {
           cls.load(new DataInputStream(is));
         }

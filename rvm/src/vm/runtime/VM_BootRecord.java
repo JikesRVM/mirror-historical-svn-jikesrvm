@@ -212,7 +212,7 @@ public class VM_BootRecord {
   /**
    * value to place in TOC register when issuing "sys" calls
    */
-  int sysTOC;           
+  public int sysTOC;           
   /**
    * dummy function to pair with sysTOC
    */

@@ -9,6 +9,12 @@ import com.ibm.JikesRVM.memoryManagers.JMTk.VMResource;
 import com.ibm.JikesRVM.memoryManagers.JMTk.Plan;
 
 import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Scheduler;
+import com.ibm.JikesRVM.VM_Thread;
+import com.ibm.JikesRVM.VM_Method;
+import com.ibm.JikesRVM.VM_CompiledMethod;
+import com.ibm.JikesRVM.VM_CompiledMethods;
+import com.ibm.JikesRVM.VM_StackframeLayoutConstants;
 import com.ibm.JikesRVM.VM_Processor;
 import com.ibm.JikesRVM.VM_Constants;
 import com.ibm.JikesRVM.VM_Address;
@@ -160,10 +166,22 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     getPlan().putStaticWriteBarrier(offset, VM_Magic.objectAsAddress(value));
   }
 
+  public static void arrayStoreWriteBarrier(Object ref, int offset, Object value) {
+    VM._assert(false); // need to implement this
+  }
+
   public static void arrayCopyWriteBarrier(Object ref, int start, int end) {
     VM._assert(false); // need to implement this
   }
 
+
+  public static void unresolvedPutfieldWriteBarrier(Object ref, int offset, Object value) {
+    VM._assert(false); // need to get rid of needing this
+  }
+  
+  public static void unresolvedPutStaticWriteBarrier(int offset, Object value) { 
+    VM._assert(false); // need to get rid of needing this
+  }
 
   /**
    * Returns true if GC is in progress.
@@ -209,9 +227,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   }
 
   public static final void triggerCollection() throws VM_PragmaInterruptible {
-    VM._assert(false);
-    // do some handshake business first
-    // Plan.collect()
+    VM_CollectorThread.collect(VM_CollectorThread.handshake);
   }
 
   /**
@@ -262,18 +278,22 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
 
   public static Object allocateScalar(int size, Object [] tib) {
     AllocAdvice advice = getPlan().getAllocAdvice(null, size, null, null);
-    VM_Address region = getPlan().alloc(0, size, true, advice);
+    VM_Address region = getPlan().alloc(Plan.DEFAULT_ALLOCATOR, size, true, advice);
     Object result = VM_ObjectModel.initializeScalar(region, tib, size);
-    getPlan().postAlloc(0, size, result);
+    getPlan().postAlloc(Plan.DEFAULT_ALLOCATOR, size, result);
     return result;
   }
 
   public static Object allocateArray(int numElements, int size, Object [] tib) {
+    return allocateArray(Plan.DEFAULT_ALLOCATOR, numElements, size, tib);
+  }
+
+  public static Object allocateArray(int whichAllocator, int numElements, int size, Object [] tib) {
     size = (size + 3) & (~3);
     AllocAdvice advice = getPlan().getAllocAdvice(null, size, null, null);
-    VM_Address region = getPlan().alloc(0, size, false, advice);
+    VM_Address region = getPlan().alloc(whichAllocator, size, false, advice);
     Object result = VM_ObjectModel.initializeArray(region, tib, numElements, size);
-    getPlan().postAlloc(0, size, result);
+    getPlan().postAlloc(whichAllocator, size, result);
     return result;
   }
 
@@ -299,6 +319,56 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     return Plan.isLive(obj);
   }
 
+  public static void prepareNonParticipating() {
+    // include NativeDaemonProcessor in following loop over processors
+    for (int i = 1; i <= VM_Scheduler.numProcessors+1; i++) {
+      VM_Processor vp = VM_Scheduler.processors[i];
+      if (vp == null) continue;   // the last VP (nativeDeamonProcessor) may be null
+      int vpStatus = VM_Processor.vpStatus[vp.vpStatusIndex];
+      if ((vpStatus == VM_Processor.BLOCKED_IN_NATIVE) || (vpStatus == VM_Processor.BLOCKED_IN_SIGWAIT)) {
+	if (vpStatus == VM_Processor.BLOCKED_IN_NATIVE) { 
+	  // processor & its running thread are blocked in C for this GC.  
+	  // Its stack needs to be scanned, starting from the "top" java frame, which has
+	  // been saved in the running threads JNIEnv.  Put the saved frame pointer
+	  // into the threads saved context regs, which is where the stack scan starts.
+	  //
+	  VM_Thread t = vp.activeThread;
+	  t.contextRegisters.setInnermost(VM_Address.zero(), t.jniEnv.JNITopJavaFP);
+	}
+	vp.mmPlan.prepareNonParticipating();
+      }
+    }
+  }
+
+  private static VM_Atom collectorThreadAtom = VM_Atom.findOrCreateAsciiAtom("Lcom/ibm/JikesRVM/memoryManagers/vmInterface/VM_CollectorThread;");
+  private static VM_Atom runAtom = VM_Atom.findOrCreateAsciiAtom("run");
+
+  public static void prepareParticipating() {
+    // Set collector thread's so that a scan of its stack
+    // will start at VM_CollectorThread.run
+    //
+    VM_Thread t = VM_Thread.getCurrentThread();
+    VM_Address fp = VM_Magic.getFramePointer();
+    while (true) {
+      VM_Address caller_ip = VM_Magic.getReturnAddress(fp);
+      VM_Address caller_fp = VM_Magic.getCallerFramePointer(fp);
+      if (VM_Magic.getCallerFramePointer(caller_fp).EQ(VM_Address.fromInt(STACKFRAME_SENTINAL_FP))) 
+	VM.sysFail("prepareParticipating: Could not locate VM_CollectorThread.run");
+      int compiledMethodId = VM_Magic.getCompiledMethodID(caller_fp);
+      VM_CompiledMethod compiledMethod = VM_CompiledMethods.getCompiledMethod(compiledMethodId);
+      VM_Method method = compiledMethod.getMethod();
+      VM_Atom cls = method.getDeclaringClass().getDescriptor();
+      VM_Atom name = method.getName();
+      if (name == runAtom && cls == collectorThreadAtom) {
+	t.contextRegisters.setInnermost(caller_ip, caller_fp);
+	break;
+      }
+      fp = caller_fp; 
+    }
+
+  }
+
+
   public static void collect() {
     getPlan().collect();
   }
@@ -310,6 +380,17 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
 				       VM_Memory.MAP_PRIVATE | VM_Memory.MAP_FIXED | VM_Memory.MAP_ANONYMOUS);
     return (result.EQ(start));
   }
+  
+  
+  public static boolean mprotect(VM_Address start, int size) {
+    return VM_Memory.mprotect(start, size,VM_Memory.PROT_NONE);
+  }
+
+  public static boolean munprotect(VM_Address start, int size) {
+    return VM_Memory.mprotect(start, size,
+			      VM_Memory.PROT_READ | VM_Memory.PROT_WRITE | VM_Memory.PROT_EXEC);
+  }
+
 
   public static VM_Address refToAddress(VM_Address obj) {
     return VM_ObjectModel.getPointerInMemoryRegion(obj);
@@ -365,10 +446,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
       Object [] shortArrayTib = shortArrayType.getTypeInformationBlock();
       int offset = VM_JavaHeader.computeArrayHeaderSize(shortArrayType);
       int arraySize = shortArrayType.getInstanceSize(n);
-      AllocAdvice advice = getPlan().getAllocAdvice(null, arraySize, null, null);
-      VM_Address region = getPlan().alloc(Plan.IMMORTAL_ALLOCATOR, arraySize, false, advice);
-      Object result = VM_ObjectModel.initializeArray(region, shortArrayTib, n, arraySize);
-      getPlan().postAlloc(Plan.IMMORTAL_ALLOCATOR, arraySize, result);
+      Object result = allocateArray(Plan.IMMORTAL_ALLOCATOR, n, arraySize, shortArrayTib);
       return (short []) result;
     }
 
@@ -398,7 +476,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
       int mask = ~((1 << logAlignment) - 1);
       VM_Address region = VM_Address.fromInt(tmp.toInt() & mask).sub(offset);
       Object result = VM_ObjectModel.initializeArray(region, stackTib, n, arraySize);
-      getPlan().postAlloc(0, arraySize, result);
+      getPlan().postAlloc(Plan.IMMORTAL_ALLOCATOR, arraySize, result);
       return (int []) result;
     }
 

@@ -155,8 +155,8 @@ public class CopyingHeader {
    * (assumption, thread doing the set has done attempt to forward
    *  and owns the right to copy the object)
    */
-  static void setForwardingPointer(Object base, Object ptr) throws VM_PragmaUninterruptible {
-    VM_ObjectModel.writeAvailableBitsWord(base, VM_Magic.objectAsAddress(ptr).toInt() | GC_FORWARDED);
+  static void setForwardingPointer(Object base, VM_Address ptr) throws VM_PragmaUninterruptible {
+    VM_ObjectModel.writeAvailableBitsWord(base, ptr.toInt() | GC_FORWARDED);
   }
 
   static void setBarrierBit(Object ref) throws VM_PragmaUninterruptible {

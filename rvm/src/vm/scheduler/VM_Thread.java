@@ -5,6 +5,7 @@
 package com.ibm.JikesRVM;
 
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
+import com.ibm.JikesRVM.memoryManagers.JMTk.Plan;
 
 /**
  * A java thread's execution context.
@@ -1163,18 +1164,33 @@ public class VM_Thread implements VM_Constants, VM_Uninterruptible {
    * Dump this thread, for debugging.
    */
   public void dump() {
-    VM_Scheduler.writeString(" ");
-    VM_Scheduler.writeDecimal(getIndex());   // id
-    if (isDaemon)VM_Scheduler.writeString("-daemon");     // daemon thread?
-    if (isNativeIdleThread)
-      VM_Scheduler.writeString("-nativeidle");    // NativeIdle
-    else if (isIdleThread)
-      VM_Scheduler.writeString("-idle");       // idle thread?
-    if (isGCThread)    VM_Scheduler.writeString("-collector");  // gc thread?
-    if (isNativeDaemonThread)  VM_Scheduler.writeString("-nativeDaemon");  
-    if (beingDispatched)       VM_Scheduler.writeString("-being_dispatched");
+    dump(0);
   }
 
+  public void dump(int verbosity) {
+    VM_Scheduler.writeString(" ");
+    VM_Scheduler.writeDecimal(getIndex());   // id
+    if (isDaemon)              VM_Scheduler.writeString("-daemon");     // daemon thread?
+    if (isNativeIdleThread)    VM_Scheduler.writeString("-nativeidle");    // NativeIdle
+    if (isIdleThread)          VM_Scheduler.writeString("-idle");       // idle thread?
+    if (isGCThread)            VM_Scheduler.writeString("-collector");  // gc thread?
+    if (isNativeDaemonThread)  VM_Scheduler.writeString("-nativeDaemon");  
+    if (beingDispatched)       VM_Scheduler.writeString("-being_dispatched");
+    if (verbosity > 0)         VM.sysWrite("  cr.ip = ", contextRegisters.ip);
+  }
+
+  public static void dumpAll(int verbosity) {
+    for (int i=0; i<VM_Scheduler.threads.length; i++) {
+      VM_Thread t = VM_Scheduler.threads[i];
+      if (t == null) continue;
+      VM.sysWrite("Thread ", i);
+      VM.sysWrite(":  ", VM_Magic.objectAsAddress(t));
+      VM.sysWrite("   ");
+      t.dump(verbosity);
+      VM.sysWriteln();
+    }
+  }
+  
 
   /**
    * Needed for support of suspend/resume     CRA:

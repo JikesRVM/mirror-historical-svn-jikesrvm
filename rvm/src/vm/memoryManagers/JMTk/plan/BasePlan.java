@@ -6,17 +6,25 @@
 
 package com.ibm.JikesRVM.memoryManagers.JMTk;
 
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.WorkQueue;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.AddressSet;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.AddressPairSet;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.AddressTripleSet;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.ScanObject;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.ScanThread;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.ScanStatics;
 
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM_Offset;
 import com.ibm.JikesRVM.VM_Magic;
+import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 import com.ibm.JikesRVM.VM_PragmaInterruptible;
+import com.ibm.JikesRVM.VM_Processor;
+import com.ibm.JikesRVM.VM_Scheduler;
+import com.ibm.JikesRVM.VM_Thread;
 
 /**
  *
@@ -28,18 +36,18 @@ public abstract class BasePlan implements Constants {
 
   public final static String Id = "$Id$"; 
 
-  private WorkQueue workQueue;
-  private AddressSet values;                 // gray objects
-  //  private AddressQueue values;                 // gray objects
-  private AddressSet locations;              // locations containing gray objects
-  private AddressPairSet interiorLocations;  // interior locations
+  protected WorkQueue workQueue;
+  public AddressSet values;                 // gray objects
+  public AddressSet locations;              // locations containing white objects
+  public AddressPairSet interiorLocations;  // interior locations
+  // private AddressQueue values;                 // gray objects
   // private AddressPairQueue interiorLocations;  // interior locations
 
   BasePlan() {
     workQueue = new WorkQueue();
     values = new AddressSet(64 * 1024);
-    locations = new AddressSet(1024);
-    interiorLocations = new AddressPairSet(1024);
+    locations = new AddressSet(32 * 1024);
+    interiorLocations = new AddressPairSet(16 * 1024);
   }
 
   /**
@@ -55,14 +63,41 @@ public abstract class BasePlan implements Constants {
   }
 
   protected static boolean gcInProgress = false;    // This flag should be turned on/off by subclasses.
+  public static int gcCount = 0;
 
   static public boolean gcInProgress() {
     return gcInProgress;
   }
 
+
   private void computeRoots() {
-    VM.sysWriteln("computeRoots not implemented");
-    VM._assert(false);
+
+    AddressPairSet codeLocations = VM_Interface.MOVES_OBJECTS ? interiorLocations : null;
+
+    ScanStatics.scanStatics(locations);
+
+    VM.sysWriteln("XXXXXX scanThread not parallelized yet");
+    for (int i=0; i<VM_Scheduler.threads.length; i++) {
+      VM_Thread th = VM_Scheduler.threads[i];
+      if (th == null) continue;
+      // VM.sysWriteln("\n\nscanning thread ", i); th.dump();
+      // See comment of ScanThread.scanThread
+      VM_Thread th2 = (VM_Thread) VM_Magic.addressAsObject(traceObject(VM_Magic.objectAsAddress(th)));
+      traceObject(VM_Magic.objectAsAddress(th.stack));
+      if (th.jniEnv != null) {
+	traceObject(VM_Magic.objectAsAddress(th.jniEnv));
+	traceObject(VM_Magic.objectAsAddress(th.jniEnv.JNIRefs));
+      }
+      traceObject(VM_Magic.objectAsAddress(th.contextRegisters));
+      traceObject(VM_Magic.objectAsAddress(th.contextRegisters.gprs));
+      traceObject(VM_Magic.objectAsAddress(th.hardwareExceptionRegisters));
+      traceObject(VM_Magic.objectAsAddress(th.hardwareExceptionRegisters.gprs));
+      ScanThread.scanThread(th2, locations, codeLocations);
+    }
+
+    VM.sysWriteln("locations size is ", locations.size());
+    VM.sysWriteln("values size is ", values.size());
+    VM.sysWriteln("interiorLocations size is ", interiorLocations.size());
   }
 
   // Add a gray object
@@ -71,16 +106,24 @@ public abstract class BasePlan implements Constants {
     values.push(obj);
   }
 
+public static boolean match = false;
+
   private void processAllWork() {
 
     while (true) {
-      
-      while (!values.isEmpty()) 
-	traceObject(values.pop());
-      
-      while (!locations.isEmpty()) 
-	traceObjectLocation(locations.pop());
-      
+      VM.sysWriteln("popping values   sz = ", values.size());
+      while (!values.isEmpty()) {
+	VM_Address v = values.pop();
+	boolean match = VM_Magic.objectAsAddress(VM_Scheduler.threads).EQ(v);
+	if (match) VM.sysWriteln("XXX processing VALUE (VM_Sched.threads) ");
+	ScanObject.scan(v);  // NOT traceObject
+      }
+      VM.sysWriteln("popping locs");
+      while (!locations.isEmpty()) {
+	VM_Address loc = locations.pop();
+	traceObjectLocation(loc);
+      }
+VM.sysWriteln("popping interiorLocs");      
       while (!interiorLocations.isEmpty()) {
 	VM_Address obj = interiorLocations.pop1();
 	VM_Address interiorLoc = interiorLocations.pop2();
@@ -100,21 +143,10 @@ public abstract class BasePlan implements Constants {
     processAllWork();
   }
 
-  public static int getHeapBlocks() { return heapBlocks; }
+  public static int getHeapBlocks() throws VM_PragmaUninterruptible { return heapBlocks; }
 
   private static int heapBlocks;
 
-  public static final long freeMemory() throws VM_PragmaInterruptible {
-    VM._assert(false);
-    return 0;
-  }
-
-  public static final long totalMemory() throws VM_PragmaInterruptible {
-    VM._assert(false);
-    return 0;
-  }
-
-  
   /**
    * Perform a write barrier operation for the putField bytecode.<p> <b>By default do nothing,
    * override if appropriate.</b>
@@ -171,6 +203,16 @@ public abstract class BasePlan implements Constants {
   abstract public VM_Address traceObject(VM_Address obj);
 
   /**
+   * Answers true if the given object will not move during this GC
+   * or else has already moved.
+   *
+   * @param obj The object reference whose movability status must be answered.
+   * @return whether object has moved or will not move.
+   */
+  abstract public boolean hasMoved(VM_Address obj);
+
+
+  /**
    * Trace a reference during GC.  This involves determining which
    * collection policy applies and calling the appropriate
    * <code>trace</code> method.
@@ -182,6 +224,11 @@ public abstract class BasePlan implements Constants {
   final public void traceObjectLocation(VM_Address objLoc) {
     VM_Address obj = VM_Magic.getMemoryAddress(objLoc);
     VM_Address newObj = traceObject(obj);
+    if (match) {
+      VM.sysWriteln("traceObjLoc = ", objLoc);
+      VM.sysWriteln("        obj = ", obj);
+      VM.sysWriteln("     newObj = ", newObj);
+    }
     VM_Magic.setMemoryAddress(objLoc, newObj);
   }
 
@@ -197,7 +244,7 @@ public abstract class BasePlan implements Constants {
    * @return The possibly moved reference.
    */
   final public VM_Address traceInteriorReference(VM_Address obj, VM_Address interiorRef) {
-    VM_Offset offset = obj.diff(interiorRef);
+    VM_Offset offset = interiorRef.diff(obj);
     VM_Address newObj = traceObject(obj);
     return newObj.add(offset);
   }

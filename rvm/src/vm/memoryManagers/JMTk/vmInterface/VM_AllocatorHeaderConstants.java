@@ -14,5 +14,5 @@ import com.ibm.JikesRVM.memoryManagers.JMTk.Header;
  * 
  * @author Perry Cheng
  */
-public VM_AllocatorHeaderConstants extends Header { }
+public class VM_AllocatorHeaderConstants extends Header { }
 

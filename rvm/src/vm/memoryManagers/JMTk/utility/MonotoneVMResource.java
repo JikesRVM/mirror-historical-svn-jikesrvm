@@ -25,7 +25,7 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
  * @version $Revision$
  * @date $Date$
  */
-public final class MonotoneVMResource extends VMResource implements Constants {
+public class MonotoneVMResource extends VMResource implements Constants {
   public final static String Id = "$Id$"; 
 
   ////////////////////////////////////////////////////////////////////////////
@@ -64,7 +64,9 @@ public final class MonotoneVMResource extends VMResource implements Constants {
     }
   }
 
-  public final void release() {
+  public void release() {
+    // Unmapping is useful for being a "good citizen" and for debugging
+    LazyMmapper.protect(start, Conversions.bytesToBlocks(end.diff(start).toInt()));
     cursor = start;
   }
 
@@ -73,6 +75,6 @@ public final class MonotoneVMResource extends VMResource implements Constants {
   // Private fields and methods
   //
 
-  private VM_Address cursor;
-  private VM_Address sentinel;
+  protected VM_Address cursor;
+  protected VM_Address sentinel;
 }

@@ -20,7 +20,7 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
  *
  * @author   Derek Lieber
  * @modified Steve Smith
- * @modified Perry ChengkSteve Smith
+ * @modified Perry Cheng
  */
 public final class SynchronizationBarrier {
 

@@ -48,7 +48,7 @@ public class VM_JNIEnvironment implements VM_JNIAIXConstants, VM_RegisterConstan
   VM_Processor savedPRreg;         // for saving processor register on entry to native, to be restored on JNI call from native
   boolean      alwaysHasNativeFrame;  // true if the bottom stack frame is native, such as thread for CreateJVM or AttachCurrentThread
 
-  int[]       JNIRefs;          // references passed to native code
+  public int[]       JNIRefs;          // references passed to native code
   int         JNIRefsTop;       // -> address of current top ref in JNIRefs array 
   int         JNIRefsMax;       // -> address of end (last entry) of JNIRefs array
   int         JNIRefsSavedFP;   // -> previous frame boundary in JNIRefs array

@@ -9,7 +9,11 @@ import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_ObjectModel;
+
+import com.ibm.JikesRVM.VM_Scheduler;
+import com.ibm.JikesRVM.VM_Magic;
 
 /**
  * This class implements collector behavior for a simple immortal
@@ -85,7 +89,9 @@ final class Immortal extends BasePolicy implements Constants {
    */
 
   public static VM_Address traceObject(VM_Address object) {
-    if (!testAndMark(object, immortalMarkState)) 
+    if (VM_Magic.objectAsAddress(VM_Scheduler.threads).EQ(object))
+      VM.sysWriteln("XXX traceobject got value (VM_Sched.threads) ");
+    if (testAndMark(object, immortalMarkState)) 
       VM_Interface.getPlan().enqueue(object);
     return object;
   }
@@ -95,11 +101,11 @@ final class Immortal extends BasePolicy implements Constants {
    * collector we must flip the state of the mark bit between
    * collections.
    */
-  public static void prepare() {
+  public static void prepare(VMResource vm, MemoryResource mr) { 
     immortalMarkState = GC_MARK_BIT_MASK - immortalMarkState;
   }
 
-  public static void release() {
+  public static void release(VMResource vm, MemoryResource mr) { 
   }
 
   public static boolean isLive(VM_Address obj) {
