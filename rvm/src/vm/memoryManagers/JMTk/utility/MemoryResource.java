@@ -27,19 +27,54 @@ final class MemoryResource implements Constants {
   //
   // Public instance methods
   //
+
   /**
    * Constructor
    */
   MemoryResource() {
-    lock = new Lock();
+    this(0);
   }
 
-  // XXX Steve, fix this
-  //
+  /**
+   * Constructor
+   *
+   * @param budget The budget of blocks available to this memory
+   * manager before it must poll the collector.
+   */
+  MemoryResource(int budget) {
+    gcLock = new Lock();
+    mutatorLock = new Lock();
+    this.budget = budget;
+  }
+
+  /**
+   * Set the budget
+   *
+   * @param budget The budget of blocks available to this memory
+   * manager before it must poll the collector.
+   */
+  public void setBudget(int budget) {
+    this.budget = budget;
+  }
+
+  /**
+   * Reset this memory resource
+   *
+   */
   public void reset() {
+    reset(0);
+  }
+
+  /**
+   * Reset this memory resource
+   *
+   * @param budget The budget of blocks available to this memory
+   * manager before it must poll the collector.
+   */
+  public void reset(int budget) {
     reserved = 0;
     committed = 0;
-    budget = 0;
+    this.budget = budget;
   }
 
   /**
@@ -53,12 +88,9 @@ final class MemoryResource implements Constants {
   public void acquire(int blocks) {
     lock();
     reserved += blocks;
-    if ((committed + blocks) > budget) {
+    if ((committed + blocks) > budget)
       VM_Interface.getPlan().poll();
-      committed += blocks;
-    } else {
-      committed += blocks;
-    }
+    committed += blocks;
     unlock();
   }
 
@@ -99,6 +131,10 @@ final class MemoryResource implements Constants {
     return committed;
   }
 
+  /**
+   * Acquire the appropriate lock depending on whether the context is
+   * GC or mutator.
+   */
   private void lock() {
     if (Plan.gcInProgress())
       gcLock.acquire();
@@ -106,11 +142,15 @@ final class MemoryResource implements Constants {
       mutatorLock.acquire();
   }
 
+  /**
+   * Release the appropriate lock depending on whether the context is
+   * GC or mutator.
+   */
   private void unlock() {
     if (Plan.gcInProgress())
-      gcLock.acquire();
+      gcLock.release();
     else
-      mutatorLock.acquire();
+      mutatorLock.release();
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -120,6 +160,6 @@ final class MemoryResource implements Constants {
   private int reserved;
   private int committed;
   private int budget;
-  private Lock gcLock;
-  private Lock mutatorLock;
+  private Lock gcLock;       // used during GC
+  private Lock mutatorLock;  // used by mutators
 }
