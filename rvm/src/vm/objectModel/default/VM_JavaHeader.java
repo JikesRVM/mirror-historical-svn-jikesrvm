@@ -344,14 +344,14 @@ public final class VM_JavaHeader implements VM_Uninterruptible,
   /**
    * Compute the header size of an instance of the given type.
    */
-  public static int computeScalarHeaderSize(VM_Type type) {
+  public static int computeScalarHeaderSize(VM_Class type) {
     return SCALAR_HEADER_SIZE;
   }
 
   /**
    * Compute the header size of an instance of the given type.
    */
-  public static int computeArrayHeaderSize(VM_Type type) {
+  public static int computeArrayHeaderSize(VM_Array type) {
     return ARRAY_HEADER_SIZE;
   }
 
@@ -434,10 +434,30 @@ public final class VM_JavaHeader implements VM_Uninterruptible,
    * @param dest the number of the destination register
    * @param object the number of the register holding the object reference
    */
+  //-#if RVM_FOR_POWERPC
   public static void baselineEmitLoadTIB(VM_Assembler asm, int dest, 
                                          int object) {
     asm.emitL(dest, TIB_OFFSET, object);
   }
+  //-#elif RVM_FOR_IA32
+  public static void baselineEmitLoadTIB(VM_Assembler asm, byte dest, 
+                                         byte object) {
+    asm.emitMOV_Reg_RegDisp(dest, object, TIB_OFFSET);
+  }
+  /**
+   * The following method will emit code that pushes a reference to an
+   * object's TIB onto the stack.
+   *
+   * TODO: consider deprecating this method; rewriting the appropriate
+   * sequences in the baseline compiler to use a scratch register.
+   *
+   * @param asm the assembler object to emit code with
+   * @param object the number of the register holding the object reference
+   */
+  public static void baselineEmitPushTIB(VM_Assembler asm, byte object) {
+    asm.emitPUSH_RegDisp(object, TIB_OFFSET);
+  }
+  //-#endif
 
   //-#if RVM_WITH_OPT_COMPILER
   /**

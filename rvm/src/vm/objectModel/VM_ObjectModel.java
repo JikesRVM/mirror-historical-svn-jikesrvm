@@ -317,20 +317,20 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
    * Compute the header size of an instance of the given type.
    */
   public static int computeHeaderSize(VM_Type type) {
-    return (type.dimension>0)?computeArrayHeaderSize(type):computeScalarHeaderSize(type);
+    return (type.dimension>0)?computeArrayHeaderSize(type.asArray()):computeScalarHeaderSize(type.asClass());
   }
 
   /**
    * Compute the header size of an instance of the given type.
    */
-  public static int computeScalarHeaderSize(VM_Type type) {
+  public static int computeScalarHeaderSize(VM_Class type) {
     return VM_JavaHeader.computeScalarHeaderSize(type);
   }
 
   /**
    * Compute the header size of an instance of the given type.
    */
-  public static int computeArrayHeaderSize(VM_Type type) {
+  public static int computeArrayHeaderSize(VM_Array type) {
     return VM_JavaHeader.computeArrayHeaderSize(type);
   }
 
@@ -508,10 +508,31 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
    * @param dest the number of the destination register
    * @param object the number of the register holding the object reference
    */
+  //-#if RVM_FOR_POWERPC
   public static void baselineEmitLoadTIB(VM_Assembler asm, int dest, 
                                          int object) {
     VM_JavaHeader.baselineEmitLoadTIB(asm, dest, object);
   }
+  //-#endif
+  //-#if RVM_FOR_IA32
+  public static void baselineEmitLoadTIB(VM_Assembler asm, byte dest, 
+                                         byte object) {
+    VM_JavaHeader.baselineEmitLoadTIB(asm, dest, object);
+  }
+  /**
+   * The following method will emit code that pushes a reference to an
+   * object's TIB onto the stack.
+   *
+   * TODO: consider deprecating this method; rewriting the appropriate
+   * sequences in the baseline compiler to use a scratch register.
+   *
+   * @param asm the assembler object to emit code with
+   * @param object the number of the register holding the object reference
+   */
+  public static void baselineEmitPushTIB(VM_Assembler asm, byte object) {
+    VM_JavaHeader.baselineEmitPushTIB(asm, object);
+  }
+  //-#endif
 
   //-#if RVM_WITH_OPT_COMPILER
   /**
