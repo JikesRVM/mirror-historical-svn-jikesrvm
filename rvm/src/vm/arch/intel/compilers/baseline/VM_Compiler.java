@@ -2267,11 +2267,13 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
   protected final void emit_resolved_new(VM_Class typeRef) {
     int instanceSize = typeRef.getInstanceSize();
     int tibOffset = typeRef.getOffset();
+    int whichAllocator = VM_Interface.pickAllocator(typeRef);
     asm.emitPUSH_Imm(instanceSize);            
     asm.emitPUSH_RegDisp (JTOC, tibOffset);       // put tib on stack    
     asm.emitPUSH_Imm(typeRef.hasFinalizer()?1:0); // does the class have a finalizer?
-    genParameterRegisterLoad(3);                  // pass 3 parameter words
-    asm.emitCALL_RegDisp (JTOC, VM_Entrypoints.quickNewScalarMethod.getOffset());
+    asm.emitPUSH_Imm(whichAllocator);
+    genParameterRegisterLoad(4);                  // pass 4 parameter words
+    asm.emitCALL_RegDisp (JTOC, VM_Entrypoints.resolvedNewScalarMethod.getOffset());
     asm.emitPUSH_Reg (T0);
   }
 
@@ -2282,7 +2284,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
   protected final void emit_unresolved_new(int dictionaryId) {
     asm.emitPUSH_Imm(dictionaryId);
     genParameterRegisterLoad(1);           // pass 1 parameter word
-    asm.emitCALL_RegDisp (JTOC, VM_Entrypoints.newScalarMethod.getOffset());
+    asm.emitCALL_RegDisp (JTOC, VM_Entrypoints.unresolvedNewScalarMethod.getOffset());
     asm.emitPUSH_Reg (T0);
   }
 
@@ -2294,14 +2296,16 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
     int width      = array.getLogElementSize();
     int tibOffset  = array.getOffset();
     int headerSize = VM_ObjectModel.computeHeaderSize(array);
+    int whichAllocator = VM_Interface.pickAllocator(array);
     // count is already on stack- nothing required
     asm.emitMOV_Reg_RegInd (T0, SP);               // get number of elements
     asm.emitSHL_Reg_Imm (T0, width);              // compute array size
     asm.emitADD_Reg_Imm(T0, headerSize);
     asm.emitPUSH_Reg(T0);      
     asm.emitPUSH_RegDisp(JTOC, tibOffset);        // put tib on stack    
-    genParameterRegisterLoad(3);          // pass 3 parameter words
-    asm.emitCALL_RegDisp(JTOC, VM_Entrypoints.quickNewArrayMethod.getOffset());
+    asm.emitPUSH_Imm(whichAllocator);
+    genParameterRegisterLoad(4);          // pass 4 parameter words
+    asm.emitCALL_RegDisp(JTOC, VM_Entrypoints.newArrayMethod.getOffset());
     asm.emitPUSH_Reg(T0);
   }
 
@@ -2313,11 +2317,13 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
    */
   protected final void emit_multianewarray(VM_Array typeRef, int dimensions, int dictionaryId) {
     // setup parameters for newarrayarray routine
+    int whichAllocator = VM_Interface.pickAllocator(typeRef);
     asm.emitPUSH_Imm (dimensions);                     // dimension of arays
     asm.emitPUSH_Imm (dictionaryId);                   // type of array elements               
     asm.emitPUSH_Imm ((dimensions + 5)<<LG_WORDSIZE);  // offset to dimensions from FP on entry to newarray 
-    // NOTE: 5 extra words- 3 for parameters, 1 for return address on stack, 1 for code technique in VM_Linker
-    genParameterRegisterLoad(3);                   // pass 3 parameter words
+    asm.emitPUSH_Imm (whichAllocator);
+    // NOTE: 6 extra words- 4 for parameters, 1 for return address on stack, 1 for code technique in VM_Linker
+    genParameterRegisterLoad(4);                   // pass 4 parameter words
     asm.emitCALL_RegDisp(JTOC, VM_Entrypoints.newArrayArrayMethod.getOffset()); 
     for (int i = 0; i < dimensions ; i++) asm.emitPOP_Reg(S0); // clear stack of dimensions (todo use and add immediate to do this)
     asm.emitPUSH_Reg(T0);                              // push array ref on stack

@@ -179,7 +179,9 @@ public class VM_Entrypoints implements VM_Constants {
   //-#endif
 
   static final VM_Field outputLockField                = getField("Lcom/ibm/JikesRVM/VM_Scheduler;", "outputLock", "I");
+  //-#if RVM_FOR_POWERPC
   static final VM_Field toSyncProcessorsField          = getField("Lcom/ibm/JikesRVM/VM_Scheduler;", "toSyncProcessors", "I");
+  //-#endif
 
   //-#if RVM_WITH_STRONG_VOLATILE_SEMANTICS
   static final VM_Field doublewordVolatileMutexField   = getField("Lcom/ibm/JikesRVM/VM_Scheduler;", "doublewordVolatileMutex", "Lcom/ibm/JikesRVM/VM_ProcessorLock;");
