@@ -1,3 +1,0 @@
-BaseBaseCopyMS -test-list small-sanity-tests
-BaseAdaptiveCopyMS -test-list small-sanity-tests
-BaseOptCopyMS -use-opt-levels "O0 O1 O2" -test-list small-sanity-tests
