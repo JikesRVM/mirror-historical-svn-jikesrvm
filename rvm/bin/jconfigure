@@ -1159,8 +1159,9 @@ function emitEnvironmentBash () {
 	export $HOST_JIKES_STR1='$JIKES'
 	export $HOST_JAVA_STR1='$HOST_JAVA'
 	export $HOST_JAVAC_STR1='$HOST_JAVAC'
-	export $HOST_JAVA_HOME_STR1='$HOST_JAVA_HOME'
-	export $HOST_JAVADOC_STR1='$HOST_JAVADOC'
+EOF
+    [[ ${HOST_JAVADOC-} ]] && echo "export $HOST_JAVADOC_STR1='$HOST_JAVADOC'"
+cat <<-EOF
 	export $HOST_JAR_STR1='$HOST_JAR'
 	export $HOST_REPOSITORIES_STR1='$HOST_REPOSITORIES'
 	export $HOST_TOOLS_STR1='$HOST_TOOLS'
@@ -1190,6 +1191,7 @@ function emitEnvironmentBash () {
 	export JIKES_WARNING_FLAGS='${JIKES_WARNING_FLAGS}'
 
 EOF
+    [[ ${HOST_JAVA_HOME-} ]] && echo "export $HOST_JAVA_HOME_STR1='$HOST_JAVA_HOME'"
     if [ "${HOST_JAVA_LD_LIBRARY_PATH-}" ]; then
 	cat <<- EOF
 	[[ \${LD_LIBRARY_PATH-} ]] && LD_LIBRARY_PATH=:\${LD_LIBRARY_PATH}
@@ -1241,8 +1243,10 @@ function emitMakefile () {
 	endif
 	
 	$HOST_JIKES_STR1 = $JIKES
-	
-	HOST_JAVA_HOME = $HOST_JAVA_HOME
+EOF
+    [[ ${HOST_JAVA_HOME-} ]] && echo "HOST_JAVA_HOME = $HOST_JAVA_HOME"
+    
+    cat <<- EOF
 	HOST_JAVA = $HOST_JAVA
 	HOST_JAVAC = $HOST_JAVAC
 	HOST_JAVADOC = $HOST_JAVADOC
@@ -2554,12 +2558,11 @@ EOF
 	    trap '' EXIT
 	    exit 2
 	fi
-## This should now be preprocessed with the rest of the classes.
 	
-# 	$BUILD_DIRECTORY_STR/jbuild.prep.host \
-# 		--disable-modification-exit-status \$PREPROC_FLAGS \
-# 		$(echo $PREPROCESSOR_DEFINITIONS) \
-# 		$SCRATCH_DIRECTORY_STR  \$FILE
+ 	run $BUILD_DIRECTORY_STR/jbuild.prep.host \
+ 		--disable-modification-exit-status \$PREPROC_FLAGS \
+ 		$(echo $PREPROCESSOR_DEFINITIONS) \
+ 		$SCRATCH_DIRECTORY_STR  ${BOOTIMAGE_RUNNER_DIR_STR}/*.java
 	#
 	# compile GenerateInterfaceDeclarations.java
 	#
@@ -2567,7 +2570,7 @@ EOF
 	run $HOST_JAVAC_STR $JAVAC_WARNING_FLAGS -g \
 	  -classpath $CLASSES_DIRECTORY_STR:$CLASSES_DIRECTORY_STR/rvmrt.jar \
 	  -bootclasspath $CLASSES_DIRECTORY_STR:$CLASSES_DIRECTORY_STR/rvmrt.jar\
-	  GenerateInterfaceDeclarations.java
+	  com/ibm/JikesRVM/GenerateInterfaceDeclarations/GenerateInterfaceDeclarations.java
 
 	#
 	# generate InterfaceDeclarations.h
@@ -2575,7 +2578,7 @@ EOF
 	rm -f InterfaceDeclarations.h
 	declare -a args=( -Xmx200M \
 	   -classpath .:$CLASSES_DIRECTORY_STR:$CLASSES_DIRECTORY_STR/rvmrt.jar \
-	    GenerateInterfaceDeclarations -ia $BOOTIMAGE_LOAD_ADDRESS \
+	    com.ibm.JikesRVM.GenerateInterfaceDeclarations.GenerateInterfaceDeclarations -ia $BOOTIMAGE_LOAD_ADDRESS \
 	    -out $SCRATCH_DIRECTORY_STR/InterfaceDeclarations.h )
 
 	if [[ "${GENERATE_INTERFACE_DECLARATIONS_VM-DUMMY}" != DUMMY ]]; then
