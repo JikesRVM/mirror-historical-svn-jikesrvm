@@ -350,9 +350,9 @@ public final class Plan extends BasePlan { // implements Constants
   // Final class variables (aka constants)
   //
   private static final EXTENT       SEGMENT_SIZE = 0x10000000;
-  private static final int          SEGMENT_MASK = SEGMENT_SIZE;
+  private static final int          SEGMENT_MASK = SEGMENT_SIZE - 1;
   private static final VM_Address     BOOT_START = VM_Address.fromInt(VM_Interface.bootImageAddress);
-  private static final EXTENT          BOOT_SIZE = SEGMENT_SIZE - (VM_Interface.bootImageAddress & SEGMENT_MASK);   // use the whole segment
+  private static final EXTENT          BOOT_SIZE = SEGMENT_SIZE - (VM_Interface.bootImageAddress & SEGMENT_MASK);   // use the remainder of the segment
   private static final VM_Address       BOOT_END = BOOT_START.add(BOOT_SIZE);
   private static final VM_Address IMMORTAL_START = BOOT_START;
   private static final EXTENT      IMMORTAL_SIZE = BOOT_SIZE + 16 * 1024 * 1024;
