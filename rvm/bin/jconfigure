@@ -2567,27 +2567,42 @@ EOF
 	# compile GenerateInterfaceDeclarations.java
 	#
 	chdir $SCRATCH_DIRECTORY_STR
+	# generator_class="com.ibm.JikesRVM.GenerateInterfaceDeclarations.GenerateInterfaceDeclarations"
+	# generator_source_file=com/ibm/JikesRVM/GenerateInterfaceDeclarations/GenerateInterfaceDeclarations.java
+	generator_class="GenerateInterfaceDeclarations"
+	# generator_source_file="\${generator_class//./'/'}.java"
+	generator_source_file="GenerateInterfaceDeclarations.java"
+
+	if tracing; then
+	    echo >&2 "generator_class=\$generator_class"
+	    echo >&2 "generator_source_file=\$generator_source_file"
+	fi
+	
 	run $HOST_JAVAC_STR $JAVAC_WARNING_FLAGS -g \
 	  -classpath $CLASSES_DIRECTORY_STR:$CLASSES_DIRECTORY_STR/rvmrt.jar \
-	  -bootclasspath $CLASSES_DIRECTORY_STR:$CLASSES_DIRECTORY_STR/rvmrt.jar\
-	  com/ibm/JikesRVM/GenerateInterfaceDeclarations/GenerateInterfaceDeclarations.java
+	  -bootclasspath \
+		$CLASSES_DIRECTORY_STR:$CLASSES_DIRECTORY_STR/rvmrt.jar \
+	   \$generator_source_file
 
 	#
 	# generate InterfaceDeclarations.h
 	#
 	rm -f InterfaceDeclarations.h
 	declare -a args=( -Xmx200M \
-	   -classpath .:$CLASSES_DIRECTORY_STR:$CLASSES_DIRECTORY_STR/rvmrt.jar \
-	    com.ibm.JikesRVM.GenerateInterfaceDeclarations.GenerateInterfaceDeclarations -ia $BOOTIMAGE_LOAD_ADDRESS \
-	    -out $SCRATCH_DIRECTORY_STR/InterfaceDeclarations.h )
-
-	if [[ "${GENERATE_INTERFACE_DECLARATIONS_VM-DUMMY}" != DUMMY ]]; then
-	    run ${GENERATE_INTERFACE_DECLARATIONS_VM-DUMMY} "\${args[@]}"
+	   -classpath \
+		.:$CLASSES_DIRECTORY_STR:$CLASSES_DIRECTORY_STR/rvmrt.jar \
+	   \${generator_class} \
+	   -ia $BOOTIMAGE_LOAD_ADDRESS \
+	   -out $SCRATCH_DIRECTORY_STR/InterfaceDeclarations.h )
+EOF
+	if [[ $BOOTIMAGE_WRITER_VM = "JikesRVM" ]]; then
+	    echo "run $HOST_JAVA_STR -X:vmClasses=.:\$DONOR_RVM_BUILD/RVM.classes/jksvm.jar:\$DONOR_RVM_BUILD/RVM.classes/rvmrt.jar \"\${args[@]}\""
 	else
-	    run $HOST_JAVA_STR		 "\${args[@]}"
+	    echo "run $HOST_JAVA_STR \"\${args[@]}\""
 	fi
 	
 
+    cat <<- EOF
 	# "cd", not "chdir", since GNU Make will output the directory it is 
 	# in, if the user wants directory-changing information.
 	cd $BOOTIMAGE_WRITER_DIR_STR
