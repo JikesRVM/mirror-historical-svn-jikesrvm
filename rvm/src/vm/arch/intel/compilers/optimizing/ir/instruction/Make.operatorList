@@ -1,8 +1,0 @@
-#
-# (C) Copyright IBM Corp. 2004
-#
-#$Id$
-#
-# @author David Grove
-
-ARCH_OPS = $(ARCH_IR_DIR)/OperatorList.dat 
