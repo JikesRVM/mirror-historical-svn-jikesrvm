@@ -95,7 +95,10 @@ public class BootImageWriterMessages {
   }
 
   protected static void fail(String message) throws Error {
-    throw new Error("\nBootImageWriter: " + message);
+    //    throw new Error("\nBootImageWriter: " + message);
+    System.err.println("BootImageWriter failed: " + message);
+    System.err.println("Aborting execution.");
+    System.exit(1);
   }
 }
 
