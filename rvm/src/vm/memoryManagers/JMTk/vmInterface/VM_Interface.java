@@ -1,0 +1,293 @@
+/*
+ * (C) Copyright IBM Corp. 2001
+ */
+//$Id$
+
+package com.ibm.JikesRVM.memoryManagers.vmInterface;
+
+import com.ibm.JikesRVM.memoryManagers.JMTk.VMResource;
+import com.ibm.JikesRVM.memoryManagers.JMTk.Plan;
+
+import VM;
+import VM_Processor;
+import VM_Constants;
+import VM_Address;
+import VM_ClassLoader;
+import VM_SystemClassLoader;
+import VM_EventLogger;
+import VM_BootRecord;
+import VM_PragmaUninterruptible;
+import VM_Uninterruptible;
+import VM_PragmaInterruptible;
+import VM_Array;
+import VM_Type;
+import VM_Class;
+import VM_Atom;
+import VM_ObjectModel;
+import VM_Magic;
+
+/*
+ * @author Perry Cheng  
+ */  
+
+public class VM_Interface implements VM_Constants, VM_Uninterruptible {
+
+  public static void logGarbageCollection() throws VM_PragmaUninterruptible {
+    if (VM.BuildForEventLogging && VM.EventLoggingEnabled)
+      VM_EventLogger.logGarbageCollectionEvent();
+  }
+
+  public static VM_Class createScalarType(String descriptor) {
+    VM_Atom atom = VM_Atom.findOrCreateAsciiAtom(descriptor);
+    return VM_ClassLoader.findOrCreateType(atom, VM_SystemClassLoader.getVMClassLoader()).asClass();
+  }
+
+  public static VM_Array createArrayType(String descriptor) {
+    VM_Atom atom = VM_Atom.findOrCreateAsciiAtom(descriptor);
+    return VM_ClassLoader.findOrCreateType(atom, VM_SystemClassLoader.getVMClassLoader()).asArray();
+  }
+
+  public static VM_Address malloc(int size) throws VM_PragmaUninterruptible {
+    return VM_Address.fromInt(VM.sysCall1(VM_BootRecord.the_boot_record.sysMallocIP, size));
+  }
+
+  public static void free(VM_Address addr) throws VM_PragmaUninterruptible {
+    VM.sysCall1(VM_BootRecord.the_boot_record.sysFreeIP, addr.toInt());
+  }
+
+
+
+  /**
+   * Initialization that occurs at <i>build</i> time.  The value of
+   * statics as at the completion of this routine will be reflected in
+   * the boot image.  Any objects referenced by those statics will be
+   * transitively included in the boot image.
+   *
+   * This is the entry point for all build-time activity in the collector.
+   */
+  public static final void init () throws VM_PragmaInterruptible {
+    VM_CollectorThread.init();
+  }
+
+
+  public static Object[] tibForArrayType;
+  public static Object[] tibForClassType;
+  public static Object[] tibForPrimitiveType;
+
+  /**
+   * Initialization that occurs at <i>boot</i> time (runtime
+   * initialization).  This is only executed by one processor (the
+   * primordial thread).
+   */
+  public static final void boot (VM_BootRecord theBootRecord) throws VM_PragmaInterruptible {
+    // get addresses of TIBs for VM_Array & VM_Class used for testing Type ptrs
+    VM_Type t = VM_Array.getPrimitiveArrayType(10);
+    tibForArrayType = VM_ObjectModel.getTIB(t);
+    tibForPrimitiveType = VM_ObjectModel.getTIB(VM_Type.IntType);
+    t = VM_Magic.getObjectType(VM_BootRecord.the_boot_record);
+    tibForClassType = VM_ObjectModel.getTIB(t);
+    Statistics.boot();
+  }
+
+  public static final void threadBoot(int numProcessors) throws VM_PragmaInterruptible {
+    VM.sysWriteln("threadBoot not implemented: set up collector thread-specific structures");
+  }
+
+  /**
+   * Perform postBoot operations such as dealing with command line
+   * options (this is called as soon as options have been parsed,
+   * which is necessarily after the basic allocator boot).
+   */
+  public static void postBoot() throws VM_PragmaInterruptible {
+  }
+
+  /** 
+   *  Process GC parameters.
+   */
+  public static void processCommandLineArg(String arg) {
+      VM.sysWriteln("Unrecognized collection option: ", arg);
+      VM.sysExit(1);
+  }
+
+  public static int numProcessors() throws VM_PragmaUninterruptible {
+    return VM.sysCall0(VM_BootRecord.the_boot_record.sysNumProcessorsIP);
+  }
+
+  public static int verbose() throws VM_PragmaUninterruptible {
+    return VM_BootRecord.the_boot_record.verboseGC;
+  }
+
+  public static void lowYield() {
+    VM.sysCall0(VM_BootRecord.the_boot_record.sysVirtualProcessorYieldIP);
+  }
+
+  public static int smallHeapSize() throws VM_PragmaUninterruptible {
+    return VM_BootRecord.the_boot_record.smallSpaceSize;
+  }
+
+  public static int largeHeapSize() throws VM_PragmaUninterruptible {
+    return VM_BootRecord.the_boot_record.largeSpaceSize;
+  }
+
+  public static int nurseryHeapSize() throws VM_PragmaUninterruptible {
+    return VM_BootRecord.the_boot_record.nurserySize;
+  }
+
+  public static VM_Address bootImageStart() throws VM_PragmaUninterruptible {
+    return  VM_BootRecord.the_boot_record.bootImageStart;
+  }
+
+  public static VM_Address bootImageEnd() throws VM_PragmaUninterruptible {
+    return  VM_BootRecord.the_boot_record.bootImageEnd;
+  }
+
+  public static void setHeapRange(int id, VM_Address start, VM_Address end) throws VM_PragmaUninterruptible {
+    VM_BootRecord br = VM_BootRecord.the_boot_record;
+    if (VM.VerifyAssertions) VM.assert(id < br.heapRanges.length - 2); 
+    br.heapRanges[2 * id] = start.toInt();
+    br.heapRanges[2 * id + 1] = end.toInt();
+  }
+
+  public static Plan getPlan() {
+    return VM_Processor.getCurrentProcessor().mmPlan;
+  }
+
+  public static void resolvedPutfieldWriteBarrier(Object ref, int offset, Object value) {
+    getPlan().putFieldWriteBarrier(VM_Magic.objectAsAddress(ref), offset, VM_Magic.objectAsAddress(value));
+  }
+  
+  public static void resolvedPutStaticWriteBarrier(int offset, Object value) { 
+    getPlan().putStaticWriteBarrier(offset, value);
+  }
+
+  public static void arrayCopyWriteBarrier(Object ref, int start, int end) {
+    VM.assert(false); // need to implement this
+  }
+
+
+  /**
+   * Returns true if GC is in progress.
+   *
+   * @return True if GC is in progress.
+   */
+  public static final boolean gcInProgress() throws VM_PragmaUninterruptible {
+    return Plan.gcInProgress();
+  }
+
+  /**
+   * Returns the number of collections that have occured.
+   *
+   * @return The number of collections that have occured.
+   */
+  public static final int collectionCount() throws VM_PragmaUninterruptible {
+    return VM_CollectorThread.collectionCount;
+  }
+  
+  /**
+   * Returns the amount of free memory.
+   *
+   * @return The amount of free memory.
+   */
+  public static final long freeMemory() throws VM_PragmaInterruptible {
+    return Plan.freeMemory();
+  }
+
+  /**
+   * Returns the amount of total memory.
+   *
+   * @return The amount of total memory.
+   */
+  public static final long totalMemory() throws VM_PragmaInterruptible {
+    return Plan.totalMemory();
+  }
+
+  /**
+   * Forces a garbage collection.
+   */
+  public static final void gc() throws VM_PragmaInterruptible {
+    Plan.collect();
+  }
+
+  /**
+   * Sets up the fields of a <code>VM_Processor</code> object to
+   * accommodate allocation and garbage collection running on that processor.
+   * This may involve creating a remset array or a buffer for GC tracing.
+   * 
+   * This method is called from the constructor of VM_Processor. For the
+   * PRIMORDIAL processor, which is allocated while the bootimage is being
+   * built, this method is called a second time, from VM.boot, when the 
+   * VM is starting.
+   *
+   * @param p The <code>VM_Processor</code> object.
+   */
+  public static final void setupProcessor(VM_Processor p) throws VM_PragmaInterruptible {
+    // VM_Allocator.setupProcessor(p);
+  }
+
+  public static final boolean NEEDS_WRITE_BARRIER = Plan.needsWriteBarrier;
+  public static final boolean MOVES_OBJECTS = Plan.movesObjects;
+  public static boolean useMemoryController = false;
+
+
+  public static void setWorkBufferSize (int size) {
+    WorkQueue.WORK_BUFFER_SIZE = 4 * size;
+  }
+
+  public static void dumpRef(VM_Address ref) throws VM_PragmaUninterruptible {
+    Util.dumpRef(ref);
+  }
+
+  public static boolean validRef(VM_Address ref) {
+    return Util.validRef(ref);
+  }
+
+  public static boolean addrInVM(VM_Address address) throws VM_PragmaUninterruptible {
+    return VMResource.addrInVM(address);
+  }
+
+  public static boolean refInVM(VM_Address ref) throws VM_PragmaUninterruptible {
+    return VMResource.refInVM(ref);
+  }
+
+  public static int getMaxHeaps() {
+    return VMResource.getMaxVMResource();
+  }
+
+  public static Object allocateScalar(int size, Object [] tib) {
+    AllocAdvice advice = getPlan().getAllocAdvice(null, size, null, null);
+    VM_Address region = getPlan().alloc(0, size, true, advice);
+    return VM_ObjectModel.initializeScalar(region, tib, size);
+  }
+
+  public static Object allocateArray(int numElements, int size, Object [] tib) {
+    AllocAdvice advice = getPlan().getAllocAdvice(null, size, null, null);
+    VM_Address region = getPlan().alloc(0, size, false, advice);
+    return VM_ObjectModel.initializeArray(region, tib, numElements, size);
+  }
+
+  public static void addFinalizer(Object obj) {
+    VM_Finalizer.addCandidate(obj);
+  }
+
+  public static VM_Address processPtrValue (VM_Address obj) throws VM_PragmaUninterruptible {
+    return Plan.traceReference(obj);
+  }
+
+  public static void processPtrField (VM_Address location) throws VM_PragmaUninterruptible {
+    Plan.traceReferenceLocation(location);
+  }
+
+  public static boolean isLive(VM_Address obj) {
+    return Plan.isLive(obj);
+  }
+
+  public static void collect() {
+    getPlan().collect();
+  }
+
+
+  // Instance fields
+
+
+
+}
