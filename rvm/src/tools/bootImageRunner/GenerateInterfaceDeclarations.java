@@ -126,6 +126,8 @@ class GenerateInterfaceDeclarations extends Shared {
     
     if (alternateRealityClasspath == null 
         && alternateRealityNativeLibDir == null) {
+      if (verbose > 0)
+        epln("   No alternate reality classpath; use system CL for altCL");
       Shared.altCL = ClassLoader.getSystemClassLoader();
     } else {
       Shared.altCL 
