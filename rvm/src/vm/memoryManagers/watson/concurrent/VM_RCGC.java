@@ -396,13 +396,13 @@ public abstract class VM_RCGC
     // LOW-LEVEL FUNCTIONS
 
     public static final int refcount(int object) { 
-	return VM_Magic.getMemoryWord(object + VM.OBJECT_REFCOUNT_OFFSET);
+	return VM_Magic.getMemoryWord(object + VM_AllocatorHeader.REFCOUNT_OFFSET);
     }
 
     public static final void setRefcount(int object, int value) { 
 	if (VM.VerifyAssertions) VM.assert((value & EMPTYMASK) == 0);
 
-	VM_Magic.setMemoryWord(object + VM.OBJECT_REFCOUNT_OFFSET, value);
+	VM_Magic.setMemoryWord(object + VM_AllocatorHeader.REFCOUNT_OFFSET, value);
     }
 
 
