@@ -295,8 +295,6 @@ public class VM_Allocator
       	 VM.sysWrite("Compiled with PROCESSOR_LOCAL_ALLOCATE on\n");
       if (PROCESSOR_LOCAL_MATURE_ALLOCATE)
       	 VM.sysWrite("Compiled with PROCESSOR_LOCAL_MATURE_ALLOCATE on\n");
-      if ( writeBarrier )
-	VM.sysWrite("WARNING - semi-space collector compiled with write barriers\n");
     }
   }  // boot()
 
@@ -888,13 +886,6 @@ public class VM_Allocator
 	  vp.localMatureCurrentAddress = 0;
 	  vp.localMatureEndAddress = 0;
 	}
-
-	// If writebarrier is being generated, presumably for measurement purposes, since
-	// it is not used in this non-generational collector, then reset the write buffers
-	// to empty so they don't overflow
-	//
-	if (writeBarrier)
-	  vp.modifiedOldObjectsTop = VM_Magic.objectAsAddress(vp.modifiedOldObjects) - 4;
       }
     }
     //-#endif
@@ -1289,15 +1280,6 @@ public class VM_Allocator
       VM_Memory.zero(vp.localCurrentAddress,vp.localEndAddress);
     }
     
-    // This non-generational collector, but can be compiled with generational
-    // write barrier enabled (possibly to measure the cost of the barrier), 
-    // causing entries to accumulate in the processor write buffers.  While these
-    // are not used in the collection process, the entries must be discarded
-    // and excess buffers freed, to avoid running out of memory.  This is done
-    // by invokinge resetWriteBuffer.
-    //
-    if (writeBarrier)  gc_resetWriteBuffer(VM_Processor.getCurrentProcessor());
-    
     if (ZERO_NURSERY_IN_PARALLEL) {
       // each processor zeros its assigned region of the new nursery
       VM_Memory.zeroPages( zeroStart[mylocal.gcOrdinal],
@@ -1485,10 +1467,6 @@ public class VM_Allocator
     // We are the GC thread that must copy the object, so do it.
     Object[] tib = VM_ObjectModel.getTIB(fromObj);
     VM_Type type = VM_Magic.objectAsType(tib[TIB_TYPE_INDEX]);
-    if (writeBarrier) {
-      // set barrier bit if write barrier
-      forwardingPtr |= VM_AllocatorHeader.GC_BARRIER_BIT_MASK;
-    }
     if (VM.VerifyAssertions) VM.assert(validRef(type));
     if (type.isClassType()) {
       VM_Class classType = type.asClass();
@@ -1513,25 +1491,6 @@ public class VM_Allocator
 
     if (scan) VM_GCWorkQueue.putToWorkBuffer(VM_Magic.objectAsAddress(toObj));
     return toObj;
-  }
-
-  // for copying semispace collector, write buffer is NOT USED, but if compiled for 
-  // writebuffers, then the compiled code will be filling the buffer anyway.
-  // gc_resetWriteBuffer resets the buffer pointers to the beginning of the buffer
-  // TODO: free excess buffers...but this is only for measuring write barrier
-  // overhead, so why bother
-  //
-  private static void
-  gc_resetWriteBuffer(VM_Processor st) {
-    int wbref,wbstatus,wbtib,count;
-    VM_Type type;
-    int end   = st.modifiedOldObjectsTop; // end = last occuppied slot in buffer
-    int start = VM_Magic.objectAsAddress(st.modifiedOldObjects);
-  
-    if ( end > (start-4) ) {
-      // reset end ptr to beginning of buffer
-      st.modifiedOldObjectsTop = VM_Magic.objectAsAddress(st.modifiedOldObjects) - 4;
-    }
   }
 
   // called by ONE gc/collector thread to copy and "new" thread objects
@@ -2301,8 +2260,6 @@ public class VM_Allocator
    */
   static void
   setupProcessor (VM_Processor p) {
-    if (writeBarrier)
-      VM_WriteBuffer.setupProcessor(p);
   }
 
   // Check if the "integer" pointer points to a dead or live object.

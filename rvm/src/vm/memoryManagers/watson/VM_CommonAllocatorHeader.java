@@ -4,35 +4,26 @@
 //$Id$
 
 /**
- * Defines header bits and associated utility routines 
- * used by all watson memory managers.
- *
+ * Defines utility routines for manipulating the various GC header bits.  
+ * NOTE: Not all of these routines are meaningful for every collector!
+ * 
  * @see VM_ObjectModel
  * @see VM_AllocatorHeader
+ * @see VM_AllocatorHeaderConstants
  * 
  * @author David Bacon
  * @author Steve Fink
  * @author Dave Grove
  */
-public class VM_CommonAllocatorHeader implements VM_Uninterruptible {
-
-  static final int GC_MARK_BIT_IDX     = 0; // must be lsb of available bits !!!!!!!
-  static final int GC_BARRIER_BIT_IDX  = 1;
-
-  static final int GC_MARK_BIT_MASK    = (1 << GC_MARK_BIT_IDX);
+public class VM_CommonAllocatorHeader 
+  implements VM_Uninterruptible,
+	     VM_AllocatorHeaderConstants {
+  
+  static final int GC_MARK_BIT_MASK    = 0x1;
   static final int GC_BARRIER_BIT_MASK = (1 << GC_BARRIER_BIT_IDX);
 
-  static final int GC_FORWARDING_MASK  = GC_MARK_BIT_MASK | GC_BARRIER_BIT_MASK;
-  static final int GC_BEING_FORWARDED  = GC_BARRIER_BIT_MASK | VM_Collector.MARK_VALUE;
-  static final int GC_FORWARDED        = GC_BARRIER_BIT_MASK;
-
-  /**
-   * How many available bits does the GC header want to use?
-   */
-  static final int COMMON_REQUESTED_BITS = 2;
-
   /*
-   * Barrier Bit
+   * Barrier Bit -- only used when VM_Allocator.NEEDS_WRITE_BARRIER.
    */
 
   /**
@@ -58,59 +49,75 @@ public class VM_CommonAllocatorHeader implements VM_Uninterruptible {
   }
 
 
-
   /*
    * Mark Bit
    */
+
+  protected static final VM_SideMarkVector markVector = new VM_SideMarkVector();
 
   /**
    * test to see if the mark bit has the given value
    */
   static boolean testMarkBit(Object ref, int value) {
-    return (VM_ObjectModel.readAvailableBitsWord(ref) & value) != 0;
+    if (USE_SIDE_MARK_VECTOR) {
+      return markVector.testMarkBit(ref, value);
+    } else {
+      return (VM_ObjectModel.readAvailableBitsWord(ref) & value) != 0;
+    }
   }
 
   /**
    * write the given value in the mark bit.
    */
   static void writeMarkBit(Object ref, int value) {
-    int oldValue = VM_ObjectModel.readAvailableBitsWord(ref);
-    int newValue = (oldValue & ~GC_MARK_BIT_MASK) | value;
-    VM_ObjectModel.writeAvailableBitsWord(ref, newValue);
+    if (USE_SIDE_MARK_VECTOR) {
+      markVector.writeMarkBit(ref, value);
+    } else {
+      int oldValue = VM_ObjectModel.readAvailableBitsWord(ref);
+      int newValue = (oldValue & ~GC_MARK_BIT_MASK) | value;
+      VM_ObjectModel.writeAvailableBitsWord(ref, newValue);
+    }
   }
 
   /**
    * atomically write the given value in the mark bit.
    */
   static void atomicWriteMarkBit(Object ref, int value) {
-    while (true) {
-      int oldValue = VM_ObjectModel.prepareAvailableBits(ref);
-      int newValue = (oldValue & ~GC_MARK_BIT_MASK) | value;
-      if (VM_ObjectModel.attemptAvailableBits(ref, oldValue, newValue)) break;
+    if (USE_SIDE_MARK_VECTOR) {
+      markVector.atomicWriteMarkBit(ref, value);
+    } else {
+      while (true) {
+	int oldValue = VM_ObjectModel.prepareAvailableBits(ref);
+	int newValue = (oldValue & ~GC_MARK_BIT_MASK) | value;
+	if (VM_ObjectModel.attemptAvailableBits(ref, oldValue, newValue)) break;
+      }
     }
   }
 
   /**
    * used to mark boot image objects during a parallel scan of objects during GC
    */
-  static boolean testAndMark(Object base, int value) {
-    VM_Magic.pragmaInline();
-    int oldValue;
-    do {
-      oldValue = VM_ObjectModel.prepareAvailableBits(base);
-      int markBit = oldValue & GC_MARK_BIT_MASK;
-      if (markBit == value) return false;
-    } while (!VM_ObjectModel.attemptAvailableBits(base, oldValue, oldValue ^ GC_MARK_BIT_MASK));
-    return true;
+  static boolean testAndMark(Object ref, int value) {
+    if (USE_SIDE_MARK_VECTOR) {
+      return markVector.testAndMark(ref, value);
+    } else {
+      int oldValue;
+      do {
+	oldValue = VM_ObjectModel.prepareAvailableBits(ref);
+	int markBit = oldValue & GC_MARK_BIT_MASK;
+	if (markBit == value) return false;
+      } while (!VM_ObjectModel.attemptAvailableBits(ref, oldValue, oldValue ^ GC_MARK_BIT_MASK));
+      return true;
+    }
   }
-
 
 
   /*
    * Forwarding pointers
+   * Only used if VM_Collector.MOVES_OBJECTS.
    */
+  static final int GC_FORWARDING_MASK  = GC_FORWARDED | GC_BEING_FORWARDED;
 
-    
   /**
    * Either return the forwarding pointer 
    * if the object is already forwarded (or being forwarded)
