@@ -20,12 +20,19 @@ TMP=./Classes.tmp
 rm -rf $TMP
 mkdir -p $TMP
 
+set -v
 $RVM_BUILD/jbuild.toolPrep --disable-modification-exit-status $TMP *.java
 
 cd $TMP
 
 $RVM_BUILD/jbuild.tool com/ibm/JikesRVM/GenerateInterfaceDeclarations/GenerateInterfaceDeclarations.java
-## $RVM_BUILD/jbuild.tool com/ibm/JikesRVM/GenerateInterfaceDeclarations/Emitters.java
 
-$HOST_JAVA_RT -Xmx200M	  -classpath .:$JAL_BUILD/RVM.classes:$JAL_BUILD/RVM.classes/rvmrt.jar	  com.ibm.JikesRVM.GenerateInterfaceDeclarations.GenerateInterfaceDeclarations -out declarations.out -ia 0x43000000
-# >	  $JAL_BUILD/RVM.scratch/InterfaceDeclarations.h.new
+# $JAL_BUILD contains the .so files; thus the argument -nativeLibDir $JAL_BUILD
+# It actually won't matter in this case; we never run the associated code.
+
+## OK, 
+# FAILS: $HOST_JAVA_RT -Xmx200M	com.ibm.JikesRVM.GenerateInterfaceDeclarations.GenerateInterfaceDeclarations  -alternateRealityClasspath .:$JAL_BUILD/RVM.classes:$JAL_BUILD/RVM.classes/rvmrt.jar -alternateRealityNativeLibDir $JAL_BUILD -out declarations.out -ia 0x43000000
+## We need to add the RVM to the Classpath, since we will have 
+## trouble otherwise reading the AlternateRealityClassloader
+$HOST_JAVA_RT 	  -classpath .:$JAL_BUILD/RVM.classes:$JAL_BUILD/RVM.classes/rvmrt.jar -Xmx200M	com.ibm.JikesRVM.GenerateInterfaceDeclarations.GenerateInterfaceDeclarations  -alternateRealityClasspath $JAL_BUILD/RVM.classes/jksvm.jar:$JAL_BUILD/RVM.classes/rvmrt.jar -alternateRealityNativeLibDir $JAL_BUILD -out declarations.out -ia 0x43000000
+# $HOST_JAVA_RT -Xmx200M	  -classpath .:$JAL_BUILD/RVM.classes:$JAL_BUILD/RVM.classes/rvmrt.jar	  com.ibm.JikesRVM.GenerateInterfaceDeclarations.GenerateInterfaceDeclarations -out declarations.out -ia 0x43000000
