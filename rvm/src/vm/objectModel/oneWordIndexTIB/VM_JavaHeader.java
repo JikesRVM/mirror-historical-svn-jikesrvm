@@ -210,25 +210,53 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    * @param ir the enclosing OPT_IR
    */
   public static void lowerGET_OBJ_TIB(OPT_Instruction s, OPT_IR ir) {
+    if (VM.VerifyAssertions) VM.assert(TIB_SHIFT == 2);
     OPT_RegisterOperand result = GuardedUnary.getClearResult(s);
-    OPT_RegisterOperand ref = GuardedUnary.getClearVal(s).asRegister();
     OPT_Operand guard = GuardedUnary.getClearGuard(s);
     OPT_RegisterOperand headerWord = OPT_ConvertToLowLevelIR.InsertLoadOffset(s, ir, INT_LOAD, 
-                                                                              VM_Type.IntType, ref, TIB_OFFSET, guard);
+                                                                              VM_Type.IntType, 
+									      GuardedUnary.getClearVal(s),
+									      TIB_OFFSET, guard);
+    if (VM_Collector.MOVES_OBJECTS && VM.writingBootImage) {
+      // The collector may have laid down a forwarding pointer 
+      // in place of the TIB word.  Check for this fringe case
+      // and handle it by following the forwarding pointer to
+      // find the TIB.
+      // We only have to build this extra check into the bootimage code
+      // since all code used by the collector should be in the bootimage.
+      // TODO: be more selective by marking a subset of the bootimage classes
+      //       with a special interface that indicates that this conditional redirect 
+      //       is required.
+      if (VM.VerifyAssertions) {
+	VM.assert(VM_AllocatorHeader.GC_FORWARDING_MASK == 0x00000003);
+	VM.assert(VM_AllocatorHeader.GC_FORWARDED != VM_Collector.MARK_VALUE);
+      }
+      
+      OPT_BasicBlock prevBlock = s.getBasicBlock();
+      OPT_BasicBlock doneBlock = prevBlock.splitNodeAt(s.prevInstructionInCodeOrder(), ir);
+      OPT_BasicBlock middleBlock = doneBlock.createSubBlock(s.bcIndex, ir);
+      ir.cfg.linkInCodeOrder(prevBlock, middleBlock);
+      ir.cfg.linkInCodeOrder(middleBlock, doneBlock);
+      prevBlock.insertOut(middleBlock);
+      prevBlock.insertOut(doneBlock);
+      middleBlock.insertOut(doneBlock);
+
+      OPT_RegisterOperand fs = ir.regpool.makeTempInt();
+      prevBlock.appendInstruction(Binary.create(INT_AND, fs, headerWord.copyRO(),
+						new OPT_IntConstantOperand(VM_AllocatorHeader.GC_FORWARDING_MASK)));
+      prevBlock.appendInstruction(IfCmp.create(INT_IFCMP, null, fs.copyRO(), new OPT_IntConstantOperand(VM_AllocatorHeader.GC_FORWARDED),
+					       OPT_ConditionOperand.NOT_EQUAL(), doneBlock.makeJumpTarget(),
+					       OPT_BranchProfileOperand.likely()));
+      OPT_RegisterOperand fp = ir.regpool.makeTempInt();
+      middleBlock.appendInstruction(Binary.create(INT_AND, fp, fs.copyRO(), 
+						  new OPT_IntConstantOperand(~VM_AllocatorHeader.GC_FORWARDING_MASK)));
+      middleBlock.appendInstruction(Load.create(INT_LOAD, headerWord.copyRO(), fp.copyRO(), 
+						new OPT_IntConstantOperand(TIB_OFFSET), null, guard));
+    }
     OPT_RegisterOperand tibOffset = OPT_ConvertToLowLevelIR.InsertBinary(s, ir, INT_AND, 
                                                                          VM_Type.IntType, headerWord, 
                                                                          new OPT_IntConstantOperand(TIB_MASK));
-    // shift the tibIdx to a byte offset.
-    if (TIB_SHIFT > 2) {
-      tibOffset = OPT_ConvertToLowLevelIR.InsertBinary(s, ir, INT_USHR, VM_Type.IntType, tibOffset, 
-                                                       new OPT_IntConstantOperand(TIB_SHIFT- 2));
-    } else if (TIB_SHIFT < 2) {
-      tibOffset = OPT_ConvertToLowLevelIR.InsertBinary(s, ir, INT_SHL, VM_Type.IntType, tibOffset, 
-                                                       new OPT_IntConstantOperand(2 - TIB_SHIFT));
-    }
-
     Load.mutate(s, INT_LOAD, result, ir.regpool.makeJTOCOp(ir,s), tibOffset, null);
   }
-
   //-#endif
 }
