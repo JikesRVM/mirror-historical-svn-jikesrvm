@@ -1138,7 +1138,7 @@ public class VM_Class extends VM_Type
     // lay out instance fields
     //
     instanceSize = VM_ObjectModel.computeScalarHeaderSize(this);
-    int fieldOffset = OBJECT_HEADER_END - instanceSize; // account for header word(s) (laying out backwards)
+    int fieldOffset = VM_ObjectModel.getHeaderEndOffset(this); 
     int referenceFieldCount = 0;
     for (int i = 0, n = instanceFields.length; i < n; ++i) {
       VM_Field field     = instanceFields[i];

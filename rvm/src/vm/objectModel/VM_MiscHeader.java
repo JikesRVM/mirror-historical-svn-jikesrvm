@@ -23,11 +23,14 @@ public final class VM_MiscHeader implements VM_ObjectModelConstants,
   ///////////////////////
 
   // offset from object ref to .oid field, in bytes
-  static final int OBJECT_OID_OFFSET       = (VM.CompileForGCTracing ? OBJECT_HEADER_END - 4 : 0);
+  static final int OBJECT_OID_OFFSET       = (VM.CompileForGCTracing ?
+                                              VM_ObjectModel.getMiscHeaderEndOffset() : 0);
   // offset from object ref to .link field, in bytes
-  static final int OBJECT_LINK_OFFSET      = (VM.CompileForGCTracing ? OBJECT_HEADER_END - 8 : 0);
+  static final int OBJECT_LINK_OFFSET      = (VM.CompileForGCTracing ?
+                                              VM_ObjectModel.getMiscHeaderEndOffset() + 4 : 0);
   // offset from object ref to OBJECT_DEATH field, in bytes
-  static final int OBJECT_DEATH_OFFSET	   = (VM.CompileForGCTracing ? OBJECT_HEADER_END - 12 : 0);
+  static final int OBJECT_DEATH_OFFSET	   = (VM.CompileForGCTracing ?
+                                              VM_ObjectModel.getMiscHeaderEndOffset() + 8 : 0);
   // amount by which tracing causes headers to grow
   static final int GC_TRACING_HEADER_BYTES = (VM.CompileForGCTracing ? 12 : 0);
 

@@ -97,6 +97,33 @@
 public final class VM_ObjectModel implements VM_Uninterruptible, 
 					     VM_ObjectModelConstants {
   /**
+   * Given a reference to an object of a given class, 
+   * what is the offset in bytes to the bottom word of
+   * the header?
+   */
+  public static int getHeaderEndOffset(VM_Class klass) {
+    return VM_JavaHeader.getHeaderEndOffset(klass);
+  }
+
+  /**
+   * Given a reference, what is the offset in bytes to the bottom word of
+   * the MISC header?
+   */
+  public static int getMiscHeaderEndOffset() {
+    return VM_JavaHeader.getMiscHeaderEndOffset();
+  }
+
+  /**
+   * Given a reference, return an address which is guaranteed to be inside
+   * the memory region allocated to the object.
+   *
+   * TODO: try to deprecate this?  Seems ugly.
+   */
+  public static ADDRESS getPointerInMemoryRegion(ADDRESS ref) {
+    return VM_JavaHeader.getPointerInMemoryRegion(ref);
+  }
+
+  /**
    * Get the TIB for an object.
    */
   public static Object[] getTIB(ADDRESS ptr) { 

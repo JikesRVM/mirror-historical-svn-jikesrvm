@@ -2120,7 +2120,7 @@ public class VM_Allocator
   }  //  Debug
 
   //  accommodate that ref might be outside space
-  int  tref = ref + OBJECT_PTR_ADJUSTMENT;  
+  int  tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
 
   if ( tref >= smallHeapStartAddress && tref <  smallHeapEndAddress) {
     // object allocated in small object runtime heap
@@ -2568,7 +2568,7 @@ public class VM_Allocator
 
   static  boolean
   gc_isLive (int ref) {
-    int  tref = ref + OBJECT_PTR_ADJUSTMENT;
+    int  tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
 
     if ((tref >= bootStartAddress) && (tref <= bootEndAddress)) {
       int  statusWord;
@@ -2596,7 +2596,7 @@ public class VM_Allocator
 
   static  void
   gc_markLive (int ref) {
-    int  tref = ref + OBJECT_PTR_ADJUSTMENT;
+    int  tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
 
     if ((tref >= bootStartAddress) && (tref <= bootEndAddress)) {
       int  statusWord;

@@ -49,6 +49,10 @@ public final class VM_JavaHeader implements VM_Uninterruptible,
   private static final int SCALAR_HEADER_SIZE = OTHER_HEADER_BYTES + 8;
   private static final int ARRAY_HEADER_SIZE = SCALAR_HEADER_SIZE + 4;
 
+  // note that the pointer to a scalar actually points 4 bytes above the
+  // scalar object.
+  private static final int SCALAR_PADDING_BYTES = 4;
+
   private static final int STATUS_OFFSET  = -8  - OTHER_HEADER_BYTES;
   private static final int TIB_OFFSET     = -12 - OTHER_HEADER_BYTES;
 
@@ -79,6 +83,33 @@ public final class VM_JavaHeader implements VM_Uninterruptible,
   }
 
   /**
+   * Given a reference to an object of a given class, what is the offset in 
+   * bytes to the bottom word of
+   * the header?
+   */
+  public static int getHeaderEndOffset(VM_Class klass) {
+    return TIB_OFFSET;
+  }
+
+  /**
+   * Given a reference, what is the offset in bytes to the bottom word of
+   * the MISC header?
+   */
+  public static int getMiscHeaderEndOffset() {
+    return TIB_OFFSET + 8 + VM_AllocatorHeader.NUM_BYTES_HEADER;
+  }
+
+  /**
+   * Given a reference, return an address which is guaranteed to be inside
+   * the memory region allocated to the object.
+   *
+   * TODO: try to deprecate this?  Seems ugly.
+   */
+  public static ADDRESS getPointerInMemoryRegion(ADDRESS ref) {
+    return ref - 8;
+  }
+
+  /**
    * Convert the raw storage address ptr into a ptr to an object
    * under the assumption that the object to be placed here is 
    * a scalar object of size bytes which is an instance of the given tib.
@@ -89,7 +120,7 @@ public final class VM_JavaHeader implements VM_Uninterruptible,
    * @return an ptr to said object.
    */
   public static ADDRESS baseAddressToScalarAddress(ADDRESS ptr, Object[] tib, int size) {
-    return ptr + (size - OBJECT_HEADER_END);
+    return ptr + size + SCALAR_PADDING_BYTES;
   }
 
   /**
@@ -115,7 +146,7 @@ public final class VM_JavaHeader implements VM_Uninterruptible,
    */
   public static ADDRESS scalarRefToBaseAddress(Object ref, VM_Class t) {
     int size = t.getInstanceSize();
-    return VM_Magic.objectAsAddress(ref) - (size - OBJECT_HEADER_END);
+    return VM_Magic.objectAsAddress(ref) - size - SCALAR_PADDING_BYTES;
   }
 
   /**
@@ -355,7 +386,7 @@ public final class VM_JavaHeader implements VM_Uninterruptible,
    * object reference that could refer to an object in the region.
    */
   public static int maximumObjectRef (int regionHighAddr) {
-    return regionHighAddr - OBJECT_HEADER_END;
+    return regionHighAddr + SCALAR_PADDING_BYTES;
   }
 
   /**
@@ -414,8 +445,8 @@ public final class VM_JavaHeader implements VM_Uninterruptible,
    */
   public static void initializeScalarClone(Object cloneDst, Object cloneSrc, int size) {
     int cnt = size - SCALAR_HEADER_SIZE;
-    int dst = VM_Magic.objectAsAddress(cloneDst) - (size - OBJECT_HEADER_END);
-    int src = VM_Magic.objectAsAddress(cloneSrc) - (size - OBJECT_HEADER_END);
+    int dst = VM_Magic.objectAsAddress(cloneDst) - (size + SCALAR_PADDING_BYTES);
+    int src = VM_Magic.objectAsAddress(cloneSrc) - (size + SCALAR_PADDING_BYTES);
     VM_Memory.aligned32Copy(dst, src, cnt); 
   }
 
