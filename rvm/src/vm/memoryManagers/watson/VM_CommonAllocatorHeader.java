@@ -23,10 +23,18 @@ public class VM_CommonAllocatorHeader implements VM_ObjectModelConstants,
   static final int GC_MARK_BIT_MASK    = (1 << GC_MARK_BIT_IDX);
   static final int GC_BARRIER_BIT_MASK = (1 << GC_BARRIER_BIT_IDX);
 
+  static final int GC_FORWARDING_MASK  = GC_MARK_BIT_MASK | GC_BARRIER_BIT_MASK;
+  static final int GC_BEING_FORWARDED  = GC_BARRIER_BIT_MASK | VM_Collector.MARK_VALUE;
+  static final int GC_FORWARDED        = VM_Collector.MARK_VALUE;
+
   /**
    * How many available bits does the GC header want to use?
    */
   static final int COMMON_REQUESTED_BITS = 2;
+
+  /*
+   * Barrier Bit
+   */
 
   /**
    * test to see if the barrier bit is set
@@ -49,6 +57,12 @@ public class VM_CommonAllocatorHeader implements VM_ObjectModelConstants,
   static void setBarrierBit(Object ref) {
     VM_ObjectModel.setAvailableBit(ref, GC_BARRIER_BIT_IDX, true);
   }
+
+
+
+  /*
+   * Mark Bit
+   */
 
   /**
    * test to see if the mark bit has the given value
@@ -91,24 +105,77 @@ public class VM_CommonAllocatorHeader implements VM_ObjectModelConstants,
     return true;
   }
 
-  /**
-   * used to mark small heap objects during a parallel scan of objects during GC
-   */
-  static int fetchAndMarkBusy(Object base) {
-    return fetchAndMarkBusy(base, VM_Collector.MARK_VALUE);
-  } 
 
-  /**
-   * used to mark small heap objects during a parallel scan of objects during GC
+
+  /*
+   * Forwarding pointers
    */
-  static int fetchAndMarkBusy(Object base, int value) {
+
+    
+  /**
+   * Either return the forwarding pointer 
+   * if the object is already forwarded (or being forwarded)
+   * or write the bit pattern that indicates that the object is being forwarded
+   */
+  static ADDRESS attemptToForward(Object base) {
     VM_Magic.pragmaInline();
     int oldValue;
     do {
       oldValue = VM_ObjectModel.prepareAvailableBits(base);
       int markBit = oldValue & GC_MARK_BIT_MASK;
-      if (markBit == value) return oldValue;
-    } while (!VM_ObjectModel.attemptAvailableBits(base, oldValue, VM_Collector.BEING_FORWARDED_PATTERN));
+      if (markBit == VM_Collector.MARK_VALUE) return oldValue;
+    } while (!VM_ObjectModel.attemptAvailableBits(base, oldValue, oldValue | GC_BEING_FORWARDED));
     return oldValue;
+  }
+
+  /**
+   * Non-atomic read of forwarding pointer word
+   */
+  static ADDRESS getForwardingWord(Object base) {
+    return VM_ObjectModel.readAvailableBitsWord(base);
+  }
+
+  /**
+   * Has the object been forwarded?
+   */
+  static boolean isForwarded(Object base) {
+    return stateIsForwarded(getForwardingWord(base));
+  }
+
+  /**
+   * is the state of the forwarding word forwarded?
+   */
+  static boolean stateIsForwarded(int fw) {
+    return (fw & GC_FORWARDING_MASK) == GC_FORWARDED;
+  }
+
+  /**
+   * is the state of the forwarding word being forwarded?
+   */
+  static boolean stateIsBeingForwarded(int fw) {
+    return (fw & GC_FORWARDING_MASK) == GC_BEING_FORWARDED;
+  }
+
+  /**
+   * is the state of the forwarding word being forwarded?
+   */
+  static boolean stateIsForwardedOrBeingForwarded(int fw) {
+    return (fw & GC_FORWARDED) != 0;
+  }
+
+  /**
+   * Non-atomic read of forwarding pointer word
+   */
+  static Object getForwardingPointer(Object base) {
+    return VM_Magic.addressAsObject(getForwardingWord(base) & ~GC_FORWARDING_MASK);
+  }
+
+  /**
+   * Non-atomic write of forwarding pointer word
+   * (assumption, thread doing the set has done attempt to forward
+   *  and owns the right to copy the object)
+   */
+  static void setForwardingPointer(Object base, Object ptr) {
+    VM_ObjectModel.writeAvailableBitsWord(base, VM_Magic.objectAsAddress(ptr) | GC_FORWARDED);
   }
 }

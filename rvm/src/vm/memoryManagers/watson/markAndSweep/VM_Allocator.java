@@ -69,7 +69,6 @@ public class VM_Allocator
   // following are referenced from elsewhere in VM
   // following are for compilation compatibility with copying collectors
   static final int    MARK_VALUE = 1;              
-  static final int    BEING_FORWARDED_PATTERN = -5; 
   static final boolean movesObjects = false;
 
   static final boolean writeBarrier = false;

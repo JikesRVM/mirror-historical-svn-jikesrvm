@@ -152,6 +152,13 @@ public final class VM_JavaHeader implements VM_Uninterruptible,
   }
 
   /**
+   * Process the TIB field during copyingGC
+   */
+  public static void gcProcessTIB(int ref) {
+    VM_Allocator.processPtrField(ref + TIB_OFFSET);
+  }
+
+  /**
    * Get a reference to the TIB for an object.
    *
    * @param jdpService
@@ -421,9 +428,7 @@ public final class VM_JavaHeader implements VM_Uninterruptible,
     int src = VM_Magic.objectAsAddress(cloneSrc);
     VM_Memory.aligned32Copy(dst, src, cnt);
   }
-
-
-
+  
   /**
    * For low level debugging of GC subsystem. 
    * Dump the header word(s) of the given object reference.
