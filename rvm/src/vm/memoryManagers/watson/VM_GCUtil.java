@@ -199,6 +199,9 @@ public class VM_GCUtil
     return true;
   }  // validRef
 
+   public static void dumpRef (Object ref) {
+     dumpRef(VM_Magic.objectAsAddress(ref));
+   }
    public static void dumpRef (int ref) {
      VM.sysWrite("REF=");
      if (ref==VM_NULL) {
