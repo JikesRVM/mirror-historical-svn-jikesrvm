@@ -769,7 +769,7 @@ public class VM_Allocator
   byte[] the_mark = the_block.mark;
   int first_free = 0, i = 0, j, current, next;
     
-  VM.assert(the_mark != null);
+  if (VM.VerifyAssertions) VM.assert(the_mark != null);
   if (false && the_mark == null) {
       VM.sysWriteln("mark = ", VM_Magic.objectAsAddress(the_mark));
       VM.sysWriteln("size = ", GC_SIZEVALUES[the_size.ndx]);
