@@ -129,6 +129,12 @@ public class VM_TypeReference implements VM_SizeConstants {
    */
   protected VM_Type resolvedType;
 
+  private static final ClassLoader bootstrapCL
+    = VM_BootstrapClassLoader.getVMClassLoader();
+
+  private static final ClassLoader alternateRealityCL 
+    = AlternateRealityClassLoader.getAlternateRealityClassLoader();
+
   /**
    * Find or create the canonical VM_TypeReference instance for
    * the given pair.
@@ -146,8 +152,8 @@ public class VM_TypeReference implements VM_SizeConstants {
     // Primitives, arrays of primitives, system classes and arrays of system
     // classes must use the bootstrap classloader.  Force that here so we don't
     // have to worry about it anywhere else in the VM.
-    ClassLoader bootstrapCL = VM_BootstrapClassLoader.getVMClassLoader();
-    ClassLoader alternateRealityCL = VM_BootstrapClassLoader.getAlternateRealityClassLoader();
+    //    ClassLoader bootstrapCL = VM_BootstrapClassLoader.getVMClassLoader();
+    //    ClassLoader alternateRealityCL = VM_BootstrapClassLoader.getAlternateRealityClassLoader();
     if (cl != bootstrapCL && cl != alternateRealityCL) {
       if (tn.isClassDescriptor()) {
         if (tn.isSystemClassDescriptor()) {
