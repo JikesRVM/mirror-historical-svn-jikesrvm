@@ -74,6 +74,12 @@ public class AlternateRealityClassLoader extends URLClassLoader {
 
   }
 
+  private boolean specialClassName(String name) {
+    return name.startsWith("java.lang.");
+    /* For later, we'll try to just do java.lang.Object and a few other ones
+     * that are special to Jikes RVM.  */
+  }
+
   public String toString() { return "AlternateRealityCL"; }
   /**
    * Load a class using this ClassLoader or its parent, possibly resolving
@@ -100,8 +106,18 @@ public class AlternateRealityClassLoader extends URLClassLoader {
     if (c != null)
       return c;
 
-    // Do not delegate up; we're in an alternate reality!
-
+    /* Do not delegate up; we're in an alternate reality!
+       EXCEPT for a tiny number of classes, which we will treat specially.
+       This is ugly. */
+    if (specialClassName(name)) {
+      try {
+	c = VMClassLoader.loadClass(name, resolve);
+	if (c != null)
+	  return c;
+      } catch (ClassNotFoundException e) {
+      }
+    }
+    
     c = findClass(name);        // if failure, throws ClassNotFoundException
     loaded.put(name, c);
     if (resolve)
