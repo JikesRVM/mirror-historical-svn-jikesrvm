@@ -20,20 +20,37 @@ ME="${0##*/}"
 ## should be set, suggest an example value (if <example> is set), and
 ## exit fatally.
 
-# The variable "mydir" should be set by the program loading this library.
-[ "$mydir" ] || mydir="${0%/*}"
-
+## jconfigure calls this.
 function checkenv () {
     local envar="$1";
     shift;
 
+
+    ## Now perform the testing.
+    if [ ! "${!envar}" ]; then
+	echo -n "$ME: Please set your ${envar} environment variable"
+
+	local example="$(checkenv_example ${envar})";
+	if [ "${example}" ]; then
+	    echo "";
+	    echo -n "  (for example, to \"${example}\")"
+	fi
+	echo "."		# Supply a sentence-ending period.  
+				# (English typography.)
+	exit 1
+    fi >&2
+}
+
+
+## Used internally.
+function checkenv_example () {
     ## Now set up an example error.  So that we can complain.
     ## In another language I would do this in a lazy fashion (only 
     ## set up the example error if we need it), but this isn't 
     ## another language. 
     local example;
     if (( $# >= 1 )); then
-	example="$*";		# handle accidentally missing quoting..
+	example="$*"; # handle the caller accidentally leaving out the quoting.
     else
 	local home="${HOME=/home/${USER-${LOGNAME-'me'}}}";
 	
@@ -46,8 +63,11 @@ function checkenv () {
 	    RVM_ROOT ) 
 		# A heuristic for guessing RVM_ROOT: Assume the program was
 		# run from $RVM_ROOT/rvm/bin.  
+		# The variable "mydir" should be set by the program 
+		# loading this library.
+		: ${mydir=${0%/*}}
 		example="${mydir%/rvm/bin}"
-		if [ "$example" = "$mydir" ]; then
+		if [[ $example = $mydir ]]; then
 		    example="$home/rvmRoot";
 		fi
 		;;
@@ -72,16 +92,5 @@ function checkenv () {
 	    
 	esac
     fi
-
-    ## Now perform the testing.
-    if [ ! "${!envar}" ]; then
-	echo -n "$ME: Please set your ${envar} environment variable"
-	if [ "$example" ]; then
-	    echo "";
-	    echo -n "  (for example, to \"${example}\")"
-	fi
-	echo "."		# Supply a sentence-ending period.  
-				# (English typography.)
-	exit 1
-    fi >&2
 }
+
