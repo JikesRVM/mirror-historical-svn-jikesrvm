@@ -847,11 +847,11 @@ cat <<- EOF
 # Emit a script to run each phase of vm builder in turn.
 #
 function emitController () {
-    cat << 'EOF'
+    cat <<- 'EOF'
 	#!/bin/bash
 	# Run all phases of vm builder.
 	set -e
-	ME=${0##*/}`
+	ME=${0##*/}
 
 	while [[ $# != 0 ]]; do
 	   if [[ $1 = -trace ]]; then
@@ -907,10 +907,10 @@ EOF
 	   ./jbuild.compile $TRACE_FLAG -clean
 	fi
 
-	if [[ -e' $CLEANSE_STATUS_STR ']]; then
 EOF
-echo "   rm -rf $TOOL_DIRECTORY_STR"
-cat <<- 'EOF'
+    echo "if [[ -e $CLEANSE_STATUS_STR ]]; then"
+    echo "   rm -rf $TOOL_DIRECTORY_STR"
+    cat <<- 'EOF'
 	   ./jbuild.expand     $TRACE_FLAG -clean
 	   echo " $SECONDS s "
 	   ./jbuild.copy       $TRACE_FLAG -clean
@@ -921,7 +921,9 @@ cat <<- 'EOF'
 	   echo " $SECONDS s "
 	   ./jbuild.linkBooter $TRACE_FLAG -clean
 	   echo " $SECONDS s "
-	   rm -f $CLEANSE_STATUS_STR
+EOF
+    echo "    rm -f $CLEANSE_STATUS_STR"
+    cat <<- 'EOF'
 	elif [[ $NOLINK_FLAG != -nolink ]]; then
 	   ./jbuild.linkImage  $TRACE_FLAG $DEMOGRAPHICS_FLAG -clean
 	   echo " $SECONDS s "
