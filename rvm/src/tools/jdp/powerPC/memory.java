@@ -14,7 +14,8 @@ import java.util.*;
 /* not needed for build in separate RVM.tools directory */
 /* import PPC_Disassembler; */
 
-abstract class memory implements jdpConstants, VM_Constants
+abstract class memory implements jdpConstants, VM_Constants,
+JDPServiceInterface
 {
   //****************************************************************************
   // In the external implementations, these will be native methods 
@@ -54,6 +55,14 @@ abstract class memory implements jdpConstants, VM_Constants
   // Methods for accessing memory
   //******************************************************************************
   
+  public int readMemory(int address) {
+    try {
+      return readsafe(address);
+    } catch (memoryException e) {
+      System.out.println("bad address");
+      return 0;
+    }
+  }
   public int readsafe(int address) throws memoryException {
     int data = read(address);     
     if (data!=-1)

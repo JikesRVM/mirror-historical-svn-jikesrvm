@@ -103,7 +103,6 @@ copy_intel:
 copy_powerPC:
 	@cp -f $(RVM_ROOT)/rvm/src/tools/jdp/Makefile $(TOOLS_DIR)/.
 	@cp -f $(RVM_ROOT)/rvm/src/tools/jdp/*.java $(TOOLS_DIR)/.
-	@cp -f $(RVM_ROOT)/rvm/src/tools/jdp/$(OBJECT_MODEL_PATH)/*.java $(TOOLS_DIR)/.
 	@cp -f $(RVM_ROOT)/rvm/src/tools/jdp/powerPC/*.java $(TOOLS_DIR)/.
 	@cp -f $(RVM_ROOT)/rvm/src/tools/jdp/powerPC/*.c $(TOOLS_DIR)/.
 	@cp -f $(RVM_ROOT)/rvm/src/tools/jdp/interpreter/*.java $(TOOLS_DIR)/.

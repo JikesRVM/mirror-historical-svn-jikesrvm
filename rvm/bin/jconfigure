@@ -360,12 +360,6 @@ integer BUILD_RVMRT_JAR=0
 # Are we putting VM classes into a jar?
 integer RVM_WITH_JKSVM_JAR=0
 
-# Options to control choice of object model
-integer RVM_WITH_NURSERY_NORMAL_OBJECT_MODEL=0
-integer RVM_WITH_NURSERY_MASK_OBJECT_MODEL=0
-integer RVM_WITH_NURSERY_INDEX_OBJECT_MODEL=0
-integer RVM_WITH_STD_NONMOVING_OBJECT_MODEL=0
-
 #---------------------------------------#
 # SECTION 3 - PROCESS RVM_TARGET_CONFIG # 
 #---------------------------------------#
@@ -412,14 +406,8 @@ else
 fi
 
 # set the relative path to the object model.
-if (( RVM_WITH_NURSERY_NORMAL_OBJECT_MODEL )); then
-  OBJECT_MODEL_PATH_STR=objectModel/nurseryNormal
-elif (( RVM_WITH_NURSERY_MASK_OBJECT_MODEL )); then
-  OBJECT_MODEL_PATH_STR=objectModel/nurseryMask
-elif (( RVM_WITH_NURSERY_INDEX_OBJECT_MODEL )); then
-  OBJECT_MODEL_PATH_STR=objectModel/nurseryIndex
-elif (( RVM_WITH_STD_NONMOVING_OBJECT_MODEL )); then
-  OBJECT_MODEL_PATH_STR=objectModel/stdNonMoving
+if (( RVM_WITH_SOME_OTHER_OBJECT_MODEL )); then
+  OBJECT_MODEL_PATH_STR=objectModel/whatever
 else
   OBJECT_MODEL_PATH_STR=objectModel/default
 fi
