@@ -276,6 +276,12 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     return VM_ObjectModel.initializeArray(region, tib, numElements, size);
   }
 
+  public static VM_Address allocateCopy(VM_Address object) {
+    VM.sysWriteln("allocateCopy unimplmented");
+    VM._assert(false); // unimplemented
+    return VM_Address.zero();     // getPlan().allocCopy()...  FIXME
+  }
+
   public static void addFinalizer(Object obj) {
     VM_Finalizer.addCandidate(obj);
   }
