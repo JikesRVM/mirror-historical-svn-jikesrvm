@@ -51,19 +51,15 @@ final class MemoryResource implements Constants {
    * @param blocks The number of blocks requested
    */
   public void acquire(int blocks) {
-    lock.acquire();
+    lock();
     reserved += blocks;
     if ((committed + blocks) > budget) {
-      lock.release();
       VM_Interface.getPlan().poll();
-      lock.acquire();
       committed += blocks;
-      lock.release();
-    } 
-    else {
+    } else {
       committed += blocks;
-      lock.release();
     }
+    unlock();
   }
 
   /**
@@ -79,10 +75,10 @@ final class MemoryResource implements Constants {
    * @param blocks The number of blocks to be released.
    */
   public void release(int blocks) {
-    lock.acquire();
+    lock();
     reserved -= blocks;
     committed -= blocks;
-    lock.release();
+    unlock();
   }
 
   /**
@@ -103,6 +99,20 @@ final class MemoryResource implements Constants {
     return committed;
   }
 
+  private void lock() {
+    if (Plan.gcInProgress())
+      gcLock.acquire();
+    else
+      mutatorLock.acquire();
+  }
+
+  private void unlock() {
+    if (Plan.gcInProgress())
+      gcLock.acquire();
+    else
+      mutatorLock.acquire();
+  }
+
   ////////////////////////////////////////////////////////////////////////////
   //
   // Instance variables
@@ -110,5 +120,6 @@ final class MemoryResource implements Constants {
   private int reserved;
   private int committed;
   private int budget;
-  private Lock lock;
+  private Lock gcLock;
+  private Lock mutatorLock;
 }
