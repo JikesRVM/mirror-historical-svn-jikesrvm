@@ -51,6 +51,7 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
   protected static final int HASH_STATE_MASK = HASH_STATE_UNHASHED | HASH_STATE_HASHED | HASH_STATE_HASHED_AND_MOVED;
   protected static final int HASHCODE_SCALAR_OFFSET = -4; // in "phantom word"
   protected static final int HASHCODE_ARRAY_OFFSET = JAVA_HEADER_END - OTHER_HEADER_BYTES - 4; // to left of header
+  protected static final int HASHCODE_BYTES = 4;
   
   /**
    * How small is the minimum object header size? 
@@ -291,12 +292,10 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
   public static int bytesRequiredWhenCopied(Object fromObj, VM_Class type) {
     int size = type.getInstanceSize();
     int hashState = VM_Magic.getIntAtOffset(fromObj, TIB_OFFSET) & HASH_STATE_MASK;
-    if (hashState == HASH_STATE_UNHASHED) {
-      return size;
-    } else {
-      VM.sysWrite("HASHED_SCALAR: + 4 bytes!\n");
-      return size + 4;
+    if (hashState != HASH_STATE_UNHASHED) {
+      size += HASHCODE_BYTES;
     }
+    return size;
   }
 
   /**
@@ -305,12 +304,10 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
   public static int bytesRequiredWhenCopied(Object fromObj, VM_Array type, int numElements) {
     int size = (type.getInstanceSize(numElements) + 3) & ~3;
     int hashState = VM_Magic.getIntAtOffset(fromObj, TIB_OFFSET) & HASH_STATE_MASK;
-    if (hashState == HASH_STATE_UNHASHED) {
-      return size;
-    } else {
-      VM.sysWrite("HASHED_ARRAY: + 4 bytes!\n");
-      return size + 4;
+    if (hashState != HASH_STATE_UNHASHED) {
+      size += HASHCODE_BYTES;
     }
+    return size;
   }
   
   /**
@@ -320,45 +317,24 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
 				  VM_Class type, Object[] tib, int tibWord) {
     int hashState = tibWord & HASH_STATE_MASK;
     if (hashState == HASH_STATE_UNHASHED) {
-      VM.sysWrite("S_U: ");
-      VM.sysWriteHex(VM_Magic.objectAsAddress(fromObj));
-      VM.sysWriteHex(toAddress);
       int fromAddress = VM_Magic.objectAsAddress(fromObj) - numBytes - SCALAR_PADDING_BYTES;
-      VM.sysWriteHex(numBytes);
-      VM.sysWriteHex(fromAddress);
       VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes); 
       Object toObj = VM_Magic.addressAsObject(toAddress +  numBytes + SCALAR_PADDING_BYTES);
       VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, tibWord);
-      VM.sysWriteHex(VM_Magic.objectAsAddress(toObj));
-      VM.sysWrite("\n");
       return toObj;
     } else if (hashState == HASH_STATE_HASHED) {
-      VM.sysWrite("S_H: ");
-      VM.sysWriteHex(VM_Magic.objectAsAddress(fromObj));
-      VM.sysWriteHex(toAddress);
-      int data = numBytes - 4;
+      int data = numBytes - HASHCODE_BYTES;
       int fromAddress = VM_Magic.objectAsAddress(fromObj) - data - SCALAR_PADDING_BYTES;
-      VM.sysWriteHex(numBytes);
-      VM.sysWriteHex(fromAddress);
       VM_Memory.aligned32Copy(toAddress, fromAddress, data); 
       Object toObj = VM_Magic.addressAsObject(toAddress + data + SCALAR_PADDING_BYTES);
       VM_Magic.setIntAtOffset(toObj, HASHCODE_SCALAR_OFFSET, VM_Magic.objectAsAddress(fromObj));
       VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, tibWord | HASH_STATE_HASHED_AND_MOVED);
-      VM.sysWriteHex(VM_Magic.objectAsAddress(toObj));
-      VM.sysWrite("\n");
       return toObj;
-    } else { // HASHED_AND_MOVED
-      VM.sysWrite("S_M: ");
-      VM.sysWriteHex(VM_Magic.objectAsAddress(fromObj));
-      VM.sysWriteHex(toAddress);
-      int fromAddress = VM_Magic.objectAsAddress(fromObj) - numBytes - SCALAR_PADDING_BYTES;
-      VM.sysWriteHex(numBytes);
-      VM.sysWriteHex(fromAddress);
+    } else { // HASHED_AND_MOVED; 'phanton word' contains hash code.
+      int fromAddress = VM_Magic.objectAsAddress(fromObj) - numBytes + HASHCODE_BYTES - SCALAR_PADDING_BYTES;
       VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes); 
-      Object toObj = VM_Magic.addressAsObject(toAddress + numBytes + SCALAR_PADDING_BYTES);
+      Object toObj = VM_Magic.addressAsObject(toAddress + numBytes - HASHCODE_BYTES + SCALAR_PADDING_BYTES);
       VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, tibWord);
-      VM.sysWriteHex(VM_Magic.objectAsAddress(toObj));
-      VM.sysWrite("\n");
       return toObj;
     }
   }
@@ -370,44 +346,23 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
 				  VM_Array type, Object[] tib, int tibWord) {
     int hashState = tibWord & HASH_STATE_MASK;
     if (hashState == HASH_STATE_UNHASHED) {
-      VM.sysWrite("A_U: ");
-      VM.sysWriteHex(VM_Magic.objectAsAddress(fromObj));
-      VM.sysWriteHex(toAddress);
       int fromAddress = VM_Magic.objectAsAddress(fromObj) - ARRAY_HEADER_SIZE;
-      VM.sysWriteHex(numBytes);
-      VM.sysWriteHex(fromAddress);
       VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes); 
       Object toObj = VM_Magic.addressAsObject(toAddress + ARRAY_HEADER_SIZE);
       VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, tibWord);
-      VM.sysWriteHex(VM_Magic.objectAsAddress(toObj));
-      VM.sysWrite("\n");
       return toObj;
     } else if (hashState == HASH_STATE_HASHED) {
-      VM.sysWrite("A_H: ");
-      VM.sysWriteHex(VM_Magic.objectAsAddress(fromObj));
-      VM.sysWriteHex(toAddress);
       int fromAddress = VM_Magic.objectAsAddress(fromObj) - ARRAY_HEADER_SIZE;
-      VM.sysWriteHex(numBytes);
-      VM.sysWriteHex(fromAddress);
-      VM_Memory.aligned32Copy(toAddress+4, fromAddress, numBytes-4); 
-      Object toObj = VM_Magic.addressAsObject(toAddress + ARRAY_HEADER_SIZE + 4);
+      VM_Memory.aligned32Copy(toAddress + HASHCODE_BYTES, fromAddress, numBytes - HASHCODE_BYTES); 
+      Object toObj = VM_Magic.addressAsObject(toAddress + ARRAY_HEADER_SIZE + HASHCODE_BYTES);
       VM_Magic.setIntAtOffset(toObj, HASHCODE_ARRAY_OFFSET, VM_Magic.objectAsAddress(fromObj));
       VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, tibWord | HASH_STATE_HASHED_AND_MOVED);
-      VM.sysWriteHex(VM_Magic.objectAsAddress(toObj));
-      VM.sysWrite("\n");
       return toObj;
-    } else { // HASHED_AND_MOVED
-      VM.sysWrite("A_M: ");
-      VM.sysWriteHex(VM_Magic.objectAsAddress(fromObj));
-      VM.sysWriteHex(toAddress);
-      int fromAddress = VM_Magic.objectAsAddress(fromObj) - ARRAY_HEADER_SIZE -4;
-      VM.sysWriteHex(numBytes);
-      VM.sysWriteHex(fromAddress);
+    } else { // HASHED_AND_MOVED: hash code to 'left' of array header
+      int fromAddress = VM_Magic.objectAsAddress(fromObj) - ARRAY_HEADER_SIZE - HASHCODE_BYTES;
       VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes); 
-      Object toObj = VM_Magic.addressAsObject(toAddress + ARRAY_HEADER_SIZE + 4);
+      Object toObj = VM_Magic.addressAsObject(toAddress + ARRAY_HEADER_SIZE + HASHCODE_BYTES);
       VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, tibWord);
-      VM.sysWriteHex(VM_Magic.objectAsAddress(toObj));
-      VM.sysWrite("\n");
       return toObj;
     }
   }

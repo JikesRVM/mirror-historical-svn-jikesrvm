@@ -24,7 +24,7 @@ public class VM_CommonAllocatorHeader implements VM_Uninterruptible {
 
   static final int GC_FORWARDING_MASK  = GC_MARK_BIT_MASK | GC_BARRIER_BIT_MASK;
   static final int GC_BEING_FORWARDED  = GC_BARRIER_BIT_MASK | VM_Collector.MARK_VALUE;
-  static final int GC_FORWARDED        = VM_Collector.MARK_VALUE;
+  static final int GC_FORWARDED        = GC_BARRIER_BIT_MASK;
 
   /**
    * How many available bits does the GC header want to use?
@@ -121,8 +121,7 @@ public class VM_CommonAllocatorHeader implements VM_Uninterruptible {
     int oldValue;
     do {
       oldValue = VM_ObjectModel.prepareAvailableBits(base);
-      int markBit = oldValue & GC_MARK_BIT_MASK;
-      if (markBit == VM_Collector.MARK_VALUE) return oldValue;
+      if ((oldValue & GC_FORWARDING_MASK) == GC_FORWARDED) return oldValue;
     } while (!VM_ObjectModel.attemptAvailableBits(base, oldValue, oldValue | GC_BEING_FORWARDED));
     return oldValue;
   }

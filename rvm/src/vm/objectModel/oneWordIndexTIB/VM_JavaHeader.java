@@ -60,9 +60,15 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    * Get the TIB for an object.
    */
   public static Object[] getTIB(Object o) { 
-    VM_Magic.pragmaInline();
-    int tibWord = VM_Magic.getIntAtOffset(o,TIB_OFFSET) & TIB_MASK;
-    int offset = tibWord >>> (TIB_SHIFT - 2);
+    int tibWord = VM_Magic.getIntAtOffset(o,TIB_OFFSET);
+    if (VM_Collector.MOVES_OBJECTS) {
+      int fmask = tibWord & VM_AllocatorHeader.GC_FORWARDING_MASK;
+      if (fmask != 0 && fmask == VM_AllocatorHeader.GC_FORWARDED) {
+	int forwardPtr = tibWord & ~VM_AllocatorHeader.GC_FORWARDING_MASK;
+	tibWord = VM_Magic.getIntAtOffset(VM_Magic.addressAsObject(forwardPtr), TIB_OFFSET);
+      }
+    }      
+    int offset = (tibWord & TIB_MASK) >>> (TIB_SHIFT - 2);
     return VM_Magic.addressAsObjectArray(VM_Magic.getMemoryWord(VM_Magic.getTocPointer() + offset));
   }
   
@@ -102,15 +108,23 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    * @param address address of the object
    */
   public static ADDRESS getTIB(JDPServiceInterface jdpService, ADDRESS ptr) {
-    int tibWord = jdpService.readMemory(ptr + TIB_OFFSET) & TIB_MASK;
-    int tibIndex = tibWord >>> TIB_SHIFT;
-    return jdpService.readJTOCSlot(tibIndex);
+    int tibWord = jdpService.readMemory(ptr + TIB_OFFSET);
+    if (VM_Collector.MOVES_OBJECTS) {
+      int fmask = tibWord & VM_AllocatorHeader.GC_FORWARDING_MASK;
+      if (fmask != 0 && fmask == VM_AllocatorHeader.GC_FORWARDED) {
+	int forwardPtr = tibWord & ~VM_AllocatorHeader.GC_FORWARDING_MASK;
+	tibWord = jdpService.readMemory(forwardPtr + TIB_OFFSET);
+      }
+    }      
+    int index = (tibWord & TIB_MASK) >>> TIB_SHIFT;
+    return jdpService.readJTOCSlot(index);
   }
 
   /**
    * The following method will emit code that moves a reference to an
    * object's TIB into a destination register.
-   *
+   * DANGER: this function destroys R0 if VM_Collector.MOVES_OBJECTS !!!!
+   *         
    * @param asm the assembler object to emit code with
    * @param dest the number of the destination register
    * @param object the number of the register holding the object reference
@@ -121,15 +135,42 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
     if (VM.VerifyAssertions) VM.assert(TIB_SHIFT == 2);
     int ME = 31 - TIB_SHIFT;
     int MB = HASH_STATE_BITS;
-    asm.emitL(dest, TIB_OFFSET, object);
-    // The following clears the high and low-order bits. See p.119 of PowerPC book
-    // Because TIB_SHIFT is 2 the masked value is a JTOC offset.
-    asm.emitRLWINM(dest, dest, 0, MB, ME);
-    asm.emitLX(dest,JTOC,dest);
+    if (VM_Collector.MOVES_OBJECTS) {
+      if (VM.VerifyAssertions) {
+	VM.assert(dest != 0);
+	VM.assert(VM_AllocatorHeader.GC_FORWARDING_MASK == 0x00000003);
+	VM.assert(VM_AllocatorHeader.GC_FORWARDED != VM_Collector.MARK_VALUE);
+      }
+      // The collector may have laid down a forwarding pointer 
+      // in place of the TIB word.  Check for this fringe case
+      // and handle it by following the forwarding pointer to
+      // find the TIB.
+      asm.emitL   (dest, TIB_OFFSET, object);
+      asm.emitANDI(0, dest, VM_AllocatorHeader.GC_FORWARDING_MASK);
+      asm.emitBEQ (5);  // if dest & FORWARDING_MASK == 0; then dest has a valid tib index
+      asm.emitCMPI(0, VM_AllocatorHeader.GC_FORWARDED);
+      // Two cases: (1) the pointer is forwarded or being forwarded
+      //            (2) the pointer is to a bootimage object that has been marked
+      asm.emitBNE (3); 
+      // It really has been forwarded; chase the forwarding pointer and get the tib word from there.
+      asm.emitRLWINM(dest, dest, 0, 0, 29);    // mask out bottom two bits of forwarding pointer
+      asm.emitL     (dest, TIB_OFFSET, dest); // get TIB word from forwarded object
+      // The following clears the high and low-order bits. See p.119 of PowerPC book
+      // Because TIB_SHIFT is 2 the masked value is a JTOC offset.
+      asm.emitRLWINM(dest, dest, 0, MB, ME);
+      asm.emitLX(dest,JTOC,dest);
+    } else {
+      asm.emitL(dest, TIB_OFFSET, object);
+      // The following clears the high and low-order bits. See p.119 of PowerPC book
+      // Because TIB_SHIFT is 2 the masked value is a JTOC offset.
+      asm.emitRLWINM(dest, dest, 0, MB, ME);
+      asm.emitLX(dest,JTOC,dest);
+    }
   }
   //-#elif RVM_FOR_IA32
   public static void baselineEmitLoadTIB(VM_Assembler asm, byte dest, 
                                          byte object) {
+    VM.assert(false, "update for forwarding ptrs!");
     if (VM.VerifyAssertions) VM.assert(TIB_SHIFT == 2);
     asm.emitMOV_Reg_RegDisp(dest, object, TIB_OFFSET);
     asm.emitAND_Reg_Imm(dest,TIB_MASK);
