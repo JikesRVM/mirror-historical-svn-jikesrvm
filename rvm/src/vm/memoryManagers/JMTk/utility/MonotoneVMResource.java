@@ -60,6 +60,7 @@ public class MonotoneVMResource extends VMResource implements Constants {
       VM_Address oldCursor = cursor;
       cursor = tmpCursor;
       LazyMmapper.ensureMapped(oldCursor, blockRequest);
+      Memory.zero(oldCursor, bytes);
       return oldCursor;
     }
   }

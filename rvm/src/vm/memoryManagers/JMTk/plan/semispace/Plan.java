@@ -160,15 +160,13 @@ public final class Plan extends BasePlan { // implements Constants
    *
    */
 
-  public void poll() {
+  public void poll(boolean mustCollect) {
     if (gcInProgress) return;
-    if (getBlocksReserved() > getHeapBlocks()) {
+    if (mustCollect || getBlocksReserved() > getHeapBlocks()) {
       VM.sysWriteln("ss reserveBlocks = ", ssMR.reservedBlocks());
       VM.sysWriteln("los reserveBlocks = ", losMR.reservedBlocks());
       VM.sysWriteln("imm reserveBlocks = ", immortalMR.reservedBlocks());
       VM.sysWriteln("heapBlocks = ", getHeapBlocks());
-      VM.sysWriteln("XXX incrementnig gccount here");
-      gcCount++;
       VM_Interface.triggerCollection();
     }
   }
@@ -198,8 +196,6 @@ public final class Plan extends BasePlan { // implements Constants
    */
   public VM_Address traceObject(VM_Address obj) {
     VM_Address addr = VM_Interface.refToAddress(obj);
-    if (VM_Magic.objectAsAddress(VM_Scheduler.threads).EQ(obj))
-      VM.sysWriteln("XXX traceObject got value (VM_Sched.threads) ");
     if (addr.LE(HEAP_END)) {
       if (addr.GE(SS_START)) {
 	if (hi) {
@@ -239,13 +235,11 @@ public final class Plan extends BasePlan { // implements Constants
    * Perform a collection.
    */
   public void collect () {
-    VM.sysWriteln("VM_Scheduler.threads = ", VM_Magic.objectAsAddress(VM_Scheduler.threads));
-    VM_Thread.dumpAll(1);
+    // VM.sysWriteln("VM_Scheduler.threads = ", VM_Magic.objectAsAddress(VM_Scheduler.threads)); VM_Thread.dumpAll(1);
     prepare();
     super.collect();
     release();
-    VM.sysWriteln("VM_Scheduler.threads = ", VM_Magic.objectAsAddress(VM_Scheduler.threads));
-    VM_Thread.dumpAll(1);
+    // VM.sysWriteln("VM_Scheduler.threads = ", VM_Magic.objectAsAddress(VM_Scheduler.threads)); VM_Thread.dumpAll(1);
   }
 
   public static final long freeMemory() throws VM_PragmaUninterruptible {
@@ -289,45 +283,37 @@ public final class Plan extends BasePlan { // implements Constants
   /**
    * Prepare for a collection.  In this case, it means flipping
    * semi-spaces and preparing each of the collectors.
+   * Called by BasePlan which will make sure only one thread executes this.
    */
-  private void prepare() {
-    SynchronizationBarrier barrier = VM_CollectorThread.gcBarrier;
-    int id = barrier.rendezvous();
-    if (id == 1) {
-      gcInProgress = true;
-      gcCount++;
-      hi = !hi;       // flip the semi-spaces
-      ssMR.release();    // reset the semispace memory resource, and
-      // rebind the semispace bump pointer to the appropriate semispace.
-      ss.rebind(((hi) ? ss1VM : ss0VM)); 
-      // prepare each of the collected regions
-      Copy.prepare(((hi) ? ss0VM : ss1VM), ssMR);
-      losVM.prepare(losVM, losMR);
-      Immortal.prepare(immortalVM, null);
-      VM_Interface.prepareNonParticipating(); 
-    }
-    VM_Interface.prepareParticipating();
-    barrier.rendezvous();
+  protected void singlePrepare() {
+    hi = !hi;          // flip the semi-spaces
+    ssMR.release();    // reset the semispace memory resource, and
+    // prepare each of the collected regions
+    Copy.prepare(((hi) ? ss0VM : ss1VM), ssMR);
+    losVM.prepare(losVM, losMR);
+    Immortal.prepare(immortalVM, null);
   }
 
+  protected void allPrepare() {
+    // rebind the semispace bump pointer to the appropriate semispace.
+    ss.rebind(((hi) ? ss1VM : ss0VM)); 
+  }
+
+  /* We reset the state for a GC thread that is not participating in this GC
+   */
   public void prepareNonParticipating() {
+    allPrepare();
     VM.sysWriteln("Plan.prepareNonParticipating not implemented - FIXME");
   }
 
   /**
    * Clean up after a collection.
    */
-  private void release() {
-    SynchronizationBarrier barrier = VM_CollectorThread.gcBarrier;
-    int id = barrier.rendezvous();
-    if (id == 1) {
-      // release each of the collected regions
-      Copy.release(((hi) ? ss0VM : ss1VM), ssMR);
-      losVM.release(losVM, losMR); 
-      Immortal.release(immortalVM, null);
-      gcInProgress = false;
-    }
-    barrier.rendezvous();
+  protected void singleRelease() {
+    // release each of the collected regions
+    Copy.release(((hi) ? ss0VM : ss1VM), ssMR);
+    losVM.release(losVM, losMR); 
+    Immortal.release(immortalVM, null);
   }
 
   ////////////////////////////////////////////////////////////////////////////

@@ -1594,6 +1594,9 @@ function emitImageLinker
    print "   print '[Lcom/ibm/JikesRVM/memoryManagers/watson/VM_Heap;' >> $PRIMORDIAL_CLASSES_STR"
    print "   print '[Lcom/ibm/JikesRVM/memoryManagers/watson/VM_SizeControl;'                >> $PRIMORDIAL_CLASSES_STR"
    fi
+   if (( RVM_WITH_JIKESRVM_MEMORY_MANAGERS )); then
+   print "   print '[Lcom/ibm/JikesRVM/memoryManagers/JMTk/VMResource;'                      >> $PRIMORDIAL_CLASSES_STR"
+   fi
    print "   print '[Ljava/lang/Object;'              >> $PRIMORDIAL_CLASSES_STR"
    print "   print '[[Ljava/lang/Object;'             >> $PRIMORDIAL_CLASSES_STR"
    print "   print '[Ljava/lang/String;'              >> $PRIMORDIAL_CLASSES_STR"

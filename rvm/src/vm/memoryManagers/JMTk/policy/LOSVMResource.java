@@ -86,13 +86,14 @@ public class LOSVMResource extends MonotoneVMResource implements Constants {
   protected VM_Address alloc (boolean isScalar, int size) throws VM_PragmaUninterruptible {
 
     if (allocated == null) setup();  // not a good way to do it XXXXXX
-    int count = 0;
-    while (true) {
+
+    for (int count=0; ; count++) {
+
+      spaceLock.lock();
 
       int num_pages = (size + (pageSize - 1)) / pageSize;    // Number of pages needed
       int last_possible = totalPages - num_pages;
 
-      spaceLock.lock();
       while (allocated[lastAllocated] != 0) 
 	lastAllocated += allocated[lastAllocated];
       int first_free = lastAllocated;
@@ -125,7 +126,7 @@ public class LOSVMResource extends MonotoneVMResource implements Constants {
 	    VM_Address newArea = acquire(blocks);
 	    if (VM.VerifyAssertions) VM._assert(resultEnd.LE(cursor));
 	  }
-	  VM_Memory.zero(result, resultEnd);
+	  Memory.zero(result, resultEnd);
 	  return result;
 	} else {  
 	  // free area did not contain enough contig. pages
@@ -134,13 +135,11 @@ public class LOSVMResource extends MonotoneVMResource implements Constants {
 	    first_free += allocated[first_free];
 	}
       }
-      spaceLock.release();  //release lock: won't keep change to large_last_alloc'd
 
-      // Couldn't find space; inform allocator (which will either trigger GC or 
-      // throw out of memory exception)
-      // VM_Allocator.heapExhausted(this, size, count++);
-      VM.sysFail("LOSVMResource: out of memory");
+      spaceLock.release();  //release lock: won't keep change to large_last_alloc'd
+      VM_Interface.getPlan().poll(true);
     }
+
   }
 
 

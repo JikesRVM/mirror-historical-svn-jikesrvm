@@ -9,6 +9,7 @@ import com.ibm.JikesRVM.memoryManagers.JMTk.VMResource;
 import com.ibm.JikesRVM.memoryManagers.JMTk.Plan;
 
 import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Entrypoints;
 import com.ibm.JikesRVM.VM_Scheduler;
 import com.ibm.JikesRVM.VM_Thread;
 import com.ibm.JikesRVM.VM_Method;
@@ -100,6 +101,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     tibForClassType = VM_ObjectModel.getTIB(t);
     Plan.boot();
     Statistics.boot();
+    synchronizedCounterOffset = VM_Entrypoints.synchronizedCounterField.getOffset();
   }
 
   /**
@@ -319,6 +321,8 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     return Plan.isLive(obj);
   }
 
+  // The collector threads of processors currently running threads off in JNI-land cannot run.
+  //
   public static void prepareNonParticipating() {
     // include NativeDaemonProcessor in following loop over processors
     for (int i = 1; i <= VM_Scheduler.numProcessors+1; i++) {
@@ -343,10 +347,10 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   private static VM_Atom collectorThreadAtom = VM_Atom.findOrCreateAsciiAtom("Lcom/ibm/JikesRVM/memoryManagers/vmInterface/VM_CollectorThread;");
   private static VM_Atom runAtom = VM_Atom.findOrCreateAsciiAtom("run");
 
-  public static void prepareParticipating() {
-    // Set collector thread's so that a scan of its stack
+    // Set a collector thread's so that a scan of its stack
     // will start at VM_CollectorThread.run
     //
+  public static void prepareParticipating() {
     VM_Thread t = VM_Thread.getCurrentThread();
     VM_Address fp = VM_Magic.getFramePointer();
     while (true) {
@@ -598,6 +602,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     }
   }
 
+  public static int synchronizedCounterOffset = -1;
 
 
 }

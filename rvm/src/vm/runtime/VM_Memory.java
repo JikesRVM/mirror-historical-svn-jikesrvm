@@ -241,7 +241,7 @@ public class VM_Memory implements VM_Uninterruptible {
   }
 
   // temporary different name
-  public static void zeroTemp(VM_Address start, int len) {
+  public static void zero(VM_Address start, int len) {
     VM_BootRecord bootRecord = VM_BootRecord.the_boot_record;
     VM.sysCall2(bootRecord.sysZeroIP, start.toInt(), len);
   }

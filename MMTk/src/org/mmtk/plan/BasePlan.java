@@ -7,6 +7,7 @@
 package com.ibm.JikesRVM.memoryManagers.JMTk;
 
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_CollectorThread;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.WorkQueue;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.AddressSet;
@@ -15,6 +16,7 @@ import com.ibm.JikesRVM.memoryManagers.vmInterface.AddressTripleSet;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.ScanObject;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.ScanThread;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.ScanStatics;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.SynchronizationBarrier;
 
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Address;
@@ -63,12 +65,54 @@ public abstract class BasePlan implements Constants {
   }
 
   protected static boolean gcInProgress = false;    // This flag should be turned on/off by subclasses.
-  public static int gcCount = 0;
+  protected static int gcCount = 0;
 
   static public boolean gcInProgress() {
     return gcInProgress;
   }
 
+  static public int gcCount() {
+    return gcCount;
+  }
+
+  /**
+   * Prepare for a collection.  In this case, it means flipping
+   * semi-spaces and preparing each of the collectors.
+   */
+  protected final void prepare() {
+    SynchronizationBarrier barrier = VM_CollectorThread.gcBarrier;
+    int id = barrier.rendezvous();
+    if (id == 1) {
+      gcInProgress = true;
+      gcCount++;
+      singlePrepare();
+      resetComputeRoots();
+      VM_Interface.prepareNonParticipating(); // The will fix collector threads that are not participating in thie GC.
+    }
+    VM_Interface.prepareParticipating();      // Every thread that is participating needs to adjust its context registers.
+    barrier.rendezvous();
+    allPrepare();
+  }
+
+  protected final void release() {
+    SynchronizationBarrier barrier = VM_CollectorThread.gcBarrier;
+    int id = barrier.rendezvous();
+    if (id == 1) {
+      singleRelease();
+      gcInProgress = false;
+    }
+    barrier.rendezvous();
+  }
+
+  abstract protected void singlePrepare();
+  abstract protected void allPrepare();
+  abstract protected void singleRelease();
+
+  SynchronizedCounter threadCounter = new SynchronizedCounter();
+
+  private void resetComputeRoots() {
+    threadCounter.reset();
+  }
 
   private void computeRoots() {
 
@@ -76,11 +120,11 @@ public abstract class BasePlan implements Constants {
 
     ScanStatics.scanStatics(locations);
 
-    VM.sysWriteln("XXXXXX scanThread not parallelized yet");
-    for (int i=0; i<VM_Scheduler.threads.length; i++) {
-      VM_Thread th = VM_Scheduler.threads[i];
+    while (true) {
+      int threadIndex = threadCounter.increment();
+      if (threadIndex >= VM_Scheduler.threads.length) break;
+      VM_Thread th = VM_Scheduler.threads[threadIndex];
       if (th == null) continue;
-      // VM.sysWriteln("\n\nscanning thread ", i); th.dump();
       // See comment of ScanThread.scanThread
       VM_Thread th2 = (VM_Thread) VM_Magic.addressAsObject(traceObject(VM_Magic.objectAsAddress(th)));
       traceObject(VM_Magic.objectAsAddress(th.stack));
@@ -111,19 +155,14 @@ public static boolean match = false;
   private void processAllWork() {
 
     while (true) {
-      VM.sysWriteln("popping values   sz = ", values.size());
       while (!values.isEmpty()) {
 	VM_Address v = values.pop();
-	boolean match = VM_Magic.objectAsAddress(VM_Scheduler.threads).EQ(v);
-	if (match) VM.sysWriteln("XXX processing VALUE (VM_Sched.threads) ");
 	ScanObject.scan(v);  // NOT traceObject
       }
-      VM.sysWriteln("popping locs");
       while (!locations.isEmpty()) {
 	VM_Address loc = locations.pop();
 	traceObjectLocation(loc);
       }
-VM.sysWriteln("popping interiorLocs");      
       while (!interiorLocations.isEmpty()) {
 	VM_Address obj = interiorLocations.pop1();
 	VM_Address interiorLoc = interiorLocations.pop2();

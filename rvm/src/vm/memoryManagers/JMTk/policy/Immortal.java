@@ -89,8 +89,6 @@ final class Immortal extends BasePolicy implements Constants {
    */
 
   public static VM_Address traceObject(VM_Address object) {
-    if (VM_Magic.objectAsAddress(VM_Scheduler.threads).EQ(object))
-      VM.sysWriteln("XXX traceobject got value (VM_Sched.threads) ");
     if (testAndMark(object, immortalMarkState)) 
       VM_Interface.getPlan().enqueue(object);
     return object;

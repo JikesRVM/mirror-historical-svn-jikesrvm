@@ -89,7 +89,7 @@ final class MemoryResource implements Constants {
     lock();
     reserved += blocks;
     if ((committed + blocks) > budget)
-      VM_Interface.getPlan().poll();
+      VM_Interface.getPlan().poll(false);
     committed += blocks;
     unlock();
   }

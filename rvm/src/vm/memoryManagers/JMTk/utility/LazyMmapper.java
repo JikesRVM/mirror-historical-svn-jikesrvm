@@ -31,7 +31,7 @@ public final class LazyMmapper implements Constants, VM_Uninterruptible {
   //
   //
 
-  public static boolean verbose = true;
+  public static boolean verbose = false;
 
   public static void ensureMapped(VM_Address start, int blocks) {
     int startChunk = Conversions.addressToMmapChunks(start);       // round down

@@ -30,4 +30,12 @@ public class Memory {
     return true;
   }
 
+  static void zero(VM_Address start, VM_Address end) {
+    VM_Memory.zero(start, end);
+  }
+
+  static void zero(VM_Address start, int len) {
+    VM_Memory.zero(start, len);
+  }
+
 }

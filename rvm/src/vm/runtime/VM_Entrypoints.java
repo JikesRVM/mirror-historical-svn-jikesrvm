@@ -144,6 +144,7 @@ public class VM_Entrypoints implements VM_Constants {
 
   //-#if RVM_WITH_JMTK
   public static final VM_Field lockField = getField("Lcom/ibm/JikesRVM/memoryManagers/JMTk/Lock;", "lock","I");
+  public static final VM_Field synchronizedCounterField = getField("Lcom/ibm/JikesRVM/memoryManagers/JMTk/SynchronizedCounter;", "count", "I");
   //-#endif
 
   //-#if RVM_WITH_JIKESRVM_MEMORY_MANAGERS
