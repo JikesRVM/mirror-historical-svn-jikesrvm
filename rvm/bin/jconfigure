@@ -328,6 +328,11 @@ integer RVM_WITH_BASE_RUNTIME_COMPILER=0
 integer RVM_WITH_OPT_RUNTIME_COMPILER=0
 integer RVM_WITH_ADAPTIVE_RUNTIME_SYSTEM=0
 
+# Here are the choices for the object model
+#
+integer RVM_WITH_DEFAULT_OBJECT_MODEL=1
+integer RVM_WITH_SOME_OTHER_OBJECT_MODEL=0
+
 # Here are the choices for additional components that are under development and/or are excluded from default build.
 #
 integer RVM_FOR_SINGLE_VIRTUAL_PROCESSOR=0   # use pThread library to access multiple CPU's (or not)
