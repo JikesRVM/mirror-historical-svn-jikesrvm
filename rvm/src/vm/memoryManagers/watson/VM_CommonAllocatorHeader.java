@@ -142,6 +142,13 @@ public class VM_CommonAllocatorHeader implements VM_Uninterruptible {
   }
 
   /**
+   * Has the object been forwarded?
+   */
+  static boolean isBeingForwarded(Object base) {
+    return stateIsBeingForwarded(getForwardingWord(base));
+  }
+
+  /**
    * is the state of the forwarding word forwarded?
    */
   static boolean stateIsForwarded(int fw) {
