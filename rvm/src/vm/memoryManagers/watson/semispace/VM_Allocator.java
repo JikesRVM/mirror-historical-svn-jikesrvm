@@ -2389,6 +2389,7 @@ public class VM_Allocator
   }
 
     
+  //-#if RVM_WITH_ONE_WORD_MASK_OBJECT_MODEL
   static Object[] newTIB (int n) {
       if (! VM.runningVM)
 	  return new Object[n];
@@ -2403,6 +2404,7 @@ public class VM_Allocator
       if (VM.VerifyAssertions) VM.assert((VM_Magic.objectAsAddress(newtib) & (VM_JavaHeader.TIB_ALIGNMENT-1)) == 0);
       return newtib;
   }
+  //-#endif
 
 
   /**

@@ -32,9 +32,14 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
 {
 
   /**
-   * The number of low-order-bits of TIB that must be zero.
+   * The number of low-order-bits of TIB pointer that must be zero.
    */
-  static final int LOG_TIB_ALIGNMENT = NUM_AVAILABLE_BITS + HASH_STATE_BITS; // COUNTERINTUITIVE - FIX LATER
+  static final int LOG_TIB_ALIGNMENT = NUM_AVAILABLE_BITS + HASH_STATE_BITS <= 2 ? 2 : NUM_AVAILABLE_BITS + HASH_STATE_BITS;
+
+  /**
+   * The byte alignment of a TIB pointer.
+   */
+  static final int TIB_ALIGNMENT = 1 << LOG_TIB_ALIGNMENT;
 
   /**
    * The mask that defines the TIB value in the one-word header.
