@@ -1,3 +1,0 @@
-BaseBaseSemiSpace -test-list small-sanity-tests
-BaseAdaptiveSemiSpace -test-list small-sanity-tests
-BaseOptSemiSpace -use-opt-levels "O0 O1 O2" -test-list small-sanity-tests
