@@ -52,19 +52,21 @@ public final class FreeListVMResource extends VMResource implements Constants, V
    * zero on failure.
    */
   public final VM_Address acquire(int pages, MemoryResource mr) {
-    lock();
+    if (VM.VerifyAssertions)
+      VM._assert(mr != null);
+
     pagetotal += pages;
-    mr.acquire(pages);
+    while (!mr.acquire(pages));
+    lock();
     int page = freeList.alloc(pages);
-    if (page == -1) {
-      // FIXME Is this really how we want to deal with failure?
-      return VM_Address.zero();
-    }
     unlock();
+    if (VM.VerifyAssertions)
+      VM._assert(page != -1);
     VM_Address rtn = start.add(Conversions.pagesToBytes(page));
     LazyMmapper.ensureMapped(rtn, Conversions.pagesToBlocks(pages));
     return rtn;
   }
+
   public VM_Address acquire(int request) {
     VM._assert(false);
     return VM_Address.zero();
