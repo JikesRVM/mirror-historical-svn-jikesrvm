@@ -3117,8 +3117,14 @@ public class VM_Allocator
       }
 
 
+    // MASSIVE KLUDGE UNTIL WE GET PERRY'S FIXES FOR MALLOCED HEAP.
+    //-#if RVM_FOR_AIX
       static final int mallocHeapStartAddress = 0x20000000;
       static final int mallocHeapEndAddress   = 0x30000000;
+    //-#else
+      static final int mallocHeapStartAddress = 0x08000000;
+      static final int mallocHeapEndAddress   = 0x10000000;
+    //-#endif
 
       static boolean referenceInMallocedStorage (int objptr) {
 	  return addressInMallocedStorage(VM_ObjectModel.getPointerInMemoryRegion(objptr));
