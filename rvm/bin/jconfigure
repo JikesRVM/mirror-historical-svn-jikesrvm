@@ -935,8 +935,8 @@ function emitController () {
 	    # exit message than the default one.
 	    . ${RVM_BUILD}/disable_exit_on_error
 	    "$@"
-	    . ${RVM_BUILD}/enable_exit_on_error
 	    local status=$?
+	    . ${RVM_BUILD}/enable_exit_on_error
 	    echo "$SECONDS s"
 	    if [ $status != 0 ]; then
 		echo >&2 "$ME: Trouble while running \"$*\" (exit status $status); aborting execution"
