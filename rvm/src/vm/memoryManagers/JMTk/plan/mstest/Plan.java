@@ -47,6 +47,73 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   // remsets.
   //
 
+  public static void boot()
+    throws VM_PragmaInterruptible {
+    BasePlan.boot();
+  }
+
+  /**
+   * Trace a reference during GC.  This involves determining which
+   * collection policy applies and calling the appropriate
+   * <code>trace</code> method.
+   *
+   * @param obj The object reference to be traced.  This is <i>NOT</i> an
+   * interior pointer.
+   * @return The possibly moved reference.
+   */
+  public static VM_Address traceObject(VM_Address obj) {
+    VM_Address addr = VM_Interface.refToAddress(obj);
+    if (addr.LE(HEAP_END)) {
+      if (addr.GE(MS_START))
+	return msCollector.traceObject(obj);
+      else if (addr.GE(IMMORTAL_START))
+	return Immortal.traceObject(obj);
+    } // else this is not a heap pointer
+    return obj;
+  }
+
+  public static boolean isLive(VM_Address obj) {
+    VM_Address addr = VM_ObjectModel.getPointerInMemoryRegion(obj);
+    if (addr.LE(HEAP_END)) {
+      if (addr.GE(MS_START))
+	return msCollector.isLive(obj);
+      else if (addr.GE(IMMORTAL_START))
+	return true;
+    } 
+    return false;
+  }
+
+  public static void showPlans() {
+    for (int i=0; i<VM_Scheduler.processors.length; i++) {
+      VM_Processor p = VM_Scheduler.processors[i];
+      if (p == null) continue;
+      VM.sysWrite(i, ": ");
+      p.mmPlan.show();
+    }
+  }
+
+  public static void showUsage() {
+      VM.sysWrite("used blocks = ", getBlocksUsed());
+      VM.sysWrite(" ("); VM.sysWrite(Conversions.blocksToBytes(getBlocksUsed()) >> 20, " Mb) ");
+      VM.sysWrite("= (ms) ", msMR.reservedPages());  
+      VM.sysWriteln(" + (imm) ", immortalMR.reservedBlocks());
+  }
+
+  public static int getInitialHeaderValue(int size) {
+    return msCollector.getInitialHeaderValue(size);
+  }
+
+  public static final long freeMemory() throws VM_PragmaUninterruptible {
+    return totalMemory() - usedMemory();
+  }
+
+  public static final long usedMemory() throws VM_PragmaUninterruptible {
+    return Conversions.blocksToBytes(getBlocksUsed());
+  }
+
+  public static final long totalMemory() throws VM_PragmaUninterruptible {
+    return Conversions.blocksToBytes(getBlocksAvail());
+  }
 
   ////////////////////////////////////////////////////////////////////////////
   //
@@ -65,14 +132,8 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    */
   public Plan() {
     id = count++;
-    ss = new MarkSweepAllocator(msCollector);
-    los = new LOSPointer(losVM, losMR);
+    ms = new MarkSweepAllocator(msCollector);
     immortal = new BumpPointer(immortalVM);
-  }
-
-  static public void boot() throws VM_PragmaInterruptible {
-    BasePlan.boot();
-    losVM.setup();
   }
 
   /**
@@ -84,55 +145,26 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    * @param advice Statically-generated allocation advice for this allocation
    * @return The address of the first byte of the allocated region
    */
-  public VM_Address alloc(EXTENT bytes, boolean isScalar, int allocator, AllocAdvice advice) throws VM_PragmaInline {
-    if (VM.VerifyAssertions) VM._assert(bytes == (bytes & (~3)));
-    if (allocator == SS_ALLOCATOR && bytes > LOS_SIZE_THRESHOLD) allocator = LOS_ALLOCATOR;
+  public final VM_Address alloc(EXTENT bytes, boolean isScalar, int allocator, 
+				AllocAdvice advice)
+    throws VM_PragmaInline {
+    if (VM.VerifyAssertions) VM._assert(bytes == (bytes & (~(WORD_SIZE-1))));
     VM_Address region;
-    // if (gcCount > 1) VM.sysWrite("alloc called");
     switch (allocator) {
-      case       SS_ALLOCATOR: region = ss.alloc(isScalar, bytes); break;
+      case       MS_ALLOCATOR: region = ms.alloc(isScalar, bytes); break;
       case IMMORTAL_ALLOCATOR: region = immortal.alloc(isScalar, bytes); break;
-      case      LOS_ALLOCATOR: region = los.alloc(isScalar, bytes); break;
       default:                 region = VM_Address.zero(); VM.sysFail("No such allocator");
     }
-    // if (gcCount > 1) VM.sysWriteln ("  returning ", region);
     if (VM.VerifyAssertions) VM._assert(Memory.assertIsZeroed(region, bytes));
     return region;
   }
-
-  public void postAlloc(EXTENT bytes, Object obj, int allocator) throws VM_PragmaInline {
-    if (allocator == SS_ALLOCATOR && bytes > LOS_SIZE_THRESHOLD) allocator = LOS_ALLOCATOR;
-    switch (allocator) {
-      case       SS_ALLOCATOR: return;
-      case IMMORTAL_ALLOCATOR: return;
-      case      LOS_ALLOCATOR: los.postAlloc(obj); return;
-      default:                 VM.sysFail("No such allocator");
-    }
+  
+  public final void postAlloc(EXTENT bytes, Object obj, int allocator)
+    throws VM_PragmaInline {
   }
 
-  public void show() {
-    ss.show();
-  }
-
-  static public void showPlans() {
-    for (int i=0; i<VM_Scheduler.processors.length; i++) {
-      VM_Processor p = VM_Scheduler.processors[i];
-      if (p == null) continue;
-      VM.sysWrite(i, ": ");
-      p.mmPlan.show();
-    }
-  }
-
-  static public void showUsage() {
-      VM.sysWrite("used blocks = ", getBlocksUsed());
-      VM.sysWrite(" ("); VM.sysWrite(Conversions.blocksToBytes(getBlocksUsed()) >> 20, " Mb) ");
-      VM.sysWrite("= (ss) ", ssMR.reservedBlocks());  
-      VM.sysWrite(" + (los) ", losMR.reservedBlocks());
-      VM.sysWriteln(" + (imm) ", immortalMR.reservedBlocks());
-  }
-
-  public static int getInitialHeaderValue(int size) {
-    return msCollector.getInitialHeaderValue(size);
+  public final void show() {
+    ms.show();
   }
 
   /**
@@ -144,9 +176,10 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    * @param isScalar True if the object occupying this space will be a scalar
    * @return The address of the first byte of the allocated region
    */
-  public VM_Address allocCopy(VM_Address original, EXTENT bytes, boolean isScalar) throws VM_PragmaInline {
-    if (VM.VerifyAssertions) VM._assert(bytes < LOS_SIZE_THRESHOLD);
-    return ss.alloc(isScalar, bytes);
+  public final VM_Address allocCopy(VM_Address original, EXTENT bytes,
+				    boolean isScalar) throws VM_PragmaInline {
+    if (VM.VerifyAssertions) VM._assert(false);
+    return null;
   }
 
   /**
@@ -162,8 +195,9 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    * site should use.
    * @return The allocator number to be used for this allocation.
    */
-  public int getAllocator(Type type, EXTENT bytes, CallSite callsite, AllocAdvice hint) {
-    return (bytes >= LOS_SIZE_THRESHOLD) ? LOS_ALLOCATOR : SS_ALLOCATOR;
+  public final int getAllocator(Type type, EXTENT bytes, CallSite callsite,
+				AllocAdvice hint) {
+    return MS_ALLOCATOR;
   }
 
   /**
@@ -179,8 +213,9 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    * @return Allocation advice to be passed to the allocation routine
    * at runtime
    */
-  public AllocAdvice getAllocAdvice(Type type, EXTENT bytes,
-				    CallSite callsite, AllocAdvice hint) { 
+  public final AllocAdvice getAllocAdvice(Type type, EXTENT bytes,
+					  CallSite callsite,
+					  AllocAdvice hint) { 
     return null;
   }
 
@@ -205,7 +240,8 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    * @return Whether a collection is triggered
    */
 
-  public boolean poll(boolean mustCollect) throws VM_PragmaLogicallyUninterruptible {
+  public boolean poll(boolean mustCollect)
+    throws VM_PragmaLogicallyUninterruptible {
     if (gcInProgress) return false;
     if (mustCollect || getBlocksReserved() > getTotalBlocks()) {
       VM_Interface.triggerCollection();
@@ -214,57 +250,11 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
     return false;
   }
   
-   
-  public static boolean isLive(VM_Address obj) {
-    VM_Address addr = VM_ObjectModel.getPointerInMemoryRegion(obj);
-    if (addr.LE(HEAP_END)) {
-      if (addr.GE(SS_START))
-	return msCollector.isLive(obj);
-      else if (addr.GE(LOS_START))
-	return losVM.isLive(obj);
-      else if (addr.GE(IMMORTAL_START))
-	return true;
-    } 
-    return false;
-  }
-
   public final MarkSweepCollector getMS() {
     return msCollector;
   }
 
-  /**
-   * Trace a reference during GC.  This involves determining which
-   * collection policy applies and calling the appropriate
-   * <code>trace</code> method.
-   *
-   * @param obj The object reference to be traced.  This is <i>NOT</i> an
-   * interior pointer.
-   * @return The possibly moved reference.
-   */
-  public static VM_Address traceObject(VM_Address obj) {
-    VM_Address addr = VM_Interface.refToAddress(obj);
-    if (addr.LE(HEAP_END)) {
-      if (addr.GE(SS_START) && addr.LT(HIGH_SS_START))
-	return msCollector.traceObject(obj);
-      else if (addr.GE(LOS_START))
-	return losVM.traceObject(obj);
-      else if (addr.GE(IMMORTAL_START))
-	return Immortal.traceObject(obj);
-    } // else this is not a heap pointer
-    return obj;
-  }
-
-  public boolean hasMoved(VM_Address obj) {
-    VM_Address addr = VM_Interface.refToAddress(obj);
-    if (addr.LE(HEAP_END)) {
-      if (addr.GE(SS_START)) 
-	//	return (hi ? ss1VM : ss0VM).inRange(addr);
-	return true;
-      else if (addr.GE(LOS_START))
-	return true;
-      else if (addr.GE(IMMORTAL_START))
-	return true;
-    } 
+  public final boolean hasMoved(VM_Address obj) {
     return true;
   }
 
@@ -272,26 +262,22 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    * Perform a collection.
    */
   public void collect () {
+    VM.sysWrite("Collect(");
     prepare();
     super.collect();
     release();
+    VM.sysWrite(")\n");
   }
 
-  public static final long freeMemory() throws VM_PragmaUninterruptible {
-    return totalMemory() - usedMemory();
-  }
-
-  public static final long usedMemory() throws VM_PragmaUninterruptible {
-    return Conversions.blocksToBytes(getBlocksUsed());
-  }
-
-  public static final long totalMemory() throws VM_PragmaUninterruptible {
-    return Conversions.blocksToBytes(getBlocksAvail());
+  /* We reset the state for a GC thread that is not participating in this GC
+   */
+  public void prepareNonParticipating() {
+    allPrepare();
   }
 
   ////////////////////////////////////////////////////////////////////////////
   //
-  // Private methods
+  // Private class methods
   //
 
   /**
@@ -301,21 +287,14 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    */
   private static int getBlocksReserved() {
 
-    int blocks = ssMR.reservedBlocks();
-    // we must account for the worst case number of blocks required
-    // for copying, which equals the number of semi-space blocks in
-    // use plus a fudge factor which accounts for fragmentation
-    blocks += blocks + COPY_FUDGE_BLOCKS;
-    
-    blocks += losMR.reservedBlocks();
+    int blocks = Conversions.pagesToBlocks(msMR.reservedPages());
     blocks += immortalMR.reservedBlocks();
     return blocks;
   }
 
 
   private static int getBlocksUsed() {
-    int blocks = ssMR.reservedBlocks();
-    blocks += losMR.reservedBlocks();
+    int blocks = Conversions.pagesToBlocks(msMR.reservedPages());
     blocks += immortalMR.reservedBlocks();
     return blocks;
   }
@@ -323,14 +302,25 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   // Assuming all future allocation comes from semispace
   //
   private static int getBlocksAvail() {
-    int semispaceTotal = getTotalBlocks() - losMR.reservedBlocks() - immortalMR.reservedBlocks();
-    return (semispaceTotal / 2) - ssMR.reservedBlocks();
+    return getTotalBlocks() - msMR.reservedPages() - immortalMR.reservedBlocks();
   }
 
+  private static final String allocatorToString(int type) {
+    switch (type) {
+      case MS_ALLOCATOR: return "Semispace";
+      case IMMORTAL_ALLOCATOR: return "Immortal";
+      default: return "Unknown";
+   }
+  }
+
+  ////////////////////////////////////////////////////////////////////////////
+  //
+  // Private and protected instance methods
+  //
+
   /**
-   * Prepare for a collection.  In this case, it means flipping
-   * semi-spaces and preparing each of the collectors.
-   * Called by BasePlan which will make sure only one thread executes this.
+   * Prepare for a collection.  Called by BasePlan which will make
+   * sure only one thread executes this.
    */
   protected void singlePrepare() {
     if (verbose > 0) {
@@ -344,23 +334,11 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
       VM.sysWrite("  Before Collection: ");
       showUsage();
     }
-    msCollector.prepare(ssVM, ssMR);
-    //    ssMR.release();    // reset the semispace memory resource, and
-    // prepare each of the collected regions
-    //    Copy.prepare(((hi) ? ss0VM : ss1VM), ssMR);
-    losVM.prepare(losVM, losMR);
+    ms.prepare(msVM, msMR);
     Immortal.prepare(immortalVM, null);
   }
 
   protected void allPrepare() {
-    // rebind the semispace bump pointer to the appropriate semispace.
-    //    ss.rebind(((hi) ? ss1VM : ss0VM)); 
-  }
-
-  /* We reset the state for a GC thread that is not participating in this GC
-   */
-  public void prepareNonParticipating() {
-    allPrepare();
   }
 
   protected void allRelease() {
@@ -371,10 +349,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    */
   protected void singleRelease() {
     // release each of the collected regions
-    //    ((hi) ? ss0VM : ss1VM).release();
-    //    Copy.release(((hi) ? ss0VM : ss1VM), ssMR);
-    msCollector.release(ss);
-    losVM.release(losVM, losMR); 
+    msCollector.release(ms);
     Immortal.release(immortalVM, null);
     if (verbose > 0) {
       VM.sysWrite("   After Collection: ");
@@ -386,9 +361,8 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   //
   // Instance variables
   //
-  private MarkSweepAllocator ss;
+  private MarkSweepAllocator ms;
   private BumpPointer immortal;
-  private LOSPointer los;
   private int id;  
 
   ////////////////////////////////////////////////////////////////////////////
@@ -398,21 +372,15 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   // virtual memory regions
   private static MarkSweepCollector msCollector;
 
-  private static LOSVMResource losVM;
-  private static NewFreeListVMResource ssVM;
-  //  private static MonotoneVMResource ss1VM;
+  private static NewFreeListVMResource msVM;
   private static ImmortalVMResource immortalVM;
 
   // memory resources
-  private static MemoryResource ssMR;
-  private static MemoryResource losMR;
+  private static NewMemoryResource msMR;
   private static MemoryResource immortalMR;
 
   // GC state
   private int count = 0; // Number of plan instances in existence
-  private static boolean hi = false;   // If true, we are allocating from the "higher" semispace.
-
-
 
   //
   // Final class variables (aka constants)
@@ -425,32 +393,14 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   private static final VM_Address IMMORTAL_START = BOOT_START;
   private static final EXTENT      IMMORTAL_SIZE = BOOT_SIZE + 16 * 1024 * 1024;
   private static final VM_Address   IMMORTAL_END = IMMORTAL_START.add(IMMORTAL_SIZE);
-  private static final VM_Address      LOS_START = IMMORTAL_END;
-  private static final EXTENT           LOS_SIZE = 128 * 1024 * 1024;
-  private static final VM_Address        LOS_END = LOS_START.add(256 * 1024 * 1024);
-  private static final VM_Address       SS_START = LOS_END;
-  private static final EXTENT            SS_SIZE = 64 * 1024 * 1024;              // size of each space
-  private static final VM_Address   LOW_SS_START = SS_START;
-  private static final VM_Address  HIGH_SS_START = SS_START.add(SS_SIZE);
-  private static final VM_Address         SS_END = HIGH_SS_START.add(SS_SIZE);
-  private static final VM_Address       HEAP_END = SS_END;
-  private static final EXTENT LOS_SIZE_THRESHOLD = 16 * 1024;
-
-  private static final int COPY_FUDGE_BLOCKS = 1;  // Steve - fix this
+  private static final VM_Address       MS_START = IMMORTAL_END;
+  private static final EXTENT            MS_SIZE = 64 * 1024 * 1024;              // size of each space
+  private static final VM_Address         MS_END = MS_START.add(MS_SIZE);
+  private static final VM_Address       HEAP_END = MS_END;
 
   public static final int DEFAULT_ALLOCATOR = 0;
-  public static final int SS_ALLOCATOR = 0;
-  public static final int LOS_ALLOCATOR = 1;
-  public static final int IMMORTAL_ALLOCATOR = 2;
-
-  private static final String allocatorToString(int type) {
-    switch (type) {
-      case SS_ALLOCATOR: return "Semispace";
-      case LOS_ALLOCATOR: return "LOS";
-      case IMMORTAL_ALLOCATOR: return "Immortal";
-      default: return "Unknown";
-   }
-  }
+  public static final int MS_ALLOCATOR = 0;
+  public static final int IMMORTAL_ALLOCATOR = 1;
 
 
   /**
@@ -460,17 +410,15 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   static {
 
     // memory resources
-    ssMR = new MemoryResource();
-    losMR = new MemoryResource();
+    msMR = new NewMemoryResource();
     immortalMR = new MemoryResource();
 
     // virtual memory resources
-    ssVM      = new NewFreeListVMResource("MS",       LOW_SS_START,   SS_SIZE, VMResource.MOVABLE);
-    losVM      = new      LOSVMResource("LOS",      losMR,      LOS_START,      LOS_SIZE);
+    msVM       = new NewFreeListVMResource("MS",       MS_START,   MS_SIZE, VMResource.MOVABLE);
     immortalVM = new ImmortalVMResource("Immortal", immortalMR, IMMORTAL_START, IMMORTAL_SIZE, BOOT_END);
 
     // collectors
-    msCollector = new MarkSweepCollector(ssVM, ssMR);
+    msCollector = new MarkSweepCollector(msVM, msMR);
   }
 
 }

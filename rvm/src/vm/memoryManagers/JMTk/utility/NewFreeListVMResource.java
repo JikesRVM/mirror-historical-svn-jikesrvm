@@ -51,7 +51,7 @@ public final class NewFreeListVMResource extends VMResource implements Constants
    * @return The address of the start of the virtual memory region, or
    * zero on failure.
    */
-  public final VM_Address acquire(int pages, MemoryResource mr) {
+  public final VM_Address acquire(int pages, NewMemoryResource mr) {
     lock();
     mr.acquire(pages);
     int page = freeList.alloc(pages);
@@ -69,7 +69,7 @@ public final class NewFreeListVMResource extends VMResource implements Constants
     return VM_Address.zero();
   }
 
-  public final void release(VM_Address addr, MemoryResource mr) {
+  public final void release(VM_Address addr, NewMemoryResource mr) {
     lock();
     int offset = addr.diff(start).toInt();
     int page = Conversions.bytesToPages(offset);

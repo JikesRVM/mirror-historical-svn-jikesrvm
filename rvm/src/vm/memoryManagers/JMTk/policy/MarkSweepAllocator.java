@@ -32,7 +32,7 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
     treadmillLock = new Lock("MarkSweepAllocator.treadmillLock");
   }
 
-  public void prepare(VMResource vm, MemoryResource mr) { 
+  public final void prepare(VMResource vm, NewMemoryResource mr) { 
     treadmillToHead = VM_Address.zero();
     collector.prepare(vm, mr);
   }
@@ -59,21 +59,6 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
     treadmillToHead = VM_Address.zero();
   }
 
-  /**
-   * Return the number of pages used by a superpage of a given size
-   * class.
-   *
-   * @param sizeClass The size class of the superpage
-   * @return The number of pages used by a superpage of this sizeclass
-   */
-  protected final int pagesForClassSize(int sizeClass) 
-    throws VM_PragmaInline {
-    if (VM.VerifyAssertions) 
-      VM._assert(!isLarge(sizeClass));
-
-    return sizeClassPages[sizeClass];
-  }
-
   public final void setTreadmillFromHead(VM_Address cell)
     throws VM_PragmaInline {
     treadmillFromHead = cell;
@@ -98,6 +83,21 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
     throws VM_PragmaInline {
     treadmillLock.release();
   }
+  /**
+   * Return the number of pages used by a superpage of a given size
+   * class.
+   *
+   * @param sizeClass The size class of the superpage
+   * @return The number of pages used by a superpage of this sizeclass
+   */
+  protected final int pagesForClassSize(int sizeClass) 
+    throws VM_PragmaInline {
+    if (VM.VerifyAssertions) 
+      VM._assert(!isLarge(sizeClass));
+
+    return sizeClassPages[sizeClass];
+  }
+
   /**
    * Return the size of the per-superpage header required by this
    * system.  In this case it is just the underlying superpage header
@@ -264,7 +264,6 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
     
   }
   
-  private MarkSweepCollector collector;
 
   ////////////////////////////////////////////////////////////////////////////
   //
@@ -275,17 +274,19 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
 				    int szClass) {};
   protected final void postExpandSizeClass(VM_Address sp, int sizeClass) {};
   
+  private MarkSweepCollector collector;
+  private Lock treadmillLock;
+  private VM_Address treadmillFromHead;
+  private VM_Address treadmillToHead;
+  private static int cellSize[];
+  private static int sizeClassPages[];
+
   private static final int SMALL_BITMAP_SIZE = MarkSweepCollector.SMALL_BITMAP_SIZE;
   private static final int MID_BITMAP_SIZE = MarkSweepCollector.MID_BITMAP_SIZE;
   private static final int MAX_MID_OBJECTS = MarkSweepCollector.MAX_MID_OBJECTS;
   private static final int TREADMILL_HEADER_SIZE = MarkSweepCollector.TREADMILL_HEADER_SIZE;
 
   public static final int MAX_SMALL_SIZE = 512;  // statically verified below..
-  private Lock treadmillLock;
-  private VM_Address treadmillFromHead;
-  private VM_Address treadmillToHead;
-  private static int cellSize[];
-  private static int sizeClassPages[];
   static {
     cellSize = new int[SIZE_CLASSES];
     sizeClassPages = new int[SIZE_CLASSES];

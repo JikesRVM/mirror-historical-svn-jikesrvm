@@ -36,7 +36,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
    * @param vmr The virtual memory resource from which this bump
    * pointer will acquire virtual memory.
    */
-  MarkSweepCollector(NewFreeListVMResource vmr, MemoryResource mr) {
+  MarkSweepCollector(NewFreeListVMResource vmr, NewMemoryResource mr) {
     vmResource = vmr;
     memoryResource = mr;
     //    treadmillLock = new Lock("MarkSweep.treadmillLock");
@@ -56,7 +56,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
    * @param vm (unused)
    * @param mr (unused)
    */
-  public void prepare(VMResource vm, MemoryResource mr) { 
+  public void prepare(VMResource vm, NewMemoryResource mr) { 
     VM.sysWrite("prepare\n");
     markState = MarkSweepHeader.MARK_BIT_MASK - markState;
   }
@@ -120,7 +120,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
     return vmResource;
   }
 
-  public final MemoryResource getMemoryResource() 
+  public final NewMemoryResource getMemoryResource() 
     throws VM_PragmaInline {
     return memoryResource;
   }
@@ -437,7 +437,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   //
   private int markState;
   private NewFreeListVMResource vmResource;
-  private MemoryResource memoryResource;
+  private NewMemoryResource memoryResource;
 
   private static final int LOG_BITMAP_GRAIN = 3;
   //  private static final int LOG_BITMAP_GRAIN = 4;

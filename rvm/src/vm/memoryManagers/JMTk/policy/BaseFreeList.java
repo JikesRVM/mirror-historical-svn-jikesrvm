@@ -51,7 +51,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
    * @param vmr The virtual memory resource from which this bump
    * pointer will acquire virtual memory.
    */
-  BaseFreeList(NewFreeListVMResource vmr, MemoryResource mr) {
+  BaseFreeList(NewFreeListVMResource vmr, NewMemoryResource mr) {
     vmResource = vmr;
     memoryResource = mr;
     freeList = new VM_Address[SIZE_CLASSES];
@@ -77,7 +77,6 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
       cell = allocCell(isScalar, sizeClass);
     postAlloc(cell, isScalar, bytes, small, large);
     VM_Memory.zero(cell, bytes);
-//     VM.sysWrite("alloc: "); VM.sysWrite(bytes); VM.sysWrite("->"); VM.sysWrite(cell); VM.sysWrite("\n");
     return cell;
   }
 
@@ -157,9 +156,6 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
     // take off free list
     VM_Address cell = freeList[sizeClass];
     freeList[sizeClass] = getNextCell(cell);
-//     if (!isSmall(sizeClass)) {
-//       VM.sysWrite("a "); VM.sysWrite(cell); VM.sysWrite(" ("); VM.sysWrite(getSuperPage(cell, isSmall(sizeClass))); VM.sysWrite(")\n");
-//     }
 
     incInUse(getSuperPage(cell, sizeClass <= MAX_SMALL_SIZE_CLASS));
     return cell;
@@ -327,14 +323,14 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   /**
    * Get the size class for a given number of bytes.<p>
    *
-   * We use size classes based on a worst case fragmentation loss
-   * target of 1/8.  In fact, across sizes from 8 bytes to 512 the
-   * average worst case loss is 13.3%, giving an expected loss
-   * (assuming uniform distribution) of about 7%.  We avoid using
-   * the Lea class sizes because they were so numerous and therefore
+   * We use size classes based on a worst case internal fragmentation
+   * loss target of 1/8.  In fact, across sizes from 8 bytes to 512
+   * the average worst case loss is 13.3%, giving an expected loss
+   * (assuming uniform distribution) of about 7%.  We avoid using the
+   * Lea class sizes because they were so numerous and therefore
    * liable to lead to excessive inter-class-size fragmentation.<p>
    * 
-   * This routine may segregate arrays and scalars (currently it does
+   * This method may segregate arrays and scalars (currently it does
    * not).
    *
    * @param isScalar True if the object to occupy the allocated space
@@ -689,7 +685,8 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   }
 
   public static boolean isSmall(int sizeClass) {
-    return (sizeClass != LARGE_SIZE_CLASS) && (sizeClass <= MAX_SMALL_SIZE_CLASS);
+    return (sizeClass != LARGE_SIZE_CLASS) 
+      && (sizeClass <= MAX_SMALL_SIZE_CLASS);
   }
 
   public static boolean isLarge(int sizeClass) {
@@ -709,13 +706,12 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   private static final int IN_USE_WORD_OFFSET = PREV_SP_OFFSET;
   private static final int SIZE_CLASS_WORD_OFFSET = NEXT_SP_OFFSET;
   protected static final int BASE_SP_HEADER_SIZE = 2 * WORD_SIZE;
-  protected static final VM_Word PAGE_MASK = VM_Word.fromInt(~((1<<LOG_PAGE_SIZE) - 1));
-  private static final float MID_SIZE_FIT_TARGET = (float) 0.85; // 20% wastage
-
+  protected static final VM_Word PAGE_MASK = VM_Word.fromInt(~(PAGE_SIZE - 1));
+  private static final float MID_SIZE_FIT_TARGET = (float) 0.85; // 15% wastage
 
   protected VM_Address headSuperPage;
   protected NewFreeListVMResource vmResource;
-  protected MemoryResource memoryResource;
+  protected NewMemoryResource memoryResource;
   protected VM_Address[] freeList;
 
 }
