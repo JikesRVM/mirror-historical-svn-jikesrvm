@@ -175,12 +175,15 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
   //-#elif RVM_FOR_IA32
   public static void baselineEmitLoadTIB(VM_Assembler asm, byte dest, 
                                          byte object) {
-    VM.assert(false, "update for forwarding ptrs!");
     if (VM.VerifyAssertions) VM.assert(TIB_SHIFT == 2);
-    asm.emitMOV_Reg_RegDisp(dest, object, TIB_OFFSET);
-    asm.emitAND_Reg_Imm(dest,TIB_MASK);
-    // Because TIB_SHIFT is 2 the masked value is a JTOC offset.
-    asm.emitMOV_Reg_RegDisp(dest,JTOC,dest);
+    if (VM_Collector.MOVES_OBJECTS && VM.writingBootImage) {
+      VM.assert(false, "TODO");
+    } else {
+      asm.emitMOV_Reg_RegDisp(dest, object, TIB_OFFSET);
+      asm.emitAND_Reg_Imm(dest,TIB_MASK);
+      // Because TIB_SHIFT is 2 the masked value is a JTOC offset.
+      asm.emitMOV_Reg_RegIdx(dest, JTOC, dest, asm.BYTE, 0);
+    }
   }
   //-#endif
 
