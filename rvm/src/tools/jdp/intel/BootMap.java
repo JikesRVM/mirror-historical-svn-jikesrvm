@@ -13,7 +13,7 @@
 import java.util.*;
 import java.io.*;
  
-abstract class BootMap implements jdpConstants  {
+abstract class BootMap implements jdpConstants {
   /**
    * Pointer back to the process that owns this map
    */
@@ -466,7 +466,7 @@ abstract class BootMap implements jdpConstants  {
      topAddress = owner.mem.readsafe(elementAddress); 
      if (topAddress==0) 
        throw new BmapNotFoundException("(null array)");
-     length = owner.mem.readsafe(topAddress + VM.ARRAY_LENGTH_OFFSET);
+     length = owner.mem.readsafe(topAddress + VM_ObjectModel.getArrayLengthOffset());
      if (requestDim[dim]>length-1) {
        throw new BmapNotFoundException("out of range in dimension " + dim + ", 0:" + (length-1));
      } else {
@@ -760,7 +760,7 @@ abstract class BootMap implements jdpConstants  {
       // follow pointers to the desired dimension
       for (dim=0; dim<stopat; dim++) {
 	// System.out.println("at " + dim + ": " + Integer.toHexString(address));
-	length = owner.mem.readsafe(address + VM.ARRAY_LENGTH_OFFSET);
+	length = owner.mem.readsafe(address + VM_ObjectModel.getArrayLengthOffset());
 	if (requestDim[dim]>length-1) {
 	  return "out of range in dimension " + dim + ", 0:" + (length-1);
 	} else {
@@ -778,7 +778,7 @@ abstract class BootMap implements jdpConstants  {
 	size *= 2;
 
       // and the array size at this dimension
-      length = owner.mem.readsafe(address + VM.ARRAY_LENGTH_OFFSET);
+      length = owner.mem.readsafe(address + VM_ObjectModel.getArrayLengthOffset());
 
       // then access the array;  there are 3 cases:
       // (1) haven't gotten to the last dimension yet
@@ -820,7 +820,7 @@ abstract class BootMap implements jdpConstants  {
    * @see arrayToString
    */
   private String array1DToString (VM_Type elementType, int address, int size) throws memoryException {
-    int length = owner.mem.readsafe(address + VM.ARRAY_LENGTH_OFFSET);
+    int length = owner.mem.readsafe(address + VM_ObjectModel.getArrayLengthOffset());
 
     // System.out.println("array1DToString: " + elementType.getName() + " at " + VM.intAsHexString(address));
     if (elementType.isPrimitiveType()) {
@@ -1114,15 +1114,19 @@ abstract class BootMap implements jdpConstants  {
   }
 
   /**
+   * 
+   */
+
+  /**
    * Given an object address, lookup the type ID and get the class name
    * @param address an object address
    * @return the class name as string 
    * @exception if a memory is encountered while deferencing the type ID
    */
-
   public String addressToClassString(int address) throws memoryException {
     int stringAddr, size;
-    int typeAddr = owner.mem.readsafe(address + VM_ObjectLayoutConstants.OBJECT_TIB_OFFSET);
+    int typeAddr = VM_ObjectModel.getTIB(owner.mem,address); 
+    // int typeAddr = owner.mem.readsafe(address + VM_ObjectLayoutConstants.OBJECT_TIB_OFFSET);
     typeAddr = owner.mem.readsafe(typeAddr);           // this should point to the VM_Type
 
     try {
@@ -1130,7 +1134,7 @@ abstract class BootMap implements jdpConstants  {
       stringAddr = owner.mem.readsafe(typeAddr + field.getOffset());    // the descriptor
       field = findVMField("VM_Atom", "val");
       stringAddr = owner.mem.readsafe(stringAddr + field.getOffset());  // the string array as byte
-      size = owner.mem.readsafe(stringAddr + VM.ARRAY_LENGTH_OFFSET);   // the string size
+      size = owner.mem.readsafe(stringAddr + VM_ObjectModel.getArrayLengthOffset());   // the string size
     } catch (BmapNotFoundException e) {
       return e.getMessage();
     }
@@ -1492,7 +1496,7 @@ abstract class BootMap implements jdpConstants  {
     // System.out.println(address);
     // get the array type
     VM_Array vmarray = findVMArrayByTypeName(type);
-    int length = owner.mem.readsafe(address + VM.ARRAY_LENGTH_OFFSET);
+    int length = owner.mem.readsafe(address + VM_ObjectModel.getArrayLengthOffset());
     // make fields for each of the array elements
     for (int i = 0; i < length; i++)
     {
@@ -1647,7 +1651,7 @@ abstract class BootMap implements jdpConstants  {
       // follow pointers to the desired dimension
       for (dim=0; dim<stopat; dim++) {
         // read length of array
-	length = owner.mem.readsafe(address + VM.ARRAY_LENGTH_OFFSET);
+	length = owner.mem.readsafe(address + VM_ObjectModel.getArrayLengthOffset());
 	if (requestDim[dim]>length-1) {
           // array index out of bounds for this dimension
           throw new NoSuchClassException();
@@ -1669,7 +1673,7 @@ abstract class BootMap implements jdpConstants  {
 	size *= 2;
 
       // and the array size at this dimension
-      length = owner.mem.readsafe(address + VM.ARRAY_LENGTH_OFFSET);
+      length = owner.mem.readsafe(address + VM_ObjectModel.getArrayLengthOffset());
       jdpField.arrayLength = length;
 
       // set the type field of jdpField to be the array type
@@ -1726,7 +1730,7 @@ abstract class BootMap implements jdpConstants  {
                                   JDP_Field jdpField) throws memoryException {
     // get array length
 
-    int length = owner.mem.readsafe(address + VM.ARRAY_LENGTH_OFFSET);
+    int length = owner.mem.readsafe(address + VM_ObjectModel.getArrayLengthOffset());
 
     if (elementType.isPrimitiveType()) {
       // just set the value to be a representation of the primitive
