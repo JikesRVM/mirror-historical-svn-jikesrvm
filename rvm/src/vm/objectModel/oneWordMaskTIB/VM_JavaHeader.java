@@ -14,10 +14,45 @@ import instructionFormats.*;
  * a two-word header for scalar objects of classes with synchronized
  * methods<p>
  *
- * The one word holds a TIB pointer, and bottom N (N<=2) bits
+ * If there are no "other header bytes",
+ * an object of an "unsynchronized" class is layed out as:
+ *
+ * <pre>
+ * low memory                    high memory
+ * field n |...| field 1 | field 0 | TIB word |
+ *                                            ^
+ *                                            |
+ *                                       object reference
+ * </pre>
+ *
+ * If there are no "other header bytes",
+ * an object of an "synchronized" class is layed out as
+ *
+ * <pre>
+ * low memory                                      high memory
+ * field n |...| field 1 | field 0 | status word | TIB word |
+ *                                                          ^
+ *                                                          |
+ *                                                  object reference
+ * </pre>
+ *
+ * If there are no "other header bytes",
+ * an array is layed out as
+ * <pre>
+ * low memory                                      high memory
+ * length | TIB word | element 0 | element 1 | .... | element n |
+ *                   ^
+ *                   |
+ *            object reference
+ *
+ * The one word holds a TIB pointer, and the bottom N (N<=2) bits
  * can hold GC state.<p>
  *
- * The second word, if present, holds the thin lock.<p>
+ * If there are "other header bytes", they lie in memory directly above
+ * the TIB, and the object reference points to the end of the last word of
+ * the header. <p>
+ *
+ * The status word, if present, holds the thin lock.<p>
  * 
  * <p> Currently, in this object model, the hash code is the object's
  * address.  So this object model is only to be used for the markSweep
@@ -30,11 +65,11 @@ import instructionFormats.*;
  * @author Dave Grove
  */
 public final class VM_JavaHeader extends VM_NurseryObjectModel 
-                                            implements VM_Uninterruptible, 
+                                            implements VM_Uninterruptible
 					    //-#if RVM_WITH_OPT_COMPILER
-					    OPT_Operators,
+					    ,OPT_Operators
 					    //-#endif
-					    VM_ObjectModelConstants {
+					    {
 
   private static final int OTHER_HEADER_BYTES = 
     VM_MiscHeader.NUM_BYTES_HEADER + VM_AllocatorHeader.NUM_BYTES_HEADER;
@@ -62,9 +97,10 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    */
   private static final int BITS_MASK = ~TIB_MASK;
 
-  private static final int TIB_OFFSET     = -8 - OTHER_HEADER_BYTES;
+  private static final int TIB_OFFSET     = -4 - OTHER_HEADER_BYTES;
 
-  private static final int STATUS_OFFSET  = -4 - OTHER_HEADER_BYTES;
+  private static final int STATUS_OFFSET  = -8 - OTHER_HEADER_BYTES;
+  private static final int ARRAY_LENGTH_OFFSET  = -8 - OTHER_HEADER_BYTES;
 
   /** How many bits are allocated to a thin lock? */
   public static final int NUM_THIN_LOCK_BITS = 32;
@@ -85,8 +121,49 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
     }
   }
 
-  // SJF: TODO: factor the following four methods into a common class?
-  // At least: move to VM_AllocatorHeader?
+  /**
+   * Given a reference to an object of a given class, what is the offset in 
+   * bytes to the bottom word of
+   * the header?
+   */
+  public static int getHeaderEndOffset(VM_Class klass) {
+    return klass.isSynchronized ? STATUS_OFFSET : TIB_OFFSET;
+  }
+
+  /**
+   * Given a reference, what is the offset in bytes to the bottom word of
+   * the MISC header?
+   */
+  public static int getMiscHeaderEndOffset() {
+    return TIB_OFFSET + 4 + VM_AllocatorHeader.NUM_BYTES_HEADER;
+  }
+
+  /**
+   * Given a reference, return an address which is guaranteed to be inside
+   * the memory region allocated to the object.
+   *
+   * TODO: try to deprecate this?  Seems ugly.
+   */
+  public static ADDRESS getPointerInMemoryRegion(ADDRESS ref) {
+    return ref - 4;
+  }
+
+  /**
+   * Return the offset of the array length field from an object reference
+   * (in bytes)
+   */
+  public static int getArrayLengthOffset() {
+    return ARRAY_LENGTH_OFFSET;
+  }
+
+  /**
+   * Return the offset to array element 0 from an object reference (in
+   * bytes)
+   */
+  public static int getArrayElementOffset() {
+    return 0;
+  }
+
 
   /**
    * Convert the raw storage address ptr into a ptr to an object
@@ -99,7 +176,7 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    * @return an ptr to said object.
    */
   public static ADDRESS baseAddressToScalarAddress(ADDRESS ptr, Object[] tib, int size) {
-    return ptr + (size - OBJECT_HEADER_END);
+    return ptr + size;
   }
 
   /**
@@ -125,7 +202,7 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    */
   public static ADDRESS scalarRefToBaseAddress(Object ref, VM_Class t) {
     int size = t.getInstanceSize();
-    return VM_Magic.objectAsAddress(ref) - (size - OBJECT_HEADER_END);
+    return VM_Magic.objectAsAddress(ref) - size ;
   }
 
   /**
@@ -327,7 +404,7 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    * object reference that could refer to an object in the region.
    */
   public static int maximumObjectRef (int regionHighAddr) {
-    return regionHighAddr - OBJECT_HEADER_END;
+    return regionHighAddr;
   }
 
   /**
@@ -382,8 +459,8 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    */
   public static void initializeScalarClone(Object cloneDst, Object cloneSrc, int size) {
     int cnt = size - VM_ObjectModel.computeHeaderSize(cloneSrc);
-    int dst = VM_Magic.objectAsAddress(cloneDst) + OBJECT_HEADER_END - size;
-    int src = VM_Magic.objectAsAddress(cloneSrc) + OBJECT_HEADER_END - size;
+    int dst = VM_Magic.objectAsAddress(cloneDst) - size;
+    int src = VM_Magic.objectAsAddress(cloneSrc) - size;
     VM_Memory.aligned32Copy(dst, src, cnt); 
   }
 
