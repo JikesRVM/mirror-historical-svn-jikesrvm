@@ -514,7 +514,7 @@ public class VM_Allocator
       if ( new_current <= VM_Processor.getCurrentProcessor().localEndAddress ) {
 	VM_Processor.getCurrentProcessor().localCurrentAddress = new_current;   // increment allocation pointer
 	Object new_ref = VM_ObjectModel.initializeScalar(old_current, tib, size);
-  	if( hasFinalizer )  VM_Finalizer.addElement(new_ref);
+  	if ( hasFinalizer )  VM_Finalizer.addElement(new_ref);
   	return new_ref;
       }
       else
@@ -558,7 +558,7 @@ public class VM_Allocator
     }
     
     if (hasFinalizer)  VM_Finalizer.addElement(objRef);
-    
+
     return objRef; // return object reference
   }  // cloneScalar
 
