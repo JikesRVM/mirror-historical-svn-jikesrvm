@@ -110,13 +110,25 @@ public class AlternateRealityClassLoader extends URLClassLoader {
        EXCEPT for a tiny number of classes, which we will treat specially.
        This is ugly. */
     if (specialClassName(name)) {
-      try {
-	c = VMClassLoader.loadClass(name, resolve);
-	if (c != null)
-	  return c;
-      } catch (ClassNotFoundException e) {
-      }
+      c = findSystemClass(name);
+      if (c != null)
+        return c;
     }
+    
+    /// This is leading to nasty comments.
+//     if (specialClassName(name)) {
+//       ClassLoader sysCL = getSystemClassLoader();
+//       if (sysCL != null) {
+//         try {
+//           c = sysCL.loadClass(name, resolve);
+//         } catch (ClassNotFoundException e) {
+//         }
+//       } else {
+//         c = findSystemClass(name);
+//       }
+//       if (c != null)
+//         return c;
+//     }
     
     c = findClass(name);        // if failure, throws ClassNotFoundException
     loaded.put(name, c);
