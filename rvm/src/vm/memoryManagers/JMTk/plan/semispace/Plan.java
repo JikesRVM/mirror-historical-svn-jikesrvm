@@ -85,7 +85,8 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    */
   public VM_Address alloc(EXTENT bytes, boolean isScalar, int allocator, AllocAdvice advice) throws VM_PragmaInline {
     if (VM.VerifyAssertions) VM._assert(bytes == (bytes & (~3)));
-    if (allocator == SS_ALLOCATOR && bytes > LOS_SIZE_THRESHOLD) allocator = LOS_ALLOCATOR;
+    if (allocator == SS_ALLOCATOR && bytes > LOS_SIZE_THRESHOLD) 
+      allocator = LOS_ALLOCATOR;
     VM_Address region;
     // if (gcCount > 1) VM.sysWrite("alloc called");
     switch (allocator) {

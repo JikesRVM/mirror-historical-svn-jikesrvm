@@ -168,6 +168,8 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
 				AllocAdvice advice)
     throws VM_PragmaInline {
     if (VM.VerifyAssertions) VM._assert(bytes == (bytes & (~(WORD_SIZE-1))));
+    if (allocator == NURSERY_ALLOCATOR && bytes > LOS_SIZE_THRESHOLD) 
+      allocator = MS_ALLOCATOR;
     VM_Address region;
     switch (allocator) {
       case  NURSERY_ALLOCATOR: region = nursery.alloc(isScalar, bytes); break;
@@ -176,18 +178,19 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
       default:                 region = VM_Address.zero(); VM.sysFail("No such allocator");
     }
     if (VM.VerifyAssertions) VM._assert(Memory.assertIsZeroed(region, bytes));
-    //    VM.sysWrite(region); VM.sysWrite(" ");
     return region;
   }
   
   public final void postAlloc(Object ref, Object[] tib, int size,
 			      boolean isScalar, int allocator)
     throws VM_PragmaInline {
-    if (allocator == MS_ALLOCATOR)
+    if ((allocator == NURSERY_ALLOCATOR && size > LOS_SIZE_THRESHOLD)
+	|| (allocator == MS_ALLOCATOR))
       Header.initializeMarkSweepHeader(ref, tib, size, isScalar);
   }
 
   public final void show() {
+    nursery.show();
     ms.show();
   }
 
@@ -269,7 +272,6 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
     if (gcInProgress) return false;
     if (mustCollect || 
 	((mr != metaDataMR) && (getPagesReserved() > getTotalPages()))) {
-      VM.sysWrite("GC: "); VM.sysWrite(getPagesReserved()); VM.sysWrite(" "); VM.sysWrite(getTotalPages()); VM.sysWrite("\n");
       fullHeapGC = mustCollect || fullHeapGC;
       VM_Interface.triggerCollection();
       return true;
@@ -367,7 +369,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   private static final String allocatorToString(int type) {
     switch (type) {
       case NURSERY_ALLOCATOR: return "Nursery";
-      case MS_ALLOCATOR: return "Semispace";
+      case MS_ALLOCATOR: return "Mark-sweep";
       case IMMORTAL_ALLOCATOR: return "Immortal";
       default: return "Unknown";
    }
@@ -395,7 +397,6 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
       showUsage();
     }
     nurseryMR.release();
-    Copy.prepare(nurseryVM, nurseryMR);
     if (fullHeapGC) {
       Immortal.prepare(immortalVM, null);
     }
@@ -421,7 +422,6 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   protected void singleRelease() {
     // release each of the collected regions
     nurseryVM.release();
-    Copy.release(nurseryVM, nurseryMR);
     if (fullHeapGC) {
       Immortal.release(immortalVM, null);
     }

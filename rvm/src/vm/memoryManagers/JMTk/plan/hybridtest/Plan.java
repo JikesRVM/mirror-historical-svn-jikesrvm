@@ -165,6 +165,8 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
 				AllocAdvice advice)
     throws VM_PragmaInline {
     if (VM.VerifyAssertions) VM._assert(bytes == (bytes & (~(WORD_SIZE-1))));
+    if (allocator == NURSERY_ALLOCATOR && bytes > LOS_SIZE_THRESHOLD)
+      allocator = MS_ALLOCATOR;
     VM_Address region;
     switch (allocator) {
       case  NURSERY_ALLOCATOR: region = nursery.alloc(isScalar, bytes); break;
@@ -179,7 +181,8 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   public final void postAlloc(Object ref, Object[] tib, int size,
 			      boolean isScalar, int allocator)
     throws VM_PragmaInline {
-    if (allocator == MS_ALLOCATOR)
+    if ((allocator == NURSERY_ALLOCATOR && size > LOS_SIZE_THRESHOLD) ||
+	(allocator == MS_ALLOCATOR))
       Header.initializeMarkSweepHeader(ref, tib, size, isScalar);
   }
 
