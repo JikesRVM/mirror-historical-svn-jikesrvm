@@ -104,7 +104,6 @@ class GenerateInterfaceDeclarations extends Shared {
       out = System.out;
     } else {
       try {
-        // We'll let an unhandled exception throw an I/O error for us.
         out = new PrintStream(new FileOutputStream(outFileName));
         //      epln("We don't support the -out argument yet");
         //      System.exit(-1);
@@ -113,16 +112,19 @@ class GenerateInterfaceDeclarations extends Shared {
       }
     }
 
-    Emitters.emitStuff(vmClass, bootImageAddress);
+    new Emitters(vmClass).emitStuff(bootImageAddress);
 
     if (out.checkError()) {
       reportTrouble("an output error happened");
     }
-    //    try {
-    out.close();              // exception thrown up.
-    //    } catch (IOException e) {
-    //      reportTrouble("An output error when closing the output: " + e.toString());
-    //    }
+    if (out != System.out) {
+      //    try {
+      out.close();              // Let the exception be thrown up.
+      //    } catch (IOException e) {
+      //      reportTrouble("An error when closing " + outFileName + ": " 
+      //          + e.toString());
+      //    }
+    }
     System.exit(0);
   }
 
@@ -139,7 +141,6 @@ class GenerateInterfaceDeclarations extends Shared {
       reportTrouble("The VM Class doesn't have a zero-parameter initForTool() method?!: " + e.toString());
       // unreached
     }
-    // vmClass.initForTool();
     initVMForTool.invoke(vmClass, new Object[0]);
     return vmClass;
   }
