@@ -99,6 +99,46 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   }
 
   /**
+   * Return true if this mark-sweep space is currently being collected.
+   *
+   * @return True if this mark-sweep space is currently being collected.
+   */
+  public boolean inMSCollection() 
+    throws VM_PragmaInline {
+    return inMSCollection;
+  }
+
+  /**
+   *  This is called each time a cell is alloced (i.e. if a cell is
+   *  reused, this will be called each time it is reused in the
+   *  lifetime of the cell, by contrast to initializeCell, which is
+   *  called exactly once.).
+   *
+   * @param cell The newly allocated cell
+   * @param isScalar True if the cell will be occupied by a scalar
+   * @param bytes The size of the cell in bytes
+   * @param small True if the cell is for a small object
+   * @param large True if the cell is for a large object
+   * @param copy True if this allocation is for a copy rather than a
+   * fresh allocation.
+   * @param allocator The mark sweep allocator instance through which
+   * this instance was allocated.
+   */
+  public final void postAlloc(VM_Address cell, boolean isScalar,
+			      EXTENT bytes, boolean small, boolean large,
+			      boolean copy, MarkSweepAllocator allocator)
+    throws VM_PragmaInline {
+    if (large)
+      addToTreadmill(cell, allocator);
+    else {
+      VM_Address sp = MarkSweepAllocator.getSuperPage(cell, small);
+      setInUseBit(cell, sp, small);
+      if (inMSCollection)
+	setMarkBit(cell, sp, small);
+    }
+  }
+
+  /**
    * A new collection increment has completed.  For the mark-sweep
    * collector this means we can perform the sweep phase.
    *

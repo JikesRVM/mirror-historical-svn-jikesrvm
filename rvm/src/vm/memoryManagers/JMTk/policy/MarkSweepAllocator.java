@@ -317,18 +317,20 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
    *  reused, this will be called each time it is reused in the
    *  lifetime of the cell, by contrast to initializeCell, which is
    *  called exactly once.).
+   *
+   * @param cell The newly allocated cell
+   * @param isScalar True if the cell will be occupied by a scalar
+   * @param bytes The size of the cell in bytes
+   * @param small True if the cell is for a small object
+   * @param large True if the cell is for a large object
+   * @param copy True if this allocation is for a copy rather than a
+   * fresh allocation.
    */
   protected final void postAlloc(VM_Address cell, boolean isScalar,
 				 EXTENT bytes, boolean small, boolean large,
-				 boolean copy) {
-    if (large)
-      collector.addToTreadmill(cell, this);
-    else {
-      collector.setInUseBit(cell, getSuperPage(cell, small), small);
-      if (copy) {
-	collector.setMarkBit(cell, getSuperPage(cell, small), small);
-      }
-    }
+				 boolean copy) 
+    throws VM_PragmaInline {
+    collector.postAlloc(cell, isScalar, bytes, small, large, copy, this);
   };
 
   /**
