@@ -331,7 +331,7 @@ integer RVM_WITH_ADAPTIVE_RUNTIME_SYSTEM=0
 # Here are the choices for the object model
 #
 integer RVM_WITH_DEFAULT_OBJECT_MODEL=1
-integer RVM_WITH_SOME_OTHER_OBJECT_MODEL=0
+integer RVM_WITH_ONE_WORD_MASK_OBJECT_MODEL=0
 
 # Here are the choices for additional components that are under development and/or are excluded from default build.
 #
@@ -411,8 +411,8 @@ else
 fi
 
 # set the relative path to the object model.
-if (( RVM_WITH_SOME_OTHER_OBJECT_MODEL )); then
-  OBJECT_MODEL_PATH_STR=objectModel/whatever
+if (( RVM_WITH_ONE_WORD_MASK_OBJECT_MODEL )); then
+  OBJECT_MODEL_PATH_STR=objectModel/oneWordMaskTIB
 else
   OBJECT_MODEL_PATH_STR=objectModel/default
 fi
@@ -501,6 +501,7 @@ function emitSourceList
    fi
 
    print $RVM_ROOT/rvm/src/vm/objectModel
+   print $RVM_ROOT/rvm/src/vm/objectModel/lockNursery
    print $RVM_ROOT/rvm/src/vm/$OBJECT_MODEL_PATH_STR
 
    # other components
@@ -1715,7 +1716,7 @@ function emitImageLinker
              GenerateInterfaceDeclarations -ia $BOOTIMAGE_LOAD_ADDRESS >\
 		$SCRATCH_DIRECTORY_STR/InterfaceDeclarations.h"
      else
-       print "cd $SCRATCH_DIRECTORY_STR && $HOST_JAVA_STR\
+       print "cd $SCRATCH_DIRECTORY_STR && $HOST_JAVA_STR -Xms200M -Xmx200M\
              -classpath .:$CLASSES_DIRECTORY_STR:$CLASSES_DIRECTORY_STR/rvmrt.jar\
              GenerateInterfaceDeclarations -ia $BOOTIMAGE_LOAD_ADDRESS >\
 		$SCRATCH_DIRECTORY_STR/InterfaceDeclarations.h"

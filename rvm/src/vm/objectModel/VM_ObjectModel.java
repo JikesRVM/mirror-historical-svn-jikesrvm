@@ -338,6 +338,14 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
   }
 
   /**
+   * Compute the header size of an object 
+   */
+  public static int computeHeaderSize(Object ref) {
+    VM_Type type = ref.getClass().getVMType();
+    return computeHeaderSize(type);
+  }
+
+  /**
    * Compute the header size of an instance of the given type.
    */
   public static int computeScalarHeaderSize(VM_Class type) {
