@@ -416,6 +416,18 @@ public class VM extends VM_Properties implements VM_Constants,
       System.err.print(value);
   }
 
+  public static void sysWriteln ()                { sysWrite("\n"); }
+  public static void sysWriteln (int i)           { sysWrite(i,false);        sysWriteln(); }
+  public static void sysWriteln (String s)        { sysWrite(s);        sysWriteln(); }
+  public static void sysWrite   (String s, int i) { sysWrite(s);        sysWrite(i,false); }
+  public static void sysWriteln (String s, int i) { sysWrite(s,i);      sysWriteln(); }
+  public static void sysWrite   (int i, String s) { sysWrite(i,false);        sysWrite(s); }
+  public static void sysWriteln (int i, String s) { sysWrite(i,s);      sysWriteln(); }
+  public static void sysWrite   (String s1, String s2) { sysWrite(s1);  sysWrite(s2); }
+  public static void sysWriteln (String s1, String s2) { sysWrite(s1);  sysWriteln(s2); }
+  public static void sysWrite   (String s1, int i, String s2) { sysWrite(s1);  sysWrite(i,false); sysWrite(s2); }
+  public static void sysWriteln (String s1, int i, String s2) { sysWrite(s1);  sysWrite(i,false); sysWriteln(s2); }
+
   /**
    * Exit virtual machine due to internal failure of some sort.
    * @param message  error message describing the problem

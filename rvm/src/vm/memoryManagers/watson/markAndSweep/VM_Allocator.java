@@ -41,6 +41,13 @@ public class VM_Allocator
   implements VM_Constants, VM_GCConstants, VM_Uninterruptible, VM_Callbacks.ExitMonitor
   {
 
+  static final boolean IGNORE_EXPLICIT_GC_CALLS = false;
+
+  static final VM_Array intArrayType  = VM_ClassLoader.findOrCreateType(VM_Atom.findOrCreateAsciiAtom("[I")).asArray();
+  static final VM_Array byteArrayType = VM_ClassLoader.findOrCreateType(VM_Atom.findOrCreateAsciiAtom("[B")).asArray();
+  static Object[] byteArrayTIB;
+
+
   static final boolean GCDEBUG_PARTIAL = false; 
   static final boolean DEBUG_FREEBLOCKS = false; 
   // Debug free space calculation
@@ -394,6 +401,11 @@ public class VM_Allocator
   // At this point it is possible to allocate 
   // (1 GC_BLOCKSIZE worth of) objects for each size
 
+  byteArrayTIB = byteArrayType.getTypeInformationBlock();
+  Object[] intArrayTIB = intArrayType.getTypeInformationBlock();
+
+  VM_BlockControl.boot();
+
   // Now allocate the blocks array - which will be used to allocate blocks to sizes
 
   num_blocks = smallHeapSize/GC_BLOCKSIZE;
@@ -401,22 +413,18 @@ public class VM_Allocator
 
   // GET STORAGE FOR BLOCKS ARRAY FROM OPERATING SYSTEM
   //    storage for entries in blocks array: 4 bytes/ ref
-  VM_Array intArrayType =  VM_Array.getPrimitiveArrayType(10);
   int blocks_array_size = intArrayType.getInstanceSize(num_blocks);
-  if ((blocks_array_storage = VM.sysCall1(bootrecord.sysMallocIP, blocks_array_size)) == 0) {
+  if ((blocks_array_storage = malloc(blocks_array_size)) == 0) {
     VM.sysWrite(" In boot, call to sysMalloc returned 0 \n");
     VM.sysExit(1800);
   }
 
-  if ((blocks_storage = VM.sysCall1(bootrecord.sysMallocIP,
-   (num_blocks-GC_SIZES) * VM_BlockControl.TYPE.getInstanceSize())) == 0) {
+  if ((blocks_storage = malloc((num_blocks-GC_SIZES) * VM_BlockControl.getInstanceSize())) == 0) {
      VM.sysWrite(" In boot, call to sysMalloc returned 0 \n");
      VM.sysExit(1900);
   }
 
-  blocks = (int[])(VM_ObjectModel.initializeArray(blocks_array_storage,
-						  intArrayType.getTypeInformationBlock(),
-						  num_blocks, blocks_array_size));
+  blocks = (int[])(VM_ObjectModel.initializeArray(blocks_array_storage, intArrayTIB, num_blocks, blocks_array_size));
 
   // index for highest page in heap
   highest_block = num_blocks -1;
@@ -441,11 +449,12 @@ public class VM_Allocator
   init_blocks    = null;        // these are currently live through blocks
 
   // Now allocate the rest of the VM_BlockControls
-  int bcSize = VM_BlockControl.TYPE.getInstanceSize();
+  int bcSize = VM_BlockControl.getInstanceSize();
+  Object[] bcTIB = VM_BlockControl.getTIB();
+
   for (i = GC_SIZES; i < num_blocks; i++) {
-    blocks[i] = VM_Magic.objectAsAddress(VM_ObjectModel.initializeScalar(blocks_storage + (i - GC_SIZES) * bcSize,
-									 VM_BlockControl.TYPE.getTypeInformationBlock(), 
-									 bcSize));
+    int bcAddress = blocks_storage + (i - GC_SIZES) * bcSize;
+    blocks[i] = VM_Magic.objectAsAddress(VM_ObjectModel.initializeScalar(bcAddress, bcTIB, bcSize));
     VM_Magic.addressAsBlockControl(blocks[i]).baseAddr = 
       smallHeapStartAddress + i * GC_BLOCKSIZE; 
     VM_Magic.addressAsBlockControl(blocks[i]).nextblock = i + 1;
@@ -673,6 +682,8 @@ public class VM_Allocator
   static int allocateSlotFromBlocks (VM_SizeControl the_size, int size) {
       VM_BlockControl the_block = VM_Magic.addressAsBlockControl(blocks[the_size.current_block]);
 
+      if (VM.VerifyAssertions) VM.assert(gcCount != 0 || the_block.nextblock == OUT_OF_BLOCKS);	// If no GC yet, no blocks after current
+
       // First, look for a slot in the blocks on the existing list
       while (the_block.nextblock != OUT_OF_BLOCKS) {
 	  the_size.current_block = the_block.nextblock;
@@ -754,6 +765,13 @@ public class VM_Allocator
   byte[] the_mark = the_block.mark;
   int first_free = 0, i = 0, j, current, next;
     
+  VM.assert(the_mark != null);
+  if (false && the_mark == null) {
+      VM.sysWriteln("mark = ", VM_Magic.objectAsAddress(the_mark));
+      VM.sysWriteln("size = ", GC_SIZEVALUES[the_size.ndx]);
+  }
+
+
   for (; i < the_mark.length ; i++) 
     if (the_mark[i] == 0) break;
 
@@ -1005,6 +1023,7 @@ public class VM_Allocator
   sysLockLarge.release();  //release lock: won't keep change to large_last_alloc'd
   return -2;  // reached end of largeHeap w/o finding numpages
   }
+
   
   // A routine to obtain a free VM_BlockControl and return it
   // to the caller.  First use is for the VM_Processor constructor: 
@@ -1025,29 +1044,31 @@ public class VM_Allocator
   alloc_block.nextblock = OUT_OF_BLOCKS;  // this is last block in list for thissize
   alloc_block.slotsize  = GC_SIZEVALUES[ndx];
   int size = GC_BLOCKSIZE/GC_SIZEVALUES[ndx] ;    
-  VM_Array byteArrayType = VM_Array.getPrimitiveArrayType(8);
+
   if (alloc_block.mark != null)  {
     if (size <= alloc_block.alloc_size) {
       VM_ObjectModel.setArrayLength(alloc_block.mark, size);
       return theblock;
     }
     else {    // free the existing array space
-      VM.sysCall1(bootrecord.sysFreeIP, VM_Magic.objectAsAddress(alloc_block.mark) - VM_ObjectModel.computeHeaderSize(byteArrayType));
+	free(VM_Magic.objectAsAddress(alloc_block.mark) - VM_ObjectModel.computeHeaderSize(byteArrayType));
     }
   }
   // get space for alloc arrays from AIX.
-  int mark_array_size = (byteArrayType.getInstanceSize(size) + 3) & ~3;
-  if ((location = VM.sysCall1(bootrecord.sysMallocIP, mark_array_size)) == 0) {
+  int mark_array_size = getByteArrayInstanceSize(size);
+  if ((location = malloc(mark_array_size)) == 0) {
     VM.sysWrite(" In getnewblockx, call to sysMalloc returned 0 \n");
     VM.sysExit(1800);
   }
 
   if (VM.VerifyAssertions) VM.assert((location & 3) == 0);// check word alignment
 
-  alloc_block.mark = (byte[]) VM_ObjectModel.initializeArray(location, byteArrayType.getTypeInformationBlock(), size, mark_array_size);
+  alloc_block.mark = VM_Magic.objectAsByteArray(VM_ObjectModel.initializeArray(location, byteArrayTIB, size, mark_array_size));
 
   return theblock;
   }
+
+
   private static int
   getPartialBlock (int ndx) {
 
@@ -1131,19 +1152,18 @@ public class VM_Allocator
   // of the VM.
 
   int temp;
-  VM_Array byteArrayType = VM_Array.getPrimitiveArrayType(8);
   if (alloc_block.mark != null) {
     if (size <= alloc_block.alloc_size) {
       VM_ObjectModel.setArrayLength(alloc_block.mark, size);
       return 0;
     }
     else {    // free the existing array space
-      VM.sysCall1(bootrecord.sysFreeIP, VM_Magic.objectAsAddress(alloc_block.mark) - VM_ObjectModel.computeHeaderSize(byteArrayType));
+	free(VM_Magic.objectAsAddress(alloc_block.mark) - VM_ObjectModel.computeHeaderSize(byteArrayType));
     }
   }
 
-  int mark_array_size = (byteArrayType.getInstanceSize(size) + 3) & ~3;
-  if ((location = VM.sysCall1(bootrecord.sysMallocIP, mark_array_size)) == 0) {
+  int mark_array_size = getByteArrayInstanceSize(size);
+  if ((location = malloc(mark_array_size)) == 0) {
     VM.sysWrite(" In getnewblock, call to sysMalloc returned 0 \n");
     VM.sysExit(1800);
   }
@@ -1151,10 +1171,11 @@ public class VM_Allocator
   if (VM.VerifyAssertions) VM.assert((location & 3) == 0);// check full wd
 
   alloc_block.alloc_size = size;  // remember allocated size
-  alloc_block.mark = (byte[]) VM_ObjectModel.initializeArray(location, byteArrayType.getTypeInformationBlock(), size, mark_array_size);
+  alloc_block.mark = VM_Magic.objectAsByteArray(VM_ObjectModel.initializeArray(location, byteArrayTIB, size, mark_array_size));
 
   return 0;
   }
+
 
   private static int  
   getndx(int size) {
@@ -1932,10 +1953,8 @@ public class VM_Allocator
   /**  a routine to make sure a pointer is into the heap
    */
   private  static boolean
-  isValidSmallHeapPtr (int ptr) {
-    if (((ptr >= smallHeapStartAddress) && (ptr <= smallHeapEndAddress)))
-    return  true;
-    else  return false;
+  isValidSmallHeapPtr (int slotAddress) {
+      return addressInSmallHeap(slotAddress);
   }
 
 
@@ -2112,7 +2131,7 @@ public class VM_Allocator
   if (Debug) {
     // DEBUG AID: try to filter out non-object pointers into the heap
     int tibptr = VM_Magic.objectAsAddress(VM_ObjectModel.getTIB(ref));  // check that TIB pointer really is
-    if ((tibptr < bootStartAddress) || (tibptr > largeHeapEndAddress)) {
+    if (! inHeap(tibptr)) {
       VM.sysWrite(ref);
       VM.sysWrite("  is  bogus pointer into heap, was found \n");
       return;
@@ -2122,7 +2141,7 @@ public class VM_Allocator
   //  accommodate that ref might be outside space
   int  tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
 
-  if ( tref >= smallHeapStartAddress && tref <  smallHeapEndAddress) {
+  if (referenceInSmallHeap(ref)) {
     // object allocated in small object runtime heap
     if (!gc_setMarkSmall(tref)) {
       if (GC_COUNT_BY_TYPES) {
@@ -2139,24 +2158,25 @@ public class VM_Allocator
     return;
   }  
 
-  if ( tref >= largeHeapStartAddress && tref < largeHeapEndAddress) {
+  if (referenceInLargeHeap(ref)) {
     //  object allocated in small object runtime heap
     if (!gc_setMarkLarge(tref)) 
       VM_GCWorkQueue.putToWorkBuffer(ref);
     return;
-    }
+  }
 
-  else  if ( (tref >= bootStartAddress) && (tref <= bootEndAddress) ) {
+  if (VM_GCUtil.referenceInBootImage(ref)) {
     if (VM_AllocatorHeader.testAndMark(VM_Magic.addressAsObject(ref), OBJECT_GC_MARK_VALUE))
       VM_GCWorkQueue.putToWorkBuffer(ref);
     return;
   }
 
-  else  if (Debug) {
-    VM.sysWrite(tref);
-    VM.sysWrite(" procPtrFldVlu ptr:  not in heap or boot image \n");
-    return;
+  if (referenceInMallocedStorage(ref)) {
+      return;
   }
+
+    VM.sysWrite(tref);
+    VM.sysFail(" gc_processPtrFieldValue ptr:  not in heap or boot image \n");
   }  //  gc_processPtrFieldValue   
 
 
@@ -2198,8 +2218,14 @@ public class VM_Allocator
   //
   public  static void
   gc ()  {
+    if (IGNORE_EXPLICIT_GC_CALLS) {
+	if (Debug) VM.sysWrite("Skipped external call to collect garbage.\n");
+	return;
+    }
+
     if (VM.verboseGC)
       VM_Scheduler.trace("  gc triggered by external call to gc() \n \n", "XX");
+
     gc1();
   }
 
@@ -2310,7 +2336,17 @@ public class VM_Allocator
         next = this_block.nextblock;
       }
     }
-  }  //  clobberfree
+
+    // Now clobber the free list
+    sysLockBlock.lock();
+    VM_BlockControl block;
+    for (int freeIndex = first_freeblock; freeIndex != OUT_OF_BLOCKS; freeIndex = block.nextblock) {
+	block = VM_Magic.addressAsBlockControl(blocks[freeIndex]);
+	clobber(block.baseAddr, GC_BLOCKSIZE);
+    }
+    sysLockBlock.unlock();
+  }
+
 
 
   public  static long
@@ -2570,15 +2606,14 @@ public class VM_Allocator
   gc_isLive (int ref) {
     int  tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
 
-    if ((tref >= bootStartAddress) && (tref <= bootEndAddress)) {
-      int  statusWord;
-
+    if (VM_GCUtil.referenceInBootImage(ref)) {
       if (GC_STATISTICS) total_markboot_count++;  
 
       //  test mark bit to see if already marked
       return VM_AllocatorHeader.testMarkBit(VM_Magic.addressAsObject(ref), OBJECT_GC_MARK_VALUE);
     }
-    if (tref <= smallHeapEndAddress) {
+
+    if (referenceInSmallHeap(ref)) {
       //  check for live small object
       int  blkndx, slotno, size, ij;
       blkndx  = (tref - smallHeapStartAddress) >> LOG_GC_BLOCKSIZE ;
@@ -2587,26 +2622,25 @@ public class VM_Allocator
       int  slotndx  = offset/this_block.slotsize;
       return (this_block.mark[slotndx] != 0);
     }
-    else  {   // check for live large object
+
+    if (referenceInLargeHeap(ref)) {   // check for live large object
       int  page_num = (tref - largeHeapStartAddress ) >> 12;
       return (largeSpaceMark[page_num] != 0);
     }
 
+    if (referenceInMallocedStorage(ref)) {
+	return true;
+    }
+
+    VM.sysFail("gc_isLive: pointer not in a vaid heap region");
+    return false;
   }
 
   static  void
   gc_markLive (int ref) {
     int  tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
 
-    if ((tref >= bootStartAddress) && (tref <= bootEndAddress)) {
-      int  statusWord;
-
-      //  test mark bit to see if already marked
-      VM_AllocatorHeader.writeMarkBit(VM_Magic.addressAsObject(ref), OBJECT_GC_MARK_VALUE);
-      return;    
-    }
-
-    if (tref <= smallHeapEndAddress) {
+    if (referenceInSmallHeap(ref)) {
       //  check for live small object
       int  blkndx, slotno, size, ij;
       blkndx  = (tref - smallHeapStartAddress) >> LOG_GC_BLOCKSIZE ;
@@ -2615,8 +2649,17 @@ public class VM_Allocator
       int  offset   = tref - this_block.baseAddr;
       int  slotndx  = offset/this_block.slotsize;
       this_block.mark[slotndx]  = 1;
+      return;
     }
-    else  {   // set large object live
+
+    if (VM_GCUtil.referenceInBootImage(ref)) {
+      //  test mark bit to see if already marked
+      VM_AllocatorHeader.writeMarkBit(VM_Magic.addressAsObject(ref), OBJECT_GC_MARK_VALUE);
+      return;    
+    }
+
+    if (referenceInLargeHeap(ref)) {
+      // set large object live
       int  ij;
       int  page_num = (tref - largeHeapStartAddress ) >> 12;
 
@@ -2636,9 +2679,15 @@ public class VM_Allocator
         }
         largeSpaceMark[page_num]  = (short)temp;
       }
-    }    //  set large object live
+      return;
+    }
 
-}    //  set live
+    if (referenceInMallocedStorage(ref)) {
+	return;
+    }
+
+    VM.sysFail("gc_markLive: ref not in any valid heap region");
+} // gc_markLive
 
 
   static  boolean
@@ -3062,5 +3111,63 @@ public class VM_Allocator
     return ref;
   }
 
-}  //  VM_Allocator
 
+
+      static int malloc (int size) {
+	  return VM.sysCall1(bootrecord.sysMallocIP, size);
+      }
+
+
+      static void free (int address) {
+	  VM.sysCall1(bootrecord.sysFreeIP, address);
+      }
+
+
+
+      static boolean inHeap (int objptr) {
+	  return addrInHeap(VM_ObjectModel.getPointerInMemoryRegion(objptr));
+      }
+
+      static boolean addrInHeap (int tref) {
+	  return VM_GCUtil.addressInBootImage(tref) || addressInSmallHeap(tref) || addressInLargeHeap(tref);
+      }
+
+
+
+      static boolean referenceInSmallHeap (int objptr) {
+	  return addressInSmallHeap(VM_ObjectModel.getPointerInMemoryRegion(objptr));
+      }
+
+      static boolean addressInSmallHeap (int tref) {
+	  return tref >= smallHeapStartAddress && tref < smallHeapEndAddress;
+      }
+
+
+      static boolean referenceInLargeHeap (int objptr) {
+	  return addressInLargeHeap(VM_ObjectModel.getPointerInMemoryRegion(objptr));
+      }
+
+      static boolean addressInLargeHeap (int tref) {
+	  return tref >= largeHeapStartAddress && tref < largeHeapEndAddress;
+      }
+
+
+      static final int mallocHeapStartAddress = 0x20000000;
+      static final int mallocHeapEndAddress   = 0x30000000;
+
+      static boolean referenceInMallocedStorage (int objptr) {
+	  return addressInMallocedStorage(VM_ObjectModel.getPointerInMemoryRegion(objptr));
+      }
+
+      static boolean addressInMallocedStorage (int tref) {
+	  return tref >= mallocHeapStartAddress && tref < mallocHeapEndAddress;
+      }
+
+
+      static int getByteArrayInstanceSize (int numelts) {
+	  int bytes = VM_ObjectModel.computeArrayHeaderSize(byteArrayType) + numelts;
+	  int round = (bytes + (WORDSIZE - 1)) & ~(WORDSIZE - 1);
+	  return round;
+      }
+
+}
