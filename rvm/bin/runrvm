@@ -49,6 +49,7 @@ rvm_root=$1;  shift;  # Used to be $RVM_ROOT
 rvm_build=$1; shift;  # Used to be $RVM_BUILD
 
 
+# TODO: This portion of the gdbrvm should be consolidated with the originally-identical part of runrvm.
 # Where the RVM bootimage, booter, and runtime support files reside.
 . $rvm_build/environment
 
