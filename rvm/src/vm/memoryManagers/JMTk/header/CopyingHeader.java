@@ -159,4 +159,8 @@ public class CopyingHeader {
     VM_ObjectModel.writeAvailableBitsWord(base, VM_Magic.objectAsAddress(ptr).toInt() | GC_FORWARDED);
   }
 
+  static void setBarrierBit(Object ref) throws VM_PragmaUninterruptible {
+    VM._assert(false);
+  }
+
 }

@@ -72,7 +72,6 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    */
   public static final void init () throws VM_PragmaInterruptible {
     VM_CollectorThread.init();
-    MMAP_CHUNK_BYTES = 4096;
   }
 
 
@@ -87,7 +86,6 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    */
   public static final void boot (VM_BootRecord theBootRecord) throws VM_PragmaInterruptible {
     int pageSize = VM_Memory.getPagesize();  // Cannot be determined at init-time
-    if (VM.VerifyAssertions) VM._assert(MMAP_CHUNK_BYTES == VM_Memory.getPagesize());
     // get addresses of TIBs for VM_Array & VM_Class used for testing Type ptrs
     VM_Type t = VM_Array.getPrimitiveArrayType(10);
     tibForArrayType = VM_ObjectModel.getTIB(t);
@@ -263,18 +261,20 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   }
 
   public static Object allocateScalar(int size, Object [] tib) {
-VM.sysWriteln("allocScalar 1");
     AllocAdvice advice = getPlan().getAllocAdvice(null, size, null, null);
-VM.sysWriteln("allocScalar 2");
     VM_Address region = getPlan().alloc(0, size, true, advice);
-VM.sysWriteln("allocScalar 3: region = ", region);
-    return VM_ObjectModel.initializeScalar(region, tib, size);
+    Object result = VM_ObjectModel.initializeScalar(region, tib, size);
+    getPlan().postAlloc(0, size, result);
+    return result;
   }
 
   public static Object allocateArray(int numElements, int size, Object [] tib) {
+    size = (size + 3) & (~3);
     AllocAdvice advice = getPlan().getAllocAdvice(null, size, null, null);
     VM_Address region = getPlan().alloc(0, size, false, advice);
-    return VM_ObjectModel.initializeArray(region, tib, numElements, size);
+    Object result = VM_ObjectModel.initializeArray(region, tib, numElements, size);
+    getPlan().postAlloc(0, size, result);
+    return result;
   }
 
   public static VM_Address allocateCopy(VM_Address object) {
@@ -303,8 +303,6 @@ VM.sysWriteln("allocScalar 3: region = ", region);
     getPlan().collect();
   }
 
-
-  static public int MMAP_CHUNK_BYTES = 0;
 
   public static boolean mmap(VM_Address start, int size) {
     VM_Address result = VM_Memory.mmap(start, size,
@@ -356,7 +354,30 @@ VM.sysWriteln("allocScalar 3: region = ", region);
 
 
   /**
-   * Allocate a stack array that will live forever and does not move
+   * Allocate an immortal short array that will live forever and does not move
+   * @param n The number of elements
+   * @return The short array
+   */ 
+  public static short[] newImmortalShortArray (int n) {
+
+    if (VM.runningVM) {
+      VM_Array shortArrayType = VM_Array.arrayOfShortType;
+      Object [] shortArrayTib = shortArrayType.getTypeInformationBlock();
+      int offset = VM_JavaHeader.computeArrayHeaderSize(shortArrayType);
+      int arraySize = shortArrayType.getInstanceSize(n);
+      AllocAdvice advice = getPlan().getAllocAdvice(null, arraySize, null, null);
+      VM_Address region = getPlan().alloc(Plan.IMMORTAL_ALLOCATOR, arraySize, false, advice);
+      Object result = VM_ObjectModel.initializeArray(region, shortArrayTib, n, arraySize);
+      getPlan().postAlloc(Plan.IMMORTAL_ALLOCATOR, arraySize, result);
+      return (short []) result;
+    }
+
+    return new short[n];
+  }
+
+
+  /**
+   * Allocate an aligned stack array that will live forever and does not move
    * @param n The number of stack slots to allocate
    * @return The stack array
    */ 
@@ -376,7 +397,9 @@ VM.sysWriteln("allocScalar 3: region = ", region);
       VM_Address tmp = fullRegion.add(alignment);
       int mask = ~((1 << logAlignment) - 1);
       VM_Address region = VM_Address.fromInt(tmp.toInt() & mask).sub(offset);
-      return (int []) (VM_ObjectModel.initializeArray(region, stackTib, n, arraySize));
+      Object result = VM_ObjectModel.initializeArray(region, stackTib, n, arraySize);
+      getPlan().postAlloc(0, arraySize, result);
+      return (int []) result;
     }
 
     return new int[n];

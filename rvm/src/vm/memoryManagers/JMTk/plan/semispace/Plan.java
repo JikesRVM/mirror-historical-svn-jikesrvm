@@ -58,9 +58,8 @@ public final class Plan extends BasePlan { // implements Constants
    */
   public Plan() {
     ss = new BumpPointer(ss0VM, ssMR);
-    // los = new AllocatorLOS(losVM, losMR);
+    los = new LargeObjectSpace(losVM, losMR);
     immortal = new BumpPointer(immortalVM, immortalMR);
-    los = immortal; // FIXME LOS for now los == immortal
   }
 
   /**
@@ -72,16 +71,22 @@ public final class Plan extends BasePlan { // implements Constants
    * @param advice Statically-generated allocation advice for this allocation
    * @return The address of the first byte of the allocated region
    */
-  public VM_Address alloc(int allocator, EXTENT bytes, boolean isScalar, AllocAdvice advice) {
+  public VM_Address alloc(int allocator, EXTENT bytes, boolean isScalar, AllocAdvice advice) throws VM_PragmaInline {
     if ((allocator == BP_ALLOCATOR) && (bytes <= LOS_SIZE_THRESHOLD))
       return ss.alloc(isScalar, bytes);
     else if (allocator == IMMORTAL_ALLOCATOR)
       return immortal.alloc(isScalar, bytes);
-    else {
-    //  return los.alloc(isScalar, bytes);
-      VM._assert(false);
-      return VM_Address.zero();
-    }
+    else 
+      return los.alloc(isScalar, bytes);
+  }
+
+  public void postAlloc(int allocator, EXTENT bytes, Object obj) throws VM_PragmaInline {
+    if ((allocator == BP_ALLOCATOR) && (bytes <= LOS_SIZE_THRESHOLD))
+      return;
+    else if (allocator == IMMORTAL_ALLOCATOR)
+      return;
+    else 
+      los.postAlloc(obj);
   }
 
   /**
@@ -159,8 +164,8 @@ public final class Plan extends BasePlan { // implements Constants
     if (addr.LE(HEAP_END)) {
       if (addr.GE(SS_START))
 	return Copy.isLive(obj);
-      //      else if (addr.GE(LOS_START))
-      // return LargeObjectSpace.isLive(obj);
+      else if (addr.GE(LOS_START))
+	return los.isLive(obj);
       else if (addr.GE(IMMORTAL_START))
 	return true;
     } 
@@ -181,8 +186,8 @@ public final class Plan extends BasePlan { // implements Constants
     if (addr.LE(HEAP_END)) {
       if (addr.GE(SS_START))
 	return Copy.traceObject(obj);
-      //      else if (addr.GE(LOS_START))
-      // return LargeObjectSpace.traceObject(obj);
+      else if (addr.GE(LOS_START))
+	return los.traceObject(obj);
       else if (addr.GE(IMMORTAL_START))
 	return Immortal.traceObject(obj);
     } // else this is not a heap pointer
@@ -238,7 +243,7 @@ public final class Plan extends BasePlan { // implements Constants
       ss.rebind(((hi) ? ss1VM : ss0VM)); 
       // prepare each of the collected regions
       Copy.prepare(((hi) ? ss0VM : ss1VM), ssMR);
-      // LargeObjectSpace.prepare(losVM, losMR);   FIXME LOS
+      los.prepare(losVM, losMR);
       Immortal.prepare(immortalVM, null);
     }
     barrier.rendezvous();
@@ -253,7 +258,7 @@ public final class Plan extends BasePlan { // implements Constants
     if (id == 1) {
       // release each of the collected regions
       Copy.release(((hi) ? ss0VM : ss1VM), ssMR);
-      //      LargeObjectSpace.release(losVM, losMR); FIXME LOS
+      los.release(losVM, losMR); 
       Immortal.release(immortalVM, null);
       gcInProgress = false;
     }
@@ -265,18 +270,17 @@ public final class Plan extends BasePlan { // implements Constants
   // Instance variables
   //
   private BumpPointer ss;
-  // private LOS los;   FIXME LOS
-  private BumpPointer los;
   private BumpPointer immortal;
+  
 
   ////////////////////////////////////////////////////////////////////////////
   //
   // Class variables
   //
   // virtual memory regions
+  private static LargeObjectSpace los;
   private static MonotoneVMResource ss0VM;
   private static MonotoneVMResource ss1VM;
-  //  private static VMResource losVM;   FIXME LOS
   private static MonotoneVMResource losVM;
   private static MonotoneVMResource immortalVM;
   private static MonotoneVMResource bootVM;

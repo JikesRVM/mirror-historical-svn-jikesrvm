@@ -21,10 +21,10 @@ import com.ibm.JikesRVM.VM_Magic;
 final class Copy extends BasePolicy implements Constants {
   public final static String Id = "$Id$"; 
 
-  public static void prepare() {
+  public void prepare() {
   }
 
-  public static void release() {
+  public void release() {
   }
 
   /**

@@ -49,19 +49,17 @@ public final class MonotoneVMResource extends VMResource implements Constants {
    * @return The address of the start of the virtual memory region, or
    * zero on failure.
    */
-  public final VM_Address acquire(int request) {
+  public final VM_Address acquire(int blockRequest) {
 
-    VM_Address tmpCursor = cursor.add(Conversions.blocksToBytes(request));
-    VM.sysWriteln("Mono.acquire: cursor = ", cursor);
-    VM.sysWriteln("Mono.acquire: tmpcursor = ", tmpCursor);
-    VM.sysWriteln("Mono.acquire: sentinel = ", sentinel);
+    int bytes = Conversions.blocksToBytes(blockRequest);
+    VM_Address tmpCursor = cursor.add(bytes);
     if (tmpCursor.GE(sentinel)) {
       // FIXME Is this really how we want to deal with failure?
       return VM_Address.zero();
     } else {
       VM_Address oldCursor = cursor;
       cursor = tmpCursor;
-      LazyMmapper.ensureMapped(oldCursor, request);
+      LazyMmapper.ensureMapped(oldCursor, blockRequest);
       return oldCursor;
     }
   }

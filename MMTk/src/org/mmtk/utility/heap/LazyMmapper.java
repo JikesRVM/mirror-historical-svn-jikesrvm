@@ -31,15 +31,26 @@ public final class LazyMmapper implements Constants, VM_Uninterruptible {
   //
   //
 
+  public static boolean verbose = true;
 
   public static void ensureMapped(VM_Address start, int blocks) {
-    int chunk = Conversions.addressToMmapChunks(start);
-    int sentinal = chunk + Conversions.blocksToMmapChunks(blocks);
-    while (chunk < sentinal) {
+    int startChunk = Conversions.addressToMmapChunks(start);       // round down
+    int chunks = Conversions.blocksToMmapChunks(blocks); // round up
+    VM.sysWriteln("ensureMapped: blocks = ", blocks);
+    VM.sysWriteln("ensureMapped: chunks = ", chunks);
+    int endChunk = startChunk + chunks;
+    for (int chunk=startChunk; chunk < endChunk; chunk++) {
       if (!mapped[chunk]) {
-	if (!VM_Interface.mmap(Conversions.mmapChunksToAddress(chunk), VM_Interface.MMAP_CHUNK_BYTES)) {
+	VM_Address mmapStart = Conversions.mmapChunksToAddress(chunk);
+	if (!VM_Interface.mmap(mmapStart, MMAP_CHUNK_SIZE)) {
 	  VM.sysWriteln("ensureMapped failed");
 	  VM._assert(false);
+	}
+	else {
+	  if (verbose) {
+	    VM.sysWrite("mmap succeeded at ", mmapStart);
+	    VM.sysWriteln(" with len = ", MMAP_CHUNK_SIZE);
+	  }
 	}
 	mapped[chunk] = true;
       }

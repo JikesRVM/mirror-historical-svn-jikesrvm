@@ -112,7 +112,7 @@ public abstract class VMResource implements Constants {
   VMResource(String vmName, VM_Address vmStart, EXTENT bytes, byte status) {
     start = vmStart;
     blocks = Conversions.bytesToBlocks(bytes);
-    VM_Address end = start.add(bytes);
+    end = start.add(bytes);
     name = vmName;
     index = count++;
     resources[index] = this;
@@ -144,6 +144,9 @@ public abstract class VMResource implements Constants {
   
   public final int getBlocks() { return blocks; }
 
+  public final VM_Address getStart() { return start; }
+  public final VM_Address getEnd() { return end; }
+
   ////////////////////////////////////////////////////////////////////////////
   //
   // Private fields and methods
@@ -151,6 +154,7 @@ public abstract class VMResource implements Constants {
 
   private int index;
   protected VM_Address start;
+  protected VM_Address end;
   private int blocks;
   private String name;
 }
