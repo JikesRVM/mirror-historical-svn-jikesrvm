@@ -2,6 +2,12 @@
  * (C) Copyright Department of Computer Science,
  *     Australian National University. 2002
  */
+
+package com.ibm.JikesRVM.memoryManagers.JMTk;
+
+import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
+import com.ibm.JikesRVM.VM_Address;
+
 /**
  * This class implements collector behavior for a simple immortal
  * collection policy.  Under this policy all that is required is for
@@ -12,7 +18,7 @@
  * @version $Revision$
  * @date $Date$
  */
-final class Immortal implements Constants extends BasePolicy {
+final class Immortal extends BasePolicy implements Constants {
   public final static String Id = "$Id$"; 
 
   /**
@@ -23,9 +29,9 @@ final class Immortal implements Constants extends BasePolicy {
    *
    * @param object The object to be traced.
    */
-  public static void traceReference(Address object) {
+  public static void traceReference(VM_Address object) {
     if (!testAndMark(object, immortalMarkState)) {
-      MM.enqueue(object);
+      getPlan().enqueue(object);
     }
   }
 

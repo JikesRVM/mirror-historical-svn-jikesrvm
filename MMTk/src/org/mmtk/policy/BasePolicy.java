@@ -3,14 +3,24 @@
  * (C) Copyright Department of Computer Science,
  *     Australian National University. 2002
  */
+
+package com.ibm.JikesRVM.memoryManagers.JMTk;
+
+import com.ibm.JikesRVM.VM_ObjectModel;
+
 /**
  * @author David Bacon
  * @author Steve Fink
  * @author Dave Grove
  * @author <a href="http://cs.anu.edu.au/~Steve.Blackburn">Steve Blackburn</a>
  */
-public class BasePolicy implements HeaderConstants {
+public class BasePolicy { // implements HeaderConstants {
   
+  public static void prepare(VMResource vm, MemoryResource mr) {
+  }
+
+  public static void release(VMResource vm, MemoryResource mr) {
+  }
 
   ////////////////////////////////////////////////////////////////////////////
   //
@@ -45,7 +55,8 @@ public class BasePolicy implements HeaderConstants {
   }
 
   /**
-   * used to mark boot image objects during a parallel scan of objects during GC
+   * Used to mark boot image objects during a parallel scan of objects during GC
+   * Returns true if marking was done.
    */
   static boolean testAndMark(Object ref, int value) {
     int oldValue;

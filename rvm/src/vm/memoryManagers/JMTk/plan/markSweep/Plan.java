@@ -70,7 +70,7 @@ final class Plan implements Constants, Uninterruptible extends BasePlan {
    * @param advice Statically-generated allocation advice for this allocation
    * @return The address of the first byte of the allocated region
    */
-  public Address alloc(int allocator, Extent bytes, boolean isScalar,
+  public Address alloc(int allocator, EXTENT bytes, boolean isScalar,
 		       AllocAdvice advice) {
     if (allocator == IMMORTAL_ALLOCATOR)
       return immortal.alloc(isScalar, bytes);
@@ -87,7 +87,7 @@ final class Plan implements Constants, Uninterruptible extends BasePlan {
    * @param isScalar True if the object occupying this space will be a scalar
    * @return The address of the first byte of the allocated region
    */
-  public Address allocCopy(Address original, Extent bytes, boolean isScalar) {
+  public Address allocCopy(Address original, EXTENT bytes, boolean isScalar) {
     return null;  // no copying in this collector
   }
 
@@ -104,7 +104,7 @@ final class Plan implements Constants, Uninterruptible extends BasePlan {
    * site should use.
    * @return The allocator number to be used for this allocation.
    */
-  public int getAllocator(TypeID type, Extent bytes, CallSite callsite,
+  public int getAllocator(TypeID type, EXTENT bytes, CallSite callsite,
 			  AllocAdvice hint) {
     return DEFAULT_ALLOCATOR;
   }
@@ -122,7 +122,7 @@ final class Plan implements Constants, Uninterruptible extends BasePlan {
    * @return Allocation advice to be passed to the allocation routine
    * at runtime
    */
-  public AllocAdvice getAllocAdvice(TypeID type, Extent bytes, 
+  public AllocAdvice getAllocAdvice(TypeID type, EXTENT bytes, 
 				    CallSite callsite, AllocAdvice hint) {
     return null; 
   }
@@ -236,7 +236,7 @@ final class Plan implements Constants, Uninterruptible extends BasePlan {
   // Final class variables (aka constants)
   //
   private static final Address MARKSWEEP_START;
-  private static final Extent MARKSWEEP_VM_SIZE;
+  private static final EXTENT MARKSWEEP_VM_SIZE;
   private static final Address IMMORTAL_START;
   private static final Address IMMORTAL_VM_SIZE;
   private static final int DEFAULT_ALLOCATOR = 0;

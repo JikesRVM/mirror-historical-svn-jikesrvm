@@ -8,12 +8,6 @@ package com.ibm.JikesRVM;
 import com.ibm.JikesRVM.opt.*;
 //-#endif
 
-//-#if RVM_WITH_JIKESRVM_MEMORY_MANAGER
-import com.ibm.JikesRVM.memoryManagers.watson.VM_GCWorkQueue;
-//-#endif
-//-#if RVM_WITH_JMTK
-import com.ibm.JikesRVM.memoryManagers.JMTk.VM_GCWorkQueue;
-//-#endif
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
 /**

@@ -75,7 +75,7 @@ final class Plan implements Constants extends BasePlan {
    * @param advice Statically-generated allocation advice for this allocation
    * @return The address of the first byte of the allocated region
    */
-  public Address alloc(int allocator, Extent bytes, boolean isScalar,
+  public Address alloc(int allocator, EXTENT bytes, boolean isScalar,
 		       AllocAdvice advice) {
     if ((allocator == NURSERY_ALLOCATOR) && (bytes.LT(LOS_SIZE_THRESHOLD)))
       return nursery.alloc(isScalar, bytes);
@@ -94,7 +94,7 @@ final class Plan implements Constants extends BasePlan {
    * @param isScalar True if the object occupying this space will be a scalar
    * @return The address of the first byte of the allocated region
    */
-  public Address allocCopy(Address original, Extent bytes, boolean isScalar) {
+  public Address allocCopy(Address original, EXTENT bytes, boolean isScalar) {
     return ms.alloc(isScalar, bytes);
   }
 
@@ -123,7 +123,7 @@ final class Plan implements Constants extends BasePlan {
    * where this allocation is taking place.
    * @return The allocator number to be used for this allocation.
    */
-  public int getAllocator(TypeID type, Extent bytes, CallSite callsite) {
+  public int getAllocator(TypeID type, EXTENT bytes, CallSite callsite) {
     if (bytes.GE(LOS_SIZE_THRESHOLD))
       return MS_ALLOCATOR;
     else
@@ -143,7 +143,7 @@ final class Plan implements Constants extends BasePlan {
    * @return Allocation advice to be passed to the allocation routine
    * at runtime
    */
-  public AllocAdvice getAllocAdvice(TypeID type, Extent bytes, 
+  public AllocAdvice getAllocAdvice(TypeID type, EXTENT bytes, 
 				    CallSite callsite, AllocAdvice hint) {
     return null;
   }
@@ -292,11 +292,11 @@ final class Plan implements Constants extends BasePlan {
   // Final class variables (aka constants)
   //
   private static final Address NURSERY_START;
-  private static final Extent NURSERY_VM_SIZE;
+  private static final EXTENT NURSERY_VM_SIZE;
   private static final Address MARKSWEEP_START;
-  private static final Extent MARKSWEEP_VM_SIZE;
+  private static final EXTENT MARKSWEEP_VM_SIZE;
   private static final Address REMSET_START;
-  private static final Extent REMSET_VM_SIZE;
+  private static final EXTENT REMSET_VM_SIZE;
   private static final int NURSERY_ALLOCATOR = 0;
   private static final int MS_ALLOCATOR = 1;
   private static final int IMMORTAL_ALLOCATOR = 2;

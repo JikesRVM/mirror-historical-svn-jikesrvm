@@ -108,7 +108,7 @@ public class WorkQueue {
   //-----------------------
 
   /** constructor */
-  WorkQueue() throws VM_PragmaUninterruptible {
+  public WorkQueue() throws VM_PragmaUninterruptible {
     numRealProcessors = 1;     // default to 1 real physical processor
   }
 

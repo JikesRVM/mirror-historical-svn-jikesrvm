@@ -17,6 +17,7 @@ public interface Constants {
 
   static final int WORDSIZE = 4;
   static final int LG_WORDSIZE = 2;
+  static final int LOG_ADDRESS_SPACE = 32;
 
   /*
    * Data Fields that control the allocation of memory

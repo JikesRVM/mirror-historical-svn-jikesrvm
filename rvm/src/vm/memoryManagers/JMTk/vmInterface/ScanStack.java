@@ -51,37 +51,6 @@ public class ScanStack implements VM_Constants, VM_GCConstants {
 
   static int stackDumpCount = 0;
 
-  public static void processRoots() throws VM_PragmaUninterruptible {
-
-    VM_CollectorThread collector = VM_Magic.threadAsCollectorThread(VM_Thread.getCurrentThread());
-    AddressSet rootVals = collector.rootValues;
-    AddressSet rootLocs = collector.rootLocations;
-    AddressPairSet interiorLocs = collector.interiorLocations;
-    
-    while (!rootVals.isEmpty()) {
-      VM_Address rootVal = rootVals.pop();
-      VM_Allocator.processPtrValue(rootVal);
-    }
-    
-    while (!rootLocs.isEmpty()) {
-      VM_Address rootLoc = rootLocs.pop();
-      VM_Allocator.processPtrField(rootLoc);
-    }
-    
-    if (interiorLocs != null) {
-      while (!interiorLocs.isEmpty()) {
-	VM_Address obj = interiorLocs.pop1();
-	VM_Address interiorLoc = interiorLocs.pop2();
-	VM_Address interior = VM_Magic.getMemoryAddress(interiorLoc);
-	VM_Address newObj = VM_Allocator.processPtrValue(obj);
-	if (obj.NE(newObj)) {
-	  VM_Address newInterior = interior.add(newObj.diff(obj));
-	  VM_Magic.setMemoryAddress(interiorLoc, newInterior);
-	}
-      }
-    }
-    
-  }
 
 
   /**
@@ -97,8 +66,8 @@ public class ScanStack implements VM_Constants, VM_GCConstants {
    */
   public static void scanThreadStack (VM_Thread t, VM_Address top_frame, boolean relocate_code) throws VM_PragmaUninterruptible {
 
-    VM_CollectorThread collector = VM_Magic.threadAsCollectorThread(VM_Thread.getCurrentThread());
-    AddressSet rootLocations = collector.rootLocations;
+    Plan plan = VM_Processor.getCurrentProcessor().mmPlan;
+    AddressSet rootLocations = plan.locations;
     AddressPairSet codeLocations = relocate_code ? collector.interiorLocations : null;
 
     VM_Address             ip, fp, prevFp;

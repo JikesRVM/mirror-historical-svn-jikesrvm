@@ -3,32 +3,62 @@
  */
 //$Id$
 
-package com.ibm.JikesRVM.memoryManagers.vmInterface;
+package com.ibm.JikesRVM.memoryManagers.JMTk;
 
+import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
+import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM_Memory;
 
 public class Conversions implements Constants {
 
-  public static int bytesToBlocks(Extent bytes) {
-    int roundedBytes = VM_Memory.roundUpPage(bytes);
-    return roundedBytes / VM_Memory.getPagesize();
+  // Round up
+  //
+  public static int bytesToBlocks(EXTENT bytes) {
+    return (bytes + (VMResource.BLOCK_SIZE - 1)) & VMResource.BLOCK_MASK;
   }
 
-  public static int addressToMmapChunks(VM_Address addr) {
-    VM_Address addr2 = roundDownPage(addr);
-    return (addr2.toInt()) / VM_Memory.getPagesize();
+  // Round up
+  //
+  public static int bytesToMmapChunk(EXTENT bytes) {
+    return (bytes + (LazyMmapper.MMAP_CHUNK_SIZE - 1)) & LazyMmapper.MMAP_CHUNK_MASK;
   }
 
-  public static VM_Address mmapChunksToAddress(int chunk) {
-    return (VM_Address.fromInt(chunk * VM_Memory.getPagesize()));
-  }
-
+  // Round up
+  //
   public static int blocksToMmapChunks(int blocks) {
-    return blocks;
+    return bytesToMmapChunk(blocks << VMResource.LOG_BLOCK_SIZE);
   }
 
-  public static int blocksToBytes() {
-    return blocks;
+  // Round down
+  //
+  public static int addressToMmapChunks(VM_Address addr) {
+    return (addr.toInt()) >> LazyMmapper.LOG_MMAP_CHUNK_SIZE;
   }
+
+  // Round down
+  //
+  public static int addressToBlocks(VM_Address addr) {
+    return (addr.toInt() >> VMResource.LOG_BLOCK_SIZE);
+  }
+
+  // No rounding needed
+  //
+  public static int blocksToBytes(int blocks) {
+    return blocks << VMResource.LOG_BLOCK_SIZE;
+  }
+
+  // No rounding needed
+  //
+  public static VM_Address blocksToAddress(int blocks) {
+    return VM_Address.fromInt(blocks << VMResource.LOG_BLOCK_SIZE);
+  }
+
+  // No rounding needed
+  //
+  public static VM_Address mmapChunksToAddress(int chunk) {
+    return (VM_Address.fromInt(chunk << LazyMmapper.LOG_MMAP_CHUNK_SIZE));
+  }
+
+
 
 }

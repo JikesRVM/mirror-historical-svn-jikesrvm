@@ -6,7 +6,7 @@
 
 package com.ibm.JikesRVM.memoryManagers.JMTk;
 
-import com.ibm.JikesRVM.memoryManagers.vmInterface.Conversions;
+import com.ibm.JikesRVM.memoryManagers.JMTk.Conversions;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
@@ -36,8 +36,8 @@ public final class LazyMmapper implements Constants, VM_Uninterruptible {
    * (i.e. at "build" time).
    */
   {
-    mapped = new boolean[NUM_CHUNKS];
-    for (int c = 0; c < NUM_CHUNKS; c++) {
+    mapped = new boolean[MMAP_NUM_CHUNKS];
+    for (int c = 0; c < MMAP_NUM_CHUNKS; c++) {
       mapped[c] = false;
     }
   }
@@ -62,8 +62,9 @@ public final class LazyMmapper implements Constants, VM_Uninterruptible {
   // Private static methods and variables
   //
   private static boolean mapped[];
-  private static int LOG_MMAP_CHUNK_SIZE = 20;            
-  private static int MMAP_CHUNK_SIZE = 1 << LOG_CHUNK_SIZE;   // the granularity VMResource operates at
-  private static int MMAP_NUM_CHUNKS = 1 << (Constants.LOG_ADDRESS_SPACE - LOG_CHUNK_SIZE);
+  final public static int LOG_MMAP_CHUNK_SIZE = 20;            
+  final public static int MMAP_CHUNK_SIZE = 1 << LOG_MMAP_CHUNK_SIZE;   // the granularity VMResource operates at
+  final private static int MMAP_NUM_CHUNKS = 1 << (Constants.LOG_ADDRESS_SPACE - LOG_MMAP_CHUNK_SIZE);
+  final public  static int MMAP_CHUNK_MASK = ~((1 << LOG_MMAP_CHUNK_SIZE) - 1);
 }
 

@@ -27,6 +27,8 @@ import com.ibm.JikesRVM.VM_Atom;
 import com.ibm.JikesRVM.VM_ObjectModel;
 import com.ibm.JikesRVM.VM_Magic;
 import com.ibm.JikesRVM.VM_Memory;
+import com.ibm.JikesRVM.VM_CompiledMethod;
+import com.ibm.JikesRVM.VM_DynamicLibrary;
 
 /*
  * @author Perry Cheng  
@@ -69,7 +71,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    */
   public static final void init () throws VM_PragmaInterruptible {
     VM_CollectorThread.init();
-    MMAP_CHUNK_BYTES = VM_Memory.getPageSize();
+    MMAP_CHUNK_BYTES = VM_Memory.getPagesize();
   }
 
 
@@ -160,7 +162,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   }
   
   public static void resolvedPutStaticWriteBarrier(int offset, Object value) { 
-    getPlan().putStaticWriteBarrier(offset, value);
+    getPlan().putStaticWriteBarrier(offset, VM_Magic.objectAsAddress(value));
   }
 
   public static void arrayCopyWriteBarrier(Object ref, int start, int end) {
@@ -205,10 +207,16 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   }
 
   /**
-   * Forces a garbage collection.
+   * External call to force a garbage collection.
    */
   public static final void gc() throws VM_PragmaInterruptible {
-    Plan.collect();
+    triggerCollection();
+  }
+
+  public static final void triggerCollection() throws VM_PragmaInterruptible {
+    VM._assert(false);
+    // do some handshake business first
+    // Plan.collect()
   }
 
   /**
@@ -273,11 +281,11 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   }
 
   public static VM_Address processPtrValue (VM_Address obj) throws VM_PragmaUninterruptible {
-    return Plan.traceReference(obj);
+    return getPlan().traceObject(obj);
   }
 
   public static void processPtrField (VM_Address location) throws VM_PragmaUninterruptible {
-    Plan.traceReferenceLocation(location);
+    getPlan().traceObjectLocation(location);
   }
 
   public static boolean isLive(VM_Address obj) {

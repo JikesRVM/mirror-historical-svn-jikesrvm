@@ -97,7 +97,7 @@ public final class SynchronizationBarrier {
     // leave barrier
     //
     if (trace) VM_Scheduler.trace("VM_ProcessorSynchronizationBarrier", "rendezvous: leave ", myCount);
-    if (time) return rendezvousRecord(start, VM_Time.now());
+    if (time) rendezvousRecord(start, VM_Time.now());
     return 0.0;
   }
 

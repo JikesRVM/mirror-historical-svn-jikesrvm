@@ -37,7 +37,7 @@ public final class FreeListVMResource extends VMResource implements Constants {
   /**
    * Constructor
    */
-  FreeListVMResource(VM_Address vmStart, Extent bytes, byte status,
+  FreeListVMResource(VM_Address vmStart, EXTENT bytes, byte status,
 		     String vmName) {
     super(vmStart, bytes, status, vmName);
     freeList = new GenericFreeList(blocks);

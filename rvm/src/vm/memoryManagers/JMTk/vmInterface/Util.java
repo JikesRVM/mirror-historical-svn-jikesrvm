@@ -38,7 +38,7 @@ import com.ibm.JikesRVM.VM_Synchronization;
  * @author Stephen Smith
  */  
 public class Util
-  implements VM_Constants, VM_GCConstants {
+  implements VM_Constants, Constants {
 
   private final static boolean TRACE = false;
 

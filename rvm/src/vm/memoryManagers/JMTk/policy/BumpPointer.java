@@ -2,6 +2,14 @@
  * (C) Copyright Department of Computer Science,
  * Australian National University. 2002
  */
+
+package com.ibm.JikesRVM.memoryManagers.JMTk;
+
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
+import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Magic;
+
 /**
  * This class implements a simple bump pointer allocator.  The
  * allocator operates in <code>BLOCK</code> sized units.  Intra-block
@@ -69,7 +77,7 @@ final class BumpPointer implements Constants, Uninterruptible {
    * @param bytes The number of bytes allocated
    * @return The address of the first byte of the allocated region
    */
-  public Address alloc(boolean isScalar, Extent bytes) throws VM_PragmaInline {
+  public Address alloc(boolean isScalar, EXTENT bytes) throws VM_PragmaInline {
     VM_Address oldbp = bp;
     bp.add(bytes);
     if ((oldbp ^ bp) >= TRIGGER)
@@ -79,7 +87,7 @@ final class BumpPointer implements Constants, Uninterruptible {
 
 
   
-  private Address allocSlowPath(Extent bytes) throws VM_PragmaNoInline { 
+  private Address allocSlowPath(EXTENT bytes) throws VM_PragmaNoInline { 
     int blocks = Conversions.bytesToBlocks(bytes);
     memoryResource.acquire(blocks);
     VM_Address start = vmResource.acquire(blocks);
@@ -100,7 +108,7 @@ final class BumpPointer implements Constants, Uninterruptible {
   //
   // Final class variables (aka constants)
   //
-  private static final Extent TRIGGER = BLOCK_SIZE;
+  private static final EXTENT TRIGGER = BLOCK_SIZE;
   // this ensures the bump pointer will go slow path on first alloc
   private static final Address INITIAL_BP_VALUE = (TRIGGER - 1);
 }

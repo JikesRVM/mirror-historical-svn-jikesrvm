@@ -6,7 +6,6 @@
 
 package com.ibm.JikesRVM.memoryManagers.JMTk;
 
-import com.ibm.JikesRVM.memoryManagers.vmInterface.Conversions;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
@@ -38,7 +37,7 @@ public abstract class VMResource implements Constants {
   public static final byte IN_VM     = 1;   // 00000001
   public static final byte IMMORTAL  = 2;   // 00000010
   public static final byte MOVABLE   = 4;   // 00000100
-  public static final byte META_DATA = 128; // 10000000
+  public static final byte META_DATA = -128; // 10000000
 
   /**
    * Class initializer.  This is executed <i>prior</i> to bootstrap
@@ -46,11 +45,11 @@ public abstract class VMResource implements Constants {
    */
   {
     resources = new VMResource[MAX_VMRESOURCE];
-    resourceTable = new int[NUM_BLOCKS];
+    resourceTable = new VMResource[NUM_BLOCKS];
     statusTable = new byte[NUM_BLOCKS];
     for (int blk = 0; blk < NUM_BLOCKS; blk++) {
       resourceTable[blk] = null;
-      statusTable[blk] = null;
+      statusTable[blk] = 0;
     }
   }
 
@@ -87,11 +86,18 @@ public abstract class VMResource implements Constants {
   private static byte statusTable[];         // Status of each block, 0 means not used by the VM.
   private static int count;                  // How many VMResources exist now?
   private static VMResource resources[];     // List of all VMResources.
-  private static int MAX_VMRESOURCE = 100;
-  private static int LOG_ADDRESS_SPACE = 32;
+  final private static int MAX_VMRESOURCE = 100;
+  final public  static int LOG_BLOCK_SIZE = 15;
+  final public  static int BLOCK_SIZE = 1 << LOG_BLOCK_SIZE;
+  final public  static int BLOCK_MASK = ~((1 << LOG_BLOCK_SIZE) - 1);
+  final private static int NUM_BLOCKS = 1 << (LOG_ADDRESS_SPACE - LOG_BLOCK_SIZE);
 
   private static VMResource resourceForBlock(VM_Address addr) {
-    return resourceTable[VM_Address.toInt(addr) >> LOG_BLOCK_SIZE];
+    return resourceTable[addr.toInt() >> LOG_BLOCK_SIZE];
+  }
+
+  private static byte getBlockStatus(VM_Address addr) {
+    return statusTable[addr.toInt() >> LOG_BLOCK_SIZE];
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -101,15 +107,15 @@ public abstract class VMResource implements Constants {
   /**
    * Constructor
    */
-  VMResource(VM_Address vmStart, Extent bytes, byte status, String vmName) {
+  VMResource(String vmName, VM_Address vmStart, EXTENT bytes, byte status) {
     start = vmStart;
     blocks = Conversions.bytesToBlocks(bytes);
     name = vmName;
     index = count++;
     resources[index] = this;
     // now check: block-aligned, non-conflicting
-    int startblk = Conversions.bytesToBlocks(start);
-    if (Conversions.blocksToBytes(startblk) != start) {
+    int startblk = Conversions.addressToBlocks(start);
+    if (Conversions.blocksToAddress(startblk).NE(start)) {
       VM.sysWriteln("misaligned VMResource");
       VM._assert(false);
     }
@@ -139,7 +145,7 @@ public abstract class VMResource implements Constants {
   //
 
   private int index;
-  private VM_Address start;
+  protected VM_Address start;
   private int blocks;
   private String name;
 }

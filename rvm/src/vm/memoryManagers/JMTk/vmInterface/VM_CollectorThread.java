@@ -595,10 +595,6 @@ public class VM_CollectorThread extends VM_Thread {
   public double totalFinishWait;      // total time waiting for no more buffers
   public double totalRendezvousWait;  // total time waiting for no more buffers
 
-  AddressSet rootLocations;
-  AddressSet rootValues;
-  AddressPairSet interiorLocations;
-
   // constructor
   //
   VM_CollectorThread(int[] stack, boolean isActive, VM_Processor processorAffinity) throws VM_PragmaInterruptible {
@@ -612,10 +608,6 @@ public class VM_CollectorThread extends VM_Thread {
     // associate this collector thread with its affinity processor
     collectorThreads[processorAffinity.id] = this;
 
-    // Should completely come out of immortal heap
-    rootLocations = new AddressSet(1024);
-    rootValues = new AddressSet(1024);
-    interiorLocations = new AddressPairSet(1024);
   }
   
   // Record number of processors that will be participating in gc synchronization.

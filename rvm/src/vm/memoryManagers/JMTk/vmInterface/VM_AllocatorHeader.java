@@ -5,6 +5,8 @@
 
 package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
+import com.ibm.JikesRVM.memoryManagers.JMTk.Header;
+
 /**
  * Chooses the appropriate collector-specific header model.
  *
@@ -12,5 +14,5 @@ package com.ibm.JikesRVM.memoryManagers.vmInterface;
  * 
  * @author Perry Cheng
  */
-public final class VM_AllocatorHeader extends VM_CopyingAllocatorHeader { }
+public final class VM_AllocatorHeader extends Header { }
 

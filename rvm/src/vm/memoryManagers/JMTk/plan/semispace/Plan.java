@@ -5,6 +5,12 @@
 
 package com.ibm.JikesRVM.memoryManagers.JMTk;
 
+import com.ibm.JikesRVM.memoryManagers.vmInterface.*;
+
+import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Magic;
+import com.ibm.JikesRVM.VM_PragmaInterruptible;
+
 /**
  * This class implements a simple semi-space collector. See the Jones
  * & Lins GC book, section 2.2 for an overview of the basic algorithm.
@@ -37,10 +43,15 @@ public final class Plan extends BasePlan { // implements Constants
    */
   {
     // virtual memory resources
-    ss0VM = new VMResource(SS_START, SS_SIZE);
-    ss1VM = new VMResource(SS_START + SS_SIZE, SS_SIZE);
-    losVM = new VMResource(LOS_START, LOS_SIZE);
-    immortalVM = new VMResource(IMMORTAL_START, IMMORTAL_SIZE);
+    VM_Address HI_SS_START = SS_START.add(SS_SIZE);
+    ss0VM      = new MonotoneVMResource("Lower semispace", 
+					SS_START,       SS_SIZE,       (byte) (VMResource.IN_VM | VMResource.MOVABLE));
+    ss1VM      = new MonotoneVMResource("Upper semispace", 
+					HI_SS_START,    SS_SIZE,       (byte) (VMResource.IN_VM | VMResource.MOVABLE));
+    losVM      = new MonotoneVMResource("Large obj space", 
+    					LOS_START,      LOS_SIZE,      VMResource.IN_VM);
+    immortalVM = new MonotoneVMResource("Immortal space",  
+					IMMORTAL_START, IMMORTAL_SIZE, (byte) (VMResource.IN_VM | VMResource.IMMORTAL));
 
     // memory resources
     ssMR = new MemoryResource();
@@ -65,9 +76,9 @@ public final class Plan extends BasePlan { // implements Constants
    * Constructor
    */
   Plan() {
-    ss = new AllocatorBumpPointer(ss0VM, ssMR);
-    los = new AllocatorLOS(losVM, losMR);
-    immortal = new AllocatorBumpPointer(immortalVM, immortalMR);
+    ss = new BumpPointer(ss0VM, ssMR);
+    // los = new AllocatorLOS(losVM, losMR);
+    immortal = new BumpPointer(immortalVM, immortalMR);
   }
 
   /**
@@ -79,13 +90,13 @@ public final class Plan extends BasePlan { // implements Constants
    * @param advice Statically-generated allocation advice for this allocation
    * @return The address of the first byte of the allocated region
    */
-  public VM_Address alloc(int allocator, Extent bytes, boolean isScalar, AllocAdvice advice) {
-    if ((allocator == BP_ALLOCATOR) && (bytes.LT(LOS_SIZE_THRESHOLD)))
+  public VM_Address alloc(int allocator, EXTENT bytes, boolean isScalar, AllocAdvice advice) {
+    if ((allocator == BP_ALLOCATOR) && (bytes <= LOS_SIZE_THRESHOLD))
       return ss.alloc(isScalar, bytes);
     else if (allocator == IMMORTAL_ALLOCATOR)
       return immortal.alloc(isScalar, bytes);
-    else 
-      return los.alloc(isScalar, bytes);
+    // else 
+    //  return los.alloc(isScalar, bytes);
   }
 
   /**
@@ -97,7 +108,7 @@ public final class Plan extends BasePlan { // implements Constants
    * @param isScalar True if the object occupying this space will be a scalar
    * @return The address of the first byte of the allocated region
    */
-  public VM_Address allocCopy(VM_Address original, Extent bytes, boolean isScalar) {
+  public VM_Address allocCopy(VM_Address original, EXTENT bytes, boolean isScalar) {
     return ss.alloc(isScalar, bytes);
   }
 
@@ -114,9 +125,8 @@ public final class Plan extends BasePlan { // implements Constants
    * site should use.
    * @return The allocator number to be used for this allocation.
    */
-  public int getAllocator(TypeID type, Extent bytes, CallSite callsite, 
-			  AllocAdvice hint) {
-    if (bytes.GE(LOS_SIZE_THRESHOLD))
+  public int getAllocator(Type type, EXTENT bytes, CallSite callsite, AllocAdvice hint) {
+    if (bytes >= LOS_SIZE_THRESHOLD)
       return LOS_ALLOCATOR;
     else
       return BP_ALLOCATOR;
@@ -135,7 +145,7 @@ public final class Plan extends BasePlan { // implements Constants
    * @return Allocation advice to be passed to the allocation routine
    * at runtime
    */
-  public AllocAdvice getAllocAdvice(TypeID type, Extent bytes,
+  public AllocAdvice getAllocAdvice(Type type, EXTENT bytes,
 				    CallSite callsite, AllocAdvice hint) { 
     return null;
   }
@@ -155,34 +165,10 @@ public final class Plan extends BasePlan { // implements Constants
 
   public void poll() {
     if (getBlocksReserved() > getHeapBlocks())
-      MM.triggerCollection();
+      VM_Interface.triggerCollection();
   }
   
    
-  /**
-   * Trace a reference during GC.  This involves determining which
-   * collection policy applies and calling the appropriate
-   * <code>trace</code> method.
-   *
-   * @param slot The address of a slot containing the reference to be traced.
-   * @param ref The reference to be traced.  This <i>may</i> be an
-   * interior pointer.
-   * @param obj A reference to the object containing <code>ref</code>.
-   * Normally <code>ref</code> and <code>obj</code> will be identical.
-   * Only in the case where <code>ref</code> is an interior pointer
-   * will they differ. The object is implicitly reachable (live).
-   */
-  public void traceReference(Address slot, Address ref, Address obj) {
-    if (ref.LE(HEAP_END)) {
-      if (ref.GE(LOS_START))
-	CollectorLOS.traceReference(obj);
-      else if (ref.GE(SS_START))
-	Runtime.setSlot(slot, CollectorCopying.traceReference(ref, obj));
-      else if (ref.GE(IMMORTAL_START))
-	CollectorImmortal.traceReference(obj);
-    } // else this is not a heap pointer
-  }
-
   /**
    * Trace a reference during GC.  This involves determining which
    * collection policy applies and calling the appropriate
@@ -193,14 +179,16 @@ public final class Plan extends BasePlan { // implements Constants
    * @return The possibly moved reference.
    */
   public VM_Address traceObject(VM_Address obj) {
-    if (ref.LE(HEAP_END)) {
-      if (ref.GE(LOS_START))
-	return CollectorLOS.traceReference(obj);
-      else if (ref.GE(SS_START))
-	return CollectorCopying.traceReference(obj);
-      else if (ref.GE(IMMORTAL_START))
-	return CollectorImmortal.traceReference(obj);
+    VM_Address addr = refToaddr(obj);
+    if (addr.LE(HEAP_END)) {
+      if (addr.GE(SS_START))
+	return Copy.traceObject(obj);
+      //      else if (addr.GE(LOS_START))
+      // return LargeObjectSpace.traceObject(obj);
+      else if (addr.GE(IMMORTAL_START))
+	return Immortal.traceObject(obj);
     } // else this is not a heap pointer
+    return obj;
   }
 
 
@@ -209,7 +197,7 @@ public final class Plan extends BasePlan { // implements Constants
    */
   public void collect() {
     prepare();
-    collect(null);
+    super.collect();
     release();
   }
 
@@ -243,16 +231,16 @@ public final class Plan extends BasePlan { // implements Constants
    */
   private void prepare() {
     if (Synchronize.acquireBarrier()) {
-      gcInProgres = true;
+      gcInProgress = true;
       hi = !hi;       // flip the semi-spaces
       ssMR.reset();    // reset the semispace memory resource, and
       // rebind the semispace bump pointer to the appropriate semispace.
       ss.rebindVM(((hi) ? ss1VM : ss0VM)); 
       
       // prepare each of the collected regions
-      CollectorCopying.prepare(((hi) ? ss0VM : ss1VM), ssMR);
-      CollectorLOS.prepare(losVM, losMR);
-      CollectorImmortal.prepare(immortalVM, null);
+      Copy.prepare(((hi) ? ss0VM : ss1VM), ssMR);
+      LargeObjectSpace.prepare(losVM, losMR);
+      Immortal.prepare(immortalVM, null);
       Synchronize.releaseBarrier();
     }
   }
@@ -263,10 +251,10 @@ public final class Plan extends BasePlan { // implements Constants
   private void release() {
     if (Synchronize.acquireBarrier()) {
       // release each of the collected regions
-      CollectorCopying.release(((hi) ? ss0VM : ss1VM), ssMR);
-      CollectorLOS.release(losVM, losMR);
-      CollectorImmortal.release(immortalVM, null);
-      gcInProgres = false;
+      Copy.release(((hi) ? ss0VM : ss1VM), ssMR);
+      LargeObjectSpace.release(losVM, losMR);
+      Immortal.release(immortalVM, null);
+      gcInProgress = false;
       Synchronize.releaseBarrier();
     }
   }
@@ -275,9 +263,9 @@ public final class Plan extends BasePlan { // implements Constants
   //
   // Instance variables
   //
-  private AllocatorBumpPointer ss;
-  private AllocatorLOS los;
-  private AllocatorBumpPointer immortal;
+  private BumpPointer ss;
+  // private LOS los;
+  private BumpPointer immortal;
 
   ////////////////////////////////////////////////////////////////////////////
   //
@@ -294,17 +282,23 @@ public final class Plan extends BasePlan { // implements Constants
   private static MemoryResource losMR;
   private static MemoryResource immortalMR;
 
+  // GC state
+  private static boolean hi = false;   // If true, we are allocating from the "higher" semispace.
+
   ////////////////////////////////////////////////////////////////////////////
   //
   // Final class variables (aka constants)
   //
-  private static final VM_Address       SS_START = 0x46000000;
-  private static final Extent            SS_SIZE = 128 * 1024 * 1024;
-  private static final VM_Address      LOS_START = 0x42000000;
-  private static final Extent           LOS_SIZE = 48 * 1024 * 1024;
-  private static final VM_Address IMMORTAL_START = 0x40000000;
-  private static final Extent      IMMORTAL_SIZE = 16 * 1024 * 1024;
-  private static final Extent           LOS_SIZE = 48 * 1024 * 1024;
+  private static final VM_Address IMMORTAL_START = VM_Address.fromInt(0x40000000);
+  private static final EXTENT      IMMORTAL_SIZE = 16 * 1024 * 1024;
+  private static final VM_Address      LOS_START = VM_Address.fromInt(0x42000000);
+  private static final EXTENT           LOS_SIZE = 48 * 1024 * 1024;
+  private static final VM_Address       SS_START = VM_Address.fromInt(0x50000000);
+  private static final EXTENT            SS_SIZE = 256 * 1024 * 1024;              // size of each space
+  private static final VM_Address       HEAP_END = SS_START.add(2 * SS_SIZE);
+  private static final EXTENT LOS_SIZE_THRESHOLD = 4 * 1024;
+
+  private static final int COPY_FUDGE_BLOCKS = 4;  // Steve - fix this
 
   private static final int BP_ALLOCATOR = 0;
   private static final int LOS_ALLOCATOR = 1;

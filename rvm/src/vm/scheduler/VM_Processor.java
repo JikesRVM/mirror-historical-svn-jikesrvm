@@ -615,6 +615,10 @@ public final class VM_Processor implements VM_Uninterruptible,  VM_Constants {
   int    arrayIndexTrapParam; 
   //-#endif
 
+  //-#if RVM_WITH_JMTK
+  public Plan mmPlan;
+  //-#endif
+
   //-#if RVM_WITH_JIKESRVM_MEMORY_MANAGERS
   // Chunk 1 -- see VM_Chunk.java
   // By convention, chunk1 is used for 'normal' allocation 
@@ -649,6 +653,15 @@ public final class VM_Processor implements VM_Uninterruptible,  VM_Constants {
   public VM_Address  modifiedOldObjectsTop;       // address of most recently filled slot
   public VM_Address  modifiedOldObjectsMax;       // address of last available slot in buffer
   //-#endif
+
+  // More GC fields
+  //
+  public int    large_live;		// count live objects during gc
+  public int    small_live;		// count live objects during gc
+  public long   totalBytesAllocated;	// used for instrumentation in allocators
+  public long   totalObjectsAllocated; // used for instrumentation in allocators
+  public long   synchronizedObjectsAllocated; // used for instrumentation in allocators
+
 
   /*
    * END FREQUENTLY ACCESSED INSTANCE FIELDS
@@ -731,58 +744,6 @@ public final class VM_Processor implements VM_Uninterruptible,  VM_Constants {
    */ 
   public VM_Processor next; 
 
-  //--------------------//
-  // Start of GC stuff. //
-  //--------------------//
-
-  //-#if RVM_WITH_JIKESRVM_MEMORY_MANAGERS
-  //-#if RVM_WITH_CONCURRENT_GC
-  VM_Address incDecBuffer;        // the buffer
-  VM_Address incDecBufferTop;     // address of most recently filled slot in buffer
-  VM_Address incDecBufferMax;     // address of last available slot in buffer
-  int    localEpoch;
-  //-#endif
-
-  // misc. fields - probably should verify if still in use
-  //
-  public int    large_live;		// count live objects during gc
-  public int    small_live;		// count live objects during gc
-  public long   totalBytesAllocated;	// used for instrumentation in allocators
-  public long   totalObjectsAllocated; // used for instrumentation in allocators
-  public long   synchronizedObjectsAllocated; // used for instrumentation in allocators
-  //-#endif
-
-  //-#if RVM_WITH_GCTk
-  GCTk_Collector collector;
-  ADDRESS writeBuffer0;
-  ADDRESS writeBuffer1;
-
-  ADDRESS remset[];
-
-  // Allocation bump pointers (per processor)
-  ADDRESS allocBump0;
-  ADDRESS allocBump1;
-  ADDRESS allocBump2;
-  ADDRESS allocBump3;
-  ADDRESS allocBump4;
-  ADDRESS allocBump5;
-  ADDRESS allocBump6;
-  ADDRESS allocBump7;
-
-  // Per-allocator
-  ADDRESS allocSync0;
-  ADDRESS allocSync1;
-  ADDRESS allocSync2;
-  ADDRESS allocSync3;
-  ADDRESS allocSync4;
-  ADDRESS allocSync5;
-  ADDRESS allocSync6;
-  ADDRESS allocSync7;
-  //-#endif
-
-  //--------------------//
-  //  End of GC stuff.  //
-  //--------------------//
 
   // Type of Virtual Processor
   //

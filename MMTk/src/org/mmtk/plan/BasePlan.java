@@ -6,18 +6,37 @@
 
 package com.ibm.JikesRVM.memoryManagers.JMTk;
 
+import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.WorkQueue;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.AddressSet;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.AddressPairSet;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.AddressTripleSet;
+
+import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Magic;
+import com.ibm.JikesRVM.VM_PragmaInterruptible;
+
 /**
  *
  * @author <a href="http://cs.anu.edu.au/~Steve.Blackburn">Steve Blackburn</a>
  * @version $Revision$
  * @date $Date$
  */
-public abstract class BasePlan implements {  // Constants {
+public abstract class BasePlan implements Constants {
 
   public final static String Id = "$Id$"; 
 
+  private WorkQueue workQueue;
+  private AddressSet values;                 // gray objects
+  private AddressSet locations;              // locations containing gray objects
+  private AddressPairSet interiorLocations;  // interior locations
+
   BasePlan() {
-    workqueue = new WorkQueue();
+    workQueue = new WorkQueue();
+    values = new AddressSet(64 * 1024);
+    locations = new AddressSet(1024);
+    interiorLocations = new AddressPairSet(1024);
   }
 
   /**
@@ -28,57 +47,68 @@ public abstract class BasePlan implements {  // Constants {
    * For this reason all plans should operate gracefully on the
    * default minimum heap size until the point that boot is called.
    */
-  public boot() {
+  public void boot() {
     heapBlocks = Conversion.MBtoBlocks(Options.heapSize);
   }
 
-  private boolean gcInProgress = false;    // This flag should be turned on/off by subclasses.
+  protected static boolean gcInProgress = false;    // This flag should be turned on/off by subclasses.
 
   static public boolean gcInProgress() {
     return gcInProgress;
   }
 
-  private void computeAndTraceRoots() {
+  private void computeRoots() {
+    VM.sysWriteln("computeRoots not implemented");
+    VM._assert(false);
+  }
 
-    VM_CollectorThread collector = VM_Magic.threadAsCollectorThread(VM_Thread.getCurrentThread());
-    AddressSet rootVals = collector.rootValues;
-    AddressSet rootLocs = collector.rootLocations;
-    AddressPairSet interiorLocs = collector.interiorLocations;
-    
-    while (!rootVals.isEmpty()) 
-      traceObject(rootVals.pop());
-    
-    while (!rootLocs.isEmpty()) 
-      traceObjectLocation(rootLocs.pop());
-    
-    if (interiorLocs != null) {
-      while (!interiorLocs.isEmpty()) {
-	VM_Address obj = interiorLocs.pop1();
-	VM_Address interiorLoc = interiorLocs.pop2();
+  // Add a gray object
+  //
+  public void enqueue(VM_Address obj) {
+    values.push(obj);
+  }
+
+  private void processAllWork() {
+
+    while (true) {
+      
+      while (!values.isEmpty()) 
+	traceObject(values.pop());
+      
+      while (!locations.isEmpty()) 
+	traceObjectLocation(locations.pop());
+      
+      while (!interiorLocations.isEmpty()) {
+	VM_Address obj = interiorLocations.pop1();
+	VM_Address interiorLoc = interiorLocations.pop2();
 	VM_Address interior = VM_Magic.getMemoryAddress(interiorLoc);
 	VM_Address newInterior = traceInteriorReference(obj, interior);
 	VM_Magic.setMemoryAddress(interiorLoc, newInterior);
       }
+
+      if (values.isEmpty() && locations.isEmpty() && interiorLocations.isEmpty())
+	break;
     }
+
   }
 
-  private void collect(PointerIterator remset) {
-    computeAndTraceRoots();
-    if (remset != null)
-      remset.trace();
-    workqueue.trace();
+  protected void collect() {
+    computeRoots();
+    processAllWork();
   }
 
   public static int getHeapBlocks() { return heapBlocks; }
 
-  private static int heapBlocks_;
+  private static int heapBlocks;
 
   public static final long freeMemory() throws VM_PragmaInterruptible {
     VM._assert(false);
+    return 0;
   }
 
   public static final long totalMemory() throws VM_PragmaInterruptible {
     VM._assert(false);
+    return 0;
   }
 
   
@@ -147,7 +177,7 @@ public abstract class BasePlan implements {  // Constants {
    * @return void
    */
   final public void traceObjectLocation(VM_Address objLoc) {
-    VM_Addres obj = VM_Magic.getMemoryAddress(objLoc);
+    VM_Address obj = VM_Magic.getMemoryAddress(objLoc);
     VM_Address newObj = traceObject(obj);
     VM_Magic.setMemoryAddress(objLoc, newObj);
   }
@@ -164,8 +194,8 @@ public abstract class BasePlan implements {  // Constants {
    * @return The possibly moved reference.
    */
   final public VM_Address traceInteriorReference(VM_Address obj, VM_Address interiorRef) {
-    int offset = obj.diff(reference);
-    VM_Address newObj = traceReference(obj);
+    int offset = obj.diff(interiorRef);
+    VM_Address newObj = traceObject(obj);
     return newObj.add(offset);
   }
 

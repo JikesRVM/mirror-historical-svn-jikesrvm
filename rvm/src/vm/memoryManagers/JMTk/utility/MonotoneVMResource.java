@@ -6,7 +6,6 @@
 
 package com.ibm.JikesRVM.memoryManagers.JMTk;
 
-import com.ibm.JikesRVM.memoryManagers.vmInterface.Conversions;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
@@ -36,9 +35,8 @@ public final class MonotoneVMResource extends VMResource implements Constants {
   /**
    * Constructor
    */
-  MonotoneVMResource(VM_Address vmStart, Extent bytes, byte status,
-		     String vmName) {
-    super(vmStart, bytes, status, vmName);
+  MonotoneVMResource(String vmName, VM_Address vmStart, EXTENT bytes, byte status) {
+    super(vmName, vmStart, bytes, status);
     cursor = start;
     sentinel = start.add(bytes);
   }
@@ -54,7 +52,7 @@ public final class MonotoneVMResource extends VMResource implements Constants {
   public final VM_Address acquire(int request) {
     VM_Address tmpCursor = cursor.add(Conversions.blocksToBytes(request));
     
-    if (tmpCursor >= sentinel) {
+    if (tmpCursor.GE(sentinel)) {
       // FIXME Is this really how we want to deal with failure?
       return VM_Address.zero();
     } else {
