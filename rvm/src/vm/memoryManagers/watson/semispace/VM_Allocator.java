@@ -269,6 +269,7 @@ public class VM_Allocator
     VM_Finalizer.setup();
     
     VM_Callbacks.addExitMonitor(new VM_Allocator());
+    VM_Callbacks.addAppRunStartMonitor(new VM_Allocator());
 
     if (DISPLAY_OPTIONS_AT_BOOT) {
       VM.sysWrite("\n");
