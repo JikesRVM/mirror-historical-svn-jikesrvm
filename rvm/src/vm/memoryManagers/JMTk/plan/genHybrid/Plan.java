@@ -1,18 +1,41 @@
 /*
  * (C) Copyright Department of Computer Science,
  * Australian National University. 2002
- * All rights reserved.
  */
+
+package com.ibm.JikesRVM.memoryManagers.JMTk;
+
+import com.ibm.JikesRVM.memoryManagers.vmInterface.*;
+
+import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_ObjectModel;
+import com.ibm.JikesRVM.VM_Magic;
+import com.ibm.JikesRVM.VM_Uninterruptible;
+import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_PragmaInterruptible;
+import com.ibm.JikesRVM.VM_PragmaLogicallyUninterruptible;
+import com.ibm.JikesRVM.VM_PragmaInline;
+import com.ibm.JikesRVM.VM_PragmaNoInline;
+import com.ibm.JikesRVM.VM_Scheduler;
+import com.ibm.JikesRVM.VM_Thread;
+import com.ibm.JikesRVM.VM_Time;
+import com.ibm.JikesRVM.VM_Processor;
+
 /**
- * This class implements a simple hybrid copying/mark-sweep
- * generational collector.
+ * This class implements a simple semi-space collector. See the Jones
+ * & Lins GC book, section 2.2 for an overview of the basic algorithm.
  *
  * @author <a href="http://cs.anu.edu.au/~Steve.Blackburn">Steve Blackburn</a>
  * @version $Revision$
  * @date $Date$
  */
-final class Plan implements Constants extends BasePlan {
+public final class Plan extends BasePlan implements VM_Uninterruptible { // implements Constants 
   public final static String Id = "$Id$"; 
+
+  public static final boolean needsWriteBarrier = true;
+  public static final boolean needsRefCountWriteBarrier = false;
+  public static final boolean movesObjects = true;
 
   ////////////////////////////////////////////////////////////////////////////
   //
@@ -25,24 +48,94 @@ final class Plan implements Constants extends BasePlan {
   // remsets.
   //
 
-  /**
-   * Class initializer.  This is executed <i>prior</i> to bootstrap
-   * (i.e. at "build" time).
-   */
-  static {
-    // virtual memory resources
-    nurseryVM = new VMResource(NURSERY_START, NURSERY_VM_SIZE);
-    msVM = new VMResource(MARKSWEEP_START, MARKSWEEP_VM_SIZE);
-    immortalVM = new VMResource(IMMORTAL_START, IMMORTAL_VM_SIZE);
-    remsetVM = new VMResouce (REMSET_START, REMSET_VM_SIZE);
-
-    // memory resources
-    nurseryMR = new MemoryResource();
-    msMR = new MemoryResource();
-    immortalMR = new MemoryResource();
-    remsetMR = new MemoryResource();
+  public static void boot()
+    throws VM_PragmaInterruptible {
+    BasePlan.boot();
   }
 
+  /**
+   * Trace a reference during GC.  This involves determining which
+   * collection policy applies and calling the appropriate
+   * <code>trace</code> method.
+   *
+   * @param obj The object reference to be traced.  This is <i>NOT</i> an
+   * interior pointer.
+   * @return The possibly moved reference.
+   */
+  public static VM_Address traceObject(VM_Address obj, boolean root) {
+    return traceObject(obj);
+  }
+  public static VM_Address traceObject(VM_Address obj) {
+    VM_Address addr = VM_Interface.refToAddress(obj);
+    if (addr.LE(HEAP_END)) {
+      if (addr.GE(NURSERY_START))
+	return Copy.traceObject(obj);
+      else if (fullHeapGC) {
+	if (addr.GE(MS_START))
+	  return msCollector.traceObject(obj);
+	else if (addr.GE(IMMORTAL_START))
+	  return Immortal.traceObject(obj);
+      }
+    } // else this is not a heap pointer
+    return obj;
+  }
+
+  public static boolean isNurseryObject(Object base) {
+    VM_Address addr =VM_Interface.refToAddress(VM_Magic.objectAsAddress(base));
+    return (addr.GE(NURSERY_START) && addr.LE(HEAP_END));
+  }
+
+  public static boolean isLive(VM_Address obj) {
+    VM_Address addr = VM_ObjectModel.getPointerInMemoryRegion(obj);
+    if (addr.LE(HEAP_END)) {
+      if (addr.GE(NURSERY_START))
+	return Copy.isLive(obj);
+      else if (addr.GE(MS_START))
+	return msCollector.isLive(obj);
+      else if (addr.GE(IMMORTAL_START))
+	return true;
+    } 
+    return false;
+  }
+
+  public static void showPlans() {
+    for (int i=0; i<VM_Scheduler.processors.length; i++) {
+      VM_Processor p = VM_Scheduler.processors[i];
+      if (p == null) continue;
+      VM.sysWrite(i, ": ");
+      p.mmPlan.show();
+    }
+  }
+
+  public static void showUsage() {
+      VM.sysWrite("used pages = ", getPagesUsed());
+      VM.sysWrite(" ("); VM.sysWrite(Conversions.pagesToBytes(getPagesUsed()) >> 20, " Mb) ");
+      VM.sysWrite("= (nursery) ", nurseryMR.reservedPages());  
+      VM.sysWrite("= (ms) ", msMR.reservedPages());
+      VM.sysWrite(" + (imm) ",  immortalMR.reservedPages());
+      VM.sysWriteln(" + (md) ",  metaDataMR.reservedPages());
+  }
+
+  public static int getInitialHeaderValue(int size) {
+    return msCollector.getInitialHeaderValue(size);
+  }
+
+  public static int resetGCBitsForCopy(VM_Address fromObj, int forwardingPtr,
+				       int bytes) {
+    return (forwardingPtr & ~HybridHeader.GC_BITS_MASK) | msCollector.getInitialHeaderValue(bytes);
+  }
+
+  public static final long freeMemory() throws VM_PragmaUninterruptible {
+    return totalMemory() - usedMemory();
+  }
+
+  public static final long usedMemory() throws VM_PragmaUninterruptible {
+    return Conversions.pagesToBytes(getPagesUsed());
+  }
+
+  public static final long totalMemory() throws VM_PragmaUninterruptible {
+    return Conversions.pagesToBytes(getPagesAvail());
+  }
 
   ////////////////////////////////////////////////////////////////////////////
   //
@@ -59,11 +152,11 @@ final class Plan implements Constants extends BasePlan {
   /**
    * Constructor
    */
-  Plan() {
-    nursery = new AllocatorBumpPointer(nurseryVM, nurseryMR);
-    ms = new AllocatorLea(msVM, msMR);
-    immortal = new AllocatorBumpPointer(immortalVM, immortalMR);
-    remset = new RemsetSSB(remsetVM, remsetMR);
+  public Plan() {
+    nursery = new BumpPointer(nurseryVM);
+    ms = new MarkSweepAllocator(msCollector);
+    immortal = new BumpPointer(immortalVM);
+    remset = new WriteBuffer(locationPool);
   }
 
   /**
@@ -75,14 +168,36 @@ final class Plan implements Constants extends BasePlan {
    * @param advice Statically-generated allocation advice for this allocation
    * @return The address of the first byte of the allocated region
    */
-  public Address alloc(int allocator, EXTENT bytes, boolean isScalar,
-		       AllocAdvice advice) {
-    if ((allocator == NURSERY_ALLOCATOR) && (bytes.LT(LOS_SIZE_THRESHOLD)))
-      return nursery.alloc(isScalar, bytes);
-    else if (allocator == IMMORTAL_ALLOCATOR)
-      return immortal.alloc(isScalar, bytes);
-    else
-      return ms.alloc(isScalar, bytes);
+  public final VM_Address alloc(EXTENT bytes, boolean isScalar, int allocator, 
+				AllocAdvice advice)
+    throws VM_PragmaInline {
+    if (VM.VerifyAssertions) VM._assert(bytes == (bytes & (~(WORD_SIZE-1))));
+    if (allocator == NURSERY_ALLOCATOR && bytes > LOS_SIZE_THRESHOLD) 
+      allocator = MS_ALLOCATOR;
+    VM_Address region;
+    switch (allocator) {
+      case  NURSERY_ALLOCATOR: region = nursery.alloc(isScalar, bytes); break;
+      case       MS_ALLOCATOR: region = ms.alloc(isScalar, bytes); break;
+      case IMMORTAL_ALLOCATOR: region = immortal.alloc(isScalar, bytes); break;
+      default:                 region = VM_Address.zero(); VM.sysFail("No such allocator");
+    }
+    if (VM.VerifyAssertions) VM._assert(Memory.assertIsZeroed(region, bytes));
+    return region;
+  }
+  
+  public final void postAlloc(Object ref, Object[] tib, int size,
+			      boolean isScalar, int allocator)
+    throws VM_PragmaInline {
+    if ((allocator == NURSERY_ALLOCATOR && size > LOS_SIZE_THRESHOLD)
+	|| (allocator == MS_ALLOCATOR))
+      Header.initializeMarkSweepHeader(ref, tib, size, isScalar);
+  }
+  public final void postCopy(Object ref, Object[] tib, int size,
+			     boolean isScalar) {}
+
+  public final void show() {
+    nursery.show();
+    ms.show();
   }
 
   /**
@@ -94,22 +209,10 @@ final class Plan implements Constants extends BasePlan {
    * @param isScalar True if the object occupying this space will be a scalar
    * @return The address of the first byte of the allocated region
    */
-  public Address allocCopy(Address original, EXTENT bytes, boolean isScalar) {
-    return ms.alloc(isScalar, bytes);
-  }
-
-  /**
-   * Perform a write barrier operation for this collector.
-   *
-   * @param srcObj The address of the object containing the pointer to
-   * be written to
-   * @param srcSlot The address of the pointer to be written to
-   * @param tgt The address to which the source will point
-   */
-  public final void writeBarrier(Address srcObj, Address srcSlot, Address tgt){
-    // A very inefficient write barrier (assume nursery is in high memory)
-    if (srcSlot.LT(NURSERY_START) && tgt.GE(NURSERY_START))
-      remset.remember(srcSlot);
+  public final VM_Address allocCopy(VM_Address original, EXTENT bytes,
+				    boolean isScalar) 
+    throws VM_PragmaInline {
+    return ms.allocCopy(isScalar, bytes);
   }
 
   /**
@@ -121,13 +224,13 @@ final class Plan implements Constants extends BasePlan {
    * @param bytes The size (in bytes) required for this object
    * @param callsite Information identifying the point in the code
    * where this allocation is taking place.
+   * @param hint A hint from the compiler as to which allocator this
+   * site should use.
    * @return The allocator number to be used for this allocation.
    */
-  public int getAllocator(TypeID type, EXTENT bytes, CallSite callsite) {
-    if (bytes.GE(LOS_SIZE_THRESHOLD))
-      return MS_ALLOCATOR;
-    else
-      return NURSERY_ALLOCATOR;
+  public final int getAllocator(Type type, EXTENT bytes, CallSite callsite,
+				AllocAdvice hint) {
+    return (bytes >= LOS_SIZE_THRESHOLD) ? MS_ALLOCATOR : NURSERY_ALLOCATOR;
   }
 
   /**
@@ -143,123 +246,200 @@ final class Plan implements Constants extends BasePlan {
    * @return Allocation advice to be passed to the allocation routine
    * at runtime
    */
-  public AllocAdvice getAllocAdvice(TypeID type, EXTENT bytes, 
-				    CallSite callsite, AllocAdvice hint) {
+  public final AllocAdvice getAllocAdvice(Type type, EXTENT bytes,
+					  CallSite callsite,
+					  AllocAdvice hint) { 
     return null;
   }
 
   /**
    * This method is called periodically by the allocation subsystem
-   * (by default, each time a block is consumed), and provides the
+   * (by default, each time a page is consumed), and provides the
    * collector with an opportunity to collect.<p>
    *
    * We trigger a collection whenever an allocation request is made
-   * that would take the number of blocks in use (committed for use)
-   * beyond the number of blocks available.  Collections are triggered
+   * that would take the number of pages in use (committed for use)
+   * beyond the number of pages available.  Collections are triggered
    * through the runtime, and ultimately call the
    * <code>collect()</code> method of this class or its superclass.
    *
+   * This method is clearly interruptible since it can lead to a GC.
+   * However, the caller is typically uninterruptible and this fiat allows 
+   * the interruptibility check to work.  The caveat is that the caller 
+   * of this method must code as though the method is interruptible. 
+   * In practice, this means that, after this call, processor-specific
+   * values must be reloaded.
+   *
+   * @return Whether a collection is triggered
    */
-  public void poll() {
-    if (getBlocksReserved() > getHeapBlocks())
-      MM.triggerCollection();
+
+  public boolean poll(boolean mustCollect, MemoryResource mr)
+    throws VM_PragmaLogicallyUninterruptible {
+    if (gcInProgress) return false;
+    if (mustCollect || getPagesReserved() > getTotalPages()) {
+      if (VM.VerifyAssertions)
+	VM._assert(mr != metaDataMR);
+      fullHeapGC = mustCollect || fullHeapGC;
+      VM_Interface.triggerCollection();
+      return true;
+    }
+    return false;
   }
   
-  /**
-   * Trace a reference during GC.  This involves determining which
-   * collection policy applies and calling the appropriate
-   * <code>trace</code> method.
-   *
-   * @param reference The reference to be traced.  The corresponding
-   * object is implicitly reachable (live).
-   */
-  public void traceReference(Address reference) {
-    if (reference.LE(HEAP_END)) {
-      if (reference.GE(NURSERY_START))
-	CollectorCopying.traceReference(reference);
-      else if (fullHeapGC) {
-	if (reference.GE(MARKSWEEK_START))
-	  CollectorLea.traceReference(reference);
-	else if (reference.GE(IMMORTAL_START))
-	  CollectorImmortal.traceReference(reference);
-      }
-    } // else this is not a heap pointer
+  public final MarkSweepCollector getMS() {
+    return msCollector;
+  }
+
+  public final boolean hasMoved(VM_Address obj) {
+    VM_Address addr = VM_Interface.refToAddress(obj);
+    if (addr.LE(HEAP_END)) {
+      if (addr.GE(NURSERY_START))
+	return nurseryVM.inRange(addr);
+    }
+    return true;
   }
 
   /**
-   * Perform a collection (either minor or full-heap, depending on the
-   * size of the nursery).
+   * Perform a collection.
    */
-  public void collect() {
+  public void collect () {
     prepare();
-    if (fullHeapGC)
-      collect(null);
-    else
-      collect(remset);
+    super.collect();
     release();
+  }
+
+  /* We reset the state for a GC thread that is not participating in this GC
+   */
+  public void prepareNonParticipating() {
+    allPrepare(NON_PARTICIPANT);
+  }
+
+  public void putFieldWriteBarrier(VM_Address src, int offset, VM_Address tgt)
+    throws VM_PragmaInline {
+    writeBarrier(src.add(offset), tgt);
+  }
+
+  public void arrayStoreWriteBarrier(VM_Address src, int index, VM_Address tgt)
+    throws VM_PragmaInline {
+    writeBarrier(src.add(index<<LOG_WORD_SIZE), tgt);
+  }
+  public void arrayCopyWriteBarrier(VM_Address src, int startIndex, 
+				    int endIndex)
+    throws VM_PragmaInline {
+    src = src.add(startIndex<<LOG_WORD_SIZE);
+    for (int idx = startIndex; idx <= endIndex; idx++) {
+      VM_Address tgt = VM_Magic.getMemoryAddress(src);
+      writeBarrier(src, tgt);
+      src = src.add(WORD_SIZE);
+    }
+  }
+
+  private void writeBarrier(VM_Address src, VM_Address tgt) 
+    throws VM_PragmaInline {
+    if (src.LT(NURSERY_START) && tgt.GE(NURSERY_START))
+      remset.insert(src);
+  }
+  ////////////////////////////////////////////////////////////////////////////
+  //
+  // Private class methods
+  //
+
+  /**
+   * Return the number of pages reserved for use.
+   *
+   * @return The number of pages reserved given the pending allocation
+   */
+  private static int getPagesReserved() {
+    int pages = nurseryMR.reservedPages();
+    pages += pages + COPY_FUDGE_PAGES;
+
+    pages += msMR.reservedPages();
+    pages += immortalMR.reservedPages();
+    pages += metaDataMR.reservedPages();
+    return pages;
+  }
+
+
+  private static int getPagesUsed() {
+    int pages = nurseryMR.reservedPages();
+    pages += msMR.reservedPages();
+    pages += immortalMR.reservedPages();
+    pages += metaDataMR.reservedPages();
+    return pages;
+  }
+
+  // Assuming all future allocation comes from nursery
+  //
+  private static int getPagesAvail() {
+    int nurseryTotal = getTotalPages() - msMR.reservedPages() - immortalMR.reservedPages() - metaDataMR.reservedPages();
+    return (nurseryTotal>>1) - nurseryMR.reservedPages();
+  }
+
+  private static final String allocatorToString(int type) {
+    switch (type) {
+      case NURSERY_ALLOCATOR: return "Nursery";
+      case MS_ALLOCATOR: return "Mark-sweep";
+      case IMMORTAL_ALLOCATOR: return "Immortal";
+      default: return "Unknown";
+   }
   }
 
   ////////////////////////////////////////////////////////////////////////////
   //
-  // Private methods
+  // Private and protected instance methods
   //
 
   /**
-   * Return the number of blocks reserved for use.
-   *
-   * @return The number of blocks reserved given the pending allocation
+   * Prepare for a collection.  Called by BasePlan which will make
+   * sure only one thread executes this.
    */
-  private int getBlocksReserved() {
-    int blocks;
-
-    blocks = nurseryMR.reservedBlocks();
-    // we must account for the worst case number of blocks required
-    // for copying, which equals the number of nursery blocks in
-    // use plus a fudge factor which accounts for fragmentation
-    blocks += blocks + COPY_FUDGE_BLOCKS;
-    
-    blocks += msMR.reservedBlocks();
-    blocks += immortalMR.reservedBlocks();
-    blocks += remsetMR.reservedBlocks();
-
-    return blocks;
-  }
-
-  /**
-   * Prepare for a collection.
-   */
-  private void prepare() {
-    if (Synchronize.getBarrier()) {
-      if (nurseryMR.reservedBlocks() <= MIN_NURSERY_SIZE) 
-	fullHeapGC = true;
-      
-      // prepare each of the collected regions
-      CollectorCopying.prepare(nurseryVM, nurseryMR);
-      if (fullHeapGC) {
-	CollectorLea.prepare(msVM, msMR);
-	CollectorImmortal.prepare(immortalVM, null);
-      }
-      Synchronize.releaseBarrier();
+  protected void singlePrepare() {
+    if (verbose > 0) {
+      VM.sysWrite("Collection ", gcCount);
+      VM.sysWrite(":      reserved = ", getPagesReserved());
+      VM.sysWrite(" (", Conversions.pagesToBytes(getPagesReserved()) / ( 1 << 20)); 
+      VM.sysWrite(" Mb) ");
+      VM.sysWrite("      trigger = ", getTotalPages());
+      VM.sysWrite(" (", Conversions.pagesToBytes(getTotalPages()) / ( 1 << 20)); 
+      VM.sysWriteln(" Mb) ");
+      VM.sysWrite("  Before Collection: ");
+      showUsage();
+    }
+    nurseryMR.reset();
+    if (fullHeapGC) {
+      msCollector.prepare(msVM, msMR);
+      Immortal.prepare(immortalVM, null);
     }
   }
 
+  protected void allPrepare(int count) {
+    remset.flushLocal();
+    nursery.rebind(nurseryVM);
+    if (fullHeapGC) 
+      ms.prepare();
+  }
+
+  protected void allRelease(int count) {
+    if (fullHeapGC) 
+      ms.release();
+  }
+
   /**
-   * Clean up after a collection. 
+   * Clean up after a collection.
    */
-  private void release() {
-    remset.release();
-    nursery.reset();   // reset the nursery allocator
-    
-    if (Synchronize.acquireBarrier()) {
-      nurseryMR.reset(); // reset the nursery memory resource
-      CollectorCopying.release(nurseryVM, nurseryMR);
-      
-      if (fullHeapGC) {
-	CollectorLea.release(msVM, msMR);
-	CollectorImmortal.release(immortalVM, null);
-	fullHeapGC = false;
-      }
-      Synchronize.releaseBarrier();
+  protected void singleRelease() {
+    // release each of the collected regions
+    nurseryVM.release();
+    if (fullHeapGC) {
+      msCollector.release();
+      Immortal.release(immortalVM, null);
+    }
+
+    fullHeapGC = (getPagesAvail() < NURSERY_THRESHOLD);
+
+    if (verbose > 0) {
+      VM.sysWrite("   After Collection: ");
+      showUsage();
     }
   }
 
@@ -267,38 +447,74 @@ final class Plan implements Constants extends BasePlan {
   //
   // Instance variables
   //
-  private AllocatorBumpPointer nursery;
-  private AllocatorLea ms;
-  private AllocatorBumpPointer immortal;
+  private BumpPointer nursery;
+  private MarkSweepAllocator ms;
+  private BumpPointer immortal;
 
   ////////////////////////////////////////////////////////////////////////////
   //
   // Class variables
   //
   // virtual memory regions
-  private static VMResource nursery;
-  private static VMResource msVM;
-  private static VMResource immortalVM;
-  private static VMResource remsetVM;
+  private static MarkSweepCollector msCollector;
+
+  private static MonotoneVMResource nurseryVM;
+  private static FreeListVMResource msVM;
+  private static ImmortalVMResource immortalVM;
 
   // memory resources
   private static MemoryResource nurseryMR;
   private static MemoryResource msMR;
   private static MemoryResource immortalMR;
-  private static MemoryResource remsetMR;
 
-  ////////////////////////////////////////////////////////////////////////////
+  // write buffer
+  private WriteBuffer remset;
+
+  // GC state
+  private static boolean fullHeapGC = false;
+
   //
   // Final class variables (aka constants)
   //
-  private static final Address NURSERY_START;
-  private static final EXTENT NURSERY_VM_SIZE;
-  private static final Address MARKSWEEP_START;
-  private static final EXTENT MARKSWEEP_VM_SIZE;
-  private static final Address REMSET_START;
-  private static final EXTENT REMSET_VM_SIZE;
-  private static final int NURSERY_ALLOCATOR = 0;
-  private static final int MS_ALLOCATOR = 1;
-  private static final int IMMORTAL_ALLOCATOR = 2;
+  private static final VM_Address       MS_START = PLAN_START;
+  private static final EXTENT            MS_SIZE = 512 * 1024 * 1024;              // size of each space
+  private static final VM_Address         MS_END = MS_START.add(MS_SIZE);
+  private static final VM_Address  NURSERY_START = MS_END;
+  private static final EXTENT       NURSERY_SIZE = 64 * 1024 * 1024;
+  private static final VM_Address    NURSERY_END = NURSERY_START.add(NURSERY_SIZE);
+  private static final VM_Address       HEAP_END = NURSERY_END;
+
+  private static final int POLL_FREQUENCY = (256*1024)>>LOG_PAGE_SIZE;
+  private static final int NURSERY_THRESHOLD = (512*1024)>>LOG_PAGE_SIZE;
+
+  public static final int NURSERY_ALLOCATOR = 0;
+  public static final int MS_ALLOCATOR = 1;
+  public static final int IMMORTAL_ALLOCATOR = 2;
+  public static final int DEFAULT_ALLOCATOR = NURSERY_ALLOCATOR;
+
+  private static final int COPY_FUDGE_PAGES = 1;  // Steve - fix this
+
+  private static final EXTENT LOS_SIZE_THRESHOLD = 4 * 1024;
+
+  /**
+   * Class initializer.  This is executed <i>prior</i> to bootstrap
+   * (i.e. at "build" time).
+   */
+  static {
+
+    // memory resources
+    nurseryMR = new MemoryResource(POLL_FREQUENCY);
+    msMR = new MemoryResource(POLL_FREQUENCY);
+    immortalMR = new MemoryResource(POLL_FREQUENCY);
+
+    // virtual memory resources
+    nurseryVM  = new MonotoneVMResource("Nursery", nurseryMR, NURSERY_START, NURSERY_SIZE, VMResource.MOVABLE);
+    msVM       = new FreeListVMResource("MS",   MS_START,      MS_SIZE,      VMResource.MOVABLE);
+    immortalVM = new ImmortalVMResource("Immortal", immortalMR, IMMORTAL_START, IMMORTAL_SIZE, BOOT_END);
+
+    // collectors
+    msCollector = new MarkSweepCollector(msVM, msMR);
+  }
+
 }
-   
+

@@ -53,6 +53,8 @@ import com.ibm.JikesRVM.VM_DynamicLibrary;
 
 public class VM_Interface implements VM_Constants, VM_Uninterruptible {
 
+  final public static boolean CHECK_MEMORY_IS_ZEROED = false;
+
   public static void logGarbageCollection() throws VM_PragmaUninterruptible {
     if (VM.BuildForEventLogging && VM.EventLoggingEnabled)
       VM_EventLogger.logGarbageCollectionEvent();
@@ -197,9 +199,9 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
 				    endIndex);
   }
 
-  public static void arrayCopyRCWriteBarrier(VM_Address src, VM_Address tgt) 
+  public static void arrayCopyRefCountWriteBarrier(VM_Address src, VM_Address tgt) 
     throws VM_PragmaInline {
-    getPlan().arrayCopyRCWriteBarrier(src, tgt);
+    getPlan().arrayCopyRefCountWriteBarrier(src, tgt);
   }
 
   public static void unresolvedPutfieldWriteBarrier(Object ref, int fieldID,
@@ -294,12 +296,12 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
 
   //-#if RVM_FOR_IA32
   //-#if RVM_FOR_LINUX
-  public static final int bootImageAddress = 0x41000000;
+  public static final int bootImageAddress = 0x43000000;
   //-#endif
   //-#endif
 
   public static final boolean NEEDS_WRITE_BARRIER = Plan.needsWriteBarrier;
-  public static final boolean NEEDS_RC_WRITE_BARRIER = Plan.needsRCWriteBarrier;
+  public static final boolean NEEDS_RC_WRITE_BARRIER = Plan.needsRefCountWriteBarrier;
   public static final boolean MOVES_OBJECTS = Plan.movesObjects;
   public static boolean useMemoryController = false;
 
@@ -341,20 +343,24 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
 
   public static Object allocateScalar(int size, Object [] tib, int allocator) 
     throws VM_PragmaUninterruptible, VM_PragmaInline {
-    AllocAdvice advice = getPlan().getAllocAdvice(null, size, null, null);
-    VM_Address region = getPlan().alloc(size, true, allocator, advice);
+    Plan plan = getPlan();
+    AllocAdvice advice = plan.getAllocAdvice(null, size, null, null);
+    VM_Address region = plan.alloc(size, true, allocator, advice);
+    if (CHECK_MEMORY_IS_ZEROED) VM._assert(Memory.assertIsZeroed(region, size));
     Object result = VM_ObjectModel.initializeScalar(region, tib, size);
-    getPlan().postAlloc(result, tib, size, true, allocator);
+    plan.postAlloc(result, tib, size, true, allocator);
     return result;
   }
 
   public static Object allocateArray(int numElements, int size, Object [] tib, int allocator) 
     throws VM_PragmaUninterruptible, VM_PragmaInline {
     size = (size + 3) & (~3);
-    AllocAdvice advice = getPlan().getAllocAdvice(null, size, null, null);
-    VM_Address region = getPlan().alloc(size, false, allocator, advice);
+    Plan plan = getPlan();
+    AllocAdvice advice = plan.getAllocAdvice(null, size, null, null);
+    VM_Address region = plan.alloc(size, false, allocator, advice);
+    if (CHECK_MEMORY_IS_ZEROED) VM._assert(Memory.assertIsZeroed(region, size));
     Object result = VM_ObjectModel.initializeArray(region, tib, numElements, size);
-    getPlan().postAlloc(result, tib, size, false, allocator);
+    plan.postAlloc(result, tib, size, false, allocator);
     return result;
   }
 
@@ -376,6 +382,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     VM.sysWriteln("processPtrField(LVM_Address;)V unimplmented");
     if (VM.VerifyAssertions) VM._assert(false); // unimplemented
   }
+
   public static void processPtrField (VM_Address location, boolean root) throws VM_PragmaUninterruptible, VM_PragmaInline { 
     Plan.traceObjectLocation(location, root);
   }
@@ -640,16 +647,16 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     Object[] tib = VM_ObjectModel.getTIB(fromObj);
 
     VM_Type type = VM_Magic.objectAsType(tib[TIB_TYPE_INDEX]);
-
+    Plan plan = getPlan();
 
     VM_Address toRef;
     if (type.isClassType()) {
       VM_Class classType = type.asClass();
       int numBytes = VM_ObjectModel.bytesRequiredWhenCopied(fromObj, classType);
       forwardingPtr = Plan.resetGCBitsForCopy(fromObj, forwardingPtr,numBytes);
-      VM_Address region = getPlan().allocCopy(fromObj, numBytes, true);
+      VM_Address region = plan.allocCopy(fromObj, numBytes, true);
       Object toObj = VM_ObjectModel.moveObject(region, fromObj, numBytes, classType, forwardingPtr);
-      getPlan().postCopy(toObj, tib, numBytes, true);
+      plan.postCopy(toObj, tib, numBytes, true);
       toRef = VM_Magic.objectAsAddress(toObj);
     } else {
       VM_Array arrayType = type.asArray();
@@ -658,7 +665,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
       forwardingPtr = Plan.resetGCBitsForCopy(fromObj, forwardingPtr,numBytes);
       VM_Address region = getPlan().allocCopy(fromObj, numBytes, false);
       Object toObj = VM_ObjectModel.moveObject(region, fromObj, numBytes, arrayType, forwardingPtr);
-      getPlan().postCopy(toObj, tib, numBytes, false);
+      plan.postCopy(toObj, tib, numBytes, false);
       toRef = VM_Magic.objectAsAddress(toObj);
       if (arrayType == VM_Type.CodeType) {
 	// sync all moved code arrays to get icache and dcache in sync immediately.

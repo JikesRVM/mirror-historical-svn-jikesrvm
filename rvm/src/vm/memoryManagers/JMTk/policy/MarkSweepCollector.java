@@ -36,7 +36,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
 
   ////////////////////////////////////////////////////////////////////////////
   //
-  // Public instance methos (i.e. methods whose scope is limited to a
+  // Public instance methods (i.e. methods whose scope is limited to a
   // particular space that is collected under a mark-sweep policy).
   //
 
@@ -93,8 +93,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
    * @param vm (unused)
    * @param mr (unused)
    */
-  public void release(MarkSweepAllocator allocator) { 
-    sweep(allocator);
+  public void release() {
     inMSCollection = false;
   }
 
@@ -188,19 +187,6 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   }
 
   /**
-   * Using the given allocator instance, sweep the space.
-   *
-   * @param allocator The mark sweep allocator instance that should be
-   * used to perform the sweep.
-   */
-  public final void sweep(MarkSweepAllocator allocator) {
-    // sweep the small objects
-    allocator.sweepSuperPages();
-    // sweep the large objects
-    allocator.sweepLargePages();
-  }
-
-  /**
    * Sweep a given superpage, freeing any unuse objects, and freeing
    * the entire superpage if possible.
    *
@@ -236,13 +222,32 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
    */
   public final boolean isOnTreadmill(VM_Address cell, VM_Address head) {
     VM_Address next = head;
-    while (next.NE(VM_Address.zero())) {
-      if (next.EQ(cell)) {
+    while (!next.isZero()) {
+      if (next.EQ(cell)) 
 	return true;
-      }
       next = getNextTreadmill(next);
     }
     return false;
+  }
+
+
+  public final void showTreadmill(MarkSweepAllocator a) {
+    VM_Address next = a.getTreadmillFromHead();
+    VM.sysWrite("FROM: ");
+    VM.sysWrite(next);
+    while (!next.isZero()) {
+      next = getNextTreadmill(next);
+      VM.sysWrite(" -> ", next);
+    }
+    VM.sysWriteln();
+    next = a.getTreadmillToHead();
+    VM.sysWrite("TO: ");
+    VM.sysWrite(next);
+    while (!next.isZero()) {
+      next = getNextTreadmill(next);
+      VM.sysWrite(" -> ", next);
+    }
+    VM.sysWriteln();
   }
   
   /**
@@ -279,7 +284,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
       VM_Address cell = VM_JavaHeader.objectStartRef(object);
       VM_Address sp = MarkSweepAllocator.getSuperPage(cell, false);
       int sizeClass = MarkSweepAllocator.getSizeClass(sp);
-      if (MarkSweepAllocator.isLarge(sizeClass))
+      if (MarkSweepAllocator.isLarge(sizeClass)) 
 	moveToTreadmill(cell, true, false);
       else
 	setMarkBit(cell, sp, false);
@@ -376,7 +381,8 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
     throws VM_PragmaInline {
     MarkSweepAllocator owner = (MarkSweepAllocator) VM_Magic.addressAsObject(getTreadmillOwner(cell));
     owner.lockTreadmill();
-    if (to && !fresh) { // pre-existing instance
+    // If it is already on some other treadmill, remove it from there.
+    if (to && !fresh) { 
       if (VM.VerifyAssertions)
 	VM._assert(isOnTreadmill(cell, owner.getTreadmillFromHead()));
       // remove from "from" treadmill

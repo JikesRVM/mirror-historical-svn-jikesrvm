@@ -24,8 +24,10 @@ import com.ibm.JikesRVM.VM_Entrypoints;
  * @author <a href="http://cs.anu.edu.au/~Steve.Blackburn">Steve Blackburn</a>
  * @version $Revision$
  * @date $Date$
+
  */ 
 public class LocalQueue extends LocalSSB implements Constants, VM_Uninterruptible {
+
   public final static String Id = "$Id$"; 
 
   ////////////////////////////////////////////////////////////////////////////

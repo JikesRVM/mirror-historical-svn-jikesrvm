@@ -34,6 +34,7 @@ import com.ibm.JikesRVM.VM_ObjectModel;
 
 /**
  *
+ * @author Perry Cheng
  * @author <a href="http://cs.anu.edu.au/~Steve.Blackburn">Steve Blackburn</a>
  * @version $Revision$
  * @date $Date$
@@ -42,7 +43,7 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
 
   public final static String Id = "$Id$"; 
 
-  public static int verbose = 1;
+  public static int verbose = 0;
 
   protected AddressQueue values;          // gray objects
   protected AddressQueue locations;       // locations containing white objects
@@ -55,11 +56,24 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
   private static MonotoneVMResource metaDataVM;
   protected static MemoryResource metaDataMR;
   protected static RawPageAllocator metaDataRPA;
-  protected static final EXTENT MAX_USER_VM = 512 * 1024 * 1024;
-  protected static final VM_Address META_DATA_START = VM_Address.fromInt(VM_Interface.bootImageAddress).add(MAX_USER_VM);
-  protected static final EXTENT     META_DATA_SIZE = 16 * 1024 * 1024;
-  private static final VM_Address  META_DATA_END = META_DATA_START.add(META_DATA_SIZE);  
+
+  protected static final EXTENT       SEGMENT_SIZE = 0x10000000;
+  protected static final int          SEGMENT_MASK = SEGMENT_SIZE - 1;
+  protected static final VM_Address     BOOT_START = VM_Address.fromInt(VM_Interface.bootImageAddress);
+  protected static final EXTENT          BOOT_SIZE = SEGMENT_SIZE - (VM_Interface.bootImageAddress & SEGMENT_MASK);   // use the remainder of the segment
+  protected static final VM_Address       BOOT_END = BOOT_START.add(BOOT_SIZE);
+  protected static final VM_Address IMMORTAL_START = BOOT_START;
+  protected static final EXTENT      IMMORTAL_SIZE = BOOT_SIZE + 16 * 1024 * 1024;
+  protected static final VM_Address   IMMORTAL_END = IMMORTAL_START.add(IMMORTAL_SIZE);
+  protected static final VM_Address META_DATA_START = IMMORTAL_END;
+  protected static final EXTENT     META_DATA_SIZE  = 16 * 1024 * 1024;
+  protected static final VM_Address   META_DATA_END   = META_DATA_START.add(META_DATA_SIZE);  
+  protected static final VM_Address   PLAN_START  = META_DATA_END;
+
   private static final int META_DATA_POLL_FREQUENCY = (1<<31) - 1; // never
+
+  protected static final int NON_PARTICIPANT = 0;
+
   static {
     metaDataMR = new MemoryResource(META_DATA_POLL_FREQUENCY);
     metaDataVM = new MonotoneVMResource("Meta data", metaDataMR, META_DATA_START, META_DATA_SIZE, VMResource.META_DATA);
@@ -70,10 +84,8 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
     interiorRootPool = new SharedQueue(metaDataRPA, 2);
   }
 
-  // private AddressQueue values;                 // gray objects
-  // private AddressPairQueue interiorLocations;  // interior locations
-
   BasePlan() {
+    id = count++;
     values = new AddressQueue(valuePool);
     valuePool.newClient();
     locations = new AddressQueue(locationPool);
@@ -103,6 +115,8 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
 
   protected static boolean gcInProgress = false;    // This flag should be turned on/off by subclasses.
   protected static int gcCount = 0;
+  private static int count = 0;                     // Number of plan instances in existence
+  private int id = 0;                               // Zero-based id of plan instance;
 
   static public boolean gcInProgress() {
     return gcInProgress;
@@ -119,8 +133,8 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
   protected final void prepare() {
     SynchronizationBarrier barrier = VM_CollectorThread.gcBarrier;
     double tmp = VM_Time.now();
-    int id = barrier.rendezvous();
-    if (id == 1) {
+    int order = barrier.rendezvous();
+    if (order == 1) {
       gcInProgress = true;
       gcCount++;
       startTime = tmp;
@@ -129,17 +143,19 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
       VM_Interface.prepareNonParticipating(); // The will fix collector threads that are not participating in thie GC.
     }
     VM_Interface.prepareParticipating();      // Every participating thread needs to adjust its context registers.
-    id = barrier.rendezvous();
-    allPrepare(id);
+    order = barrier.rendezvous();
+    if (verbose > 1) VM.sysWriteln("  Preparing all collector threads for start");
+    allPrepare(order);
     barrier.rendezvous();
   }
 
   protected final void release() {
     SynchronizationBarrier barrier = VM_CollectorThread.gcBarrier;
-    int id = barrier.rendezvous();
-    allRelease(id);
-    id = barrier.rendezvous();
-    if (id == 1) {
+    int order = barrier.rendezvous();
+    if (verbose > 1) VM.sysWriteln("  Preparing all collector threads for termination");
+    allRelease(order);
+    order = barrier.rendezvous();
+    if (order == 1) {
       singleRelease();
       gcInProgress = false;    // GC is in progress until after release!
       stopTime = VM_Time.now();
@@ -159,8 +175,8 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
   // These abstract methods are called in the order singlePrepare, allPrepare, allRelease, 
   // and singleRelease.  They are all separated by a barrier.
   abstract protected void singlePrepare();
-  abstract protected void allPrepare(int id);
-  abstract protected void allRelease(int id);
+  abstract protected void allPrepare(int order);
+  abstract protected void allRelease(int order);
   abstract protected void singleRelease();
 
   static SynchronizedCounter threadCounter = new SynchronizedCounter();
@@ -189,19 +205,19 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
       VM_Address thAddr = VM_Magic.objectAsAddress(th);
       VM_Thread th2 = VM_Magic.addressAsThread(Plan.traceObject(thAddr, true));
       if (VM_Magic.objectAsAddress(th2).EQ(thAddr))
-	ScanObject.scanRoot(thAddr);
-      ScanObject.scanRoot(VM_Magic.objectAsAddress(th.stack));
+	ScanObject.rootScan(thAddr);
+      ScanObject.rootScan(VM_Magic.objectAsAddress(th.stack));
       if (th.jniEnv != null) {
-	ScanObject.scanRoot(VM_Magic.objectAsAddress(th.jniEnv));
-	ScanObject.scanRoot(VM_Magic.objectAsAddress(th.jniEnv.JNIRefs));
+	ScanObject.rootScan(VM_Magic.objectAsAddress(th.jniEnv));
+	ScanObject.rootScan(VM_Magic.objectAsAddress(th.jniEnv.JNIRefs));
       }
-      ScanObject.scanRoot(VM_Magic.objectAsAddress(th.contextRegisters));
-      ScanObject.scanRoot(VM_Magic.objectAsAddress(th.contextRegisters.gprs));
-      ScanObject.scanRoot(VM_Magic.objectAsAddress(th.hardwareExceptionRegisters));
-      ScanObject.scanRoot(VM_Magic.objectAsAddress(th.hardwareExceptionRegisters.gprs));
+      ScanObject.rootScan(VM_Magic.objectAsAddress(th.contextRegisters));
+      ScanObject.rootScan(VM_Magic.objectAsAddress(th.contextRegisters.gprs));
+      ScanObject.rootScan(VM_Magic.objectAsAddress(th.hardwareExceptionRegisters));
+      ScanObject.rootScan(VM_Magic.objectAsAddress(th.hardwareExceptionRegisters.gprs));
       ScanThread.scanThread(th2, rootLocations, codeLocations);
     }
-    ScanObject.scanRoot(VM_Magic.objectAsAddress(VM_Scheduler.threads));
+    ScanObject.rootScan(VM_Magic.objectAsAddress(VM_Scheduler.threads));
   }
 
   // Add a gray object
@@ -212,6 +228,7 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
 
   private void processAllWork() throws VM_PragmaNoInline {
 
+    if (verbose > 1) VM.sysWriteln("  Working on GC in parallel");
     while (true) {
       while (!rootLocations.isEmpty()) {
 	VM_Address loc = rootLocations.pop();
@@ -221,7 +238,7 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
 	VM_Address obj = interiorRootLocations.pop1();
 	VM_Address interiorLoc = interiorRootLocations.pop2();
 	VM_Address interior = VM_Magic.getMemoryAddress(interiorLoc);
-	VM_Address newInterior = traceInteriorReference(obj, interior, interiorLoc, true);
+	VM_Address newInterior = traceInteriorReference(obj, interior, true);
 	VM_Magic.setMemoryAddress(interiorLoc, newInterior);
       }
       while (!values.isEmpty()) {
@@ -232,9 +249,11 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
 	VM_Address loc = locations.pop();
 	traceObjectLocation(loc, false);
       }
+
       if (rootLocations.isEmpty() && interiorRootLocations.isEmpty() && values.isEmpty() && locations.isEmpty())
 	break;
     }
+
   }
 
   protected void collect() {
@@ -248,6 +267,15 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
   }
 
   private static int heapPages;
+
+  /*
+   * This method should be called whenever an error is encountered.
+   *
+   */
+  public void error(String str) {
+    Plan.showUsage();
+    VM.sysFail(str);
+  }
 
   /**
    * Perform a write barrier operation for the putField bytecode.<p> <b>By default do nothing,
@@ -276,7 +304,7 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
   }
   public void arrayCopyWriteBarrier(VM_Address ref, int startIndex, int endIndex) {
   }
-  public void arrayCopyRCWriteBarrier(VM_Address src, VM_Address tgt) 
+  public void arrayCopyRefCountWriteBarrier(VM_Address src, VM_Address tgt) 
   {
   }
 
@@ -330,15 +358,14 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
    *    The object reference is <i>NOT</i> an interior pointer.
    * @return void
    */
-  public static final void traceObjectLocation(VM_Address objLoc, boolean root)
+  final static public void traceObjectLocation(VM_Address objLoc, boolean root)
     throws VM_PragmaInline {
     VM_Address obj = VM_Magic.getMemoryAddress(objLoc);
     VM_Address newObj = Plan.traceObject(obj, root);
     VM_Magic.setMemoryAddress(objLoc, newObj);
   }
-  public static final void traceObjectLocation(VM_Address objLoc)
+  final static public void traceObjectLocation(VM_Address objLoc)
     throws VM_PragmaInline {
-    // implicitly non-root
     traceObjectLocation(objLoc, false);
   }
 
@@ -352,11 +379,9 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
    * @param interiorRef The interior reference inside obj that must be traced.
    * @return The possibly moved interior reference.
    */
-  public static final VM_Address traceInteriorReference(VM_Address obj, 
+  final static public VM_Address traceInteriorReference(VM_Address obj,
 							VM_Address interiorRef,
-							VM_Address interiorLoc,
-							boolean root)
-    throws VM_PragmaInline {
+							boolean root) {
     VM_Offset offset = interiorRef.diff(obj);
     VM_Address newObj = Plan.traceObject(obj, root);
     if (VM.VerifyAssertions) {

@@ -97,8 +97,8 @@ final class SimpleRCAllocator extends BaseFreeList implements Constants, VM_Unin
    */
   private final void sanity() {
     for (int sizeClass = 1; sizeClass < SIZE_CLASSES; sizeClass++) {
-      sanity(superPageFreeList[sizeClass], sizeClass);
-      sanity(superPageUsedList[sizeClass], sizeClass);
+      sanity(VM_Address.fromInt(superPageFreeList[sizeClass]), sizeClass);
+      sanity(VM_Address.fromInt(superPageUsedList[sizeClass]), sizeClass);
     }
   }
 

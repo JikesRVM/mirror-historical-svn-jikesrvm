@@ -60,11 +60,23 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
    * @param vm Unused
    * @param mr Unused
    */
-  public final void prepare(VMResource vm, MemoryResource mr) { 
+  public final void prepare() {
     if (PARANOID)
       sanity();
     treadmillToHead = VM_Address.zero();
-    collector.prepare(vm, mr);
+  }
+
+  /**
+   * Finish up after a collection.
+   *
+   * @param vm Unused
+   * @param mr Unused
+   */
+  public void release() {
+    // sweep the small objects
+    sweepSuperPages();
+    // sweep the large objects
+    sweepLargePages();
   }
 
   /**
@@ -75,7 +87,8 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
     VM_Address cell = treadmillFromHead;
     while (!cell.isZero()) {
       VM_Address next = MarkSweepCollector.getNextTreadmill(cell);
-      freeSuperPage(getSuperPage(cell, false), LARGE_SIZE_CLASS, true);
+      VM_Address sp =  getSuperPage(cell, false);
+      freeSuperPage(sp, LARGE_SIZE_CLASS, true);
       cell = next;
     }
     treadmillFromHead = treadmillToHead;
@@ -166,8 +179,8 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
    */
   public final void sweepSuperPages() {
     for (int sizeClass = 1; sizeClass < SIZE_CLASSES; sizeClass++) {
-      sweepSuperPages(superPageFreeList[sizeClass], sizeClass, true);
-      sweepSuperPages(superPageUsedList[sizeClass], sizeClass, false);
+      sweepSuperPages(VM_Address.fromInt(superPageFreeList[sizeClass]), sizeClass, true);
+      sweepSuperPages(VM_Address.fromInt(superPageUsedList[sizeClass]), sizeClass, false);
     }
     if (PARANOID)
       sanity();
@@ -204,8 +217,8 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
    */
   private final void sanity() {
     for (int sizeClass = 1; sizeClass < SIZE_CLASSES; sizeClass++) {
-      sanity(superPageFreeList[sizeClass], sizeClass);
-      sanity(superPageUsedList[sizeClass], sizeClass);
+      sanity(VM_Address.fromInt(superPageFreeList[sizeClass]), sizeClass);
+      sanity(VM_Address.fromInt(superPageUsedList[sizeClass]), sizeClass);
     }
   }
 
@@ -357,21 +370,21 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
 	VM_Address cell = cursor;
 	boolean free = isFree(cell.add(cellHeaderSize(small)), sp, sizeClass);
 	if (MarkSweepCollector.getInUseBit(cell, sp, small)) {
-	  VM._assert(!free);
+	  if (VM.VerifyAssertions) VM._assert(!free);
 	  inUse++;
 	} else
-	  VM._assert(free);
+	  if (VM.VerifyAssertions) VM._assert(free);
 	cursor = cursor.add(cellSize);
       }
 //       VM.sysWrite(sp); VM.sysWrite(" "); VM.sysWrite(sizeClass); VM.sysWrite("\n--------------\n\n");
-      VM._assert(inUse == getInUse(sp));
+      if (VM.VerifyAssertions) VM._assert(inUse == getInUse(sp));
     }
   }
     
   private MarkSweepCollector collector;
   private Lock treadmillLock;
-  private VM_Address treadmillFromHead;
-  private VM_Address treadmillToHead;
+  public VM_Address treadmillFromHead;
+  public VM_Address treadmillToHead;
   private static int cellSize[];
   private static int sizeClassPages[];
 
@@ -396,10 +409,10 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
 	sizeClassPages[sc] = optimalPagesForSuperPage(sc, cellSize[sc],
 						      BASE_SP_HEADER_SIZE);
 	int cells = (sizeClassPages[sc]/cellSize[sc]);
-	VM._assert(cells <= MarkSweepCollector.MAX_MID_OBJECTS);
+	if (VM.VerifyAssertions) VM._assert(cells <= MarkSweepCollector.MAX_MID_OBJECTS);
       }
       if (sc == MAX_SMALL_SIZE_CLASS)
-	VM._assert(size == MAX_SMALL_SIZE);
+	if (VM.VerifyAssertions) VM._assert(size == MAX_SMALL_SIZE);
     }
   }
 

@@ -27,13 +27,16 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
  * @version $Revision$
  * @date $Date$
  */
+
 public abstract class VMResource implements Constants, VM_Uninterruptible {
+
   public final static String Id = "$Id$"; 
 
   ////////////////////////////////////////////////////////////////////////////
   //
   // Public static variables and methods
   //
+  public static final byte NOT_IN_VM = 0;   // 00000000
   public static final byte IN_VM     = 1;   // 00000001
   public static final byte IMMORTAL  = 2;   // 00000010
   public static final byte MOVABLE   = 4;   // 00000100
@@ -95,11 +98,11 @@ public abstract class VMResource implements Constants, VM_Uninterruptible {
   }
 
   private static VMResource resourceForBlock(VM_Address addr) {
-    return resourceTable[addr.toInt() >> LOG_BLOCK_SIZE];
+    return resourceTable[addr.toInt() >>> LOG_BLOCK_SIZE];
   }
 
   private static byte getBlockStatus(VM_Address addr) {
-    return statusTable[addr.toInt() >> LOG_BLOCK_SIZE];
+    return statusTable[addr.toInt() >>> LOG_BLOCK_SIZE];
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -159,5 +162,5 @@ public abstract class VMResource implements Constants, VM_Uninterruptible {
   protected VM_Address start;
   protected VM_Address end;
   private int pages;
-  private String name;
+  final protected String name;
 }

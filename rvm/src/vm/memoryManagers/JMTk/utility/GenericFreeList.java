@@ -93,6 +93,8 @@ import com.ibm.JikesRVM.VM_PragmaInline;
  * @date $Date$
  *
  */
+
+
 final class GenericFreeList extends BaseGenericFreeList implements Constants, VM_Uninterruptible {
    public final static String Id = "$Id$";
  
@@ -105,7 +107,7 @@ final class GenericFreeList extends BaseGenericFreeList implements Constants, VM
    * Constructor
    */
   GenericFreeList(int units) {
-    VM._assert(units <= MAX_UNITS);
+    if (VM.VerifyAssertions) VM._assert(units <= MAX_UNITS);
 
     // allocate the data structure, including space for top & bottom sentinels
     table = new int[(units + 2)<<1];

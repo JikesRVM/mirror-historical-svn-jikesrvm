@@ -44,7 +44,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
   public final static String Id = "$Id$"; 
 
   public static final boolean needsWriteBarrier = true;
-  public static final boolean needsRCWriteBarrier = false;
+  public static final boolean needsRefCountWriteBarrier = false;
   public static final boolean movesObjects = true;
 
   ////////////////////////////////////////////////////////////////////////////
@@ -58,6 +58,101 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
   // remsets.
   //
 
+  public static void boot()
+    throws VM_PragmaInterruptible {
+    BasePlan.boot();
+  }
+
+  /**
+   * Trace a reference during GC.  This involves determining which
+   * collection policy applies and calling the appropriate
+   * <code>trace</code> method.
+   *
+   * @param obj The object reference to be traced.  This is <i>NOT</i> an
+   * interior pointer.
+   * @return The possibly moved reference.
+   */
+  public static VM_Address traceObject(VM_Address obj, boolean root) {
+    return traceObject(obj);
+  }
+  public static VM_Address traceObject(VM_Address obj) {
+    VM_Address addr = VM_Interface.refToAddress(obj);
+    if (addr.LE(HEAP_END)) {
+      if (addr.GE(NURSERY_START))
+	return Copy.traceObject(obj);
+      else if (fullHeapGC) {
+	if (addr.GE(MATURE_START)) {
+	  if ((hi && addr.LT(MATURE_HI_START)) ||
+	      (!hi && addr.GE(MATURE_HI_START)))
+	    return Copy.traceObject(obj);
+	  else
+	    return obj;
+	} else if (addr.GE(LOS_START))
+	  return losCollector.traceObject(obj);
+	else if (addr.GE(IMMORTAL_START))
+	  return Immortal.traceObject(obj);
+      }
+    } // else this is not a heap pointer
+    return obj;
+  }
+
+  public static boolean isCopyObject(Object base) {
+    VM_Address addr =VM_Interface.refToAddress(VM_Magic.objectAsAddress(base));
+    return (addr.GE(MATURE_START) && addr.LE(HEAP_END));
+  }
+
+  public static boolean isLive(VM_Address obj) {
+    VM_Address addr = VM_ObjectModel.getPointerInMemoryRegion(obj);
+    if (addr.LE(HEAP_END)) {
+      if (addr.GE(MATURE_START))
+	return Copy.isLive(obj);
+      else if (addr.GE(LOS_START))
+	return losCollector.isLive(obj);
+      else if (addr.GE(IMMORTAL_START))
+	return true;
+    } 
+    return false;
+  }
+
+  public static void showPlans() {
+    for (int i=0; i<VM_Scheduler.processors.length; i++) {
+      VM_Processor p = VM_Scheduler.processors[i];
+      if (p == null) continue;
+      VM.sysWrite(i, ": ");
+      p.mmPlan.show();
+    }
+  }
+
+  public static void showUsage() {
+      VM.sysWrite("used pages = ", getPagesUsed());
+      VM.sysWrite(" ("); VM.sysWrite(Conversions.pagesToBytes(getPagesUsed()) >> 20, " Mb) ");
+      VM.sysWrite("= (nursery) ", nurseryMR.reservedPages());  
+      VM.sysWrite(" + (mature) ", matureMR.reservedPages());  
+      VM.sysWrite(" + (los) ", losMR.reservedPages());
+      VM.sysWrite(" + (imm) ", immortalMR.reservedPages());
+      VM.sysWriteln(" + (md)",  metaDataMR.reservedPages());
+  }
+
+  public static int getInitialHeaderValue(int size) {
+    return losCollector.getInitialHeaderValue(size);
+  }
+
+  public static int resetGCBitsForCopy(VM_Address fromObj, int forwardingPtr,
+				       int bytes) {
+    return forwardingPtr; // a no-op for this collector
+  }
+
+  public static final long freeMemory() throws VM_PragmaUninterruptible {
+    return totalMemory() - usedMemory();
+  }
+
+  public static final long usedMemory() throws VM_PragmaUninterruptible {
+    return Conversions.pagesToBytes(getPagesUsed());
+  }
+
+  public static final long totalMemory() throws VM_PragmaUninterruptible {
+    return Conversions.pagesToBytes(getPagesAvail());
+  }
 
   ////////////////////////////////////////////////////////////////////////////
   //
@@ -75,16 +170,11 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
    * Constructor
    */
   public Plan() {
-    id = count++;
     nursery = new BumpPointer(nurseryVM);
     mature = new BumpPointer(mature0VM);
     los = new MarkSweepAllocator(losCollector);
     immortal = new BumpPointer(immortalVM);
     remset = new WriteBuffer(locationPool);
-  }
-
-  static public void boot() throws VM_PragmaInterruptible {
-    BasePlan.boot();
   }
 
   /**
@@ -96,7 +186,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
    * @param advice Statically-generated allocation advice for this allocation
    * @return The address of the first byte of the allocated region
    */
-  public VM_Address alloc(EXTENT bytes, boolean isScalar, int allocator, AllocAdvice advice) throws VM_PragmaInline {
+  public final VM_Address alloc(EXTENT bytes, boolean isScalar, int allocator, AllocAdvice advice) throws VM_PragmaInline {
     if (VM.VerifyAssertions) VM._assert(bytes == (bytes & (~(WORD_SIZE-1))));
     if (allocator == NURSERY_ALLOCATOR && bytes > LOS_SIZE_THRESHOLD) allocator = LOS_ALLOCATOR;
     VM_Address region;
@@ -111,8 +201,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
     return region;
   }
 
-  //  public void postAlloc(EXTENT bytes, Object obj, int allocator) throws VM_PragmaInline {
-  public void postAlloc(Object ref, Object[] tib, int size,
+  public final void postAlloc(Object ref, Object[] tib, int size,
 			      boolean isScalar, int allocator)
     throws VM_PragmaInline {
     if (allocator == NURSERY_ALLOCATOR && size > LOS_SIZE_THRESHOLD) allocator = LOS_ALLOCATOR;
@@ -124,29 +213,13 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
       default:                 VM.sysFail("No such allocator");
     }
   }
+  public final void postCopy(Object ref, Object[] tib, int size,
+			     boolean isScalar) {}
 
-  public void show() {
+  public final void show() {
     nursery.show();
     mature.show();
     los.show();
-  }
-
-  static public void showPlans() {
-    for (int i=0; i<VM_Scheduler.processors.length; i++) {
-      VM_Processor p = VM_Scheduler.processors[i];
-      if (p == null) continue;
-      VM.sysWrite(i, ": ");
-      p.mmPlan.show();
-    }
-  }
-
-  static public void showUsage() {
-      VM.sysWrite("used pages = ", getPagesUsed());
-      VM.sysWrite(" ("); VM.sysWrite(Conversions.pagesToBytes(getPagesUsed()) >> 20, " Mb) ");
-      VM.sysWrite("= (nursery) ", nurseryMR.reservedPages());  
-      VM.sysWrite(" + (mature) ", matureMR.reservedPages());  
-      VM.sysWrite(" + (los) ", losMR.reservedPages());
-      VM.sysWriteln(" + (imm) ", immortalMR.reservedPages());
   }
 
   /**
@@ -222,7 +295,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
   public boolean poll(boolean mustCollect, MemoryResource mr) 
     throws VM_PragmaLogicallyUninterruptible {
     if (gcInProgress) return false;
-    if (mustCollect || (getPagesReserved() > getTotalPages())) {
+    if (mustCollect || getPagesReserved() > getTotalPages()) {
       if (VM.VerifyAssertions)
 	VM._assert(mr != metaDataMR);
       fullHeapGC = mustCollect || fullHeapGC;
@@ -233,58 +306,8 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
   }
   
    
-  public static boolean isCopyObject(Object base) {
-    VM_Address addr =VM_Interface.refToAddress(VM_Magic.objectAsAddress(base));
-    return (addr.GE(MATURE_START) && addr.LE(HEAP_END));
-  }
 
-  public static boolean isLive(VM_Address obj) {
-    VM_Address addr = VM_ObjectModel.getPointerInMemoryRegion(obj);
-    if (addr.LE(HEAP_END)) {
-      if (addr.GE(MATURE_START))
-	return Copy.isLive(obj);
-      else if (addr.GE(LOS_START))
-	return losCollector.isLive(obj);
-      else if (addr.GE(IMMORTAL_START))
-	return true;
-    } 
-    return false;
-  }
-
-  /**
-   * Trace a reference during GC.  This involves determining which
-   * collection policy applies and calling the appropriate
-   * <code>trace</code> method.
-   *
-   * @param obj The object reference to be traced.  This is <i>NOT</i> an
-   * interior pointer.
-   * @return The possibly moved reference.
-   */
-  public static VM_Address traceObject(VM_Address obj, VM_Address objLoc) {
-    return traceObject(obj);
-  }
-  static public VM_Address traceObject(VM_Address obj) {
-    VM_Address addr = VM_Interface.refToAddress(obj);
-    if (addr.LE(HEAP_END)) {
-      if (addr.GE(NURSERY_START))
-	return Copy.traceObject(obj);
-      else if (fullHeapGC) {
-	if (addr.GE(MATURE_START)) {
-	  if ((hi && addr.LT(MATURE_HI_START)) ||
-	      (!hi && addr.GE(MATURE_HI_START)))
-	    return Copy.traceObject(obj);
-	  else
-	    return obj;
-	} else if (addr.GE(LOS_START))
-	  return losCollector.traceObject(obj);
-	else if (addr.GE(IMMORTAL_START))
-	  return Immortal.traceObject(obj);
-      }
-    } // else this is not a heap pointer
-    return obj;
-  }
-
-  public boolean hasMoved(VM_Address obj) {
+  public final boolean hasMoved(VM_Address obj) {
     VM_Address addr = VM_Interface.refToAddress(obj);
     if (addr.LE(HEAP_END)) {
       if (addr.GE(NURSERY_START))
@@ -308,137 +331,10 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
     release();
   }
 
-  public static int getInitialHeaderValue(int size) {
-    return losCollector.getInitialHeaderValue(size);
-  }
-
-  public static int resetGCBitsForCopy(VM_Address fromObj, int forwardingPtr,
-				       int bytes) {
-    return forwardingPtr; // a no-op for this collector
-  }
-
-  public static final long freeMemory() throws VM_PragmaUninterruptible {
-    return totalMemory() - usedMemory();
-  }
-
-  public static final long usedMemory() throws VM_PragmaUninterruptible {
-    return Conversions.pagesToBytes(getPagesUsed());
-  }
-
-  public static final long totalMemory() throws VM_PragmaUninterruptible {
-    return Conversions.pagesToBytes(getPagesAvail());
-  }
-
-  ////////////////////////////////////////////////////////////////////////////
-  //
-  // Private methods
-  //
-
-  /**
-   * Return the number of pages reserved for use.
-   *
-   * @return The number of pages reserved given the pending allocation
-   */
-  private static int getPagesReserved() {
-
-    int pages = nurseryMR.reservedPages() + matureMR.reservedPages();
-    // we must account for the worst case number of pages required
-    // for copying, which equals the number of semi-space pages in
-    // use plus a fudge factor which accounts for fragmentation
-    pages += pages + COPY_FUDGE_PAGES;
-    
-    pages += losMR.reservedPages();
-    pages += immortalMR.reservedPages();
-    return pages;
-  }
-
-
-  private static int getPagesUsed() {
-    int pages = nurseryMR.reservedPages();
-    pages += matureMR.reservedPages();
-    pages += losMR.reservedPages();
-    pages += immortalMR.reservedPages();
-    return pages;
-  }
-
-  // Assuming all future allocation comes from coping space
-  //
-  private static int getPagesAvail() {
-    int copyingTotal = getTotalPages()  - losMR.reservedPages() - immortalMR.reservedPages();
-    return (copyingTotal / 2) - matureMR.reservedPages() - nurseryMR.reservedPages();
-  }
-
-  /**
-   * Prepare for a collection.  In this case, it means flipping
-   * semi-spaces and preparing each of the collectors.
-   * Called by BasePlan which will make sure only one thread executes this.
-   */
-  protected void singlePrepare() {
-    if (verbose > 0) {
-      VM.sysWrite("Collection ", gcCount);
-      VM.sysWrite(":      reserved = ", getPagesReserved());
-      VM.sysWrite(" (", Conversions.pagesToBytes(getPagesReserved()) / ( 1 << 20)); 
-      VM.sysWrite(" Mb) ");
-      VM.sysWrite("      trigger = ", getTotalPages());
-      VM.sysWrite(" (", Conversions.pagesToBytes(getTotalPages()) / ( 1 << 20)); 
-      VM.sysWriteln(" Mb) ");
-      VM.sysWrite("  Before Collection: ");
-      showUsage();
-    }
-    nurseryMR.reset(); // reset the nursery
-    if (fullHeapGC) {
-      matureMR.reset(); // reset the nursery semispace memory resource
-      hi = !hi;          // flip the semi-spaces
-      // prepare each of the collected regions
-      Immortal.prepare(immortalVM, null);
-    }
-  }
-
-  protected void allPrepare(int id) {
-    // rebind the semispace bump pointer to the appropriate semispace.
-    remset.flushLocal();
-    nursery.rebind(nurseryVM);
-    if (fullHeapGC) {
-      mature.rebind(((hi) ? mature1VM : mature0VM)); 
-      los.prepare(losVM, losMR);
-    }
-  }
-  protected final void doneComputingRoots() {
-  }
   /* We reset the state for a GC thread that is not participating in this GC
    */
   public void prepareNonParticipating() {
-    //    allPrepare();
-  }
-
-  protected void allRelease(int id) {
-    if (fullHeapGC) {
-       losCollector.release(los);
-    }
-  }
-
-  /**
-   * Clean up after a collection.
-   */
-  protected void singleRelease() {
-    // release each of the collected regions
-    nurseryVM.release();
-    if (fullHeapGC) {
-      ((hi) ? mature0VM : mature1VM).release();
-      Immortal.release(immortalVM, null);
-    }
-    fullHeapGC = (getPagesAvail() < NURSERY_THRESHOLD);
-
-    if (verbose > 0) {
-      VM.sysWrite("   After Collection: ");
-      showUsage();
-      VM.sysWrite("   Collection ", gcCount);
-      VM.sysWrite(":      reserved = ", getPagesReserved());
-      VM.sysWrite(" (", Conversions.pagesToBytes(getPagesReserved()) / ( 1 << 20)); 
-      VM.sysWrite(" Mb) ");
-      VM.sysWrite("      trigger = ", getTotalPages());
-      VM.sysWrite(" (", Conversions.pagesToBytes(getTotalPages()) / ( 1 << 20)); 
-    }
+    allPrepare(NON_PARTICIPANT);
   }
 
   public void putFieldWriteBarrier(VM_Address src, int offset, VM_Address tgt)
@@ -465,6 +361,114 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
     throws VM_PragmaInline {
     if (src.LT(NURSERY_START) && tgt.GE(NURSERY_START))
       remset.insert(src);
+  }
+
+  ////////////////////////////////////////////////////////////////////////////
+  //
+  // Private methods
+  //
+
+  /**
+   * Return the number of pages reserved for use.
+   *
+   * @return The number of pages reserved given the pending allocation
+   */
+  private static int getPagesReserved() {
+
+    int pages = nurseryMR.reservedPages() + matureMR.reservedPages();
+    // we must account for the worst case number of pages required
+    // for copying, which equals the number of semi-space pages in
+    // use plus a fudge factor which accounts for fragmentation
+    pages += pages + COPY_FUDGE_PAGES;
+    
+    pages += losMR.reservedPages();
+    pages += immortalMR.reservedPages();
+    pages += metaDataMR.reservedPages();
+    return pages;
+  }
+
+
+  private static int getPagesUsed() {
+    int pages = nurseryMR.reservedPages();
+    pages += matureMR.reservedPages();
+    pages += losMR.reservedPages();
+    pages += immortalMR.reservedPages();
+    pages += metaDataMR.reservedPages();
+    return pages;
+  }
+
+  // Assuming all future allocation comes from coping space
+  //
+  private static int getPagesAvail() {
+    int copyingTotal = getTotalPages()  - losMR.reservedPages() - immortalMR.reservedPages() - metaDataMR.reservedPages();
+    return (copyingTotal>>1) - matureMR.reservedPages() - nurseryMR.reservedPages();
+  }
+
+  /**
+   * Prepare for a collection.  In this case, it means flipping
+   * semi-spaces and preparing each of the collectors.
+   * Called by BasePlan which will make sure only one thread executes this.
+   */
+  protected void singlePrepare() {
+    if (verbose > 0) {
+      VM.sysWrite("Collection ", gcCount);
+      VM.sysWrite(":      reserved = ", getPagesReserved());
+      VM.sysWrite(" (", Conversions.pagesToBytes(getPagesReserved()) / ( 1 << 20)); 
+      VM.sysWrite(" Mb) ");
+      VM.sysWrite("      trigger = ", getTotalPages());
+      VM.sysWrite(" (", Conversions.pagesToBytes(getTotalPages()) / ( 1 << 20)); 
+      VM.sysWriteln(" Mb) ");
+      VM.sysWrite("  Before Collection: ");
+      showUsage();
+    }
+    nurseryMR.reset(); // reset the nursery
+    if (fullHeapGC) {
+      losCollector.prepare(losVM, losMR);
+      matureMR.reset(); // reset the nursery semispace memory resource
+      hi = !hi;          // flip the semi-spaces
+      // prepare each of the collected regions
+      Immortal.prepare(immortalVM, null);
+    }
+  }
+
+  protected void allPrepare(int count) {
+    // rebind the semispace bump pointer to the appropriate semispace.
+    remset.flushLocal();
+    nursery.rebind(nurseryVM);
+    if (fullHeapGC) {
+      mature.rebind(((hi) ? mature1VM : mature0VM)); 
+      los.prepare();
+    }
+  }
+
+  protected void allRelease(int count) {
+    if (fullHeapGC) 
+      los.release();
+  }
+
+  /**
+   * Clean up after a collection.
+   */
+  protected void singleRelease() {
+    // release each of the collected regions
+    nurseryVM.release();
+    if (fullHeapGC) {
+      losCollector.release();
+      ((hi) ? mature0VM : mature1VM).release();
+      Immortal.release(immortalVM, null);
+    }
+    fullHeapGC = (getPagesAvail() < NURSERY_THRESHOLD);
+
+    if (verbose > 0) {
+      VM.sysWrite("   After Collection: ");
+      showUsage();
+      VM.sysWrite("   Collection ", gcCount);
+      VM.sysWrite(":      reserved = ", getPagesReserved());
+      VM.sysWrite(" (", Conversions.pagesToBytes(getPagesReserved()) / ( 1 << 20)); 
+      VM.sysWrite(" Mb) ");
+      VM.sysWrite("      trigger = ", getTotalPages());
+      VM.sysWrite(" (", Conversions.pagesToBytes(getTotalPages()) / ( 1 << 20)); 
+    }
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -500,7 +504,6 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
   private WriteBuffer remset;
 
   // GC state
-  private int count = 0; // Number of plan instances in existence
   private static boolean hi = false;   // If true, we are allocating from the "higher" mature semispace.
   private static boolean fullHeapGC = false;
 
@@ -508,19 +511,11 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
   //
   // Final class variables (aka constants)
   //
-  private static final EXTENT       SEGMENT_SIZE = 0x10000000;
-  private static final int          SEGMENT_MASK = SEGMENT_SIZE - 1;
-  private static final VM_Address     BOOT_START = VM_Address.fromInt(VM_Interface.bootImageAddress);
-  private static final EXTENT          BOOT_SIZE = SEGMENT_SIZE - (VM_Interface.bootImageAddress & SEGMENT_MASK);   // use the remainder of the segment
-  private static final VM_Address       BOOT_END = BOOT_START.add(BOOT_SIZE);
-  private static final VM_Address IMMORTAL_START = BOOT_START;
-  private static final EXTENT      IMMORTAL_SIZE = BOOT_SIZE + 16 * 1024 * 1024;
-  private static final VM_Address   IMMORTAL_END = IMMORTAL_START.add(IMMORTAL_SIZE);
-  private static final VM_Address      LOS_START = IMMORTAL_END;
-  private static final EXTENT           LOS_SIZE = 64 * 1024 * 1024;
+  private static final VM_Address      LOS_START = PLAN_START;
+  private static final EXTENT           LOS_SIZE = 128 * 1024 * 1024;
   private static final VM_Address        LOS_END = LOS_START.add(LOS_SIZE);
   private static final VM_Address   MATURE_START = LOS_END;
-  private static final EXTENT     MATURE_SS_SIZE = 64 * 1024 * 1024;              // size of each space
+  private static final EXTENT     MATURE_SS_SIZE = 256 * 1024 * 1024;              // size of each space
   private static final VM_Address MATURE_LO_START = MATURE_START;
   private static final VM_Address MATURE_HI_START = MATURE_START.add(MATURE_SS_SIZE);
   private static final VM_Address     MATURE_END = MATURE_HI_START.add(MATURE_SS_SIZE);
@@ -540,18 +535,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
   public static final int LOS_ALLOCATOR = 2;
   public static final int IMMORTAL_ALLOCATOR = 3;
   public static final int DEFAULT_ALLOCATOR = NURSERY_ALLOCATOR;
-
-
-  private static final String allocatorToString(int type) {
-    switch (type) {
-      case NURSERY_ALLOCATOR: return "Nursery";
-      case MATURE_ALLOCATOR: return "Higher gen";
-      case LOS_ALLOCATOR: return "LOS";
-      case IMMORTAL_ALLOCATOR: return "Immortal";
-      default: return "Unknown";
-   }
-  }
-
+  private static final String[] allocatorNames = { "Nursery", "Mature", "LOS", "Immortal" };
 
   /**
    * Class initializer.  This is executed <i>prior</i> to bootstrap

@@ -24,8 +24,8 @@ import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
  * @date $Date$
  */
 final class MemoryResource implements Constants, VM_Uninterruptible {
-  public final static String Id = "$Id$"; 
 
+  public final static String Id = "$Id$"; 
 
   ////////////////////////////////////////////////////////////////////////////
   //

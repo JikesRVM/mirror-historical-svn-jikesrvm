@@ -31,10 +31,10 @@ import com.ibm.JikesRVM.VM_Processor;
  * @date $Date$
  */
 public final class Plan extends BasePlan implements VM_Uninterruptible { // implements Constants 
-  public final static String Id = "$Id$"; 
 
+  public final static String Id = "$Id$"; 
   public static final boolean needsWriteBarrier = false;
-  public static final boolean needsRCWriteBarrier = false;
+  public static final boolean needsRefCountWriteBarrier = false;
   public static final boolean movesObjects = true;
 
   ////////////////////////////////////////////////////////////////////////////
@@ -65,7 +65,6 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    * Constructor
    */
   public Plan() {
-    id = count++;
     ss = new BumpPointer(ss0VM);
     los = new MarkSweepAllocator(losCollector);
     immortal = new BumpPointer(immortalVM);
@@ -89,15 +88,12 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
     if (allocator == SS_ALLOCATOR && bytes > LOS_SIZE_THRESHOLD) 
       allocator = LOS_ALLOCATOR;
     VM_Address region;
-    // if (gcCount > 1) VM.sysWrite("alloc called");
     switch (allocator) {
       case       SS_ALLOCATOR: region = ss.alloc(isScalar, bytes); break;
       case IMMORTAL_ALLOCATOR: region = immortal.alloc(isScalar, bytes); break;
       case      LOS_ALLOCATOR: region = los.alloc(isScalar, bytes); break;
       default:                 region = VM_Address.zero(); VM.sysFail("No such allocator");
     }
-    // if (gcCount > 1) VM.sysWriteln ("  returning ", region);
-    if (VM.VerifyAssertions) VM._assert(Memory.assertIsZeroed(region, bytes));
     return region;
   }
 
@@ -115,8 +111,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   }
 
   public final void postCopy(Object ref, Object[] tib, int size,
-			     boolean isScalar) {
-  }
+			     boolean isScalar) { } // do nothing
 
   public void show() {
     ss.show();
@@ -183,8 +178,8 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    * @return Allocation advice to be passed to the allocation routine
    * at runtime
    */
-  public AllocAdvice getAllocAdvice(Type type, EXTENT bytes,
-				    CallSite callsite, AllocAdvice hint) { 
+  final public AllocAdvice getAllocAdvice(Type type, EXTENT bytes,
+					  CallSite callsite, AllocAdvice hint) { 
     return null;
   }
 
@@ -219,7 +214,6 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
     return false;
   }
   
-   
   public static boolean isSemiSpaceObject(Object base) {
     VM_Address addr =VM_Interface.refToAddress(VM_Magic.objectAsAddress(base));
     return (addr.GE(SS_START) && addr.LE(HEAP_END));
@@ -247,10 +241,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    * interior pointer.
    * @return The possibly moved reference.
    */
-  static public VM_Address traceObject(VM_Address obj, boolean root) {
-    return traceObject(obj);  // root or non-root is of no consequence here
-  }
-  public static VM_Address traceObject(VM_Address obj) {
+  static public VM_Address traceObject(VM_Address obj) {
     VM_Address addr = VM_Interface.refToAddress(obj);
     if (addr.LE(HEAP_END)) {
       if (addr.GE(SS_START)) {
@@ -266,6 +257,9 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
 	return Immortal.traceObject(obj);
     } // else this is not a heap pointer
     return obj;
+  }
+  static public VM_Address traceObject(VM_Address obj, boolean root) {
+    return traceObject(obj);  // root or non-root is of no consequence here
   }
 
   public boolean hasMoved(VM_Address obj) {
@@ -371,22 +365,23 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
     // prepare each of the collected regions
     Copy.prepare(((hi) ? ss0VM : ss1VM), ssMR);
     Immortal.prepare(immortalVM, null);
+    losCollector.prepare(losVM, losMR);
   }
 
-  protected void allPrepare(int id) {
+  protected void allPrepare(int count) {
     // rebind the semispace bump pointer to the appropriate semispace.
     ss.rebind(((hi) ? ss1VM : ss0VM)); 
-    los.prepare(losVM, losMR);
+    los.prepare();
   }
 
   /* We reset the state for a GC thread that is not participating in this GC
    */
   public void prepareNonParticipating() {
-    allPrepare(0);
+    allPrepare(NON_PARTICIPANT);
   }
 
-  protected void allRelease(int id) {
-    losCollector.release(los);
+  protected void allRelease(int count) {
+    los.release();
   }
 
   /**
@@ -394,6 +389,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    */
   protected void singleRelease() {
     // release each of the collected regions
+    losCollector.release();
     ((hi) ? ss0VM : ss1VM).release();
     Copy.release(((hi) ? ss0VM : ss1VM), ssMR);
     Immortal.release(immortalVM, null);
@@ -410,7 +406,6 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   private BumpPointer ss;
   private BumpPointer immortal;
   private MarkSweepAllocator los;
-  private int id;  
 
   ////////////////////////////////////////////////////////////////////////////
   //
@@ -430,26 +425,17 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   private static MemoryResource immortalMR;
 
   // GC state
-  private int count = 0; // Number of plan instances in existence
   private static boolean hi = false;   // If true, we are allocating from the "higher" semispace.
 
 
   //
   // Final class variables (aka constants)
   //
-  private static final EXTENT       SEGMENT_SIZE = 0x10000000;
-  private static final int          SEGMENT_MASK = SEGMENT_SIZE - 1;
-  private static final VM_Address     BOOT_START = VM_Address.fromInt(VM_Interface.bootImageAddress);
-  private static final EXTENT          BOOT_SIZE = SEGMENT_SIZE - (VM_Interface.bootImageAddress & SEGMENT_MASK);   // use the remainder of the segment
-  private static final VM_Address       BOOT_END = BOOT_START.add(BOOT_SIZE);
-  private static final VM_Address IMMORTAL_START = BOOT_START;
-  private static final EXTENT      IMMORTAL_SIZE = BOOT_SIZE + 16 * 1024 * 1024;
-  private static final VM_Address   IMMORTAL_END = IMMORTAL_START.add(IMMORTAL_SIZE);
-  private static final VM_Address      LOS_START = IMMORTAL_END;
-  private static final EXTENT           LOS_SIZE = 64 * 1024 * 1024;
+  private static final VM_Address      LOS_START = PLAN_START;
+  private static final EXTENT           LOS_SIZE = 128 * 1024 * 1024;
   private static final VM_Address        LOS_END = LOS_START.add(LOS_SIZE);
   private static final VM_Address       SS_START = LOS_END;
-  private static final EXTENT            SS_SIZE = 64 * 1024 * 1024;              // size of each space
+  private static final EXTENT            SS_SIZE = 256 * 1024 * 1024;              // size of each space
   private static final VM_Address   LOW_SS_START = SS_START;
   private static final VM_Address  HIGH_SS_START = SS_START.add(SS_SIZE);
   private static final VM_Address         SS_END = HIGH_SS_START.add(SS_SIZE);
@@ -458,20 +444,13 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
 
   private static final int COPY_FUDGE_PAGES = 1;  // Steve - fix this
 
-  public static final int DEFAULT_ALLOCATOR = 0;
+  private static final int POLL_FREQUENCY = (256*1024)>>LOG_PAGE_SIZE;
+
   public static final int SS_ALLOCATOR = 0;
   public static final int LOS_ALLOCATOR = 1;
   public static final int IMMORTAL_ALLOCATOR = 2;
-
-  private static final String allocatorToString(int type) {
-    switch (type) {
-      case SS_ALLOCATOR: return "Semispace";
-      case LOS_ALLOCATOR: return "LOS";
-      case IMMORTAL_ALLOCATOR: return "Immortal";
-      default: return "Unknown";
-   }
-  }
-
+  public static final int DEFAULT_ALLOCATOR = SS_ALLOCATOR;
+  private static final String[] allocatorNames = { "Semispace", "LOS", "Immortal" };
 
   /**
    * Class initializer.  This is executed <i>prior</i> to bootstrap
@@ -480,14 +459,14 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   static {
 
     // memory resources
-    ssMR = new MemoryResource();
-    losMR = new MemoryResource();
-    immortalMR = new MemoryResource();
+    ssMR = new MemoryResource(POLL_FREQUENCY);
+    losMR = new MemoryResource(POLL_FREQUENCY);
+    immortalMR = new MemoryResource(POLL_FREQUENCY);
 
     // virtual memory resources
     ss0VM      = new MonotoneVMResource("Lower SS", ssMR,       LOW_SS_START,   SS_SIZE, VMResource.MOVABLE);
     ss1VM      = new MonotoneVMResource("Upper SS", ssMR,       HIGH_SS_START,  SS_SIZE, VMResource.MOVABLE);
-    losVM      = new FreeListVMResource("LOS",   LOS_START,      LOS_SIZE,      VMResource.MOVABLE);
+    losVM      = new FreeListVMResource("LOS",   LOS_START,     LOS_SIZE,       VMResource.MOVABLE);
     immortalVM = new ImmortalVMResource("Immortal", immortalMR, IMMORTAL_START, IMMORTAL_SIZE, BOOT_END);
     
     losCollector = new MarkSweepCollector(losVM, losMR);

@@ -26,6 +26,7 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
  * @version $Revision$
  * @date $Date$
  */
+
 public final class FreeListVMResource extends VMResource implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
 
@@ -52,16 +53,18 @@ public final class FreeListVMResource extends VMResource implements Constants, V
    * zero on failure.
    */
   public final VM_Address acquire(int pages, MemoryResource mr) {
-    if (VM.VerifyAssertions)
-      VM._assert(mr != null);
 
-    pagetotal += pages;
+    if (VM.VerifyAssertions) VM._assert(mr != null);
     while (!mr.acquire(pages));
+
     lock();
     int page = freeList.alloc(pages);
+    if (page == -1) {
+      unlock();
+      return VM_Address.zero();
+    }
+    pagetotal += pages;
     unlock();
-    if (VM.VerifyAssertions)
-      VM._assert(page != -1);
     VM_Address rtn = start.add(Conversions.pagesToBytes(page));
     LazyMmapper.ensureMapped(rtn, Conversions.pagesToBlocks(pages));
     return rtn;

@@ -55,14 +55,16 @@ final class RawPageAllocator implements Constants, VM_Uninterruptible {
    */
   public VM_Address alloc(int pages) {
     memoryResource.acquire(pages);
+    lock.acquire();
+    if (base.isZero()) {
+      base = vmResource.acquire(blocks, null);
+    }
     int pageIndex = freeList.alloc(pages);
+    lock.release();
     if (pageIndex == -1) {
-      VM.sysWriteln("unable to satisfy raw page allocation request");
+      VM.sysWriteln("RawPageAllocator: unable to satisfy raw page allocation request");
       VM._assert(false);
     }
-    if (base.isZero())
-      base = vmResource.acquire(blocks, null);
-
     return base.add(Conversions.pagesToBytes(pageIndex));
   }
 
@@ -74,7 +76,9 @@ final class RawPageAllocator implements Constants, VM_Uninterruptible {
    * @return The number of pages freed.
    */
   public int free(VM_Address start) {
+    lock.acquire();
     int freed = freeList.free(Conversions.bytesToPages(start.diff(base).toInt()));
+    lock.release();
     memoryResource.release(Conversions.pagesToBlocks(freed));
     return freed;
   }
@@ -99,4 +103,5 @@ final class RawPageAllocator implements Constants, VM_Uninterruptible {
   private MemoryResource memoryResource;
   private MonotoneVMResource vmResource;
   private GenericFreeList freeList;
+  private Lock lock = new Lock("RawPageAllocator");
 }

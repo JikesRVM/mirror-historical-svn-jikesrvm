@@ -107,7 +107,7 @@ public class Statistics implements Constants, VM_Callbacks.ExitMonitor, VM_Callb
    * To be called when the application starts a run
    * @param value the exit value
    */
-  public void notifyAppRunStart(int value) throws VM_PragmaUninterruptible {
+  public void notifyAppRunStart(String app, int value) throws VM_PragmaUninterruptible {
     if (VM_Interface.verbose() >= 1) VM.sysWrite("Clearing memory management statistics\n");
     clearSummaryStatistics();
   }
@@ -209,7 +209,6 @@ public class Statistics implements Constants, VM_Callbacks.ExitMonitor, VM_Callb
     }
 
     int np = VM_Scheduler.numProcessors;
-
     // showParameter();
     if (VM_Interface.verbose() >= 1) {
       VM.sysWriteln("\nGC Summary:  ", gcCount, " Collections");
@@ -238,7 +237,6 @@ public class Statistics implements Constants, VM_Callbacks.ExitMonitor, VM_Callb
         }
       }
     }
-
     if (COUNT_COLLISIONS && (gcCount>0) && (np>1)) {
       VM.sysWriteln("GC Summary:  avg number of collisions per collection = ",
                     collisionCount/gcCount);
@@ -276,7 +274,6 @@ public class Statistics implements Constants, VM_Callbacks.ExitMonitor, VM_Callb
       VM.sysWrite( avgFinishWait, " (us) Rendezvous Wait ");
       VM.sysWrite( avgRendezvousWait, " (us)\n\n");
     }
-
     if (COUNT_ALLOCATIONS) {
       long bytes = 0, objects = 0, syncObjects = 0;
       VM_Processor st;
@@ -296,7 +293,6 @@ public class Statistics implements Constants, VM_Callbacks.ExitMonitor, VM_Callb
     }
 
     if (COUNT_BY_TYPE)	printCountsByType();
-
   } // printSummaryStatistics
 
   private static void printBytes(int fieldWidth, int bytes) throws VM_PragmaUninterruptible {

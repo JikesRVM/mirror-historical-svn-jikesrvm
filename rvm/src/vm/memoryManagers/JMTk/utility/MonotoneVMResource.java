@@ -57,6 +57,7 @@ public class MonotoneVMResource extends VMResource implements Constants, VM_Unin
   public VM_Address acquire(int blockRequest) {
     return acquire(blockRequest, memoryResource);
   }
+
   public VM_Address acquire(int blockRequest, MemoryResource memoryResource) {
     if ((memoryResource != null) 
 	&& (!memoryResource.acquire(Conversions.blocksToPages(blockRequest)))) 
@@ -66,12 +67,7 @@ public class MonotoneVMResource extends VMResource implements Constants, VM_Unin
     int bytes = Conversions.blocksToBytes(blockRequest);
     VM_Address tmpCursor = cursor.add(bytes);
     if (tmpCursor.GT(sentinel)) {
-      VM.sysWrite("MonotoneVMResrouce failed to acquire ", bytes);
-      VM.sysWrite(" bytes: cursor = ", cursor);
-      VM.sysWrite("  start = ", start);
-      VM.sysWriteln("  sentinel = ", sentinel);
       unlock();
-      VM.sysFail("MonotoneVMResource.acquire failed");
       return VM_Address.zero();
     } else {
       VM_Address oldCursor = cursor;

@@ -103,10 +103,10 @@ public class ScanObject implements VM_Constants, Constants {
   public static void scan (VM_Address object) throws VM_PragmaUninterruptible {
     scan(object, false);
   }
-  public static void scanRoot (Object objRef) throws VM_PragmaUninterruptible {
+  public static void rootScan (Object objRef) throws VM_PragmaUninterruptible {
     scan(VM_Magic.objectAsAddress(objRef), true);
   }
-  public static void scanRoot (VM_Address object) throws VM_PragmaUninterruptible {
+  public static void rootScan (VM_Address object) throws VM_PragmaUninterruptible {
     scan(object, true);
   }
 

@@ -26,6 +26,7 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
  * @version $Revision$
  * @date $Date$
  */
+
 public final class XXFreeListVMResource extends VMResource implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
 
