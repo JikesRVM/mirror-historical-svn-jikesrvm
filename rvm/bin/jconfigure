@@ -1507,14 +1507,6 @@ function emitImageLinker
    print "   print 'Ljava/util/List;'              >> $PRIMORDIAL_CLASSES_STR"
    print "   print 'Ljava/util/AbstractList;'     >> $PRIMORDIAL_CLASSES_STR"
    print "   print 'Ljava/util/ArrayList;'     >> $PRIMORDIAL_CLASSES_STR"
-# There's a subtle bug which the next line fixes.
-# Compilation of java.util.ArrayList causes ObjectStreamField to be
-# resolved.  Since it's resolved, the system expects the pointer to
-# the object initializer to be given a JTOC slot.  However, the 
-# bootimage writer doesn't create the JTOC slot unless ObjectStreamField
-# is in the boot image.  TODO: add a check during boot image writing
-# to catch this bug.
-   print "   print 'Ljava/io/ObjectStreamField;'     >> $PRIMORDIAL_CLASSES_STR"
    print "   print 'Ljava/util/Map;'              >> $PRIMORDIAL_CLASSES_STR"
    print "   print 'Ljava/util/Map\$Entry;'       >> $PRIMORDIAL_CLASSES_STR"
    print "   print 'Ljava/lang/reflect/Constructor;'       >> $PRIMORDIAL_CLASSES_STR"
