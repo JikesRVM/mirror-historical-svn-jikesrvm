@@ -3,6 +3,11 @@
  *     Australian National University. 2002
  * (C) IBM Corp. 2002
  */
+package com.ibm.JikesRVM.memoryManagers.JMTk;
+
+import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
+import com.ibm.JikesRVM.VM_Address;
+
 /**
  * This class implements a memory resource.  The unit of managment for
  * memory resources is the <code>BLOCK</code><p>
@@ -40,7 +45,7 @@ final class MemoryResource implements Constants {
   public void acquire(int blocks) {
     lock.aquire();
     reserved += blocks;
-    if ((used + blocks) > budget) {
+    if ((committed + blocks) > budget) {
       lock.release();
       MM.poll();
     } else 

@@ -11,22 +11,37 @@ import com.ibm.JikesRVM.VM_Memory;
 
 public class Conversions implements Constants {
 
+  // Round up (if necessary)
+  //
+  public static int MBToBlocks(EXTENT megs) {
+    if (VMResource.LOG_BLOCK_SIZE <= LOG_MBYTE_SIZE)
+      return (megs << (LOG_MBYTE_SIZE - VMResource.LOG_BLOCK_SIZE));
+    else
+      return (megs + ((VMResource.BLOCK_SIZE >> LOG_MBYTE_SIZE) - 1)) >>> (VMResource.LOG_BLOCK_SIZE - LOG_MBYTE_SIZE);
+  }
+
   // Round up
   //
   public static int bytesToBlocks(EXTENT bytes) {
-    return (bytes + (VMResource.BLOCK_SIZE - 1)) & VMResource.BLOCK_MASK;
+    return (bytes + (VMResource.BLOCK_SIZE - 1)) >>> VMResource.LOG_BLOCK_SIZE;
   }
 
   // Round up
   //
   public static int bytesToMmapChunk(EXTENT bytes) {
-    return (bytes + (LazyMmapper.MMAP_CHUNK_SIZE - 1)) & LazyMmapper.MMAP_CHUNK_MASK;
+    return (bytes + (LazyMmapper.MMAP_CHUNK_SIZE - 1)) >>> LazyMmapper.LOG_MMAP_CHUNK_SIZE;
   }
 
   // Round up
   //
   public static int blocksToMmapChunks(int blocks) {
     return bytesToMmapChunk(blocks << VMResource.LOG_BLOCK_SIZE);
+  }
+
+  // No rounding needed
+  //
+  public static int blocksToPages(int blocks) {
+    return (blocks << VMResource.LOG_PAGES_PER_BLOCK);
   }
 
   // Round down
@@ -45,6 +60,25 @@ public class Conversions implements Constants {
   //
   public static int blocksToBytes(int blocks) {
     return blocks << VMResource.LOG_BLOCK_SIZE;
+  }
+
+  // No rounding needed
+  //
+  public static int pagesToBytes(int pages) {
+    return pages << LOG_PAGE_SIZE;
+  }
+
+  // Round up
+  //
+  public static int bytesToPages(int bytes) {
+    return (bytes + PAGE_SIZE - 1) >> LOG_PAGE_SIZE;
+  }
+
+  // Round up
+  //
+  public static int pagesToBlocks(int pages) {
+    int pagesInBlock = 1 << (VMResource.LOG_BLOCK_SIZE - LOG_PAGE_SIZE);
+    return (pages + (pagesInBlock - 1)) >> (VMResource.LOG_BLOCK_SIZE - LOG_PAGE_SIZE);
   }
 
   // No rounding needed

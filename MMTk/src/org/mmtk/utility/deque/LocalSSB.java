@@ -7,9 +7,12 @@ package com.ibm.JikesRVM.memoryManagers.JMTk;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 
 import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Magic;
 import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_PragmaInline;
+import com.ibm.JikesRVM.VM_PragmaNoInline;
 
 /**
  * This class implements a local (<i>unsynchronized</i>) sequential
@@ -40,7 +43,7 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
  * @version $Revision$
  * @date $Date$
  */ 
-class LocalSSB extends Queue implements Constatants, VM_Uninterruptable {
+class LocalSSB extends Queue implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
 
   ////////////////////////////////////////////////////////////////////////////
@@ -56,7 +59,7 @@ class LocalSSB extends Queue implements Constatants, VM_Uninterruptable {
    */
   LocalSSB(SharedQueue queue) {
     this.queue = queue;
-    tail = TAIL_INITIAL_VALUE;
+    tail = Queue.TAIL_INITIAL_VALUE;
   }
 
   /**
@@ -65,9 +68,9 @@ class LocalSSB extends Queue implements Constatants, VM_Uninterruptable {
    * queue).
    */
   public void flushLocal() {
-    if (tail.NE(TAIL_INITIAL_VALUE)) {
-      closeAndEnqueueTail();
-      tail = TAIL_INITIAL_VALUE;
+    if (tail.NE(Queue.TAIL_INITIAL_VALUE)) {
+      closeAndEnqueueTail(queue.getArity());
+      tail = Queue.TAIL_INITIAL_VALUE;
     }
   }
 
@@ -88,7 +91,7 @@ class LocalSSB extends Queue implements Constatants, VM_Uninterruptable {
     if (bufferOffset(tail) == 0)
       insertOverflow(arity);
     else if (VM.VerifyAssertions)
-      VM._assert(bufferOffset(tail) >= (arity<<LOG_BYTES_IN_WORD));
+      VM._assert(bufferOffset(tail) >= (arity<<LG_WORDSIZE));
   }
 
   /**
@@ -99,10 +102,10 @@ class LocalSSB extends Queue implements Constatants, VM_Uninterruptable {
    * @param value the value to be inserted.
    */
   protected final void uncheckedInsert(int value) throws VM_PragmaInline {
-    if (VM.VerifyAssertions) VM._assert(bufferOffset(tail) >= BYTES_IN_WORD);
-    tail = tail.sub(BYTES_IN_WORD);
+    if (VM.VerifyAssertions) VM._assert(bufferOffset(tail) >= WORDSIZE);
+    tail = tail.sub(WORDSIZE);
     VM_Magic.setMemoryWord(tail, value);
-    if (VM.VerifyAssertions) enqueued++;
+    //    if (VM.VerifyAssertions) enqueued++;
   }
 
   /**
@@ -120,11 +123,11 @@ class LocalSSB extends Queue implements Constatants, VM_Uninterruptable {
   protected final VM_Address normalizeTail(int arity) {
     VM_Address src = tail;
     VM_Address tgt = bufferFirst(tail);
-    VM_Address last = tgt.add(bufferLastOffset(tail, arity) - bufferOffset(tail));
+    VM_Address last = tgt.add(bufferLastOffset(arity) - bufferOffset(tail));
     while(tgt.LE(last)) {
       VM_Magic.setMemoryWord(tgt, VM_Magic.getMemoryWord(src));
-      src.add(BYTES_IN_WORD);
-      tgt.add(BYTES_IN_WORD);
+      src.add(WORDSIZE);
+      tgt.add(WORDSIZE);
     }
     return last;
   }
@@ -133,8 +136,8 @@ class LocalSSB extends Queue implements Constatants, VM_Uninterruptable {
   //
   // Private instance methods and fields
   //
-  private VM_Address tail;    // the buffer
-  private SharedQueue queue;  // the shared queue
+  protected VM_Address tail;   // the buffer
+  protected SharedQueue queue; // the shared queue
 
   /**
    * Buffer space has been exhausted, allocate a new buffer and enqueue
@@ -144,10 +147,10 @@ class LocalSSB extends Queue implements Constatants, VM_Uninterruptable {
    */
   private final void insertOverflow(int arity) {
     if (VM.VerifyAssertions) VM._assert(arity == queue.getArity());
-    if (tail.NE(TAIL_INITIAL_VALUE)) {
-      closeAndEnqueueTail();
+    if (tail.NE(Queue.TAIL_INITIAL_VALUE)) {
+      closeAndEnqueueTail(arity);
     }
-    tail = queue.alloc().add(bufferLastOffset(arity) + BYTES_IN_WORD);
+    tail = queue.alloc().add(bufferLastOffset(arity) + WORDSIZE);
   }
 
   /**
@@ -163,8 +166,8 @@ class LocalSSB extends Queue implements Constatants, VM_Uninterruptable {
       last = normalizeTail(arity);
     } else {
       // a full tail buffer
-      last = tail.add(bufferLastOffset(tail, arity));
+      last = tail.add(bufferLastOffset(arity));
     }
-    queue.enqueue(last.add(BYTES_IN_WORD), arity, true);
+    queue.enqueue(last.add(WORDSIZE), arity, true);
   }
 }

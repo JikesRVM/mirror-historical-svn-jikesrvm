@@ -9,6 +9,10 @@ import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM_Magic;
+import com.ibm.JikesRVM.VM_PragmaInline;
+import com.ibm.JikesRVM.VM_PragmaNoInline;
+import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_Uninterruptible;
 
 /**
  * This class implements a simple bump pointer allocator.  The
@@ -27,7 +31,7 @@ import com.ibm.JikesRVM.VM_Magic;
  * @version $Revision$
  * @date $Date$
  */
-final class BumpPointer implements Constants, Uninterruptible {
+final class BumpPointer implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
 
   /**
@@ -38,7 +42,7 @@ final class BumpPointer implements Constants, Uninterruptible {
    * @param mr The memory resource from which this bump pointer will
    * acquire memory.
    */
-  BumpPointer(VMResource vmr, MemoryResource mr) {
+  BumpPointer(MonotoneVMResource vmr, MemoryResource mr) {
     bp = INITIAL_BP_VALUE;
     vmResource = vmr;
     memoryResource = mr;
@@ -52,7 +56,7 @@ final class BumpPointer implements Constants, Uninterruptible {
    * @param vmr The virtual memory resouce with which this bump
    * pointer is to be associated.
    */
-  public void rebind(VMResource vmr) {
+  public void rebind(MonotoneVMResource vmr) {
     bp = INITIAL_BP_VALUE;
     vmResource = vmr;
   }
@@ -77,19 +81,19 @@ final class BumpPointer implements Constants, Uninterruptible {
    * @param bytes The number of bytes allocated
    * @return The address of the first byte of the allocated region
    */
-  public Address alloc(boolean isScalar, EXTENT bytes) throws VM_PragmaInline {
+  public VM_Address alloc(boolean isScalar, EXTENT bytes) throws VM_PragmaInline {
     VM_Address oldbp = bp;
     bp.add(bytes);
-    if ((oldbp ^ bp) >= TRIGGER)
+    if (((oldbp.toInt()) ^ (bp.toInt())) >= TRIGGER)
       return allocSlowPath(bytes);
     return oldbp;
   }
 
 
   
-  private Address allocSlowPath(EXTENT bytes) throws VM_PragmaNoInline { 
+  private VM_Address allocSlowPath(EXTENT bytes) throws VM_PragmaNoInline { 
     int blocks = Conversions.bytesToBlocks(bytes);
-    memoryResource.acquire(blocks);
+    memoryResource.acquire(Conversions.blocksToPages(blocks));
     VM_Address start = vmResource.acquire(blocks);
     bp = start.add(bytes);
     return start;
@@ -100,15 +104,15 @@ final class BumpPointer implements Constants, Uninterruptible {
   //
   // Instance variables
   //
-  private Address bp;
-  private VMResource vmResource;
+  private VM_Address bp;
+  private MonotoneVMResource vmResource;
   private MemoryResource memoryResource;
 
   ////////////////////////////////////////////////////////////////////////////
   //
   // Final class variables (aka constants)
   //
-  private static final EXTENT TRIGGER = BLOCK_SIZE;
+  private static final EXTENT TRIGGER = PAGE_SIZE;
   // this ensures the bump pointer will go slow path on first alloc
-  private static final Address INITIAL_BP_VALUE = (TRIGGER - 1);
+  private static final VM_Address INITIAL_BP_VALUE = VM_Address.fromInt(TRIGGER - 1);
 }

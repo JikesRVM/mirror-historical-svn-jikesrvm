@@ -87,7 +87,8 @@ public abstract class VMResource implements Constants {
   private static int count;                  // How many VMResources exist now?
   private static VMResource resources[];     // List of all VMResources.
   final private static int MAX_VMRESOURCE = 100;
-  final public  static int LOG_BLOCK_SIZE = 15;
+  final public  static int LOG_PAGES_PER_BLOCK = 3;
+  final public  static int LOG_BLOCK_SIZE = LOG_PAGE_SIZE + LOG_PAGES_PER_BLOCK;
   final public  static int BLOCK_SIZE = 1 << LOG_BLOCK_SIZE;
   final public  static int BLOCK_MASK = ~((1 << LOG_BLOCK_SIZE) - 1);
   final private static int NUM_BLOCKS = 1 << (LOG_ADDRESS_SPACE - LOG_BLOCK_SIZE);
@@ -138,6 +139,8 @@ public abstract class VMResource implements Constants {
    * zero on failure.
    */
   public abstract VM_Address acquire(int request);
+  
+  public final int getBlocks() { return blocks; }
 
   ////////////////////////////////////////////////////////////////////////////
   //

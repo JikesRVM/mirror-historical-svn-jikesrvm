@@ -10,6 +10,7 @@ import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_PragmaInline;
 
 /**
  *
@@ -17,18 +18,20 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
  * @version $Revision$
  * @date $Date$
  */ 
-public class Queue implements Constatants {
+class Queue implements Constants {
   public final static String Id = "$Id$"; 
 
   ////////////////////////////////////////////////////////////////////////////
   //
   // Protected instance methods
   //
+  //  protected int enqueued;
+
   protected final int bufferOffset(VM_Address buf) throws VM_PragmaInline {
-    return (buf.toInt() & (BUFFER_SIZE - 1));
+    return ((buf.toInt()) & (BUFFER_SIZE - 1));
   }
   protected final VM_Address bufferStart(VM_Address buf) throws VM_PragmaInline {
-    return VM_Address.fromInt(buf.toInt & ~(BUFFER_SIZE - 1));
+    return VM_Address.fromInt((buf.toInt()) & ~(BUFFER_SIZE - 1));
   }
 
   protected final VM_Address bufferFirst(VM_Address buf) throws VM_PragmaInline {
@@ -38,13 +41,13 @@ public class Queue implements Constatants {
     return bufferStart(buf).add(bufferLastOffset(arity));
   }
   protected final VM_Address bufferLast(VM_Address buf) throws VM_PragmaInline {
-    return bufferLast(1);
+    return bufferLast(buf, 1);
   }
   protected final int bufferLastOffset(int arity) throws VM_PragmaInline {
-    return USABLE_BUFFER_BYTES - BYTES_IN_WORD 
-      - (USABLE_BUFFER_BYTES % (arity<<LOG_BYTES_IN_WORD));
+    return USABLE_BUFFER_BYTES - WORDSIZE 
+      - (USABLE_BUFFER_BYTES % (arity<<LG_WORDSIZE));
   }
-  protected final int bufferLastOffset() throws VM_PragmaInline {
+  protected final int bufferLastOffset(VM_Address buf) throws VM_PragmaInline {
     return bufferLastOffset(1);
   }
 
@@ -52,10 +55,12 @@ public class Queue implements Constatants {
   //
   // Private and protected static final fields (aka constants)
   //
-  private static final int LOG_BYTES_IN_BUFFER = LOG_BYTES_IN_PAGE;
-  protected static final int BYTES_IN_BUFFER = 1<<LOG_BUFFER_SIZE;
-  protected static final int NEXT_FIELD_OFFSET = BYTES_IN_WORD;
-  protected static final int META_DATA_BYTES = BYTES_IN_WORD;
-  private static final int USABLE_BUFFER_BYTES = BYTES_IN_BUFFER-META_DATA_BYTES;
-  private static final VM_Address TAIL_INITIAL_VALUE = VM_Address.fromInt(0);
+  private static final int LOG_PAGES_PER_BUFFER = 0;
+  protected static final int PAGES_PER_BUFFER = 1<<LOG_PAGES_PER_BUFFER;
+  private static final int LOG_BUFFER_SIZE = (LOG_PAGE_SIZE + LOG_PAGES_PER_BUFFER);
+  protected static final int BUFFER_SIZE = 1<<LOG_BUFFER_SIZE;
+  protected static final int NEXT_FIELD_OFFSET = WORDSIZE;
+  protected static final int META_DATA_SIZE = WORDSIZE;
+  private static final int USABLE_BUFFER_BYTES = BUFFER_SIZE-META_DATA_SIZE;
+  protected static final VM_Address TAIL_INITIAL_VALUE = VM_Address.fromInt(0);
 }

@@ -29,8 +29,10 @@ public abstract class BasePlan implements Constants {
 
   private WorkQueue workQueue;
   private AddressSet values;                 // gray objects
+  //  private AddressQueue values;                 // gray objects
   private AddressSet locations;              // locations containing gray objects
   private AddressPairSet interiorLocations;  // interior locations
+  // private AddressPairQueue interiorLocations;  // interior locations
 
   BasePlan() {
     workQueue = new WorkQueue();
@@ -48,7 +50,7 @@ public abstract class BasePlan implements Constants {
    * default minimum heap size until the point that boot is called.
    */
   public void boot() {
-    heapBlocks = Conversion.MBtoBlocks(Options.heapSize);
+    heapBlocks = Conversions.MBToBlocks(Options.heapSize);
   }
 
   protected static boolean gcInProgress = false;    // This flag should be turned on/off by subclasses.

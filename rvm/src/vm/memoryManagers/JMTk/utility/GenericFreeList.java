@@ -6,6 +6,15 @@
  *     Australian National University. 2002
  * (C) Copyright IBM Corp. 2002
  */
+package com.ibm.JikesRVM.memoryManagers.JMTk;
+
+import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
+
+import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Uninterruptible;
+import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_PragmaInline;
 /**
  * This is a very simple, generic malloc-free allocator.  It works
  * abstractly, in "units", which the user may associate with some
@@ -301,7 +310,7 @@ final class GenericFreeList implements Constants {
    */
   private void setNext(int unit, int next) {
     if (VM.VerifyAssertions) 
-      VM.assert((next >= HEAD) && (next <= MAX_UNITS));
+      VM._assert((next >= HEAD) && (next <= MAX_UNITS));
     if (next == HEAD) 
       setEntry(unit, (getEntry(unit) | NEXT_MASK));
     else
@@ -315,7 +324,7 @@ final class GenericFreeList implements Constants {
    * @return The index of the first unit of the previous lump of units
    * in the list
    */
-  private static int getPrev(int unit) {
+  private int getPrev(int unit) {
     int prev = (getEntry(unit) & PREV_MASK) >> PREV_SHIFT;
     return (prev <= MAX_UNITS) ? prev : HEAD;
   }
@@ -328,7 +337,7 @@ final class GenericFreeList implements Constants {
    */
   private void setPrev(int unit, int prev) {
     if (VM.VerifyAssertions) 
-      VM.assert((prev >= HEAD) && (prev <= MAX_UNITS));
+      VM._assert((prev >= HEAD) && (prev <= MAX_UNITS));
     if (prev == HEAD)
       setEntry(unit, (getEntry(unit) | PREV_MASK));
     else

@@ -7,9 +7,12 @@ package com.ibm.JikesRVM.memoryManagers.JMTk;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 
 import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Magic;
 import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_PragmaInline;
+import com.ibm.JikesRVM.VM_PragmaNoInline;
 
 /**
  * Note this may perform poorly when used as simple (concurrent) FIFO,
@@ -21,7 +24,7 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
  * @version $Revision$
  * @date $Date$
  */ 
-public class LocalQueue extends LocalSSB implements Constatants, VM_Uninterruptable {
+public class LocalQueue extends LocalSSB implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
 
   ////////////////////////////////////////////////////////////////////////////
@@ -37,7 +40,7 @@ public class LocalQueue extends LocalSSB implements Constatants, VM_Uninterrupta
    */
   LocalQueue(SharedQueue queue) {
     super(queue);
-    head = headSentinel(queue.getArity());
+    head = VM_Address.fromInt(headSentinel(queue.getArity()));
   }
 
   /**
@@ -47,9 +50,9 @@ public class LocalQueue extends LocalSSB implements Constatants, VM_Uninterrupta
    */
   public final void flushLocal() {
     super.flushLocal();
-    if (head.NE(headSentinel(queue.getArity()))) {
-      closeAndEnqueueHead();
-      head = headSentinel(queue.getArity());
+    if (head.NE(VM_Address.fromInt(headSentinel(queue.getArity())))) {
+      closeAndEnqueueHead(queue.getArity());
+      head = VM_Address.fromInt(headSentinel(queue.getArity()));
     }
   }
 
@@ -90,7 +93,7 @@ public class LocalQueue extends LocalSSB implements Constatants, VM_Uninterrupta
       return popOverflow(arity);
     else {
       if (VM.VerifyAssertions)
-	VM._assert(bufferOffset(head) > (arity<<LOG_BYTES_IN_WORD));
+	VM._assert(bufferOffset(head) > (arity<<LOG_WORD_SIZE));
       return true;
     }
   }
@@ -104,10 +107,10 @@ public class LocalQueue extends LocalSSB implements Constatants, VM_Uninterrupta
    */
   protected final void uncheckedPush(int value) throws VM_PragmaInline {
     if (VM.VerifyAssertions) 
-      VM._assert(bufferOffset(head) <= bufferLastOffset());
+      VM._assert(bufferOffset(head) <= bufferLastOffset(queue.getArity()));
     VM_Magic.setMemoryWord(head, value);
-    head = head.add(BYTES_IN_WORD);
-    if (VM.VerifyAssertions) enqueued++;
+    head = head.add(WORD_SIZE);
+    //    if (VM.VerifyAssertions) enqueued++;
   }
 
   /**
@@ -118,10 +121,10 @@ public class LocalQueue extends LocalSSB implements Constatants, VM_Uninterrupta
    * @return the next value in the buffer
    */
   protected final int uncheckedPop() throws VM_PragmaInline {
-    if (VM.VerifyAssertions) VM._assert(bufferOffset(head) >= BYTES_IN_WORD);
-    head = head.sub(BYTES_IN_WORD);
+    if (VM.VerifyAssertions) VM._assert(bufferOffset(head) >= WORD_SIZE);
+    head = head.sub(WORD_SIZE);
+    //    if (VM.VerifyAssertions) enqueued--;
     return VM_Magic.getMemoryWord(head);
-    if (VM.VerifyAssertions) enqueued--;
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -137,7 +140,7 @@ public class LocalQueue extends LocalSSB implements Constatants, VM_Uninterrupta
    * @param arity The arity of this buffer (used for sanity test only).
    */
   private final void pushOverflow(int arity) throws VM_PragmaNoInline {
-    if (head.NE(headSentinel(arity))) {
+    if (head.NE(VM_Address.fromInt(headSentinel(arity)))) {
       closeAndEnqueueHead(arity);
     }
     head = queue.alloc();
@@ -154,7 +157,7 @@ public class LocalQueue extends LocalSSB implements Constatants, VM_Uninterrupta
    * replenished.
    */
   private final boolean popOverflow(int arity) throws VM_PragmaNoInline {
-    if (head.NE(headSentinel(arity))) {
+    if (head.NE(VM_Address.fromInt(headSentinel(arity)))) {
       queue.free(bufferStart(head));
     }
     head = queue.dequeue(arity);
@@ -183,17 +186,17 @@ public class LocalQueue extends LocalSSB implements Constatants, VM_Uninterrupta
    * @param arity The arity of this buffer  
    * @return True if more entires were aquired.
    */
-  private final boolean starvedConsumer(int arity) {
-    if (bufferOffset(tail) >= (ariry<<LOG_BYTES_IN_WORD)) {
+  private final boolean consumerStarved(int arity) {
+    if (bufferOffset(tail) >= (arity<<LOG_WORD_SIZE)) {
       // entries in tail, so consume tail
-      if (head.EQ(headSentinel(arity)))
+      if (head.EQ(VM_Address.fromInt(headSentinel(arity))))
 	head = queue.alloc(); // no head, so alloc a new one
       VM_Address tmp = head;
-      head = normalizeTail().add(BYTES_IN_WORD); // account for pre-decrement
+      head = normalizeTail(arity).add(WORD_SIZE); // account for pre-decrement
       if (VM.VerifyAssertions) VM._assert(tmp.EQ(bufferStart(tmp)));
-      tail = tmp.add(bufferLastOffset(arity) + BYTES_IN_WORD);
+      tail = tmp.add(bufferLastOffset(arity) + WORD_SIZE);
     } else
-      head = dequeueAndWait(arity);
+      head = queue.dequeueAndWait(arity);
     return !(head.isZero());
   }
 
@@ -206,6 +209,6 @@ public class LocalQueue extends LocalSSB implements Constatants, VM_Uninterrupta
    * whether a head buffer is full.
    */
   private final int headSentinel(int arity) throws VM_PragmaInline {
-    return bufferMaxOffset(arity) + BYTES_IN_WORD;
+    return bufferLastOffset(arity) + WORD_SIZE;
   }
 }

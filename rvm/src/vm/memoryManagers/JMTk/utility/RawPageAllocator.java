@@ -2,6 +2,15 @@
  * (C) Copyright Department of Computer Science,
  *     Australian National University. 2002
  */
+package com.ibm.JikesRVM.memoryManagers.JMTk;
+
+import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
+
+import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Uninterruptible;
+import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_PragmaInline;
 /**
  * This class allows raw pages to be allocated.  Such pages are used
  * for untyped memory manager meta-data (eg sequential store buffers,
@@ -43,7 +52,7 @@ final class RawPageAllocator implements Constants {
    * @param pages  The number of pages to be allocated
    * @return The address of the first byte of the allocated pages
    */
-  public int alloc(int pages) {
+  public VM_Address alloc(int pages) {
     memoryResource.acquire(Conversions.pagesToBlocks(pages));
     int pageIndex = freeList.alloc(pages);
     if (pageIndex == -1) {
@@ -61,7 +70,7 @@ final class RawPageAllocator implements Constants {
    * @return The number of pages freed.
    */
   public int free(VM_Address start) {
-    int freed = freeList.free(Conversions.bytesToPages(start.sub(base)));
+    int freed = freeList.free(Conversions.bytesToPages(start.diff(base)));
     memoryResource.release(Conversions.pagesToBlocks(freed));
     return freed;
   }
@@ -74,7 +83,7 @@ final class RawPageAllocator implements Constants {
    * @return The number of pages in the allocated region.
    */
   public int pages(VM_Address start) {
-    return freeList.size(Conversions.bytesToPages(start.sub(base)));
+    return freeList.size(Conversions.bytesToPages(start.diff(base)));
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -82,4 +91,6 @@ final class RawPageAllocator implements Constants {
   // Private fields and methods
   //
   private VM_Address base;
+  private MemoryResource memoryResource;
+  private GenericFreeList freeList;
 }

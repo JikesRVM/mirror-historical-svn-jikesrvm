@@ -4,11 +4,15 @@
  */
 package com.ibm.JikesRVM.memoryManagers.JMTk;
 
+import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
+
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Magic;
 import com.ibm.JikesRVM.VM_PragmaNoInline;
 import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_PragmaInline;
 /**
  * This supports <i>unsynchronized</i> enqueuing and dequeuing of
  * address pairs
@@ -17,7 +21,7 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
  * @version $Revision$
  * @date $Date$
  */ 
-public class SharedQueue extends Queue implements Constatants, VM_Uninterruptable {
+public class SharedQueue extends Queue implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
 
   
@@ -31,8 +35,7 @@ public class SharedQueue extends Queue implements Constatants, VM_Uninterruptabl
    *
    */
   SharedQueue(RawPageAllocator rpa, int arity) {
-    vmResource = vmr;
-    memoryResource = mr;
+    this.rpa = rpa;
     this.arity = arity;
     lock = new int[1];
     completionFlag = false;
@@ -44,14 +47,14 @@ public class SharedQueue extends Queue implements Constatants, VM_Uninterruptabl
 
   public final int getArity() throws VM_PragmaInline { return arity; }
 
-  public final void enqueue(VM_Address buf, int arity, boolean tail) {
+  public final void enqueue(VM_Address buf, int arity, boolean toTail) {
     if (VM.VerifyAssertions) VM._assert(arity == this.arity);
 
     lock();
-    if (tail) {
+    if (toTail) {
       // Add to the tail of the queue
       setNext(buf, VM_Address.zero());
-      if (tail.zero())
+      if (tail.isZero())
 	head = buf;
       else
 	setNext(tail, buf);
@@ -102,7 +105,7 @@ public class SharedQueue extends Queue implements Constatants, VM_Uninterruptabl
     return rtn;
   }
 
-  public final VM_Address free(VM_Address buf) throws VM_PragmaInline {
+  public final void free(VM_Address buf) throws VM_PragmaInline {
     if (VM.VerifyAssertions) 
       VM._assert(buf.EQ(bufferStart(buf)) && !buf.isZero());
     rpa.free(buf);
@@ -125,29 +128,30 @@ public class SharedQueue extends Queue implements Constatants, VM_Uninterruptabl
   
   private final VM_Address dequeue(boolean waiting) {
     lock();
+    VM_Address rtn;
     if (head.isZero()) {
       if (VM.VerifyAssertions) VM._assert(tail.isZero());
       // no buffers available
       if (!waiting) {
-	clientsWaiting++;
-	if (numClientsWaiting = numClients)
+	numClientsWaiting++;
+	if (numClientsWaiting == numClients)
 	  completionFlag = true;
       }
-      return VM_Address.zero();
+      rtn = VM_Address.zero();
     } else {
       // dequeue the head buffer
-      VM_Address rtn = head;
+      rtn = head;
       head = getNext(head);
       if (tail.EQ(rtn)) {
 	tail = VM_Address.zero();
-	if (VM.VerifyAssertions) VM.assert(head.isZero());
+	if (VM.VerifyAssertions) VM._assert(head.isZero());
       }
       if (VM.VerifyAssertions) bufsenqueued--;
       if (waiting)
 	numClientsWaiting--;
-      return rtn;
     }
     unlock();
+    return rtn;
   }
 
   /**
@@ -157,7 +161,7 @@ public class SharedQueue extends Queue implements Constatants, VM_Uninterruptabl
    * @param next The reference to which next should point.
    */
   private static final void setNext(VM_Address buf, VM_Address next) {
-    VM_Magic.setMemoryWord(buf, next.asInt());
+    VM_Magic.setMemoryWord(buf, next.toInt());
   }
 
   /**
@@ -179,7 +183,7 @@ public class SharedQueue extends Queue implements Constatants, VM_Uninterruptabl
   private final int debugQueueLength() {
     VM_Address top = head;
     int l = 0;
-    while (top != 0) {
+    while (!top.isZero()) {
       top = getNext(top);
       l++;
     }

@@ -10,6 +10,8 @@ import com.ibm.JikesRVM.memoryManagers.vmInterface.*;
 import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM_Magic;
 import com.ibm.JikesRVM.VM_PragmaInterruptible;
+import com.ibm.JikesRVM.VM_PragmaInline;
+import com.ibm.JikesRVM.VM_PragmaNoInline;
 
 /**
  * This class implements a simple semi-space collector. See the Jones
@@ -79,6 +81,7 @@ public final class Plan extends BasePlan { // implements Constants
     ss = new BumpPointer(ss0VM, ssMR);
     // los = new AllocatorLOS(losVM, losMR);
     immortal = new BumpPointer(immortalVM, immortalMR);
+    los = immortal; // FIXME LOS for now los == immortal
   }
 
   /**
@@ -95,8 +98,8 @@ public final class Plan extends BasePlan { // implements Constants
       return ss.alloc(isScalar, bytes);
     else if (allocator == IMMORTAL_ALLOCATOR)
       return immortal.alloc(isScalar, bytes);
-    // else 
-    //  return los.alloc(isScalar, bytes);
+    else 
+      return los.alloc(isScalar, bytes);
   }
 
   /**
@@ -179,7 +182,7 @@ public final class Plan extends BasePlan { // implements Constants
    * @return The possibly moved reference.
    */
   public VM_Address traceObject(VM_Address obj) {
-    VM_Address addr = refToaddr(obj);
+    VM_Address addr = VM_Interface.refToAddress(obj);
     if (addr.LE(HEAP_END)) {
       if (addr.GE(SS_START))
 	return Copy.traceObject(obj);
@@ -233,13 +236,13 @@ public final class Plan extends BasePlan { // implements Constants
     if (Synchronize.acquireBarrier()) {
       gcInProgress = true;
       hi = !hi;       // flip the semi-spaces
-      ssMR.reset();    // reset the semispace memory resource, and
+      ssMR.release();    // reset the semispace memory resource, and
       // rebind the semispace bump pointer to the appropriate semispace.
-      ss.rebindVM(((hi) ? ss1VM : ss0VM)); 
+      ss.rebind(((hi) ? ss1VM : ss0VM)); 
       
       // prepare each of the collected regions
       Copy.prepare(((hi) ? ss0VM : ss1VM), ssMR);
-      LargeObjectSpace.prepare(losVM, losMR);
+      ////      LargeObjectSpace.prepare(losVM, losMR);  FIXME LOS
       Immortal.prepare(immortalVM, null);
       Synchronize.releaseBarrier();
     }
@@ -252,7 +255,7 @@ public final class Plan extends BasePlan { // implements Constants
     if (Synchronize.acquireBarrier()) {
       // release each of the collected regions
       Copy.release(((hi) ? ss0VM : ss1VM), ssMR);
-      LargeObjectSpace.release(losVM, losMR);
+      //      LargeObjectSpace.release(losVM, losMR); FIXME LOS
       Immortal.release(immortalVM, null);
       gcInProgress = false;
       Synchronize.releaseBarrier();
@@ -264,7 +267,8 @@ public final class Plan extends BasePlan { // implements Constants
   // Instance variables
   //
   private BumpPointer ss;
-  // private LOS los;
+  // private LOS los;   FIXME LOS
+  private BumpPointer los;
   private BumpPointer immortal;
 
   ////////////////////////////////////////////////////////////////////////////
@@ -272,10 +276,11 @@ public final class Plan extends BasePlan { // implements Constants
   // Class variables
   //
   // virtual memory regions
-  private static VMResource ss0VM;
-  private static VMResource ss1VM;
-  private static VMResource losVM;
-  private static VMResource immortalVM;
+  private static MonotoneVMResource ss0VM;
+  private static MonotoneVMResource ss1VM;
+  //  private static VMResource losVM;   FIXME LOS
+  private static MonotoneVMResource losVM;
+  private static MonotoneVMResource immortalVM;
 
   // memory resources
   private static MemoryResource ssMR;

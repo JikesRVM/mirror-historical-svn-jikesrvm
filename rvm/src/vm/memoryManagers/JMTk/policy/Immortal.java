@@ -5,6 +5,7 @@
 
 package com.ibm.JikesRVM.memoryManagers.JMTk;
 
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 import com.ibm.JikesRVM.VM_Address;
 
@@ -29,10 +30,11 @@ final class Immortal extends BasePolicy implements Constants {
    *
    * @param object The object to be traced.
    */
-  public static void traceReference(VM_Address object) {
+  public static VM_Address traceObject(VM_Address object) {
     if (!testAndMark(object, immortalMarkState)) {
-      getPlan().enqueue(object);
+      VM_Interface.getPlan().enqueue(object);
     }
+    return object;
   }
 
   /**

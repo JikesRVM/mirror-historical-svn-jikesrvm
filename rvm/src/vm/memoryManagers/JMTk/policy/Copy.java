@@ -43,7 +43,7 @@ final class Copy extends BasePolicy implements Constants {
       return newObject;
     }
     
-    VM_Address newObject = copy(object);
+    VM_Address newObject = VM_Interface.allocateCopy(object);
     VM_Interface.getPlan().enqueue(newObject);
     return newObject;
   }
