@@ -25,7 +25,8 @@ import instructionFormats.*;
  * @author Dave Grove
  */
 public final class VM_JavaHeader extends VM_NurseryObjectModel 
-                                            implements VM_Uninterruptible
+                                            implements VM_Uninterruptible,
+                                            VM_BaselineConstants
 					    //-#if RVM_WITH_OPT_COMPILER
 					    ,OPT_Operators
 					    //-#endif
@@ -72,8 +73,8 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
   public static void setTIB(Object ref, Object[] tib) {
     VM_Magic.pragmaInline();
     int tibSlot = VM_Magic.objectAsType(tib[0]).getTibSlot();
-    int tibWord = (VM_Magic.getIntAtOffset(o, TIB_OFFSET) & BITS_MASK) | (tibSlot << NUM_AVAILABLE_BITS);
-    VM_Magic.setIntAtOffset(o, TIB_OFFSET, tibWord);
+    int tibWord = (VM_Magic.getIntAtOffset(ref, TIB_OFFSET) & BITS_MASK) | (tibSlot << NUM_AVAILABLE_BITS);
+    VM_Magic.setIntAtOffset(ref, TIB_OFFSET, tibWord);
 
   }
 

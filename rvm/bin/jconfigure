@@ -417,7 +417,7 @@ if (( RVM_WITH_ONE_WORD_MASK_OBJECT_MODEL )); then
   OBJECT_MODEL_PATH_STR=objectModel/oneWordMaskTIB
 elif (( RVM_WITH_ONE_WORD_PTR_OBJECT_MODEL )); then
   OBJECT_MODEL_PATH_STR=objectModel/oneWordTIBPtr
-elif (( RVM_WITH_ONE_WORD_PTR_OBJECT_MODEL )); then
+elif (( RVM_WITH_ONE_WORD_INDEX_OBJECT_MODEL )); then
   OBJECT_MODEL_PATH_STR=objectModel/oneWordIndexTIB
 else
   OBJECT_MODEL_PATH_STR=objectModel/default
