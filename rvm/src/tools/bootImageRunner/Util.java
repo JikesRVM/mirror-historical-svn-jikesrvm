@@ -7,6 +7,8 @@
 
 // import com.ibm.JikesRVM.classloader.VM_ClassLoader; // FILL ME IN 
 
+import java.lang.reflect.Field;
+
 /** Utility routines, shared by GenerateInterfaceDeclarations and
  * BootImageWriter.  
  *
@@ -63,6 +65,24 @@ public class Util {
     }
     
     return ret;
+  }
+
+  public static void setBoolField(Class c, final String fieldName, 
+                                  boolean val) { 
+    Field f;
+    try {
+      f = c.getField(fieldName);
+    } catch (NoSuchFieldException e) {
+      reportTrouble("Unable to find a field named " + fieldName
+                    + "in " + c.toString() , e);
+      f = null;                 // Unreachable
+    } 
+    try {
+      f.setBoolean(null, val);
+    } catch (IllegalAccessException e) {
+      reportTrouble("Protection error while setting the boolean field named "
+                    + fieldName + "in " + c, e);
+    }
   }
 
   /* reportTrouble and its aux. data */
