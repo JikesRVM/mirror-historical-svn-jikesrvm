@@ -591,19 +591,6 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
                                          byte object) {
     asm.emitMOV_Reg_RegDisp(dest, object, TIB_OFFSET);
   }
-  /**
-   * The following method will emit code that pushes a reference to an
-   * object's TIB onto the stack.
-   *
-   * TODO: consider deprecating this method; rewriting the appropriate
-   * sequences in the baseline compiler to use a scratch register.
-   *
-   * @param asm the assembler object to emit code with
-   * @param object the number of the register holding the object reference
-   */
-  public static void baselineEmitPushTIB(VM_Assembler asm, byte object) {
-    asm.emitPUSH_RegDisp(object, TIB_OFFSET);
-  }
   //-#endif
 
   //-#if RVM_WITH_OPT_COMPILER

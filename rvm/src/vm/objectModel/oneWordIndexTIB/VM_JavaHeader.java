@@ -182,23 +182,6 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
     // Because TIB_SHIFT is 2 the masked value is a JTOC offset.
     asm.emitMOV_Reg_RegDisp(dest,JTOC,dest);
   }
-  /**
-   * The following method will emit code that pushes a reference to an
-   * object's TIB onto the stack.
-   *
-   * DANGER, DANGER!!! This method kills the value in the 'object'
-   * register.
-   *
-   * TODO: consider deprecating this method; rewriting the appropriate
-   * sequences in the baseline compiler to use a scratch register.
-   *
-   * @param asm the assembler object to emit code with
-   * @param object the number of the register holding the object reference
-   */
-  public static void baselineEmitPushTIB(VM_Assembler asm, byte object) {
-    baselineEmitLoadTIB(asm,object,object);
-    asm.emitPUSH_Reg(object);
-  }
   //-#endif
 
   //-#if RVM_WITH_OPT_COMPILER
