@@ -3139,16 +3139,19 @@ $(emitBoilerplate)
 
 	declare -r usage_msg="Usage: \${ME} [ -trace[=<commands>] ] [ -classpath x:y:z ]\n     [ -- ] java-file [ java-file... ]"
 	function usage () {
-	    echo -e >&2 \$usage_msg
+	    echo -e >&2 "\$usage_msg"
 	    trap "" EXIT
 	    exit $Exit_Status_Bad_Args
-	fi
+	}
 
 	. \${RVM_BUILD}/environment.target
 
 	EXTRA_CPATH=""
-	(( \$# > 0 )) || usage;
 	while :; do
+	    if (( \$# == 0 )); then
+		echo >&2 "\$ME: Not enough arguments" 
+		usage;
+	    fi
 	    arg="\$1"
 	    [[ \$arg != -- ]] || { shift ; break; }
 	    [[ \$arg != --?* ]] || arg="\${arg#-}"
