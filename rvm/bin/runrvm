@@ -43,7 +43,7 @@ function usage() {
 [[ $# -lt 3 ]] && usage 1 "Too few arguments.  This program is designed to be run indirectly by the 'rvm' command."
     
 
-## These will be err-checked for us by "rvm".
+## These have already been err-checked for us by "rvm".
 home=$1;      shift;  # Used to be $HOME
 rvm_root=$1;  shift;  # Used to be $RVM_ROOT
 rvm_build=$1; shift;  # Used to be $RVM_BUILD
@@ -53,7 +53,8 @@ rvm_build=$1; shift;  # Used to be $RVM_BUILD
 # Where the RVM bootimage, booter, and runtime support files reside.
 . $rvm_build/environment
 
-for arg in "$@"; do
+declare -a user_args=("$@")
+for arg in "${user_args[@]}"; do
     if   [[ $arg = --   ]]; then
 	print "$ME: the command line option \"--\" is no longer used!"
     fi
@@ -63,15 +64,17 @@ done
 # put these before any user-specified arguments, so that any flags
 # that the user may have explicitly specified will override our defaults.
 
-set -- "-X:i=$rvm_build/RVM.image" "-X:vmClasses=$rvm_build/RVM.classes/jksvm.jar:$rvm_build/RVM.classes/rvmrt.jar" "$@" 
+## These are the first set of defines (we used to 
+## set these before checking user args, for some odd reason).
 
-# Need to make some more defines
-set -- "$@" "-Drvm.root=$rvm_root"
-set -- "$@" "-Drvm.build=$rvm_build"
-set -- "$@" "-Djava.home=$rvm_root"
-set -- "$@" "-Dgnu.classpath.home.url=file:${rvm_build}"
-set -- "$@" "-Dgnu.classpath.vm.shortname=JikesRVM"
-set -- "$@" "-Duser.home=$home" "-Duser.dir=$(pwd)" "-Dos.name=$(uname -s)" "-Dos.version=$(uname -r)" "-Dos.arch=$(uname -m)"
+declare -a sys_args=("-X:i=$rvm_build/RVM.image" "-X:vmClasses=$rvm_build/RVM.classes/jksvm.jar:$rvm_build/RVM.classes/rvmrt.jar" \
+		    \
+		"-Drvm.root=$rvm_root"					\
+		"-Drvm.build=$rvm_build"				\
+		"-Djava.home=$rvm_root"					\
+		"-Dgnu.classpath.home.url=file:${rvm_build}"		\
+		"-Dgnu.classpath.vm.shortname=JikesRVM"			\
+		"-Duser.home=$home" "-Duser.dir=$(pwd)" "-Dos.name=$(uname -s)" "-Dos.version=$(uname -r)" "-Dos.arch=$(uname -m)" )
 
 # Now execute the VM
-exec "$rvm_build/JikesRVM" "$@"
+exec "$rvm_build/JikesRVM" "${sys_args[@]}" "${user_args[@]}" 
