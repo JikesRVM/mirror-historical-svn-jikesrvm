@@ -55,7 +55,6 @@ public final class VM_AllocatorHeader extends VM_CommonAllocatorHeader
    */
   static void boot(int bootBaseAddress, int bootHighAddress) {
     if (USE_SIDE_MARK_VECTOR) {
-      VM.sysWrite("BOOTING SIDE MARK VECTOR\n");
       markVector.boot(bootBaseAddress, bootHighAddress);
     }
   }
