@@ -31,28 +31,38 @@ public final class LazyMmapper implements Constants, VM_Uninterruptible {
   //
   //
 
-  public static boolean verbose = false;
+  public static boolean verbose = true;
 
   public static void ensureMapped(VM_Address start, int blocks) {
     int startChunk = Conversions.addressToMmapChunks(start);       // round down
-    int chunks = Conversions.blocksToMmapChunks(blocks); // round up
-    int endChunk = startChunk + chunks;
-    for (int chunk=startChunk; chunk < endChunk; chunk++) {
+    int endChunk = Conversions.addressToMmapChunks(start.add(Conversions.blocksToBytes(blocks)));       // round down
+    for (int chunk=startChunk; chunk <= endChunk; chunk++) {
+      VM_Address mmapStart = Conversions.mmapChunksToAddress(chunk);
       if (mapped[chunk] == UNMAPPED) {
-	VM_Address mmapStart = Conversions.mmapChunksToAddress(chunk);
 	if (!VM_Interface.mmap(mmapStart, MMAP_CHUNK_SIZE)) {
 	  VM.sysWriteln("ensureMapped failed");
 	  VM._assert(false);
 	}
 	else {
 	  if (verbose) {
-	    VM.sysWrite("mmap succeeded at ", mmapStart);
+	    VM.sysWrite("mmap succeeded at chunk ", chunk);  VM.sysWrite("  ", mmapStart);
 	    VM.sysWriteln(" with len = ", MMAP_CHUNK_SIZE);
 	  }
 	}
-	mapped[chunk] = MAPPED;
       }
-      chunk++;
+      if (mapped[chunk] == PROTECTED) {
+	if (!VM_Interface.munprotect(mmapStart, MMAP_CHUNK_SIZE)) {
+ 	  VM.sysWriteln("ensureMapped (unprotect) failed");
+	  VM._assert(false);
+	}
+	else {
+	  if (verbose) {
+	    VM.sysWrite("munprotect succeeded at chunk ", chunk);  VM.sysWrite("  ", mmapStart);
+	    VM.sysWriteln(" with len = ", MMAP_CHUNK_SIZE);
+	  }
+	}
+      }
+      mapped[chunk] = MAPPED;
     }
   }
 
@@ -69,7 +79,7 @@ public final class LazyMmapper implements Constants, VM_Uninterruptible {
 	}
 	else {
 	  if (verbose) {
-	    VM.sysWrite("munmap succeeded at ", mmapStart);
+	    VM.sysWrite("mprotect succeeded at chunk ", chunk);  VM.sysWrite("  ", mmapStart);
 	    VM.sysWriteln(" with len = ", MMAP_CHUNK_SIZE);
 	  }
 	}
@@ -78,7 +88,6 @@ public final class LazyMmapper implements Constants, VM_Uninterruptible {
       else {
 	if (VM.VerifyAssertions) VM._assert(mapped[chunk] == PROTECTED);
       }
-      chunk++;
     }
   }
 
@@ -94,6 +103,15 @@ public final class LazyMmapper implements Constants, VM_Uninterruptible {
   final public static int MMAP_CHUNK_SIZE = 1 << LOG_MMAP_CHUNK_SIZE;   // the granularity VMResource operates at
   final private static int MMAP_NUM_CHUNKS = 1 << (Constants.LOG_ADDRESS_SPACE - LOG_MMAP_CHUNK_SIZE);
   final public  static int MMAP_CHUNK_MASK = ~((1 << LOG_MMAP_CHUNK_SIZE) - 1);
+
+  private static String chunkStateToString(byte state) {
+    switch (state) {
+    case UNMAPPED: return "UNMAPPED";
+    case MAPPED: return "MAPPED";
+    case PROTECTED: return "PROTECTED";
+    }
+    return "UNKNOWN";
+  }
 
   /**
    * Class initializer.  This is executed <i>prior</i> to bootstrap

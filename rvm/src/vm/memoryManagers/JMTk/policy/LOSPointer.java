@@ -46,9 +46,7 @@ public class LOSPointer implements Constants {
    * @return The address of the first byte of the allocated region
    */
   public VM_Address alloc(boolean isScalar, EXTENT bytes) throws VM_PragmaInline {
-    VM.sysWrite("LOSPointer.alloc called with bytes = ", bytes);
     VM_Address result = los.alloc(isScalar, bytes);
-    VM.sysWriteln("   returning ", result);
     return result;
   }
 

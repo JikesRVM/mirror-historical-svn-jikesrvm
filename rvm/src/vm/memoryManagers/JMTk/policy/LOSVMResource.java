@@ -43,7 +43,6 @@ public class LOSVMResource extends MonotoneVMResource implements Constants {
   }
 
   // Internal management
-  private VM_Address lastAcquired;
   private VM_ProcessorLock spaceLock;        // serializes access to large space
   private final int pageSize = 4096;         // large space allocated in 4K chunks
   private final int GC_LARGE_SIZES = 20;           // for statistics  
@@ -59,7 +58,6 @@ public class LOSVMResource extends MonotoneVMResource implements Constants {
    */
   public LOSVMResource(String name, VM_Address start, EXTENT size, byte status) throws VM_PragmaUninterruptible {
     super(name, start, size, status);
-    lastAcquired = start;
     spaceLock       = new VM_ProcessorLock();      // serializes access to large space
     lastAllocated = 0;
     totalPages = 0;
@@ -121,10 +119,11 @@ public class LOSVMResource extends MonotoneVMResource implements Constants {
 	  spaceLock.unlock();  //release lock *and synch changes*
 	  VM_Address result = start.add(VM_Memory.getPagesize() * first_free);
 	  VM_Address resultEnd = result.add(size);
-	  if (resultEnd.GT(lastAcquired)) {
-	    int bytes = resultEnd.diff(lastAcquired).toInt();
+	  if (resultEnd.GT(cursor)) {
+	    int bytes = resultEnd.diff(cursor).toInt();
 	    int blocks = Conversions.bytesToBlocks(bytes);
 	    VM_Address newArea = acquire(blocks);
+	    if (VM.VerifyAssertions) VM._assert(resultEnd.LE(cursor));
 	  }
 	  VM_Memory.zero(result, resultEnd);
 	  return result;
@@ -140,7 +139,7 @@ public class LOSVMResource extends MonotoneVMResource implements Constants {
       // Couldn't find space; inform allocator (which will either trigger GC or 
       // throw out of memory exception)
       // VM_Allocator.heapExhausted(this, size, count++);
-      VM._assert(false); // XXXXX
+      VM.sysFail("LOSVMResource: out of memory");
     }
   }
 
