@@ -45,7 +45,7 @@ fi
 
 # Stop immediately if any programs we call return errors.
 #
-trap 'echo >&2 "$ME: some command we just ran (probably with a final argument of \"$_\") exited with status $?; aborting execution.  Please Fix this."' ERR
+trap 'echo >&2 "$ME: some command we just ran (probably with a final argument of \"$_\") exited with status $?.  I give up; aborting execution."' ERR
 trap 'echo >&2 "$ME: We just exited due to an error."' EXIT
 set -e;
 
@@ -693,13 +693,46 @@ function emitSourceList () {
 
 
 
-#
-# Emit script which set all shell variables relative to the
+function emitBoilerplate () {
+    cat <<- 'EOF'
+	# What is our name?
+	# Bash internal shorthand that works like the "basename" command.
+
+	ME="${0##*/}"
+	. ./enable_exit_on_error
+EOF
+}
+
+function emit_disable_exit_on_error () {
+    cat << 'EOF'
+	# disable_exit_on_error.  This has to be a source'd file; the ERR 
+	# trap is not inherited by shell functions.  Too Bad.
+	trap - ERR
+	set +e
+EOF
+}
+
+function emit_enable_exit_on_error () {
+    cat << 'EOF'
+	# enable_exit_on_error.  This has to be a source'd file; the ERR 
+	# trap is not inherited by shell functions.  Too Bad.
+	trap 'echo >&2 "$ME: A command I just ran (probably with a final argument of "$_")
+	   exited with status $?.  Something is broken; I give up."' ERR
+	set -e
+EOF
+}
+
+
+
+# Emit script which sets all shell variables relative to the
 # shadow and build directory
 function emitEnvironmentBash () {
    # read the target environment file
    #
-   echo '#!/bin/bash'
+   echo '#! /bin/bash'
+   echo '# Note: the above #! /bin/bash is there merely as documentation.'
+   echo '# This file will not be run as a program directly, but rather sourced'
+   echo '# by other routines.'
    echo ''
    echo '# Set the enviroment.'
    echo ""
@@ -712,9 +745,6 @@ function emitEnvironmentBash () {
    echo "# This file was generated from the configuration file:"
    echo "#      $CURRENT_CONFIG_FILE"
 
-   echo "trap 'echo >&2 \"\$ME: A command I just ran (probably with a final argument of \"\$_\")
-  exited with status \$?.  Something is broken; I give up.\"' ERR"
-   echo "set -e"
    echo ""
    echo "export $BUILD_DIRECTORY_STR1=$RVM_BUILD"
    echo "export $ROOT_DIRECTORY_STR1=$RVM_ROOT"
@@ -881,8 +911,8 @@ function emitController () {
     cat <<- 'EOF'
 	#!/bin/bash
 	# Run all phases of vm builder.
-	set -e
-	ME="${0##*/}"
+
+	. ./boilerplate.bash
 
 	# timeit() $1: The command to run
 	#	   $2: That command's arguments.
@@ -903,9 +933,9 @@ function emitController () {
 
 	    # Disable exit-on-error; inside "timeit", we can get a better
 	    # exit message than the default one.
-	    set +e
+	    . ${RVM_BUILD}/disable_exit_on_error
 	    "$@"
-	    set -e
+	    . ${RVM_BUILD}/enable_exit_on_error
 	    local status=$?
 	    echo "$SECONDS s"
 	    if [ $status != 0 ]; then
@@ -1012,6 +1042,7 @@ EOF
 }
 
 
+# echo >&2  "HERE I AM! emitExpander" # DBG
 # Emit script to generate VM source tree Java files that derive from templates.
 # Taken:    .template files in source tree
 # Returned: .java files in ${GENERATED_FILES_DIRECTORY}
@@ -1020,16 +1051,15 @@ function emitExpander () {
     cat <<- 'EOF'
 	#! /bin/bash
 	# Generate VM sources that derive from templates.
-	set -e
-	ME=${0##*/}
+	. ./boilerplate.bash
+	. ./jbuild.environment
+
 
 	SILENT_MAKE=--silent
 	if [[ $1 = -trace ]]; then
 	    SILENT_MAKE=
 	    shift
 	fi
-
-	. ./jbuild.environment
 
 	echo -n "${ME}: "
 
@@ -1104,6 +1134,7 @@ fi
 # Taken:    .java files in source tree
 # Returned: .java files in build directory
 #
+# echo >&2  "HERE I AM! emitCopier" # DBG
 function emitCopier () {
     cat <<- 'EOF'
 	#! /bin/bash
@@ -1112,16 +1143,15 @@ function emitCopier () {
 	# Taken:    .java files in the source tree
 	# Returned: .java files in the build directory
 
-	set -e
-	ME=${0##*/}
+	. ./boilerplate.bash
+	. ./jbuild.environment
+	
 
 	if [[ $1 = -trace ]]; then
 	    TRACE_FLAG=-trace
 	    shift
 	fi
 
-	. ./jbuild.environment
-	
 	if [[ $1 = -clean ]]; then
 	    echo -n "${ME}: "
 EOF
@@ -1152,9 +1182,9 @@ for d in $(<' ${SOURCE_LIST_STR} '); do
     shopt -s nullglob
     # FILES may be empty.
     FILES="$(echo ${d}/*.java)"
-    set +e
+    . ${RVM_BUILD}/disable_exit_on_error
     '${BUILD_DIRECTORY_STR}'/jbuild.prep ${TRACE_FLAG}' ${PREPROCESSOR_DEFINITIONS} ${CLASSES_DIRECTORY_STR} '${FILES}
-    set -e    # Added by Steven Augart
+    . ${RVM_BUILD}/enable_exit_on_error
     RC=$?
     if [[ ${RC} = 1 ]]; then
        FILES_HAVE_CHANGED=1
@@ -1176,7 +1206,7 @@ if [[ ${TRACE_FLAG} = -trace ]]; then
     echo -n "${ME}: '${GENERATED_FILES_DIRECTORY_STR}'/"
 fi
 FILES=$(${FIND} '${GENERATED_FILES_DIRECTORY_STR}'/ -name "*.java")
-set +e
+. ${RVM_BUILD}/disable_exit_on_error
 '${BUILD_DIRECTORY_STR}'/jbuild.prep ${TRACE_FLAG}' ${PREPROCESSOR_DEFINITIONS} ${CLASSES_DIRECTORY_STR}' ${FILES}
 RC=$?
 if [[ ${RC} = 1 ]]; then
@@ -1184,7 +1214,7 @@ if [[ ${RC} = 1 ]]; then
 elif [[ ${RC} != 0 ]]; then
     exit 1
 fi
-set -e
+. ${RVM_BUILD}/enable_exit_on_error
 if [[ ${TRACE_FLAG} = -trace ]]; then
       echo ""
 fi'
@@ -1214,6 +1244,8 @@ fi'
 #           CLASSES_INVALID
 # Returned: .class files in build directory
 #
+# echo >&2  "HERE I AM! emitCompiler" # DBG
+
 function emitCompiler () {
     cat <<- 'EOF'
 	#! /bin/bash
@@ -1221,15 +1253,14 @@ function emitCompiler () {
 	# Taken:    .java files in build directory 
 	#           CLASSES_INVALID
 	# Returned: .class files in build directory
-	set -e
-	ME=${0##*/}
+	. ./boilerplate.bash
+	. ./jbuild.environment
+
 
 	if [[ $1 = -trace ]]; then
 	    TRACE_FLAG=-trace
 	    shift
 	fi
-
-	. ./jbuild.environment
 
 	echo -n "${ME}: "
 EOF
@@ -1292,6 +1323,7 @@ fi';
    echo 'fi'
 }
 
+# echo >&2  "HERE I AM! emitImageLinker" # DBG
 function emitImageLinker () {
 cat <<- 'EOF'
 	#! /bin/bash
@@ -1300,8 +1332,9 @@ cat <<- 'EOF'
 	# Returned: PRIMORDIAL_CLASSES and bootimage in build directory
 	#           InterfaceDeclarations.h in bootImageRunner directory
 	#
-	set -e
-	ME=${0##*/}
+	. ./boilerplate.bash
+	. ./jbuild.environment
+
    
 	TRACE_FLAG=
 	SILENT_MAKE=--silent
@@ -1315,8 +1348,6 @@ cat <<- 'EOF'
 	    shift
 	fi
 	
-	. ./jbuild.environment
-
 	echo -n "${ME}: "
 EOF
    
@@ -1799,9 +1830,9 @@ EOF
    echo '    echo -n "$ME: '$BOOTIMAGE_WRITER_DIR_STR'"'
    echo 'fi'
    echo 'FILES=$(/bin/ls' $BOOTIMAGE_WRITER_DIR_STR'/*.java)'
-   echo 'set +e'
+   echo '. ${RVM_BUILD}/disable_exit_on_error'
    echo $BUILD_DIRECTORY_STR/jbuild.prep '$TRACE_FLAG' $PREPROCESSOR_DEFINITIONS $SCRATCH_DIRECTORY_STR ' $FILES'
-   echo 'set -e    # Added by Steven Augart'
+   echo '. ${RVM_BUILD}/enable_exit_on_error    # Added by Steven Augart'
    echo 'if [[ $TRACE_FLAG = -trace ]]; then'
    echo '   echo ""'
    echo 'fi'
@@ -1821,9 +1852,9 @@ EOF
    echo '    echo -n "$ME: '$BOOTIMAGE_RUNNER_DIR_STR'"'
    echo 'fi'
    echo 'FILES=$(/bin/ls' $BOOTIMAGE_RUNNER_DIR_STR'/GenerateInterfaceDeclarations.java)'
-   echo 'set +e'
+   echo '. ${RVM_BUILD}/disable_exit_on_error'
    echo $BUILD_DIRECTORY_STR/jbuild.prep '$TRACE_FLAG' $PREPROCESSOR_DEFINITIONS $SCRATCH_DIRECTORY_STR ' $FILES'
-   echo 'set -e    # Added by Steven Augart'
+   echo '. ${RVM_BUILD}/enable_exit_on_error    # Added by Steven Augart'
    echo 'if [[ $TRACE_FLAG = -trace ]]; then'
    echo '    echo ""'
    echo 'fi'
@@ -1860,9 +1891,10 @@ EOF
    echo 'if [[ $TRACE_FLAG = -trace ]]; then'
    echo '  echo ""'
    echo 'fi'
-   }
+}
 
 # Emit script to generate vm booter.
+# echo >&2  "HERE I AM! emitBooterLinker" # DBG
 function emitBooterLinker () {
    echo '#! /bin/bash'
    echo ""
@@ -1874,7 +1906,7 @@ function emitBooterLinker () {
    echo '# Allow the build directory to be different in the host/boot image'
    echo '# writing system, and on the target system.'
    echo ""
-   echo 'ME="${0##*/}"'
+   echo '. ./boilerplate.bash'
    echo 'ROOT_DIR="${0%/*}"'
    echo '# I do not understand the point behind this code. --Steve Augart'
    echo 'if [[ "$ROOT_DIR" = "." ]]; then'
@@ -2143,12 +2175,14 @@ fi';
 
 # Emit script to generate .class files for vm tools that are not part of the build.
 #
+# echo >&2  "HERE I AM! emitToolCompiler" # DBG
 function emitToolCompiler () {
    echo '#! /bin/bash'
    echo '# Generate class files for vm tools that are not part of the build.'
+   echo '# In simpler language, this runs the Jikes compiler with the environment'
+   echo '# properly set up.'
+   echo '. ${RVM_BUILD}/boilerplate.bash'
    echo '. ${RVM_BUILD}/environment'
-   echo 'set -e'
-   echo 'ME=${0##*/}'
 
    echo 'if [[ $# = 0 ]]; then'
    echo '    echo 2>&1 "usage: ${ME} [ -classpath x:y:z ] java-file [ java-file... ]"'
@@ -2193,16 +2227,15 @@ function emitToolCompiler () {
 function emitToolPreprocessor () {
    echo '#! /bin/bash'
    echo '# Generate class files for vm tools that are not part of the build.'
-   echo 'set -e'
-   echo '. $RVM_BUILD/environment'
-   echo 'ME=${0##*/)'
+   echo '. "$RVM_BUILD/boilerplate.bash"'
+   echo '. "$RVM_BUILD/environment"'
 
    echo 'if [[ $# = 0 ]]; then'
    echo '   echo >&2 "usage: $ME java-file [ java-file... ]"'
    echo '   exit 1'
    echo 'fi'
 
-   echo 'exec $RVM_BUILD/jbuild.prep ' $PREPROCESSOR_DEFINITIONS ' "$@"'
+   echo 'exec "$RVM_BUILD/jbuild.prep"' $PREPROCESSOR_DEFINITIONS '"$@"'
 }
   
 function emitPluginBuilder () {
@@ -2211,7 +2244,8 @@ function emitPluginBuilder () {
 	# Build and install Jikes RVM launching plugin for Eclipse 2.x
 
 	# pick up configuration to learn where Ant is
-	. ${RVM_BUILD}/environment
+	. "${RVM_BUILD}/boilerplate.bash"
+	. "${RVM_BUILD}/environment"
 
 	# allow user-specified Eclipse install to override env
 	if [[ x$1 != x ]]; then
@@ -2337,8 +2371,22 @@ chmod -x${PERM}		      ${BUILD_DIRECTORY}/jbuild.environment
 # read the target environment file
 . ${RVM_TARGET_CONFIG}
 export CURRENT_CONFIG_FILE=${RVM_TARGET_CONFIG}
+# echo -n  >&2 "About to run emitMakefile"... # DBG
 emitMakefile		      >${BUILD_DIRECTORY}/Make.rules
+# echo >&2 "Ran emitMakefile"	# DBG
+
+# echo -n >&2 "About to run chmod -x${PERM} ${BUILD_DIRECTORY}/Make.rules"... # DBG
 chmod -x${PERM}		      ${BUILD_DIRECTORY}/Make.rules
+# echo >&2 "Ran chmod."		# DBG
+
+emitBoilerplate		      >${BUILD_DIRECTORY}/boilerplate.bash
+chmod -x${PERM}		      ${BUILD_DIRECTORY}/boilerplate.bash
+
+emit_enable_exit_on_error     > ${BUILD_DIRECTORY}/enable_exit_on_error
+chmod -x${PERM}		      ${BUILD_DIRECTORY}/enable_exit_on_error
+
+emit_disable_exit_on_error    > ${BUILD_DIRECTORY}/disable_exit_on_error
+chmod -x${PERM}		      ${BUILD_DIRECTORY}/disable_exit_on_error
 
 emitEnvironmentBash	      >${BUILD_DIRECTORY}/environment
 chmod -x${PERM}		      ${BUILD_DIRECTORY}/environment
