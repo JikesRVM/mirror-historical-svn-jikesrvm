@@ -281,7 +281,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   public static boolean useMemoryController = false;
 
   public static void checkBootImageAddress (int addr) {
-    VM._assert(bootImageAddress == addr);
+    if (VM.VerifyAssertions) VM._assert(bootImageAddress == addr);
   }
 
   public static void setWorkBufferSize (int size) {
@@ -335,7 +335,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
 
   public static VM_Address allocateCopy(VM_Address object) {
     VM.sysWriteln("allocateCopy unimplmented");
-    VM._assert(false); // unimplemented
+    if (VM.VerifyAssertions) VM._assert(false); // unimplemented
     return VM_Address.zero();     // getPlan().allocCopy()...  FIXME
   }
 
@@ -421,7 +421,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     if (result.GT(VM_Address.fromInt(127))) {
       VM.sysWrite("mmap with MAP_FIXED on ", start);
       VM.sysWriteln(" returned some other address", result);
-      VM._assert(false);
+      VM.sysFail("mmap with MAP_FIXED has unexpected behavior");
     }
     return result.toInt();
   }
