@@ -9,6 +9,7 @@ package com.ibm.JikesRVM.GenerateInterfaceDeclarations;
 import  java.io.*;
 import  java.io.PrintStream;
 import  java.util.*;
+import java.lang.reflect.*;
 import com.ibm.JikesRVM.*;
 import com.ibm.JikesRVM.classloader.*;
 import com.ibm.JikesRVM.classloader.AlternateRealityClassLoader;
@@ -29,8 +30,13 @@ class GenerateInterfaceDeclarations extends Shared {
 
   static int bootImageAddress = 0;
 
-  /** If we use the -alternateRealityClasspath argument, then assume the
-     user must be using Jikes RVM to perform self-booting. */
+  /** We don't just use the -alternateRealityClasspath argument when
+     self-hosting (with Jikes RVM as the VM running this program). 
+
+     Consider, for example, building a Jikes RVM using classpath 0.07 with an
+     older Kaffe running classpath 0.06.  We want the GNU Classpath version to
+     be written out as 0.07, not as 0.06.  */
+
   static String alternateRealityClasspath;
 
   /** If we use the -alternateRealityNativeLibDir argument, then assume the
@@ -87,11 +93,12 @@ class GenerateInterfaceDeclarations extends Shared {
       System.exit(-1);
     }
 
-    Class vmClass = getTheVMClass(alternateRealityClasspath, 
-                                  alternateRealityNativeLibDir);
+    /* Load and initialize the VM class first.  This should help us out. */
+    Shared.altCL 
+      = AlternateRealityClassLoader.init(alternateRealityClasspath, 
+                                         alternateRealityNativeLibDir);
 
-    vmClass.initForTool();
-
+    Class vmClass = initializeVM();
 
     if (outFileName == null) {
       out = System.out;
@@ -106,9 +113,7 @@ class GenerateInterfaceDeclarations extends Shared {
       }
     }
 
-    XXX Here, we need to load an emitters collection too, I think.
-
-    emitStuff(vmClass);
+    Emitters.emitStuff(vmClass, bootImageAddress);
 
     if (out.checkError()) {
       reportTrouble("an output error happened");
@@ -121,35 +126,23 @@ class GenerateInterfaceDeclarations extends Shared {
     System.exit(0);
   }
 
-  static Class getTheVMClass(String alternateRealityClassPath,
-                             String alternateRealityNativeLibDir) 
+    
+  static Class initializeVM() 
+    throws InvocationTargetException, IllegalAccessException
   {
-    final String cname = "com.ibm.JikesRVM.VM";
-    if (alternateRealityClasspath == null) {
-      /* We're not using Jikes RVM to run GenerateInterfaceDeclarations  The
-       * VM class is in the normal classpath.  */
-      try {
-        return Class.forName(cname);
-      } catch (ClassNotFoundException e) {
-        reportTrouble("Unable to load the class \"" + cname + "\""
-                      + " with the default (application) class loader.");
-        return null;            // unreached
-      }
-    } else {
-      /* Self-booting with Jikes RVM. */
-      ClassLoader altCL 
-        = AlternateRealityClassLoader.init(alternateRealityClassPath, 
-                                           alternateRealityNativeLibDir);
-      try {
-        return Class.forName(cname, true, altCL);
-      } catch (ClassNotFoundException e) {
-        reportTrouble("Unable to load the class \"" + cname + "\"" 
-                      + " with the Alternate Reality class loader.");
-        return null;            // unreached
-      }
-    }
-  }
+    Class vmClass = getClassNamed("com.ibm.JikesRVM.VM");
 
+    Method initVMForTool = null; // really dumb, but shuts up warnings.
+    try {
+      initVMForTool = vmClass.getMethod("initForTool", new Class[0]);
+    } catch (NoSuchMethodException e) {
+      reportTrouble("The VM Class doesn't have a zero-parameter initForTool() method?!: " + e.toString());
+      // unreached
+    }
+    // vmClass.initForTool();
+    initVMForTool.invoke(vmClass, new Object[0]);
+    return vmClass;
+  }
 }
 
 

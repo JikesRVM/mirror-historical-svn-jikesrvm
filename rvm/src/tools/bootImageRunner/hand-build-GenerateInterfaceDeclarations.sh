@@ -25,6 +25,7 @@ $RVM_BUILD/jbuild.toolPrep --disable-modification-exit-status $TMP *.java
 cd $TMP
 
 $RVM_BUILD/jbuild.tool com/ibm/JikesRVM/GenerateInterfaceDeclarations/GenerateInterfaceDeclarations.java
+## $RVM_BUILD/jbuild.tool com/ibm/JikesRVM/GenerateInterfaceDeclarations/Emitters.java
 
 $HOST_JAVA_RT -Xmx200M	  -classpath .:$JAL_BUILD/RVM.classes:$JAL_BUILD/RVM.classes/rvmrt.jar	  com.ibm.JikesRVM.GenerateInterfaceDeclarations.GenerateInterfaceDeclarations -out declarations.out -ia 0x43000000
 # >	  $JAL_BUILD/RVM.scratch/InterfaceDeclarations.h.new

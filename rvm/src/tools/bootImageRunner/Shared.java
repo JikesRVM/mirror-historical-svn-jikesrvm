@@ -5,6 +5,9 @@ import  java.io.PrintStream;
 /** A class for shared code among GenerateInterfaceDeclarations et al. */
 
 class Shared {
+  /** 
+      These routines all handle I/O.  (More below)
+   **/
   static PrintStream out;
   static String outFileName;
 
@@ -44,4 +47,33 @@ class Shared {
   }
 
 
+  /** 
+      Non-IO routines.
+   **/
+  static ClassLoader altCL = null; // alternate reality class loader
+  
+  static Class getClassNamed(String cname) {
+    if (altCL == null) {
+      /* We're not worried about using Jikes RVM or another Classpath-based VM
+       * to run GenerateInterfaceDeclarations.   The VM class is in the normal
+       * CLASSPATH.  */ 
+      try {
+        return Class.forName(cname);
+      } catch (ClassNotFoundException e) {
+        reportTrouble("Unable to load the class \"" + cname + "\""
+                      + " with the default (application) class loader:" + e);
+        return null;            // unreached
+      }
+    } else {
+      /* using the alternate reality class loader */
+      try {
+        return Class.forName(cname, true, altCL);
+      } catch (ClassNotFoundException e) {
+        reportTrouble("Unable to load the class \"" + cname + "\"" 
+                      + " with the Alternate Reality class loader.");
+        return null;            // unreached
+      }
+    }
+  }
+  
 }
