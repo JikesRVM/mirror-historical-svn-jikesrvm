@@ -64,59 +64,6 @@ public class VM_ClassLoader implements VM_Constants,
     return appCL;
   }
 
-  /**
-   * Load a dynamic library
-   * @param libname the name of the library to load.
-   */
-  public static void load(String libname) {
-    currentDynamicLibraryId++;
-
-    if (currentDynamicLibraryId>=(dynamicLibraries.length-1)) {
-      dynamicLibraries = 
-        growArray(dynamicLibraries, currentDynamicLibraryId << 1); 
-    }
-    
-    if (VM.VerifyAssertions)
-        VM._assert(dynamicLibraries[currentDynamicLibraryId] == null);
-    
-    dynamicLibraries[currentDynamicLibraryId] = new VM_DynamicLibrary(libname);
-  }
-
-  /**
-   * Load a dynamic library
-   * @param libname the name of the library to load.
-   */
-  public static void loadLibrary(String libname) {
-    currentDynamicLibraryId++;
-    if (currentDynamicLibraryId>=(dynamicLibraries.length-1)) {
-      dynamicLibraries = 
-        growArray(dynamicLibraries, currentDynamicLibraryId << 1); 
-    }
-
-    if (VM.VerifyAssertions)
-      VM._assert(dynamicLibraries[currentDynamicLibraryId] == null);
-
-    String platformLibName = System.mapLibraryName(libname);
-    StringTokenizer javaLibDirs =
-      new StringTokenizer(javaLibPath, File.pathSeparator, false);
-
-    while (javaLibDirs.hasMoreElements()) {
-      String javaLibDir = javaLibDirs.nextToken();
-      File javaLib = new File(javaLibDir, platformLibName);
-        
-      if (javaLib.exists()) {
-        dynamicLibraries[currentDynamicLibraryId] = new VM_DynamicLibrary(javaLib.getPath());
-        return;
-      }
-    }
-
-    throw new UnsatisfiedLinkError("Cannot find library " + libname);
-  }
-    
-  static VM_DynamicLibrary[] getDynamicLibraries() {
-    return dynamicLibraries;
-  }
-
   //----------------//
   // implementation //
   //----------------//
@@ -153,17 +100,6 @@ public class VM_ClassLoader implements VM_Constants,
   static VM_Atom arrayNullCheckAttributeName;         // "ArrayNullCheckAttribute"
 
   /**
-   * Dynamic libraries for native code
-   * Note: this is static for now, but it needs to be a list per class loader
-   */
-  private static VM_DynamicLibrary[] dynamicLibraries;
-
-  /**
-   * Index of most recently allocated slot in dynamicLibraries.
-   */
-  private static int currentDynamicLibraryId = 0;
-
-  /**
    * Initialize for boot image.
    */
   public static void init(String vmClassPath) {
@@ -198,31 +134,8 @@ public class VM_ClassLoader implements VM_Constants,
     syntheticAttributeName              = VM_Atom.findOrCreateAsciiAtom("Synthetic");
     arrayNullCheckAttributeName         = VM_Atom.findOrCreateAsciiAtom("ArrayNullCheckAttribute");
 
-    dynamicLibraries = new VM_DynamicLibrary[0];
-
     VM_Type.init();
   }
-
-  private static String javaLibPath;
-
-  private static void setJavaLibPath() {
-    javaLibPath = VM_CommandLineArgs.getEnvironmentArg("java.library.path");
-    if (javaLibPath == null) javaLibPath="";
-  }
-
-  public static String getJavaLibPath() {
-    return javaLibPath;
-  } 
-
-  private static String systemNativePath;
-
-  private static void setSystemNativePath() {
-    systemNativePath = VM_CommandLineArgs.getEnvironmentArg("rvm.build");
-  }
-
-  public static String getSystemNativePath() {
-    return systemNativePath;
-  } 
 
   /**
    * Initialize for execution.
@@ -235,24 +148,6 @@ public class VM_ClassLoader implements VM_Constants,
   public static void boot(String vmClasses) {      
     if (vmClasses != null)
       setVmRepositories(vmClasses);
-    setSystemNativePath();
-    setJavaLibPath();
-    currentDynamicLibraryId = 0;
-    dynamicLibraries = new VM_DynamicLibrary[0];
-  }
-
-  /**
-   * Expand an array.
-   */ 
-  private static VM_DynamicLibrary[] growArray(VM_DynamicLibrary[] array, 
-                                               int newLength) {
-    VM_DynamicLibrary[] newarray = MM_Interface.newContiguousDynamicLibraryArray(newLength);
-    for (int i = 0, n = array.length; i < n; ++i) {
-      newarray[i] = array[i];
-    }
-
-    VM_Magic.sync();
-    return newarray;
   }
 
   public static final VM_Type defineClassInternal(String className, 
