@@ -17,14 +17,35 @@ import com.ibm.JikesRVM.VM_PragmaNoInline;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 import com.ibm.JikesRVM.VM_Uninterruptible;
 
+/**
+ * This class extends the BaseFreeList class to implement mark-sweep
+ * functionality such as mark and inuse bitmaps.  Each instance of
+ * this class is intended to provide fast, unsynchronized access to a
+ * free list.  Therefore instances must not be shared across truely
+ * concurrent threads (CPUs).  Rather, one or more instances of this
+ * class should be bound to each CPU.  The shared VMResource used by
+ * each instance is the point of global synchronization, and
+ * synchronization only occurs at the granularity of aquiring (and
+ * releasing) chunks of memory from the VMResource.
+ *
+ * @author <a href="http://cs.anu.edu.au/~Steve.Blackburn">Steve Blackburn</a>
+ * @version $Revision$
+ * @date $Date$
+ */
 final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
+
+  ////////////////////////////////////////////////////////////////////////////
+  //
+  // Public methods
+  //
 
   /**
    * Constructor
    *
    * @param collector_ The mark-sweep collector to which this
-   * allocator instances is bound.
+   * allocator instances is bound.  The collector's VMResource and
+   * MemoryResource are used to initialize the superclass.
    */
   MarkSweepAllocator(MarkSweepCollector collector_) {
     super(collector_.getVMResource(), collector_.getMemoryResource());
@@ -32,56 +53,24 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
     treadmillLock = new Lock("MarkSweepAllocator.treadmillLock");
   }
 
+  /**
+   * Prepare for a collection.  Clear the treadmill to-space head and
+   * prepare the collector.  If paranoid, perform a sanity check.
+   *
+   * @param vm Unused
+   * @param mr Unused
+   */
   public final void prepare(VMResource vm, NewMemoryResource mr) { 
-    sweepSanity();
+    if (PARANOID)
+      sanity();
     treadmillToHead = VM_Address.zero();
     collector.prepare(vm, mr);
   }
 
-  public final void sweepSuperPages() {
-    for (int sizeClass = 1; sizeClass < SIZE_CLASSES; sizeClass++) {
-//       VM.sysWrite("\n\nSweep free\n");
-      sweepSuperPages(superPageFreeList[sizeClass], sizeClass, true);
-      if (useSuperPageFreeLists()) {
-// 	VM.sysWrite("\n\nSweep used\n");
-	sweepSuperPages(superPageUsedList[sizeClass], sizeClass, false);
-      }
-    }
-    sweepSanity();
-  }
-
-  private final void sweepSuperPages(VM_Address sp, int sizeClass, boolean free)
-    throws VM_PragmaInline {
-    if (!sp.EQ(VM_Address.zero())) {
-      int cellSize = cellSize(sizeClass);
-      while (!sp.EQ(VM_Address.zero())) {
-	VM_Address next = getNextSuperPage(sp);
-	collector.sweepSuperPage(this, sp, sizeClass, cellSize, free);
-	//	superPageSanity(sp, sizeClass);
-	sp = next;
-      }
-    }
-  }
-  
-  private final void sweepSanity() {
-    for (int sizeClass = 1; sizeClass < SIZE_CLASSES; sizeClass++) {
-      sweepSanity(superPageFreeList[sizeClass], sizeClass);
-      if (useSuperPageFreeLists())
-	sweepSanity(superPageUsedList[sizeClass], sizeClass);
-    }
-  }
-  private final void sweepSanity(VM_Address sp, int sizeClass) {
-    if (!sp.EQ(VM_Address.zero())) {
-      int cellSize = cellSize(sizeClass);
-      while (!sp.EQ(VM_Address.zero())) {
-// 	VM.sysWrite(sizeClass); VM.sysWrite(" "); VM.sysWrite(sp);
-	superPageSanity(sp, sizeClass);
-// 	VM.sysWrite(" sane\n");
-	sp = getNextSuperPage(sp);
-      }
-    }
-  }
-
+  /**
+   * Sweep through the large pages, releasing all superpages on the
+   * "from space" treadmill.
+   */
   public final void sweepLargePages() {
     VM_Address cell = treadmillFromHead;
     while (!cell.isZero()) {
@@ -93,30 +82,149 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
     treadmillToHead = VM_Address.zero();
   }
 
+  /**
+   * Set the head of the from-space threadmill
+   *
+   * @param cell The new head of the from-space treadmill
+   */
   public final void setTreadmillFromHead(VM_Address cell)
     throws VM_PragmaInline {
     treadmillFromHead = cell;
   }
-  public final void setTreadmillToHead(VM_Address cell)
-    throws VM_PragmaInline {
-    treadmillToHead = cell;
-  }
+
+  /**
+   * Get the head of the from-space treadmill
+   *
+   * @return The head of the from-space treadmill
+   */
   public final VM_Address getTreadmillFromHead()
     throws VM_PragmaInline {
     return treadmillFromHead;
   }
+
+  /**
+   * Set the head of the to-space threadmill
+   *
+   * @param cell The new head of the to-space treadmill
+   */
+  public final void setTreadmillToHead(VM_Address cell)
+    throws VM_PragmaInline {
+    treadmillToHead = cell;
+  }
+
+  /**
+   * Get the head of the to-space treadmill
+   *
+   * @return The head of the to-space treadmill
+   */
   public final VM_Address getTreadmillToHead()
     throws VM_PragmaInline {
     return treadmillToHead;
   }
+
+  /**
+   * Lock the treadmills
+   */
   public final void lockTreadmill()
     throws VM_PragmaInline {
     treadmillLock.acquire();
   }
+
+  /**
+   * Unlock the treadmills
+   */
   public final void unlockTreadmill()
     throws VM_PragmaInline {
     treadmillLock.release();
   }
+
+  /**
+   * Return the size of a cell for a given class size, *including* any
+   * per-cell header space.
+   *
+   * @param sizeClass The size class in question
+   * @return The size of a cell for a given class size, *including*
+   * any per-cell header space
+   */
+  public static int getCellSize(VM_Address sp) {
+    return getCellSize(getSizeClass(sp));
+  }
+  private static int getCellSize(int sizeClass) {
+    if (VM.VerifyAssertions) 
+      VM._assert(!isLarge(sizeClass));
+
+    return cellSize[sizeClass];
+  }
+  protected final int cellSize(int sizeClass) 
+    throws VM_PragmaInline {
+    return getCellSize(sizeClass);
+  }
+
+  /**
+   * Sweep all of the non-large superpages for free objects.  Performa
+   * a sanity check if paranoid.
+   */
+  public final void sweepSuperPages() {
+    for (int sizeClass = 1; sizeClass < SIZE_CLASSES; sizeClass++) {
+      sweepSuperPages(superPageFreeList[sizeClass], sizeClass, true);
+      sweepSuperPages(superPageUsedList[sizeClass], sizeClass, false);
+    }
+    if (PARANOID)
+      sanity();
+  }
+
+  ////////////////////////////////////////////////////////////////////////////
+  //
+  // Protected and private methods
+  //
+
+  /**
+   * Sweep a superpage list
+   *
+   * @param sp The head of the list
+   * @param sizeClass The size class for all superpages in this list
+   * @param free True if these superpages are on the free superpage
+   * list, otherwise they are on the used superpage list.
+   */
+  private final void sweepSuperPages(VM_Address sp, int sizeClass,
+				     boolean free)
+    throws VM_PragmaInline {
+    if (!sp.EQ(VM_Address.zero())) {
+      int cellSize = cellSize(sizeClass);
+      while (!sp.EQ(VM_Address.zero())) {
+	VM_Address next = getNextSuperPage(sp);
+	collector.sweepSuperPage(this, sp, sizeClass, cellSize, free);
+	sp = next;
+      }
+    }
+  }
+  
+  /**
+   * Do sanity check of all superpages
+   */
+  private final void sanity() {
+    for (int sizeClass = 1; sizeClass < SIZE_CLASSES; sizeClass++) {
+      sanity(superPageFreeList[sizeClass], sizeClass);
+      sanity(superPageUsedList[sizeClass], sizeClass);
+    }
+  }
+
+  /**
+   * Peform a sanity check of all superpages in a given superpage list
+   *
+   * @param sp The head superpage of the list
+   * @param sizeClass The sizeclass for this superpage list
+   */
+  private final void sanity(VM_Address sp, int sizeClass) {
+    if (!sp.EQ(VM_Address.zero())) {
+      int cellSize = cellSize(sizeClass);
+      while (!sp.EQ(VM_Address.zero())) {
+	superPageSanity(sp, sizeClass);
+	sp = getNextSuperPage(sp);
+      }
+    }
+  }
+
   /**
    * Return the number of pages used by a superpage of a given size
    * class.
@@ -145,34 +253,11 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
   protected final int superPageHeaderSize(int sizeClass)
     throws VM_PragmaInline {
     if (isLarge(sizeClass))
-      return BASE_SP_HEADER_SIZE + TREADMILL_HEADER_SIZE;
+      return BASE_SP_HEADER_SIZE + MarkSweepCollector.TREADMILL_HEADER_SIZE;
     else if (isSmall(sizeClass))
-      return BASE_SP_HEADER_SIZE + SMALL_BITMAP_SIZE;
+      return BASE_SP_HEADER_SIZE + MarkSweepCollector.SMALL_BITMAP_SIZE;
     else 
-      return BASE_SP_HEADER_SIZE + MID_BITMAP_SIZE;
-  }
-
-  public static int getCellSize(VM_Address sp) {
-    return getCellSize(getSizeClass(sp));
-  }
- 
-  private static int getCellSize(int sizeClass) {
-    if (VM.VerifyAssertions) 
-      VM._assert(!isLarge(sizeClass));
-
-    return cellSize[sizeClass];
-  }
-  /**
-   * Return the size of a cell for a given class size, *including* any
-   * per-cell header space.
-   *
-   * @param sizeClass The size class in question
-   * @return The size of a cell for a given class size, *including*
-   * any per-cell header space
-   */
-  protected final int cellSize(int sizeClass) 
-    throws VM_PragmaInline {
-    return getCellSize(sizeClass);
+      return BASE_SP_HEADER_SIZE + MarkSweepCollector.MID_BITMAP_SIZE;
   }
 
   /**
@@ -221,10 +306,6 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
 					    boolean small, boolean large)
     throws VM_PragmaInline {
     if (!small) {
-      //      VM.sysWrite("i: "); VM.sysWrite(cell); VM.sysWrite("->"); VM.sysWrite(sp); VM.sysWrite("\n");
-      
-//       if (large)
-// 	cell = cell.add(TREADMILL_HEADER_SIZE);
       VM_Magic.setMemoryAddress(cell, sp);
       return cell.add(NON_SMALL_OBJ_HEADER_SIZE);
     } else 
@@ -239,22 +320,22 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
    */
   protected final void postAlloc(VM_Address cell, boolean isScalar,
 				 EXTENT bytes, boolean small, boolean large) {
-    //    sanity();
-    if (!large) {
-//       if (!small) {
-// 	VM.sysWrite("pa: "); VM.sysWrite(cell); VM.sysWrite((small ? " small\n" : " non-small\n"));
-//       }
-      collector.setInUseBit(cell, getSuperPage(cell, small), small);
-    } else {
-      //      VM.sysWrite("pa: "); VM.sysWrite(cell); VM.sysWrite((small ? " small\n" : " non-small\n"));
+    if (large)
       collector.addToTreadmill(cell, this);
-    }
-//     if (!small && !large) {
-//         VM.sysWrite(cell); VM.sysWrite(" a "); VM.sysWrite(getSuperPage(cell, small)); VM.sysWrite("\n");
-//     }
-    //    sanity();
+    else
+      collector.setInUseBit(cell, getSuperPage(cell, small), small);
   };
 
+  /**
+   * Check the sanity of a superpage.  Ensure that all metadata is
+   * self-consistent.  Objects marked as free must be on the free
+   * list, the number marked as free and alloced must sum to the
+   * capacity of the superpage, and the number marked as inuse must
+   * match the inuse count for the superpage.
+   *
+   * @param sp The superpage to be checked
+   * @param sizeClass The sizeclass for this superpage
+   */
   protected final void superPageSanity(VM_Address sp, int sizeClass) {
     if (isLarge(sizeClass)) {
     } else {
@@ -267,106 +348,19 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
  //       VM.sysWrite(sp); VM.sysWrite(" "); VM.sysWrite(sizeClass); VM.sysWrite("\n--------------\n");
       while (cursor.add(cellSize).LE(sentinal)) {
 	VM_Address cell = cursor;
-//  	VM.sysWrite(cell); VM.sysWrite(" ");
-//  	VM.sysWrite(cell.add(cellHeaderSize(small)));
 	boolean free = isFree(cell.add(cellHeaderSize(small)), sp, sizeClass);
 	if (MarkSweepCollector.getInUseBit(cell, sp, small)) {
-//  	  VM.sysWrite(" u\n");
-	  if (free) {
-	    VM.sysWrite("--->"); VM.sysWrite(cell); VM.sysWrite(" "); VM.sysWrite(sp); VM.sysWrite("\n");
-	    VM.sysWrite("    "); VM.sysWrite(freeList[sizeClass]); VM.sysWrite(" "); VM.sysWrite(getSuperPageFreeList(sp));  VM.sysWrite("\n");
-	  }
 	  VM._assert(!free);
 	  inUse++;
-	} else {
-//  	  VM.sysWrite(" f\n");
-// 	  if (!free) {
-// 	    VM.sysWrite(sp);
-// 	    VM.sysWrite(" ");
-// 	    VM_Address tmp = superPageFreeList[sizeClass];
-// 	    while (!tmp.isZero()) {
-// 	      VM.sysWrite(tmp); VM.sysWrite(" ");
-// 	      tmp = getNextSuperPage(tmp);
-// 	    }
-// 	    VM.sysWrite("\n");
-// 	    tmp = getSuperPageFreeList(sp);
-// 	    while (!tmp.isZero()) {
-// 	      VM.sysWrite(tmp); VM.sysWrite(" ");
-// 	      tmp = getNextCell(tmp);
-// 	    }
-// 	    VM.sysWrite("\n");
-// 	  }
+	} else
 	  VM._assert(free);
-	}
 	cursor = cursor.add(cellSize);
       }
 //       VM.sysWrite(sp); VM.sysWrite(" "); VM.sysWrite(sizeClass); VM.sysWrite("\n--------------\n\n");
-      if (inUse != getInUse(sp)) {
-	VM.sysWrite("****** ");
-	VM.sysWrite(inUse); VM.sysWrite(" != "); VM.sysWrite(getInUse(sp));
-	VM.sysWrite(" ******\n");
-      }
       VM._assert(inUse == getInUse(sp));
     }
   }
     
-
-//   protected final void superPageSanity(VM_Address sp) {
-//     int sizeClass = getSizeClass(sp);
-//     if (isLarge(sizeClass)) {
-//       VM.sysWrite("    sp: "); VM.sysWrite(sp); VM.sysWrite(" cell: ");
-//       VM_Address cell = sp.add(superPageHeaderSize(LARGE_SIZE_CLASS)+TREADMILL_HEADER_SIZE+NON_SMALL_OBJ_HEADER_SIZE);
-//       VM.sysWrite(cell);
-//       VM.sysWrite("\n");
-//       VM._assert(collector.isOnTreadmill(cell, getTreadmillFromHead()));
-//     } else if (!isSmall(sizeClass)) {
-//       VM_Address sentinal = sp.add(pagesForClassSize(sizeClass)<<LOG_PAGE_SIZE);
-//       int cellSize = cellSize(sizeClass);
-//       VM_Address cursor = sp.add(superPageHeaderSize(sizeClass));
-//       int inUse = 0;
-//       while (cursor.add(cellSize).LE(sentinal)) {
-// 	VM_Address cell = cursor.add(TREADMILL_HEADER_SIZE
-// 				     + NON_SMALL_OBJ_HEADER_SIZE);
-// 	if(collector.isOnTreadmill(cell, getTreadmillFromHead()))
-// 	  inUse++;
-// 	else
-// 	  VM._assert(isFree(cell, sizeClass));
-// 	cursor = cursor.add(cellSize);
-//       }
-//       VM._assert(inUse == getInUse(sp));
-//     } else {
-//       VM_Address sentinal = sp.add(PAGE_SIZE);
-//       int cellSize = cellSize(sizeClass);
-//       VM_Address cursor = sp.add(superPageHeaderSize(sizeClass));
-//       int inUse = 0;
-//       while (cursor.add(cellSize).LE(sentinal)) {
-// 	VM_Address cell = cursor;
-// 	if(MarkSweepCollector.getInUseBit(cell, sp, true))
-// 	  inUse++;
-// 	else
-// 	  VM._assert(isFree(cell, sizeClass));
-// 	cursor = cursor.add(cellSize);
-//       }
-//       if (inUse != getInUse(sp)) {
-// 	VM.sysWrite("****** ");
-// 	VM.sysWrite(inUse); VM.sysWrite(" != "); VM.sysWrite(getInUse(sp));
-// 	VM.sysWrite(" ******\n");
-//       }
-//       VM._assert(inUse == getInUse(sp));
-//     }
-    
-//   }
-  
-
-  ////////////////////////////////////////////////////////////////////////////
-  //
-  // The following methods, declared as abstract in the superclass, do
-  // nothing in this implementation, so they have empty bodies.
-  //
-  protected final void postFreeCell(VM_Address cell, VM_Address sp, 
-				    int szClass) {};
-  protected final void postExpandSizeClass(VM_Address sp, int sizeClass) {};
-  
   private MarkSweepCollector collector;
   private Lock treadmillLock;
   private VM_Address treadmillFromHead;
@@ -374,18 +368,14 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
   private static int cellSize[];
   private static int sizeClassPages[];
 
-  private static final int SMALL_BITMAP_SIZE = MarkSweepCollector.SMALL_BITMAP_SIZE;
-  private static final int MID_BITMAP_SIZE = MarkSweepCollector.MID_BITMAP_SIZE;
-  private static final int MAX_MID_OBJECTS = MarkSweepCollector.MAX_MID_OBJECTS;
-  private static final int TREADMILL_HEADER_SIZE = MarkSweepCollector.TREADMILL_HEADER_SIZE;
-
-  private static final boolean SUPER_PAGE_FREE_LISTS = false;
-  protected final boolean useSuperPageFreeLists() 
-    throws VM_PragmaInline {
-    return SUPER_PAGE_FREE_LISTS;
-  }
+  private static final boolean PARANOID = false;
 
   public static final int MAX_SMALL_SIZE = 512;  // statically verified below..
+
+  /**
+   * The following statically initializes the cellSize and
+   * sizeClassPages arrays.
+   */
   static {
     cellSize = new int[SIZE_CLASSES];
     sizeClassPages = new int[SIZE_CLASSES];
@@ -399,13 +389,19 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
 	sizeClassPages[sc] = optimalPagesForSuperPage(sc, cellSize[sc],
 						      BASE_SP_HEADER_SIZE);
 	int cells = (sizeClassPages[sc]/cellSize[sc]);
-	VM._assert(cells <= MAX_MID_OBJECTS);
+	VM._assert(cells <= MarkSweepCollector.MAX_MID_OBJECTS);
       }
-      VM.sysWrite("sc: "+sc+" bcs: "+size+" cs: "+cellSize[sc]+" pages: "+sizeClassPages[sc]+"\n");
       if (sc == MAX_SMALL_SIZE_CLASS)
 	VM._assert(size == MAX_SMALL_SIZE);
     }
   }
 
-
+  ////////////////////////////////////////////////////////////////////////////
+  //
+  // The following methods, declared as abstract in the superclass, do
+  // nothing in this implementation, so they have empty bodies.
+  //
+  protected final void postFreeCell(VM_Address cell, VM_Address sp, 
+				    int szClass) {};
+  protected final void postExpandSizeClass(VM_Address sp, int sizeClass) {};
 }

@@ -18,7 +18,7 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.VM_ObjectModel;
 import com.ibm.JikesRVM.VM_JavaHeader;
-/*
+/**
  * Each instance of this class corresponds to one mark-sweep *space*.
  * Each of the instance methods of this class may be called by any
  * thread (i.e. synchronization must be explicit in any instance or
@@ -26,26 +26,52 @@ import com.ibm.JikesRVM.VM_JavaHeader;
  * instances correspond to *plan* instances and therefore to kernel
  * threads.  Thus unlike this class, synchronization is not necessary
  * in the instance methods of MarkSweepAllocator.
+ *
+ * @author <a href="http://cs.anu.edu.au/~Steve.Blackburn">Steve Blackburn</a>
+ * @version $Revision$
+ * @date $Date$
  */
 final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
-
-  /**
-   * Constructor
-   *
-   * @param vmr The virtual memory resource from which this bump
-   * pointer will acquire virtual memory.
-   */
-  MarkSweepCollector(NewFreeListVMResource vmr, NewMemoryResource mr) {
-    vmResource = vmr;
-    memoryResource = mr;
-  }
 
   ////////////////////////////////////////////////////////////////////////////
   //
   // Public instance methos (i.e. methods whose scope is limited to a
   // particular space that is collected under a mark-sweep policy).
   //
+
+  /**
+   * Constructor
+   *
+   * @param vmr The virtual memory resource through which allocations
+   * for this collector will go.
+   * @param mr The memory resource against which allocations
+   * associated with this collector will be accounted.
+   */
+  MarkSweepCollector(NewFreeListVMResource vmr, NewMemoryResource mr) {
+    vmResource = vmr;
+    memoryResource = mr;
+  }
+
+  /**
+   * Return the VMResource associated with this collector
+   *
+   * @return the VMResource associated with this collector
+   */
+  public final NewFreeListVMResource getVMResource() 
+    throws VM_PragmaInline {
+    return vmResource;
+  }
+
+  /**
+   * Return the memory resource associated with this collector
+   *
+   * @return The memory resource associated with this collector
+   */
+  public final NewMemoryResource getMemoryResource() 
+    throws VM_PragmaInline {
+    return memoryResource;
+  }
 
   /**
    * Prepare for a new collection increment.  For the mark-sweep
@@ -104,6 +130,13 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
     return object;
   }
 
+  /**
+   * Return the initial value for the header of a new object instance.
+   * The header for this collector includes a mark bit and a small
+   * object flag.
+   *
+   * @param size The size of the newly allocated object
+   */
   public final int getInitialHeaderValue(int size) 
     throws VM_PragmaInline {
     if (size <= MAX_SMALL_SIZE)
@@ -112,16 +145,12 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
       return markState;
   }
 
-  public final NewFreeListVMResource getVMResource() 
-    throws VM_PragmaInline {
-    return vmResource;
-  }
-
-  public final NewMemoryResource getMemoryResource() 
-    throws VM_PragmaInline {
-    return memoryResource;
-  }
-
+  /**
+   * Using the given allocator instance, sweep the space.
+   *
+   * @param allocator The mark sweep allocator instance that should be
+   * used to perform the sweep.
+   */
   public final void sweep(MarkSweepAllocator allocator) {
     // sweep the small objects
     allocator.sweepSuperPages();
@@ -129,26 +158,113 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
     allocator.sweepLargePages();
   }
 
+  /**
+   * Sweep a given superpage, freeing any unuse objects, and freeing
+   * the entire superpage if possible.
+   *
+   * @param allocator The allocator instance to which this superpage
+   * is associated.
+   * @param sp The superpage to be freed
+   * @param sizeClass The size class of this superpage
+   * @param cellSize The size of each cell in this superpage, in bytes
+   * @param free True if this superpage is on a superpage free list.
+   * Otherwise it must be on a superpage used list.
+   */
   public final void sweepSuperPage(MarkSweepAllocator allocator,
-				   VM_Address sp, int szclass, int cellSize,
+				   VM_Address sp, int sizeClass, int cellSize,
 				   boolean free)
     throws VM_PragmaInline {
-//     if (!MarkSweepAllocator.isSmall(szclass))
-//      VM.sysWrite("------------ sweep -----------");
-//      VM.sysWrite(sp); VM.sysWrite(" "); VM.sysWrite(szclass); VM.sysWrite(" "); VM.sysWrite(cellSize); VM.sysWrite("\n");
     VM_Address base = sp.add(BITMAP_BASE);
-    boolean small = MarkSweepAllocator.isSmall(szclass);
+    boolean small = MarkSweepAllocator.isSmall(sizeClass);
     int bitmapPairs = small ? SMALL_BITMAP_PAIRS : MID_BITMAP_PAIRS;
-//     if (!freePairs(allocator, sp, szclass, cellSize, base, bitmapPairs, small, false) && free)
-//       allocator.freeSuperPage(sp, szclass, free);
-//     else
-      freePairs(allocator, sp, szclass, cellSize, base, bitmapPairs, small, true);
-//     if (!MarkSweepAllocator.isSmall(szclass))
-//         VM.sysWrite("============ sweep ===========\n");
+    // first check to see if superpage is completely free and if
+    // possible free the entire superpage
+    if (!freePairs(allocator, sp, sizeClass, cellSize, base, bitmapPairs, small, false))
+      allocator.freeSuperPage(sp, sizeClass, free);
+    else
+      freePairs(allocator, sp, sizeClass, cellSize, base, bitmapPairs, small, true);
   }
 
-  private final boolean freePairs(MarkSweepAllocator allocator, VM_Address sp, int szclass, int cellSize, VM_Address base, int pairs, 
-				  boolean small, boolean release) {
+  /**
+   * Return true if a cell is on a given treadmill
+   *
+   * @param cell The cell being searched for
+   * @param head The head of the treadmill
+   * @return True if the cell is found on the treadmill
+   */
+  public final boolean isOnTreadmill(VM_Address cell, VM_Address head) {
+    VM_Address next = head;
+    while (next.NE(VM_Address.zero())) {
+      if (next.EQ(cell)) {
+	return true;
+      }
+      next = getNextTreadmill(next);
+    }
+    return false;
+  }
+  
+  /**
+   * Add a cell to the from-space treadmill
+   *
+   * @param cell The cell to be added to the treadmill
+   * @param allocator The allocator through which this cell was
+   * allocated.
+   */
+  public void addToTreadmill(VM_Address cell, MarkSweepAllocator allocator) 
+    throws VM_PragmaInline {
+    setTreadmillOwner(cell, VM_Magic.objectAsAddress((Object) allocator));
+    moveToTreadmill(cell, false);
+  }
+
+  ////////////////////////////////////////////////////////////////////////////
+  //
+  // Protected and private methods
+  //
+
+  /**
+   * An object has been marked (identified as live).  Large objects
+   * are added to the to-space treadmill, while all other objects will
+   * have a mark bit set in the superpage header.
+   *
+   * @param object The object which has been marked.
+   */
+  private final void internalMarkObject(VM_Address object) 
+    throws VM_PragmaInline {
+    VM_Address ref = VM_JavaHeader.getPointerInMemoryRegion(object);
+    if (MarkSweepHeader.isSmallObject(VM_Magic.addressAsObject(object))) {
+      setMarkBit(ref, MarkSweepAllocator.getSuperPage(ref, true), true);
+    } else {
+      VM_Address cell = VM_JavaHeader.objectStartRef(object);
+      VM_Address sp = MarkSweepAllocator.getSuperPage(cell, false);
+      int sizeClass = MarkSweepAllocator.getSizeClass(sp);
+      if (MarkSweepAllocator.isLarge(sizeClass))
+	moveToTreadmill(cell, true);
+      else
+	setMarkBit(cell, sp, false);
+    }
+  }
+
+ /**
+   * Walk through a set of mark/inuse pairs for a superpage.
+   *
+   * @param allocator The allocator instance through which any cells
+   * should be freed
+   * @param sp The superpage
+   * @param sizeClass The size class for this superpage
+   * @param cellSize The size of cells on this superpage
+   * @param base The address of the first cell within the superpage
+   * @param pairs The number of mark/inuse pairs
+   * @param small True if this is a small superpage
+   * @param release If true, then free up instances as they are
+   * discovered.  If false do not free any instances, but return true
+   * as soon as any in-use cell is discovered.
+   * @return True if this superpage should be scavanged for free
+   * instances, false if all instances are free, and therfore should
+   * be freed enmasse.
+   */
+  private final boolean freePairs(MarkSweepAllocator allocator, VM_Address sp,
+				  int sizeClass, int cellSize, VM_Address base,
+				  int pairs, boolean small, boolean release) {
     boolean inUse = false;
     for (int pair = 0; pair < pairs; pair++) {
       if (VM.VerifyAssertions)
@@ -163,15 +279,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
 	int inuse = VM_Magic.getMemoryWord(inUseBitmap);
 	int free = mark ^ inuse;
 	if (free != 0) {
-	  // free them up
-	  // 	if (!small) {
-	  //  	  VM.sysWrite("--->");
-	  //  	  VM.sysWrite(inUseBitmap); VM.sysWrite(": ");
-	  //  	  VM.sysWriteHex(inuse); VM.sysWrite(" ");
-	  //  	  VM.sysWriteHex(mark); VM.sysWrite(" ");
-	  //  	  VM.sysWriteHex(free); VM.sysWrite("\n");
-	  // 	}
-	  freeFromBitmap(allocator, sp, free, szclass, cellSize, pair, small);
+	  freeFromBitmap(allocator, sp, free, sizeClass, cellSize, pair, small);
 	  VM_Magic.setMemoryWord(inUseBitmap, mark); 
 	}
 	if (mark != 0)
@@ -184,21 +292,22 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
     return false;
   }
 
-  private final void sweepLarge() {
-//     int id = barrier.rendezvous();
-//     if (id == 1) {
-//       VM_Address cell = treadmillFromHead;
-//       while (cell.NE(VM_Address.zero())) {
-// 	VM_Address next = getNextTreadmill(cell);
-// 	VM_Address sp = MarkSweepAllocator.getSuperPage(cell, false);
-// 	cell = next;
-//       }
-//     }
-//     barrier.rendezvous();
-  }
-
+  /**
+   * Give a bitmap representing cells to be freed, free all objects on
+   * a superpage which are no longer in use.
+   *
+   * @param allocator The allocator through which the cells are freed
+   * @param sp The superpage containing these cells and bitmaps
+   * @param free The bitmap of those instances to be freed
+   * @param sizeClass The size class for this superpage
+   * @param cellSize The size of cells on this superpage
+   * @param pair The mark/inuse pair from which this free bitmap was
+   * produced (inidicating the locations of the objects in the free
+   * bitmap).
+   * @param small True if these are small obejcts.
+   */
   private final void freeFromBitmap(MarkSweepAllocator allocator, 
-				    VM_Address sp, int free, int szclass,
+				    VM_Address sp, int free, int sizeClass,
 				    int cellSize, int pair, boolean small)
     throws VM_PragmaInline {
     int index = (pair<<LOG_WORD_BITS);
@@ -207,77 +316,26 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
       if ((free & (1<<i)) != 0) {
 	int offset = (index + i)*cellSize + (small ? 0 : MarkSweepAllocator.NON_SMALL_OBJ_HEADER_SIZE);
 	VM_Address cell = base.add(offset);
-// 	if (!MarkSweepAllocator.isSmall(szclass)) {
-// 	  VM.sysWrite("freeing "); VM.sysWrite(cell); VM.sysWrite(" "); VM.sysWrite(index+i); VM.sysWrite(" "); VM.sysWrite(szclass); VM.sysWrite("...\n");
-// 	}
-	allocator.free(cell, sp, szclass);
-//  	if (!MarkSweepAllocator.isSmall(szclass)) {
-//  	  VM.sysWrite(cell); VM.sysWrite(" f "); VM.sysWrite(sp); VM.sysWrite("\n");
-//  	}
+	allocator.free(cell, sp, sizeClass);
       }
     }
   }
 
-//   private final void sweepLarge() {
-//   }
-  private final void internalMarkObject(VM_Address object) 
-    throws VM_PragmaInline {
-    VM_Address ref = VM_JavaHeader.getPointerInMemoryRegion(object);
-//    if (bytes <= MarkSweepAllocator.MAX_SMALL_SIZE) {
-//       VM.sysWrite(MarkSweepAllocator.getSuperPage(cell, true)); VM.sysWrite("\n");
-    if (MarkSweepHeader.isSmallObject(VM_Magic.addressAsObject(object))) {
-      setMarkBit(ref, MarkSweepAllocator.getSuperPage(ref, true), true);
-//       VM.sysWrite(VM_JavaHeader.objectStartRef(object)); VM.sysWrite(" m "); VM.sysWrite(MarkSweepAllocator.getSuperPage(ref, true)); VM.sysWrite("\n");
-//       if (VM.VerifyAssertions)
-// 	VM._assert(MarkSweepHeader.isSmallObject(VM_Magic.addressAsObject(object)));
-    } else {
-      VM_Address cell = VM_JavaHeader.objectStartRef(object);
-      VM_Address sp = MarkSweepAllocator.getSuperPage(cell, false);
-//       VM.sysWrite(cell); VM.sysWrite(" m "); VM.sysWrite(sp); VM.sysWrite("\n");
-      int sizeClass = MarkSweepAllocator.getSizeClass(sp);
-      if (MarkSweepAllocator.isLarge(sizeClass))
-	moveToTreadmill(cell, true);
-      else
-	setMarkBit(cell, sp, false);
-//       if (VM.VerifyAssertions)
-// 	VM._assert(!MarkSweepHeader.isSmallObject(VM_Magic.addressAsObject(object)));
-    }
-  }
-
-  public final boolean isOnTreadmill(VM_Address cell, VM_Address head) {
-    VM_Address next = head;
-//     VM.sysWrite("Treadmill: ");
-//     VM.sysWrite(cell);
-//     VM.sysWrite("? (");
-    while (next.NE(VM_Address.zero())) {
-//       VM.sysWrite(next);
-      if (next.EQ(cell)) {
-// 	VM.sysWrite(")\n");
-	return true;
-      }
-//       VM.sysWrite(", ");
-      next = getNextTreadmill(next);
-    }
-//     VM.sysWrite(")\n");
-    return false;
-  }
-  
-  public void addToTreadmill(VM_Address cell, MarkSweepAllocator allocator) 
-    throws VM_PragmaInline {
-    setTreadmillOwner(cell, VM_Magic.objectAsAddress((Object) allocator));
-    moveToTreadmill(cell, false);
-  }
-
+  /**
+   * Move a cell to either the to or from space treadmills
+   * 
+   * @param cell The cell to be placed on the treadmill
+   * @param to If true the cell should be placed on the to-space
+   * treadmill.  Otherwise it should go on the from-space treadmill.
+   */
   private void moveToTreadmill(VM_Address cell, boolean to) 
     throws VM_PragmaInline {
     MarkSweepAllocator owner = (MarkSweepAllocator) VM_Magic.addressAsObject(getTreadmillOwner(cell));
     owner.lockTreadmill();
-    //    treadmillLock.acquire();
     if (to) {
       // remove from "from" treadmill
       VM_Address prev = getPrevTreadmill(cell);
       VM_Address next = getNextTreadmill(cell);
-      //      VM.sysWrite("mtt: "); VM.sysWrite(cell); VM.sysWrite(", "); VM.sysWrite(prev); VM.sysWrite(", "); VM.sysWrite(next); VM.sysWrite("\n");
       if (!prev.EQ(VM_Address.zero()))
 	setNextTreadmill(prev, next);
       else
@@ -288,7 +346,6 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
 
     // add to treadmill
     VM_Address head = (to ? owner.getTreadmillToHead() : owner.getTreadmillFromHead());
-    //    VM.sysWrite("at: "); VM.sysWrite(cell); VM.sysWrite(", "); VM.sysWrite(head); VM.sysWrite("\n");
     setNextTreadmill(cell, head);
     setPrevTreadmill(cell, VM_Address.zero());
     if (!head.EQ(VM_Address.zero()))
@@ -327,18 +384,13 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   private static void changeBit(VM_Address ref, VM_Address sp, boolean small,
 				boolean set, boolean inuse, boolean sync)
     throws VM_PragmaInline {
-//      VM.sysWrite("word: "); VM.sysWrite(ref); VM.sysWrite(", "); 
     int index = getCellIndex(ref, sp, small);
     VM_Word mask = getBitMask(index);
     VM_Address addr = getBitMapWord(index, sp, inuse, small);
-//     VM.sysWrite("modifying word: "); VM.sysWrite(addr); VM.sysWrite("\n");
     if (sync)
       syncSetBit(addr, mask, set);
     else
       unsyncSetBit(addr, mask, set);
-//     if (!small) {
-//       VM.sysWrite(ref); VM.sysWrite("--->"); VM.sysWrite(addr); VM.sysWrite(": "); VM.sysWrite(VM_Magic.getMemoryAddress(addr)); VM.sysWrite("\n");
-//     }
   }
   private static boolean getBit(VM_Address ref, VM_Address sp, boolean small,
 				boolean inuse)
@@ -347,9 +399,6 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
     VM_Word mask = getBitMask(index);
     VM_Address addr = getBitMapWord(index, sp, inuse, small);
     VM_Word value = VM_Word.fromInt(VM_Magic.getMemoryWord(addr));
-    //    if (!small) {
-//       VM.sysWrite(ref); VM.sysWrite("===>"); VM.sysWrite(addr); VM.sysWrite(": "); VM.sysWrite(VM_Magic.getMemoryAddress(addr)); VM.sysWrite("\n");
-      //    }
     return mask.EQ(value.and(mask));
   }
   private static int getCellIndex(VM_Address ref, VM_Address sp, boolean small)
@@ -358,9 +407,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
     if (small) {
       sp = sp.add(SMALL_OBJ_BASE);
     } else {
-      //      VM._assert(false);  ///not ready yet
       sp = sp.add(MID_OBJ_BASE);
-      //    VM.sysWrite("index "); VM.sysWrite(ref); VM.sysWrite(" "); VM.sysWrite(ref.diff(sp).toInt()); VM.sysWrite(" "); VM.sysWrite(cellSize); VM.sysWrite(" "); VM.sysWrite((ref.diff(sp).toInt()/cellSize)); VM.sysWrite("\n");
     }
     return ref.diff(sp).toInt()/cellSize;
   }
@@ -379,9 +426,6 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
       offset += INUSE_BITMAP_OFFSET;
     else
       offset += MARK_BITMAP_OFFSET;
-//     VM.sysWrite("word: "); VM.sysWrite(cell); VM.sysWrite(", "); 
-//     VM.sysWrite(bitmapIndex);  VM.sysWrite(", "); VM.sysWrite(offset); VM.sysWrite(", "); VM.sysWrite(SMALL_BITMAP_SIZE); VM.sysWrite("\n");
-//      VM.sysWrite(" "); VM.sysWrite(sp); VM.sysWrite(" ");VM.sysWrite(index);  VM.sysWrite(", "); VM.sysWrite(offset); VM.sysWrite(", "); VM.sysWrite(SMALL_BITMAP_SIZE); VM.sysWrite("\n");
     if (VM.VerifyAssertions)
       VM._assert((small && (offset < SMALL_BITMAP_SIZE))
 		 || (!small && (offset < MID_BITMAP_SIZE)));
@@ -454,7 +498,6 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   private NewMemoryResource memoryResource;
 
   private static final int LOG_BITMAP_GRAIN = 3;
-  //  private static final int LOG_BITMAP_GRAIN = 4;
   private static final int BITMAP_GRAIN = 1<<LOG_BITMAP_GRAIN;
   private static final int BITMAP_ENTRIES = PAGE_SIZE>>LOG_BITMAP_GRAIN;
   private static final int SMALL_BITMAP_PAIRS = BITMAP_ENTRIES>>LOG_WORD_BITS;
@@ -462,17 +505,16 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   private static final int MID_BITMAP_PAIRS = 1;
   public static final int MID_BITMAP_SIZE = 2*(MID_BITMAP_PAIRS<<LOG_WORD_SIZE);
   public static final int MAX_MID_OBJECTS = MID_BITMAP_PAIRS<<LOG_WORD_BITS;
-  private static final int BITMAP_BASE = MarkSweepAllocator.BASE_SP_HEADER_SIZE;
+  private static final int    BITMAP_BASE = MarkSweepAllocator.BASE_SP_HEADER_SIZE;
   private static final int MAX_SMALL_SIZE = MarkSweepAllocator.MAX_SMALL_SIZE;
   private static final int SMALL_OBJ_BASE = BITMAP_BASE + SMALL_BITMAP_SIZE;
-  private static final int MID_OBJ_BASE = BITMAP_BASE + MID_BITMAP_SIZE;
+  private static final int   MID_OBJ_BASE = BITMAP_BASE + MID_BITMAP_SIZE;
   private static final int LOG_PAIR_GRAIN = LOG_BITMAP_GRAIN + LOG_WORD_BITS;
-  private static final int INUSE_BITMAP_OFFSET = 0;
-  private static final int MARK_BITMAP_OFFSET = WORD_SIZE;
-//   private static final int TREADMILL_PREV_OFFSET = -1 * WORD_SIZE;
-//   private static final int TREADMILL_NEXT_OFFSET = -2 * WORD_SIZE;
-  private static final int TREADMILL_PREV_OFFSET  = -2 * WORD_SIZE;
-  private static final int TREADMILL_NEXT_OFFSET  = -3 * WORD_SIZE;
-  private static final int TREADMILL_OWNER_OFFSET = -4 * WORD_SIZE;
-  public static final int TREADMILL_HEADER_SIZE = 3*WORD_SIZE;
+
+  private static final int     INUSE_BITMAP_OFFSET = 0;
+  private static final int      MARK_BITMAP_OFFSET = WORD_SIZE;
+  private static final int   TREADMILL_PREV_OFFSET = -2 * WORD_SIZE;
+  private static final int   TREADMILL_NEXT_OFFSET = -3 * WORD_SIZE;
+  private static final int  TREADMILL_OWNER_OFFSET = -4 * WORD_SIZE;
+  public static final int    TREADMILL_HEADER_SIZE = 3 * WORD_SIZE;
 }
