@@ -1184,12 +1184,13 @@ for d in $(<' ${SOURCE_LIST_STR} '); do
     FILES="$(echo ${d}/*.java)"
     . ${RVM_BUILD}/disable_exit_on_error
     '${BUILD_DIRECTORY_STR}'/jbuild.prep ${TRACE_FLAG}' ${PREPROCESSOR_DEFINITIONS} ${CLASSES_DIRECTORY_STR} '${FILES}
+    status=$?
     . ${RVM_BUILD}/enable_exit_on_error
-    RC=$?
-    if [[ ${RC} = 1 ]]; then
+    if [[ ${status} = 1 ]]; then
        FILES_HAVE_CHANGED=1
-    elif [[ ${RC} != 0 ]]; then
-       echo >&2 "$ME: Trouble while running jbuild.prep; aborting execution."
+    elif [[ ${status} != 0 ]]; then
+       echo >&2 "$ME: Trouble while running jbuild.prep (exit status ${status}).
+    Aborting execution."
        exit 1
     fi
     # set -e	# Original set -e location.
@@ -1208,13 +1209,14 @@ fi
 FILES=$(${FIND} '${GENERATED_FILES_DIRECTORY_STR}'/ -name "*.java")
 . ${RVM_BUILD}/disable_exit_on_error
 '${BUILD_DIRECTORY_STR}'/jbuild.prep ${TRACE_FLAG}' ${PREPROCESSOR_DEFINITIONS} ${CLASSES_DIRECTORY_STR}' ${FILES}
-RC=$?
-if [[ ${RC} = 1 ]]; then
+status=$?
+. ${RVM_BUILD}/enable_exit_on_error
+if [[ ${status} = 1 ]]; then
     FILES_HAVE_CHANGED=1
-elif [[ ${RC} != 0 ]]; then
+elif [[ ${status} != 0 ]]; then
+    echo >&2 "$ME: Trouble while running jbuild.prep (exit status ${status}); aborting execution."
     exit 1
 fi
-. ${RVM_BUILD}/enable_exit_on_error
 if [[ ${TRACE_FLAG} = -trace ]]; then
       echo ""
 fi'
@@ -1830,9 +1832,7 @@ EOF
    echo '    echo -n "$ME: '$BOOTIMAGE_WRITER_DIR_STR'"'
    echo 'fi'
    echo 'FILES=$(/bin/ls' $BOOTIMAGE_WRITER_DIR_STR'/*.java)'
-   echo '. ${RVM_BUILD}/disable_exit_on_error'
-   echo $BUILD_DIRECTORY_STR/jbuild.prep '$TRACE_FLAG' $PREPROCESSOR_DEFINITIONS $SCRATCH_DIRECTORY_STR ' $FILES'
-   echo '. ${RVM_BUILD}/enable_exit_on_error    # Added by Steven Augart'
+   echo $BUILD_DIRECTORY_STR/jbuild.prep --disable-modification-exit-status '$TRACE_FLAG' $PREPROCESSOR_DEFINITIONS $SCRATCH_DIRECTORY_STR ' $FILES'
    echo 'if [[ $TRACE_FLAG = -trace ]]; then'
    echo '   echo ""'
    echo 'fi'
@@ -1852,9 +1852,7 @@ EOF
    echo '    echo -n "$ME: '$BOOTIMAGE_RUNNER_DIR_STR'"'
    echo 'fi'
    echo 'FILES=$(/bin/ls' $BOOTIMAGE_RUNNER_DIR_STR'/GenerateInterfaceDeclarations.java)'
-   echo '. ${RVM_BUILD}/disable_exit_on_error'
-   echo $BUILD_DIRECTORY_STR/jbuild.prep '$TRACE_FLAG' $PREPROCESSOR_DEFINITIONS $SCRATCH_DIRECTORY_STR ' $FILES'
-   echo '. ${RVM_BUILD}/enable_exit_on_error    # Added by Steven Augart'
+   echo $BUILD_DIRECTORY_STR/jbuild.prep --disable-modification-exit-status '$TRACE_FLAG' $PREPROCESSOR_DEFINITIONS $SCRATCH_DIRECTORY_STR ' $FILES'
    echo 'if [[ $TRACE_FLAG = -trace ]]; then'
    echo '    echo ""'
    echo 'fi'
