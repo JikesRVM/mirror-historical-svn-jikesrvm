@@ -2814,7 +2814,6 @@ EOF
 	        echo "build.trace=false"
 	    fi
 	    echo "# Taken from the RVM_BUILD envar"
-	    echo "rvm.scratch=${SCRATCH_DIRECTORY_STR}"
 	    echo "build.dir=\${build_dir}"
 	}
 
