@@ -402,7 +402,7 @@ public class VM_Allocator
   // GET STORAGE FOR BLOCKS ARRAY FROM OPERATING SYSTEM
   //    storage for entries in blocks array: 4 bytes/ ref
   VM_Array intArrayType =  VM_Array.getPrimitiveArrayType(10);
-  int blocks_array_size = num_blocks * 4 + VM_ObjectModel.computeArrayHeaderSize(intArrayType);
+  int blocks_array_size = intArrayType.getInstanceSize(num_blocks);
   if ((blocks_array_storage = VM.sysCall1(bootrecord.sysMallocIP, blocks_array_size)) == 0) {
     VM.sysWrite(" In boot, call to sysMalloc returned 0 \n");
     VM.sysExit(1800);
@@ -891,9 +891,8 @@ public class VM_Allocator
     throws OutOfMemoryError {
     if (DebugLink) VM_Scheduler.trace("cloneScalar", "called");
 
-    boolean hasFinalizer = false; // do something more?  LOOKS LIKE A BUG!!! - dfb
+    boolean hasFinalizer = VM_Magic.addressAsType(VM_Magic.getMemoryWord(VM_Magic.objectAsAddress(tib))).hasFinalizer();
     Object objref = allocateScalar(size, tib, hasFinalizer);
-
     if (cloneSrc != null) {
       VM_ObjectModel.initializeScalarClone(objref, cloneSrc, size);
     }
@@ -2184,8 +2183,6 @@ public class VM_Allocator
   static  boolean
   gc_markBootObject (int ref) {
     //  ref should be for an object in BootImage !!!
-    boolean  result;
-    int  lockWord, oldlockWord;
 
     //  test mark bit in lock word to see if already marked, if so done.
     if (VM_AllocatorHeader.testMarkBit(VM_Magic.addressAsObject(ref), OBJECT_GC_MARK_VALUE))
