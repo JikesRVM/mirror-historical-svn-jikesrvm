@@ -18,6 +18,7 @@ import com.ibm.JikesRVM.memoryManagers.vmInterface.ScanStatics;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.SynchronizationBarrier;
 
 import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Time;
 import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM_Offset;
 import com.ibm.JikesRVM.VM_Magic;
@@ -38,7 +39,7 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
 
   public final static String Id = "$Id$"; 
 
-  public static boolean verbose = false;
+  public static int verbose = 0;
 
   protected WorkQueue workQueue;
   public AddressSet values;                 // gray objects
@@ -55,14 +56,20 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
   }
 
   /**
-   * The boot method is called by the runtime immediately command-line
+   * The boot method is called early in the boot process before any allocation.
+   */
+  static public void boot() throws VM_PragmaInterruptible {
+  }
+
+  /**
+   * The boot method is called by the runtime immediately after command-line
    * arguments are available.  Note that allocation must be supported
    * prior to this point because the runtime infrastructure may
    * require allocation in order to parse the command line arguments.
    * For this reason all plans should operate gracefully on the
    * default minimum heap size until the point that boot is called.
    */
-  static public void boot() {
+  static public void postBoot() {
   }
 
   protected static boolean gcInProgress = false;    // This flag should be turned on/off by subclasses.
@@ -81,12 +88,13 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
    * semi-spaces and preparing each of the collectors.
    */
   protected final void prepare() {
-    if (verbose) VM.sysWriteln("BasePlan.prepare");
     SynchronizationBarrier barrier = VM_CollectorThread.gcBarrier;
+    double tmp = VM_Time.now();
     int id = barrier.rendezvous();
     if (id == 1) {
       gcInProgress = true;
       gcCount++;
+      startTime = tmp;
       singlePrepare();
       resetComputeRoots();
       VM_Interface.prepareNonParticipating(); // The will fix collector threads that are not participating in thie GC.
@@ -98,14 +106,18 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
   }
 
   protected final void release() {
-    if (verbose) VM.sysWriteln("BasePlan.release");
     SynchronizationBarrier barrier = VM_CollectorThread.gcBarrier;
     barrier.rendezvous();
     allRelease();
     int id = barrier.rendezvous();
     if (id == 1) {
       singleRelease();
-      gcInProgress = false;
+      gcInProgress = false;    // GC is in progress until after release!
+      stopTime = VM_Time.now();
+      if (verbose > 0) {
+	VM.sysWrite("    Collection time: ", (stopTime - startTime));
+	VM.sysWriteln(" seconds");
+      }
     }
     barrier.rendezvous();
   }
@@ -118,6 +130,8 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
   abstract protected void singleRelease();
 
   static SynchronizedCounter threadCounter = new SynchronizedCounter();
+  static double startTime;
+  static double stopTime;
 
   private void resetComputeRoots() {
     threadCounter.reset();
@@ -163,8 +177,6 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
 
   private void processAllWork() {
 
-    if (verbose) VM.sysWriteln("BasePlan.processAllWork");
-
     while (true) {
       while (!values.isEmpty()) {
 	VM_Address v = values.pop();
@@ -193,7 +205,7 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
     processAllWork();
   }
 
-  public static int getHeapBlocks() throws VM_PragmaUninterruptible { 
+  public static int getTotalBlocks() throws VM_PragmaUninterruptible { 
     heapBlocks = Conversions.bytesToBlocks(Options.initialHeapSize);
     return heapBlocks; 
   }
@@ -288,12 +300,21 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
    *
    * @param obj The object reference to be traced.  This is <i>NOT</i> an
    * interior pointer.
-   * @param interiorRef The interior reference inside object ref that must be trace.
-   * @return The possibly moved reference.
+   * @param interiorRef The interior reference inside obj that must be traced.
+   * @return The possibly moved interior reference.
    */
   final public VM_Address traceInteriorReference(VM_Address obj, VM_Address interiorRef) {
     VM_Offset offset = interiorRef.diff(obj);
     VM_Address newObj = traceObject(obj);
+    if (VM.VerifyAssertions) {
+      if (offset.toInt() > (1<<24)) {  // There is probably no object this large
+	VM.sysWriteln("ERROR: Suspciously large delta of interior pointer from object base");
+	VM.sysWriteln("       object base = ", obj);
+	VM.sysWriteln("       interior reference = ", interiorRef);
+	VM.sysWriteln("       delta = ", offset.toInt());
+	VM._assert(false);
+      }
+    }
     return newObj.add(offset);
   }
 

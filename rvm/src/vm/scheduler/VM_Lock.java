@@ -413,8 +413,6 @@ public final class VM_Lock implements VM_Constants, VM_Uninterruptible {
       l.active = true;
     } else {
       l = new VM_Lock(); // may cause thread switch (and processor loss)
-VM.sysWriteln("VM_Lock.allocate - new VM_Lock ", l.index); 
-VM_Scheduler.dumpStack();
       mine = VM_Processor.getCurrentProcessor();
       if (mine.lastLockIndex < mine.nextLockIndex) {
 	lockAllocationMutex.lock();

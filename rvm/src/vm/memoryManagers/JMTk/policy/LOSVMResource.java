@@ -17,7 +17,8 @@ import com.ibm.JikesRVM.VM_ObjectModel;
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Magic;
 import com.ibm.JikesRVM.VM_Array;
-import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_PragmaInterruptible;
+import com.ibm.JikesRVM.VM_Uninterruptible;
 
 /**
  *  A mark-sweep area to hold "large" objects (typically at least 2K).
@@ -26,16 +27,16 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
  *
  *  @author Perry Cheng
  */
-public class LOSVMResource extends MonotoneVMResource implements Constants {
+public class LOSVMResource extends MonotoneVMResource implements Constants, VM_Uninterruptible {
 
   public final static String Id = "$Id$"; 
 
-  public void prepare (VMResource _vm, MemoryResource _mr) throws VM_PragmaUninterruptible {
+  public void prepare (VMResource _vm, MemoryResource _mr) {
       VM_Memory.zero(VM_Magic.objectAsAddress(mark), 
 		     VM_Magic.objectAsAddress(mark).add(2*mark.length));
   }
 
-  public void release (VMResource _vm, MemoryResource _mr) throws VM_PragmaUninterruptible {
+  public void release (VMResource _vm, MemoryResource _mr) {
     int blks = Conversions.bytesToBlocks(pageSize * (pagesAllocated - pagesMarked));
     memoryResource.release(blks);
     pagesAllocated = pagesMarked;
@@ -45,16 +46,20 @@ public class LOSVMResource extends MonotoneVMResource implements Constants {
     mark  = temp;
     lastAllocated = 0;
   }
-
-  // Internal management
-  private Lock  lock;        // serializes access to large space
+  
+  // Overall configuration
   private final int pageSize = 4096;         // large space allocated in 4K chunks
-  private final int GC_LARGE_SIZES = 20;           // for statistics  
   private final int GC_INITIAL_LARGE_SPACE_PAGES = 200; // for early allocation of large objs
   private int           totalPages;
+
+  // Management of virtual address range
+  private Lock LOSgcLock;       // used during GC
+  private Lock LOSmutatorLock;  // used by mutators
   private int		lastAllocated;   // where to start search for free space
   private short[]	allocated;	// used to allocate in large space
   private short[]	mark;		// used to mark large objects
+
+  // Memory usage
   private MemoryResource memoryResource;
   private int pagesAllocated = 0;
   private int pagesMarked = 0;
@@ -62,26 +67,48 @@ public class LOSVMResource extends MonotoneVMResource implements Constants {
   /**
    * Initialize for boot image - called from init of various collectors
    */
-  public LOSVMResource(String name, MemoryResource mr, VM_Address start, EXTENT size) throws VM_PragmaUninterruptible {
+  public LOSVMResource(String name, MemoryResource mr, VM_Address start, EXTENT size) throws VM_PragmaInterruptible {
     super(name, mr, start, size, VMResource.IN_VM);
-    lock       = new Lock();
     lastAllocated = 0;
     totalPages = 0;
     memoryResource = mr;
+    LOSgcLock = new Lock("LOSVMResource.gcLock");
+    LOSmutatorLock = new Lock("LOSVMResource.mutatorLock");
   }
 
 
   /**
    * Initialize for execution.  Meta-data created at boot time.
    */
-  public void setup () throws VM_PragmaUninterruptible {
-
+  public void setup () throws VM_PragmaInterruptible {
     // Get the (full sized) arrays that control large object space
-    totalPages = end.diff(start).toInt() / VM_Memory.getPagesize();
+    totalPages = end.diff(start).toInt() / pageSize;
     allocated = VM_Interface.newImmortalShortArray(totalPages + 1);
     mark  = VM_Interface.newImmortalShortArray(totalPages + 1);
   }
 
+
+  /**
+   * Acquire the appropriate lock depending on whether the context is
+   * GC or mutator.
+   */
+  private void LOSlock() {
+    if (Plan.gcInProgress())
+      LOSgcLock.acquire();
+    else
+      LOSmutatorLock.acquire();
+  }
+
+  /**
+   * Release the appropriate lock depending on whether the context is
+   * GC or mutator.
+   */
+  private void LOSunlock() {
+    if (Plan.gcInProgress())
+      LOSgcLock.release();
+    else
+      LOSmutatorLock.release();
+  }
 
   /**
    * Allocate size bytes of zeroed memory.
@@ -90,18 +117,24 @@ public class LOSVMResource extends MonotoneVMResource implements Constants {
    * @param size Number of bytes to allocate
    * @return Address of allocated storage
    */
-  protected VM_Address alloc (boolean isScalar, int size) throws VM_PragmaUninterruptible {
+  protected VM_Address alloc (boolean isScalar, int size) {
 
-    if (allocated == null) setup();  // not a good way to do it XXXXXX
+    if (VM.VerifyAssertions) VM._assert(allocated != null);
 
-    for (int count=0; ; count++) {
+    // Cycle through twice to make sure we covered everything
+    // This is  bit wasteful...
+    //
+    for (int count=0; count < 2 ; count++) {
 
-      lock.acquire();
+      LOSlock();
 
       int num_pages = (size + (pageSize - 1)) / pageSize;    // Number of pages needed
       int bytes = num_pages * pageSize;
 
-      memoryResource.acquire(Conversions.bytesToBlocks(bytes));
+      if (!memoryResource.acquire(Conversions.bytesToBlocks(bytes))) {
+	LOSunlock();
+	return VM_Address.zero();
+      }
 
       int last_possible = totalPages - num_pages;
 
@@ -125,20 +158,24 @@ public class LOSVMResource extends MonotoneVMResource implements Constants {
 	  // so that when marking (ref is input) will know which extreme 
 	  // of the range the ref identifies, and then can find the other
 	  
-	  allocated[first_free + num_pages - 1] = (short)(-num_pages);
-	  allocated[first_free] = (short)(num_pages);
-	       
-	  lock.release();
-	  VM_Address result = start.add(VM_Memory.getPagesize() * first_free);
+	  VM_Address result = start.add(pageSize * first_free);
 	  VM_Address resultEnd = result.add(size);
 	  if (resultEnd.GT(cursor)) {
 	    int neededBytes = resultEnd.diff(cursor).toInt();
 	    int blocks = Conversions.bytesToBlocks(neededBytes);
 	    VM_Address newArea = acquire(blocks);
-	    if (VM.VerifyAssertions) VM._assert(resultEnd.LE(cursor));
+	    if (newArea.isZero()) {
+	      LOSunlock();
+	      return VM_Address.zero();
+	    }
 	  }
-	  Memory.zero(result, resultEnd);
+
+	  if (VM.VerifyAssertions) VM._assert(resultEnd.LE(cursor));
+	  allocated[first_free + num_pages - 1] = (short)(-num_pages);
+	  allocated[first_free] = (short)(num_pages);
 	  pagesAllocated += num_pages;
+	  LOSunlock();
+	  Memory.zero(result, resultEnd);
 	  return result;
 	} else {  
 	  // free area did not contain enough contig. pages
@@ -147,22 +184,22 @@ public class LOSVMResource extends MonotoneVMResource implements Constants {
 	    first_free += allocated[first_free];
 	}
       }
+      LOSunlock();
+    } // for 
 
-	  lock.release();
-      VM_Interface.getPlan().poll(true);
-    }
-
+    VM_Interface.getPlan().poll(true);
+    return VM_Address.zero();
   }
 
 
-  boolean isLive (VM_Address ref) throws VM_PragmaUninterruptible {
+  boolean isLive (VM_Address ref) {
       VM_Address addr = VM_ObjectModel.getPointerInMemoryRegion(ref);
       if (VM.VerifyAssertions) VM._assert(start.LE(addr) && addr.LE(end));
       int page_num = addr.diff(start).toInt() >> 12;
       return (mark[page_num] != 0);
   }
 
-  VM_Address traceObject (VM_Address ref) throws VM_PragmaUninterruptible {
+  VM_Address traceObject (VM_Address ref) {
 
     VM_Address tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
     // if (VM.VerifyAssertions) VM._assert(addrInHeap(tref));
@@ -172,10 +209,10 @@ public class LOSVMResource extends MonotoneVMResource implements Constants {
     boolean result = (mark[page_num] != 0);
     if (result) return ref;	// fast, no synch case
     
-    lock.acquire();		// get sysLock for large objects
+    LOSlock();		// get sysLock for large objects
     result = (mark[page_num] != 0);
     if (result) {	// need to recheck
-      lock.release();
+      LOSunlock();
       return ref;
     }
     int temp = allocated[page_num];
@@ -196,7 +233,7 @@ public class LOSVMResource extends MonotoneVMResource implements Constants {
       mark[page_num] = (short)temp;
     }
     VM_Interface.getPlan().enqueue(ref);
-    lock.release();
+    LOSunlock();
     return ref;
   }
 

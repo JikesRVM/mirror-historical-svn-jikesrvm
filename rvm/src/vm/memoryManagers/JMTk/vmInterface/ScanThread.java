@@ -84,7 +84,7 @@ public class ScanThread implements VM_Constants, Constants, VM_Uninterruptible {
 	
 	Plan plan = VM_Processor.getCurrentProcessor().mmPlan;
 
-	// An additional complication is thatwhen a stack is copied, special adjustments
+	// An additional complication is that when a stack is copied, special adjustments
 	// relating to SP values have to be made.  These are not handled by GC maps.
 	// We aer ensured that the thread, before scanning, still refers to the original
 	// stack object, whether it has already been copied or will be copied by the scan.
@@ -297,19 +297,23 @@ public class ScanThread implements VM_Constants, Constants, VM_Uninterruptible {
 	if (codeLocations != null) {
 	  
 	  code = VM_Magic.objectAsAddress( compiledMethod.getInstructions() );
+
 	  if (prevFp.isZero()) {
 	    // top-most stack frame, ip saved in threads context regs
-	    codeLocations.push(code, t.contextRegisters.getIPLocation());
+               codeLocations.push(code, t.contextRegisters.getIPLocation());
 	  }
 	  else {
-	    codeLocations.push(code, VM_Magic.getReturnAddressLocation(prevFp));
+              VM_Address returnAddressLoc = VM_Magic.getReturnAddressLocation(prevFp);
+	      VM_Address returnAddress = VM_Magic.getMemoryAddress(returnAddressLoc);
+	      if (!Util.addrInBootImage(returnAddress))
+		codeLocations.push(code, returnAddressLoc);
 	  }
-	
+
 	  // scan for internal code pointers in the stack frame and relocate
 	  iterator.reset();
-	  for (VM_Address retaddr = iterator.getNextReturnAddressAddress();  !retaddr.isZero();
-	       retaddr = iterator.getNextReturnAddressAddress()) {
-	    codeLocations.push(code, retaddr);
+	  for (VM_Address retaddrLoc = iterator.getNextReturnAddressAddress();  !retaddrLoc.isZero();
+	       retaddrLoc = iterator.getNextReturnAddressAddress()) {
+	    codeLocations.push(code, retaddrLoc);
 	  }
 	}
       } 

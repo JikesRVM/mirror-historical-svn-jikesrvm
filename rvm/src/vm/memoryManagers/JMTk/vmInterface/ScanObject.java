@@ -6,6 +6,7 @@
 package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
 import com.ibm.JikesRVM.memoryManagers.JMTk.Statistics;
+import com.ibm.JikesRVM.memoryManagers.JMTk.Plan;
 
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Constants;

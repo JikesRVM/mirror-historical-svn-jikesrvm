@@ -1178,7 +1178,6 @@ public class VM_Thread implements VM_Constants, VM_Uninterruptible {
     if (isGCThread)            VM_Scheduler.writeString("-collector");  // gc thread?
     if (isNativeDaemonThread)  VM_Scheduler.writeString("-nativeDaemon");  
     if (beingDispatched)       VM_Scheduler.writeString("-being_dispatched");
-    if (verbosity > 0)         VM.sysWrite("  cr.ip = ", contextRegisters.ip);
   }
 
   public static void dumpAll(int verbosity) {

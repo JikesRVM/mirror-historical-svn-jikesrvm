@@ -28,7 +28,7 @@ class OPT_GenerateMachineSpecificMagic
    * @param gc == bc2ir.gc
    * @param meth the VM_Method that is the magic method
    */
-  static void generateMagic (OPT_BC2IR bc2ir, 
+  static boolean generateMagic (OPT_BC2IR bc2ir, 
 			     OPT_GenerationContext gc, 
 			     VM_Method meth) 
     throws OPT_MagicNotImplementedException {
@@ -202,9 +202,11 @@ class OPT_GenerateMachineSpecificMagic
 	  methodName == VM_MagicNames.pragmaNoOptCompile) {
 	throw OPT_MagicNotImplementedException.EXPECTED(msg);
       } else {
-	throw OPT_MagicNotImplementedException.UNEXPECTED(msg);
+	return false;
+	// throw OPT_MagicNotImplementedException.UNEXPECTED(msg);
       }
     }
+    return true;
   }
 }
 

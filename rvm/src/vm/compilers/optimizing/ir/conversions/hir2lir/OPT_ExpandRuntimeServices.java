@@ -67,7 +67,7 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase
 	  VM_Class cls = (VM_Class)Type.type;
 	  OPT_IntConstantOperand hasFinalizer = new OPT_IntConstantOperand(cls.hasFinalizer() ? 1 : 0);
 	  OPT_IntConstantOperand allocator = new OPT_IntConstantOperand(VM_Interface.pickAllocator(cls));
-	  Call.mutate3(inst, CALL, New.getClearResult(inst), null, 
+	  Call.mutate4(inst, CALL, New.getClearResult(inst), null, 
 		       OPT_MethodOperand.STATIC(VM_Entrypoints.resolvedNewScalarMethod), 
 		       new OPT_IntConstantOperand(cls.getInstanceSize()),
 		       OPT_ConvertToLowLevelIR.getTIB(inst, ir, Type), 
@@ -123,9 +123,10 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase
 	    size = new OPT_IntConstantOperand(array.getInstanceSize(numberElements.asIntConstant().value));
 	  }
 	  OPT_IntConstantOperand allocator = new OPT_IntConstantOperand(VM_Interface.pickAllocator(array));
-	  Call.mutate3(inst, CALL, NewArray.getClearResult(inst), null, 
-		       OPT_MethodOperand.STATIC(VM_Entrypoints.quickNewArrayMethod), 
-		       numberElements.copy(), size, 
+	  Call.mutate4(inst, CALL, NewArray.getClearResult(inst), null, 
+		       OPT_MethodOperand.STATIC(VM_Entrypoints.newArrayMethod), 
+		       numberElements.copy(), 
+		       size, 
 		       OPT_ConvertToLowLevelIR.getTIB(inst, ir, Array),
 		       allocator);
 	  if (ir.options.INLINE_NEW) {
@@ -297,7 +298,7 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase
               if (!inst.getBasicBlock().getInfrequent()) inline(inst, ir);
 	  }
           //-#endif
-	  if (VM_Collector.NEEDS_WRITE_BARRIER) {
+	  if (VM_Interface.NEEDS_WRITE_BARRIER) {
 	      if (opcode == REF_ASTORE_opcode) {
 		  OPT_Instruction wb =
 		      Call.create3(CALL, null, null, 
@@ -438,7 +439,7 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase
 		    }
 	    }
 	      //-#endif
-	    if (VM_Collector.NEEDS_WRITE_BARRIER) {
+	    if (VM_Interface.NEEDS_WRITE_BARRIER) {
 		if (!field.getType().isPrimitiveType()) {
 		    boolean isResolved = (opcode == PUTFIELD_opcode);
 		    OPT_Instruction wb = 

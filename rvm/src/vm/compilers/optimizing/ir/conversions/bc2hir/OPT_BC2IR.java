@@ -1507,11 +1507,12 @@ public final class OPT_BC2IR implements OPT_IRGenOptions,
 	  VM_Method meth = bcInfo.getMethodReference();
 	  if (meth.getDeclaringClass().isWordType()) {
 	    try {
-	      OPT_GenerateMagic.generateMagic(this, gc, meth);
-	      if (gc.options.PRINT_DETAILED_INLINE_REPORT) {
-		OPT_InlineReport.isMagic(meth);
+	      boolean generated = OPT_GenerateMagic.generateMagic(this, gc, meth);
+	      if (generated) {
+		if (gc.options.PRINT_DETAILED_INLINE_REPORT) 
+		  OPT_InlineReport.isMagic(meth);
+		break;
 	      }
-	      break;
 	    } catch (OPT_MagicNotImplementedException e) {
 	      if (gc.options.PRINT_DETAILED_INLINE_REPORT) {
 		OPT_InlineReport.unimplementedMagic(Call.getMethod(s).method);
@@ -1630,11 +1631,12 @@ public final class OPT_BC2IR implements OPT_IRGenOptions,
 	  if (meth.getDeclaringClass().isMagicType() ||
 	      meth.getDeclaringClass().isWordType()) {
 	    try {
-	      OPT_GenerateMagic.generateMagic(this, gc, meth);
-	      if (gc.options.PRINT_DETAILED_INLINE_REPORT) {
-		OPT_InlineReport.isMagic(meth);
+	      boolean generated = OPT_GenerateMagic.generateMagic(this, gc, meth);
+	      if (generated) {
+		if (gc.options.PRINT_DETAILED_INLINE_REPORT) 
+		  OPT_InlineReport.isMagic(meth);
+		break;
 	      }
-	      break;
 	    } catch (OPT_MagicNotImplementedException e) {
 	      if (gc.options.PRINT_DETAILED_INLINE_REPORT) {
 		OPT_InlineReport.unimplementedMagic(Call.getMethod(s).method);

@@ -245,9 +245,8 @@ public class ScanStack implements VM_Constants, VM_GCConstants {
 	//
 	VM_Address code = VM_Magic.objectAsAddress( compiledMethod.getInstructions() );
 
-	if (codeLocations != null) {
+	if (codeLocations != null && !VM_GCUtil.addrInBootImage(code)) {
 	  
-	  code = VM_Magic.objectAsAddress( compiledMethod.getInstructions() );
 	  if (prevFp.isZero()) {
 	    // top-most stack frame, ip saved in threads context regs
 	    codeLocations.push(code, t.contextRegisters.getIPLocation());

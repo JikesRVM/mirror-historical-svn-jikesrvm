@@ -19,6 +19,7 @@ import com.ibm.JikesRVM.VM_PragmaInline;
 import com.ibm.JikesRVM.VM_PragmaNoInline;
 import com.ibm.JikesRVM.VM_Scheduler;
 import com.ibm.JikesRVM.VM_Thread;
+import com.ibm.JikesRVM.VM_Time;
 import com.ibm.JikesRVM.VM_Processor;
 
 /**
@@ -34,7 +35,6 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
 
   public static final boolean needsWriteBarrier = false;
   public static final boolean movesObjects = true;
-  public static int verbose = 0;
 
   ////////////////////////////////////////////////////////////////////////////
   //
@@ -70,6 +70,11 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
     immortal = new BumpPointer(immortalVM);
   }
 
+  static public void boot() throws VM_PragmaInterruptible {
+    BasePlan.boot();
+    losVM.setup();
+  }
+
   /**
    * Allocate space (for an object)
    *
@@ -83,23 +88,15 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
     if (VM.VerifyAssertions) VM._assert(bytes == (bytes & (~3)));
     if (allocator == SS_ALLOCATOR && bytes > LOS_SIZE_THRESHOLD) allocator = LOS_ALLOCATOR;
     VM_Address region;
+    // if (gcCount > 1) VM.sysWrite("alloc called");
     switch (allocator) {
       case       SS_ALLOCATOR: region = ss.alloc(isScalar, bytes); break;
       case IMMORTAL_ALLOCATOR: region = immortal.alloc(isScalar, bytes); break;
       case      LOS_ALLOCATOR: region = los.alloc(isScalar, bytes); break;
       default:                 region = VM_Address.zero(); VM.sysFail("No such allocator");
     }
-    // VM.sysWrite("Plan ", id); VM.sysWrite(": ", allocatorToString(allocator)); VM.sysWriteln(" alloc returning ", region);
-    if (!Memory.isZeroed(region, bytes)) {
-      VM.sysWrite("Plan ", id); VM.sysWrite(": ", allocatorToString(allocator)); 
-      VM.sysWrite(" alloc returning non-zero area", region);
-      VM.sysWriteln("  bytes = ", bytes);
-      for (int i=0; i<bytes; i+=4) {
-	VM.sysWrite(i, ": ");
-	VM.sysWriteln(VM_Magic.getMemoryWord(region.add(i)));
-      }
-    }
-    if (VM.VerifyAssertions) VM._assert(Memory.isZeroed(region, bytes));
+    // if (gcCount > 1) VM.sysWriteln ("  returning ", region);
+    if (VM.VerifyAssertions) VM._assert(Memory.assertIsZeroed(region, bytes));
     return region;
   }
 
@@ -113,7 +110,11 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
     }
   }
 
-  static public void showAll() {
+  public void show() {
+    ss.show();
+  }
+
+  static public void showPlans() {
     for (int i=0; i<VM_Scheduler.processors.length; i++) {
       VM_Processor p = VM_Scheduler.processors[i];
       if (p == null) continue;
@@ -122,19 +123,12 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
     }
   }
 
-  public void show() {
-    VM.sysWrite("plan at ", VM_Magic.objectAsAddress(this));
-    VM.sysWriteln("    ss.bp = ", ss.bp);
-  }
-
   static public void showUsage() {
-      VM.sysWriteln("used blocks = ", getBlocksReserved());
-      VM.sysWrite("trigger blocks = ", getHeapBlocks());
-      VM.sysWrite(" (", Conversions.blocksToBytes(getHeapBlocks()) / ( 1 << 20));
-      VM.sysWriteln(" Mb) ");
-      VM.sysWriteln("  ss = 2 * ", ssMR.reservedBlocks());
-      VM.sysWriteln("  los = ", losMR.reservedBlocks());
-      VM.sysWriteln("  imm = ", immortalMR.reservedBlocks());
+      VM.sysWrite("used blocks = ", getBlocksUsed());
+      VM.sysWrite(" ("); VM.sysWrite(Conversions.blocksToBytes(getBlocksUsed()) >> 20, " Mb) ");
+      VM.sysWrite("= (ss) ", ssMR.reservedBlocks());  
+      VM.sysWrite(" + (los) ", losMR.reservedBlocks());
+      VM.sysWriteln(" + (imm) ", immortalMR.reservedBlocks());
   }
 
   /**
@@ -203,23 +197,17 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    * of this method must code as though the method is interruptible. 
    * In practice, this means that, after this call, processor-specific
    * values must be reloaded.
+   *
+   * @return Whether a collection is triggered
    */
 
-  public void poll(boolean mustCollect) throws VM_PragmaLogicallyUninterruptible {
-    if (gcInProgress) return;
-    if (mustCollect || getBlocksReserved() > getHeapBlocks()) {
-      if (verbose > 0) {
-	VM.sysWrite("Collection ", gcCount);
-	VM.sysWriteln(mustCollect ? ":  COULD NOT SATISFY REQUEST" : ":  RESOURCE EXHAUSTED");
-	VM.sysWrite("BEFORE: ");
-	showUsage();
-      }
+  public boolean poll(boolean mustCollect) throws VM_PragmaLogicallyUninterruptible {
+    if (gcInProgress) return false;
+    if (mustCollect || getBlocksReserved() > getTotalBlocks()) {
       VM_Interface.triggerCollection();
-      if (verbose > 0) {
-	VM.sysWrite("AFTER: ");
-	showUsage();
-      }
+      return true;
     }
+    return false;
   }
   
    
@@ -300,7 +288,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   }
 
   public static final long totalMemory() throws VM_PragmaUninterruptible {
-    return Conversions.blocksToBytes(getHeapBlocks());
+    return Conversions.blocksToBytes(getTotalBlocks());
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -326,19 +314,37 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
     return blocks;
   }
 
+
+  private static int getBlocksUsed() {
+    int blocks = ssMR.reservedBlocks();
+    blocks += losMR.reservedBlocks();
+    blocks += immortalMR.reservedBlocks();
+    return blocks;
+  }
+
   /**
    * Prepare for a collection.  In this case, it means flipping
    * semi-spaces and preparing each of the collectors.
    * Called by BasePlan which will make sure only one thread executes this.
    */
   protected void singlePrepare() {
+    if (verbose > 0) {
+      VM.sysWrite("Collection ", gcCount);
+      VM.sysWrite(":      reserved = ", getBlocksReserved());
+      VM.sysWrite(" (", Conversions.blocksToBytes(getBlocksReserved()) / ( 1 << 20)); 
+      VM.sysWrite(" Mb) ");
+      VM.sysWrite("      trigger = ", getTotalBlocks());
+      VM.sysWrite(" (", Conversions.blocksToBytes(getTotalBlocks()) / ( 1 << 20)); 
+      VM.sysWriteln(" Mb) ");
+      VM.sysWrite("  Before Collection: ");
+      showUsage();
+    }
     hi = !hi;          // flip the semi-spaces
     ssMR.release();    // reset the semispace memory resource, and
     // prepare each of the collected regions
     Copy.prepare(((hi) ? ss0VM : ss1VM), ssMR);
     losVM.prepare(losVM, losMR);
     Immortal.prepare(immortalVM, null);
-showUsage();
   }
 
   protected void allPrepare() {
@@ -360,12 +366,14 @@ showUsage();
    */
   protected void singleRelease() {
     // release each of the collected regions
-showUsage();
     ((hi) ? ss0VM : ss1VM).release();
     Copy.release(((hi) ? ss0VM : ss1VM), ssMR);
     losVM.release(losVM, losMR); 
     Immortal.release(immortalVM, null);
-showUsage();
+    if (verbose > 0) {
+      VM.sysWrite("   After Collection: ");
+      showUsage();
+    }
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -409,7 +417,7 @@ showUsage();
   private static final EXTENT      IMMORTAL_SIZE = BOOT_SIZE + 16 * 1024 * 1024;
   private static final VM_Address   IMMORTAL_END = IMMORTAL_START.add(IMMORTAL_SIZE);
   private static final VM_Address      LOS_START = IMMORTAL_END;
-  private static final EXTENT           LOS_SIZE = 48 * 1024 * 1024;
+  private static final EXTENT           LOS_SIZE = 128 * 1024 * 1024;
   private static final VM_Address        LOS_END = LOS_START.add(256 * 1024 * 1024);
   private static final VM_Address       SS_START = LOS_END;
   private static final EXTENT            SS_SIZE = 256 * 1024 * 1024;              // size of each space

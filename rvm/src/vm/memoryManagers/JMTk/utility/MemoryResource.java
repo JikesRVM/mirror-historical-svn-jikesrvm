@@ -5,8 +5,12 @@
  */
 package com.ibm.JikesRVM.memoryManagers.JMTk;
 
+
+import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
+
 
 /**
  * This class implements a memory resource.  The unit of managment for
@@ -19,7 +23,7 @@ import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
  * @version $Revision$
  * @date $Date$
  */
-final class MemoryResource implements Constants {
+final class MemoryResource implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
 
 
@@ -42,8 +46,8 @@ final class MemoryResource implements Constants {
    * manager before it must poll the collector.
    */
   MemoryResource(int budget) {
-    gcLock = new Lock();
-    mutatorLock = new Lock();
+    gcLock = new Lock("MemoryResource.gcLock");
+    mutatorLock = new Lock("MemoryResource.mutatorLock");
     this.budget = budget;
   }
 
@@ -84,14 +88,20 @@ final class MemoryResource implements Constants {
    * is polled every time a block is requested.
    *
    * @param blocks The number of blocks requested
+   * @return success Whether the acquire succeeded.
    */
-  public void acquire(int blocks) {
+  public boolean acquire (int blocks) {
     lock();
     reserved += blocks;
-    if ((committed + blocks) > budget)
-      VM_Interface.getPlan().poll(false);
+    if ((committed + blocks) > budget) {
+      unlock();   // We cannot hold the lock across a GC point!
+      if (VM_Interface.getPlan().poll(false)) 
+	return false;
+      lock();
+    }
     committed += blocks;
     unlock();
+    return true;
   }
 
   /**

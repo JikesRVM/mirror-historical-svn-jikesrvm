@@ -20,6 +20,7 @@ import com.ibm.JikesRVM.VM_Method;
 import com.ibm.JikesRVM.VM_PragmaInline;
 import com.ibm.JikesRVM.VM_PragmaNoInline;
 import com.ibm.JikesRVM.VM_PragmaInterruptible;
+import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 import com.ibm.JikesRVM.VM_PragmaLogicallyUninterruptible;
 import com.ibm.JikesRVM.VM_Scheduler;
@@ -37,8 +38,7 @@ import com.ibm.JikesRVM.VM_Synchronization;
  *
  * @author Stephen Smith
  */  
-public class Util
-  implements VM_Constants, Constants {
+public class Util implements VM_Constants, Constants, VM_Uninterruptible {
 
   private final static boolean TRACE = false;
 
@@ -171,6 +171,9 @@ public class Util
   }
 
 
+  public static boolean addrInBootImage(VM_Address addr) {
+    return (addr.GE(VM_Interface.bootImageStart())) && (addr.LT(VM_Interface.bootImageEnd()));
+  }
 
   /**
    * Print OutOfMemoryError message and exit.

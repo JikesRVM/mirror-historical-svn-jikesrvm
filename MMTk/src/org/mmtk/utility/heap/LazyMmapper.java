@@ -32,15 +32,20 @@ public final class LazyMmapper implements Constants, VM_Uninterruptible {
   //
 
   public static boolean verbose = false;
+  public static Lock lock = new Lock("LazyMapper");
 
   public static void ensureMapped(VM_Address start, int blocks) {
     int startChunk = Conversions.addressToMmapChunks(start);       // round down
     int endChunk = Conversions.addressToMmapChunks(start.add(Conversions.blocksToBytes(blocks)));       // round down
+    lock.acquire();
     for (int chunk=startChunk; chunk <= endChunk; chunk++) {
       VM_Address mmapStart = Conversions.mmapChunksToAddress(chunk);
       if (mapped[chunk] == UNMAPPED) {
-	if (!VM_Interface.mmap(mmapStart, MMAP_CHUNK_SIZE)) {
-	  VM.sysWriteln("ensureMapped failed");
+	int errno = VM_Interface.mmap(mmapStart, MMAP_CHUNK_SIZE);
+	if (errno != 0) {
+	  lock.release();
+	  VM.sysWrite("ensureMapped failed with errno ", errno);
+	  VM.sysWriteln(" on address ", mmapStart);
 	  VM._assert(false);
 	}
 	else {
@@ -52,6 +57,7 @@ public final class LazyMmapper implements Constants, VM_Uninterruptible {
       }
       if (mapped[chunk] == PROTECTED) {
 	if (!VM_Interface.munprotect(mmapStart, MMAP_CHUNK_SIZE)) {
+	  lock.release();
  	  VM.sysWriteln("ensureMapped (unprotect) failed");
 	  VM._assert(false);
 	}
@@ -64,16 +70,19 @@ public final class LazyMmapper implements Constants, VM_Uninterruptible {
       }
       mapped[chunk] = MAPPED;
     }
+    lock.release();
   }
 
   public static void protect(VM_Address start, int blocks) {
     int startChunk = Conversions.addressToMmapChunks(start);       // round down
     int chunks = Conversions.blocksToMmapChunks(blocks); // round up
     int endChunk = startChunk + chunks;
+    lock.acquire();
     for (int chunk=startChunk; chunk < endChunk; chunk++) {
       if (mapped[chunk] == MAPPED) {
 	VM_Address mmapStart = Conversions.mmapChunksToAddress(chunk);
 	if (!VM_Interface.mprotect(mmapStart, MMAP_CHUNK_SIZE)) {
+	  lock.release();
 	  VM.sysWriteln("mprotect failed");
 	  VM._assert(false);
 	}
@@ -89,6 +98,7 @@ public final class LazyMmapper implements Constants, VM_Uninterruptible {
 	if (VM.VerifyAssertions) VM._assert(mapped[chunk] == PROTECTED);
       }
     }
+    lock.release();
   }
 
   ////////////////////////////////////////////////////////////////////////////

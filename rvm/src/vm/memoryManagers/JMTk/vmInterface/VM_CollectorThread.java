@@ -6,6 +6,7 @@
 package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
 import com.ibm.JikesRVM.memoryManagers.JMTk.WorkQueue;
+import com.ibm.JikesRVM.memoryManagers.JMTk.Plan;
 
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_BootRecord;
@@ -129,14 +130,7 @@ public class VM_CollectorThread extends VM_Thread {
    * @param handshake VM_Handshake for the requested collection
    */
   public static void collect(VM_Handshake handshake) {
-    if (trace > 0) {
-      double start = VM_Time.now();
-      handshake.requestAndAwaitCompletion();
-      double stop  = VM_Time.now();
-      VM.sysWrite("VM_CollectorThread.collect: " + (stop - start) + " seconds\n");
-    } else {
-      handshake.requestAndAwaitCompletion();
-    }
+    handshake.requestAndAwaitCompletion();
   }
   
   // FOLLOWING NO LONGER TRUE... we now scan the stack frame for the run method,

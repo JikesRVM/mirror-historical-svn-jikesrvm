@@ -844,5 +844,6 @@ public class VM_Scheduler implements VM_Constants, VM_Uninterruptible {
    * one (0) will notify the blocked thread.
    */
   public static int toSyncProcessors;
+  public static Object syncObj = null;
   //-#endif
 }

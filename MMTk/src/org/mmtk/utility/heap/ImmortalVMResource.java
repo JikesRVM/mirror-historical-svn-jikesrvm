@@ -21,7 +21,7 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
  * @version $Revision$
  * @date $Date$
  */
-public class ImmortalVMResource extends MonotoneVMResource implements Constants {
+public class ImmortalVMResource extends MonotoneVMResource implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
 
   ////////////////////////////////////////////////////////////////////////////
@@ -38,6 +38,11 @@ public class ImmortalVMResource extends MonotoneVMResource implements Constants 
     sentinel = start.add(bytes);
   }
 
+  public final VM_Address acquire(int blockRequest) {
+    VM_Address result = super.acquire(blockRequest);
+    if (VM.VerifyAssertions) VM._assert(!result.isZero());
+    return result;
+  }
 
   public final void release() {
     if (VM.VerifyAssertions) VM._assert(false);

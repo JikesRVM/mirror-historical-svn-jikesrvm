@@ -5,13 +5,17 @@
 
 package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
+import java.util.Date;
+
 import com.ibm.JikesRVM.memoryManagers.JMTk.VMResource;
 import com.ibm.JikesRVM.memoryManagers.JMTk.Plan;
 import com.ibm.JikesRVM.memoryManagers.JMTk.Options;
 import com.ibm.JikesRVM.memoryManagers.JMTk.Statistics;
 import com.ibm.JikesRVM.memoryManagers.JMTk.WorkQueue;
+import com.ibm.JikesRVM.memoryManagers.JMTk.Memory;
 
 import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Time;
 import com.ibm.JikesRVM.VM_Entrypoints;
 import com.ibm.JikesRVM.VM_Scheduler;
 import com.ibm.JikesRVM.VM_Thread;
@@ -22,6 +26,7 @@ import com.ibm.JikesRVM.VM_StackframeLayoutConstants;
 import com.ibm.JikesRVM.VM_Processor;
 import com.ibm.JikesRVM.VM_Constants;
 import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Magic;
 import com.ibm.JikesRVM.VM_ClassLoader;
 import com.ibm.JikesRVM.VM_SystemClassLoader;
 import com.ibm.JikesRVM.VM_EventLogger;
@@ -115,6 +120,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    * which is necessarily after the basic allocator boot).
    */
   public static void postBoot() throws VM_PragmaInterruptible {
+    Plan.postBoot();
   }
 
   /** 
@@ -234,6 +240,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
 
   public static final void triggerCollection() throws VM_PragmaInterruptible {
     // VM_Scheduler.dumpStack();
+    long start = System.currentTimeMillis();
     VM_CollectorThread.collect(VM_CollectorThread.handshake);
   }
 
@@ -404,12 +411,19 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     getPlan().collect();
   }
 
-
-  public static boolean mmap(VM_Address start, int size) {
+  /* Returns errno 
+   */
+  public static int mmap(VM_Address start, int size) {
     VM_Address result = VM_Memory.mmap(start, size,
 				       VM_Memory.PROT_READ | VM_Memory.PROT_WRITE | VM_Memory.PROT_EXEC, 
 				       VM_Memory.MAP_PRIVATE | VM_Memory.MAP_FIXED | VM_Memory.MAP_ANONYMOUS);
-    return (result.EQ(start));
+    if (result.EQ(start)) return 0;
+    if (result.GT(VM_Address.fromInt(127))) {
+      VM.sysWrite("mmap with MAP_FIXED on ", start);
+      VM.sysWriteln(" returned some other address", result);
+      VM._assert(false);
+    }
+    return result.toInt();
   }
   
   
@@ -595,32 +609,35 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   public static VM_Address copy (VM_Address fromObj, int forwardingPtr) {
 
     Object[] tib = VM_ObjectModel.getTIB(fromObj);
+
     VM_Type type = VM_Magic.objectAsType(tib[TIB_TYPE_INDEX]);
 
     if (NEEDS_WRITE_BARRIER)
       forwardingPtr |= VM_AllocatorHeader.GC_BARRIER_BIT_MASK;
 
+    VM_Address toRef;
     if (type.isClassType()) {
       VM_Class classType = type.asClass();
       int numBytes = VM_ObjectModel.bytesRequiredWhenCopied(fromObj, classType);
       VM_Address region = getPlan().allocCopy(fromObj, numBytes, true);
       Object toObj = VM_ObjectModel.moveObject(region, fromObj, numBytes, classType, forwardingPtr);
-      VM_Address toRef = VM_Magic.objectAsAddress(toObj);
-      return toRef;
+      toRef = VM_Magic.objectAsAddress(toObj);
     } else {
       VM_Array arrayType = type.asArray();
       int numElements = VM_Magic.getArrayLength(fromObj);
       int numBytes = VM_ObjectModel.bytesRequiredWhenCopied(fromObj, arrayType, numElements);
       VM_Address region = getPlan().allocCopy(fromObj, numBytes, false);
       Object toObj = VM_ObjectModel.moveObject(region, fromObj, numBytes, arrayType, forwardingPtr);
-      VM_Address toRef = VM_Magic.objectAsAddress(toObj);
+      toRef = VM_Magic.objectAsAddress(toObj);
       if (arrayType == VM_Type.CodeType) {
 	// sync all moved code arrays to get icache and dcache in sync immediately.
 	int dataSize = numBytes - VM_ObjectModel.computeHeaderSize(VM_Magic.getObjectType(toObj));
 	VM_Memory.sync(toRef, dataSize);
       }
-      return toRef;
     }
+
+    return toRef;
+
   }
 
   public static int synchronizedCounterOffset = -1;

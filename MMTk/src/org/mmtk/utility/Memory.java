@@ -22,12 +22,26 @@ import com.ibm.JikesRVM.VM_Memory;
 
 public class Memory implements VM_Uninterruptible {
 
-  static boolean isZeroed(VM_Address start, EXTENT size) {
+  private static boolean isZeroedHelper(VM_Address start, EXTENT size, boolean verbose) {
     if (VM.VerifyAssertions) VM._assert(size == (size & (~3)));
     for (int i=0; i<size; i+=4) 
-      if (!VM_Magic.getMemoryAddress(start.add(i)).isZero())
+      if (!VM_Magic.getMemoryAddress(start.add(i)).isZero()) {
+	if (verbose) {
+	  VM.sysWrite("Memory range is not zeroed: ", start);
+	  VM.sysWriteln(" .. ", start.add(size));
+	  dumpMemory(start, 0, size);
+	}
 	return false;
+      }
     return true;
+  }
+
+  static boolean IsZeroed(VM_Address start, EXTENT size) {
+    return isZeroedHelper(start, size, false);
+  }
+
+  static boolean assertIsZeroed(VM_Address start, EXTENT size) {
+    return isZeroedHelper(start, size, true);
   }
 
   static void zero(VM_Address start, VM_Address end) {
@@ -36,6 +50,10 @@ public class Memory implements VM_Uninterruptible {
 
   static void zero(VM_Address start, int len) {
     VM_Memory.zero(start, len);
+  }
+
+  public static void dumpMemory(VM_Address addr, int before, int after) {
+    VM_Memory.dumpMemory(addr, before, after);
   }
 
 }

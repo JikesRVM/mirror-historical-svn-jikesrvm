@@ -578,7 +578,7 @@ class VM_CommandLineArgs {
 	VM_Interface.processCommandLineArg("max=" + arg);
 	break;
       case LARGE_HEAP_ARG: 
-	VM_Interface.processCommandLineArg("los=" + arg);
+	// VM_Interface.processCommandLineArg("los=" + arg);
 	break;
 
 

@@ -76,26 +76,34 @@ final class BumpPointer implements Constants, VM_Uninterruptible {
     VM_Address oldbp = bp;
     bp = bp.add(bytes);
     VM_Word tmp = oldbp.toWord().xor(bp.toWord());
-    if (tmp.GT(VM_Word.fromInt(TRIGGER)))
+    if (tmp.GE(VM_Word.fromInt(TRIGGER)))
       return allocSlowPath(bytes);
     return oldbp;
   }
 
 
-  
   private VM_Address allocSlowPath(EXTENT bytes) throws VM_PragmaNoInline { 
     int blocks = Conversions.bytesToBlocks(bytes);
-    VM_Address start = vmResource.acquire(blocks);
+    VM_Address start = VM_Address.zero();
+    while (start.isZero()) {
+      start = vmResource.acquire(blocks);
+      if (Plan.verbose > 3) VM.sysWriteln("BumpPointer.allocSlowPath acquired ", start);
+    }
     bp = start.add(bytes);
+    if (VM.VerifyAssertions) VM._assert(Memory.assertIsZeroed(start, bytes));
     return start;
   }
 
+
+  public void show() {
+    VM.sysWriteln("bp = ", bp);
+  }
 
   ////////////////////////////////////////////////////////////////////////////
   //
   // Instance variables
   //
-  public VM_Address bp; // XXX public for debugging should be private
+  private VM_Address bp;
   private MonotoneVMResource vmResource;
 
   ////////////////////////////////////////////////////////////////////////////

@@ -606,7 +606,7 @@ public class VM_Memory implements VM_Uninterruptible {
     VM.sysWrite(" to ");
     VM.sysWrite(start.add(afterBytes));
     VM.sysWrite(" ----\n");
-    for (int i = beforeBytes; i < afterBytes; i += 4) {
+    for (int i = -beforeBytes; i < afterBytes; i += 4) {
       VM.sysWrite(i, ": ");
       VM.sysWrite(start.add(i));
       VM.sysWrite(" ");

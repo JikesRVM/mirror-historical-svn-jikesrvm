@@ -22,7 +22,7 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 import com.ibm.JikesRVM.VM_PragmaInline;
 
 /**
- *  A mark-sweep area to hold "large" objects (typically at least 2K).
+ *  A mark-sweep area to hold "large" objects (typically at least 4K).
  *  The large space code is obtained by factoring out the code in various
  *  collectors.
  *
@@ -34,7 +34,7 @@ public class LOSPointer implements Constants, VM_Uninterruptible {
 
   private LOSVMResource los;
 
-  LOSPointer(LOSVMResource losvm, MemoryResource mr) throws VM_PragmaUninterruptible {
+  LOSPointer(LOSVMResource losvm, MemoryResource mr) {
     los = losvm;
   }
 
@@ -47,7 +47,11 @@ public class LOSPointer implements Constants, VM_Uninterruptible {
    * @return The address of the first byte of the allocated region
    */
   public VM_Address alloc(boolean isScalar, EXTENT bytes) throws VM_PragmaInline {
-    VM_Address result = los.alloc(isScalar, bytes);
+    VM_Address result = VM_Address.zero();
+    while (result.isZero()) {
+      result = los.alloc(isScalar, bytes);
+      if (Plan.verbose > 1) VM.sysWriteln("LOSPointer.alloc allocated ", result);
+    }
     return result;
   }
 

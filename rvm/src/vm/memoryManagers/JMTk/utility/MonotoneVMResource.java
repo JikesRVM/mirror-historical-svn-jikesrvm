@@ -25,8 +25,10 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
  * @version $Revision$
  * @date $Date$
  */
-public class MonotoneVMResource extends VMResource implements Constants {
+public class MonotoneVMResource extends VMResource implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
+
+  public final static boolean PROTECT_ON_RELEASE = true;
 
   ////////////////////////////////////////////////////////////////////////////
   //
@@ -40,6 +42,8 @@ public class MonotoneVMResource extends VMResource implements Constants {
     cursor = start;
     sentinel = start.add(bytes);
     memoryResource = mr;
+    gcLock = new Lock("MonotoneVMResrouce.gcLock");
+    mutatorLock = new Lock("MonotoneVMResrouce.mutatorLock");
   }
 
 
@@ -50,9 +54,11 @@ public class MonotoneVMResource extends VMResource implements Constants {
    * @return The address of the start of the virtual memory region, or
    * zero on failure.
    */
-  public final VM_Address acquire(int blockRequest) {
-    lock.acquire();
-    memoryResource.acquire(blockRequest);
+  public VM_Address acquire(int blockRequest) {
+    if (!memoryResource.acquire(blockRequest)) 
+      return VM_Address.zero();
+    boolean gcInProgress = Plan.gcInProgress();
+    lock();
     int bytes = Conversions.blocksToBytes(blockRequest);
     VM_Address tmpCursor = cursor.add(bytes);
     if (tmpCursor.GE(sentinel)) {
@@ -60,23 +66,46 @@ public class MonotoneVMResource extends VMResource implements Constants {
       VM.sysWrite(" bytes: cursor = ", cursor);
       VM.sysWrite("  start = ", start);
       VM.sysWriteln("  sentinel = ", sentinel);
-      lock.release();
+      unlock();
       VM.sysFail("MonotoneVMResource.acquire failed");
       return VM_Address.zero();
     } else {
       VM_Address oldCursor = cursor;
       cursor = tmpCursor;
+      unlock();
       LazyMmapper.ensureMapped(oldCursor, blockRequest);
       Memory.zero(oldCursor, bytes);
-      lock.release();
       return oldCursor;
     }
   }
 
   public void release() {
     // Unmapping is useful for being a "good citizen" and for debugging
-    LazyMmapper.protect(start, Conversions.bytesToBlocks(cursor.diff(start).toInt()));
+    if (PROTECT_ON_RELEASE)
+      LazyMmapper.protect(start, Conversions.bytesToBlocks(cursor.diff(start).toInt()));
     cursor = start;
+  }
+
+  /**
+   * Acquire the appropriate lock depending on whether the context is
+   * GC or mutator.
+   */
+  private void lock() {
+    if (Plan.gcInProgress())
+      gcLock.acquire();
+    else
+      mutatorLock.acquire();
+  }
+
+  /**
+   * Release the appropriate lock depending on whether the context is
+   * GC or mutator.
+   */
+  private void unlock() {
+    if (Plan.gcInProgress())
+      gcLock.release();
+    else
+      mutatorLock.release();
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -87,6 +116,7 @@ public class MonotoneVMResource extends VMResource implements Constants {
   protected VM_Address cursor;
   protected VM_Address sentinel;
   protected MemoryResource memoryResource;
-  protected Lock lock = new Lock();
+  private Lock gcLock;       // used during GC
+  private Lock mutatorLock;  // used by mutators
 
 }

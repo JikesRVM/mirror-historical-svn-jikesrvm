@@ -182,6 +182,7 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
 	VM_Magic.setIntAtOffset(toObj, STATUS_OFFSET, availBitsWord);
 	return toObj;
       } else if (hashState == HASH_STATE_HASHED) {
+VM.sysWriteln("Moving hashed scalar: ", toAddress);
 	int data = numBytes - HASHCODE_BYTES;
 	VM_Address fromAddress = VM_Magic.objectAsAddress(fromObj).sub(data + SCALAR_PADDING_BYTES);
 	VM_Memory.aligned32Copy(toAddress, fromAddress, data); 
@@ -222,6 +223,7 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
 	VM_Magic.setIntAtOffset(toObj, STATUS_OFFSET, availBitsWord);
 	return toObj;
       } else if (hashState == HASH_STATE_HASHED) {
+VM.sysWriteln("Moving hashed array: ", toAddress);
 	VM_Address fromAddress = VM_Magic.objectAsAddress(fromObj).sub(ARRAY_HEADER_SIZE);
 	VM_Memory.aligned32Copy(toAddress.add(HASHCODE_BYTES), fromAddress, numBytes - HASHCODE_BYTES); 
 	Object toObj = VM_Magic.addressAsObject(toAddress.add(ARRAY_HEADER_SIZE + HASHCODE_BYTES));
@@ -591,4 +593,16 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
                 null, GuardedUnary.getClearGuard(s));
   }
   //-#endif
+
+  /*
+    static public void showConstants() {
+    VM.sysWriteln("NUM_AVAILABLE_BITS = ", NUM_AVAILABLE_BITS);
+    VM.sysWriteln("AVAILABLE_BITS_OFFSET = ", AVAILABLE_BITS_OFFSET);
+    VM.sysWriteln("NUM_THIN_LOCK_BITS = ", NUM_THIN_LOCK_BITS);
+    VM.sysWriteln("THIN_LOCK_SHIFT = ", THIN_LOCK_SHIFT);
+    VM.sysWriteln("VM_MiscHeader.REQUESTED_BITS = ", VM_MiscHeader.REQUESTED_BITS);
+    VM.sysWriteln("VM_AllocatorHeader.REQUESTED_BITS  = ", VM_AllocatorHeader.REQUESTED_BITS);
+  }
+  */
+
 }
