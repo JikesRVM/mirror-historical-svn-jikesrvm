@@ -223,7 +223,7 @@ function err () {
     local lineno="$1"; shift;
     local funcname="$1"; shift;
 
-    if  [[ ! ${LINENO:} ]] || (( lineno < 0 )); then
+    if  [[ ${lineno:-UNSET} = "UNSET" ]] || (( lineno <= 0 )); then
 	show_mesg_raw >&2 "\
 $ME: some command we just ran (probably with a final argument of \"$finalarg\") exited with status ${xited},  
 ${funcname:+in the shell function \"}${funcname}${funcname:+\"}";
@@ -231,7 +231,7 @@ ${funcname:+in the shell function \"}${funcname}${funcname:+\"}";
 	show_mesg >&2 "\
 Some command we just ran (probably with a final argument of \"$finalarg\") exited with status ${xited}, in the shell function ${funcname}(), line # ${lineno}"
 
-    else			# Have script-relative line #s, and have a real one.
+    else	  # Have script-relative line #s, and have a real one.
 	show_mesg_raw >&2 "\
 $ME:${lineno}: some command we just ran (probably with a final argument of \"$finalarg\") exited with status ${xited},  
 ${funcname:+in the shell function \"}${funcname}${funcname:+\"}";
