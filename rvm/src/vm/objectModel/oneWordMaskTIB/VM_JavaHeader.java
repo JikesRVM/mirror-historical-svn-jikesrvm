@@ -49,7 +49,6 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
   static {
     if (VM.VerifyAssertions) {
       VM.assert(VM_MiscHeader.REQUESTED_BITS + VM_AllocatorHeader.REQUESTED_BITS <= NUM_AVAILABLE_BITS);
-      //VM.assert(HASH_STATE_BITS == 0); // don't support copying collectors yet.
     }
   }
 
@@ -201,13 +200,49 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    * @param ir the enclosing OPT_IR
    */
   public static void lowerGET_OBJ_TIB(OPT_Instruction s, OPT_IR ir) {
-    OPT_Operand address = GuardedUnary.getClearVal(s);
     OPT_RegisterOperand result = GuardedUnary.getClearResult(s);
-    s.insertBefore(Load.create(INT_LOAD, result.copyRO(),
-		address, new OPT_IntConstantOperand(TIB_OFFSET), 
-		null, GuardedUnary.getClearGuard(s)));
-    Binary.mutate(s, INT_AND, result.copyRO(), result.copyRO(), 
-                  new OPT_IntConstantOperand(TIB_MASK));
+    OPT_Operand guard = GuardedUnary.getClearGuard(s);
+    OPT_RegisterOperand headerWord = OPT_ConvertToLowLevelIR.InsertLoadOffset(s, ir, INT_LOAD, 
+                                                                              VM_Type.IntType, 
+									      GuardedUnary.getClearVal(s),
+									      TIB_OFFSET, guard);
+    if (VM_Collector.MOVES_OBJECTS && VM.writingBootImage) {
+      // The collector may have laid down a forwarding pointer 
+      // in place of the TIB word.  Check for this fringe case
+      // and handle it by following the forwarding pointer to
+      // find the TIB.
+      // We only have to build this extra check into the bootimage code
+      // since all code used by the collector should be in the bootimage.
+      // TODO: be more selective by marking a subset of the bootimage classes
+      //       with a special interface that indicates that this conditional redirect 
+      //       is required.
+      if (VM.VerifyAssertions) {
+	VM.assert(VM_AllocatorHeader.GC_FORWARDING_MASK == 0x00000003);
+	VM.assert(VM_AllocatorHeader.GC_FORWARDED != VM_Collector.MARK_VALUE);
+      }
+      
+      OPT_BasicBlock prevBlock = s.getBasicBlock();
+      OPT_BasicBlock doneBlock = prevBlock.splitNodeAt(s.prevInstructionInCodeOrder(), ir);
+      OPT_BasicBlock middleBlock = doneBlock.createSubBlock(s.bcIndex, ir);
+      ir.cfg.linkInCodeOrder(prevBlock, middleBlock);
+      ir.cfg.linkInCodeOrder(middleBlock, doneBlock);
+      prevBlock.insertOut(middleBlock);
+      prevBlock.insertOut(doneBlock);
+      middleBlock.insertOut(doneBlock);
+
+      OPT_RegisterOperand fs = ir.regpool.makeTempInt();
+      prevBlock.appendInstruction(Binary.create(INT_AND, fs, headerWord.copyRO(),
+						new OPT_IntConstantOperand(VM_AllocatorHeader.GC_FORWARDING_MASK)));
+      prevBlock.appendInstruction(IfCmp.create(INT_IFCMP, null, fs.copyRO(), new OPT_IntConstantOperand(VM_AllocatorHeader.GC_FORWARDED),
+					       OPT_ConditionOperand.NOT_EQUAL(), doneBlock.makeJumpTarget(),
+					       OPT_BranchProfileOperand.likely()));
+      OPT_RegisterOperand fp = ir.regpool.makeTempInt();
+      middleBlock.appendInstruction(Binary.create(INT_AND, fp, headerWord.copyRO(), 
+						  new OPT_IntConstantOperand(~VM_AllocatorHeader.GC_FORWARDING_MASK)));
+      middleBlock.appendInstruction(Load.create(INT_LOAD, headerWord.copyRO(), fp.copyRO(), 
+						new OPT_IntConstantOperand(TIB_OFFSET), null, guard));
+    }
+    Binary.mutate(s, INT_AND, result, headerWord.copyRO(), new OPT_IntConstantOperand(TIB_MASK));
   }
 
   //-#endif
