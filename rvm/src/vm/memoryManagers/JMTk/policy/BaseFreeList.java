@@ -197,11 +197,15 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
     // grab superpage
     int pages = pagesForClassSize(sizeClass);
     VM_Address sp = allocSuperPage(pages);
+    int subclassHeader = superPageHeaderSize(sizeClass)-BASE_SP_HEADER_SIZE;
+    if (subclassHeader != 0)
+      VM_Memory.zero(sp.add(BASE_SP_HEADER_SIZE), subclassHeader);
     int spSize = pages<<LOG_PAGE_SIZE;
     
     // set up sizeclass info
     setSizeClass(sp, sizeClass);
     setInUse(sp, 0);
+
     
 //     VM.sysWrite("expand size class: ");
 //     VM.sysWrite(sp); VM.sysWrite("+");
@@ -253,18 +257,18 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
     VM_Address last = VM_Address.zero();
     while (cell.NE(VM_Address.zero())) { 
       VM_Address next = getNextCell(cell);
-//       VM.sysWrite(cell); VM.sysWrite(" "); VM.sysWrite(next); VM.sysWrite(" ");
-//       VM.sysWrite(last); VM.sysWrite(" "); VM.sysWrite(sizeClass); // VM.sysWrite("\n");
+//        VM.sysWrite(cell); VM.sysWrite(" "); VM.sysWrite(next); VM.sysWrite(" ");
+//        VM.sysWrite(last); VM.sysWrite(" "); VM.sysWrite(sizeClass); // VM.sysWrite("\n");
       if (cell.GT(sp) && cell.LT(spEnd)) {
 	if (last.EQ(VM_Address.zero())) {
-// 	  VM.sysWrite(" rm front\n");
+//  	  VM.sysWrite(" rm front\n");
 	  freeList[sizeClass] = next;
 	} else {
-// 	  VM.sysWrite(" rm mid\n");
+//  	  VM.sysWrite(" rm mid\n");
 	  setNextCell(last, next);
 	}
       } else {
-// 	VM.sysWrite(" na\n");
+//  	VM.sysWrite(" na\n");
 	last = cell;
       }
       cell = next;
@@ -305,7 +309,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
    * @param sp The superpage to be freed.
    * @see releaseSuperPageCells
    */
-  private final void freeSuperPage(VM_Address sp) {
+  protected final void freeSuperPage(VM_Address sp) {
     // unlink superpage
     VM_Address next = getNextSuperPage(sp);
     VM_Address prev = getPrevSuperPage(sp);

@@ -29,17 +29,34 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
   MarkSweepAllocator(MarkSweepCollector collector_) {
     super(collector_.getVMResource(), collector_.getMemoryResource());
     collector = collector_;
+    treadmillLock = new Lock("MarkSweepAllocator.treadmillLock");
   }
 
-  public final void sweepSuperPage() {
+  public void prepare(VMResource vm, MemoryResource mr) { 
+    treadmillToHead = VM_Address.zero();
+    collector.prepare(vm, mr);
+  }
+
+  public final void sweepSuperPages() {
     VM_Address sp = headSuperPage;
     while (!sp.EQ(VM_Address.zero())) {
-      //      if (isSmall(getSizeClass(sp)))
       int sizeClass = getSizeClass(sp);
       if (!isLarge(sizeClass))
 	collector.sweepSuperPage(this, sp, sizeClass, cellSize(sizeClass));
+      
       sp = getNextSuperPage(sp);
     }
+  }
+  
+  public final void sweepLargePages() {
+    VM_Address cell = treadmillFromHead;
+    while (!cell.EQ(VM_Address.zero())) {
+      VM_Address next = MarkSweepCollector.getNextTreadmill(cell);
+      freeSuperPage(getSuperPage(cell, false));
+      cell = next;
+    }
+    treadmillFromHead = treadmillToHead;
+    treadmillToHead = VM_Address.zero();
   }
 
   /**
@@ -57,6 +74,30 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
     return sizeClassPages[sizeClass];
   }
 
+  public final void setTreadmillFromHead(VM_Address cell)
+    throws VM_PragmaInline {
+    treadmillFromHead = cell;
+  }
+  public final void setTreadmillToHead(VM_Address cell)
+    throws VM_PragmaInline {
+    treadmillToHead = cell;
+  }
+  public final VM_Address getTreadmillFromHead()
+    throws VM_PragmaInline {
+    return treadmillFromHead;
+  }
+  public final VM_Address getTreadmillToHead()
+    throws VM_PragmaInline {
+    return treadmillToHead;
+  }
+  public final void lockTreadmill()
+    throws VM_PragmaInline {
+    treadmillLock.acquire();
+  }
+  public final void unlockTreadmill()
+    throws VM_PragmaInline {
+    treadmillLock.release();
+  }
   /**
    * Return the size of the per-superpage header required by this
    * system.  In this case it is just the underlying superpage header
@@ -169,10 +210,10 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
       collector.setInUseBit(cell, getSuperPage(cell, small), small);
     else {
       //      VM.sysWrite("pa: "); VM.sysWrite(cell); VM.sysWrite((small ? " small\n" : " non-small\n"));
-      collector.addToTreadmill(cell);
+      collector.addToTreadmill(cell, this);
     }
 //     if (!small && !large) {
-//        VM.sysWrite(cell); VM.sysWrite(" a "); VM.sysWrite(getSuperPage(cell, small)); VM.sysWrite("\n");
+//         VM.sysWrite(cell); VM.sysWrite(" a "); VM.sysWrite(getSuperPage(cell, small)); VM.sysWrite("\n");
 //     }
     //    sanity();
   };
@@ -184,7 +225,7 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
       VM_Address cell = sp.add(superPageHeaderSize(LARGE_SIZE_CLASS)+TREADMILL_HEADER_SIZE+NON_SMALL_OBJ_HEADER_SIZE);
       VM.sysWrite(cell);
       VM.sysWrite("\n");
-      VM._assert(collector.isOnTreadmill(cell));
+      VM._assert(collector.isOnTreadmill(cell, getTreadmillFromHead()));
     } else if (!isSmall(sizeClass)) {
       VM_Address sentinal = sp.add(pagesForClassSize(sizeClass)<<LOG_PAGE_SIZE);
       int cellSize = cellSize(sizeClass);
@@ -193,7 +234,7 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
       while (cursor.add(cellSize).LE(sentinal)) {
 	VM_Address cell = cursor.add(TREADMILL_HEADER_SIZE
 				     + NON_SMALL_OBJ_HEADER_SIZE);
-	if(collector.isOnTreadmill(cell))
+	if(collector.isOnTreadmill(cell, getTreadmillFromHead()))
 	  inUse++;
 	else
 	  VM._assert(isFree(cell, sizeClass));
@@ -240,6 +281,9 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
   private static final int TREADMILL_HEADER_SIZE = MarkSweepCollector.TREADMILL_HEADER_SIZE;
 
   public static final int MAX_SMALL_SIZE = 512;  // statically verified below..
+  private Lock treadmillLock;
+  private VM_Address treadmillFromHead;
+  private VM_Address treadmillToHead;
   private static int cellSize[];
   private static int sizeClassPages[];
   static {

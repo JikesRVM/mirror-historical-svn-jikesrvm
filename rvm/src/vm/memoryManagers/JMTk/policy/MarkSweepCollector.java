@@ -39,7 +39,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   MarkSweepCollector(NewFreeListVMResource vmr, MemoryResource mr) {
     vmResource = vmr;
     memoryResource = mr;
-    treadmillLock = new Lock("MarkSweep.treadmillLock");
+    //    treadmillLock = new Lock("MarkSweep.treadmillLock");
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -57,7 +57,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
    * @param mr (unused)
    */
   public void prepare(VMResource vm, MemoryResource mr) { 
-    treadmillToHead = VM_Address.zero();
+    VM.sysWrite("prepare\n");
     markState = MarkSweepHeader.MARK_BIT_MASK - markState;
   }
 
@@ -69,6 +69,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
    * @param mr (unused)
    */
   public void release(MarkSweepAllocator allocator) { 
+    VM.sysWrite("prepare\n");
     sweep(allocator);
   }
 
@@ -126,17 +127,20 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
 
   public final void sweep(MarkSweepAllocator allocator) {
     // sweep the small objects
-    allocator.sweepSuperPage();
+    VM.sysWrite("sweep small(");
+    allocator.sweepSuperPages();
     // sweep the large objects
-    sweepLarge();
+    VM.sysWrite(")\nsweep large(");
+    allocator.sweepLargePages();
+    VM.sysWrite(")\n");
   }
 
   public final void sweepSuperPage(MarkSweepAllocator allocator,
-				   VM_Address sp, int szclass, 
-					int cellSize)
+				   VM_Address sp, int szclass, int cellSize)
     throws VM_PragmaInline {
 //     if (!MarkSweepAllocator.isSmall(szclass))
-//       VM.sysWrite("------------ sweep -----------\n");
+//     VM.sysWrite("------------ sweep -----------");
+//     VM.sysWrite(sp); VM.sysWrite(" "); VM.sysWrite(szclass); VM.sysWrite(" "); VM.sysWrite(cellSize); VM.sysWrite("\n");
     VM_Address base = sp.add(BITMAP_BASE);
     boolean small = MarkSweepAllocator.isSmall(szclass);
     int bitmapPairs = small ? SMALL_BITMAP_PAIRS : MID_BITMAP_PAIRS;
@@ -154,11 +158,11 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
       if (free != 0) {
 	// free them up
 // 	if (!small) {
-// 	  VM.sysWrite("--->");
-// 	  VM.sysWrite(inUseBitmap); VM.sysWrite(": ");
-// 	  VM.sysWriteHex(inuse); VM.sysWrite(" ");
-// 	  VM.sysWriteHex(mark); VM.sysWrite(" ");
-// 	  VM.sysWriteHex(free); VM.sysWrite("\n");
+//  	  VM.sysWrite("--->");
+//  	  VM.sysWrite(inUseBitmap); VM.sysWrite(": ");
+//  	  VM.sysWriteHex(inuse); VM.sysWrite(" ");
+//  	  VM.sysWriteHex(mark); VM.sysWrite(" ");
+//  	  VM.sysWriteHex(free); VM.sysWrite("\n");
 // 	}
 	freeFromBitmap(allocator, sp, free, szclass, cellSize, pair, small);
 	VM_Magic.setMemoryWord(inUseBitmap, mark); 
@@ -167,8 +171,22 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
 	VM_Magic.setMemoryWord(markBitmap, 0);
     }
 //     if (!MarkSweepAllocator.isSmall(szclass))
-//       VM.sysWrite("============ sweep ===========\n");
+//        VM.sysWrite("============ sweep ===========\n");
   }
+
+  private final void sweepLarge() {
+//     int id = barrier.rendezvous();
+//     if (id == 1) {
+//       VM_Address cell = treadmillFromHead;
+//       while (cell.NE(VM_Address.zero())) {
+// 	VM_Address next = getNextTreadmill(cell);
+// 	VM_Address sp = MarkSweepAllocator.getSuperPage(cell, false);
+// 	cell = next;
+//       }
+//     }
+//     barrier.rendezvous();
+  }
+
   private final void freeFromBitmap(MarkSweepAllocator allocator, 
 				    VM_Address sp, int free, int szclass,
 				    int cellSize, int pair, boolean small)
@@ -190,8 +208,8 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
     }
   }
 
-  private final void sweepLarge() {
-  }
+//   private final void sweepLarge() {
+//   }
   private final void internalMarkObject(VM_Address object) 
     throws VM_PragmaInline {
     VM_Address ref = VM_JavaHeader.getPointerInMemoryRegion(object);
@@ -200,12 +218,13 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
 //       VM.sysWrite(MarkSweepAllocator.getSuperPage(cell, true)); VM.sysWrite("\n");
     if (MarkSweepHeader.isSmallObject(VM_Magic.addressAsObject(object))) {
       setMarkBit(ref, MarkSweepAllocator.getSuperPage(ref, true), true);
+//       VM.sysWrite(VM_JavaHeader.objectStartRef(object)); VM.sysWrite(" m "); VM.sysWrite(MarkSweepAllocator.getSuperPage(ref, true)); VM.sysWrite("\n");
 //       if (VM.VerifyAssertions)
 // 	VM._assert(MarkSweepHeader.isSmallObject(VM_Magic.addressAsObject(object)));
     } else {
       VM_Address cell = VM_JavaHeader.objectStartRef(object);
       VM_Address sp = MarkSweepAllocator.getSuperPage(cell, false);
-//       VM.sysWrite(cell); VM.sysWrite(" m "); VM.sysWrite(sp); VM.sysWrite("\n");
+      //       VM.sysWrite(cell); VM.sysWrite(" m "); VM.sysWrite(sp); VM.sysWrite("\n");
       int sizeClass = MarkSweepAllocator.getSizeClass(sp);
       if (MarkSweepAllocator.isLarge(sizeClass))
 	moveToTreadmill(cell, true);
@@ -216,8 +235,8 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
     }
   }
 
-  public final boolean isOnTreadmill(VM_Address cell) {
-    VM_Address next = treadmillFromHead;
+  public final boolean isOnTreadmill(VM_Address cell, VM_Address head) {
+    VM_Address next = head;
 //     VM.sysWrite("Treadmill: ");
 //     VM.sysWrite(cell);
 //     VM.sysWrite("? (");
@@ -234,14 +253,17 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
     return false;
   }
   
-  public void addToTreadmill(VM_Address cell) 
+  public void addToTreadmill(VM_Address cell, MarkSweepAllocator allocator) 
     throws VM_PragmaInline {
+    setTreadmillOwner(cell, VM_Magic.objectAsAddress((Object) allocator));
     moveToTreadmill(cell, false);
   }
 
   private void moveToTreadmill(VM_Address cell, boolean to) 
     throws VM_PragmaInline {
-    treadmillLock.acquire();
+    MarkSweepAllocator owner = (MarkSweepAllocator) VM_Magic.addressAsObject(getTreadmillOwner(cell));
+    owner.lockTreadmill();
+    //    treadmillLock.acquire();
     if (to) {
       // remove from "from" treadmill
       VM_Address prev = getPrevTreadmill(cell);
@@ -250,24 +272,24 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
       if (!prev.EQ(VM_Address.zero()))
 	setNextTreadmill(prev, next);
       else
-	treadmillFromHead = next;
+	owner.setTreadmillFromHead(next);
       if (!next.EQ(VM_Address.zero()))
 	setPrevTreadmill(next, prev);
     }
 
     // add to treadmill
-    VM_Address head = (to ? treadmillToHead : treadmillFromHead);
+    VM_Address head = (to ? owner.getTreadmillToHead() : owner.getTreadmillFromHead());
     //    VM.sysWrite("at: "); VM.sysWrite(cell); VM.sysWrite(", "); VM.sysWrite(head); VM.sysWrite("\n");
     setNextTreadmill(cell, head);
     setPrevTreadmill(cell, VM_Address.zero());
     if (!head.EQ(VM_Address.zero()))
       setPrevTreadmill(head, cell);
     if (to)
-      treadmillToHead = cell;
+      owner.setTreadmillToHead(cell);
     else
-      treadmillFromHead = cell;
+      owner.setTreadmillFromHead(cell);
 
-    treadmillLock.release();
+    owner.unlockTreadmill();
   }
 
   public static void setInUseBit(VM_Address ref, VM_Address sp, boolean small)
@@ -372,31 +394,38 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
       newValue = (set) ? oldValue.or(mask) : oldValue.and(mask.not());
     } while(!VM_Magic.attempt(tgt, 0, oldValue.toInt(), newValue.toInt()));
   }
+  
+  private static void setTreadmillOwner(VM_Address cell, VM_Address owner)
+    throws VM_PragmaInline {
+    setTreadmillLink(cell, owner, TREADMILL_OWNER_OFFSET);
+  }
   private static void setNextTreadmill(VM_Address cell, VM_Address value)
     throws VM_PragmaInline {
-    setTreadmillLink(cell, value, false);
+    setTreadmillLink(cell, value, TREADMILL_NEXT_OFFSET);
   }
   private static void setPrevTreadmill(VM_Address cell, VM_Address value)
     throws VM_PragmaInline {
-    setTreadmillLink(cell, value, true);
+    setTreadmillLink(cell, value, TREADMILL_PREV_OFFSET);
   }
   private static void setTreadmillLink(VM_Address cell, VM_Address value,
-				       boolean prev)
+				       int offset)
     throws VM_PragmaInline {
-    int offset = (prev) ? TREADMILL_PREV_OFFSET : TREADMILL_NEXT_OFFSET;
     VM_Magic.setMemoryAddress(cell.add(offset), value);
   }
-  private static VM_Address getNextTreadmill(VM_Address cell)
+  private static VM_Address getTreadmillOwner(VM_Address cell)
     throws VM_PragmaInline {
-    return getTreadmillLink(cell, false);
+    return getTreadmillLink(cell, TREADMILL_OWNER_OFFSET);
+  }
+  public static VM_Address getNextTreadmill(VM_Address cell)
+    throws VM_PragmaInline {
+    return getTreadmillLink(cell, TREADMILL_NEXT_OFFSET);
   }
   private static VM_Address getPrevTreadmill(VM_Address cell)
     throws VM_PragmaInline {
-    return getTreadmillLink(cell, true);
+    return getTreadmillLink(cell, TREADMILL_PREV_OFFSET);
   }
-  private static VM_Address getTreadmillLink(VM_Address cell, boolean prev)
+  private static VM_Address getTreadmillLink(VM_Address cell, int offset)
     throws VM_PragmaInline {
-    int offset = (prev) ? TREADMILL_PREV_OFFSET : TREADMILL_NEXT_OFFSET;
     return VM_Magic.getMemoryAddress(cell.add(offset));
   }
 
@@ -406,9 +435,6 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   // The following methods, declared as abstract in the superclass, do
   // nothing in this implementation, so they have empty bodies.
   //
-  private VM_Address treadmillFromHead;
-  private VM_Address treadmillToHead;
-  private Lock treadmillLock;
   private int markState;
   private NewFreeListVMResource vmResource;
   private MemoryResource memoryResource;
@@ -431,7 +457,8 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   private static final int MARK_BITMAP_OFFSET = WORD_SIZE;
 //   private static final int TREADMILL_PREV_OFFSET = -1 * WORD_SIZE;
 //   private static final int TREADMILL_NEXT_OFFSET = -2 * WORD_SIZE;
-  private static final int TREADMILL_PREV_OFFSET = -2 * WORD_SIZE;
-  private static final int TREADMILL_NEXT_OFFSET = -3 * WORD_SIZE;
-  public static final int TREADMILL_HEADER_SIZE = 2*WORD_SIZE;
+  private static final int TREADMILL_PREV_OFFSET  = -2 * WORD_SIZE;
+  private static final int TREADMILL_NEXT_OFFSET  = -3 * WORD_SIZE;
+  private static final int TREADMILL_OWNER_OFFSET = -4 * WORD_SIZE;
+  public static final int TREADMILL_HEADER_SIZE = 3*WORD_SIZE;
 }
