@@ -303,10 +303,11 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase
 	  OPT_Operand ref = MonitorOp.getClearRef(inst);
 	  VM_Type refType = ref.getType();
 	  if (refType.thinLockOffset != -1) {
-	    Call.mutate1(inst, CALL, null, null, 
+	    Call.mutate2(inst, CALL, null, null, 
 			 OPT_MethodOperand.STATIC(OPT_Entrypoints.optLockMethod), 
 			 MonitorOp.getClearGuard(inst), 
-			 ref);
+			 ref,
+			 new OPT_IntConstantOperand(refType.thinLockOffset));
 	    inline(inst, ir);
 	  } else {
 	    Call.mutate1(inst, CALL, null, null, 
@@ -324,10 +325,11 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase
 	    OPT_Operand ref = MonitorOp.getClearRef(inst);
 	    VM_Type refType = ref.getType();
 	    if (refType.thinLockOffset != -1) {
-		Call.mutate1(inst, CALL, null, null, 
+		Call.mutate2(inst, CALL, null, null, 
 			     OPT_MethodOperand.STATIC(OPT_Entrypoints.optUnlockMethod), 
 			     MonitorOp.getClearGuard(inst), 
-			     ref);
+			     ref,
+			     new OPT_IntConstantOperand(refType.thinLockOffset));
 		inline(inst, ir);
 	    } else {
 		Call.mutate1(inst, CALL, null, null, 

@@ -274,20 +274,6 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
   }
 
   /**
-   * fastPathLocking
-   */
-  public static void fastPathLock(Object o) { 
-    VM_JavaHeader.fastPathLock(o);
-  }
-
-  /**
-   * fastPathUnlocking
-   */
-  public static void fastPathUnlock(Object o) { 
-    VM_JavaHeader.fastPathUnlock(o);
-  }
-
-  /**
    * Generic lock
    */
   public static void genericLock(Object o) { 

@@ -231,20 +231,6 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
   }
 
   /**
-   * fastPathLocking
-   */
-  public static void fastPathLock(Object o) { 
-    VM_ThinLock.inlineLock(o, STATUS_OFFSET);
-  }
-
-  /**
-   * fastPathUnlocking
-   */
-  public static void fastPathUnlock(Object o) { 
-    VM_ThinLock.inlineUnlock(o, STATUS_OFFSET);
-  }
-
-  /**
    * Generic lock
    */
   public static void genericLock(Object o) { 

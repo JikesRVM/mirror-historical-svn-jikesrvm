@@ -117,10 +117,6 @@ public final class VM_Lock implements VM_Constants, VM_Uninterruptible {
   /// Section 0: Support for light-weight locking ///
   ///////////////////////////////////////////////////
 
-  public static void inlineLock (Object o) { VM_ObjectModel.fastPathLock(o); }
-
-  public static void inlineUnlock (Object o) { VM_ObjectModel.fastPathUnlock(o); }
-
   public static void lock (Object o) { VM_ObjectModel.genericLock(o); }
 
   public static void unlock (Object o) { VM_ObjectModel.genericUnlock(o); }
