@@ -14,9 +14,9 @@ import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
 /**
  * This class implements a memory resource.  The unit of managment for
- * memory resources is the <code>BLOCK</code><p>
+ * memory resources is the <code>PAGE</code><p>
  *
- * Instances of this class each manage some number of blocks of
+ * Instances of this class each manage some number of pages of
  * memory.
  *
  * @author <a href="http://cs.anu.edu.au/~Steve.Blackburn">Steve Blackburn</a>
@@ -42,23 +42,23 @@ final class MemoryResource implements Constants, VM_Uninterruptible {
   /**
    * Constructor
    *
-   * @param budget The budget of blocks available to this memory
+   * @param pageBudget The budget of pages available to this memory
    * manager before it must poll the collector.
    */
-  MemoryResource(int budget) {
+  MemoryResource(int pageBudget) {
     gcLock = new Lock("MemoryResource.gcLock");
     mutatorLock = new Lock("MemoryResource.mutatorLock");
-    this.budget = budget;
+    this.pageBudget = pageBudget;
   }
 
   /**
-   * Set the budget
+   * Set the page budget
    *
-   * @param budget The budget of blocks available to this memory
+   * @param pageBudget The budget of pages available to this memory
    * manager before it must poll the collector.
    */
-  public void setBudget(int budget) {
-    this.budget = budget;
+  public void setBudget(int pageBudget) {
+    this.pageBudget = pageBudget;
   }
 
   /**
@@ -72,72 +72,72 @@ final class MemoryResource implements Constants, VM_Uninterruptible {
   /**
    * Reset this memory resource
    *
-   * @param budget The budget of blocks available to this memory
+   * @param pageBudget The budget of pages available to this memory
    * manager before it must poll the collector.
    */
-  public void reset(int budget) {
+  public void reset(int pageBudget) {
     reserved = 0;
     committed = 0;
-    this.budget = budget;
+    this.pageBudget = pageBudget;
   }
 
   /**
-   * Acquire a number of blocks from the memory resource.  Poll the
-   * memory manager if the number of blocks used exceeds the budget.
+   * Acquire a number of pages from the memory resource.  Poll the
+   * memory manager if the number of pages used exceeds the budget.
    * By default the budget is zero, in which case the memory manager
-   * is polled every time a block is requested.
+   * is polled every time a page is requested.
    *
-   * @param blocks The number of blocks requested
+   * @param pages The number of pages requested
    * @return success Whether the acquire succeeded.
    */
-  public boolean acquire (int blocks) {
+  public boolean acquire (int pages) {
     lock();
-    reserved += blocks;
-    if ((committed + blocks) > budget) {
+    reserved += pages;
+    if ((committed + pages) > pageBudget) {
       unlock();   // We cannot hold the lock across a GC point!
-      if (VM_Interface.getPlan().poll(false)) 
+      if (VM_Interface.getPlan().poll(false, this)) 
 	return false;
       lock();
     }
-    committed += blocks;
+    committed += pages;
     unlock();
     return true;
   }
 
   /**
-   * Release all blocks from the memory resource.
+   * Release all pages from the memory resource.
    */
   public void release() {
     release(reserved);
   }
 
   /**
-   * Release a given number of blocks from the memory resource.
+   * Release a given number of pages from the memory resource.
    *
-   * @param blocks The number of blocks to be released.
+   * @param pages The number of pages to be released.
    */
-  public void release(int blocks) {
+  public void release(int pages) {
     lock();
-    reserved -= blocks;
-    committed -= blocks;
+    reserved -= pages;
+    committed -= pages;
     unlock();
   }
 
   /**
-   * Return the number of reserved blocks
+   * Return the number of reserved pages
    *
-   * @return The number of reserved blocks.
+   * @return The number of reserved pages.
    */
-  public int reservedBlocks() {
+  public int reservedPages() {
     return reserved;
   }
 
   /**
-   * Return the number of committed blocks
+   * Return the number of committed pages
    *
-   * @return The number of committed blocks.
+   * @return The number of committed pages.
    */
-  public int committedBlocks() {
+  public int committedPages() {
     return committed;
   }
 
@@ -169,7 +169,7 @@ final class MemoryResource implements Constants, VM_Uninterruptible {
   //
   private int reserved;
   private int committed;
-  private int budget;
+  private int pageBudget;
   private Lock gcLock;       // used during GC
   private Lock mutatorLock;  // used by mutators
 }

@@ -93,10 +93,10 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   }
 
   public static void showUsage() {
-      VM.sysWrite("used blocks = ", getBlocksUsed());
-      VM.sysWrite(" ("); VM.sysWrite(Conversions.blocksToBytes(getBlocksUsed()) >> 20, " Mb) ");
-      VM.sysWrite("= (ms) ", Conversions.pagesToBlocks(msMR.reservedPages()));
-      VM.sysWriteln(" + (imm) ", immortalMR.reservedBlocks());
+      VM.sysWrite("used pages = ", getPagesUsed());
+      VM.sysWrite(" ("); VM.sysWrite(Conversions.pagesToBytes(getPagesUsed()) >> 20, " Mb) ");
+      VM.sysWrite("= (ms) ", msMR.reservedPages());
+      VM.sysWriteln(" + (imm) ", immortalMR.reservedPages());
   }
 
   public static int getInitialHeaderValue(int size) {
@@ -115,11 +115,11 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   }
 
   public static final long usedMemory() throws VM_PragmaUninterruptible {
-    return Conversions.blocksToBytes(getBlocksUsed());
+    return Conversions.pagesToBytes(getPagesUsed());
   }
 
   public static final long totalMemory() throws VM_PragmaUninterruptible {
-    return Conversions.blocksToBytes(getBlocksAvail());
+    return Conversions.pagesToBytes(getPagesAvail());
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -229,12 +229,12 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
 
   /**
    * This method is called periodically by the allocation subsystem
-   * (by default, each time a block is consumed), and provides the
+   * (by default, each time a page is consumed), and provides the
    * collector with an opportunity to collect.<p>
    *
    * We trigger a collection whenever an allocation request is made
-   * that would take the number of blocks in use (committed for use)
-   * beyond the number of blocks available.  Collections are triggered
+   * that would take the number of pages in use (committed for use)
+   * beyond the number of pages available.  Collections are triggered
    * through the runtime, and ultimately call the
    * <code>collect()</code> method of this class or its superclass.
    *
@@ -248,10 +248,10 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    * @return Whether a collection is triggered
    */
 
-  public boolean poll(boolean mustCollect)
+  public boolean poll(boolean mustCollect, MemoryResource mr)
     throws VM_PragmaLogicallyUninterruptible {
     if (gcInProgress) return false;
-    if (mustCollect || getBlocksReserved() > getTotalBlocks()) {
+    if (mustCollect || getPagesReserved() > getTotalPages()) {
       VM_Interface.triggerCollection();
       return true;
     }
@@ -287,28 +287,28 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   //
 
   /**
-   * Return the number of blocks reserved for use.
+   * Return the number of pages reserved for use.
    *
-   * @return The number of blocks reserved given the pending allocation
+   * @return The number of pages reserved given the pending allocation
    */
-  private static int getBlocksReserved() {
+  private static int getPagesReserved() {
 
-    int blocks = Conversions.pagesToBlocks(msMR.reservedPages());
-    blocks += immortalMR.reservedBlocks();
-    return blocks;
+    int pages = msMR.reservedPages();
+    pages += immortalMR.reservedPages();
+    return pages;
   }
 
 
-  private static int getBlocksUsed() {
-    int blocks = Conversions.pagesToBlocks(msMR.reservedPages());
-    blocks += immortalMR.reservedBlocks();
-    return blocks;
+  private static int getPagesUsed() {
+    int pages = msMR.reservedPages();
+    pages += immortalMR.reservedPages();
+    return pages;
   }
 
   // Assuming all future allocation comes from semispace
   //
-  private static int getBlocksAvail() {
-    return getTotalBlocks() - Conversions.pagesToBlocks(msMR.reservedPages()) - immortalMR.reservedBlocks();
+  private static int getPagesAvail() {
+    return getTotalPages() - Conversions.pagesToBlocks(msMR.reservedPages()) - immortalMR.reservedPages();
   }
 
   private static final String allocatorToString(int type) {
@@ -331,11 +331,11 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   protected void singlePrepare() {
     if (verbose > 0) {
       VM.sysWrite("Collection ", gcCount);
-      VM.sysWrite(":      reserved = ", getBlocksReserved());
-      VM.sysWrite(" (", Conversions.blocksToBytes(getBlocksReserved()) / ( 1 << 20)); 
+      VM.sysWrite(":      reserved = ", getPagesReserved());
+      VM.sysWrite(" (", Conversions.pagesToBytes(getPagesReserved()) / ( 1 << 20)); 
       VM.sysWrite(" Mb) ");
-      VM.sysWrite("      trigger = ", getTotalBlocks());
-      VM.sysWrite(" (", Conversions.blocksToBytes(getTotalBlocks()) / ( 1 << 20)); 
+      VM.sysWrite("      trigger = ", getTotalPages());
+      VM.sysWrite(" (", Conversions.pagesToBytes(getTotalPages()) / ( 1 << 20)); 
       VM.sysWriteln(" Mb) ");
       VM.sysWrite("  Before Collection: ");
       showUsage();
@@ -378,11 +378,11 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   // virtual memory regions
   private static MarkSweepCollector msCollector;
 
-  private static NewFreeListVMResource msVM;
+  private static FreeListVMResource msVM;
   private static ImmortalVMResource immortalVM;
 
   // memory resources
-  private static NewMemoryResource msMR;
+  private static MemoryResource msMR;
   private static MemoryResource immortalMR;
 
   // GC state
@@ -416,11 +416,11 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   static {
 
     // memory resources
-    msMR = new NewMemoryResource();
+    msMR = new MemoryResource();
     immortalMR = new MemoryResource();
 
     // virtual memory resources
-    msVM       = new NewFreeListVMResource("MS",       MS_START,   MS_SIZE, VMResource.MOVABLE);
+    msVM       = new FreeListVMResource("MS",       MS_START,   MS_SIZE, VMResource.MOVABLE);
     immortalVM = new ImmortalVMResource("Immortal", immortalMR, IMMORTAL_START, IMMORTAL_SIZE, BOOT_END);
 
     // collectors

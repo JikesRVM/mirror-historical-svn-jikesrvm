@@ -52,7 +52,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
    * @param mr The memory resource against which memory consumption
    * for this free list allocator will be accounted.
    */
-  BaseFreeList(NewFreeListVMResource vmr, NewMemoryResource mr) {
+  BaseFreeList(FreeListVMResource vmr, MemoryResource mr) {
     vmResource = vmr;
     memoryResource = mr;
     superPageFreeList = new VM_Address[SIZE_CLASSES];
@@ -569,10 +569,11 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
     if (!next.isZero()) {
       setPrevSuperPage(next, sp);
     }
+    // use magic to avoid aastores & therefore preserve interruptibility
     if (free)
-      superPageFreeList[sizeClass] = sp;
+      VM_Magic.setIntAtOffset(superPageFreeList, sizeClass<<LOG_WORD_SIZE, VM_Magic.objectAsAddress(sp).toInt());
     else
-      superPageUsedList[sizeClass] = sp;
+      VM_Magic.setIntAtOffset(superPageUsedList, sizeClass<<LOG_WORD_SIZE, VM_Magic.objectAsAddress(sp).toInt());
   }
 
   /**
@@ -597,10 +598,11 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
     if (!prev.isZero())
       setNextSuperPage(prev, next);
     else {
+      // use magic to avoid aastores & therefore preserve interruptibility
       if (free)
-	superPageFreeList[sizeClass] = next;
+	VM_Magic.setIntAtOffset(superPageFreeList, sizeClass<<LOG_WORD_SIZE, VM_Magic.objectAsAddress(next).toInt());
       else
-	superPageUsedList[sizeClass] = next;
+	VM_Magic.setIntAtOffset(superPageUsedList, sizeClass<<LOG_WORD_SIZE, VM_Magic.objectAsAddress(next).toInt());
     }
     if (!next.isZero())
       setPrevSuperPage(next, prev);
@@ -868,8 +870,8 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
     return spBytes/cellSize(getSizeClass(sp));
   }
 
-  protected NewFreeListVMResource vmResource;
-  protected NewMemoryResource memoryResource;
+  protected FreeListVMResource vmResource;
+  protected MemoryResource memoryResource;
   protected VM_Address[] superPageFreeList;
   protected VM_Address[] superPageUsedList;
 

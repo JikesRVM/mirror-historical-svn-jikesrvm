@@ -28,7 +28,7 @@ import com.ibm.JikesRVM.VM_Uninterruptible;
 final class FreeList extends BaseFreeList implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
 
-  FreeList(NewFreeListVMResource vmr, MemoryResource mr) {
+  FreeList(FreeListVMResource vmr, MemoryResource mr) {
     super(vmr, mr);
   }
 

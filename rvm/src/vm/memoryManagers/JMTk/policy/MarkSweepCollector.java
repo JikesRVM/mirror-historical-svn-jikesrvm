@@ -48,7 +48,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
    * @param mr The memory resource against which allocations
    * associated with this collector will be accounted.
    */
-  MarkSweepCollector(NewFreeListVMResource vmr, NewMemoryResource mr) {
+  MarkSweepCollector(FreeListVMResource vmr, MemoryResource mr) {
     vmResource = vmr;
     memoryResource = mr;
   }
@@ -58,7 +58,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
    *
    * @return the VMResource associated with this collector
    */
-  public final NewFreeListVMResource getVMResource() 
+  public final FreeListVMResource getVMResource() 
     throws VM_PragmaInline {
     return vmResource;
   }
@@ -68,7 +68,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
    *
    * @return The memory resource associated with this collector
    */
-  public final NewMemoryResource getMemoryResource() 
+  public final MemoryResource getMemoryResource() 
     throws VM_PragmaInline {
     return memoryResource;
   }
@@ -81,7 +81,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
    * @param vm (unused)
    * @param mr (unused)
    */
-  public void prepare(VMResource vm, NewMemoryResource mr) { 
+  public void prepare(VMResource vm, MemoryResource mr) { 
     markState = MarkSweepHeader.MARK_BIT_MASK - markState;
     inMSCollection = true;
   }
@@ -540,8 +540,8 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   // nothing in this implementation, so they have empty bodies.
   //
   private int markState;
-  private NewFreeListVMResource vmResource;
-  private NewMemoryResource memoryResource;
+  private FreeListVMResource vmResource;
+  private MemoryResource memoryResource;
   private boolean inMSCollection = false;
 
   private static final int LOG_BITMAP_GRAIN = 3;

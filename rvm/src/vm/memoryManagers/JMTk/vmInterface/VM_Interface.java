@@ -20,6 +20,7 @@ import com.ibm.JikesRVM.VM_Entrypoints;
 import com.ibm.JikesRVM.VM_Scheduler;
 import com.ibm.JikesRVM.VM_Thread;
 import com.ibm.JikesRVM.VM_Method;
+import com.ibm.JikesRVM.VM_FieldDictionary;
 import com.ibm.JikesRVM.VM_CompiledMethod;
 import com.ibm.JikesRVM.VM_CompiledMethods;
 import com.ibm.JikesRVM.VM_StackframeLayoutConstants;
@@ -170,29 +171,46 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     return VM_Processor.getCurrentProcessor().mmPlan;
   }
 
-  public static void resolvedPutfieldWriteBarrier(Object ref, int offset, Object value) {
-    getPlan().putFieldWriteBarrier(VM_Magic.objectAsAddress(ref), offset, VM_Magic.objectAsAddress(value));
+  public static void resolvedPutfieldWriteBarrier(Object ref, int offset,
+						  Object value)
+    throws VM_PragmaInline {
+    getPlan().putFieldWriteBarrier(VM_Magic.objectAsAddress(ref), offset,
+				   VM_Magic.objectAsAddress(value));
   }
   
-  public static void resolvedPutStaticWriteBarrier(int offset, Object value) { 
-    getPlan().putStaticWriteBarrier(offset, VM_Magic.objectAsAddress(value));
+  public static void resolvedPutStaticWriteBarrier(int offset, Object value)
+    throws VM_PragmaInline { 
+    VM_Address jtocSlot = VM_Magic.objectAsAddress(VM_Magic.getJTOC()).add(offset);
+    getPlan().putStaticWriteBarrier(jtocSlot, VM_Magic.objectAsAddress(value));
   }
 
-  public static void arrayStoreWriteBarrier(Object ref, int offset, Object value) {
-    VM._assert(false); // need to implement this
+  public static void arrayStoreWriteBarrier(Object ref, int index,Object value)
+    throws VM_PragmaInline {
+    getPlan().arrayStoreWriteBarrier(VM_Magic.objectAsAddress(ref), index,
+				     VM_Magic.objectAsAddress(value));
   }
 
-  public static void arrayCopyWriteBarrier(Object ref, int start, int end) {
-    VM._assert(false); // need to implement this
+  public static void arrayCopyWriteBarrier(Object ref, int startIndex,
+					   int endIndex)
+    throws VM_PragmaInline {
+    getPlan().arrayCopyWriteBarrier(VM_Magic.objectAsAddress(ref), startIndex,
+				    endIndex);
   }
 
 
-  public static void unresolvedPutfieldWriteBarrier(Object ref, int offset, Object value) {
-    VM._assert(false); // need to get rid of needing this
+  public static void unresolvedPutfieldWriteBarrier(Object ref, int fieldID,
+						    Object value)
+    throws VM_PragmaInline {
+    int offset = VM_FieldDictionary.getValue(fieldID).getOffset();
+    getPlan().putFieldWriteBarrier(VM_Magic.objectAsAddress(ref), offset,
+				   VM_Magic.objectAsAddress(value));
   }
   
-  public static void unresolvedPutStaticWriteBarrier(int offset, Object value) { 
-    VM._assert(false); // need to get rid of needing this
+  public static void unresolvedPutStaticWriteBarrier(int fieldID, Object value)
+    throws VM_PragmaInline { 
+    int offset = VM_FieldDictionary.getValue(fieldID).getOffset();
+    VM_Address jtocSlot = VM_Magic.objectAsAddress(VM_Magic.getJTOC()).add(offset);
+    getPlan().putStaticWriteBarrier(jtocSlot, VM_Magic.objectAsAddress(value));
   }
 
   /**
@@ -637,7 +655,6 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
 	VM_Memory.sync(toRef, dataSize);
       }
     }
-
     return toRef;
 
   }

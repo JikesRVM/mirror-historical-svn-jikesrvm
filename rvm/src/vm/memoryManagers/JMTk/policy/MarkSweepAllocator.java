@@ -60,7 +60,7 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
    * @param vm Unused
    * @param mr Unused
    */
-  public final void prepare(VMResource vm, NewMemoryResource mr) { 
+  public final void prepare(VMResource vm, MemoryResource mr) { 
     if (PARANOID)
       sanity();
     treadmillToHead = VM_Address.zero();

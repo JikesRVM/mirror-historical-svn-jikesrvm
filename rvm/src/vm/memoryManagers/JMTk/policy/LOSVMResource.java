@@ -37,8 +37,7 @@ public class LOSVMResource extends MonotoneVMResource implements Constants, VM_U
   }
 
   public void release (VMResource _vm, MemoryResource _mr) {
-    int blks = Conversions.bytesToBlocks(pageSize * (pagesAllocated - pagesMarked));
-    memoryResource.release(blks);
+    memoryResource.release(pagesAllocated - pagesMarked);
     pagesAllocated = pagesMarked;
     pagesMarked = 0;
     short[] temp    = allocated;
@@ -131,7 +130,7 @@ public class LOSVMResource extends MonotoneVMResource implements Constants, VM_U
       int num_pages = (size + (pageSize - 1)) / pageSize;    // Number of pages needed
       int bytes = num_pages * pageSize;
 
-      if (!memoryResource.acquire(Conversions.bytesToBlocks(bytes))) {
+      if (!memoryResource.acquire(Conversions.bytesToPages(bytes))) {
 	LOSunlock();
 	return VM_Address.zero();
       }

@@ -16,11 +16,14 @@ import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.VM_Scheduler;
 import com.ibm.JikesRVM.VM_Thread;
 import com.ibm.JikesRVM.VM_Time;
+import com.ibm.JikesRVM.VM_PragmaInline;
 
 public class Lock implements VM_Uninterruptible {
 
   // Internal class fields
   private static int lockFieldOffset = VM_Entrypoints.lockField.getOffset();
+  private static int threadFieldOffset = VM_Entrypoints.lockThreadField.getOffset();
+  private static int startFieldOffset = VM_Entrypoints.lockStartField.getOffset();
   private static int UNLOCKED = 0;
   private static int LOCKED = 1;
 
@@ -77,8 +80,10 @@ public class Lock implements VM_Uninterruptible {
 	  ;
       }
     }
-    start = VM_Time.now();
-    thread = VM_Thread.getCurrentThread();
+    //    start = VM_Time.now();
+    //    thread = VM_Thread.getCurrentThread();
+    setStart(VM_Time.now());
+    setThread(VM_Thread.getCurrentThread());
     if (verbose > 1) {
       VM.sysWrite("Thread ");
       thread.dump();
@@ -106,10 +111,19 @@ public class Lock implements VM_Uninterruptible {
       VM.sysWrite(1000000.0 * diff);
       VM.sysWriteln(" micro-seconds");
     }
-    thread = null;
+    setThread(null);
     VM_Magic.sync();
     boolean success = VM_Synchronization.tryCompareAndSwap(this, lockFieldOffset, LOCKED, UNLOCKED); // guarantees flushing
     if (VM.VerifyAssertions) VM._assert(success);
   }
 
+  // want to avoid generating a putfield so as to avoid write barrier recursion
+  private final void setStart(double start) 
+    throws VM_PragmaInline {
+    VM_Magic.setDoubleAtOffset(this, startFieldOffset, start);
+  }
+  private final void setThread(VM_Thread thread)
+    throws VM_PragmaInline {
+    VM_Magic.setObjectAtOffset(this, threadFieldOffset, (Object) thread);
+  }
 }

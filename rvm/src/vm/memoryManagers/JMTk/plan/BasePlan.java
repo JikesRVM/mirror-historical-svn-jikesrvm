@@ -30,6 +30,7 @@ import com.ibm.JikesRVM.VM_PragmaInterruptible;
 import com.ibm.JikesRVM.VM_Processor;
 import com.ibm.JikesRVM.VM_Scheduler;
 import com.ibm.JikesRVM.VM_Thread;
+import com.ibm.JikesRVM.VM_ObjectModel;
 
 /**
  *
@@ -43,18 +44,46 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
 
   public static int verbose = 1;
 
-  protected WorkQueue workQueue;
   public AddressSet values;                 // gray objects
   public AddressSet locations;              // locations containing white objects
   public AddressPairSet interiorLocations;  // interior locations
+
+  protected AddressQueue valuesX;
+  protected AddressQueue locationsX;
+  protected AddressPairQueue interiorLocationsX;
+  protected static SharedQueue valuePool;
+  protected static SharedQueue locationPool;
+  protected static SharedQueue interiorPool;
+  private static MonotoneVMResource metaDataVM;
+  protected static MemoryResource metaDataMR;
+  private static RawPageAllocator metaDataRPA;
+  protected static final EXTENT MAX_USER_VM = 512 * 1024 * 1024;
+  protected static final VM_Address META_DATA_START = VM_Address.fromInt(VM_Interface.bootImageAddress).add(MAX_USER_VM);
+  protected static final EXTENT     META_DATA_SIZE = 16 * 1024 * 1024;
+  private static final VM_Address  META_DATA_END = META_DATA_START.add(META_DATA_SIZE);  
+
+  static {
+    metaDataMR = new MemoryResource();
+    metaDataVM = new MonotoneVMResource("Meta data", metaDataMR, META_DATA_START, META_DATA_SIZE, VMResource.META_DATA);
+    metaDataRPA = new RawPageAllocator(metaDataVM, metaDataMR);
+    valuePool = new SharedQueue(metaDataRPA, 1);
+    locationPool = new SharedQueue(metaDataRPA, 1);
+    interiorPool = new SharedQueue(metaDataRPA, 2);
+  }
+
   // private AddressQueue values;                 // gray objects
   // private AddressPairQueue interiorLocations;  // interior locations
 
   BasePlan() {
-    workQueue = new WorkQueue();
     values = new AddressSet(64 * 1024);
+    valuesX = new AddressQueue(valuePool);
+    valuePool.newClient();
     locations = new AddressSet(32 * 1024);
+    locationsX = new AddressQueue(locationPool);
+    locationPool.newClient();
     interiorLocations = new AddressPairSet(16 * 1024);
+    interiorLocationsX = new AddressPairQueue(interiorPool);
+    interiorPool.newClient();
   }
 
   /**
@@ -120,7 +149,11 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
 	VM.sysWrite("    Collection time: ", (stopTime - startTime));
 	VM.sysWriteln(" seconds");
       }
+      locationPool.reset();
     }
+    valuesX.reset();
+    locationsX.reset();
+    interiorLocationsX.reset();
     barrier.rendezvous();
   }
 
@@ -141,9 +174,10 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
 
   private void computeRoots() {
 
-    AddressPairSet codeLocations = VM_Interface.MOVES_OBJECTS ? interiorLocations : null;
+    AddressPairQueue codeLocations = VM_Interface.MOVES_OBJECTS ? interiorLocationsX : null;
 
-    ScanStatics.scanStatics(locations);
+    //    fetchRemsets(locations);
+    ScanStatics.scanStatics(locationsX);
 
     while (true) {
       int threadIndex = threadCounter.increment();
@@ -153,19 +187,22 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
       // VM.sysWrite("Proc ", VM_Processor.getCurrentProcessor().id); VM.sysWriteln(" scanning thread ", threadIndex);
       // See comment of ScanThread.scanThread
       //
-      VM_Thread th2 = VM_Magic.addressAsThread(Plan.traceObject(VM_Magic.objectAsAddress(th)));
-      Plan.traceObject(VM_Magic.objectAsAddress(th.stack));
+      VM_Address thAddr = VM_Magic.objectAsAddress(th);
+      VM_Thread th2 = VM_Magic.addressAsThread(Plan.traceObject(thAddr));
+      if (VM_Magic.objectAsAddress(th2).EQ(thAddr))
+	ScanObject.scan(thAddr);
+      ScanObject.scan(VM_Magic.objectAsAddress(th.stack));
       if (th.jniEnv != null) {
-	Plan.traceObject(VM_Magic.objectAsAddress(th.jniEnv));
-	Plan.traceObject(VM_Magic.objectAsAddress(th.jniEnv.JNIRefs));
+	ScanObject.scan(VM_Magic.objectAsAddress(th.jniEnv));
+	ScanObject.scan(VM_Magic.objectAsAddress(th.jniEnv.JNIRefs));
       }
-      Plan.traceObject(VM_Magic.objectAsAddress(th.contextRegisters));
-      Plan.traceObject(VM_Magic.objectAsAddress(th.contextRegisters.gprs));
-      Plan.traceObject(VM_Magic.objectAsAddress(th.hardwareExceptionRegisters));
-      Plan.traceObject(VM_Magic.objectAsAddress(th.hardwareExceptionRegisters.gprs));
-      ScanThread.scanThread(th2, locations, codeLocations);
+      ScanObject.scan(VM_Magic.objectAsAddress(th.contextRegisters));
+      ScanObject.scan(VM_Magic.objectAsAddress(th.contextRegisters.gprs));
+      ScanObject.scan(VM_Magic.objectAsAddress(th.hardwareExceptionRegisters));
+      ScanObject.scan(VM_Magic.objectAsAddress(th.hardwareExceptionRegisters.gprs));
+      ScanThread.scanThread(th2, locationsX, codeLocations);
     }
-
+    ScanObject.scan(VM_Magic.objectAsAddress(VM_Scheduler.threads));
     // VM.sysWriteln("locations size is ", locations.size());
     // VM.sysWriteln("values size is ", values.size());
     // VM.sysWriteln("interiorLocations size is ", interiorLocations.size());
@@ -174,29 +211,29 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
   // Add a gray object
   //
   static public void enqueue(VM_Address obj) throws VM_PragmaInline {
-    VM_Interface.getPlan().values.push(obj);
+    VM_Interface.getPlan().valuesX.push(obj);
   }
 
   private void processAllWork() throws VM_PragmaNoInline {
 
     while (true) {
-      while (!values.isEmpty()) {
-	VM_Address v = values.pop();
+      while (!valuesX.isEmpty()) {
+	VM_Address v = valuesX.pop();
 	ScanObject.scan(v);  // NOT traceObject
       }
-      while (!locations.isEmpty()) {
-	VM_Address loc = locations.pop();
+      while (!locationsX.isEmpty()) {
+	VM_Address loc = locationsX.pop();
 	traceObjectLocation(loc);
       }
-      while (!interiorLocations.isEmpty()) {
-	VM_Address obj = interiorLocations.pop1();
-	VM_Address interiorLoc = interiorLocations.pop2();
+      while (!interiorLocationsX.isEmpty()) {
+	VM_Address obj = interiorLocationsX.pop1();
+	VM_Address interiorLoc = interiorLocationsX.pop2();
 	VM_Address interior = VM_Magic.getMemoryAddress(interiorLoc);
 	VM_Address newInterior = traceInteriorReference(obj, interior);
 	VM_Magic.setMemoryAddress(interiorLoc, newInterior);
       }
 
-      if (values.isEmpty() && locations.isEmpty() && interiorLocations.isEmpty())
+      if (valuesX.isEmpty() && locationsX.isEmpty() && interiorLocationsX.isEmpty())
 	break;
     }
 
@@ -207,12 +244,12 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
     processAllWork();
   }
 
-  public static int getTotalBlocks() throws VM_PragmaUninterruptible { 
-    heapBlocks = Conversions.bytesToBlocks(Options.initialHeapSize);
-    return heapBlocks; 
+  public static int getTotalPages() throws VM_PragmaUninterruptible { 
+    heapPages = Conversions.bytesToPages(Options.initialHeapSize);
+    return heapPages; 
   }
 
-  private static int heapBlocks;
+  private static int heapPages;
 
   /**
    * Perform a write barrier operation for the putField bytecode.<p> <b>By default do nothing,
@@ -235,7 +272,11 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
    * @param offset The offset from static table (JTOC) of the slot the pointer is to be written into
    * @param tgt The address to which the source will point
    */
-  public void putStaticWriteBarrier(int staticOffset, VM_Address tgt){
+  public void putStaticWriteBarrier(VM_Address slot, VM_Address tgt){
+  }
+  public void arrayStoreWriteBarrier(VM_Address ref, int index, VM_Address value) {
+  }
+  public void arrayCopyWriteBarrier(VM_Address ref, int startIndex, int endIndex) {
   }
 
   /**

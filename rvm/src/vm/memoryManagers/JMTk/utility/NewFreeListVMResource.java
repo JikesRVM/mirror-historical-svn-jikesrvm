@@ -26,7 +26,7 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
  * @version $Revision$
  * @date $Date$
  */
-public final class NewFreeListVMResource extends VMResource implements Constants {
+public final class XXFreeListVMResource extends VMResource implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
 
   ////////////////////////////////////////////////////////////////////////////
@@ -51,8 +51,9 @@ public final class NewFreeListVMResource extends VMResource implements Constants
    * @return The address of the start of the virtual memory region, or
    * zero on failure.
    */
-  public final VM_Address acquire(int pages, NewMemoryResource mr) {
+  public final VM_Address acquire(int pages, MemoryResource mr) {
     lock();
+    pagetotal += pages;
     mr.acquire(pages);
     int page = freeList.alloc(pages);
     if (page == -1) {
@@ -69,11 +70,13 @@ public final class NewFreeListVMResource extends VMResource implements Constants
     return VM_Address.zero();
   }
 
-  public final void release(VM_Address addr, NewMemoryResource mr) {
+  public final void release(VM_Address addr, MemoryResource mr) {
     lock();
     int offset = addr.diff(start).toInt();
     int page = Conversions.bytesToPages(offset);
-    mr.release(freeList.free(page));
+    int freedpages = freeList.free(page);
+    pagetotal -= freedpages;
+    mr.release(freedpages);
     unlock();
   }
   
@@ -109,6 +112,7 @@ public final class NewFreeListVMResource extends VMResource implements Constants
       mutatorLock.release();
   }
 
+  private int pagetotal;
   private GenericFreeList freeList;
   private VM_Address cursor;
   private Lock gcLock;       // used during GC

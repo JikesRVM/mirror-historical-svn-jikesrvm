@@ -93,7 +93,7 @@ import com.ibm.JikesRVM.VM_PragmaInline;
  * @date $Date$
  *
  */
-final class GenericFreeList implements Constants {
+final class GenericFreeList implements Constants, VM_Uninterruptible {
    public final static String Id = "$Id$";
  
   ////////////////////////////////////////////////////////////////////////////

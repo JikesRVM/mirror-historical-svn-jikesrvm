@@ -142,6 +142,7 @@ public abstract class VMResource implements Constants, VM_Uninterruptible {
    * zero on failure.
    */
   public abstract VM_Address acquire(int request);
+  public abstract VM_Address acquire(int request, MemoryResource mr);
   
   public final int getBlocks() { return Conversions.pagesToBlocks(pages); }
 
