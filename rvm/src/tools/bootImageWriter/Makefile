@@ -34,6 +34,7 @@ $(UTIL_KLUDGE_JAR):		$(LIB_JAR)
 	cd $(SCRATCH_DIR); $(HOST_JAR) -cf $@ $(UTIL_KLUDGE_CLASSES)
 	@echo -n "(built $$(basename ${UTIL_KLUDGE_JAR})) "
 
+# The below applies to when we're using a host JVM to do our boot image writing
 #
 # The -Xbootclasspath/p:$(UTIL_KLUDGE_JAR) is a kludge to force
 # the hosting jvm to use the same java.util files that the rvm will use
@@ -42,9 +43,9 @@ $(UTIL_KLUDGE_JAR):		$(LIB_JAR)
 #
 # Furthermore, stuff in packages like java.util may only be loaded (it 
 # seems) from the boot class path.  Thus, when we are building with GNU
-# Classpath, we need to put the classpath jar on the boot class path
+# Classpath, we need to put the GNU Classpath jar on the boot class path
 # as well, so that the boot image writing JVM will pick up needed classes
-# from that jar (i.e. classes brought in by those in libyuck) without
+# from that jar (i.e. classes brought in by those in UTIL_KLUDGE_JAR) without
 # getting security exceptions.  That is what command line flag 
 # -Xbootclasspath/a:$(LIB_JAR) does.  ugh.
 #
@@ -57,10 +58,17 @@ $(UTIL_KLUDGE_JAR):		$(LIB_JAR)
 #   RVM_BOOTIMAGE_COMPILER_ARGS = command line arguments to pass to boot image compiler
 #   RVM_BOOTIMAGE_WRITER_ARGS = command line arguments to pass to boot image writer
 #   VERBOSE_ARG = command-line argument for verbose host jdk options
+ifdef RVM_BOOTIMAGE_WRITER_JIKES_RVM
+BOOTCLASSPATH_ARGS :=
+else
+BOOTCLASSPATH_ARGS :=-Xbootclasspath/p:$(UTIL_KLUDGE_JAR) \
+	    -Xbootclasspath/a:$(LIB_JAR)
+endif
+
 $(RVM_BOOTIMAGE): $(UTIL_KLUDGE_JAR)
-	$(HOST_JAVA) -Xbootclasspath/p:$(UTIL_KLUDGE_JAR) \
-	    -Xbootclasspath/a:$(LIB_JAR) \
-	   -Xmx$(HOST_MEM_MAX)\
+	$(HOST_JAVA) \
+	   ${BOOTCLASSPATH_ARGS} \
+	   -Xmx$(HOST_MEM_MAX) \
 	   -classpath $(SCRATCH_DIR):$(RVM_REPOSITORIES) \
 	   -Djava.security.policy=rvm.security \
 	   $(HOST_JDK_FLAGS) $(VERBOSE_ARG) \
