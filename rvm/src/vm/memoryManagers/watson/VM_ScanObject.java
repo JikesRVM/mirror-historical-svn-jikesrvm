@@ -25,8 +25,10 @@ public class VM_ScanObject
     // First process the TIB pointer in the object header to relocate it.
     // Necessary only if the allocator/collector moves objects
     // 
-    if (VM_Allocator.movesObjects)
-      VM_Allocator.processPtrField(objRef + OBJECT_TIB_OFFSET);   
+//    TODO!!!! We'll need to update this.  Why is the collector scanning
+//    TIBs anyway????  They are all reachable from statics. (SJF);
+//    if (VM_Allocator.movesObjects)
+//      VM_Allocator.processPtrField(objRef + OBJECT_TIB_OFFSET);   
     
     type = VM_Magic.getObjectType(VM_Magic.addressAsObject(objRef));
     if ( type.isClassType() ) {

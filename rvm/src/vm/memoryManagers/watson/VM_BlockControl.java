@@ -26,20 +26,18 @@
 
 ///TODO: remove Alloc1, Alloc2, and byte[] alloc.
 //
-// Size field = 44: must be changed if object size changes.
-class VM_BlockControl 
-	implements VM_Constants 
-{
-static final int Size = 44 + SCALAR_HEADER_SIZE;
-int baseAddr;
-int slotsize;		// slotsize
-byte[] mark;
-byte[] alloc;
-int nextblock;
-byte[] Alloc1;
-byte[] Alloc2;
-boolean live;
-boolean sticky;
-int alloc_size;	// allocated length of mark and alloc arrays
-int allocCount; // RCGC number of allocated slots in the block
+class VM_BlockControl implements VM_Constants {
+  static final VM_Class TYPE = VM_ClassLoader.findOrCreateType(VM_Atom.findOrCreateAsciiAtom("LVM_BlockControl;")).asClass();
+
+  int baseAddr;
+  int slotsize;		// slotsize
+  byte[] mark;
+  byte[] alloc;
+  int nextblock;
+  byte[] Alloc1;
+  byte[] Alloc2;
+  boolean live;
+  boolean sticky;
+  int alloc_size;	// allocated length of mark and alloc arrays
+  int allocCount; // RCGC number of allocated slots in the block
 }

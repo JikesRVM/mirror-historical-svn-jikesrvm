@@ -77,7 +77,7 @@ public class VM extends VM_Properties implements VM_Constants,
     //    because it's accessed
     //    by compiler-generated stack overflow checks.
     //
-    VM_Thread currentThread  = VM_Scheduler.threads[VM_Magic.getThreadId() >>> OBJECT_THREAD_ID_SHIFT];
+    VM_Thread currentThread  = VM_Scheduler.threads[VM_Magic.getThreadId() >>> VM_ThinLockConstants.TL_THREAD_ID_SHIFT];
     currentThread.stackLimit = VM_Magic.objectAsAddress(currentThread.stack) + STACK_SIZE_GUARD;
     VM_Processor.getCurrentProcessor().activeThreadStackLimit = currentThread.stackLimit;
 
@@ -219,6 +219,8 @@ public class VM extends VM_Properties implements VM_Constants,
     //Ensure that all classes in the boot image that have static synchronized methods have their class objects loaded:
     (VM_ClassLoader.findOrCreateType(VM_Atom.findOrCreateAsciiAtom("Ljava/lang/Thread;")).asClass()).getClassForType();
      
+    VM_Lock.boot();
+
     // Begin multiprocessing.
     //
     VM_Scheduler.boot(mainThread);

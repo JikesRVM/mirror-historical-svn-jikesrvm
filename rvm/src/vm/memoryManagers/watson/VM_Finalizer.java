@@ -55,7 +55,7 @@ public class VM_Finalizer
   public static void	
     setup ()
     {
-      locker = new Object();
+      locker = new VM_Synchronizer();
     }
 
   // Add item.

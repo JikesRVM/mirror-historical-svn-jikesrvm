@@ -67,17 +67,6 @@ class VM_RuntimeStructures implements VM_Constants {
     }
 
     /**
-     * Get an object's TIB pointer.  NOTE: Should be part of common ObjectModel code.
-     *   @param object The object
-     *   @return The object's TIB pointer
-     */
-    static Object[] getTIB (Object object) {
-	VM_Magic.pragmaInline();
-	//return (Object[]) VM_Magic.getObjectAtOffset(object, OBJECT_TIB_OFFSET);
-	return (Object[]) VM_Magic.addressAsObject(VM_Magic.getMemoryWord(VM_Magic.objectAsAddress(object)+OBJECT_TIB_OFFSET));
-    }
-
-    /**
      * Allocate a contiguous VM_CompiledMethod array
      * @param n The number of objects
      * @return The contiguous object array

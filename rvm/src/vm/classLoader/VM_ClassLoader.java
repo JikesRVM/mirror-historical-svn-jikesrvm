@@ -321,7 +321,7 @@ public class VM_ClassLoader
   static void init(String vmClassPath) {
     // Create classloader serialization lock.
     //
-    lock = new Object();
+    lock = new VM_Synchronizer();
       
     // specify place where vm classes and resources live
     //
@@ -404,6 +404,12 @@ public class VM_ClassLoader
     // Resource caching
     resourceCache = new Hashtable();
     resourceNullKey = new VM_BinaryData( (byte[])null );
+
+    if (VM.UseLockNursery) {
+	VM_Atom classAtom = VM_Atom.findOrCreateAsciiAtom("Ljava/lang/Class;");
+	VM_Type classType = findOrCreateType(classAtom);
+	classType.isSynchronized = true;
+    }
   }
 
   private static Hashtable resourceCache;
@@ -540,7 +546,6 @@ public class VM_ClassLoader
     // not found
     return null;
   }
-
 
   /**
    * Create id for use by C signal handler as placeholder to mark stackframe

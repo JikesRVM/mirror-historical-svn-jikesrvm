@@ -290,6 +290,9 @@
   public static VM_Type DoubleType;
   public static VM_Type CharType;
 
+  public static VM_Array IntArrayType;
+  public static VM_Array ByteArrayType;
+
   /**
    * supertype of all types
    */
@@ -511,11 +514,17 @@
   /**
    * -1 => primitive, 0 => Class/Interface, positive => array (number of [)
    */
-  protected int     dimension;    
+  int     dimension;    
   /**
    * number of superclasses to Object
    */
   protected int     depth;        
+
+  /**
+   * does it statically appear that the class is synchronized?  Accessed directly
+   * instead of via accessor function because this class is not Uninterruptible.
+   */
+  public boolean isSynchronized;
 
   static void init() {
     // create primitive type descriptions
@@ -547,6 +556,12 @@
     CharType    = VM_ClassLoader.findOrCreatePrimitiveType
       (VM_Atom.findOrCreateAsciiAtom("char"),    
        VM_Atom.findOrCreateAsciiAtom("C"));
+
+    IntArrayType    = VM_ClassLoader.findOrCreateType
+      (VM_Atom.findOrCreateAsciiAtom("[I")).asArray();
+    ByteArrayType    = VM_ClassLoader.findOrCreateType
+      (VM_Atom.findOrCreateAsciiAtom("[B")).asArray();
+
       
     // create additional, frequently used, type descriptions
     //
@@ -584,4 +599,5 @@
   protected boolean isAcyclicReference() {
     return acyclic;
   }
+
 }

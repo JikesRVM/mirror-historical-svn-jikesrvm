@@ -80,7 +80,7 @@ public class VM_Array extends VM_Type
    * @return size
    */
   public final int getInstanceSize(int numelts) {
-    return ARRAY_HEADER_SIZE + (numelts << getLogElementSize());
+    return VM_ObjectModel.computeArrayHeaderSize(this) + (numelts << getLogElementSize());
   }
 
    //--------------------------------------------------------------------------------------------------//

@@ -1119,7 +1119,7 @@ abstract class BootMap implements jdpConstants  {
 
   public String addressToClassString(int address) throws memoryException {
     int stringAddr, size;
-    int typeAddr = owner.mem.readsafe(address + VM_ObjectLayoutConstants.OBJECT_TIB_OFFSET);
+    int typeAddr = JDPObjectModel.getTIB(address,owner);
     typeAddr = owner.mem.readsafe(typeAddr);           // this should point to the VM_Type
 
     try {

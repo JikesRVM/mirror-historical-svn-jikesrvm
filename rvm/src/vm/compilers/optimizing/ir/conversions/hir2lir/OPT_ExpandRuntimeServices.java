@@ -301,11 +301,20 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase
 	if (ir.options.NO_SYNCHRO) {
 	  inst.remove();
 	} else {
-	  Call.mutate1(inst, CALL, null, null, 
-		       OPT_MethodOperand.STATIC(OPT_Entrypoints.optLockMethod), 
-		       MonitorOp.getClearGuard(inst), 
-		       MonitorOp.getClearRef(inst));
-	  inline(inst, ir, true);
+	  OPT_Operand ref = MonitorOp.getClearRef(inst);
+	  VM_Type refType = ref.getType();
+	  if (!VM.UseLockNursery || refType.isSynchronized) {
+	    Call.mutate1(inst, CALL, null, null, 
+			 OPT_MethodOperand.STATIC(OPT_Entrypoints.optLockMethod), 
+			 MonitorOp.getClearGuard(inst), 
+			 ref);
+	    inline(inst, ir);
+	  } else {
+	    Call.mutate1(inst, CALL, null, null, 
+			 OPT_MethodOperand.STATIC(VM_Entrypoints.lockMethod),
+			 MonitorOp.getClearGuard(inst), 
+			 ref);
+	  }
 	}
 	break;
 
@@ -313,11 +322,20 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase
 	if (ir.options.NO_SYNCHRO) {
 	  inst.remove();
 	} else {
-	  Call.mutate1(inst, CALL, null, null, 
-		       OPT_MethodOperand.STATIC(OPT_Entrypoints.optUnlockMethod), 
-		       MonitorOp.getClearGuard(inst), 
-		       MonitorOp.getClearRef(inst));
-	  inline(inst, ir);
+	    OPT_Operand ref = MonitorOp.getClearRef(inst);
+	    VM_Type refType = ref.getType();
+	    if (!VM.UseLockNursery || refType.isSynchronized) {
+		Call.mutate1(inst, CALL, null, null, 
+			     OPT_MethodOperand.STATIC(OPT_Entrypoints.optUnlockMethod), 
+			     MonitorOp.getClearGuard(inst), 
+			     ref);
+		inline(inst, ir);
+	    } else {
+		Call.mutate1(inst, CALL, null, null, 
+			     OPT_MethodOperand.STATIC(VM_Entrypoints.unlockMethod),
+			     MonitorOp.getClearGuard(inst), 
+			     ref);
+	    }
 	} 
 	break;
 
@@ -439,10 +457,38 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase
 	  if (VM_Configuration.BuildWithEagerRedirect) {
 	      OPT_LocationOperand dataLoc = GetField.getLocation(inst);
 	      VM_Field dataField = dataLoc.field;
-	      if (!dataField.getType().isPrimitiveType()) {
-		  OPT_RegisterOperand result = GetField.getResult(inst);
-		  OPT_RedirectResult rr = conditionalRedirect(ir, inst, result);
-		  next = rr.next;
+	      OPT_Operand origObject = GetField.getClearRef(inst);
+	      if (VM_Configuration.BuildWithLazyRedirect) {
+		  OPT_RegisterOperand realObject = ir.gc.temps.makeTemp(origObject);
+		  OPT_Instruction redirectInst = GuardedUnary.create(GET_OBJ_RAW, realObject, origObject, 
+								     GetField.getGuard(inst).copy());
+		  redirectInst.bcIndex = inst.bcIndex;
+		  inst.insertBefore(redirectInst);
+		  GetField.setRef(inst,realObject);
+	      }
+	      else {  // VM_Configuration.BuildWithEagerRedirect
+		  if (!dataField.getType().isPrimitiveType()) {
+		      OPT_RegisterOperand result = GetField.getClearResult(inst);
+		      OPT_RegisterOperand temp = ir.gc.temps.makeTemp(result);
+		      GetField.setResult(inst,temp);
+		      OPT_BasicBlock beforeBB = inst.getBasicBlock();           
+		      OPT_BasicBlock redirectBB = beforeBB.createSubBlock(inst.bcIndex, ir); 
+		      OPT_BasicBlock afterBB = beforeBB.splitNodeAt(inst, ir);  
+		      ir.cfg.linkInCodeOrder(beforeBB, redirectBB);
+		      ir.cfg.linkInCodeOrder(redirectBB, afterBB);
+		      beforeBB.insertOut(afterBB);   // unusual path
+		      OPT_Instruction ifInst = IfCmp.create(INT_IFCMP, null, temp,
+							    new OPT_IntConstantOperand(0),  // NULL is 0
+							    OPT_ConditionOperand.EQUAL(),
+							    afterBB.makeJumpTarget(),
+							    OPT_BranchProfileOperand.unlikely());
+		      OPT_Instruction moveInst = Move.create(INT_MOVE, result, temp); // no REF_MOVE in lir
+		      OPT_Instruction redirectInst = GuardedUnary.create(GET_OBJ_RAW, result, temp, OPT_IRTools.TG());
+		      ifInst.bcIndex = moveInst.bcIndex = redirectInst.bcIndex = inst.bcIndex;
+		      beforeBB.appendInstruction(moveInst);
+		      beforeBB.appendInstruction(ifInst);
+		      redirectBB.appendInstruction(redirectInst);
+		  }
 	      }
 	  }
 	  

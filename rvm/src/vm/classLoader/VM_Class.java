@@ -1023,6 +1023,7 @@ public class VM_Class extends VM_Type
       superClass.load();
       superClass.resolve();
       depth = 1 + superClass.depth;
+      isSynchronized = superClass.isSynchronized;
     }
     if (VM.verboseClassLoading) VM.sysWrite("[Preparing "+
                                             descriptor.classNameFromDescriptor()
@@ -1072,6 +1073,11 @@ public class VM_Class extends VM_Type
 	  staticMethods.addElement(method);
 	  continue;
 	}
+
+	// Now deal with virtual methods
+
+	if (method.isSynchronized())
+	  isSynchronized = true;
 
 	// method could override something in superclass - check for it
 	//
@@ -1131,8 +1137,8 @@ public class VM_Class extends VM_Type
 
     // lay out instance fields
     //
-    instanceSize = SCALAR_HEADER_SIZE;
-    int fieldOffset = OBJECT_HEADER_OFFSET;
+    instanceSize = VM_ObjectModel.computeScalarHeaderSize(this);
+    int fieldOffset = OBJECT_HEADER_END - instanceSize; // account for header word(s) (laying out backwards)
     int referenceFieldCount = 0;
     for (int i = 0, n = instanceFields.length; i < n; ++i) {
       VM_Field field     = instanceFields[i];
@@ -1742,7 +1748,7 @@ public class VM_Class extends VM_Type
   // Additional fields and methods for Interfaces               //
   //------------------------------------------------------------//
 
-  private static final Object interfaceCountLock = new Object();
+  private static final Object interfaceCountLock = new VM_Synchronizer();
   private static int          interfaceCount     = 0;
   private int                 interfaceId        = -1; 
 

@@ -94,11 +94,7 @@ final class OPT_ConvertLIRtoMIR extends OPT_OptimizationPlanCompositeElement {
 
 	case GET_OBJ_TIB_opcode:
 	  {
-	    // TODO: Valid location operand?
-	    OPT_Operand address = GuardedUnary.getClearVal(s);
-	    Load.mutate(s, INT_LOAD, GuardedUnary.getClearResult(s), 
-			address, I(OBJECT_TIB_OFFSET), null, 
-			GuardedUnary.getClearGuard(s));
+	    VM_ObjectModel.lowerGET_OBJ_TIB(s, ir);
 	  }
 	  break;
 

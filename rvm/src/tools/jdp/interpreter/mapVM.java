@@ -381,7 +381,7 @@ class mapVM {
 
       // dumpCache();
 
-    } catch (Exception e) {
+    } catch (RuntimeException e) {
       System.out.println("mapVM.cachePointer:  cannot find JTOC register using the name JT, has the name been changed in VM_BaselineConstants.java?");
     }
   }
@@ -610,7 +610,7 @@ class mapVM {
    */
   public void handleAbstractClass() {
     // get the pointer to the real VM_Type on the JVM side
-    int typeAddress = Platform.readmem(address + VM_ObjectLayoutConstants.OBJECT_TIB_OFFSET);
+    int typeAddress = JDPObjectModel.getTIBFromPlatform(address);
     typeAddress = Platform.readmem(typeAddress);           
 
     int descriptorAddress = Platform.readmem(typeAddress + VMTypeDescriptor_offset);

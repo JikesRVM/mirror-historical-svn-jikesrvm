@@ -767,8 +767,7 @@ class RemoteInterpreter extends InterpreterBase
     // System.out.println("X_getfield: constant pool index " + index + " of current class " + getCurrentClass() + ", for mapped object " + mappedObject);
 
     // (1) Compute pointer to the VM_Type, which should be VM_Class since we expect an object
-    int addr = Platform.readmem(mappedObject.getAddress() + 
-				       VM_ObjectLayoutConstants.OBJECT_TIB_OFFSET);
+    int addr = JDPObjectModel.getTIBFromPlatform(mappedObject.getAddress());
     addr = Platform.readmem(addr);           
     // System.out.println("X_getfield: candidate object VM_Class @ " + Integer.toHexString(addr));
 
@@ -900,8 +899,8 @@ class RemoteInterpreter extends InterpreterBase
   boolean X_checkcast(Object ref, VM_Type lhsType) throws VM_ResolutionException {
 
     // compute the address of the class object
-    int typeAddress = Platform.readmem(((mapVM) ref).getAddress() + 
-				       VM_ObjectLayoutConstants.OBJECT_TIB_OFFSET);
+    int addr = ((mapVM)ref).getAddress();
+    int typeAddress = JDPObjectModel.getTIBFromPlatform(addr);
     typeAddress = Platform.readmem(typeAddress);           
 
     // read the class name for the object from the JVM side

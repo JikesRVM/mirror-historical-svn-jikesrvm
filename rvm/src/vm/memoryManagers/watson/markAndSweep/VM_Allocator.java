@@ -97,9 +97,6 @@ public class VM_Allocator
 //static boolean VM.verboseGC              = VM.verboseGC;   // for knowing why GC triggered
   static final boolean GC_TRACEALLOCATOR         = false;   // for detailed tracing
 
-  static final int OBJECT_ADDR_POSITION = SCALAR_HEADER_SIZE + OBJECT_HEADER_OFFSET;
-  static final int TREF_TO_STATUS = OBJECT_HEADER_OFFSET - OBJECT_STATUS_OFFSET;
-
   static double gcMinorTime;           // for timing gc times
   static double gcMaxTime  ;           // for timing gc times
   static double gcMajorTime;           // for timing gc times
@@ -330,8 +327,8 @@ public class VM_Allocator
   bootrecord = thebootrecord;  
 
   // first ref in bootimage
-  minBootRef = bootrecord.startAddress-OBJECT_HEADER_OFFSET;  
-  maxBootRef = bootrecord.freeAddress+4;    // last ref in bootimage
+  minBootRef = VM_ObjectModel.minimumObjectRef(bootrecord.startAddress);
+  maxBootRef = VM_ObjectModel.maximumObjectRef(bootrecord.freeAddress);    // last ref in bootimage
 
   bootStartAddress = bootrecord.startAddress;  // start of boot image
   bootEndAddress = bootrecord.freeAddress;    // end of boot image
@@ -405,21 +402,21 @@ public class VM_Allocator
 
   // GET STORAGE FOR BLOCKS ARRAY FROM OPERATING SYSTEM
   //    storage for entries in blocks array: 4 bytes/ ref
-  if ((blocks_array_storage = VM.sysCall1(bootrecord.sysMallocIP,
-    num_blocks * 4 + ARRAY_HEADER_SIZE)) == 0) {
+  int blocks_array_size = num_blocks * 4 + VM_ObjectModel.computeArrayHeaderSize(VM_Type.IntArrayType);
+  if ((blocks_array_storage = VM.sysCall1(bootrecord.sysMallocIP, blocks_array_size)) == 0) {
     VM.sysWrite(" In boot, call to sysMalloc returned 0 \n");
     VM.sysExit(1800);
   }
 
   if ((blocks_storage = VM.sysCall1(bootrecord.sysMallocIP,
-   (num_blocks-GC_SIZES) * VM_BlockControl.Size)) == 0) {
+   (num_blocks-GC_SIZES) * VM_BlockControl.TYPE.getInstanceSize())) == 0) {
      VM.sysWrite(" In boot, call to sysMalloc returned 0 \n");
      VM.sysExit(1900);
   }
 
-  blocks = makeArrayFromStorage(blocks_array_storage,
-    VM_Magic.getMemoryWord(VM_Magic.objectAsAddress(blocks) + 
-    OBJECT_TIB_OFFSET), num_blocks);
+  blocks = (int[])(VM_ObjectModel.initializeArray(blocks_array_storage,
+						  VM_Type.IntArrayType.getTypeInformationBlock(),
+						  num_blocks, blocks_array_size));
 
   // index for highest page in heap
   highest_block = num_blocks -1;
@@ -444,10 +441,11 @@ public class VM_Allocator
   init_blocks    = null;        // these are currently live through blocks
 
   // Now allocate the rest of the VM_BlockControls
+  int bcSize = VM_BlockControl.TYPE.getInstanceSize();
   for (i = GC_SIZES; i < num_blocks; i++) {
-    blocks[i] = makeObjectFromStorage(blocks_storage + 
-     (i - GC_SIZES) * VM_BlockControl.Size, VM_Magic.getMemoryWord(blocks[0]
-      + OBJECT_TIB_OFFSET), VM_BlockControl.Size);
+    blocks[i] = VM_Magic.objectAsAddress(VM_ObjectModel.initializeScalar(blocks_storage + (i - GC_SIZES) * bcSize,
+									 VM_BlockControl.TYPE.getTypeInformationBlock(), 
+									 bcSize));
     VM_Magic.addressAsBlockControl(blocks[i]).baseAddr = 
       smallHeapStartAddress + i * GC_BLOCKSIZE; 
     VM_Magic.addressAsBlockControl(blocks[i]).nextblock = i + 1;
@@ -505,7 +503,7 @@ public class VM_Allocator
       // Allocate the memory
       int objaddr = allocateRawMemory(size, tib, hasFinalizer);
       // Initialize the object header
-      Object ret = initializeScalar(objaddr, size, tib);
+      Object ret = VM_ObjectModel.initializeScalar(objaddr, tib, size);
       // If it has a finalizer, put it on the queue
       if (hasFinalizer) 
 	  VM_Finalizer.addElement(VM_Magic.objectAsAddress(ret));
@@ -582,26 +580,6 @@ public class VM_Allocator
 	  st.totalBytesAllocated += size;
 	  st.totalObjectsAllocated++;
       }
-  }
-
-
-  /**
-   * Take a piece of raw memory and return an initialized object.
-   *   @param objaddr Address of raw storage
-   *   @param size Size of object in bytes (including header)
-   *   @param tib Pointer to the Type Information Block for the object type
-   *   @return Initialized object
-   */
-  static Object initializeScalar (int objaddr, int size, Object[] tib) {
-      VM_Magic.pragmaInline();
-
-      objaddr += size - OBJECT_ADDR_POSITION;
-      VM_Magic.setMemoryWord(objaddr + OBJECT_TIB_OFFSET, VM_Magic.objectAsAddress(tib));
-      if (VM_Configuration.BuildWithLazyRedirect ||
-	  VM_Configuration.BuildWithEagerRedirect) {
-	  VM_Magic.setMemoryWord(objaddr + OBJECT_REDIRECT_OFFSET, objaddr);
-      }
-      return VM_Magic.addressAsObject(objaddr);
   }
 
 
@@ -910,21 +888,17 @@ public class VM_Allocator
    *   @return Initialized, cloned object 
    */
   public static Object cloneScalar (int size, Object[] tib, Object cloneSrc)
-      throws OutOfMemoryError
-  {
-      if (DebugLink) VM_Scheduler.trace("cloneScalar", "called");
+    throws OutOfMemoryError {
+    if (DebugLink) VM_Scheduler.trace("cloneScalar", "called");
 
-      boolean hasFinalizer = false; // do something more?  LOOKS LIKE A BUG!!! - dfb
-      Object objref = allocateScalar(size, tib, hasFinalizer);
+    boolean hasFinalizer = false; // do something more?  LOOKS LIKE A BUG!!! - dfb
+    Object objref = allocateScalar(size, tib, hasFinalizer);
 
-      if (cloneSrc != null) {
-	  int cnt = size - SCALAR_HEADER_SIZE;
-	  int src = VM_Magic.objectAsAddress(cloneSrc) + OBJECT_HEADER_OFFSET - cnt;
-	  int dst = VM_Magic.objectAsAddress(objref)   + OBJECT_HEADER_OFFSET - cnt;
-	  VM_Memory.aligned32Copy(dst, src, cnt); 
-      }
+    if (cloneSrc != null) {
+      VM_ObjectModel.initializeScalarClone(objref, cloneSrc, size);
+    }
 
-      return objref;
+    return objref;
   }
 
 
@@ -943,33 +917,12 @@ public class VM_Allocator
       VM_Magic.pragmaInline();  // make sure this method is inlined
 
       int objaddr = allocateRawMemory(size, tib, false);
-      Object objptr = initializeArray(objaddr, numElements, tib);
+      Object objptr = VM_ObjectModel.initializeArray(objaddr, tib, numElements, size);
 
       if (DebugInterest && VM_Magic.objectAsAddress(objptr) == the_array) 
           VM.sysWrite (" Allocating the_array in new page \n");
 
       return objptr;
-  }
-
-
-  /**
-   * Take a piece of raw memory and return an initialized array.
-   *   @param objaddr Address of raw storage
-   *   @param numElements Number of elements in the array
-   *   @param tib Pointer to the Type Information Block for the object type
-   *   @return Initialized array reference
-   */
-  static Object initializeArray(int objaddr, int numElements, Object[] tib) {
-      VM_Magic.pragmaInline();  // make sure this method is inlined
-
-      objaddr -= OBJECT_HEADER_OFFSET;
-      VM_Magic.setMemoryWord(objaddr + OBJECT_TIB_OFFSET, VM_Magic.objectAsAddress(tib));
-      VM_Magic.setMemoryWord(objaddr + ARRAY_LENGTH_OFFSET, numElements);
-      if (VM_Configuration.BuildWithLazyRedirect ||
-	  VM_Configuration.BuildWithEagerRedirect) {
-	  VM_Magic.setMemoryWord(objaddr + OBJECT_REDIRECT_OFFSET, objaddr);
-      }
-      return VM_Magic.addressAsObject(objaddr);
   }
 
 
@@ -990,10 +943,7 @@ public class VM_Allocator
       Object objref = allocateArray(numElements, size, tib);
 
       if (cloneSrc != null) {
-          int cnt = size - ARRAY_HEADER_SIZE;
-          int src = VM_Magic.objectAsAddress(cloneSrc);
-          int dst = VM_Magic.objectAsAddress(objref);
-          VM_Memory.aligned32Copy(dst, src, cnt);
+	VM_ObjectModel.initializeArrayClone(objref, cloneSrc, size);
       }
 
       return objref;
@@ -1078,34 +1028,23 @@ public class VM_Allocator
   int size = GC_BLOCKSIZE/GC_SIZEVALUES[ndx] ;    
   if (alloc_block.mark != null)  {
     if (size <= alloc_block.alloc_size) {
-      VM_Magic.setMemoryWord(VM_Magic.objectAsAddress(alloc_block.mark) +
-         ARRAY_LENGTH_OFFSET, size);
+      VM_ObjectModel.setArrayLength(alloc_block.mark, size);
       return theblock;
     }
     else {    // free the existing array space
-      VM.sysCall1(bootrecord.sysFreeIP,
-      VM_Magic.objectAsAddress(alloc_block.mark) - ARRAY_HEADER_SIZE);
+      VM.sysCall1(bootrecord.sysFreeIP, VM_ObjectModel.arrayRefToBaseAddress(alloc_block.mark, VM_Type.ByteArrayType));
     }
   }
   // get space for alloc arrays from AIX.
-  int temp = (size + ARRAY_HEADER_SIZE + 3) & ~3;
-  if ((location = VM.sysCall1(bootrecord.sysMallocIP, temp)) == 0) {
+  int mark_array_size = (VM_Type.ByteArrayType.getInstanceSize(size) + 3) & ~3;
+  if ((location = VM.sysCall1(bootrecord.sysMallocIP, mark_array_size)) == 0) {
     VM.sysWrite(" In getnewblockx, call to sysMalloc returned 0 \n");
     VM.sysExit(1800);
   }
 
-  if (VM.VerifyAssertions) VM.assert((location & 3) == 0);// check full wd
+  if (VM.VerifyAssertions) VM.assert((location & 3) == 0);// check word alignment
 
-  alloc_block.mark = VM_Magic.addressAsByteArray(location
-    + ARRAY_HEADER_SIZE);
-
-  // GET TIB POINTER FOR byte[] from VM_Magic.addressAsBlockControl(blocks[0]).mark
-  int byte_array_tib = VM_Magic.getMemoryWord(VM_Magic.objectAsAddress
-   (VM_Magic.addressAsBlockControl(blocks[0]).mark) + OBJECT_TIB_OFFSET);
-  VM_Magic.setMemoryWord(VM_Magic.objectAsAddress(alloc_block.mark) +
-    OBJECT_TIB_OFFSET, byte_array_tib);
-  VM_Magic.setMemoryWord(VM_Magic.objectAsAddress(alloc_block.mark) +
-    ARRAY_LENGTH_OFFSET, size);
+  alloc_block.mark = (byte[]) VM_ObjectModel.initializeArray(location, VM_Type.ByteArrayType.getTypeInformationBlock(), size, mark_array_size);
 
   return theblock;
   }
@@ -1194,18 +1133,16 @@ public class VM_Allocator
   int temp;
   if (alloc_block.mark != null) {
     if (size <= alloc_block.alloc_size) {
-      VM_Magic.setMemoryWord(VM_Magic.objectAsAddress(alloc_block.mark) +
-       ARRAY_LENGTH_OFFSET, size);
+      VM_ObjectModel.setArrayLength(alloc_block.mark, size);
       return 0;
     }
     else {    // free the existing array space
-      VM.sysCall1(bootrecord.sysFreeIP,
-      VM_Magic.objectAsAddress(alloc_block.mark) - ARRAY_HEADER_SIZE);
+      VM.sysCall1(bootrecord.sysFreeIP, VM_ObjectModel.arrayRefToBaseAddress(alloc_block.mark, VM_Type.ByteArrayType));
     }
   }
-  temp = (size + ARRAY_HEADER_SIZE + 3) & ~3;
 
-  if ((location = VM.sysCall1(bootrecord.sysMallocIP, temp)) == 0) {
+  int mark_array_size = (VM_Type.ByteArrayType.getInstanceSize(size) + 3) & ~3;
+  if ((location = VM.sysCall1(bootrecord.sysMallocIP, mark_array_size)) == 0) {
     VM.sysWrite(" In getnewblock, call to sysMalloc returned 0 \n");
     VM.sysExit(1800);
   }
@@ -1213,16 +1150,8 @@ public class VM_Allocator
   if (VM.VerifyAssertions) VM.assert((location & 3) == 0);// check full wd
 
   alloc_block.alloc_size = size;  // remember allocated size
-  alloc_block.mark = VM_Magic.addressAsByteArray(location  + ARRAY_HEADER_SIZE);
+  alloc_block.mark = (byte[]) VM_ObjectModel.initializeArray(location, VM_Type.ByteArrayType.getTypeInformationBlock(), size, mark_array_size);
 
-  // GET TIB POINTER FOR byte[] from VM_Magic.addressAsBlockControl(blocks[0]).Alloc
-  int byte_array_tib = VM_Magic.getMemoryWord(
-  VM_Magic.objectAsAddress(VM_Magic.addressAsBlockControl(blocks[0]).mark) 
-    + OBJECT_TIB_OFFSET);
-  VM_Magic.setMemoryWord(VM_Magic.objectAsAddress(alloc_block.mark) +
-    OBJECT_TIB_OFFSET, byte_array_tib);
-  VM_Magic.setMemoryWord(VM_Magic.objectAsAddress(alloc_block.mark) +
-    ARRAY_LENGTH_OFFSET, size);
   return 0;
   }
 
@@ -1435,7 +1364,7 @@ public class VM_Allocator
 
     // invert the mark_flag value, used for marking BootImage objects
     if ( OBJECT_GC_MARK_VALUE == 0 )
-      OBJECT_GC_MARK_VALUE = OBJECT_GC_MARK_MASK;
+      OBJECT_GC_MARK_VALUE = VM_CommonAllocatorHeader.GC_MARK_BIT_MASK;
     else
       OBJECT_GC_MARK_VALUE = 0;
 
@@ -1998,41 +1927,6 @@ public class VM_Allocator
     }    // scan all threads in the system
   }      // scanStacks()
 
-  private  static boolean
-  isPossibleRef (int ref, VM_Thread t)
-  {
-  if (isPossible(ref, t)) {  // possibly a valid pointer
-    int  tibptr = VM_Magic.getMemoryWord(ref + OBJECT_TIB_OFFSET);
-    if (isPossible(tibptr, t)) {
-      int  classptr = VM_Magic.getMemoryWord(tibptr);
-      if (isPossible(classptr, t)) {
-        int tibtibptr = VM_Magic.getMemoryWord(tibptr + OBJECT_TIB_OFFSET);
-        if (isPossible(tibtibptr,t))
-          return true;
-      }
-    }
-  }
-  return  false;
-  }
-
-  //  a routine to perform checks on a possible pointer: does it fall within
-  //  the heap or the boot Image; is it *not* a pointer into the current stack
-  private  static boolean
-  isPossible (int ref, VM_Thread t) {
-    int  tref = ref + OBJECT_HEADER_OFFSET;
-    if (((tref >= bootStartAddress) && (tref <= bootEndAddress)) ||
-       ((tref >= smallHeapStartAddress) && (tref <= smallHeapEndAddress)) ||
-       ((tref >= largeHeapStartAddress) && (tref <= largeHeapEndAddress)) );
-    else  return false;
-
-    if (t == VM_Magic.addressAsThread(VM_NULL)) return true;
-    int[]  stack = t.stack;
-    if ((ref < VM_Magic.objectAsAddress(stack)) ||
-   (ref  > VM_Magic.objectAsAddress(stack) + 4*stack.length))
-    return  true;
-    else  return false;
-  }
-
 
   /**  a routine to make sure a pointer is into the heap
    */
@@ -2214,18 +2108,18 @@ public class VM_Allocator
   {
   if (ref == 0) return;  // TEST FOR NULL POINTER
 
-  //  accommodate that ref might be outside space
-  int  tref = ref + OBJECT_HEADER_OFFSET;  
-
   if (Debug) {
     // DEBUG AID: try to filter out non-object pointers into the heap
-    int  temp = VM_Magic.getMemoryWord(tref);  // check that TIB pointer really is
-    if ((temp < bootStartAddress) || (temp > largeHeapEndAddress)) {
-      VM.sysWrite(tref);
+    int tibptr = VM_Magic.objectAsAddress(VM_ObjectModel.getTIB(ref));  // check that TIB pointer really is
+    if ((tibptr < bootStartAddress) || (tibptr > largeHeapEndAddress)) {
+      VM.sysWrite(ref);
       VM.sysWrite("  is  bogus pointer into heap, was found \n");
       return;
     }
   }  //  Debug
+
+  //  accommodate that ref might be outside space
+  int  tref = ref + OBJECT_PTR_ADJUSTMENT;  
 
   if ( tref >= smallHeapStartAddress && tref <  smallHeapEndAddress) {
     // object allocated in small object runtime heap
@@ -2252,7 +2146,7 @@ public class VM_Allocator
     }
 
   else  if ( (tref >= bootStartAddress) && (tref <= bootEndAddress) ) {
-    if (VM_Synchronization.testAndMark(VM_Magic.addressAsObject(ref), OBJECT_STATUS_OFFSET, OBJECT_GC_MARK_VALUE))
+    if (VM_AllocatorHeader.testAndMark(VM_Magic.addressAsObject(ref), OBJECT_GC_MARK_VALUE))
       VM_GCWorkQueue.putToWorkBuffer(ref);
     return;
   }
@@ -2292,16 +2186,10 @@ public class VM_Allocator
     int  lockWord, oldlockWord;
 
     //  test mark bit in lock word to see if already marked, if so done.
-    lockWord  = VM_Magic.getMemoryWord(ref + OBJECT_STATUS_OFFSET);
-    if ( (lockWord & OBJECT_GC_MARK_MASK) == OBJECT_GC_MARK_VALUE ) {
+    if (VM_AllocatorHeader.testMarkBit(VM_Magic.addressAsObject(ref), OBJECT_GC_MARK_VALUE))
       return  true;       // object already marked, should be on queue
-    }
 
-    //  set mark bit in lock word
-    do  {
-      oldlockWord = VM_Magic.prepare(VM_Magic.addressAsObject(ref), OBJECT_STATUS_OFFSET);
-      lockWord  = (oldlockWord & ~OBJECT_GC_MARK_MASK) | OBJECT_GC_MARK_VALUE;
-    }  while (!VM_Magic.attempt(VM_Magic.addressAsObject(ref), OBJECT_STATUS_OFFSET, oldlockWord, lockWord));
+    VM_AllocatorHeader.atomicWriteMarkBit(VM_Magic.addressAsObject(ref), OBJECT_GC_MARK_VALUE);
 
     return  false;
   }  //  gc_markBootObject
@@ -2681,17 +2569,15 @@ public class VM_Allocator
 
   static  boolean
   gc_isLive (int ref) {
-    int  tref = ref + OBJECT_HEADER_OFFSET;
+    int  tref = ref + OBJECT_PTR_ADJUSTMENT;
 
     if ((tref >= bootStartAddress) && (tref <= bootEndAddress)) {
       int  statusWord;
 
       if (GC_STATISTICS) total_markboot_count++;  
 
-      //  test mark bit in status word to see if already marked
-      statusWord  = VM_Magic.getMemoryWord(ref + OBJECT_STATUS_OFFSET);
-      return ((statusWord & OBJECT_GC_MARK_MASK) == OBJECT_GC_MARK_VALUE );
-    
+      //  test mark bit to see if already marked
+      return VM_AllocatorHeader.testMarkBit(VM_Magic.addressAsObject(ref), OBJECT_GC_MARK_VALUE);
     }
     if (tref <= smallHeapEndAddress) {
       //  check for live small object
@@ -2711,16 +2597,13 @@ public class VM_Allocator
 
   static  void
   gc_markLive (int ref) {
-    int  tref = ref + OBJECT_HEADER_OFFSET;
+    int  tref = ref + OBJECT_PTR_ADJUSTMENT;
 
     if ((tref >= bootStartAddress) && (tref <= bootEndAddress)) {
       int  statusWord;
 
-      //  test mark bit in status word to see if already marked
-      int  statuswordaddress = ref + OBJECT_STATUS_OFFSET;
-      statusWord  = VM_Magic.getMemoryWord(ref + OBJECT_STATUS_OFFSET);
-      VM_Magic.setMemoryWord(statuswordaddress,  
-       (statusWord  & ~OBJECT_GC_MARK_MASK) | OBJECT_GC_MARK_VALUE);
+      //  test mark bit to see if already marked
+      VM_AllocatorHeader.writeMarkBit(VM_Magic.addressAsObject(ref), OBJECT_GC_MARK_VALUE);
       return;    
     }
 
@@ -2763,25 +2646,6 @@ public class VM_Allocator
   validRef ( int ref ) {
   VM.assert(NOT_REACHED);
   return  false;
-  }
-  
-
-  private  static int
-  makeObjectFromStorage (int storage, int tibptr, int size) 
-  {
-  int  ref = storage + size - OBJECT_ADDR_POSITION;
-  VM_Magic.setMemoryWord(ref  + OBJECT_TIB_OFFSET, tibptr);
-  return  ref;
-  }
-
-
-  private  static int[]
-  makeArrayFromStorage (int storage, int tibptr, int num_elements)
-  {
-  int  ref = storage - OBJECT_HEADER_OFFSET;
-  VM_Magic.setMemoryWord(ref  + OBJECT_TIB_OFFSET, tibptr);
-  VM_Magic.setMemoryWord(ref  + ARRAY_LENGTH_OFFSET, num_elements);
-  return  VM_Magic.addressAsIntArray(ref);
   }
   
 

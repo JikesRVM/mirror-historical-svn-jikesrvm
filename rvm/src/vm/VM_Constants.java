@@ -13,7 +13,7 @@
  * @author David Grove
  */
 interface VM_Constants
-extends   VM_ObjectLayoutConstants,     // architecture-neutral
+extends   VM_ObjectModelConstants,      // architecture-neutral
           VM_StackframeLayoutConstants, // architecture-neutral
           VM_RegisterConstants,         // architecture-specific
           VM_TrapConstants              // architecture-specific
