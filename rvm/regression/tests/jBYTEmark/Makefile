@@ -45,7 +45,7 @@ include		$(JAL_ROOT)/rvm/regression/Make.rules
 
 
 do-gather-performance:
-	awk -f $(JAL_ROOT)/rvm/regression/tests/jBYTEmark/perf.awk $(OUT) >> $(PERF_LOG)
+	 @$(AWK) -f $(JAL_ROOT)/rvm/regression/tests/jBYTEmark/perf.awk $(OUT) >> $(PERF_LOG)
 
 check:
 	@$(FGREP) -q "FP Index:" < $(OUT)
