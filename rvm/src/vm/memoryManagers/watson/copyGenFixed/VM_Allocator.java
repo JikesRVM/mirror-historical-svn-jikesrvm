@@ -1758,7 +1758,7 @@ public class VM_Allocator
       VM_GCWorkQueue.putToWorkBuffer( ref );
     }
     else if ( ref >= minLargeRef ) {  // large object
-      if (!gc_setMarkLarge(ref + OBJECT_PTR_ADJUSTMENT)) {
+      if (!gc_setMarkLarge(ref)) {
 	// we marked it, so put to workqueue
 	VM_GCWorkQueue.putToWorkBuffer( ref );
       }
@@ -2194,7 +2194,8 @@ public class VM_Allocator
    * @return  true if already marked, false if not marked & this invocation marked it.
    */
   static boolean
-    gc_setMarkLarge (int tref) { 
+    gc_setMarkLarge (int ref) { 
+    int tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
     int ij, temp, statusWord, statusAddr;
     int page_num = (tref - largeHeapStartAddress ) >> 12;
     boolean result = (largeSpaceMark[page_num] != 0);
@@ -2232,7 +2233,7 @@ public class VM_Allocator
     }
     
     // Need to turn back on barrier bit *always*
-    Object objRef = VM_Magic.addressAsObject(tref - OBJECT_PTR_ADJUSTMENT);
+    Object objRef = VM_Magic.addressAsObject(ref);
     VM_ObjectModel.initializeAvailableByte(objRef); // make it safe for write barrier to change bit non-atomically
     VM_AllocatorHeader.setBarrierBit(objRef);
 
@@ -2853,7 +2854,7 @@ public class VM_Allocator
     // in large space
     //
     if (VM.VerifyAssertions) VM.assert(ref >= minLargeRef);
-    int tref = ref + OBJECT_PTR_ADJUSTMENT;
+    int tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
     int page_num = (tref - largeHeapStartAddress ) >> 12;
     if (largeSpaceMark[page_num] != 0)
       return true;   // marked, still live, le.value is OK
@@ -2863,7 +2864,7 @@ public class VM_Allocator
       return true;   // not marked, but old, le.value is OK
     
     // if here, have garbage large object, mark live, and enqueue for scanning
-    gc_setMarkLarge(tref);
+    gc_setMarkLarge(ref);
     VM_GCWorkQueue.putToWorkBuffer(ref);
     
     le.pointer = VM_Magic.addressAsObject(ref);
@@ -2935,10 +2936,10 @@ public class VM_Allocator
     // a minor collection: mark and scan (and age) only NEW large objects
     if ( ref >= minLargeRef ) {
       if (VM.VerifyAssertions) VM.assert(ref <= maxLargeRef);
-      tref = ref + OBJECT_PTR_ADJUSTMENT;
+      tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
       page_num = (tref - largeHeapStartAddress  ) >> 12;
       if ( largeSpaceGen[page_num] == 0 ) {  // new large object
-	if (!gc_setMarkLarge(tref))
+	if (!gc_setMarkLarge(ref))
 	  // we marked it, so put to workqueue
 	  VM_GCWorkQueue.putToWorkBuffer( ref );
       }
@@ -2970,10 +2971,10 @@ public class VM_Allocator
     // a minor collection: mark and scan (and age) only NEW large objects
     if ( ref >= minLargeRef ) {
       if (VM.VerifyAssertions) VM.assert(ref <= maxLargeRef);
-      tref = ref + OBJECT_PTR_ADJUSTMENT;
+      tref = VM_ObjectModel.getPointerInMemoryRegion(ref);
       page_num = (tref - largeHeapStartAddress  ) >> 12;
       if ( largeSpaceGen[page_num] == 0 ) {  // new large object
-	if (!gc_setMarkLarge(tref))
+	if (!gc_setMarkLarge(ref))
 	  // we marked it, so put to workqueue
 	  VM_GCWorkQueue.putToWorkBuffer( ref );
       }
