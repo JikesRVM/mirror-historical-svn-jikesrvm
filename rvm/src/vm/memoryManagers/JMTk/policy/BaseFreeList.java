@@ -10,6 +10,7 @@ import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Memory;
 import com.ibm.JikesRVM.VM_Offset;
 import com.ibm.JikesRVM.VM_Word;
 import com.ibm.JikesRVM.VM_Magic;
@@ -35,7 +36,7 @@ import com.ibm.JikesRVM.VM_Uninterruptible;
  * @date $Date$
  */
 
-abstract class BaseFreeList implements Constants, VM_Uniterruptible {
+abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
 
   
@@ -53,6 +54,7 @@ abstract class BaseFreeList implements Constants, VM_Uniterruptible {
   BaseFreeList(NewFreeListVMResource vmr, MemoryResource mr) {
     vmResource = vmr;
     memoryResource = mr;
+    freeList = new VM_Address[SIZE_CLASSES];
   }
 
   /**
@@ -65,17 +67,23 @@ abstract class BaseFreeList implements Constants, VM_Uniterruptible {
   public final VM_Address alloc(boolean isScalar, EXTENT bytes) 
     throws VM_PragmaInline {
     
-    int szClass = getSizeClass(isScalar, bytes);
-    boolean large = szClass == LARGE_SIZE_CLASS;
+    int sizeClass = getSizeClass(isScalar, bytes);
+    boolean large = (sizeClass == LARGE_SIZE_CLASS);
+    boolean small = !large && (sizeClass <= MAX_SMALL_SIZE_CLASS);
     VM_Address cell;
     if (large)
       cell = allocLarge(isScalar, bytes);
     else
-      cell = allocCell(sizeClass, isScalar);
-    postAlloc(cell, isScalar, bytes, large);
+      cell = allocCell(isScalar, sizeClass);
+    postAlloc(cell, isScalar, bytes, small);
     VM_Memory.zero(cell, bytes);
+//     VM.sysWrite("alloc: "); VM.sysWrite(bytes); VM.sysWrite("->"); VM.sysWrite(cell); VM.sysWrite("\n");
     return cell;
   }
+
+  public void show() {
+  }
+
 
   ////////////////////////////////////////////////////////////////////////////
   //
@@ -83,14 +91,16 @@ abstract class BaseFreeList implements Constants, VM_Uniterruptible {
   //
   abstract protected void postAlloc(VM_Address cell, boolean isScalar,
 				    EXTENT bytes, boolean isLarge);
-  abstract protected void postFreeCell(VM_Address cell, int szClass);
+  abstract protected void postFreeCell(VM_Address cell, VM_Address sp,
+				       int szClass);
   abstract protected int pagesForClassSize(int sizeClass);
-  abstract protected int superPageHeaderSize();
+  abstract protected int superPageHeaderSize(int sizeClass);
   abstract protected int cellSize(int sizeClass);
   abstract protected int cellHeaderSize(int sizeClass);
-  abstract protected int postExpandSizeClass(VM_Address sp, int sizeClass);
-  abstract protected void initializeCell(VM_Address cell, VM_Address sp,
-					 boolean small);
+  abstract protected void postExpandSizeClass(VM_Address sp, int sizeClass);
+  abstract protected VM_Address initializeCell(VM_Address cell, VM_Address sp,
+					       boolean small);
+  abstract protected void superPageSanity(VM_Address sp);
 
   ////////////////////////////////////////////////////////////////////////////
   //
@@ -105,7 +115,7 @@ abstract class BaseFreeList implements Constants, VM_Uniterruptible {
    * @param sp The superpage containing the cell
    * @param szClass The sizeclass of the cell.
    */
-  protected final VM_Address free(VM_Address cell, VM_Address sp, int szClass)
+  protected final void free(VM_Address cell, VM_Address sp, int szClass)
     throws VM_PragmaInline {
     if (szClass == LARGE_SIZE_CLASS)
       freeSuperPage(sp);
@@ -137,16 +147,18 @@ abstract class BaseFreeList implements Constants, VM_Uniterruptible {
       VM._assert(sizeClass != LARGE_SIZE_CLASS);
     
     // grab a freelist entry, expanding if necessary
-    if (freeList[szClass].isZero()) {
-      expandSizeClass(szClass);
+    if (freeList[sizeClass].isZero()) {
+      expandSizeClass(sizeClass);
       if (VM.VerifyAssertions)
-	VM._assert(!(freeList[szClass].isZero()));
+	VM._assert(!(freeList[sizeClass].isZero()));
     }
     
     // take off free list
-    VM_Address cell = freeList[szClass];
-    freeList[szClass] = getNextCell(cell);
-    incInUse(getSuperPage(cell, szClass <= MAX_SMALL_SIZE_CLASS));
+    VM_Address cell = freeList[sizeClass];
+    freeList[sizeClass] = getNextCell(cell);
+//     VM.sysWrite("a "); VM.sysWrite(cell); VM.sysWrite(" ("); VM.sysWrite(getSuperPage(cell, sizeClass <= MAX_SMALL_SIZE_CLASS)); VM.sysWrite(")\n");
+
+    incInUse(getSuperPage(cell, sizeClass <= MAX_SMALL_SIZE_CLASS));
     return cell;
   }
 
@@ -162,11 +174,12 @@ abstract class BaseFreeList implements Constants, VM_Uniterruptible {
    * least <code>bytes</code> bytes in size.
    */
   private final VM_Address allocLarge(boolean isScalar, EXTENT bytes) {
-    bytes += superPageHeaderSize() + cellHeaderSize(LARGE_SIZE_CLASS);
+    bytes += superPageHeaderSize(LARGE_SIZE_CLASS) + cellHeaderSize(LARGE_SIZE_CLASS);
     int pages = (bytes + PAGE_SIZE - 1)>>LOG_PAGE_SIZE;
     VM_Address sp = allocSuperPage(pages);
     setSizeClass(sp, LARGE_SIZE_CLASS);
-    return initializeCell(sp.add(superPageHeaderSize()), sp, false);
+//     VM.sysWrite("************\n");
+    return initializeCell(sp.add(superPageHeaderSize(LARGE_SIZE_CLASS)), sp, false);
   }
   
   /**
@@ -185,21 +198,30 @@ abstract class BaseFreeList implements Constants, VM_Uniterruptible {
     
     // set up sizeclass info
     setSizeClass(sp, sizeClass);
-    setInuse(sp, 0);
+    setInUse(sp, 0);
+    
+//     VM.sysWrite("expand size class: ");
+//     VM.sysWrite(sp); VM.sysWrite("+");
+//     VM.sysWrite(superPageHeaderSize(sizeClass));
+//     VM.sysWrite(" (");
 
     // bust up and add to free list
     int cellExtent = cellSize(sizeClass);
     VM_Address sentinal = sp.add(spSize);
-    VM_Address cursor = sp.add(superPageHeaderSize());
+    VM_Address cursor = sp.add(superPageHeaderSize(sizeClass));
     while (cursor.add(cellExtent).LE(sentinal)) {
-      cell = initializeCell(cursor, sp, (pages == 1));
-      setNextCell(cell, freeList[szClass]);
-      freelist[sizeClass] = cell;
+      VM_Address cell = initializeCell(cursor, sp, 
+				       (sizeClass <= MAX_SMALL_SIZE_CLASS));
+      setNextCell(cell, freeList[sizeClass]);
+      freeList[sizeClass] = cell;
+//       VM.sysWrite(cell); VM.sysWrite(", ");
       cursor = cursor.add(cellExtent);
     }
+//     VM.sysWrite(")\n");
 				   
-    // do other sub-class specific stuff like setting up bitmaps
+    // do other sub-class specific stuff
     postExpandSizeClass(sp, sizeClass);
+    //    sanity();
   }
 
   /**
@@ -221,7 +243,7 @@ abstract class BaseFreeList implements Constants, VM_Uniterruptible {
   private final void releaseSuperPageCells(VM_Address sp, int sizeClass) {
     // unlink all cells from the free list...
     // FIXME BRUTE FORCE 
-    VM_Adddress spEnd = sp.add(superPagesForClass(sizeClass)<<LOG_PAGE_SIZE);
+    VM_Address spEnd = sp.add(pagesForClassSize(sizeClass)<<LOG_PAGE_SIZE);
     VM_Address cell = freeList[sizeClass];
     VM_Address last = VM_Address.zero();
     while (cell.NE(VM_Address.zero())) {
@@ -248,11 +270,15 @@ abstract class BaseFreeList implements Constants, VM_Uniterruptible {
     VM_Address sp = vmResource.acquire(pages, memoryResource);
 
     // link superpage
+//     VM.sysWrite("super page: "); VM.sysWrite(sp); VM.sysWrite("\n");
+//     VM.sysWrite("PAGE_MASK: "); VM.sysWrite(PAGE_MASK.toAddress()); VM.sysWrite("\n");
     setNextSuperPage(sp, headSuperPage);
     setPrevSuperPage(sp, VM_Address.zero());
     if (!headSuperPage.EQ(VM_Address.zero()))
       setPrevSuperPage(headSuperPage, sp);
     headSuperPage = sp;
+
+    return sp;
   }
 
   /**
@@ -304,7 +330,7 @@ abstract class BaseFreeList implements Constants, VM_Uniterruptible {
    * the request will not be satisfied by the freelist, but must be
    * dealt with explicitly as a large object.
    */
-  private static final int getSizeClass(boolean isScalar, EXTENT bytes)
+  protected static final int getSizeClass(boolean isScalar, EXTENT bytes)
     throws VM_PragmaInline {
     int sz1 = bytes - 1;
     int offset = 0;  // = isScalar ? BASE_SIZE_CLASSES : 0;
@@ -328,8 +354,8 @@ abstract class BaseFreeList implements Constants, VM_Uniterruptible {
   protected static final int getBaseCellSize(int sc) 
     throws VM_PragmaInline {
     if (VM.VerifyAssertions) {
-      VM._assert(sizeClass != LARGE_SIZE_CLASS);
-      VM._assert(sizeClass < BASE_SIZE_CLASSES);
+      VM._assert(sc != LARGE_SIZE_CLASS);
+      VM._assert(sc < BASE_SIZE_CLASSES);
     }
     return ((sc < 16) ? (sc +  1) <<  2:
 	    (sc < 24) ? (sc -  7) <<  3:
@@ -348,27 +374,42 @@ abstract class BaseFreeList implements Constants, VM_Uniterruptible {
    * @param sizeClass The size class which will occupy the superpage
    * @param cellSize The space occupied by each cell (inclusive of
    * headers etc).
+   * @param spHeaderSize The superpage header size.
    * @return The number of pages that should be used for a superpage
    * for this size class given the fit criterion
    * <code>MID_SIZE_FIT_TARGET</code>.
    */
-  protected static final int optimizePagesForSuperPage(int sizeClass,
-						       int cellSize) 
+  protected static final int optimalPagesForSuperPage(int sizeClass,
+						      int cellSize,
+						      int spHeaderSize) 
     throws VM_PragmaInline {
     if (VM.VerifyAssertions) {
       VM._assert(sizeClass > MAX_SMALL_SIZE_CLASS);
       VM._assert(sizeClass < BASE_SIZE_CLASSES);
     }
 
-    int size = superPageHeaderSize(sizeClass);
+    int size = spHeaderSize;
     int pages = 1;
     float fit = 0;
+    int cells = 0;
     while (fit < MID_SIZE_FIT_TARGET) {
+      cells++;
       size += cellSize;
       pages = (size + PAGE_SIZE - 1)>>LOG_PAGE_SIZE;
       fit = (float) size/(float) (pages<<LOG_PAGE_SIZE);
     }
+    VM.sysWrite("    cells: "+cells+" pages: "+pages+" size: "+size+"/"+(pages<<LOG_PAGE_SIZE)+" fit: "+fit+"\n");
     return pages;
+  }
+
+  protected void setNextCell(VM_Address cell, VM_Address next)
+    throws VM_PragmaInline {
+    VM_Magic.setMemoryAddress(cell, next);
+  }
+
+  protected VM_Address getNextCell(VM_Address cell)
+    throws VM_PragmaInline {
+    return VM_Magic.getMemoryAddress(cell);
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -427,25 +468,28 @@ abstract class BaseFreeList implements Constants, VM_Uniterruptible {
    * @return The address of the first word of the superpage containing
    * <code>cell</code>.
    */
-  private static final VM_Address getSuperPage(VM_Address cell, boolean small)
+  protected static final VM_Address getSuperPage(VM_Address cell, boolean small)
     throws VM_PragmaInline {
     VM_Address rtn;
+    //    VM.sysWrite("getSuperPage: "); VM.sysWrite(cell); VM.sysWrite((small ? " s\n" : " b\n"));
     if (small)
-      rtn = cell.and(~PAGE_MASK);
+      rtn = cell.toWord().and(PAGE_MASK).toAddress();
     else {
-      rtn = VM_Magic.getMemoryWord(cell);
+      rtn = VM_Magic.getMemoryAddress(cell.sub(WORD_SIZE));
       if (VM.VerifyAssertions)
-	VM._assert(rtn.EQ(rtn.and(~PAGE_MASK)));
+	VM._assert(rtn.EQ(rtn.toWord().and(PAGE_MASK).toAddress()));
     }
     return rtn;
   }
 
-  private static final void setPrevSuperPage(VM_Address sp, VM_Addres prev) 
+  private static final void setPrevSuperPage(VM_Address sp, VM_Address prev) 
     throws VM_PragmaInline {
+    //    VM.sysWrite("setting prev: ");
     setSuperPageLink(sp, prev, true);
   }
-  private static final void setNextSuperPage(VM_Address sp, VM_Addres next) 
+  private static final void setNextSuperPage(VM_Address sp, VM_Address next) 
     throws VM_PragmaInline {
+    //    VM.sysWrite("setting next: ");
     setSuperPageLink(sp, next, false);
   }
   /**
@@ -463,13 +507,14 @@ abstract class BaseFreeList implements Constants, VM_Uniterruptible {
     throws VM_PragmaInline {
 
     if (VM.VerifyAssertions) {
-      VM._assert(sp.asWord().EQ(sp.asWord().and(PAGE_MASK)));
-      VM._assert(link.asWord().EQ(link.and(PAGE_MASK)));
+      VM._assert(sp.toWord().EQ(sp.toWord().and(PAGE_MASK)));
+      VM._assert(link.toWord().EQ(link.toWord().and(PAGE_MASK)));
     }
-    sp.add(prev ? PREV_SP_OFFSET : NEXT_SP_OFFSET);
-    VM_Word wd = VM_Magic.getMemoryWord(sp);
-    wd = wd.and(PAGE_MASK.not()).or(link.asWord());
-    VM_Magic.setMemoryWord(sp, wd);
+    sp = sp.add(prev ? PREV_SP_OFFSET : NEXT_SP_OFFSET);
+    //    VM.sysWrite("link address: "); VM.sysWrite(sp); VM.sysWrite("\n");
+    VM_Word wd = VM_Word.fromInt(VM_Magic.getMemoryWord(sp));
+    wd = wd.and(PAGE_MASK.not()).or(link.toWord());
+    VM_Magic.setMemoryWord(sp, wd.toInt());
   }
   private static final VM_Address getPrevSuperPage(VM_Address sp) 
     throws VM_PragmaInline {
@@ -482,39 +527,53 @@ abstract class BaseFreeList implements Constants, VM_Uniterruptible {
   private static final VM_Address getSuperPageLink(VM_Address sp, boolean prev)
     throws VM_PragmaInline {
     if (VM.VerifyAssertions)
-      VM._assert(sp.asWord().EQ(sp.asWord().and(PAGE_MASK)));
+      VM._assert(sp.toWord().EQ(sp.toWord().and(PAGE_MASK)));
 
-    sp.add(prev ? PREV_SP_OFFSET : NEXT_SP_OFFSET);
-    VM_Word wd = VM_Magic.getMemoryWord(sp);
-    return wd.and(PAGE_MASK);
+    sp = sp.add(prev ? PREV_SP_OFFSET : NEXT_SP_OFFSET);
+    VM_Word wd = VM_Word.fromInt(VM_Magic.getMemoryWord(sp));
+    return wd.and(PAGE_MASK).toAddress();
   }
   private static final void setSizeClass(VM_Address sp, int sc)
     throws VM_PragmaInline {
     if (VM.VerifyAssertions)
-      VM._assert(sp.asWord().EQ(sp.asWord().and(PAGE_MASK)));
+      VM._assert(sp.toWord().EQ(sp.toWord().and(PAGE_MASK)));
     
-    sp.add(SIZE_CLASS_WORD_OFFSET);
-    VM_Word wd = VM_Magic.getMemoryWord(sp);
-    wd = wd.and(PAGE_MASK).or(sc);
-    VM_Magic.setMemoryWord(sp, wd);
+    sp = sp.add(SIZE_CLASS_WORD_OFFSET);
+    //    VM.sysWrite("set sizeclass address: "); VM.sysWrite(sp); VM.sysWrite("\n");
+    VM_Word wd = VM_Word.fromInt(VM_Magic.getMemoryWord(sp));
+    wd = wd.and(PAGE_MASK).or(VM_Word.fromInt(sc));
+    VM_Magic.setMemoryWord(sp, wd.toInt());
   }
-  private static final int getSizeClass(VM_Address sp)
+  protected static final int getSizeClass(VM_Address sp)
     throws VM_PragmaInline {
     if (VM.VerifyAssertions)
-      VM._assert(sp.asWord().EQ(sp.asWord().and(PAGE_MASK)));
+      VM._assert(sp.toWord().EQ(sp.toWord().and(PAGE_MASK)));
     
-    sp.add(SIZE_CLASS_WORD_OFFSET);
-    VM_Word wd = VM_Magic.getMemoryWord(sp);
+    sp = sp.add(SIZE_CLASS_WORD_OFFSET);
+    //    VM.sysWrite("get sizeclass address: "); VM.sysWrite(sp); VM.sysWrite("\n");
+    VM_Word wd = VM_Word.fromInt(VM_Magic.getMemoryWord(sp));
     return wd.and(PAGE_MASK.not()).toInt();
   }
-  private static final int getInUse(VM_Address sp)
+  private static final void setInUse(VM_Address sp, int value)
     throws VM_PragmaInline {
     if (VM.VerifyAssertions)
-      VM._assert(sp.asWord().EQ(sp.asWord().and(PAGE_MASK)));
+      VM._assert(sp.toWord().EQ(sp.toWord().and(PAGE_MASK)));
 
-    sp.add(IN_USE_WORD_OFFSET);
-    VM_Word wd = VM_Magic.getMemoryWord(sp).and(PAGE_MASK.not());
-    return wd.toInt();7
+    sp = sp.add(IN_USE_WORD_OFFSET);
+    //    VM.sysWrite("set inuse address: "); VM.sysWrite(sp); VM.sysWrite("\n");
+    VM_Word wd = VM_Word.fromInt(VM_Magic.getMemoryWord(sp)).and(PAGE_MASK);;
+    VM_Magic.setMemoryWord(sp, wd.toInt());
+  }
+
+  protected static final int getInUse(VM_Address sp)
+    throws VM_PragmaInline {
+    if (VM.VerifyAssertions)
+      VM._assert(sp.toWord().EQ(sp.toWord().and(PAGE_MASK)));
+
+    //    VM.sysWrite("get inuse address: "); VM.sysWrite(sp); VM.sysWrite("\n");
+    sp = sp.add(IN_USE_WORD_OFFSET);
+    VM_Word wd = VM_Word.fromInt(VM_Magic.getMemoryWord(sp)).and(PAGE_MASK.not());
+    return wd.toInt();
   }
   private static final int incInUse(VM_Address sp)
     throws VM_PragmaInline {
@@ -527,17 +586,90 @@ abstract class BaseFreeList implements Constants, VM_Uniterruptible {
   private static final int changeInUse(VM_Address sp, int delta)
     throws VM_PragmaInline {
     if (VM.VerifyAssertions)
-      VM._assert(sp.asWord().EQ(sp.and(PAGE_MASK)));
+      VM._assert(sp.toWord().EQ(sp.toWord().and(PAGE_MASK)));
 
-    sp.add(IN_USE_WORD_OFFSET);
-    VM_Word wd = VM_Magic.getMemoryWord(sp).add(delta);
+    sp = sp.add(IN_USE_WORD_OFFSET);
+    //    VM.sysWrite("change inuse address: "); VM.sysWrite(sp); VM.sysWrite("\n");
+//     VM.sysWrite("change inuse delta: "); VM.sysWrite(delta); VM.sysWrite("\n");
+//     VM.sysWrite("change inuse old value: "); VM.sysWrite(VM_Magic.getMemoryAddress(sp)); VM.sysWrite("\n");
+    VM_Word wd = VM_Word.fromInt(VM_Magic.getMemoryWord(sp)).add(VM_Word.fromInt(delta));
+//     VM.sysWrite("change inuse address: "); VM.sysWrite(sp); VM.sysWrite("\n");
     int value = wd.and(PAGE_MASK.not()).toInt();
     if (VM.VerifyAssertions)
       VM._assert(value < PAGE_SIZE);
-    VM_Magic.setMemoryWord(sp, wd);
+    VM_Magic.setMemoryWord(sp, wd.toInt());
+//     VM.sysWrite("change inuse new value: "); VM.sysWrite(VM_Magic.getMemoryAddress(sp)); VM.sysWrite("\n");
     return value;
   }
-  
+
+  private final void sanity() {
+    VM_Address sp = headSuperPage;
+    int pages = 0, cells = 0, inUse = 0, inUseBytes = 0, free = 0, freeBytes = 0;
+    VM.sysWrite("=============\n");
+    while (!sp.EQ(VM_Address.zero())) {
+      VM.sysWrite("super page: ");VM.sysWrite(sp);VM.sysWrite("\n"); 
+      VM.sysWrite("  next: ");VM.sysWrite(getNextSuperPage(sp));VM.sysWrite("\n");
+      VM.sysWrite("  prev: ");VM.sysWrite(getPrevSuperPage(sp));VM.sysWrite("\n");
+      pages += vmResource.getSize(sp);
+      VM.sysWrite("  pages: ");VM.sysWrite(vmResource.getSize(sp));VM.sysWrite("\n");
+      VM.sysWrite("  size class: ");VM.sysWrite(getSizeClass(sp));VM.sysWrite("\n");
+      if (getSizeClass(sp) != LARGE_SIZE_CLASS) {
+	VM.sysWrite("    size class bytes: ");VM.sysWrite(getBaseCellSize(getSizeClass(sp)));VM.sysWrite("\n");
+	cells += cellsInSuperPage(sp);
+	VM.sysWrite("    cells: ");VM.sysWrite(cellsInSuperPage(sp));VM.sysWrite("\n");
+	inUse += getInUse(sp);
+	inUseBytes += (getInUse(sp)*getBaseCellSize(getSizeClass(sp)));
+	VM.sysWrite("    in use: ");VM.sysWrite(getInUse(sp));VM.sysWrite("\n");
+	int f = countFree(sp);
+	free += f;
+	freeBytes += (f*getBaseCellSize(getSizeClass(sp)));
+	VM.sysWrite("    free: ");VM.sysWrite(f);VM.sysWrite("\n");
+	if (VM.VerifyAssertions)
+	  VM._assert((getInUse(sp)+f) == cellsInSuperPage(sp));
+      }
+      superPageSanity(sp);
+      sp = getNextSuperPage(sp);
+    }
+    VM.sysWrite("-------------\n");
+    VM.sysWrite("pages: "); VM.sysWrite(pages); VM.sysWrite("\n");
+    VM.sysWrite("cells: "); VM.sysWrite(cells); VM.sysWrite("\n");
+    VM.sysWrite("inUse: "); VM.sysWrite(inUse); VM.sysWrite(" ("); VM.sysWrite(inUseBytes); VM.sysWrite(")\n");
+    VM.sysWrite("free: "); VM.sysWrite(free); VM.sysWrite(" ("); VM.sysWrite(freeBytes); VM.sysWrite(")\n");
+    VM.sysWrite("utilization: ");VM.sysWrite((float) inUseBytes/(float) (inUseBytes+freeBytes));VM.sysWrite("\n");
+    VM.sysWrite("=============\n");
+  }
+  private final int countFree(VM_Address sp) {
+    int sc = getSizeClass(sp);
+    if (VM.VerifyAssertions)
+      VM._assert(sc != LARGE_SIZE_CLASS);
+    VM_Address start = sp;
+    VM_Address end = start.add(vmResource.getSize(sp)<<LOG_PAGE_SIZE);
+    int free = 0;
+    VM_Address f = freeList[sc];
+//     VM.sysWrite("free: (");
+    while (f.NE(VM_Address.zero())) {
+      if (f.GE(start) && f.LT(end))
+	free++;
+//       VM.sysWrite(f);
+//       VM.sysWrite(", ");
+      f = getNextCell(f);
+    }
+//     VM.sysWrite(")\n");
+    return free;
+  }
+  protected final boolean isFree(VM_Address cell, int sizeClass) {
+    VM_Address f = freeList[sizeClass];
+    while (f.NE(VM_Address.zero()) && f.NE(cell))
+      f = getNextCell(f);
+    return f.EQ(cell);
+  }
+
+  private final int cellsInSuperPage(VM_Address sp) {
+    int spBytes = vmResource.getSize(sp)<<LOG_PAGE_SIZE;
+    spBytes -= superPageHeaderSize(getSizeClass(sp));
+    return spBytes/cellSize(getSizeClass(sp));
+  }
+
   ////////////////////////////////////////////////////////////////////////////
   //
   // Static final values (aka constants)
@@ -546,11 +678,19 @@ abstract class BaseFreeList implements Constants, VM_Uniterruptible {
   protected static final int SIZE_CLASSES = BASE_SIZE_CLASSES;
   protected static final int LARGE_SIZE_CLASS = 0;
   protected static final int MAX_SMALL_SIZE_CLASS = 39;
+  protected static final int NON_SMALL_OBJ_HEADER_SIZE = WORD_SIZE;
   private static final int PREV_SP_OFFSET = 0;
   private static final int NEXT_SP_OFFSET = WORD_SIZE;
   private static final int IN_USE_WORD_OFFSET = PREV_SP_OFFSET;
   private static final int SIZE_CLASS_WORD_OFFSET = NEXT_SP_OFFSET;
   protected static final int BASE_SP_HEADER_SIZE = 2 * WORD_SIZE;
-  private static final VM_Word PAGE_MASK = VM_Word.fromInt(~((1<<PAGE_SIZE) - 1));
-  private static final float MID_SIZE_FIT_TARGET = 0.8; // 20% wastage
+  protected static final VM_Word PAGE_MASK = VM_Word.fromInt(~((1<<LOG_PAGE_SIZE) - 1));
+  private static final float MID_SIZE_FIT_TARGET = (float) 0.85; // 20% wastage
+
+
+  private VM_Address headSuperPage;
+  protected NewFreeListVMResource vmResource;
+  protected MemoryResource memoryResource;
+  protected VM_Address[] freeList;
+
 }

@@ -37,8 +37,10 @@ public final class NewFreeListVMResource extends VMResource implements Constants
    * Constructor
    */
   NewFreeListVMResource(String vmName, VM_Address vmStart, EXTENT bytes, byte status) {
-    super(vmName, vmStart, bytes, status);
-    freeList = new GenericFreeList(Conversions.bytesToBlocks(bytes));
+    super(vmName, vmStart, bytes, (byte) (VMResource.IN_VM | status));
+    freeList = new GenericFreeList(Conversions.bytesToPages(bytes));
+    gcLock = new Lock("NewFreeListVMResrouce.gcLock");
+    mutatorLock = new Lock("NewFreeListVMResrouce.gcLock");
   }
 
 
@@ -49,24 +51,36 @@ public final class NewFreeListVMResource extends VMResource implements Constants
    * @return The address of the start of the virtual memory region, or
    * zero on failure.
    */
-  public final VM_Address acquire(int blocks, MemoryResource mr) {
+  public final VM_Address acquire(int pages, MemoryResource mr) {
     lock();
-    mr.acquire(Conversions.blocksToPages(blocks));
-    int blk = freeList.alloc(blocks);
-    if (blk == -1) {
+    mr.acquire(pages);
+    int page = freeList.alloc(pages);
+    if (page == -1) {
       // FIXME Is this really how we want to deal with failure?
       return VM_Address.zero();
     }
     unlock();
-    return start.add(Conversions.blocksToBytes(blk));
+    VM_Address rtn = start.add(Conversions.pagesToBytes(page));
+    LazyMmapper.ensureMapped(rtn, Conversions.pagesToBlocks(pages));
+    return rtn;
+  }
+  public VM_Address acquire(int request) {
+    VM._assert(false);
+    return VM_Address.zero();
   }
 
   public final void release(VM_Address addr, MemoryResource mr) {
     lock();
     int offset = addr.diff(start).toInt();
-    int blk = Conversions.bytesToBlocks(offset);
-    mr.release(freeList.free(blk));
+    int page = Conversions.bytesToPages(offset);
+    mr.release(freeList.free(page));
     unlock();
+  }
+  
+  public final int getSize(VM_Address addr) {
+    int offset = addr.diff(start).toInt();
+    int page = Conversions.bytesToPages(offset);
+    return freeList.size(page);
   }
 
   ////////////////////////////////////////////////////////////////////////////

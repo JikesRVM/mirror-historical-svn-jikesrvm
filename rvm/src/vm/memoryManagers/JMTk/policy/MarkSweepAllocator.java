@@ -2,7 +2,6 @@
  * (C) Copyright Department of Computer Science,
  * Australian National University. 2002
  */
-
 package com.ibm.JikesRVM.memoryManagers.JMTk;
 
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
@@ -18,18 +17,18 @@ import com.ibm.JikesRVM.VM_PragmaNoInline;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 import com.ibm.JikesRVM.VM_Uninterruptible;
 
-/**
- * This class implements a generic free list allocator.
- *
- * @author <a href="http://cs.anu.edu.au/~Steve.Blackburn">Steve Blackburn</a>
- * @version $Revision$
- * @date $Date$
- */
-final class FreeList extends BaseFreeList implements Constants, VM_Uninterruptible {
+final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
 
-  FreeList(NewFreeListVMResource vmr, MemoryResource mr) {
-    super(vmr, mr);
+  /**
+   * Constructor
+   *
+   * @param collector_ The mark-sweep collector to which this
+   * allocator instances is bound.
+   */
+  MarkSweepAllocator(MarkSweepCollector collector_) {
+    super(collector_.getVMResource(), collector_.getMemoryResource());
+    collector = collector_;
   }
 
   /**
@@ -59,7 +58,10 @@ final class FreeList extends BaseFreeList implements Constants, VM_Uninterruptib
    */
   protected final int superPageHeaderSize(int sizeClass)
     throws VM_PragmaInline {
-    return BASE_SP_HEADER_SIZE;
+    if ((sizeClass != 0) && (sizeClass <= MAX_SMALL_SIZE_CLASS))
+      return BASE_SP_HEADER_SIZE + BITMAP_SIZE;
+    else 
+      return BASE_SP_HEADER_SIZE;
   }
 
   /**
@@ -88,7 +90,7 @@ final class FreeList extends BaseFreeList implements Constants, VM_Uninterruptib
    */
   protected final int cellHeaderSize(int sizeClass)
     throws VM_PragmaInline {
-    return (sizeClass <= MAX_SMALL_SIZE_CLASS) ? 0 : NON_SMALL_OBJ_HEADER_SIZE;
+    return (sizeClass <= MAX_SMALL_SIZE_CLASS) ? 0 : (NON_SMALL_OBJ_HEADER_SIZE + TREADMILL_HEADER_SIZE);
   }
 
   /**
@@ -110,25 +112,87 @@ final class FreeList extends BaseFreeList implements Constants, VM_Uninterruptib
 					   boolean small)
     throws VM_PragmaInline {
     if (!small) {
-      VM.sysWrite("i: "); VM.sysWrite(cell); VM.sysWrite("->"); VM.sysWrite(sp); VM.sysWrite("\n");
+      //      VM.sysWrite("i: "); VM.sysWrite(cell); VM.sysWrite("->"); VM.sysWrite(sp); VM.sysWrite("\n");
+      cell = cell.add(TREADMILL_HEADER_SIZE);
       VM_Magic.setMemoryAddress(cell, sp);
-      return cell.add(WORD_SIZE);
+      return cell.add(NON_SMALL_OBJ_HEADER_SIZE);
     } else 
       return cell;
   }
+
+  protected final void postAlloc(VM_Address cell, boolean isScalar,
+				 EXTENT bytes, boolean small) {
+    //    sanity();
+    if (small)
+      collector.setInUseBit(cell);
+    else {
+      VM.sysWrite("pa: "); VM.sysWrite(cell); VM.sysWrite((small ? " small\n" : " non-small\n"));
+      collector.addToTreadmill(cell);
+    }
+    //    sanity();
+  };
+
+  protected final void superPageSanity(VM_Address sp) {
+    int sizeClass = getSizeClass(sp);
+    if (sizeClass == LARGE_SIZE_CLASS) {
+      VM.sysWrite("    sp: "); VM.sysWrite(sp); VM.sysWrite(" cell: ");
+      VM_Address cell = sp.add(superPageHeaderSize(LARGE_SIZE_CLASS)+TREADMILL_HEADER_SIZE+NON_SMALL_OBJ_HEADER_SIZE);
+      VM.sysWrite(cell);
+      VM.sysWrite("\n");
+      VM._assert(collector.isOnTreadmill(cell));
+    } else if (sizeClass > MAX_SMALL_SIZE_CLASS) {
+      VM_Address sentinal = sp.add(pagesForClassSize(sizeClass)<<LOG_PAGE_SIZE);
+      int cellSize = cellSize(sizeClass);
+      VM_Address cursor = sp.add(superPageHeaderSize(sizeClass));
+      int inUse = 0;
+      while (cursor.add(cellSize).LE(sentinal)) {
+	VM_Address cell = cursor.add(TREADMILL_HEADER_SIZE
+				     + NON_SMALL_OBJ_HEADER_SIZE);
+	if(collector.isOnTreadmill(cell))
+	  inUse++;
+	else
+	  VM._assert(isFree(cell, sizeClass));
+	cursor = cursor.add(cellSize);
+      }
+      VM._assert(inUse == getInUse(sp));
+    } else {
+      VM_Address sentinal = sp.add(PAGE_SIZE);
+      int cellSize = cellSize(sizeClass);
+      VM_Address cursor = sp.add(superPageHeaderSize(sizeClass));
+      int inUse = 0;
+      while (cursor.add(cellSize).LE(sentinal)) {
+	VM_Address cell = cursor;
+	if(MarkSweepCollector.getInUseBit(cell))
+	  inUse++;
+	else
+	  VM._assert(isFree(cell, sizeClass));
+	cursor = cursor.add(cellSize);
+      }
+      if (inUse != getInUse(sp)) {
+	VM.sysWrite("****** ");
+	VM.sysWrite(inUse); VM.sysWrite(" != "); VM.sysWrite(getInUse(sp));
+	VM.sysWrite(" ******\n");
+      }
+      VM._assert(inUse == getInUse(sp));
+    }
+    
+  }
+  
+  private MarkSweepCollector collector;
 
   ////////////////////////////////////////////////////////////////////////////
   //
   // The following methods, declared as abstract in the superclass, do
   // nothing in this implementation, so they have empty bodies.
   //
-  protected final void postAlloc(VM_Address cell, boolean isScalar,
-				 EXTENT bytes, boolean small) {}
   protected final void postFreeCell(VM_Address cell, VM_Address sp, 
-				    int szClass) {}
-  protected final void postExpandSizeClass(VM_Address sp, int sizeClass) {}
-  protected final void superPageSanity(VM_Address sp) {}
+				    int szClass) {};
+  protected final void postExpandSizeClass(VM_Address sp, int sizeClass) {};
+  
+  private static final int BITMAP_SIZE = MarkSweepCollector.BITMAP_SIZE;
+  private static final int TREADMILL_HEADER_SIZE = MarkSweepCollector.TREADMILL_HEADER_SIZE;
 
+  public static final int MAX_SMALL_SIZE = 512;
   private static int cellSize[];
   private static int sizeClassPages[];
   static {
@@ -140,11 +204,15 @@ final class FreeList extends BaseFreeList implements Constants, VM_Uninterruptib
 	cellSize[sc] = size;
 	sizeClassPages[sc] = 1;
       } else {
-	cellSize[sc] = size + WORD_SIZE;
+	cellSize[sc] = size + NON_SMALL_OBJ_HEADER_SIZE + TREADMILL_HEADER_SIZE;
 	sizeClassPages[sc] = optimalPagesForSuperPage(sc, cellSize[sc],
 						      BASE_SP_HEADER_SIZE);
       }
       VM.sysWrite("sc: "+sc+" bcs: "+size+" cs: "+cellSize[sc]+" pages: "+sizeClassPages[sc]+"\n");
+      if (sc == MAX_SMALL_SIZE_CLASS)
+	VM._assert(size == MAX_SMALL_SIZE);
     }
   }
+
+
 }
