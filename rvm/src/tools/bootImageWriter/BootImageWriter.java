@@ -1067,7 +1067,11 @@ public class BootImageWriter extends BootImageWriterMessages
 	      }
 	      VM_Statics.setSlotContents(rvmFieldSlot, value);
 	  }
-          else
+          else if (rvmFieldType.equals(VM_Type.WordType)) {
+	    VM_Word w = (VM_Word) jdkFieldAcc.get(null);
+	    VM_Statics.setSlotContents(rvmFieldSlot, w.toInt());
+	  }
+	  else
             fail("unexpected primitive field type: " + rvmFieldType);
         } 
 	else {
@@ -1235,7 +1239,12 @@ public class BootImageWriter extends BootImageWriterMessages
 		bootImage.setFullWord(arrayImageOffset + (i << 2), value);
 	    }
 	}
-        else
+	else if (rvmElementType.equals(VM_Type.WordType)) {
+	  VM_Word values[] = (VM_Word[]) jdkObject;
+          for (int i = 0; i < arrayCount; i++)
+            bootImage.setFullWord(arrayImageOffset + (i << 2), values[i].toInt());
+	}
+	else
           fail("unexpected primitive array type: " + rvmArrayType);
       } else {
         // array element is reference type
@@ -1362,6 +1371,10 @@ public class BootImageWriter extends BootImageWriterMessages
 	      }
 	      bootImage.setFullWord(rvmFieldOffset, value);
           }
+          else if (rvmFieldType.equals(VM_Type.WordType)) {
+	    VM_Word w = (VM_Word) jdkFieldAcc.get(jdkObject);
+	    VM_Statics.setSlotContents(rvmFieldOffset, w.toInt());
+	  }
           else
             fail("unexpected primitive field type: " + rvmFieldType);
         } else {
