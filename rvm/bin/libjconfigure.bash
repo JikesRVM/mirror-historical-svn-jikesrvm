@@ -36,12 +36,17 @@
 # Returns true (exit 0) if we are tracing
 # Returns false (exit 1) if we are not.
 
-# Variables we'll refer to
+# Variables we'll refer to in jconfigure
 TRACE_FLAG=""
 VFLAG=""
 XFLAG=""
 CLEAN_FLAG=""
 MFLAGS=--silent
+
+## A variable we care about here.
+## This is supposed to be already set, but I'm setting it here so that we can test
+## libjconfigure.bash independently of the rest of jconfigure.
+[[ "${ME-}" != "" ]] || ME="${0##*/}"
 
 function tracing() {
     set +vx
@@ -113,8 +118,8 @@ function run () {
 
 function chdir() {
     # Generate information useful for GNU Emacs.
-    ! tracing make || echo "$ME[0]: Entering directory \`$1'"
     \cd "$1"
+    ! tracing make || echo "$ME[0]: Entering directory \`$PWD'"
 }
 
 ## Error Reporting 
@@ -141,7 +146,74 @@ function show_mesg () {
 }
 
 
+function do_cleanup () {
+    show_mesg >&2 "Cleaning up..."; 
+    eval $CLEANUP
+    if [[ "$CLEANUP" = ":" ]] ; then
+	show_mesg >&2 "...no cleanup was needed."
+    else
+	show_mesg >&2 "...cleaned up."
+    fi
+}
+
+function unexpected_exit() {
+    xitstatus=$?
+    show_mesg >&2 "Exiting unexpectedly with status $xitstatus."
+    do_cleanup
+}
+
+trap 'unexpected_exit' EXIT
+
 ## Exit and report on error
+
+## Between bash-2.05b-alpha1,
+## and the previous version, bash-2.05a-release, the reporting of 
+## line numbers changed.  The old behavior gives line #s relative to
+## the start of the function we're in, when we're in a function.  The new
+## (POSIX compliant) behavior is that the line #s are relative to the currently
+## executing script.
+declare -i have_function_relative_LINENO=0
+# declare -i have_negative_LINENO_bug=0
+
+function set_have_function_relative_LINENO () {
+    # set_have_function_relative_LINENO depends upon its text being more 
+    # than ten or so lines into the start of libjconfigure.bash.
+    function err_guinea_pig () {
+	local lineno="$1"; shift;
+	local fname="$1"; shift;
+	if (( lineno < 0 )); then
+	    ## We actually don't handle this condition anywhere, just let the
+	    ## default behavior fall through.  Instead we test for negative
+	    ## values in the function err() itself.
+	    # echo "have_negative_LINENO_bug=1"
+	    echo "have_function_relative_LINENO=0"
+	elif (( lineno < 20 )); then
+	    echo "have_function_relative_LINENO=1"
+	else
+	    echo "have_function_relative_LINENO=0"
+	fi
+	# For debugging.
+	[[ $- != *i* ]] ||  echo >&2 "err_guinea_pig($lineno, $fname)"
+    }
+## I have turned off this code because sending a signal gives us
+## negative line #s in bash 2.05a and in 2.05b.
+## I consider this to be a bug in Bash.
+#     trap 'err_guinea_pig "$LINENO" USR1"$FUNCNAME"' SIGUSR1
+#     # fire off err_guinea_pig
+#     kill -USR1 $$
+#     trap -- SIGUSR1
+    trap 'err_guinea_pig "$LINENO" EXIT"$FUNCNAME"' EXIT
+    set -e
+    false
+    :
+}
+
+## We execute this in a subshell.  We have to test using the EXIT
+## form, since the ERR form triggers trouble if the ERR trap isn't
+## implemented, and the signalling form triggers the negative_LINENO
+## bug.
+eval $( set_have_function_relative_LINENO )
+
 
 ## For the ERR Trap.
 function err () {
@@ -150,12 +222,26 @@ function err () {
     local finalarg="$1"; shift;
     local lineno="$1"; shift;
     local funcname="$1"; shift;
-    show_mesg_raw >&2 "\
-$ME:${lineno}: some command we just ran (probably with a
-final argument of \"$finalarg\") exited with status ${xited},
-${funcname:+possibly in the shell function \"}${funcname}${funcname:+\"}";
+
+    if  [[ ! ${LINENO:} ]] || (( lineno < 0 )); then
+	show_mesg_raw >&2 "\
+$ME: some command we just ran (probably with a final argument of \"$finalarg\") exited with status ${xited},  
+${funcname:+in the shell function \"}${funcname}${funcname:+\"}";
+    elif (( have_function_relative_LINENO )) && [[ ${funcname} ]]; then
+	show_mesg >&2 "\
+Some command we just ran (probably with a final argument of \"$finalarg\") exited with status ${xited}, in the shell function ${funcname}(), line # ${lineno}"
+
+    else			# Have script-relative line #s, and have a real one.
+	show_mesg_raw >&2 "\
+$ME:${lineno}: some command we just ran (probably with a final argument of \"$finalarg\") exited with status ${xited},  
+${funcname:+in the shell function \"}${funcname}${funcname:+\"}";
+    fi	
+    if (( xited > 128 )); then
+	local -i signo
+	let signo=(xited - 128);
+	show_mesg >&2 "The command was killed by signal # ${signo}"
+    fi
     show_mesg >&2 "Aborting execution."; 
-    [[ $- != *i* ]] || { trap '' TERM ; kill $$ ; }
 }
 
 function enable_exit_on_error() {
@@ -164,9 +250,20 @@ function enable_exit_on_error() {
     # other means instead... this is only active during development.)
     [[ $- == *i* ]] || set -e;
     # We've enabled it.  Reset the ERR trap, too
-    trap 'err $? "$_" $LINENO "${FUNCNAME-}"' ERR 2> /dev/null || :
+    # If we do not have the ERR trap, then the EXIT trap will have to serve double-duty
+    ## as an err trap as well.
+    trap 'err $? "$_" $LINENO "${FUNCNAME-}"' ERR 2> /dev/null ||     trap 'err_with_unexpected_exit $? "$_" $LINENO "${FUNCNAME-}"' EXIT 
 }
 
+function err_with_unexpected_exit () {
+    set +vx;			# turn off reporting here.
+    local xited=$1; shift;
+    local finalarg="$1"; shift;
+    local lineno="$1"; shift;
+    local funcname="$1"; shift;
+    err "$xited" "$finalarg" "$lineno" "$funcname"
+    do_cleanup
+}
 
 enable_exit_on_error;
 CLEANUP=":"
@@ -176,28 +273,20 @@ CLEANUP=":"
 function signalled() {
     local -i xitstatus=$?
     local -i signum
-    let signum=(xitstatus - 128)
-    show_mesg >&2 "Got hit with signal # $signum.  Exiting abruptly."  
+#    let signum=(xitstatus - 128)
+#    show_mesg >&2 "Got hit with  signal # $signum.  Exiting abruptly."  
+    show_mesg >&2 "Got hit with a signal while running in a Bash builtin.  Exiting abruptly."  
 #    Cleaning up..."; 
 #    eval $CLEANUP
 #   show_mesg >&2 "...cleaned up."
     # and exit.
-    trap -- TERM
-    kill $$
+    trap -- INT
+    kill -INT $$
+    ## The EXIT trap will handle it.
 }
 trap signalled HUP INT ABRT BUS PIPE TERM PWR
 
-function unexpected_exit() {
-    xitstatus=$?
-    show_mesg >&2 "Exiting unexpectedly with status $xitstatus.  Cleaning up..."; 
-    eval $CLEANUP
-    show_mesg >&2 "...cleaned up."
-}
-
-trap 'unexpected_exit' EXIT
-
-# Stop immediately if any programs we call return errors.
-#
+# It's an error if we access any unset variables.
 set -o nounset;			# may cause trouble!
 
 ## Routines to clean a list of files or other things.
