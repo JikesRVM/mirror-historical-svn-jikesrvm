@@ -129,11 +129,15 @@ public class VM_TypeReference implements VM_SizeConstants {
    */
   protected VM_Type resolvedType;
 
-  private static final ClassLoader bootstrapCL
-    = VM_BootstrapClassLoader.getVMClassLoader();
+  // If you statically initialize these instead of pulling up their values
+  // each time in the findOrCreate method, you'll lose big; Jikes RVM will try
+  // to load a file named VM_Code.class.
 
-  private static final ClassLoader alternateRealityCL 
-    = AlternateRealityClassLoader.getAlternateRealityClassLoader();
+  //   private static final ClassLoader bootstrapCL
+  //     = VM_BootstrapClassLoader.getVMClassLoader();
+
+  //   private static final ClassLoader alternateRealityCL 
+  //     = AlternateRealityClassLoader.getAlternateRealityClassLoader();
 
   /**
    * Find or create the canonical VM_TypeReference instance for
@@ -149,21 +153,35 @@ public class VM_TypeReference implements VM_SizeConstants {
     throws IllegalArgumentException // does not need to be declared
   {
     VM_TypeDescriptorParsing.validateAsTypeDescriptor(tn);
-    // Primitives, arrays of primitives, system classes and arrays of system
-    // classes must use the bootstrap classloader.  Force that here so we don't
-    // have to worry about it anywhere else in the VM.
-    //    ClassLoader bootstrapCL = VM_BootstrapClassLoader.getVMClassLoader();
-    //    ClassLoader alternateRealityCL = VM_BootstrapClassLoader.getAlternateRealityClassLoader();
-    if (cl != bootstrapCL && cl != alternateRealityCL) {
+    /* Primitives, arrays of primitives, system classes and arrays of system
+       classes must use the bootstrap classloader.  (The only exception is
+       * self-booting, where we use the alternate reality classloader to load
+       * the system classes that aren't system primitives.)  Force
+       * that here so we don't have to worry about it anywhere else in the VM.
+       * 
+       * */
+    ClassLoader bootstrapCL = VM_BootstrapClassLoader.getVMClassLoader();
+    ClassLoader alternateRealityCL 
+      = VM_ClassLoader.getAlternateRealityClassLoader();
+
+    if (cl != bootstrapCL) {
       if (tn.isClassDescriptor()) {
         if (tn.isSystemClassDescriptor()) {
-          cl = bootstrapCL;
+          if (cl == null 
+              || cl != alternateRealityCL 
+              || tn.isSystemPrimitiveClassDescriptor()) {
+            cl = bootstrapCL;
+          }
         }
       } else if (tn.isArrayDescriptor()) {
         VM_Atom innermostElementType = tn.parseForInnermostArrayElementDescriptor();
         if (innermostElementType.isClassDescriptor()) {
           if (innermostElementType.isSystemClassDescriptor()) {
-            cl = bootstrapCL;
+            if (cl == null 
+                || cl != alternateRealityCL
+                || tn.isSystemPrimitiveClassDescriptor()) {
+              cl = bootstrapCL;
+            }
           }
         } else {
           cl = bootstrapCL;

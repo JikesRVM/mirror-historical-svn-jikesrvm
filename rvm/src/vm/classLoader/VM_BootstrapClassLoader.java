@@ -54,13 +54,18 @@ public final class VM_BootstrapClassLoader extends java.lang.ClassLoader {
     return vmClassLoader;
   }
   
-/**
+
+  /**
    * Backdoor for use by VM_TypeReference.resolve when !VM.runningVM.
    * As of this writing, it is not used by any other classes. 
    * @throws NoClassDefFoundError
    */
   synchronized VM_Type loadVMClass(String className) throws NoClassDefFoundError {
-    try {           
+    //-#if DebugForAlternateReality
+    // System.out.println("loadVMClass(" + className + ")");
+    //-#endif
+
+    try {
       InputStream is = getResourceAsStream(className.replace('.','/') + ".class");
       if (is == null) throw new NoClassDefFoundError(className);
       DataInputStream dataInputStream = new DataInputStream(is);
@@ -219,6 +224,10 @@ public final class VM_BootstrapClassLoader extends java.lang.ClassLoader {
   }
 
   private Object getResourceInternal(String name, Handler h, boolean multiple) {
+    //-#if DebugForAlternateReality
+    // System.err.println("getResourceInternal(" + name + ")");
+    //-#endif
+    
     if (name.startsWith(File.separator)) {
       name = name.substring(File.separator.length());
     }
@@ -228,6 +237,10 @@ public final class VM_BootstrapClassLoader extends java.lang.ClassLoader {
     while (tok.hasMoreElements()) {
       try {
         String path = tok.nextToken();
+        //-#if DebugForAlternateReality
+        // System.err.println("  Searching in: " + path);
+        //-#endif
+
         if (path.endsWith(".jar") || path.endsWith(".zip")) {
           ZipFile zf = (ZipFile) zipFileCache.get(path);
           if (zf == null) {

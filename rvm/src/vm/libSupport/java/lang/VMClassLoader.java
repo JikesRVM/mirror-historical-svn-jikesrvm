@@ -107,12 +107,12 @@ final class VMClassLoader {
   static final Map packageAssertionStatus() {
     return null;
   }
-
+ 
   static final Map classAssertionStatus() {
     return null;
   }
 
-  static ClassLoader getBootstrapClassLoader() {
+  static ClassLoader getSystemClassLoader() {
     return VM_BootstrapClassLoader.getVMClassLoader();
   }
 }

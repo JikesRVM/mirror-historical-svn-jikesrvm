@@ -1,5 +1,5 @@
 /*
- * (C) Copyright IBM Corp 2001,2002
+ * (C) Copyright IBM Corp 2001,2002, 2004
  */
 //$Id$
 package com.ibm.JikesRVM.classloader;
@@ -28,6 +28,11 @@ public class VM_ClassLoader implements VM_Constants,
 
   /**
    * Set list of places to be searched for vm classes and resources.
+   *
+   * <b>NB:</b> This is called early on in the boot process.  Do NOT call
+   * classes that won't be initialized until later on in the process.  See
+   * the code in VM.boot().
+   *
    * @param classPath path specification in standard "classpath" format
    */
   public static void setVmRepositories(String classPath) {
@@ -169,6 +174,11 @@ public class VM_ClassLoader implements VM_Constants,
   public static void init(String vmClassPath) {
     // specify place where vm classes and resources live
     //
+    //-#if DebugForAlternateReality
+    // System.err.println("init(vmClassPath = " + (vmClassPath == null ? "(null)" : vmClassPath) + ")");
+    //-#endif
+
+
     if (vmClassPath != null)
       setVmRepositories(vmClassPath);
     applicationRepositories = null;
@@ -223,6 +233,28 @@ public class VM_ClassLoader implements VM_Constants,
   public static String getSystemNativePath() {
     return systemNativePath;
   } 
+
+
+  private static ClassLoader alternateRealityCL = null;
+
+  /** There is usually no alternate reality class loader.  
+      It never exists when the VM is actually booted.
+      I had wanted to create a sentinel object for it, as a placeholder, but
+      that is no longer such a good idea.  */
+
+  public static ClassLoader getAlternateRealityClassLoader() {
+    return alternateRealityCL;
+  }
+
+    
+
+  public static void setAlternateRealityClassLoader(ClassLoader cl) {
+    //      if (alternateRealityCL != null)
+    //        throw new IllegalStateException("We already initialized the Alternate Reality Class Loader");
+      alternateRealityCL = cl;
+  }
+    
+
 
   /**
    * Initialize for execution.

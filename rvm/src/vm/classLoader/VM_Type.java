@@ -118,7 +118,7 @@ public abstract class VM_Type implements VM_ClassLoaderConstants, VM_SizeConstan
    * cached VM_Array that corresponds to arrays of this type.
    * (null ->> not created yet).
    */
-  private VM_Array cachedElementType;
+  private VM_Array cachedArrayType;
 
   /**
    * -1 => primitive, 0 => Class/Interface, positive => array (number of [)
@@ -486,14 +486,14 @@ public abstract class VM_Type implements VM_ClassLoaderConstants, VM_SizeConstan
    * Get array type corresponding to "this" array element type.
    */ 
   public final VM_Array getArrayTypeForElementType() {
-    if (cachedElementType == null) {
+    if (cachedArrayType == null) {
       VM_TypeReference tr = typeRef.getArrayTypeForElementType();
-      cachedElementType = tr.resolve().asArray();
+      cachedArrayType = tr.resolve().asArray();
       /*  Can't fail to resolve the type, because the element type already
           exists (it is 'this') and the VM creates array types itself without
           any possibility of error if the element type is already loaded. */
     }
-    return cachedElementType;
+    return cachedArrayType;
   }
 
   /**

@@ -527,7 +527,10 @@ public final class VM_Atom implements VM_ClassLoaderConstants {
 
 
   private static final byte[][] systemClassPrefixes 
-    = { "Ljava/".getBytes(), "Lcom/ibm/JikesRVM/".getBytes()};
+    = { "Ljava/".getBytes(), 
+        "Lcom/ibm/JikesRVM/".getBytes(),
+        "Lgnu/classpath/".getBytes() 
+    };
 
   /**
    * @return true if this is a class descriptor of a system class
@@ -547,6 +550,63 @@ public final class VM_Atom implements VM_ClassLoaderConstants {
     return false;
   }
     
+  /* We should only call this on something for which isSystemClassDescriptor()
+   * has return true. */
+  private final static byte[] systemPrimitiveClassPrefix
+    = "Lcom/ibm/JikesRVM/VM_".getBytes();
+
+  /** This list is copied straight out of VM_Type.java, in the initializations
+   * of the public static final fields. */
+  private final static byte[][] systemPrimitiveClassSuffixes
+    = { "Word".getBytes(), "Address".getBytes(), 
+        "Offset".getBytes(), "Extent".getBytes(), 
+        "Code".getBytes(),  
+        "WordArray".getBytes(), "AddressArray".getBytes(), 
+        "OffsetArray".getBytes(), "ExtentArray".getBytes(), 
+        "CodeArray".getBytes(),
+        /** The call to VM_Magic can go through. */
+        // "Magic".getBytes()
+        // ,
+        /* The call to VM_SysCall methods probably should go out 
+           initially free.  We 
+         */
+        // "SysCall".getBytes()
+    };
+  
+
+  final static boolean verbose = true;
+
+  public final boolean isSystemPrimitiveClassDescriptor() {
+    final int prefLen = systemPrimitiveClassPrefix.length;
+    
+    if (val.length <= prefLen)
+      /* Too short; this can not be a system primitive class. */
+      return false;             
+    for (int i = 0; i < prefLen; ++i) {
+      if (val[i] != systemPrimitiveClassPrefix[i])
+        return false;
+    }
+
+    // We matched the prefix.  Now go for a suffix.
+
+    final byte[][] suffs = systemPrimitiveClassSuffixes;
+
+  newSuff:
+    for (int i = 0; i < suffs.length; ++i) {
+      final byte[] suff = suffs[i];
+      if (val.length != prefLen + suff.length)
+        continue;               // on to the next possiblity.
+
+      // Ok, they're of equal length.  Are they identical, too?
+      for (int j = 0; j < suff.length; ++j) {
+        if (val[prefLen + j] != suff[j])
+          continue newSuff;    // skip to the next suffix.
+      }
+      return true;              // we matched the whole suffix.
+    }
+    return false;               // None of them matched.
+  }
+
 
   //-----------//
   // debugging //
