@@ -18,14 +18,13 @@ mydir="${0%/*}"
 ## Load aux. functions
 . $mydir/sanity-envars.bash
 
-# Sanity checks for $HOME and $RVM_ROOT.  (They may not be
-# set if we invoke this script from someplace other than a shell.)
+## Sanity checks for environment variables.
 
-checkenv HOME "/home/${USER-${LOGNAME-'me'}}"
+checkenv HOME
 # Place where source files reside.
-checkenv RVM_ROOT "$HOME/rvmRoot"
+checkenv RVM_ROOT
 # Place where RVM bootimage, booter, and runtime support files will be placed.
-checkenv RVM_BUILD "$HOME/rvmBuild"
+checkenv RVM_BUILD
 
 # Pass these along as parameters to runrvm.
 . "${mydir}/runrvm" "$HOME" "$RVM_ROOT" "$RVM_BUILD" "$@"
