@@ -181,6 +181,13 @@ public class VM_GCUtil
       VM.sysWriteHex(ref); VM.sysWrite("\n");
       return false;
     }
+    if (VM_Collector.MOVES_OBJECTS) {
+      if (VM_AllocatorHeader.isForwarded(VM_Magic.addressAsObject(ref)) ||
+	  VM_AllocatorHeader.isBeingForwarded(VM_Magic.addressAsObject(ref))) {
+	return true; // TODO: actually follow forwarding pointer (need to bound recursion when things are broken!!)
+      }
+    }
+    
     Object[] tib = VM_ObjectModel.getTIB(ref);
     if (!referenceInVM(tib)) {
       VM.sysWrite("validRef: TIB outside heap, ref = "); VM.sysWriteHex(ref);
