@@ -69,40 +69,6 @@ public class VM_ClassLoader implements VM_Constants,
     return appCL;
   }
 
-  /**
-   * Load a dynamic library
-   * @param libname the name of the library to load.
-   * @return 0 on failure, non-zero on success
-   */
-  public static int load(String libname) {
-    // library already loaded ?
-    for (int i=0; i<dynamicLibraries.length; i++) {
-      VM_DynamicLibrary dl = dynamicLibraries[i];
-      if (dl != null && dl.getLibName().equals(libname)) return 1; // yes...
-    }
-
-    if (VM_FileSystem.stat(libname, VM_FileSystem.STAT_EXISTS) != 1) {
-      return 0; // fail; file does not exist
-    }
-
-    currentDynamicLibraryId++;
-
-    if (currentDynamicLibraryId>=(dynamicLibraries.length-1)) {
-      dynamicLibraries = 
-        growArray(dynamicLibraries, currentDynamicLibraryId << 1); 
-    }
-    
-    if (VM.VerifyAssertions)
-      VM._assert(dynamicLibraries[currentDynamicLibraryId] == null);
-    
-    dynamicLibraries[currentDynamicLibraryId] = new VM_DynamicLibrary(libname);
-    return 1;
-  }
-
-  static VM_DynamicLibrary[] getDynamicLibraries() {
-    return dynamicLibraries;
-  }
-
   //----------------//
   // implementation //
   //----------------//
@@ -137,17 +103,6 @@ public class VM_ClassLoader implements VM_Constants,
   static VM_Atom innerClassesAttributeName;           // "InnerClasses"
   static VM_Atom syntheticAttributeName;              // "Synthetic"
   static VM_Atom arrayNullCheckAttributeName;         // "ArrayNullCheckAttribute"
-
-  /**
-   * Dynamic libraries for native code
-   * Note: this is static for now, but it needs to be a list per class loader
-   */
-  private static VM_DynamicLibrary[] dynamicLibraries;
-
-  /**
-   * Index of most recently allocated slot in dynamicLibraries.
-   */
-  private static int currentDynamicLibraryId = 0;
 
   /**
    * Initialize for boot image.
@@ -189,8 +144,6 @@ public class VM_ClassLoader implements VM_Constants,
     syntheticAttributeName              = VM_Atom.findOrCreateAsciiAtom("Synthetic");
     arrayNullCheckAttributeName         = VM_Atom.findOrCreateAsciiAtom("ArrayNullCheckAttribute");
 
-    dynamicLibraries = new VM_DynamicLibrary[10];
-
     VM_Type.init();
   }
 
@@ -223,20 +176,6 @@ public class VM_ClassLoader implements VM_Constants,
   public static void boot(String vmClasses) {      
     if (vmClasses != null)
       setVmRepositories(vmClasses);
-  }
-
-  /**
-   * Expand an array.
-   */ 
-  private static VM_DynamicLibrary[] growArray(VM_DynamicLibrary[] array, 
-                                               int newLength) {
-    VM_DynamicLibrary[] newarray = MM_Interface.newContiguousDynamicLibraryArray(newLength);
-    for (int i = 0, n = array.length; i < n; ++i) {
-      newarray[i] = array[i];
-    }
-
-    VM_Magic.sync();
-    return newarray;
   }
 
   public static final VM_Type defineClassInternal(String className, 
