@@ -298,7 +298,7 @@ public final class Plan extends BasePlan { // implements Constants
   private static final VM_Address       HEAP_END = SS_START.add(2 * SS_SIZE);
   private static final EXTENT LOS_SIZE_THRESHOLD = 4 * 1024;
 
-  private static final int COPY_FUDGE_BLOCKS = 4;  // Steve - fix this
+  private static final int COPY_FUDGE_BLOCKS = 1;  // Steve - fix this
 
   private static final int BP_ALLOCATOR = 0;
   private static final int LOS_ALLOCATOR = 1;
