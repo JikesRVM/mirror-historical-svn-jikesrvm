@@ -7,5 +7,5 @@ package com.ibm.JikesRVM.memoryManagers.JMTk;
 
 public class Options {
 
-  static int heapSize = 50 * 1024 * 1024;  // Overall heap size 
+  static int heapSize = 50 * 1024 * 1024;  // Initial/default heap size in bytes - XXX
 }

@@ -50,8 +50,11 @@ public final class MonotoneVMResource extends VMResource implements Constants {
    * zero on failure.
    */
   public final VM_Address acquire(int request) {
+
     VM_Address tmpCursor = cursor.add(Conversions.blocksToBytes(request));
-    
+    VM.sysWriteln("Mono.acquire: cursor = ", cursor);
+    VM.sysWriteln("Mono.acquire: tmpcursor = ", tmpCursor);
+    VM.sysWriteln("Mono.acquire: sentinel = ", sentinel);
     if (tmpCursor.GE(sentinel)) {
       // FIXME Is this really how we want to deal with failure?
       return VM_Address.zero();

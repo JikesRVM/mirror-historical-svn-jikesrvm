@@ -829,7 +829,7 @@ public class VM_Runtime implements VM_Constants {
 	  VM_ExceptionDeliverer exceptionDeliverer = compiledMethod.getExceptionDeliverer();
 	  VM_Address ip = exceptionRegisters.getInnermostInstructionAddress();
 	  VM_Address methodStartAddress = VM_Magic.objectAsAddress(compiledMethod.getInstructions());
-	  int catchBlockOffset = compiledMethod.findCatchBlockForInstruction(ip.diff(methodStartAddress), exceptionType);
+	  int catchBlockOffset = compiledMethod.findCatchBlockForInstruction(ip.diff(methodStartAddress).toInt(), exceptionType);
 
 	  if (catchBlockOffset >= 0) { 
 	      // found an appropriate catch block

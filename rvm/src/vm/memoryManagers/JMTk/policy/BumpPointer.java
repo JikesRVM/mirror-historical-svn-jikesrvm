@@ -7,7 +7,11 @@ package com.ibm.JikesRVM.memoryManagers.JMTk;
 
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
+
+import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Offset;
+import com.ibm.JikesRVM.VM_Word;
 import com.ibm.JikesRVM.VM_Magic;
 import com.ibm.JikesRVM.VM_PragmaInline;
 import com.ibm.JikesRVM.VM_PragmaNoInline;
@@ -31,6 +35,7 @@ import com.ibm.JikesRVM.VM_Uninterruptible;
  * @version $Revision$
  * @date $Date$
  */
+
 final class BumpPointer implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
 
@@ -83,8 +88,9 @@ final class BumpPointer implements Constants, VM_Uninterruptible {
    */
   public VM_Address alloc(boolean isScalar, EXTENT bytes) throws VM_PragmaInline {
     VM_Address oldbp = bp;
-    bp.add(bytes);
-    if (((oldbp.toInt()) ^ (bp.toInt())) >= TRIGGER)
+    bp = bp.add(bytes);
+    VM_Word tmp = oldbp.toWord().xor(bp.toWord());
+    if (tmp.GT(VM_Word.fromInt(TRIGGER)))
       return allocSlowPath(bytes);
     return oldbp;
   }
@@ -92,10 +98,15 @@ final class BumpPointer implements Constants, VM_Uninterruptible {
 
   
   private VM_Address allocSlowPath(EXTENT bytes) throws VM_PragmaNoInline { 
+    VM.sysWriteln("BP.allocSlowPath 1");
     int blocks = Conversions.bytesToBlocks(bytes);
+    VM.sysWriteln("BP.allocSlowPath 2");
     memoryResource.acquire(Conversions.blocksToPages(blocks));
+    VM.sysWriteln("BP.allocSlowPath 3");
     VM_Address start = vmResource.acquire(blocks);
+    VM.sysWriteln("BP.allocSlowPath 4");
     bp = start.add(bytes);
+    VM.sysWriteln("BP.allocSlowPath 5");
     return start;
   }
 
@@ -112,7 +123,7 @@ final class BumpPointer implements Constants, VM_Uninterruptible {
   //
   // Final class variables (aka constants)
   //
-  private static final EXTENT TRIGGER = PAGE_SIZE;
-  // this ensures the bump pointer will go slow path on first alloc
+  private static final EXTENT TRIGGER = VMResource.BLOCK_SIZE;
+  // this ensures the bump pointer will go through slow path on first alloc
   private static final VM_Address INITIAL_BP_VALUE = VM_Address.fromInt(TRIGGER - 1);
 }

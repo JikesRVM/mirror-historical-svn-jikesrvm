@@ -1593,7 +1593,7 @@ public abstract class VM_BaselineCompiler {
 	int constantPoolIndex = fetch2BytesUnsigned();
 	VM_Method methodRef = klass.getMethodRef(constantPoolIndex);
 	if (shouldPrint) asm.noteBytecode(biStart, "invokevirtual " + constantPoolIndex + " (" + methodRef + ")");
-	if (methodRef.getDeclaringClass().isAddressType()) {
+	if (methodRef.getDeclaringClass().isWordType()) {
 	  if (emit_Magic(methodRef))
 	    break;
 	} 
@@ -1647,7 +1647,7 @@ public abstract class VM_BaselineCompiler {
 	VM_Method methodRef = klass.getMethodRef(constantPoolIndex);
 	if (shouldPrint) asm.noteBytecode(biStart, "invokestatic " + constantPoolIndex + " (" + methodRef + ")");
 	if (methodRef.getDeclaringClass().isMagicType() ||
-	    methodRef.getDeclaringClass().isAddressType()) {
+	    methodRef.getDeclaringClass().isWordType()) {
 	  if (emit_Magic(methodRef))
 	    break;
 	}

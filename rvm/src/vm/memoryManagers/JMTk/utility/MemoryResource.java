@@ -6,7 +6,7 @@
 package com.ibm.JikesRVM.memoryManagers.JMTk;
 
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
-import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
 /**
  * This class implements a memory resource.  The unit of managment for
@@ -34,6 +34,14 @@ final class MemoryResource implements Constants {
     lock = new Lock();
   }
 
+  // XXX Steve, fix this
+  //
+  public void reset() {
+    reserved = 0;
+    committed = 0;
+    budget = 0;
+  }
+
   /**
    * Acquire a number of blocks from the memory resource.  Poll the
    * memory manager if the number of blocks used exceeds the budget.
@@ -43,15 +51,19 @@ final class MemoryResource implements Constants {
    * @param blocks The number of blocks requested
    */
   public void acquire(int blocks) {
-    lock.aquire();
+    lock.acquire();
     reserved += blocks;
     if ((committed + blocks) > budget) {
       lock.release();
-      MM.poll();
-    } else 
+      VM_Interface.getPlan().poll();
+      lock.acquire();
+      committed += blocks;
       lock.release();
-
-    committed += blocks;
+    } 
+    else {
+      committed += blocks;
+      lock.release();
+    }
   }
 
   /**
@@ -67,7 +79,7 @@ final class MemoryResource implements Constants {
    * @param blocks The number of blocks to be released.
    */
   public void release(int blocks) {
-    lock.aquire();
+    lock.acquire();
     reserved -= blocks;
     committed -= blocks;
     lock.release();

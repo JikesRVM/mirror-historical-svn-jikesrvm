@@ -905,7 +905,7 @@ public class VM_Allocator
 
 	if (VM.VerifyAssertions) {
 	    VM_Type type = VM_Magic.getObjectType(result);
-	    VM._assert(!type.asArray().getElementType().isAddressType());
+	    VM._assert(!type.asArray().getElementType().isWordType());
 	}
 	return result;
     }

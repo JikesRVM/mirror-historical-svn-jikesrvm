@@ -1718,7 +1718,7 @@ processInvoke(VM_Method calledMethod, int byteindex, int currBBStkTop,
  int stkDepth = currBBStkTop;
 
  if (calledMethod.getDeclaringClass().isMagicType() ||
-     calledMethod.getDeclaringClass().isAddressType()) {
+     calledMethod.getDeclaringClass().isWordType()) {
    boolean producesCall = VM_MagicCompiler.checkForActualCall(calledMethod);
    if (producesCall) {
      stkDepth = currBBStkEmpty;   // register a map, but do NOT include any of the 

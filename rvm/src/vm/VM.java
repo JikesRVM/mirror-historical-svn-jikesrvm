@@ -101,9 +101,7 @@ public class VM extends VM_Properties
     // because the buffer is accessed by compiler-generated write barrier code.
     //
     if (verbose >= 1) VM.sysWriteln("Setting up write barrier");
-    if (VM_Interface.NEEDS_WRITE_BARRIER) {
-      VM_Interface.setupProcessor( VM_Processor.getCurrentProcessor() );
-    }
+    VM_Interface.setupProcessor( VM_Processor.getCurrentProcessor() );
 
     // Initialize memory manager.
     //    This must happen before any uses of "new".
@@ -530,6 +528,7 @@ public class VM extends VM_Properties
    */
   public static void sysWriteln ()                     throws VM_PragmaNoInline { sysWrite("\n"); }
   public static void sysWrite   (VM_Address addr)      throws VM_PragmaNoInline { sysWriteHex(addr.toInt()); }
+  public static void sysWrite   (VM_Word word)         throws VM_PragmaNoInline { sysWriteHex(word.toInt()); }
   public static void sysWriteln (int i)                throws VM_PragmaNoInline { sysWrite(i);   sysWriteln(); }
   public static void sysWriteln (double d)             throws VM_PragmaNoInline { sysWrite(d);   sysWriteln(); }
   public static void sysWriteln (long l)               throws VM_PragmaNoInline { sysWrite(l);   sysWriteln(); }
@@ -546,6 +545,8 @@ public class VM extends VM_Properties
   public static void sysWriteln (String s1, String s2)      throws VM_PragmaNoInline { sysWrite(s1);  sysWriteln(s2); }
   public static void sysWrite   (String s, VM_Address addr) throws VM_PragmaNoInline { sysWrite(s);   sysWriteHex(addr.toInt()); }
   public static void sysWriteln (String s, VM_Address addr) throws VM_PragmaNoInline { sysWrite(s);   sysWriteHex(addr.toInt()); sysWriteln(); }
+  public static void sysWrite   (String s, VM_Word word) throws VM_PragmaNoInline { sysWrite(s);   sysWriteHex(word.toInt()); }
+  public static void sysWriteln (String s, VM_Word word) throws VM_PragmaNoInline { sysWrite(s);   sysWriteHex(word.toInt()); sysWriteln(); }
   public static void sysWrite   (String s1, String s2, int i)  throws VM_PragmaNoInline { sysWrite(s1);  sysWrite(s2); sysWrite(i); }
   public static void sysWriteln (String s1, String s2, int i)  throws VM_PragmaNoInline { sysWrite(s1);  sysWrite(s2); sysWriteln(i); }
   public static void sysWrite   (String s1, int i, String s2)  throws VM_PragmaNoInline { sysWrite(s1);  sysWrite(i);  sysWrite(s2); }

@@ -13,12 +13,19 @@ import com.ibm.JikesRVM.VM_Magic;
 /**
  * This class implements a simple copying allocator/collector.
  *
+ * @author Perry Cheng
  * @author <a href="http://cs.anu.edu.au/~Steve.Blackburn">Steve Blackburn</a>
  * @version $Revision$
  * @date $Date$
  */
 final class Copy extends BasePolicy implements Constants {
   public final static String Id = "$Id$"; 
+
+  public static void prepare() {
+  }
+
+  public static void release() {
+  }
 
   /**
    * Trace an object under a copying collection policy.
@@ -33,7 +40,7 @@ final class Copy extends BasePolicy implements Constants {
     int forwardingPtr = CopyingHeader.attemptToForward(object);
     VM_Magic.isync();   // prevent instructions moving infront of attemptToForward
 
-    // Somebody got to it first.
+    // Somebody else got to it first.
     //
     if (CopyingHeader.stateIsForwardedOrBeingForwarded(forwardingPtr)) {
       while (CopyingHeader.stateIsBeingForwarded(forwardingPtr)) 
@@ -43,10 +50,18 @@ final class Copy extends BasePolicy implements Constants {
       return newObject;
     }
     
-    VM_Address newObject = VM_Interface.allocateCopy(object);
-    VM_Interface.getPlan().enqueue(newObject);
+
+    // We are the designated copier
+    //
+    VM_Address newObject = VM_Interface.copy(object, forwardingPtr);
+    VM_Interface.getPlan().enqueue(newObject);       // Scan it later
+
     return newObject;
   }
 
+
+  public static boolean isLive(VM_Address obj) {
+    return CopyingHeader.isForwarded(VM_Magic.addressAsObject(obj));
+  }
 
 }

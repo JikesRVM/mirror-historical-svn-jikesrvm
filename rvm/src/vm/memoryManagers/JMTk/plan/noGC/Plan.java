@@ -28,7 +28,7 @@ final class Plan implements Constants extends BasePlan {
    * Class initializer.  This is executed <i>prior</i> to bootstrap
    * (i.e. at "build" time).
    */
-  {
+  static {
     // virtual memory resources
     immortalVM = new VMResource(IMMORTAL_START, IMMORTAL_VM_SIZE);
 

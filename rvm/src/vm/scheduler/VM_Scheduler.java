@@ -610,7 +610,7 @@ public class VM_Scheduler implements VM_Constants, VM_Uninterruptible {
         // normal java frame(s)
         VM_CompiledMethod compiledMethod    = VM_CompiledMethods.getCompiledMethod(compiledMethodId);
         VM_Method         method            = compiledMethod.getMethod();
-        int               instructionOffset = ip.diff(VM_Magic.objectAsAddress(compiledMethod.getInstructions()));
+        int               instructionOffset = ip.diff(VM_Magic.objectAsAddress(compiledMethod.getInstructions())).toInt();
         int               lineNumber        = compiledMethod.findLineNumberForInstruction(instructionOffset>>>LG_INSTRUCTION_WIDTH);
 
         //-#if RVM_WITH_OPT_COMPILER

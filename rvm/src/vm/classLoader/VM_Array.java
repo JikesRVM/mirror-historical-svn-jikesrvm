@@ -428,12 +428,11 @@ public final class VM_Array extends VM_Type
 		VM_Address start = VM_Magic.objectAsAddress(dst).add(dstPos<<2);
 		VM_Address end = start.add(len<<2);
 		VM_Processor p = VM_Processor.getCurrentProcessor();
-		int diff = end.diff(start);
-		for (int i = 0; i < diff; i += 4) {
 		//-#if RVM_WITH_CONCURRENT_GC // because VM_RCBuffers only available with concurrent memory managers
-		VM_RCBuffers.addIncrement(VM_Magic.getMemoryAddress(start.add(i)), p);
+		int diff = end.diff(start);
+		for (int i = 0; i < diff; i += 4) 
+		  VM_RCBuffers.addIncrement(VM_Magic.getMemoryAddress(start.add(i)), p);
 		//-#endif
-	      }
 	    }
 	  } else if (srcPos < dstPos) {
 	    srcPos = (srcPos + len) << 2;

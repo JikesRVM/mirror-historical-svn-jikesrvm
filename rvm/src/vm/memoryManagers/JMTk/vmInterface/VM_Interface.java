@@ -25,6 +25,7 @@ import com.ibm.JikesRVM.VM_Type;
 import com.ibm.JikesRVM.VM_Class;
 import com.ibm.JikesRVM.VM_Atom;
 import com.ibm.JikesRVM.VM_ObjectModel;
+import com.ibm.JikesRVM.VM_JavaHeader;
 import com.ibm.JikesRVM.VM_Magic;
 import com.ibm.JikesRVM.VM_Memory;
 import com.ibm.JikesRVM.VM_CompiledMethod;
@@ -71,7 +72,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    */
   public static final void init () throws VM_PragmaInterruptible {
     VM_CollectorThread.init();
-    MMAP_CHUNK_BYTES = VM_Memory.getPagesize();
+    MMAP_CHUNK_BYTES = 4096;
   }
 
 
@@ -85,17 +86,16 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    * primordial thread).
    */
   public static final void boot (VM_BootRecord theBootRecord) throws VM_PragmaInterruptible {
+    int pageSize = VM_Memory.getPagesize();  // Cannot be determined at init-time
+    if (VM.VerifyAssertions) VM._assert(MMAP_CHUNK_BYTES == VM_Memory.getPagesize());
     // get addresses of TIBs for VM_Array & VM_Class used for testing Type ptrs
     VM_Type t = VM_Array.getPrimitiveArrayType(10);
     tibForArrayType = VM_ObjectModel.getTIB(t);
     tibForPrimitiveType = VM_ObjectModel.getTIB(VM_Type.IntType);
     t = VM_Magic.getObjectType(VM_BootRecord.the_boot_record);
     tibForClassType = VM_ObjectModel.getTIB(t);
+    Plan.boot();
     Statistics.boot();
-  }
-
-  public static final void threadBoot(int numProcessors) throws VM_PragmaInterruptible {
-    VM.sysWriteln("threadBoot not implemented: set up collector thread-specific structures");
   }
 
   /**
@@ -147,10 +147,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   }
 
   public static void setHeapRange(int id, VM_Address start, VM_Address end) throws VM_PragmaUninterruptible {
-    VM_BootRecord br = VM_BootRecord.the_boot_record;
-    if (VM.VerifyAssertions) VM._assert(id < br.heapRanges.length - 2); 
-    br.heapRanges[2 * id] = start.toInt();
-    br.heapRanges[2 * id + 1] = end.toInt();
+    VM_BootRecord.the_boot_record.setHeapRange(id, start, end);
   }
 
   public static Plan getPlan() {
@@ -231,8 +228,9 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    *
    * @param p The <code>VM_Processor</code> object.
    */
-  public static final void setupProcessor(VM_Processor p) throws VM_PragmaInterruptible {
-    // VM_Allocator.setupProcessor(p);
+  public static final void setupProcessor(VM_Processor proc) throws VM_PragmaInterruptible {
+    if (proc.mmPlan == null)
+      proc.mmPlan = new Plan();
   }
 
   public static final boolean NEEDS_WRITE_BARRIER = Plan.needsWriteBarrier;
@@ -265,8 +263,11 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   }
 
   public static Object allocateScalar(int size, Object [] tib) {
+VM.sysWriteln("allocScalar 1");
     AllocAdvice advice = getPlan().getAllocAdvice(null, size, null, null);
+VM.sysWriteln("allocScalar 2");
     VM_Address region = getPlan().alloc(0, size, true, advice);
+VM.sysWriteln("allocScalar 3: region = ", region);
     return VM_ObjectModel.initializeScalar(region, tib, size);
   }
 
@@ -312,8 +313,8 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     return (result.EQ(start));
   }
 
-  public static VM_Address refToAddress(VM_Address ref) {
-    return ref.add();
+  public static VM_Address refToAddress(VM_Address obj) {
+    return VM_ObjectModel.getPointerInMemoryRegion(obj);
   }
 
 
@@ -362,8 +363,20 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   public static int[] newImmortalStack (int n) {
 
     if (VM.runningVM) {
-      int[] stack = (int[]) VM_Allocator.immortalHeap.allocateAlignedArray(VM_Array.arrayOfIntType, n, 4096);
-      return stack;
+      int logAlignment = 12;
+      int alignment = 1 << logAlignment; // 4096
+      VM_Array stackType = VM_Array.arrayOfIntType;
+      Object [] stackTib = stackType.getTypeInformationBlock();
+      int offset = VM_JavaHeader.computeArrayHeaderSize(stackType);
+      int arraySize = stackType.getInstanceSize(n);
+      int fullSize = arraySize + alignment;  // somewhat wasteful
+      if (VM.VerifyAssertions) VM._assert(alignment > offset);
+      AllocAdvice advice = getPlan().getAllocAdvice(null, fullSize, null, null);
+      VM_Address fullRegion = getPlan().alloc(Plan.IMMORTAL_ALLOCATOR, fullSize, false, advice);
+      VM_Address tmp = fullRegion.add(alignment);
+      int mask = ~((1 << logAlignment) - 1);
+      VM_Address region = VM_Address.fromInt(tmp.toInt() & mask).sub(offset);
+      return (int []) (VM_ObjectModel.initializeArray(region, stackTib, n, arraySize));
     }
 
     return new int[n];
@@ -390,8 +403,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    * @param n The number of objects
    * @return The contiguous object array
    */ 
-  public static VM_CompiledMethod[] newContiguousCompiledMethodArray(int n) throws
-    VM_PragmaInline {
+  public static VM_CompiledMethod[] newContiguousCompiledMethodArray(int n) throws VM_PragmaInline {
 
       if (VM.BuildForRealtimeGC) {
         //-#if RVM_WITH_REALTIME_GC
@@ -436,5 +448,55 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   final static int BOOT_START = 0x30000000;
   final static int BOOT_SIZE  = 0x05000000;   // just an upper bound
   //-#endif
+
+
+  public static boolean isScalar(VM_Address obj) {
+    VM_Type type = VM_Magic.objectAsType(VM_ObjectModel.getTIB(obj)[TIB_TYPE_INDEX]);
+    return type.isClassType();
+  }
+
+  public static int getSizeWhenCopied(VM_Address obj) {
+    VM_Type type = VM_Magic.objectAsType(VM_ObjectModel.getTIB(obj)[TIB_TYPE_INDEX]);
+    if (type.isClassType())
+      return VM_ObjectModel.bytesRequiredWhenCopied(obj, type.asClass());
+    else
+      return VM_ObjectModel.bytesRequiredWhenCopied(obj, type.asArray(), VM_Magic.getArrayLength(obj));
+  }
+
+  // Copy an object using a plan's allocCopy to get space and install the forwarding pointer.
+  // On entry, "obj" must have been reserved for copying by the caller.
+  //
+  public static VM_Address copy(VM_Address fromObj, int forwardingPtr) {
+
+    Object[] tib = VM_ObjectModel.getTIB(fromObj);
+    VM_Type type = VM_Magic.objectAsType(tib[TIB_TYPE_INDEX]);
+
+    if (NEEDS_WRITE_BARRIER)
+      forwardingPtr |= VM_AllocatorHeader.GC_BARRIER_BIT_MASK;
+
+    if (type.isClassType()) {
+      VM_Class classType = type.asClass();
+      int numBytes = VM_ObjectModel.bytesRequiredWhenCopied(fromObj, classType);
+      VM_Address region = getPlan().allocCopy(fromObj, numBytes, true);
+      Object toObj = VM_ObjectModel.moveObject(region, fromObj, numBytes, classType, forwardingPtr);
+      VM_Address toRef = VM_Magic.objectAsAddress(toObj);
+      return toRef;
+    } else {
+      VM_Array arrayType = type.asArray();
+      int numElements = VM_Magic.getArrayLength(fromObj);
+      int numBytes = VM_ObjectModel.bytesRequiredWhenCopied(fromObj, arrayType, numElements);
+      VM_Address region = getPlan().allocCopy(fromObj, numBytes, false);
+      Object toObj = VM_ObjectModel.moveObject(region, fromObj, numBytes, arrayType, forwardingPtr);
+      VM_Address toRef = VM_Magic.objectAsAddress(toObj);
+      if (arrayType == VM_Type.CodeType) {
+	// sync all moved code arrays to get icache and dcache in sync immediately.
+	int dataSize = numBytes - VM_ObjectModel.computeHeaderSize(VM_Magic.getObjectType(toObj));
+	VM_Memory.sync(toRef, dataSize);
+      }
+      return toRef;
+    }
+  }
+
+
 
 }

@@ -39,19 +39,6 @@ public abstract class VMResource implements Constants {
   public static final byte MOVABLE   = 4;   // 00000100
   public static final byte META_DATA = -128; // 10000000
 
-  /**
-   * Class initializer.  This is executed <i>prior</i> to bootstrap
-   * (i.e. at "build" time).
-   */
-  {
-    resources = new VMResource[MAX_VMRESOURCE];
-    resourceTable = new VMResource[NUM_BLOCKS];
-    statusTable = new byte[NUM_BLOCKS];
-    for (int blk = 0; blk < NUM_BLOCKS; blk++) {
-      resourceTable[blk] = null;
-      statusTable[blk] = 0;
-    }
-  }
 
   public static void showAll () {
     VM.sysWriteln("showAll not implemented");
@@ -86,12 +73,26 @@ public abstract class VMResource implements Constants {
   private static byte statusTable[];         // Status of each block, 0 means not used by the VM.
   private static int count;                  // How many VMResources exist now?
   private static VMResource resources[];     // List of all VMResources.
-  final private static int MAX_VMRESOURCE = 100;
+  final private static int MAX_VMRESOURCE = 20;
   final public  static int LOG_PAGES_PER_BLOCK = 3;
   final public  static int LOG_BLOCK_SIZE = LOG_PAGE_SIZE + LOG_PAGES_PER_BLOCK;
   final public  static int BLOCK_SIZE = 1 << LOG_BLOCK_SIZE;
   final public  static int BLOCK_MASK = ~((1 << LOG_BLOCK_SIZE) - 1);
   final private static int NUM_BLOCKS = 1 << (LOG_ADDRESS_SPACE - LOG_BLOCK_SIZE);
+
+  /**
+   * Class initializer.  This is executed <i>prior</i> to bootstrap
+   * (i.e. at "build" time).
+   */
+  static {
+    resources = new VMResource[MAX_VMRESOURCE];
+    resourceTable = new VMResource[NUM_BLOCKS];
+    statusTable = new byte[NUM_BLOCKS];
+    for (int blk = 0; blk < NUM_BLOCKS; blk++) {
+      resourceTable[blk] = null;
+      statusTable[blk] = 0;
+    }
+  }
 
   private static VMResource resourceForBlock(VM_Address addr) {
     return resourceTable[addr.toInt() >> LOG_BLOCK_SIZE];
@@ -111,6 +112,7 @@ public abstract class VMResource implements Constants {
   VMResource(String vmName, VM_Address vmStart, EXTENT bytes, byte status) {
     start = vmStart;
     blocks = Conversions.bytesToBlocks(bytes);
+    VM_Address end = start.add(bytes);
     name = vmName;
     index = count++;
     resources[index] = this;
@@ -128,7 +130,7 @@ public abstract class VMResource implements Constants {
       resourceTable[blk] = this;
       statusTable[blk] = status;
     }
-    
+    VM_Interface.setHeapRange(index, start, end);
   }
 
   /**

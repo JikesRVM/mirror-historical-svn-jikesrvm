@@ -7,7 +7,9 @@ package com.ibm.JikesRVM.memoryManagers.JMTk;
 
 import com.ibm.JikesRVM.memoryManagers.vmInterface.*;
 
+import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_ObjectModel;
 import com.ibm.JikesRVM.VM_Magic;
 import com.ibm.JikesRVM.VM_PragmaInterruptible;
 import com.ibm.JikesRVM.VM_PragmaInline;
@@ -39,29 +41,6 @@ public final class Plan extends BasePlan { // implements Constants
   //
 
 
-  /**
-   * Class initializer.  This is executed <i>prior</i> to bootstrap
-   * (i.e. at "build" time).
-   */
-  {
-    // virtual memory resources
-    VM_Address HI_SS_START = SS_START.add(SS_SIZE);
-    ss0VM      = new MonotoneVMResource("Lower semispace", 
-					SS_START,       SS_SIZE,       (byte) (VMResource.IN_VM | VMResource.MOVABLE));
-    ss1VM      = new MonotoneVMResource("Upper semispace", 
-					HI_SS_START,    SS_SIZE,       (byte) (VMResource.IN_VM | VMResource.MOVABLE));
-    losVM      = new MonotoneVMResource("Large obj space", 
-    					LOS_START,      LOS_SIZE,      VMResource.IN_VM);
-    immortalVM = new MonotoneVMResource("Immortal space",  
-					IMMORTAL_START, IMMORTAL_SIZE, (byte) (VMResource.IN_VM | VMResource.IMMORTAL));
-
-    // memory resources
-    ssMR = new MemoryResource();
-    losMR = new MemoryResource();
-    immortalMR = new MemoryResource();
-  }
-
-
   ////////////////////////////////////////////////////////////////////////////
   //
   // Public instance methods
@@ -77,7 +56,7 @@ public final class Plan extends BasePlan { // implements Constants
   /**
    * Constructor
    */
-  Plan() {
+  public Plan() {
     ss = new BumpPointer(ss0VM, ssMR);
     // los = new AllocatorLOS(losVM, losMR);
     immortal = new BumpPointer(immortalVM, immortalMR);
@@ -98,8 +77,11 @@ public final class Plan extends BasePlan { // implements Constants
       return ss.alloc(isScalar, bytes);
     else if (allocator == IMMORTAL_ALLOCATOR)
       return immortal.alloc(isScalar, bytes);
-    else 
-      return los.alloc(isScalar, bytes);
+    else {
+    //  return los.alloc(isScalar, bytes);
+      VM._assert(false);
+      return VM_Address.zero();
+    }
   }
 
   /**
@@ -172,6 +154,19 @@ public final class Plan extends BasePlan { // implements Constants
   }
   
    
+  public static boolean isLive(VM_Address obj) {
+    VM_Address addr = VM_ObjectModel.getPointerInMemoryRegion(obj);
+    if (addr.LE(HEAP_END)) {
+      if (addr.GE(SS_START))
+	return Copy.isLive(obj);
+      //      else if (addr.GE(LOS_START))
+      // return LargeObjectSpace.isLive(obj);
+      else if (addr.GE(IMMORTAL_START))
+	return true;
+    } 
+    return false;
+  }
+
   /**
    * Trace a reference during GC.  This involves determining which
    * collection policy applies and calling the appropriate
@@ -233,33 +228,36 @@ public final class Plan extends BasePlan { // implements Constants
    * semi-spaces and preparing each of the collectors.
    */
   private void prepare() {
-    if (Synchronize.acquireBarrier()) {
+    SynchronizationBarrier barrier = VM_CollectorThread.gcBarrier;
+    int id = barrier.rendezvous();
+    if (id == 1) {
       gcInProgress = true;
       hi = !hi;       // flip the semi-spaces
       ssMR.release();    // reset the semispace memory resource, and
       // rebind the semispace bump pointer to the appropriate semispace.
       ss.rebind(((hi) ? ss1VM : ss0VM)); 
-      
       // prepare each of the collected regions
       Copy.prepare(((hi) ? ss0VM : ss1VM), ssMR);
-      ////      LargeObjectSpace.prepare(losVM, losMR);  FIXME LOS
+      // LargeObjectSpace.prepare(losVM, losMR);   FIXME LOS
       Immortal.prepare(immortalVM, null);
-      Synchronize.releaseBarrier();
     }
+    barrier.rendezvous();
   }
 
   /**
    * Clean up after a collection.
    */
   private void release() {
-    if (Synchronize.acquireBarrier()) {
+    SynchronizationBarrier barrier = VM_CollectorThread.gcBarrier;
+    int id = barrier.rendezvous();
+    if (id == 1) {
       // release each of the collected regions
       Copy.release(((hi) ? ss0VM : ss1VM), ssMR);
       //      LargeObjectSpace.release(losVM, losMR); FIXME LOS
       Immortal.release(immortalVM, null);
       gcInProgress = false;
-      Synchronize.releaseBarrier();
     }
+    barrier.rendezvous();
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -281,6 +279,7 @@ public final class Plan extends BasePlan { // implements Constants
   //  private static VMResource losVM;   FIXME LOS
   private static MonotoneVMResource losVM;
   private static MonotoneVMResource immortalVM;
+  private static MonotoneVMResource bootVM;
 
   // memory resources
   private static MemoryResource ssMR;
@@ -290,10 +289,12 @@ public final class Plan extends BasePlan { // implements Constants
   // GC state
   private static boolean hi = false;   // If true, we are allocating from the "higher" semispace.
 
-  ////////////////////////////////////////////////////////////////////////////
+
   //
   // Final class variables (aka constants)
   //
+  private static final VM_Address     BOOT_START = VM_Address.fromInt(0x30000000); // check against jconfigure
+  private static final EXTENT         BOOT_SIZE  = 48 * 1024 * 1024;               // upper bound - should check at building time
   private static final VM_Address IMMORTAL_START = VM_Address.fromInt(0x40000000);
   private static final EXTENT      IMMORTAL_SIZE = 16 * 1024 * 1024;
   private static final VM_Address      LOS_START = VM_Address.fromInt(0x42000000);
@@ -305,8 +306,33 @@ public final class Plan extends BasePlan { // implements Constants
 
   private static final int COPY_FUDGE_BLOCKS = 1;  // Steve - fix this
 
-  private static final int BP_ALLOCATOR = 0;
-  private static final int LOS_ALLOCATOR = 1;
-  private static final int IMMORTAL_ALLOCATOR = 2;
+  public static final int BP_ALLOCATOR = 0;
+  public static final int LOS_ALLOCATOR = 1;
+  public static final int IMMORTAL_ALLOCATOR = 2;
+
+
+  /**
+   * Class initializer.  This is executed <i>prior</i> to bootstrap
+   * (i.e. at "build" time).
+   */
+  static {
+    // virtual memory resources
+    VM_Address HI_SS_START = SS_START.add(SS_SIZE);
+    ss0VM      = new MonotoneVMResource("Lower semispace", SS_START,       SS_SIZE,       
+					(byte) (VMResource.IN_VM | VMResource.MOVABLE));
+    ss1VM      = new MonotoneVMResource("Upper semispace", HI_SS_START,    SS_SIZE,       
+					(byte) (VMResource.IN_VM | VMResource.MOVABLE));
+    losVM      = new MonotoneVMResource("Large obj space", LOS_START,      LOS_SIZE,      
+					VMResource.IN_VM);
+    immortalVM = new MonotoneVMResource("Immortal space",  IMMORTAL_START, IMMORTAL_SIZE, 
+					(byte) (VMResource.IN_VM | VMResource.IMMORTAL));
+    bootVM     = new MonotoneVMResource("Boot image",      BOOT_START, BOOT_SIZE, 
+					(byte) (VMResource.IN_VM | VMResource.IMMORTAL));
+    // memory resources
+    ssMR = new MemoryResource();
+    losMR = new MemoryResource();
+    immortalMR = new MemoryResource();
+  }
+
 }
    

@@ -4,6 +4,9 @@
 //$Id$
 import com.ibm.JikesRVM.*;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
+//-#if RVM_WITH_JMTK
+import com.ibm.JikesRVM.memoryManagers.JMTk.Plan;
+//-#endif 
 
 /**
  * Dummy class containing enough references to force java compiler
@@ -35,4 +38,7 @@ class Dummy {
   //-#endif
   static VM_MultianewarrayHelper    r;
   static VM_Address                 s;
+//-#if RVM_WITH_JMTK
+  static Plan                       t;
+//-#endif
 }

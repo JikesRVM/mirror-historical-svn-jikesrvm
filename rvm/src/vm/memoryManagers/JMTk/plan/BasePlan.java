@@ -14,6 +14,7 @@ import com.ibm.JikesRVM.memoryManagers.vmInterface.AddressTripleSet;
 
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Offset;
 import com.ibm.JikesRVM.VM_Magic;
 import com.ibm.JikesRVM.VM_PragmaInterruptible;
 
@@ -49,8 +50,8 @@ public abstract class BasePlan implements Constants {
    * For this reason all plans should operate gracefully on the
    * default minimum heap size until the point that boot is called.
    */
-  public void boot() {
-    heapBlocks = Conversions.MBToBlocks(Options.heapSize);
+  static public void boot() {
+    heapBlocks = Conversions.bytesToBlocks(Options.heapSize);
   }
 
   protected static boolean gcInProgress = false;    // This flag should be turned on/off by subclasses.
@@ -196,7 +197,7 @@ public abstract class BasePlan implements Constants {
    * @return The possibly moved reference.
    */
   final public VM_Address traceInteriorReference(VM_Address obj, VM_Address interiorRef) {
-    int offset = obj.diff(interiorRef);
+    VM_Offset offset = obj.diff(interiorRef);
     VM_Address newObj = traceObject(obj);
     return newObj.add(offset);
   }

@@ -41,8 +41,8 @@ class VM_PassiveCollectorThread extends VM_Thread {
     int processorStatusIndex = VM_Processor.getCurrentProcessor().vpStatusIndex;
     
     
-    while (true)
-      {
+    while (true) {
+
 	// suspend this thread: it will resume when scheduled by VM_Handshake.initiateCollection()
         VM_Scheduler.passiveCollectorMutex.lock();
 	VM_Thread.getCurrentThread().yield(VM_Scheduler.passiveCollectorQueue, VM_Scheduler.passiveCollectorMutex);

@@ -47,7 +47,7 @@ public class VM_StackBrowser implements VM_Constants {
     }
 
     currentFramePointer = newFP;
-    currentInstructionPointer = newIP.diff( VM_Magic.objectAsAddress(cm.getInstructions()) );
+    currentInstructionPointer = newIP.diff( VM_Magic.objectAsAddress(cm.getInstructions()) ).toInt();
 
     cm.set(this, currentInstructionPointer);
   }

@@ -3496,65 +3496,91 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       return;
     }
 
-    if (methodName == VM_MagicNames.addressFromInt ||
-	methodName == VM_MagicNames.addressToInt) {
+    if (methodName == VM_MagicNames.wordFromInt ||
+	methodName == VM_MagicNames.wordToInt ||
+	methodName == VM_MagicNames.wordToAddress ||
+	methodName == VM_MagicNames.wordToWord) {
 	// no-op
 	return;
     }
 
-    if (methodName == VM_MagicNames.addressAdd) {
+    if (methodName == VM_MagicNames.wordAnd) {
+	asm.emitPOP_Reg(T0);
+	asm.emitAND_RegInd_Reg(SP, T0);
+	return;
+    }
+
+    if (methodName == VM_MagicNames.wordOr) {
+	asm.emitPOP_Reg(T0);
+	asm.emitOR_RegInd_Reg(SP, T0);
+	return;
+    }
+
+    if (methodName == VM_MagicNames.wordXor) {
+	asm.emitPOP_Reg(T0);
+	asm.emitXOR_RegInd_Reg(SP, T0);
+	return;
+    }
+
+    if (methodName == VM_MagicNames.wordNot) {
+        asm.emitMOV_Reg_RegInd (T0, SP);
+	asm.emitNAND_RegInd_Reg(SP, T0);
+	return;
+    }
+
+    if (methodName == VM_MagicNames.wordAdd) {
 	asm.emitPOP_Reg(T0);
 	asm.emitADD_RegInd_Reg(SP, T0);
 	return;
     }
 
-    if (methodName == VM_MagicNames.addressSub ||
-	methodName == VM_MagicNames.addressDiff) {
+    if (methodName == VM_MagicNames.wordSub ||
+	methodName == VM_MagicNames.wordDiff) {
 	asm.emitPOP_Reg(T0);
 	asm.emitSUB_RegInd_Reg(SP, T0);
 	return;
     }
 
-    if (methodName == VM_MagicNames.addressZero) {
+    if (methodName == VM_MagicNames.wordZero) {
 	asm.emitPUSH_Imm(0);
 	return;
     }
 
-    if (methodName == VM_MagicNames.addressMax) {
+    if (methodName == VM_MagicNames.wordMax) {
 	asm.emitPUSH_Imm(-1);
 	return;
     }
 
-    if (methodName == VM_MagicNames.addressLT) {
+    if (methodName == VM_MagicNames.wordLT) {
 	generateAddrComparison(asm.LT);
 	return;
     }
-    if (methodName == VM_MagicNames.addressLE) {
+    if (methodName == VM_MagicNames.wordLE) {
 	generateAddrComparison(asm.LE);
 	return;
     }
-    if (methodName == VM_MagicNames.addressGT) {
+    if (methodName == VM_MagicNames.wordGT) {
 	generateAddrComparison(asm.GT);
 	return;
     }
-    if (methodName == VM_MagicNames.addressGE) {
+    if (methodName == VM_MagicNames.wordGE) {
 	generateAddrComparison(asm.GE);
 	return;
     }
-    if (methodName == VM_MagicNames.addressEQ) {
+    if (methodName == VM_MagicNames.wordEQ) {
 	generateAddrComparison(asm.EQ);
 	return;
     }
-    if (methodName == VM_MagicNames.addressNE) {
+    if (methodName == VM_MagicNames.wordNE) {
 	generateAddrComparison(asm.NE);
 	return;
     }
-    if (methodName == VM_MagicNames.addressIsZero) {
+    if (methodName == VM_MagicNames.wordIsZero) {
 	asm.emitPUSH_Imm(0);
 	generateAddrComparison(asm.EQ);
 	return;
     }
-    if (methodName == VM_MagicNames.addressIsMax) {
+    if (methodName == VM_MagicNames.wordIsMax) {
 	asm.emitPUSH_Imm(-1);
 	generateAddrComparison(asm.EQ);
 	return;

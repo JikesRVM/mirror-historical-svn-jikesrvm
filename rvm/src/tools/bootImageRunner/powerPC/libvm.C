@@ -140,17 +140,15 @@ static int inRVMAddressSpace(unsigned int addr) {
 
    /* get the boot record */
    VM_Address *heapRanges = theBootRecord->heapRanges;
-   int MaxHeaps = 10;  // update to match VM_Heap.MAX_HEAPS  XXXXX
+   int MaxHeaps = 20;  // update to match (VM_BootRecord.heapRange.length / 2)
 
-   for (int which = 0; ; which++) {
-       assert(which <= (MaxHeaps + 1));
-       VM_Address start = heapRanges[2 * which];
-       VM_Address end = heapRanges[2 * which + 1];
-       if (start == ~0 && end == ~0) break;
-       if (start <= addr  && addr  < end)
-	 return true;
+   for (int which = 0; which < MaxHeaps; which++) {
+     VM_Address start = heapRanges[2 * which];
+     VM_Address end = heapRanges[2 * which + 1];
+     if (start <= addr  && addr < end) {
+       return true;
+     }
    }
-	
    return false;
 }
 

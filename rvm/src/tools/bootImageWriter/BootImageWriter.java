@@ -17,6 +17,7 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
+import com.ibm.JikesRVM.memoryManagers.JMTk.VMResource;
 import com.ibm.JikesRVM.*;
 
 /**
@@ -420,15 +421,15 @@ public class BootImageWriter extends BootImageWriterMessages
 
     //
     // First object in image must be boot record (so boot loader will know
-    // where to find it).  We'll write out an uninitialized record to
-    // reserve the space, then go back and fill it in later.
+    // where to find it).  We'll write out an uninitialized record and not recurse 
+    // to reserve the space, then go back and fill it in later.
     //
     if (verbose >= 1) say("copying boot record");
     VM_BootRecord bootRecord = VM_BootRecord.the_boot_record;
     int bootRecordImageOffset = 0;
     try {
       // copy just the boot record
-      bootRecordImageOffset = copyToBootImage(bootRecord, false, -1, null); 
+      bootRecordImageOffset = copyToBootImage(bootRecord, true, -1, null); 
       if (bootRecordImageOffset == OBJECT_NOT_PRESENT)
         fail("can't copy boot record");
     } catch (IllegalAccessException e) {
@@ -442,7 +443,7 @@ public class BootImageWriter extends BootImageWriterMessages
     int[] jtoc = VM_Statics.getSlots();
     int jtocImageOffset = 0;
     try {
-      jtocImageOffset = copyToBootImage(jtoc, true, -1, null);
+      jtocImageOffset = copyToBootImage(jtoc, false, -1, null);
       if (jtocImageOffset == OBJECT_NOT_PRESENT)
         fail("can't copy jtoc");
     } catch (IllegalAccessException e) {
@@ -450,7 +451,7 @@ public class BootImageWriter extends BootImageWriterMessages
     }
 
     if ((jtocImageOffset + bootImageAddress) != bootRecord.tocRegister)
-      fail("mismatch in JTOC placement"+(jtocImageOffset + bootImageAddress)+","+bootRecord.tocRegister);
+      fail("mismatch in JTOC placement "+(jtocImageOffset + bootImageAddress)+" != "+bootRecord.tocRegister);
 
     //
     // Now, copy all objects reachable from jtoc, replacing each object id
@@ -475,7 +476,7 @@ public class BootImageWriter extends BootImageWriterMessages
 
         if (verbose >= 1) traceContext.push(jdkObject.getClass().getName(),
 					    getRvmStaticFieldName(i));
-        int imageOffset = copyToBootImage(jdkObject, true, -1, jtoc);
+        int imageOffset = copyToBootImage(jdkObject, false, -1, jtoc);
         if (imageOffset == OBJECT_NOT_PRESENT) {
           // object not part of bootimage: install null reference
           if (verbose >= 1) traceContext.traceObjectNotInBootImage();
@@ -513,18 +514,11 @@ public class BootImageWriter extends BootImageWriterMessages
     bootRecord.bootImageStart = VM_Address.fromInt(bootImageAddress);
     bootRecord.bootImageEnd   = VM_Address.fromInt(bootImageAddress + bootImage.getSize());
 
-    // Initialize pointer containing field of bootRecord now
-    //
-    bootRecord.heapRanges   = new int[2 * (1 + VM_Interface.getMaxHeaps())];
-    // Indicate end of arary with sentinel value
-    bootRecord.heapRanges[bootRecord.heapRanges.length - 1] = -1;
-    bootRecord.heapRanges[bootRecord.heapRanges.length - 2] = -1;
-
     // Update field of boot record now by re-copying
     //
     if (verbose >= 1) say("re-copying boot record (and its TIB)");
     try {
-	int newBootRecordImageOffset = copyToBootImage(bootRecord, true, bootRecordImageOffset, null); 
+	int newBootRecordImageOffset = copyToBootImage(bootRecord, false, bootRecordImageOffset, null); 
 	if (newBootRecordImageOffset != bootRecordImageOffset) {
 	    VM.sysWriteln("bootRecordImageOffset = ", bootRecordImageOffset);
 	    VM.sysWriteln("newBootRecordImageOffset = ", newBootRecordImageOffset);
@@ -1086,20 +1080,21 @@ public class BootImageWriter extends BootImageWriterMessages
   private static int depth = -1;
   private static int jtocCount = -1;
   private static final String SPACES = "                                                                                                                                                                                                                                                                                                                                ";
-
   /**
    * Copy an object (and, recursively, any of its fields or elements that
    * are references) from host jdk address space into image.
    *
    * @param jdkObject object to be copied
-   * @param if copyTIB is false, TIB field is not recursively copied
-   * @param if overwriteAddress is not -1, then copy object to given address
+   * @param if allocOnly is true, the TIB and other reference fields are not recursively copied
+   * @param if overwriteOffset is > 0, then copy object to given address
    *
    * @return offset of copied object within image, in bytes
    *         (OBJECT_NOT_PRESENT --> object not copied:
    *            it's not part of bootimage)
    */
-  private static int copyToBootImage(Object jdkObject, boolean copyTIB, int overwriteOffset, Object parentObject)
+  private static int copyToBootImage(Object jdkObject, 
+				     boolean allocOnly, int overwriteOffset, 
+				     Object parentObject)
     throws IllegalAccessException
   {
     //
@@ -1239,22 +1234,23 @@ public class BootImageWriter extends BootImageWriterMessages
         // array element is reference type
         Object values[] = (Object []) jdkObject;
         Class jdkClass = jdkObject.getClass();
-        for (int i = 0; i < arrayCount; ++i) {
-          if (values[i] != null) {
-            if (verbose >= 1) traceContext.push(values[i].getClass().getName(),
-                                         jdkClass.getName(), i);
-            int imageOffset = copyToBootImage(values[i], copyTIB, -1, jdkObject);
-            if (imageOffset == OBJECT_NOT_PRESENT) {
-              // object not part of bootimage: install null reference
-
-              if (verbose >= 1) traceContext.traceObjectNotInBootImage();
-              bootImage.setNullAddressWord(arrayImageOffset + (i << 2));
-            } else
-              bootImage.setAddressWord(arrayImageOffset + (i << 2),
-                                       bootImageAddress + imageOffset);
-            if (verbose >= 1) traceContext.pop();
-          }
-        }
+        if (!allocOnly)
+	  for (int i = 0; i < arrayCount; ++i) {
+	    if (values[i] != null) {
+	      if (verbose >= 1) traceContext.push(values[i].getClass().getName(),
+						  jdkClass.getName(), i);
+	      int imageOffset = copyToBootImage(values[i], allocOnly, -1, jdkObject);
+	      if (imageOffset == OBJECT_NOT_PRESENT) {
+		// object not part of bootimage: install null reference
+		
+		if (verbose >= 1) traceContext.traceObjectNotInBootImage();
+		bootImage.setNullAddressWord(arrayImageOffset + (i << 2));
+	      } else
+		bootImage.setAddressWord(arrayImageOffset + (i << 2),
+					 bootImageAddress + imageOffset);
+	      if (verbose >= 1) traceContext.pop();
+	    }
+	  }
       }
     } else {
       VM_Class rvmScalarType = rvmType.asClass();
@@ -1364,12 +1360,12 @@ public class BootImageWriter extends BootImageWriterMessages
         } else {
           // field is reference type
           Object value = jdkFieldAcc.get(jdkObject);
-          Class jdkClass = jdkFieldAcc.getDeclaringClass();
-          if (value != null) {
+          if (!allocOnly && value != null) {
+	    Class jdkClass = jdkFieldAcc.getDeclaringClass();
             if (verbose >= 1) traceContext.push(value.getClass().getName(),
                                          jdkClass.getName(),
                                          jdkFieldAcc.getName());
-            int imageOffset = copyToBootImage(value, copyTIB, -1, jdkObject);
+            int imageOffset = copyToBootImage(value, allocOnly, -1, jdkObject);
             if (imageOffset == OBJECT_NOT_PRESENT) {
               // object not part of bootimage: install null reference
               if (verbose >= 1) traceContext.traceObjectNotInBootImage();
@@ -1387,10 +1383,10 @@ public class BootImageWriter extends BootImageWriterMessages
     // copy object's type information block into image, if it's not there
     // already
     //
-    if (copyTIB) {
+    if (!allocOnly) {
 
       if (verbose >= 1) traceContext.push("", jdkObject.getClass().getName(), "tib");
-      int tibImageOffset = copyToBootImage(rvmType.getTypeInformationBlock(), copyTIB, -1, jdkObject);
+      int tibImageOffset = copyToBootImage(rvmType.getTypeInformationBlock(), allocOnly, -1, jdkObject);
       if (verbose >= 1) traceContext.pop();
       if (tibImageOffset == OBJECT_NOT_ALLOCATED)
 	fail("can't copy tib for " + jdkObject);

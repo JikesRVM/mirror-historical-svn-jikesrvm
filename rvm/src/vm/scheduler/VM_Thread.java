@@ -764,7 +764,7 @@ public class VM_Thread implements VM_Constants, VM_Uninterruptible {
     VM_Address newTop  = VM_Magic.objectAsAddress(newStack).add(newStack.length << 2);
 
     VM_Address myFP    = VM_Magic.getFramePointer();
-    int myDepth        = myTop.diff(myFP);
+    VM_Offset  myDepth = myTop.diff(myFP);
     VM_Address newFP   = newTop.sub(myDepth);
 
     // The frame pointer addresses the top of the frame on powerpc and 
@@ -950,17 +950,17 @@ public class VM_Thread implements VM_Constants, VM_Uninterruptible {
       VM_Address myTop   = VM_Magic.objectAsAddress(myStack).add(myStack.length  << 2);
       VM_Address newTop  = VM_Magic.objectAsAddress(newStack).add(newStack.length << 2);
       VM_Address myFP    = VM_Magic.getFramePointer();
-      int myDepth        = myTop.diff(myFP);
-      VM_Address newFP          = newTop.sub(myDepth);
+      VM_Offset myDepth  = myTop.diff(myFP);
+      VM_Address newFP   = newTop.sub(myDepth);
 
       // before copying, make sure new stack isn't too small
       //
       if (VM.VerifyAssertions)
 	  VM._assert(newFP.GE(VM_Magic.objectAsAddress(newStack).add(STACK_SIZE_GUARD)));
 
-      VM_Memory.aligned32Copy(newFP, myFP, myDepth);
+      VM_Memory.aligned32Copy(newFP, myFP, myDepth.toInt());
 
-      return newFP.diff(myFP);
+      return newFP.diff(myFP).toInt();
     }
 
   /**

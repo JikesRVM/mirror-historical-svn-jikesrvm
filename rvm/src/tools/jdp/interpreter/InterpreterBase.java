@@ -1667,7 +1667,7 @@ implements VM_Constants
 	      VM_Method calledMethod = getCalledMethodFromPoolIndex(byte_codes.fetch2BytesUnsigned(), sender);
 	      if (traceInterpreter >= 1) println("invokevirtual (" + calledMethod+ ")");	      
 	      VM_Class called_class = calledMethod.getDeclaringClass();
-	      if (called_class.isAddressType()) 
+	      if (called_class.isWordType()) 
 		{
 		  /* intercept Magic calls */
 		  invokeMagic(calledMethod);
@@ -1689,7 +1689,7 @@ implements VM_Constants
 	      VM_Class called_class = called_method.getDeclaringClass();
 	      // println("invokestatic (" + called_class+ ")");
 
-	      if (called_class.isMagicType() || called_class.isAddressType()) 
+	      if (called_class.isMagicType() || called_class.isWordType()) 
 		{
 		  /* intercept Magic calls */
 		  invokeMagic(called_method);

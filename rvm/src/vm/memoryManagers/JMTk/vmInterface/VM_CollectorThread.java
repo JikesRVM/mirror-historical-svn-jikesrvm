@@ -499,8 +499,8 @@ public class VM_CollectorThread extends VM_Thread {
   // Returned: collector
   // Note: "stack" must be in pinned memory: currently done by allocating it in the boot image.
   //
-  static VM_CollectorThread 
-    createPassiveCollectorThread(int[] stack, VM_Processor processorAffinity) throws VM_PragmaInterruptible {
+  static VM_CollectorThread createPassiveCollectorThread(int[] stack, VM_Processor processorAffinity) 
+    throws VM_PragmaInterruptible {
     return new VM_CollectorThread(stack, false,  processorAffinity);
   }
 
@@ -613,7 +613,8 @@ public class VM_CollectorThread extends VM_Thread {
   // Record number of processors that will be participating in gc synchronization.
   //
   public static void boot(int numProcessors) throws VM_PragmaInterruptible {
-    VM_Interface.threadBoot(numProcessors);
+    VM_Processor proc = VM_Processor.getCurrentProcessor();
+    VM_Interface.setupProcessor(proc);
   }
   
   public void incrementWaitTimeTotals() throws VM_PragmaUninterruptible {

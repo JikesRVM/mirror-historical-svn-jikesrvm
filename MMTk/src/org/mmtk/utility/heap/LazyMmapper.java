@@ -31,16 +31,6 @@ public final class LazyMmapper implements Constants, VM_Uninterruptible {
   //
   //
 
-  /**
-   * Class initializer.  This is executed <i>prior</i> to bootstrap
-   * (i.e. at "build" time).
-   */
-  {
-    mapped = new boolean[MMAP_NUM_CHUNKS];
-    for (int c = 0; c < MMAP_NUM_CHUNKS; c++) {
-      mapped[c] = false;
-    }
-  }
 
   public static void ensureMapped(VM_Address start, int blocks) {
     int chunk = Conversions.addressToMmapChunks(start);
@@ -66,5 +56,17 @@ public final class LazyMmapper implements Constants, VM_Uninterruptible {
   final public static int MMAP_CHUNK_SIZE = 1 << LOG_MMAP_CHUNK_SIZE;   // the granularity VMResource operates at
   final private static int MMAP_NUM_CHUNKS = 1 << (Constants.LOG_ADDRESS_SPACE - LOG_MMAP_CHUNK_SIZE);
   final public  static int MMAP_CHUNK_MASK = ~((1 << LOG_MMAP_CHUNK_SIZE) - 1);
+
+  /**
+   * Class initializer.  This is executed <i>prior</i> to bootstrap
+   * (i.e. at "build" time).
+   */
+  static {
+    mapped = new boolean[MMAP_NUM_CHUNKS];
+    for (int c = 0; c < MMAP_NUM_CHUNKS; c++) {
+      mapped[c] = false;
+    }
+  }
+
 }
 

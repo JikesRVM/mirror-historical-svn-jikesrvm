@@ -30,7 +30,7 @@ final class Plan implements Constants, Uninterruptible extends BasePlan {
    * Class initializer.  This is executed <i>prior</i> to bootstrap
    * (i.e. at "build" time).
    */
-  {
+  static {
     // virtual memory resources
     msVM = new VMResource(MARKSWEEP_START, MARKSWEEP_VM_SIZE);
     immortalVM = new VMResource(IMMORTAL_START, IMMORTAL_VM_SIZE);

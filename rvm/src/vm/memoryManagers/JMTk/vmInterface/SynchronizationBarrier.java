@@ -20,6 +20,7 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
  *
  * @author   Derek Lieber
  * @modified Steve Smith
+ * @modified Perry ChengkSteve Smith
  */
 public final class SynchronizationBarrier {
 
@@ -59,7 +60,11 @@ public final class SynchronizationBarrier {
   /**
    * Wait for all other collectorThreads/processors to arrive at this barrier.
    */
-  public double rendezvous (boolean time) throws VM_PragmaUninterruptible {
+  public int rendezvous () throws VM_PragmaUninterruptible {
+    return rendezvous(false);
+  }
+
+  public int rendezvous (boolean time) throws VM_PragmaUninterruptible {
 
     double start = time ? VM_Time.now() : 0.0;
     int myProcessorId = VM_Processor.getCurrentProcessorId();
@@ -98,7 +103,9 @@ public final class SynchronizationBarrier {
     //
     if (trace) VM_Scheduler.trace("VM_ProcessorSynchronizationBarrier", "rendezvous: leave ", myCount);
     if (time) rendezvousRecord(start, VM_Time.now());
-    return 0.0;
+
+    // XXX This should be changed to return ordinal of current rendezvous rather than the one at the beginning
+    return VM_Magic.threadAsCollectorThread(VM_Thread.getCurrentThread()).getGCOrdinal();
   }
 
   public double rendezvousRecord(double start, double end) throws VM_PragmaUninterruptible {
@@ -125,7 +132,7 @@ public final class SynchronizationBarrier {
   }
 
   /**
-   * Coments are for default implementation of jni (not the alternative implemenation)
+   * Comments are for default implementation of jni (not the alternative implemenation)
    * <p>
    * First rendezvous for a collection, called by all CollectorThreads that arrive
    * to participate in a collection.  Thread with gcOrdinal==1 is responsible for
@@ -135,6 +142,7 @@ public final class SynchronizationBarrier {
    * been declared non-participating.
    */
   public void  startupRendezvous () throws VM_PragmaUninterruptible {
+
     int myProcessorId = VM_Processor.getCurrentProcessorId();
     int myNumber = VM_Magic.threadAsCollectorThread(VM_Thread.getCurrentThread()).getGCOrdinal();
     int numExcluded = 0;  // number of RVM VPs NOT participating

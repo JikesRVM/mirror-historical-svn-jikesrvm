@@ -374,24 +374,33 @@ class OPT_GenerateMagic implements OPT_Operators, VM_RegisterConstants {
       bc2ir.appendInstruction(Attempt.create(ATTEMPT, test, base, offset, oldVal, 
 					     newVal, null));
       bc2ir.push(test.copyD2U());
-    } else if (methodName == VM_MagicNames.addressFromInt) {
-      OPT_RegisterOperand reg = gc.temps.makeTemp(VM_Type.AddressType);
+    }  // XXXX overloaded names for methods of different types!!! must be more clever here
+    else if (methodName == VM_MagicNames.wordFromInt) { 
+      OPT_RegisterOperand reg = gc.temps.makeTemp(VM_Type.AddressType); 
       bc2ir.appendInstruction(Move.create(REF_MOVE, reg, bc2ir.popInt()));
       bc2ir.push(reg.copyD2U());
-    } else if (methodName == VM_MagicNames.addressToInt) {
+    } else if (methodName == VM_MagicNames.wordToInt) {
       // a no-op without even a type-conversion
       OPT_RegisterOperand reg = gc.temps.makeTempInt();
       bc2ir.appendInstruction(Move.create(INT_MOVE, reg, bc2ir.popAddress()));
       bc2ir.push(reg.copyD2U());
+    } else if (methodName == VM_MagicNames.wordToWord) {
+      OPT_RegisterOperand reg = gc.temps.makeTemp(VM_Type.WordType);
+      bc2ir.appendInstruction(Move.create(REF_MOVE, reg, bc2ir.popInt()));
+      bc2ir.push(reg.copyD2U());
+    } else if (methodName == VM_MagicNames.wordToAddress) {
+      OPT_RegisterOperand reg = gc.temps.makeTemp(VM_Type.AddressType);
+      bc2ir.appendInstruction(Move.create(REF_MOVE, reg, bc2ir.popInt()));
+      bc2ir.push(reg.copyD2U());
     }
-    else if (methodName == VM_MagicNames.addressAdd) {
+    else if (methodName == VM_MagicNames.wordAdd) {
       OPT_Operand o2 = bc2ir.popInt();
       OPT_Operand o1 = bc2ir.popAddress();
       OPT_RegisterOperand op0 = gc.temps.makeTemp(VM_Type.AddressType);
       bc2ir.appendInstruction(Binary.create(INT_ADD, op0, o1, o2));
       bc2ir.push(op0.copyD2U());
     }
-    else if (methodName == VM_MagicNames.addressSub) {
+    else if (methodName == VM_MagicNames.wordSub) {
       OPT_Operand o2 = bc2ir.popInt();
       OPT_Operand o1 = bc2ir.popAddress();
       OPT_RegisterOperand op0 = gc.temps.makeTemp(VM_Type.AddressType);
