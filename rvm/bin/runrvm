@@ -27,7 +27,7 @@
 #    Converted from "ksh" to Bash
 #
 
-ME=${$0##*/}
+ME=${0##*/}
 
 function usage() {
     local exitstatus=${1-"1"};
