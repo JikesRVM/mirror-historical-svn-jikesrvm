@@ -496,15 +496,6 @@ public class VM_Allocator
     // assumption: collector has previously zero-filled the space
     // assumption: object sizes are always a word multiple,
     // so we don't need to worry about address alignment or rounding
-    //
-    //  |<--------------------size---------------->|
-    //  .                            |<--hdr size->|
-    //  .                            |<--- hdr offset--->|
-    //  +-------------------+--------+------+------+-----+-----+
-    //  |         ...field1 | field0 | tib  |status| free| free|
-    //  +-------------------+--------+------+------+-----+-----+
-    //                      (new) areaCurrentAddress^     ^new_ref
-    //   ^(prevoius) areaCurrentAddress
   
     // if compiled for processor local "chunks", assume size is "small" and attempt to
     // allocate locally, if the local allocation fails, call the heavyweight allocate
@@ -584,19 +575,10 @@ public class VM_Allocator
   
      // assumption: collector has previously zero-filled the space
      //
-     //  |<--------------------size---------------->|
-     //  |<-----hdr size---->|                      .
-     //  |<-----hdr offset-->|                      .
-     //  +------+------+-----+------+---------------+----+
-     //  | tib  |status| len | elt0 |     ...       |free|
-     //  +------+------+-----+------+---------------+----+
-     //   ^memAddr             ^objAddress           ^areaCurrentAddress
-     //
-  
+
      // note: array size might not be a word multiple,
      // so we must round up size to preserve alignment for future allocations
-  
-     size = (size + 3) & ~3;     // round up request to word multiple
+     size = (size + 3) & ~3;   
   
      // if compiled for processor local "chunks", and size is "small", attempt to
      // allocate locally, if the local allocation fails, call the heavyweight allocate
