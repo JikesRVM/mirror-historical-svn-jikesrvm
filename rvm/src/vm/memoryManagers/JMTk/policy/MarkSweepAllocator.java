@@ -38,13 +38,15 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
   }
 
   public final void sweepSuperPages() {
-    VM_Address sp = headSuperPage;
-    while (!sp.EQ(VM_Address.zero())) {
-      int sizeClass = getSizeClass(sp);
-      if (!isLarge(sizeClass))
+    for (int sizeClass = 1; sizeClass < SIZE_CLASSES; sizeClass++) {
+      VM_Address sp = superPageFreeList[sizeClass];
+      while (!sp.EQ(VM_Address.zero())) {
+	//      int sizeClass = getSizeClass(sp);
+	//      if (!isLarge(sizeClass))
 	collector.sweepSuperPage(this, sp, sizeClass, cellSize(sizeClass));
       
-      sp = getNextSuperPage(sp);
+	sp = getNextSuperPage(sp);
+      }
     }
   }
   
@@ -52,7 +54,7 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
     VM_Address cell = treadmillFromHead;
     while (!cell.EQ(VM_Address.zero())) {
       VM_Address next = MarkSweepCollector.getNextTreadmill(cell);
-      freeSuperPage(getSuperPage(cell, false));
+      freeSuperPage(getSuperPage(cell, false), LARGE_SIZE_CLASS);
       cell = next;
     }
     treadmillFromHead = treadmillToHead;

@@ -55,6 +55,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
     vmResource = vmr;
     memoryResource = mr;
     freeList = new VM_Address[SIZE_CLASSES];
+    superPageFreeList = new VM_Address[SIZE_CLASSES];
   }
 
   /**
@@ -118,14 +119,14 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   protected final void free(VM_Address cell, VM_Address sp, int szClass)
     throws VM_PragmaInline {
     if (isLarge(szClass))
-      freeSuperPage(sp);
+      freeSuperPage(sp, szClass);
     else if (decInUse(sp) > 0) {
       setNextCell(cell, freeList[szClass]);
       freeList[szClass] = cell;
       postFreeCell(cell, sp, szClass);
     } else {
       releaseSuperPageCells(sp, szClass);
-      freeSuperPage(sp);
+      freeSuperPage(sp, szClass);
     }
   }
 
@@ -175,7 +176,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   private final VM_Address allocLarge(boolean isScalar, EXTENT bytes) {
     bytes += superPageHeaderSize(LARGE_SIZE_CLASS) + cellHeaderSize(false);
     int pages = (bytes + PAGE_SIZE - 1)>>LOG_PAGE_SIZE;
-    VM_Address sp = allocSuperPage(pages);
+    VM_Address sp = allocSuperPage(pages, LARGE_SIZE_CLASS);
     setSizeClass(sp, LARGE_SIZE_CLASS);
 //     VM.sysWrite("************\n");
     return initializeCell(sp.add(superPageHeaderSize(LARGE_SIZE_CLASS)), sp, false, true);
@@ -192,7 +193,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   private final void expandSizeClass(int sizeClass) {
     // grab superpage
     int pages = pagesForClassSize(sizeClass);
-    VM_Address sp = allocSuperPage(pages);
+    VM_Address sp = allocSuperPage(pages, sizeClass);
     int subclassHeader = superPageHeaderSize(sizeClass)-BASE_SP_HEADER_SIZE;
     if (subclassHeader != 0)
       VM_Memory.zero(sp.add(BASE_SP_HEADER_SIZE), subclassHeader);
@@ -279,17 +280,17 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
    * @param pages The size of the superpage in pages.
    * @return The address of the first word of the superpage.
    */
-  private final VM_Address allocSuperPage(int pages) {
+  private final VM_Address allocSuperPage(int pages, int sizeClass) {
     VM_Address sp = vmResource.acquire(pages, memoryResource);
 
     // link superpage
 //     VM.sysWrite("super page: "); VM.sysWrite(sp); VM.sysWrite("\n");
 //     VM.sysWrite("PAGE_MASK: "); VM.sysWrite(PAGE_MASK.toAddress()); VM.sysWrite("\n");
-    setNextSuperPage(sp, headSuperPage);
+    setNextSuperPage(sp, superPageFreeList[sizeClass]);
     setPrevSuperPage(sp, VM_Address.zero());
-    if (!headSuperPage.EQ(VM_Address.zero()))
-      setPrevSuperPage(headSuperPage, sp);
-    headSuperPage = sp;
+    if (!superPageFreeList[sizeClass].EQ(VM_Address.zero()))
+      setPrevSuperPage(superPageFreeList[sizeClass], sp);
+    superPageFreeList[sizeClass] = sp;
 
     return sp;
   }
@@ -305,14 +306,14 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
    * @param sp The superpage to be freed.
    * @see releaseSuperPageCells
    */
-  protected final void freeSuperPage(VM_Address sp) {
+  protected final void freeSuperPage(VM_Address sp, int sizeClass) {
     // unlink superpage
     VM_Address next = getNextSuperPage(sp);
     VM_Address prev = getPrevSuperPage(sp);
     if (prev.NE(VM_Address.zero()))
       setNextSuperPage(prev, next);
     else
-      headSuperPage = next;
+      superPageFreeList[sizeClass] = next;
     if (next.NE(VM_Address.zero()))
       setPrevSuperPage(next, prev);
 
@@ -701,11 +702,12 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   protected static final int LARGE_SIZE_CLASS = 0;
   protected static final int MAX_SMALL_SIZE_CLASS = 39;
   public static final int NON_SMALL_OBJ_HEADER_SIZE = WORD_SIZE;
-  private static final int PREV_SP_OFFSET = 0;
-  private static final int NEXT_SP_OFFSET = WORD_SIZE;
+  private static final int PREV_SP_OFFSET = 0 * WORD_SIZE;
+  private static final int NEXT_SP_OFFSET = 1 * WORD_SIZE;
+  private static final int SP_FREELIST_OFFSET = 2 * WORD_SIZE;
   private static final int IN_USE_WORD_OFFSET = PREV_SP_OFFSET;
   private static final int SIZE_CLASS_WORD_OFFSET = NEXT_SP_OFFSET;
-  protected static final int BASE_SP_HEADER_SIZE = 2 * WORD_SIZE;
+  protected static final int BASE_SP_HEADER_SIZE = 3 * WORD_SIZE;
   protected static final VM_Word PAGE_MASK = VM_Word.fromInt(~(PAGE_SIZE - 1));
   private static final float MID_SIZE_FIT_TARGET = (float) 0.85; // 15% wastage
 
@@ -713,5 +715,5 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   protected NewFreeListVMResource vmResource;
   protected NewMemoryResource memoryResource;
   protected VM_Address[] freeList;
-
+  protected VM_Address[] superPageFreeList;
 }

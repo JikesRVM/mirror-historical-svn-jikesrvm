@@ -57,7 +57,6 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
    * @param mr (unused)
    */
   public void prepare(VMResource vm, NewMemoryResource mr) { 
-    VM.sysWrite("prepare\n");
     markState = MarkSweepHeader.MARK_BIT_MASK - markState;
   }
 
@@ -69,7 +68,6 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
    * @param mr (unused)
    */
   public void release(MarkSweepAllocator allocator) { 
-    VM.sysWrite("prepare\n");
     sweep(allocator);
   }
 
@@ -127,12 +125,9 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
 
   public final void sweep(MarkSweepAllocator allocator) {
     // sweep the small objects
-    VM.sysWrite("sweep small(");
     allocator.sweepSuperPages();
     // sweep the large objects
-    VM.sysWrite(")\nsweep large(");
     allocator.sweepLargePages();
-    VM.sysWrite(")\n");
   }
 
   public final void sweepSuperPage(MarkSweepAllocator allocator,
