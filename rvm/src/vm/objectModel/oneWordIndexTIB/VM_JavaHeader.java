@@ -120,6 +120,18 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
     return jdpService.readJTOCSlot(index);
   }
 
+  /*
+   * The collector may have laid down a forwarding pointer 
+   * in place of the TIB word.  Check for this fringe case
+   * and handle it by following the forwarding pointer to
+   * find the TIB.
+   * We only have to build this extra check into the bootimage code
+   * since all code used by the collector should be in the bootimage.
+   * TODO: be more selective by marking a subset of the bootimage classes
+   *       with a special interface that indicates that this conditional redirect 
+   *       is required.
+   */
+
   /**
    * The following method will emit code that moves a reference to an
    * object's TIB into a destination register.
@@ -136,15 +148,6 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
     int ME = 31 - TIB_SHIFT;
     int MB = HASH_STATE_BITS;
     if (VM_Collector.MOVES_OBJECTS && VM.writingBootImage) {
-      // The collector may have laid down a forwarding pointer 
-      // in place of the TIB word.  Check for this fringe case
-      // and handle it by following the forwarding pointer to
-      // find the TIB.
-      // We only have to build this extra check into the bootimage code
-      // since all code used by the collector should be in the bootimage.
-      // TODO: be more selective by marking a subset of the bootimage classes
-      //       with a special interface that indicates that this conditional redirect 
-      //       is required.
       if (VM.VerifyAssertions) {
 	VM.assert(dest != 0);
 	VM.assert(VM_AllocatorHeader.GC_FORWARDING_MASK == 0x00000003);
@@ -154,8 +157,6 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
       asm.emitANDI(0, dest, VM_AllocatorHeader.GC_FORWARDING_MASK);
       asm.emitBEQ (5);  // if dest & FORWARDING_MASK == 0; then dest has a valid tib index
       asm.emitCMPI(0, VM_AllocatorHeader.GC_FORWARDED);
-      // Two cases: (1) the pointer is forwarded or being forwarded
-      //            (2) the pointer is to a bootimage object that has been marked
       asm.emitBNE (3); 
       // It really has been forwarded; chase the forwarding pointer and get the tib word from there.
       asm.emitRLWINM(dest, dest, 0, 0, 29);    // mask out bottom two bits of forwarding pointer
@@ -177,11 +178,28 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
                                          byte object) {
     if (VM.VerifyAssertions) VM.assert(TIB_SHIFT == 2);
     if (VM_Collector.MOVES_OBJECTS && VM.writingBootImage) {
-      VM.assert(false, "TODO");
+      if (VM.VerifyAssertions) {
+	VM.assert(VM_AllocatorHeader.GC_FORWARDING_MASK == 0x00000003);
+	VM.assert(VM_AllocatorHeader.GC_FORWARDED != VM_Collector.MARK_VALUE);
+	VM.assert(dest != object);
+      }
+      asm.emitMOV_Reg_RegDisp(dest, object, TIB_OFFSET);
+      asm.emitTEST_Reg_Imm(dest, VM_AllocatorHeader.GC_FORWARDING_MASK);
+      VM_ForwardReference fr1 = asm.forwardJcc(asm.EQ);
+      asm.emitAND_Reg_Imm(dest, VM_AllocatorHeader.GC_FORWARDING_MASK);
+      asm.emitCMP_Reg_Imm(dest, VM_AllocatorHeader.GC_FORWARDED);
+      asm.emitMOV_Reg_RegDisp(dest, object, TIB_OFFSET);
+      VM_ForwardReference fr2 = asm.forwardJcc(asm.NE);
+      // It really has been forwarded; chase the forwarding pointer and get the tib word from there.
+      asm.emitAND_Reg_Imm(dest, ~VM_AllocatorHeader.GC_FORWARDING_MASK);
+      asm.emitMOV_Reg_RegDisp(dest, dest, TIB_OFFSET);
+      fr1.resolve(asm);
+      fr2.resolve(asm);
+      asm.emitAND_Reg_Imm(dest,TIB_MASK);
+      asm.emitMOV_Reg_RegIdx(dest, JTOC, dest, asm.BYTE, 0);
     } else {
       asm.emitMOV_Reg_RegDisp(dest, object, TIB_OFFSET);
       asm.emitAND_Reg_Imm(dest,TIB_MASK);
-      // Because TIB_SHIFT is 2 the masked value is a JTOC offset.
       asm.emitMOV_Reg_RegIdx(dest, JTOC, dest, asm.BYTE, 0);
     }
   }
@@ -204,15 +222,6 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
 									      GuardedUnary.getClearVal(s),
 									      TIB_OFFSET, guard);
     if (VM_Collector.MOVES_OBJECTS && VM.writingBootImage) {
-      // The collector may have laid down a forwarding pointer 
-      // in place of the TIB word.  Check for this fringe case
-      // and handle it by following the forwarding pointer to
-      // find the TIB.
-      // We only have to build this extra check into the bootimage code
-      // since all code used by the collector should be in the bootimage.
-      // TODO: be more selective by marking a subset of the bootimage classes
-      //       with a special interface that indicates that this conditional redirect 
-      //       is required.
       if (VM.VerifyAssertions) {
 	VM.assert(VM_AllocatorHeader.GC_FORWARDING_MASK == 0x00000003);
 	VM.assert(VM_AllocatorHeader.GC_FORWARDED != VM_Collector.MARK_VALUE);
