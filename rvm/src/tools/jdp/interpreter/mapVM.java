@@ -916,4 +916,13 @@ class mapVM implements JDPServiceInterface {
     return Platform.readmem(ptr);
   }
 
+  /**
+   * Return the contents of a JTOC slot in the debuggee
+   *
+   * @param slot 
+   */
+  public int readJTOCSlot(int slot) {
+    int ptr = getJTOC() + (slot << 2);
+    return Platform.readmem(ptr);
+  }
 }

@@ -55,6 +55,15 @@ JDPServiceInterface
   // Methods for accessing memory
   //******************************************************************************
 
+  /**
+   * Return the contents of a JTOC slot in the debuggee
+   *
+   * @param slot 
+   */
+  public int readJTOCSlot(int slot) {
+    return readTOC(slot);
+  }
+
   public int readMemory(int address) {
     try {
       return readsafe(address);

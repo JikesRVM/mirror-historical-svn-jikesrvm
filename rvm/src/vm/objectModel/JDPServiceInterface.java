@@ -15,4 +15,11 @@ public interface JDPServiceInterface {
    * @param ptr the memory location
    */
   int readMemory(ADDRESS ptr);
+
+  /**
+   * Return the contents of a JTOC slot from the debuggee process.
+   *
+   * @param slot the JTOC slot
+   */
+  int readJTOCSlot(int slot);
 }

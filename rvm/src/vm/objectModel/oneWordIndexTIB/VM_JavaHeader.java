@@ -105,10 +105,7 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
   public static ADDRESS getTIB(JDPServiceInterface jdpService, ADDRESS ptr) {
     int tibWord = jdpService.readMemory(ptr + TIB_OFFSET) & TIB_MASK;
     int tibIndex = tibWord >>> NUM_AVAILABLE_BITS;
-    VM.assert(NOT_REACHED);
-//    TODO: implement the following method!!
-//    return jdpService.readJTOCSlot(tibIndex);
-    return -1;
+    return jdpService.readJTOCSlot(tibIndex);
   }
 
   /**
@@ -166,8 +163,12 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
   //-#elif RVM_FOR_IA32
   public static void baselineEmitLoadTIB(VM_Assembler asm, byte dest, 
                                          byte object) {
+    if (VM.VerifyAssertions) VM.assert(NUM_AVAILABLE_BITS == 2);
+
     asm.emitMOV_Reg_RegDisp(dest, object, TIB_OFFSET);
     asm.emitAND_Reg_Imm(dest,TIB_MASK);
+    // NOTE: No shift required because NUM_AVAILABLE_BITS == 2. TODO: generalize.
+    // Load the result off the JTOC
     asm.emitMOV_Reg_RegDisp(dest,JTOC,dest);
   }
   /**
