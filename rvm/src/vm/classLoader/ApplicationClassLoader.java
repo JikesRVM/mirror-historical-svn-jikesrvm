@@ -14,6 +14,12 @@ import java.net.*;
  * The class loader used by Jikes RVM to load the application program
  *
  * @author Julian Dolby
+ *
+ * @modified Steven Augart 2004-Mar-04 Since the Sun JDK docs now assert that
+ *   the Application ClassLoader  and the System Class Loader are the same.
+ *   What we used to call the System Class Loader is the Bootstrap Class
+ *      Loader. 
+ *   
  */
 public class ApplicationClassLoader extends URLClassLoader {
 
