@@ -39,7 +39,6 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   MarkSweepCollector(NewFreeListVMResource vmr, NewMemoryResource mr) {
     vmResource = vmr;
     memoryResource = mr;
-    //    treadmillLock = new Lock("MarkSweep.treadmillLock");
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -131,15 +130,27 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   }
 
   public final void sweepSuperPage(MarkSweepAllocator allocator,
-				   VM_Address sp, int szclass, int cellSize)
+				   VM_Address sp, int szclass, int cellSize,
+				   boolean free)
     throws VM_PragmaInline {
 //     if (!MarkSweepAllocator.isSmall(szclass))
-//     VM.sysWrite("------------ sweep -----------");
-//     VM.sysWrite(sp); VM.sysWrite(" "); VM.sysWrite(szclass); VM.sysWrite(" "); VM.sysWrite(cellSize); VM.sysWrite("\n");
+//      VM.sysWrite("------------ sweep -----------");
+//      VM.sysWrite(sp); VM.sysWrite(" "); VM.sysWrite(szclass); VM.sysWrite(" "); VM.sysWrite(cellSize); VM.sysWrite("\n");
     VM_Address base = sp.add(BITMAP_BASE);
     boolean small = MarkSweepAllocator.isSmall(szclass);
     int bitmapPairs = small ? SMALL_BITMAP_PAIRS : MID_BITMAP_PAIRS;
-    for (int pair = 0; pair < bitmapPairs; pair++) {
+//     if (!freePairs(allocator, sp, szclass, cellSize, base, bitmapPairs, small, false) && free)
+//       allocator.freeSuperPage(sp, szclass, free);
+//     else
+      freePairs(allocator, sp, szclass, cellSize, base, bitmapPairs, small, true);
+//     if (!MarkSweepAllocator.isSmall(szclass))
+//         VM.sysWrite("============ sweep ===========\n");
+  }
+
+  private final boolean freePairs(MarkSweepAllocator allocator, VM_Address sp, int szclass, int cellSize, VM_Address base, int pairs, 
+				  boolean small, boolean release) {
+    boolean inUse = false;
+    for (int pair = 0; pair < pairs; pair++) {
       if (VM.VerifyAssertions)
 	VM._assert((INUSE_BITMAP_OFFSET == 0) 
 		   && (MARK_BITMAP_OFFSET == WORD_SIZE));
@@ -147,26 +158,30 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
       base = base.add(WORD_SIZE);
       VM_Address markBitmap = base;
       base = base.add(WORD_SIZE);
-      int inuse = VM_Magic.getMemoryWord(inUseBitmap);
       int mark = VM_Magic.getMemoryWord(markBitmap);
-      int free = mark ^ inuse;
-      if (free != 0) {
-	// free them up
-// 	if (!small) {
-//  	  VM.sysWrite("--->");
-//  	  VM.sysWrite(inUseBitmap); VM.sysWrite(": ");
-//  	  VM.sysWriteHex(inuse); VM.sysWrite(" ");
-//  	  VM.sysWriteHex(mark); VM.sysWrite(" ");
-//  	  VM.sysWriteHex(free); VM.sysWrite("\n");
-// 	}
-	freeFromBitmap(allocator, sp, free, szclass, cellSize, pair, small);
-	VM_Magic.setMemoryWord(inUseBitmap, mark); 
+      if (release) {
+	int inuse = VM_Magic.getMemoryWord(inUseBitmap);
+	int free = mark ^ inuse;
+	if (free != 0) {
+	  // free them up
+	  // 	if (!small) {
+	  //  	  VM.sysWrite("--->");
+	  //  	  VM.sysWrite(inUseBitmap); VM.sysWrite(": ");
+	  //  	  VM.sysWriteHex(inuse); VM.sysWrite(" ");
+	  //  	  VM.sysWriteHex(mark); VM.sysWrite(" ");
+	  //  	  VM.sysWriteHex(free); VM.sysWrite("\n");
+	  // 	}
+	  freeFromBitmap(allocator, sp, free, szclass, cellSize, pair, small);
+	  VM_Magic.setMemoryWord(inUseBitmap, mark); 
+	}
+	if (mark != 0)
+	  VM_Magic.setMemoryWord(markBitmap, 0);
+      } else {
+	if (mark != 0)
+	  return true;
       }
-      if (mark != 0)
-	VM_Magic.setMemoryWord(markBitmap, 0);
     }
-//     if (!MarkSweepAllocator.isSmall(szclass))
-//        VM.sysWrite("============ sweep ===========\n");
+    return false;
   }
 
   private final void sweepLarge() {
@@ -196,9 +211,9 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
 // 	  VM.sysWrite("freeing "); VM.sysWrite(cell); VM.sysWrite(" "); VM.sysWrite(index+i); VM.sysWrite(" "); VM.sysWrite(szclass); VM.sysWrite("...\n");
 // 	}
 	allocator.free(cell, sp, szclass);
-// 	if (!MarkSweepAllocator.isSmall(szclass)) {
-// 	  VM.sysWrite(cell); VM.sysWrite(" f "); VM.sysWrite(sp); VM.sysWrite("\n");
-// 	}
+//  	if (!MarkSweepAllocator.isSmall(szclass)) {
+//  	  VM.sysWrite(cell); VM.sysWrite(" f "); VM.sysWrite(sp); VM.sysWrite("\n");
+//  	}
       }
     }
   }
@@ -208,7 +223,6 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   private final void internalMarkObject(VM_Address object) 
     throws VM_PragmaInline {
     VM_Address ref = VM_JavaHeader.getPointerInMemoryRegion(object);
-//      VM.sysWrite(cell); VM.sysWrite(" m ");
 //    if (bytes <= MarkSweepAllocator.MAX_SMALL_SIZE) {
 //       VM.sysWrite(MarkSweepAllocator.getSuperPage(cell, true)); VM.sysWrite("\n");
     if (MarkSweepHeader.isSmallObject(VM_Magic.addressAsObject(object))) {
@@ -219,7 +233,7 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
     } else {
       VM_Address cell = VM_JavaHeader.objectStartRef(object);
       VM_Address sp = MarkSweepAllocator.getSuperPage(cell, false);
-      //       VM.sysWrite(cell); VM.sysWrite(" m "); VM.sysWrite(sp); VM.sysWrite("\n");
+//       VM.sysWrite(cell); VM.sysWrite(" m "); VM.sysWrite(sp); VM.sysWrite("\n");
       int sizeClass = MarkSweepAllocator.getSizeClass(sp);
       if (MarkSweepAllocator.isLarge(sizeClass))
 	moveToTreadmill(cell, true);
@@ -322,7 +336,9 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
       syncSetBit(addr, mask, set);
     else
       unsyncSetBit(addr, mask, set);
-//     VM.sysWrite("--->"); VM.sysWrite(addr); VM.sysWrite(": "); VM.sysWrite(VM_Magic.getMemoryAddress(addr)); VM.sysWrite("\n");
+//     if (!small) {
+//       VM.sysWrite(ref); VM.sysWrite("--->"); VM.sysWrite(addr); VM.sysWrite(": "); VM.sysWrite(VM_Magic.getMemoryAddress(addr)); VM.sysWrite("\n");
+//     }
   }
   private static boolean getBit(VM_Address ref, VM_Address sp, boolean small,
 				boolean inuse)
@@ -331,6 +347,9 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
     VM_Word mask = getBitMask(index);
     VM_Address addr = getBitMapWord(index, sp, inuse, small);
     VM_Word value = VM_Word.fromInt(VM_Magic.getMemoryWord(addr));
+    //    if (!small) {
+//       VM.sysWrite(ref); VM.sysWrite("===>"); VM.sysWrite(addr); VM.sysWrite(": "); VM.sysWrite(VM_Magic.getMemoryAddress(addr)); VM.sysWrite("\n");
+      //    }
     return mask.EQ(value.and(mask));
   }
   private static int getCellIndex(VM_Address ref, VM_Address sp, boolean small)

@@ -262,11 +262,9 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
    * Perform a collection.
    */
   public void collect () {
-    VM.sysWrite("Collect(");
     prepare();
     super.collect();
     release();
-    VM.sysWrite(")\n");
   }
 
   /* We reset the state for a GC thread that is not participating in this GC

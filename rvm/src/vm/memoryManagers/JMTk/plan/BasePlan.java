@@ -41,7 +41,7 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
 
   public final static String Id = "$Id$"; 
 
-  public static int verbose = 0;
+  public static int verbose = 1;
 
   protected WorkQueue workQueue;
   public AddressSet values;                 // gray objects
