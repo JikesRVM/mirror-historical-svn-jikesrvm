@@ -32,9 +32,10 @@
 mydir="${0%/*}"
 ME="${0##*/}"
 
-echo >&2 ${ME}: "XXX This code is an Experimental port to Bash.  Builds fine, but the"
-echo >&2 ${ME}: "XXX RVM it builds crashes quickly with simple test programs."
-echo >&2 ${ME}: "XXX It's not ready for prime time"
+echo >&2 ${ME}: "XXX This code is an Experimental port to Bash.  Builds fine,"
+echo >&2 ${ME}: "XXX runs a simple test case just fine."
+echo >&2 ${ME}: "XXX We'll merge it in to the main sources as soon as it's"
+echo >&2 ${ME}: "XXX been beaten on a bit."
 echo >&2 ${ME}: "XXX  	--Steve Augart"
 echo >&2 ""
 
