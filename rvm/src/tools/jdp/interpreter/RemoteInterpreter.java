@@ -546,7 +546,7 @@ class RemoteInterpreter extends InterpreterBase implements JDPServiceInterface
     // Check bounds
     if (index<0)
       _throwException(new ArrayIndexOutOfBoundsException("negative index"));    
-    int realArrayLength = Platform.readmem(mappedArray.getAddress() + VM.ARRAY_LENGTH_OFFSET);
+    int realArrayLength = Platform.readmem(mappedArray.getAddress() + VM_ObjectModel.getArrayLengthOffset() );
     if (index >= realArrayLength)
       _throwException(new ArrayIndexOutOfBoundsException("index="+index+" >= "+realArrayLength));
 
@@ -888,7 +888,7 @@ class RemoteInterpreter extends InterpreterBase implements JDPServiceInterface
    */
   int X_arraylength(Object obj) {
     mapVM mappedObj = (mapVM) obj;
-    int length = Platform.readmem(mappedObj.getAddress() + VM.ARRAY_LENGTH_OFFSET);
+    int length = Platform.readmem(mappedObj.getAddress() + VM_ObjectModel.getArrayLengthOffset() );
     if (traceExtension)	
       System.out.println("X_arraylength: array length for " + mappedObj + ", " + length);
     return length;
