@@ -91,7 +91,7 @@ public class VM_Allocator
   static final boolean RENDEZVOUS_TIMES          = false;
   static final boolean RENDEZVOUS_WAIT_TIME     = VM_CollectorThread.MEASURE_WAIT_TIMES;
   // Flag for counting bytes allocated and objects allocated
-	static final boolean COUNT_ALLOCATIONS = false;
+  static final boolean COUNT_ALLOCATIONS = false;
   static final boolean GC_COUNT_FAST_ALLOC       = false;
   static final boolean GC_COUNT_LIVE_OBJECTS     = false;
   static final boolean GC_COUNT_BYTE_SIZES       = false;
@@ -588,6 +588,10 @@ public class VM_Allocator
 	  VM_Processor st = VM_Processor.getCurrentProcessor();
 	  st.totalBytesAllocated += size;
 	  st.totalObjectsAllocated++;
+          VM_Type t = VM_Magic.objectAsType(tib[0]);
+          if (t.thinLockOffset != -1) {
+            st.synchronizedObjectsAllocated++;
+          }
       }
   }
 
@@ -2913,20 +2917,23 @@ public class VM_Allocator
       VM.sysWrite(" (ms)\n");
     }
 
-		if (COUNT_ALLOCATIONS) {
-			VM.sysWrite(" Total No. of Objects Allocated in this run ");
-			long bytes = 0, objects = 0;
-			VM_Processor st;
-			for (int i = 1; i <= VM_Scheduler.numProcessors; i++) {
-				st = VM_Scheduler.processors[i];
-				bytes += st.totalBytesAllocated;
-				objects += st.totalObjectsAllocated;
-			}
-			VM.sysWrite(Long.toString(objects));
-			VM.sysWrite("\n Total No. of bytes Allocated in this run ");
-			VM.sysWrite(Long.toString(bytes));
-			VM.sysWrite("\n");
-		}
+    if (COUNT_ALLOCATIONS) {
+      long bytes = 0, objects = 0, syncObjects = 0;
+      VM_Processor st;
+      for (int i = 1; i <= VM_Scheduler.numProcessors; i++) {
+        st = VM_Scheduler.processors[i];
+        bytes += st.totalBytesAllocated;
+        objects += st.totalObjectsAllocated;
+        syncObjects += st.synchronizedObjectsAllocated;
+      }
+      VM.sysWrite(" Total No. of Objects Allocated in this run ");
+      VM.sysWrite(Long.toString(objects));
+      VM.sysWrite("\n Total No. of Synchronized Objects Allocated in this run ");
+      VM.sysWrite(Long.toString(syncObjects));
+      VM.sysWrite("\n Total No. of bytes Allocated in this run ");
+      VM.sysWrite(Long.toString(bytes));
+      VM.sysWrite("\n");
+    }
 
     VM.sysWrite(" Number of threads found stuck in native code = ");
     VM.sysWrite(VM_NativeDaemonThread.switch_count);
@@ -2934,12 +2941,12 @@ public class VM_Allocator
 
   }
 
-	// This routine scans all blocks for all sizes for all processors,
-	// beginning with current block; at the end of gc, this gives a
-	// correct count of allocated blocks; at the beginning of gc, it
-	// does not, since the scan starts from current-block always.(at
-	// the end, current_block == first_block
-	//
+// This routine scans all blocks for all sizes for all processors,
+// beginning with current block; at the end of gc, this gives a
+// correct count of allocated blocks; at the beginning of gc, it
+// does not, since the scan starts from current-block always.(at
+// the end, current_block == first_block
+//
   private static void
 	freeSmallSpaceDetails (boolean block_count) {
 		int i, next;

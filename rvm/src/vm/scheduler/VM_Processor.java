@@ -895,6 +895,7 @@ if (loopcheck++ >= 1000000) break;
   int	 small_live;		// count live objects during gc
   long   totalBytesAllocated;	// used for instrumentation in allocators
   long   totalObjectsAllocated; // used for instrumentation in allocators
+  long   synchronizedObjectsAllocated; // used for instrumentation in allocators
 //-#endif
 //-#if RVM_WITH_GCTk
 
