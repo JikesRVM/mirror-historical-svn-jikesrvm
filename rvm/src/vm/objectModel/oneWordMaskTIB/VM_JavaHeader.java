@@ -168,9 +168,12 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
   //-#elif RVM_FOR_IA32
   public static void baselineEmitLoadTIB(VM_Assembler asm, byte dest, 
                                          byte object) {
-    VM.assert(false);
-    asm.emitMOV_Reg_RegDisp(dest, object, TIB_OFFSET);
-    asm.emitAND_Reg_Imm(dest,TIB_MASK);
+    if (VM_Collector.MOVES_OBJECTS && VM.writingBootImage) {
+      VM.assert(false, "TODO");
+    } else {
+      asm.emitMOV_Reg_RegDisp(dest, object, TIB_OFFSET);
+      asm.emitAND_Reg_Imm(dest,TIB_MASK);
+    }
   }
   //-#endif
 
