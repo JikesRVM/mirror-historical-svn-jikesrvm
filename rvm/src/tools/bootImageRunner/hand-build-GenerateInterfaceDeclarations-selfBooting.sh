@@ -14,17 +14,21 @@
 set -e
 . $RVM_BUILD/environment.host
 
-TMP=./tmp
-mkdir -p $TMP || :
-rm -f $TMP/GenerateInterfaceDeclarations.java
-$RVM_BUILD/jbuild.toolPrep --disable-modification-exit-status $TMP GenerateInterfaceDeclarations.java
+type -a jbuild.prep.target &> /dev/null || (cd $RVM_BUILD && cp jbuild.prep.{host,target})
+
+TMP=./Classes.tmp
+rm -rf $TMP
+mkdir -p $TMP
+
+set -v
+$RVM_BUILD/jbuild.toolPrep --disable-modification-exit-status $TMP *.java
 
 cd $TMP
 
-rm -f *.class
-$RVM_BUILD/jbuild.tool GenerateInterfaceDeclarations.java
+$RVM_BUILD/jbuild.tool com/ibm/JikesRVM/GenerateInterfaceDeclarations/GenerateInterfaceDeclarations.java
 
-# $JAL_BUILD contains the .so files, thus the argument
-# -nativeLibDir $JAL_BUILD
+# $JAL_BUILD contains the .so files; thus the argument -nativeLibDir $JAL_BUILD
+# It actually won't matter in this case; we never run the associated code.
+
 $HOST_JAVA_RT -Xmx200M	  com.ibm.JikesRVM.GenerateInterfaceDeclarations.GenerateInterfaceDeclarations  -alternateRealityClasspath .:$JAL_BUILD/RVM.classes:$JAL_BUILD/RVM.classes/rvmrt.jar -alternateRealityNativeLibDir $JAL_BUILD -out declarations.out -ia 0x43000000
-# >	  $JAL_BUILD/RVM.scratch/InterfaceDeclarations.h.new
+# $HOST_JAVA_RT -Xmx200M	  -classpath .:$JAL_BUILD/RVM.classes:$JAL_BUILD/RVM.classes/rvmrt.jar	  com.ibm.JikesRVM.GenerateInterfaceDeclarations.GenerateInterfaceDeclarations -out declarations.out -ia 0x43000000
