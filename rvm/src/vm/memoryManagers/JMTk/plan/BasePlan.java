@@ -61,7 +61,6 @@ public abstract class BasePlan implements Constants {
    * default minimum heap size until the point that boot is called.
    */
   static public void boot() {
-    heapBlocks = Conversions.bytesToBlocks(Options.heapSize);
   }
 
   protected static boolean gcInProgress = false;    // This flag should be turned on/off by subclasses.
@@ -108,7 +107,7 @@ public abstract class BasePlan implements Constants {
   abstract protected void allPrepare();
   abstract protected void singleRelease();
 
-  SynchronizedCounter threadCounter = new SynchronizedCounter();
+  static SynchronizedCounter threadCounter = new SynchronizedCounter();
 
   private void resetComputeRoots() {
     threadCounter.reset();
@@ -125,7 +124,9 @@ public abstract class BasePlan implements Constants {
       if (threadIndex >= VM_Scheduler.threads.length) break;
       VM_Thread th = VM_Scheduler.threads[threadIndex];
       if (th == null) continue;
+      // VM.sysWrite("Proc ", VM_Processor.getCurrentProcessor().id); VM.sysWriteln(" scanning thread ", threadIndex);
       // See comment of ScanThread.scanThread
+      //
       VM_Thread th2 = (VM_Thread) VM_Magic.addressAsObject(traceObject(VM_Magic.objectAsAddress(th)));
       traceObject(VM_Magic.objectAsAddress(th.stack));
       if (th.jniEnv != null) {
@@ -139,9 +140,9 @@ public abstract class BasePlan implements Constants {
       ScanThread.scanThread(th2, locations, codeLocations);
     }
 
-    VM.sysWriteln("locations size is ", locations.size());
-    VM.sysWriteln("values size is ", values.size());
-    VM.sysWriteln("interiorLocations size is ", interiorLocations.size());
+    // VM.sysWriteln("locations size is ", locations.size());
+    // VM.sysWriteln("values size is ", values.size());
+    // VM.sysWriteln("interiorLocations size is ", interiorLocations.size());
   }
 
   // Add a gray object
@@ -182,7 +183,10 @@ public static boolean match = false;
     processAllWork();
   }
 
-  public static int getHeapBlocks() throws VM_PragmaUninterruptible { return heapBlocks; }
+  public static int getHeapBlocks() throws VM_PragmaUninterruptible { 
+    heapBlocks = Conversions.bytesToBlocks(Options.initialHeapSize);
+    return heapBlocks; 
+  }
 
   private static int heapBlocks;
 

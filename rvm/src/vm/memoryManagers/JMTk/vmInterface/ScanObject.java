@@ -42,6 +42,8 @@ public class ScanObject implements VM_Constants, Constants {
    */
   public static void scan (VM_Address objRef) throws VM_PragmaUninterruptible {
 
+    if (VM.VerifyAssertions) VM._assert(!objRef.isZero());
+
     // First process the TIB to relocate it.
     // Necessary only if the allocator/collector moves objects
     // and the object model is actually storing the TIB as a pointer.

@@ -91,7 +91,7 @@ public class ScanThread implements VM_Constants, Constants {
 	// queued for later scanning.
 	int[] oldstack = t.stack;    
 	ScanObject.scan(t);
-	ScanObject.scan(t.jniEnv);
+	if (t.jniEnv != null) ScanObject.scan(t.jniEnv);
 	ScanObject.scan(t.contextRegisters);
 	ScanObject.scan(t.hardwareExceptionRegisters);
 	if (oldstack != t.stack) 

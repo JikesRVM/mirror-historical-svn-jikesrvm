@@ -5,7 +5,7 @@
 package com.ibm.JikesRVM;
 
 import java.lang.reflect.*;
-import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_GCUtil;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
 /**
  *   This class implements the JNI environment, it includes:
@@ -152,7 +152,7 @@ public class VM_JNIEnvironment implements VM_JNILinuxConstants, VM_RegisterConst
   // 
   public int pushJNIRef( Object ref ) {
     if (ref == null) return 0;
-    if (VM.VerifyAssertions) VM._assert( VM_GCUtil.validRef( VM_Magic.objectAsAddress(ref) ) );
+    if (VM.VerifyAssertions) VM._assert( VM_Interface.validRef( VM_Magic.objectAsAddress(ref) ) );
     JNIRefsTop += 4;
     if (JNIRefsTop >> 2 >= JNIRefs.length) {
 	int[] newrefs = new int[ JNIRefs.length * 2 ];
@@ -1020,7 +1020,7 @@ public class VM_JNIEnvironment implements VM_JNILinuxConstants, VM_RegisterConst
       VM.sysWrite(" ");
       VM.sysWrite(VM_Magic.objectAsAddress(JNIRefs).add(jniRefOffset));
       VM.sysWrite(" ");
-      VM_GCUtil.dumpRef(VM_Address.fromInt(JNIRefs[ jniRefOffset >> 2 ]));
+      VM_Interface.dumpRef(VM_Address.fromInt(JNIRefs[ jniRefOffset >> 2 ]));
       jniRefOffset -= 4;
     }
     VM.sysWrite("\n* * end of dump * *\n");

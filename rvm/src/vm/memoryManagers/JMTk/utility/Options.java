@@ -5,7 +5,30 @@
 
 package com.ibm.JikesRVM.memoryManagers.JMTk;
 
+import com.ibm.JikesRVM.VM;
+
 public class Options {
 
-  static int heapSize = 50 * 1024 * 1024;  // Initial/default heap size in bytes - XXX
+  static int initialHeapSize = 100 * (1 << 20);
+  static int maxHeapSize     = 300 * (1 << 20);
+
+  public static void process (String arg) {
+    //VM.sysWriteln("processing arg = ", arg);
+    if (arg.startsWith("initial=")) {
+      String tmp = arg.substring(8);
+      int size = Integer.parseInt(tmp);
+      if (size <= 0) VM.sysFail("Unreasonable heap size " + tmp);
+      initialHeapSize = size * (1 << 20);
+      if (maxHeapSize < initialHeapSize) maxHeapSize = initialHeapSize;
+    }
+    else if (arg.startsWith("max=")) {
+      String tmp = arg.substring(4);
+      int size = Integer.parseInt(tmp);
+      if (size <= 0) VM.sysFail("Unreasonable heap size " + tmp);
+      maxHeapSize = size * (1 << 20);
+    }
+    else 
+      VM.sysWriteln("Ignoring unknown GC option: ", arg);
+  }
+
 }

@@ -200,6 +200,7 @@ public class VM_CollectorThread extends VM_Thread {
       // the schedulers collectorQueue
       //
       VM_Scheduler.collectorMutex.lock();
+      if (trace) VM_Scheduler.trace("VM_CollectorThread", "yielding");
       VM_Thread.getCurrentThread().yield(VM_Scheduler.collectorQueue,
 					 VM_Scheduler.collectorMutex);
       
@@ -361,9 +362,6 @@ public class VM_CollectorThread extends VM_Thread {
       }
 
       if (MEASURE_WAIT_TIMES) resetWaitTimers();  // reset for next GC
-
-
-VM.sysWriteln("About to enable thread switching");
 
       // all collector threads enable thread switching on their processors
       // allowing waiting mutators to be scheduled and run.  The collector

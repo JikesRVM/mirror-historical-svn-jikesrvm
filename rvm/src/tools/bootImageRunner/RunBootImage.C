@@ -340,6 +340,7 @@ processCommandLineArguments(char **CLAs, int n_CLAs, int *fastExit)
       }
       continue;
     }
+    /*
     if (!strncmp(token, "-X:h=", 5)) {
       subtoken = token + 5;
       smallHeapSize = atoi(subtoken) * 1024 * 1024;
@@ -384,7 +385,9 @@ processCommandLineArguments(char **CLAs, int n_CLAs, int *fastExit)
 	*fastExit = 1; break;
       }
       continue;
-    }       
+    } 
+    */
+      
     if (!strncmp(token, "-X:sysLogfile=",14)) {
       subtoken = token + 14;
       FILE* ftmp = fopen(subtoken, "a");

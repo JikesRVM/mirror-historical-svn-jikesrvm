@@ -7,6 +7,7 @@ package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
 import com.ibm.JikesRVM.memoryManagers.JMTk.VMResource;
 import com.ibm.JikesRVM.memoryManagers.JMTk.Plan;
+import com.ibm.JikesRVM.memoryManagers.JMTk.Options;
 
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Entrypoints;
@@ -116,8 +117,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    *  Process GC parameters.
    */
   public static void processCommandLineArg(String arg) {
-      VM.sysWriteln("Unrecognized collection option: ", arg);
-      VM.sysExit(1);
+    Options.process(arg);
   }
 
   public static int numProcessors() throws VM_PragmaUninterruptible {
@@ -249,10 +249,28 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
       proc.mmPlan = new Plan();
   }
 
+  //-#if RVM_FOR_POWERPC
+  //-#if RVM_FOR_AIX
+  public static final int bootImageAddress = 0x30000000;
+  //-#endif
+  //-#if RVM_FOR_LINUX
+  public static final int bootImageAddress = 0x31000000;
+  //-#endif
+  //-#endif
+
+  //-#if RVM_FOR_IA32
+  //-#if RVM_FOR_LINUX
+  public static final int bootImageAddress = 0x41000000;
+  //-#endif
+  //-#endif
+
   public static final boolean NEEDS_WRITE_BARRIER = Plan.needsWriteBarrier;
   public static final boolean MOVES_OBJECTS = Plan.movesObjects;
   public static boolean useMemoryController = false;
 
+  public static void checkBootImageAddress (int addr) {
+    VM._assert(bootImageAddress == addr);
+  }
 
   public static void setWorkBufferSize (int size) {
     WorkQueue.WORK_BUFFER_SIZE = 4 * size;
@@ -548,12 +566,6 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
 
     return new Object[n];
   }
-
-  //-#if RVM_WITH_AIX
-  final static int BOOT_START = 0x30000000;
-  final static int BOOT_SIZE  = 0x05000000;   // just an upper bound
-  //-#endif
-
 
   public static boolean isScalar(VM_Address obj) {
     VM_Type type = VM_Magic.objectAsType(VM_ObjectModel.getTIB(obj)[TIB_TYPE_INDEX]);

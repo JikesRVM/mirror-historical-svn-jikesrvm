@@ -23,7 +23,7 @@ public class VM_Thread implements VM_Constants, VM_Uninterruptible {
   /**
    * debug flag
    */
-  private final static boolean trace = false;
+  private final static boolean trace = true;
   /**
    * debug flag
    */

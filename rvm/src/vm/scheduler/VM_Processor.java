@@ -182,6 +182,7 @@ public final class VM_Processor implements VM_Uninterruptible,  VM_Constants {
       newThread.cpuStartTime = now;  // this thread has started running
     }
 
+    // VM.sysWrite("Proc ", id); VM.sysWriteln(" switching to ip = ", newThread.contextRegisters.ip);
     activeThreadStackLimit = newThread.stackLimit; // Delay this to last possible moment so we can sysWrite
     VM_Magic.threadSwitch(previousThread, newThread.contextRegisters);
   }

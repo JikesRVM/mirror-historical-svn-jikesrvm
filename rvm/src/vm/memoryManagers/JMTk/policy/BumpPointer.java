@@ -102,6 +102,7 @@ final class BumpPointer implements Constants, VM_Uninterruptible {
     memoryResource.acquire(Conversions.blocksToPages(blocks));
     VM_Address start = vmResource.acquire(blocks);
     bp = start.add(bytes);
+if (start.isZero()) VM.sysWriteln("allocSlowPath returning zero on request for ", bytes);
     return start;
   }
 

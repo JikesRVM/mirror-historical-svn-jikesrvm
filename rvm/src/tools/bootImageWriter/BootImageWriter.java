@@ -32,6 +32,7 @@ import com.ibm.JikesRVM.*;
  *    -trace                   talk while we work?
  *    -detailed                print detailed info on traversed objects
  *    -demographics            show summary of how boot space is used
+ *    -ia <addr>               address where boot image starts
  *    -o <filename>            place to put bootimage
  *    -m <filename>            place to put bootimage map
  *    -xclasspath <path>       OBSOLETE compatibility aid
@@ -148,7 +149,7 @@ public class BootImageWriter extends BootImageWriterMessages
   /**
    * The absolute address at which the bootImage is going to be loaded.
    */
-  private static int bootImageAddress = IMAGE_ADDRESS;
+  public static int bootImageAddress = 0;
 
   /**
    * Write words to bootimage in little endian format?
@@ -355,6 +356,12 @@ public class BootImageWriter extends BootImageWriterMessages
 
     if (bootImageRepositoriesAtExecutionTime == null)
       bootImageRepositoriesAtExecutionTime = bootImageRepositoriesAtBuildTime;
+
+    if (bootImageAddress == 0)
+      fail("please specify boot-image address with \"-ia <addr>\"");
+    if (bootImageAddress % 0xff000000 != 0)
+      fail("please specify a boot-image address that is a multiple of 0x01000000");
+    VM_Interface.checkBootImageAddress(bootImageAddress);
 
     //
     // Initialize the bootimage.

@@ -69,18 +69,20 @@ class VM_CommandLineArgs {
   public static final int AOS_HELP_ARG         = 17;
   public static final int AOS_ARG              = 18;
   public static final int MEASURE_COMP_ARG     = 19;
-  public static final int GC_HELP_ARG          = 20;
-  public static final int GC_ARG               = 21;
-  public static final int GCTK_HELP_ARG        = 22;
-  public static final int GCTK_ARG             = 23;
-  public static final int AOS_BASE_ARG         = 24;
-  public static final int AOS_BASE_HELP_ARG    = 25;
-  public static final int BASE_HELP_ARG        = 26;
-  public static final int BASE_ARG             = 27;
-  public static final int OPT_ARG              = 28;
-  public static final int OPT_HELP_ARG         = 29;
-  public static final int PROF_ARG             = 30;
-  public static final int VERIFY_ARG           = 31;
+  public static final int AOS_BASE_ARG         = 20;
+  public static final int AOS_BASE_HELP_ARG    = 21;
+  public static final int BASE_HELP_ARG        = 22;
+  public static final int BASE_ARG             = 23;
+  public static final int OPT_ARG              = 24;
+  public static final int OPT_HELP_ARG         = 25;
+  public static final int PROF_ARG             = 26;
+  public static final int VERIFY_ARG           = 27;
+  public static final int GC_HELP_ARG          = 28;
+  public static final int GC_ARG               = 29;
+  public static final int INITIAL_HEAP_ARG     = 30;
+  public static final int MAX_HEAP_ARG         = 31;
+  public static final int LARGE_HEAP_ARG       = 32;
+
   /**
    * A catch-all prefix to find application name.
    */
@@ -132,9 +134,10 @@ class VM_CommandLineArgs {
     new Prefix("-X:gc:help$",           GC_HELP_ARG),
     new Prefix("-X:gc$",                GC_HELP_ARG),
     new Prefix("-X:gc:",                GC_ARG),
-    new Prefix("-X:gctk:help$",         GCTK_HELP_ARG),
-    new Prefix("-X:gctk$",              GCTK_HELP_ARG),
-    new Prefix("-X:gctk:",              GCTK_ARG),
+    new Prefix("-X:h=",                 INITIAL_HEAP_ARG),
+    new Prefix("-X:lh=",                LARGE_HEAP_ARG),
+    new Prefix("-X:ms=",                INITIAL_HEAP_ARG),
+    new Prefix("-X:mx=",                MAX_HEAP_ARG),
     new Prefix("-X:measureCompilation=",MEASURE_COMP_ARG),
     new Prefix("-X:base:help$",         BASE_HELP_ARG),
     new Prefix("-X:base$",              BASE_HELP_ARG),
@@ -566,28 +569,16 @@ class VM_CommandLineArgs {
       case GC_ARG: // "-X:gc:arg" pass 'arg' as an option
 	VM_Interface.processCommandLineArg(arg);
 	break;
-
-
-        // -------------------------------------------------------------------
-        // Access GCTk optios
-        // -------------------------------------------------------------------
-      case GCTK_HELP_ARG:  // -X:gctk passed 'help' as an option
-	if (VM.VerifyAssertions) VM._assert(arg.equals(""));
-	//-#if RVM_WITH_GCTk
-	GCTk_Collector.processCommandLineArg("help");
-	//-#else
-	VM.sysWrite("vm: non-GCTk configuration; ignoring command line argument 'help' with prefix '"+p.value+"'\n");
-	VM.sysExit(1);
-	//-#endif
+      case INITIAL_HEAP_ARG: 
+	VM_Interface.processCommandLineArg("initial=" + arg);
 	break;
-      case GCTK_ARG: // "-X:gctk:arg" pass 'arg' as an option
-	//-#if RVM_WITH_GCTk
-	GCTk_Collector.processCommandLineArg(arg);
-	//-#else
-	VM.sysWrite("vm: non-GCTk configuration; command line argument '"+arg+"' has an illegal prefix '"+p.value+"'\n");
-	VM.sysExit(1);
-	//-#endif
+      case MAX_HEAP_ARG: 
+	VM_Interface.processCommandLineArg("max=" + arg);
 	break;
+      case LARGE_HEAP_ARG: 
+	VM_Interface.processCommandLineArg("los=" + arg);
+	break;
+
 
         // -------------------------------------------------------------------
         // Access runtime compiler to support compilation time measure.

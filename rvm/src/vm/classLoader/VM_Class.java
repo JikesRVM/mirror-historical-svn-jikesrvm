@@ -1493,6 +1493,10 @@ public final class VM_Class extends VM_Type
 
     VM_Callbacks.notifyClassInitialized(this);
 
+    if (VM.verboseClassLoading) VM.sysWrite("[Initialized "+
+                                            descriptor.classNameFromDescriptor()
+                                            +"]\n");
+
     if (VM.TraceClassLoading && VM.runningVM) VM.sysWrite("VM_Class: (end)   initialize " 
                                           + descriptor + "\n");
   }

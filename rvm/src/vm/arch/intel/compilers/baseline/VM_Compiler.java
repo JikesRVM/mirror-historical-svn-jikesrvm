@@ -84,8 +84,8 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
    * Emit the code to implement the spcified magic.
    * @param magicMethod desired magic
    */
-  protected final void emit_Magic(VM_Method magicMethod) {
-    genMagic(magicMethod);
+  protected final boolean emit_Magic(VM_Method magicMethod) {
+    return genMagic(magicMethod);
   }
 
 
@@ -2858,7 +2858,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
     }
   }
 
-  private final void genMagic (VM_Method m) {
+  private final boolean genMagic (VM_Method m) {
     VM_Atom methodName = m.getName();
 
     if (methodName == VM_MagicNames.attempt) {
@@ -2885,7 +2885,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
 	asm.emitMOV_RegInd_Imm (SP, 1);        // 'push' true (overwriting base)
 	fr.resolve(asm);
       }
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.invokeMain) {
@@ -2895,34 +2895,34 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitPOP_Reg (S0);            // 
       genParameterRegisterLoad(1); // pass 1 parameter word	
       asm.emitCALL_Reg(S0);            // branches to mainCode with mainArgs on the stack
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.saveThreadState) {
       int offset = VM_Entrypoints.saveThreadStateInstructionsField.getOffset();
       genParameterRegisterLoad(1); // pass 1 parameter word
       asm.emitCALL_RegDisp(JTOC, offset);
-      return;
+      return true;
     }
 
     if (methodName == VM_MagicNames.threadSwitch) {
       int offset = VM_Entrypoints.threadSwitchInstructionsField.getOffset();
       genParameterRegisterLoad(2); // pass 2 parameter words
       asm.emitCALL_RegDisp(JTOC, offset);
-      return;
+      return true;
     }         
          
     if (methodName == VM_MagicNames.restoreHardwareExceptionState) {
       int offset = VM_Entrypoints.restoreHardwareExceptionStateInstructionsField.getOffset();
       genParameterRegisterLoad(1); // pass 1 parameter word
       asm.emitCALL_RegDisp(JTOC, offset);
-      return;
+      return true;
     }
 
     if (methodName == VM_MagicNames.invokeClassInitializer) {
       asm.emitPOP_Reg (S0);
       asm.emitCALL_Reg(S0); // call address just popped
-      return;
+      return true;
     }
     
     /*
@@ -2949,7 +2949,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitPOP_Reg(ESI);
       asm.emitPOP_Reg(EBX);
       asm.emitMOV_RegInd_Reg(SP, T0);	// store return value
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.sysCall1) {
@@ -2965,7 +2965,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitPOP_Reg(ESI);
       asm.emitPOP_Reg(EBX);
       asm.emitMOV_RegInd_Reg(SP, T0);	// store return value
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.sysCall2) {
@@ -2984,7 +2984,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitPOP_Reg(ESI);
       asm.emitPOP_Reg(EBX);
       asm.emitMOV_RegInd_Reg(SP, T0);	// store return value
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.sysCall3) {
@@ -3006,7 +3006,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitPOP_Reg(ESI);
       asm.emitPOP_Reg(EBX);
       asm.emitMOV_RegInd_Reg(SP, T0);			// store return value
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.sysCall4) {
@@ -3028,7 +3028,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitPOP_Reg(ESI);
       asm.emitPOP_Reg(EBX);
       asm.emitMOV_RegInd_Reg(SP, T0);			// store return value
-      return;
+      return true;
     }
     
     /*
@@ -3045,7 +3045,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitPOP_Reg(EBX);
       asm.emitMOV_RegInd_Reg(SP, T1);	// store return value: hi half
       asm.emitPUSH_Reg(T0);	// low half
-      return;
+      return true;
     }
     
     /*
@@ -3065,7 +3065,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitPOP_Reg(EBX);
       asm.emitMOV_RegInd_Reg(SP, T1);	// store return value: hi half
       asm.emitPUSH_Reg(T0);	// low half
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.sysCallAD) {  // address, double
@@ -3087,7 +3087,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitPOP_Reg(ESI);
       asm.emitPOP_Reg(EBX);
       asm.emitMOV_RegInd_Reg(SP, T0);			// store return value
-      return;
+      return true;
     }
 
     /*
@@ -3142,87 +3142,87 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitADD_Reg_Imm(SP, WORDSIZE*4);	// pop all but last
       asm.emitMOV_RegInd_Reg(SP, T0);	// overwrite last with return value
 
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.getFramePointer) {
       asm.emitLEA_Reg_RegDisp(S0, SP, fp2spOffset(0));
       asm.emitPUSH_Reg       (S0);
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.getCallerFramePointer) {
       asm.emitPOP_Reg(T0);                                       // Callee FP
       asm.emitPUSH_RegDisp(T0, STACKFRAME_FRAME_POINTER_OFFSET); // Caller FP
-      return;
+      return true;
     }
 
     if (methodName == VM_MagicNames.setCallerFramePointer) {
       asm.emitPOP_Reg(T0);  // value
       asm.emitPOP_Reg(S0);  // fp
       asm.emitMOV_RegDisp_Reg(S0, STACKFRAME_FRAME_POINTER_OFFSET, T0); // [S0+SFPO] <- T0
-      return;
+      return true;
     }
 
     if (methodName == VM_MagicNames.getCompiledMethodID) {
       asm.emitPOP_Reg(T0);                                   // Callee FP
       asm.emitPUSH_RegDisp(T0, STACKFRAME_METHOD_ID_OFFSET); // Callee CMID
-      return;
+      return true;
     }
 
     if (methodName == VM_MagicNames.setCompiledMethodID) {
       asm.emitPOP_Reg(T0);  // value
       asm.emitPOP_Reg(S0);  // fp
       asm.emitMOV_RegDisp_Reg(S0, STACKFRAME_METHOD_ID_OFFSET, T0); // [S0+SMIO] <- T0
-      return;
+      return true;
     }
 
     if (methodName == VM_MagicNames.getReturnAddressLocation) {
       asm.emitPOP_Reg(T0);                                        // Callee FP
-      asm.emitAdd_Reg_Imm(T0, STACKFRAME_RETURN_ADDRESS_OFFSET);  // location containing callee return address
+      asm.emitADD_Reg_Imm(T0, STACKFRAME_RETURN_ADDRESS_OFFSET);  // location containing callee return address
       asm.emitPUSH_Reg(T0);                                       // Callee return address
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.getTocPointer ||
 	methodName == VM_MagicNames.getJTOC ) {
       asm.emitPUSH_Reg(JTOC);
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.getThreadId) {
       VM_ProcessorLocalState.emitPushField(asm,VM_Entrypoints.threadIdField.getOffset());
-      return;
+      return true;
     }
        
     // set the Thread id register (not really a register)
     if (methodName == VM_MagicNames.setThreadId) {
       VM_ProcessorLocalState.emitPopField(asm,VM_Entrypoints.threadIdField.getOffset()); 
-      return;
+      return true;
     }
     
     // get the processor register (PR)
     if (methodName == VM_MagicNames.getProcessorRegister) {
       asm.emitPUSH_Reg(PR);
-      return;
+      return true;
     }  
 
     // set the processor register (PR)
     if (methodName == VM_MagicNames.setProcessorRegister) {
       asm.emitPOP_Reg(PR);
-      return;
+      return true;
     }
     
     // Get the value in ESI 
     if (methodName == VM_MagicNames.getESIAsProcessor) {
       asm.emitPUSH_Reg(ESI);
-      return;
+      return true;
     }  
 
     // Set the value in ESI
     if (methodName == VM_MagicNames.setESIAsProcessor) {
       asm.emitPOP_Reg(ESI);
-      return;
+      return true;
     }
   
     if (methodName == VM_MagicNames.getIntAtOffset ||
@@ -3232,7 +3232,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitPOP_Reg (T0);                  // object ref
       asm.emitPOP_Reg (S0);                  // offset
       asm.emitPUSH_RegIdx(T0, S0, asm.BYTE, 0); // pushes [T0+S0]
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.getByteAtOffset) {
@@ -3240,7 +3240,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitPOP_Reg (S0);                  // offset
       asm.emitMOV_Reg_RegIdx_Byte(T0, T0, S0, asm.BYTE, 0); // load and zero extend byte [T0+S0]
       asm.emitPUSH_Reg (T0);
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.setIntAtOffset ||
@@ -3249,7 +3249,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitPOP_Reg(S0);                   // offset
       asm.emitPOP_Reg(T1);                   // obj ref
       asm.emitMOV_RegIdx_Reg(T1, S0, asm.BYTE, 0, T0); // [T1+S0] <- T0
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.setByteAtOffset) {
@@ -3257,7 +3257,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitPOP_Reg(S0);                   // offset
       asm.emitPOP_Reg(T1);                   // obj ref
       asm.emitMOV_RegIdx_Reg_Byte(T1, S0, asm.BYTE, 0, T0); // [T1+S0] <- (byte) T0
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.getLongAtOffset) {
@@ -3265,7 +3265,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitPOP_Reg (S0);                  // offset
       asm.emitPUSH_RegIdx(T0, S0, asm.BYTE, 4); // pushes [T0+S0+4]
       asm.emitPUSH_RegIdx(T0, S0, asm.BYTE, 0); // pushes [T0+S0]
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.setLongAtOffset) {
@@ -3276,33 +3276,33 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitMOV_Reg_RegDisp(T0, SP, +4 );	// value low
       asm.emitMOV_RegIdx_Reg (T1, S0, asm.BYTE, 4, T0); // [T1+S0+4] <- T0
       asm.emitADD_Reg_Imm    (SP, WORDSIZE * 4); // pop stack locations
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.getMemoryWord) {
       asm.emitPOP_Reg(T0);	// address
       asm.emitPUSH_RegInd(T0); // pushes [T0+0]
-      return;
+      return true;
     }
 
     if (methodName == VM_MagicNames.getMemoryAddress) {
       asm.emitPOP_Reg(T0);	// address
       asm.emitPUSH_RegInd(T0); // pushes [T0+0]
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.setMemoryWord) {
       asm.emitPOP_Reg(T0);  // value
       asm.emitPOP_Reg(S0);  // address
       asm.emitMOV_RegInd_Reg(S0,T0); // [S0+0] <- T0
-      return;
+      return true;
     }
 
     if (methodName == VM_MagicNames.setMemoryAddress) {
       asm.emitPOP_Reg(T0);  // value
       asm.emitPOP_Reg(S0);  // address
       asm.emitMOV_RegInd_Reg(S0,T0); // [S0+0] <- T0
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.objectAsAddress         ||
@@ -3336,7 +3336,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
 	methodName == VM_MagicNames.longBitsAsDouble)
       {
 	// no-op (a type change, not a representation change)
-	return;
+	return true;
       }
     
     // code for      VM_Type VM_Magic.getObjectType(Object object)
@@ -3344,21 +3344,21 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitPOP_Reg (T0);			          // object ref
       VM_ObjectModel.baselineEmitLoadTIB(asm,S0,T0);
       asm.emitPUSH_RegDisp(S0, TIB_TYPE_INDEX<<LG_WORDSIZE); // push VM_Type slot of TIB
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.getArrayLength) {
       asm.emitPOP_Reg(T0);			// object ref
       asm.emitPUSH_RegDisp(T0, VM_ObjectModel.getArrayLengthOffset()); 
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.sync) {  // nothing required on IA32
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.isync) { // nothing required on IA32
-      return;
+      return true;
     }
     
     // baseline compiled invocation only: all paramaters on the stack
@@ -3372,7 +3372,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       int offset = VM_Entrypoints.reflectiveMethodInvokerInstructionsField.getOffset();
       genParameterRegisterLoad(4); // pass 4 parameter words
       asm.emitCALL_RegDisp(JTOC, offset);
-      return;
+      return true;
     }                 
 
     if (methodName == VM_MagicNames.invokeMethodReturningInt) {
@@ -3380,7 +3380,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       genParameterRegisterLoad(4); // pass 4 parameter words
       asm.emitCALL_RegDisp(JTOC, offset);
       asm.emitPUSH_Reg(T0);
-      return;
+      return true;
     }                 
 
     if (methodName == VM_MagicNames.invokeMethodReturningLong) {
@@ -3389,7 +3389,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitCALL_RegDisp(JTOC, offset);
       asm.emitPUSH_Reg(T0); // high half
       asm.emitPUSH_Reg(T1); // low half
-      return;
+      return true;
     }                 
 
     if (methodName == VM_MagicNames.invokeMethodReturningFloat) {
@@ -3398,7 +3398,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitCALL_RegDisp(JTOC, offset);
       asm.emitSUB_Reg_Imm  (SP, 4);
       asm.emitFSTP_RegInd_Reg(SP, FP0);
-      return;
+      return true;
     }                 
 
     if (methodName == VM_MagicNames.invokeMethodReturningDouble) {
@@ -3407,7 +3407,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitCALL_RegDisp(JTOC, offset);
       asm.emitSUB_Reg_Imm  (SP, 8);
       asm.emitFSTP_RegInd_Reg_Quad(SP, FP0);
-      return;
+      return true;
     }                 
 
     if (methodName == VM_MagicNames.invokeMethodReturningObject) {
@@ -3415,7 +3415,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       genParameterRegisterLoad(4); // pass 4 parameter words
       asm.emitCALL_RegDisp(JTOC, offset);
       asm.emitPUSH_Reg(T0);
-      return;
+      return true;
     }                 
 
     // baseline invocation
@@ -3442,7 +3442,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
 
       // branch
       asm.emitJMP_Reg (S0);
-      return;
+      return true;
     }
                                                   
     if (methodName == VM_MagicNames.returnToNewStack) {
@@ -3458,7 +3458,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
 
       // return to caller- pop parameters from stack
       asm.emitRET_Imm(parameterWords << LG_WORDSIZE);	 
-      return;
+      return true;
     }
 
     if (methodName == VM_MagicNames.roundToZero) {
@@ -3470,30 +3470,30 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       asm.emitOR_RegDisp_Imm(JTOC,VM_Entrypoints.FPUControlWordField.getOffset(), 0x00000c00);
       // Now store the result back into the FPU Control Word
       asm.emitFLDCW_RegDisp(JTOC,VM_Entrypoints.FPUControlWordField.getOffset());
-      return;
+      return true;
     }
     if (methodName == VM_MagicNames.clearFloatingPointState) {
       // Clear the hardware floating-point state
       asm.emitFNINIT();
-      return;
+      return true;
     }
     
     if (methodName == VM_MagicNames.clearThreadSwitchBit) { // nothing to do
       // ignore obsolete magic
-      return;
+      return true;
     }
 
     if (methodName == VM_MagicNames.getTime) {
       VM.sysWrite("WARNING: VM_Compiler compiling unimplemented magic: getTime in " + method + "\n");
       asm.emitMOV_RegInd_Imm(SP, 0);  // TEMP!! for now, return 0
-      return;
+      return true;
     }
 
     if (methodName == VM_MagicNames.getTimeBase) {
       asm.emitRDTSC();  // read timestamp counter instruction
       asm.emitPUSH_Reg(EDX); // upper 32 bits
       asm.emitPUSH_Reg(EAX); // lower 32 bits
-      return;
+      return true;
     }
 
     if (methodName == VM_MagicNames.wordFromInt ||
@@ -3501,93 +3501,91 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
 	methodName == VM_MagicNames.wordToAddress ||
 	methodName == VM_MagicNames.wordToWord) {
 	// no-op
-	return;
+	return true;
     }
 
     if (methodName == VM_MagicNames.wordAnd) {
 	asm.emitPOP_Reg(T0);
 	asm.emitAND_RegInd_Reg(SP, T0);
-	return;
+	return true;
     }
 
     if (methodName == VM_MagicNames.wordOr) {
 	asm.emitPOP_Reg(T0);
 	asm.emitOR_RegInd_Reg(SP, T0);
-	return;
+	return true;
     }
 
     if (methodName == VM_MagicNames.wordXor) {
 	asm.emitPOP_Reg(T0);
 	asm.emitXOR_RegInd_Reg(SP, T0);
-	return;
+	return true;
     }
 
     if (methodName == VM_MagicNames.wordNot) {
-        asm.emitMOV_Reg_RegInd (T0, SP);
-	asm.emitNAND_RegInd_Reg(SP, T0);
-	return;
+        asm.emitNOT_RegInd (SP);
+	return true;
     }
 
     if (methodName == VM_MagicNames.wordAdd) {
 	asm.emitPOP_Reg(T0);
 	asm.emitADD_RegInd_Reg(SP, T0);
-	return;
+	return true;
     }
 
     if (methodName == VM_MagicNames.wordSub ||
 	methodName == VM_MagicNames.wordDiff) {
 	asm.emitPOP_Reg(T0);
 	asm.emitSUB_RegInd_Reg(SP, T0);
-	return;
+	return true;
     }
 
     if (methodName == VM_MagicNames.wordZero) {
 	asm.emitPUSH_Imm(0);
-	return;
+	return true;
     }
 
     if (methodName == VM_MagicNames.wordMax) {
 	asm.emitPUSH_Imm(-1);
-	return;
+	return true;
     }
 
     if (methodName == VM_MagicNames.wordLT) {
-	generateAddrComparison(asm.LT);
-	return;
+	generateAddrComparison(asm.LLT);
+	return true;
     }
     if (methodName == VM_MagicNames.wordLE) {
-	generateAddrComparison(asm.LE);
-	return;
+	generateAddrComparison(asm.LLE);
+	return true;
     }
     if (methodName == VM_MagicNames.wordGT) {
-	generateAddrComparison(asm.GT);
-	return;
+	generateAddrComparison(asm.LGT);
+	return true;
     }
     if (methodName == VM_MagicNames.wordGE) {
-	generateAddrComparison(asm.GE);
-	return;
+	generateAddrComparison(asm.LGE);
+	return true;
     }
     if (methodName == VM_MagicNames.wordEQ) {
 	generateAddrComparison(asm.EQ);
-	return;
+	return true;
     }
     if (methodName == VM_MagicNames.wordNE) {
 	generateAddrComparison(asm.NE);
-	return;
+	return true;
     }
     if (methodName == VM_MagicNames.wordIsZero) {
 	asm.emitPUSH_Imm(0);
 	generateAddrComparison(asm.EQ);
-	return;
+	return true;
     }
     if (methodName == VM_MagicNames.wordIsMax) {
 	asm.emitPUSH_Imm(-1);
 	generateAddrComparison(asm.EQ);
-	return;
+	return true;
     }
 						     
-    VM.sysWrite("WARNING: VM_Compiler compiling unimplemented magic: " + methodName + " in " + method + "\n");
-    asm.emitINT_Imm(0xFF); // trap
+    return false;
     
   }
 

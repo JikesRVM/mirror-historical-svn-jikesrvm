@@ -78,7 +78,7 @@ extern "C" int     incinterval(timer_t id, itimerstruc_t *newvalue, itimerstruc_
 #endif
 
 /* #define DEBUG_SYS */
-/* #define VERBOSE_PTHREAD*/
+#define VERBOSE_PTHREAD 0
 
 static int TimerDelay  =  10; // timer tick interval, in milliseconds     (10 <= delay <= 999)
 static int SelectDelay =   2; // pause time for select(), in milliseconds (0  <= delay <= 999)
@@ -746,9 +746,9 @@ sysWriteBytes(int fd, char *buf, int cnt)
        sysExit(1);
        }
 
- #ifdef VERBOSE_PTHREAD
+ if (VERBOSE_PTHREAD)
     fprintf(SysTraceFile, "sys: pthread_create 0x%08x\n", sysVirtualProcessorHandle);
- #endif
+
     return (int)sysVirtualProcessorHandle;
  #endif
     }
@@ -761,9 +761,8 @@ sysWriteBytes(int fd, char *buf, int cnt)
     int ti_or_ip	= ((int *)args)[2];
     int fp	= ((int *)args)[3];
 
- #ifdef VERBOSE_PTHREAD
+ if (VERBOSE_PTHREAD)
     fprintf(SysTraceFile, "sys: sysVirtualProcessorStartup: jtoc=0x%08x pr=0x%08x ti_or_ip=0x%08x fp=0x%08x\n", jtoc, pr, ti_or_ip, fp);
- #endif
 
     // branch to vm code
     //
@@ -797,9 +796,8 @@ sysWriteBytes(int fd, char *buf, int cnt)
  #else
     int numCpus;
     numCpus = sysconf(_SC_NPROCESSORS_ONLN);
- #ifdef VERBOSE_PTHREAD
+ if (VERBOSE_PTHREAD)
     fprintf(SysTraceFile, "sys: %d cpu's\n", numCpus);
- #endif
 
  // Linux does not seem to have this
  #ifndef __linux__
@@ -874,9 +872,8 @@ sysPthreadSelf()
 
    thread = (int)pthread_self();
    
-   #ifdef VERBOSE_PTHREAD
+   if (VERBOSE_PTHREAD)
    fprintf(SysTraceFile, "sysPthreadSelf: thread %d\n", thread);
-   #endif
 
    /*
     * block the CONT signal.  This makes the signal reach this
@@ -1319,7 +1316,7 @@ sysMMapNonFile(char *start, char *length, int protection, int flags)
    {
        void *res = mmap(start, (size_t)(length), protection, flags, -1, 0);
        if (res == (void *) -1) {
-	 printf("mmap(%d, %d, %d, %d, -1, 0) failed with %d\n", start, length, protection, flags, errno);
+	 printf("mmap (%x, %d, %d, %d, -1, 0) failed with %d\n", start, length, protection, flags, errno);
 	 return (void *) errno;
        }
        #ifdef DEBUG_SYS

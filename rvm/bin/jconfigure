@@ -251,10 +251,6 @@ HOST_SHLD_STR="\$$HOST_SHLD_STR1"
 integer GENERATE_MAP=1
 export GENERATE_MAP=1
 
-# Address at which the boot image will be linked and loaded
-#
-BOOTIMAGE_LOAD_ADDRESS="0x30000000"
-
 # Current version of RVM
 JIKESRVM_VERSION="Jikes Research VM for Java 2.1.1"
 
@@ -409,16 +405,6 @@ elif (( RVM_WITH_ONE_WORD_INDEX_OBJECT_MODEL )); then
 else
   OBJECT_MODEL_PATH_STR=objectModel/default
 fi
-
-
-
-if (( RVM_FOR_LINUX && RVM_FOR_POWERPC )); then
-   BOOTIMAGE_LOAD_ADDRESS="0x31000000"
-fi
-if (( RVM_FOR_LINUX && RVM_FOR_IA32 )); then
-   BOOTIMAGE_LOAD_ADDRESS="0x41000000"
-fi
-
 
 
 # Convert configuration choices into preprocessor definitions.

@@ -84,11 +84,8 @@ public class LOSVMResource extends MonotoneVMResource implements Constants {
    * @return Address of allocated storage
    */
   protected VM_Address alloc (boolean isScalar, int size) throws VM_PragmaUninterruptible {
-
     if (allocated == null) setup();  // not a good way to do it XXXXXX
-
     for (int count=0; ; count++) {
-
       spaceLock.lock();
 
       int num_pages = (size + (pageSize - 1)) / pageSize;    // Number of pages needed
