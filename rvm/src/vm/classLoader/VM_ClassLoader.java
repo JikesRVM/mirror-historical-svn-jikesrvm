@@ -35,7 +35,7 @@ public class VM_ClassLoader
    * the lock; writing any of the data structures requires acquiring 
    * the lock. 
    */
-  public static Object lock;
+  public static VM_Synchronizer lock;
 
   
   /**

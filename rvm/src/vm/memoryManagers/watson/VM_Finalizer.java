@@ -35,7 +35,7 @@ public class VM_Finalizer
   static VM_FinalizerListElement finalize_head;
   static int live_count;
   static int finalize_count;
-  private static Object locker;	    
+  private static VM_Synchronizer locker;	    
   static boolean foundFinalizableObject;
   static int foundFinalizableCount = 0;    // set by each call to moveToFinalizable
 
