@@ -384,7 +384,7 @@ public final class VM_Lock implements VM_Constants, VM_Uninterruptible {
       VM.assert(waiting.isEmpty());
     }
     if (STATS) deflations++;
-    VM_ThinLock.deflate(o, this);
+    VM_ThinLock.deflate(o, VM_ObjectModel.getThinLockOffset(o), this);
     lockedObject = null;
     free(this);
   }

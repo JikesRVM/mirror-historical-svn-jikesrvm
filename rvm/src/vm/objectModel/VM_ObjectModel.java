@@ -182,15 +182,17 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
   /**
    * Copy a scalar object to the given raw storage address
    */
-  public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, VM_Class type, Object[] tib) {
-    return VM_JavaHeader.moveObject(toAddress, fromObj, numBytes, type, tib);
+  public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, 
+				  VM_Class type, Object[] tib, int availBitsWord) {
+    return VM_JavaHeader.moveObject(toAddress, fromObj, numBytes, type, tib, availBitsWord);
   }
 
   /**
    * Copy an array object to the given raw storage address
    */
-  public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, VM_Array type, Object[] tib) {
-    return VM_JavaHeader.moveObject(toAddress, fromObj, numBytes, type, tib);
+  public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, 
+				  VM_Array type, Object[] tib, int availBitsWord) {
+    return VM_JavaHeader.moveObject(toAddress, fromObj, numBytes, type, tib, availBitsWord);
   }
 
   /**
@@ -232,41 +234,16 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
   }
 
   /**
-   * Does an object have a thin lock?
+   * Get the offset of the thin lock word in this object
    */
-  public static boolean hasThinLock(Object o) { 
-    return VM_JavaHeader.hasThinLock(o);
-  }
-
-  /**
-   * Non-atomic read of the word containing o's thin lock
-   */
-  public static int getThinLock(Object o) {
-    if (VM.VerifyAssertions) VM.assert(hasThinLock(o));
-    return VM_JavaHeader.getThinLock(o);
-  }
-
-  /**
-   * Prepare of the word containing o's thin lock
-   */
-  public static int prepareThinLock(Object o) {
-    if (VM.VerifyAssertions) VM.assert(hasThinLock(o));
-    return VM_JavaHeader.prepareThinLock(o);
-  }
-
-  /**
-   * Attempt of the word containing o's thin lock
-   */
-  public static boolean attemptThinLock(Object o, int oldValue, int newValue) {
-    if (VM.VerifyAssertions) VM.assert(hasThinLock(o));
-    return VM_JavaHeader.attemptThinLock(o, oldValue, newValue);
+  public static int getThinLockOffset(Object o) {
+    return VM_JavaHeader.getThinLockOffset(o);
   }
 
   /**
    * fastPathLocking
    */
   public static void fastPathLock(Object o) { 
-    if (VM.VerifyAssertions) VM.assert(hasThinLock(o));
     VM_JavaHeader.fastPathLock(o);
   }
 
@@ -274,7 +251,6 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
    * fastPathUnlocking
    */
   public static void fastPathUnlock(Object o) { 
-    if (VM.VerifyAssertions) VM.assert(hasThinLock(o));
     VM_JavaHeader.fastPathUnlock(o);
   }
 

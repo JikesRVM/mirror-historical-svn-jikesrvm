@@ -133,19 +133,25 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
   /**
    * Copy an object to the given raw storage address
    */
-  public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, VM_Class type, Object[] tib) {
+  public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, 
+				  VM_Class type, Object[] tib, int availBitsWord) {
     int fromAddress = VM_Magic.objectAsAddress(fromObj) - numBytes - SCALAR_PADDING_BYTES;
     VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes);
-    return VM_Magic.addressAsObject(toAddress + numBytes + SCALAR_PADDING_BYTES);
+    Object toObj = VM_Magic.addressAsObject(toAddress + numBytes + SCALAR_PADDING_BYTES);
+    VM_Magic.setIntAtOffset(toObj, STATUS_OFFSET, availBitsWord);
+    return toObj;
   }
 
   /**
    * Copy an object to the given raw storage address
    */
-  public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, VM_Array type, Object[] tib) {
+  public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, 
+				  VM_Array type, Object[] tib, int availBitsWord) {
     int fromAddress = VM_Magic.objectAsAddress(fromObj) - ARRAY_HEADER_SIZE;
     VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes);
-    return VM_Magic.addressAsObject(toAddress + ARRAY_HEADER_SIZE);
+    Object toObj = VM_Magic.addressAsObject(toAddress + ARRAY_HEADER_SIZE);
+    VM_Magic.setIntAtOffset(toObj, STATUS_OFFSET, availBitsWord);
+    return toObj;
   }
 
   /**
@@ -195,59 +201,38 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
   }
 
   /**
-   * Does an object have a thin lock?
+   * Get the offset of the thin lock word in this object
    */
-  public static boolean hasThinLock(Object o) { 
-    return true;
-  }
-
-  /**
-   * Non-atomic read of the word containing o's thin lock
-   */
-  public static int getThinLock(Object o) {
-    return VM_Magic.getIntAtOffset(o, STATUS_OFFSET);
-  }
-
-  /**
-   * Prepare of the word containing o's thin lock
-   */
-  public static int prepareThinLock(Object o) {
-    return VM_Magic.prepare(o, STATUS_OFFSET);
-  }
-
-  /**
-   * Attempt of the word containing o's thin lock
-   */
-  public static boolean attemptThinLock(Object o, int oldValue, int newValue) {
-    return VM_Magic.attempt(o, STATUS_OFFSET, oldValue, newValue);
+  public static int getThinLockOffset(Object o) {
+    return STATUS_OFFSET;
   }
 
   /**
    * fastPathLocking
    */
   public static void fastPathLock(Object o) { 
-    VM_ThinLock.inlineLock(o);
+    VM_ThinLock.inlineLock(o, STATUS_OFFSET);
   }
 
   /**
    * fastPathUnlocking
    */
   public static void fastPathUnlock(Object o) { 
-    VM_ThinLock.inlineUnlock(o);
+    VM_ThinLock.inlineUnlock(o, STATUS_OFFSET);
   }
 
   /**
    * Generic lock
    */
   public static void genericLock(Object o) { 
-    VM_ThinLock.lock(o);
+    VM_ThinLock.lock(o, STATUS_OFFSET);
   }
 
   /**
    * Generic unlock
    */
   public static void genericUnlock(Object o) {
-    VM_ThinLock.unlock(o);
+    VM_ThinLock.unlock(o, STATUS_OFFSET);
   }
 
   /**
@@ -260,7 +245,7 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
    * @return the heavy-weight lock on the object (if any)
    */
   public static VM_Lock getHeavyLock(Object o, boolean create) {
-    return VM_ThinLock.getHeavyLock(o, create);
+    return VM_ThinLock.getHeavyLock(o, STATUS_OFFSET, create);
   }
 
   /**

@@ -1471,33 +1471,30 @@ public class VM_Allocator
     // We are the GC thread that must copy the object, so do it.
     Object[] tib = VM_ObjectModel.getTIB(fromObj);
     VM_Type type = VM_Magic.objectAsType(tib[TIB_TYPE_INDEX]);
+    if (writeBarrier) {
+      // set barrier bit if write barrier
+      forwardingPtr |= VM_AllocatorHeader.GC_BARRIER_BIT_MASK;
+    }
     if (VM.VerifyAssertions) VM.assert(validRef(type));
     if (type.isClassType()) {
       VM_Class classType = type.asClass();
       int numBytes = VM_ObjectModel.bytesRequiredWhenCopied(fromObj, classType);
       int toAddress = gc_getMatureSpace(numBytes);
-      toObj = VM_ObjectModel.moveObject(toAddress, fromObj, numBytes, classType, tib);
+      toObj = VM_ObjectModel.moveObject(toAddress, fromObj, numBytes, classType, tib, forwardingPtr);
     } else {
       VM_Array arrayType = type.asArray();
       int numElements = VM_Magic.getArrayLength(fromObj);
       int numBytes = VM_ObjectModel.bytesRequiredWhenCopied(fromObj, arrayType, numElements);
       int toAddress = gc_getMatureSpace(numBytes);
-      toObj = VM_ObjectModel.moveObject(toAddress, fromObj, numBytes, arrayType, tib);
+      toObj = VM_ObjectModel.moveObject(toAddress, fromObj, numBytes, arrayType, tib, forwardingPtr);
       if (arrayType == arrayOfIntType) {
 	// sync all arrays of ints - must sync moved code instead of sync'ing chunks when full
 	VM_Memory.sync(toAddress, numBytes);
       }
     }
 
-    // restore original bit pattern of available bits word in copied object
-    // set the barrier bit if write barrier
-    if (writeBarrier)
-      VM_ObjectModel.writeAvailableBitsWord(toObj, forwardingPtr | VM_AllocatorHeader.GC_BARRIER_BIT_MASK);
-    else
-      VM_ObjectModel.writeAvailableBitsWord(toObj, forwardingPtr);
-
     VM_Magic.sync(); // make changes viewable to other processors 
-    
+
     VM_AllocatorHeader.setForwardingPointer(fromObj, toObj);
 
     if (scan) VM_GCWorkQueue.putToWorkBuffer(VM_Magic.objectAsAddress(toObj));

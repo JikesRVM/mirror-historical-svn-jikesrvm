@@ -58,10 +58,8 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
   private static final int ONE_WORD_HEADER_SIZE = 4 + OTHER_HEADER_BYTES;
   private static final int THIN_LOCK_SIZE = 4;
   private static final int ARRAY_HEADER_SIZE = ONE_WORD_HEADER_SIZE + 4;
-  
-  // note that the pointer to an unsychronized scalar actually points 4 bytes above the
-  // scalar object.
-  private static final int SCALAR_PADDING_BYTES = 4;
+
+  private static final int UNSYNCH_PADDING_BYTES = THIN_LOCK_SIZE;
 
   protected static final int TIB_OFFSET   = -8;
 
@@ -79,8 +77,9 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    */
   protected static final int HASH_STATE_BITS = VM_Collector.MOVES_OBJECTS ? 2 : 0;
   protected static final int HASH_STATE_MASK = HASH_STATE_UNHASHED | HASH_STATE_HASHED | HASH_STATE_HASHED_AND_MOVED;
-  protected static final int HASHCODE_SCALAR_OFFSET = 0; // in phantom word
-  protected static final int HASHCODE_ARRAY_OFFSET = JAVA_HEADER_END - OTHER_HEADER_BYTES - 4; // 
+  protected static final int HASHCODE_UNSYNCH_SCALAR_OFFSET = -4; // instead of status word
+  protected static final int HASHCODE_SYNCH_SCALAR_OFFSET = 0;    // above status word
+  protected static final int HASHCODE_ARRAY_OFFSET = JAVA_HEADER_END - OTHER_HEADER_BYTES - 4; // to left of header
   
   /**
    * How small is the minimum object header size? 
@@ -176,6 +175,64 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
   }
 
   /**
+   * Convert a scalar object reference into the low memory word of the raw
+   * storage that holds the object.
+   * 
+   * @param ref a scalar object reference
+   * @param t  the VM_Type of the object
+   */
+  protected static ADDRESS scalarRefToBaseAddress(Object ref, VM_Class t) {
+    int size = t.getInstanceSize();
+    boolean isSynchronized = t.isSynchronized;
+    return VM_Magic.objectAsAddress(ref) - size - (isSynchronized ? 0 : THIN_LOCK_SIZE);
+  }
+
+  /**
+   * Convert an array reference into the low memory word of the raw
+   * storage that holds the object.
+   * 
+   * @param ref an array reference
+   * @param t  the VM_Type of the array
+   */
+  protected static ADDRESS arrayRefToBaseAddress(Object ref, VM_Type t) {
+    if (HASH_STATE_BITS != 0) {
+      if ((VM_Magic.getIntAtOffset(ref, TIB_OFFSET) & HASH_STATE_MASK) != HASH_STATE_UNHASHED) {
+	return VM_Magic.objectAsAddress(ref) - ARRAY_HEADER_SIZE - 4;
+      }
+    }
+    return VM_Magic.objectAsAddress(ref) - ARRAY_HEADER_SIZE;
+  }
+
+  /**
+   * Convert the raw storage address ptr into a ptr to an object
+   * under the assumption that the object to be placed here is 
+   * a scalar object of size bytes which is an instance of the given tib.
+   * 
+   * @param ptr the low memory word of the raw storage to be converted.
+   * @param tib the TIB of the type that the storage will/does belong to.
+   * @param size the size in bytes of the object
+   * @return an ptr to said object.
+   */
+  protected static ADDRESS baseAddressToScalarAddress(ADDRESS ptr, Object[] tib, int size) {
+    boolean isSynchronized = ((VM_Class)tib[0]).isSynchronized;
+    return ptr + size + (isSynchronized ? 0 : THIN_LOCK_SIZE);
+  }
+
+  /**
+   * Convert the raw storage address ptr into a ptr to an object
+   * under the assumption that the object to be placed here is 
+   * a array object of size bytes which is an instance of the given tib.
+   * 
+   * @param ptr the low memory word of the raw storage to be converted.
+   * @param tib the TIB of the type that the storage will/does belong to.
+   * @param size the size in bytes of the object
+   * @return an object reference to said storage.
+   */
+  protected static ADDRESS baseAddressToArrayAddress(ADDRESS ptr, Object[] tib, int size) {
+    return ptr + ARRAY_HEADER_SIZE;
+  }
+
+  /**
    * Perform any required initialization of the JAVA portion of the header.
    * @param ptr the raw storage to be initialized
    * @param tib the TIB of the instance being created
@@ -260,36 +317,6 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
     }
   }
 
-
-  /**
-   * Convert the raw storage address ptr into a ptr to an object
-   * under the assumption that the object to be placed here is 
-   * a scalar object of size bytes which is an instance of the given tib.
-   * 
-   * @param ptr the low memory word of the raw storage to be converted.
-   * @param tib the TIB of the type that the storage will/does belong to.
-   * @param size the size in bytes of the object
-   * @return an ptr to said object.
-   */
-  public static ADDRESS baseAddressToScalarAddress(ADDRESS ptr, Object[] tib, int size) {
-    boolean isSynchronized = ((VM_Class)tib[0]).isSynchronized;
-    return ptr + size + (isSynchronized ? 0 : THIN_LOCK_SIZE);
-  }
-
-  /**
-   * Convert the raw storage address ptr into a ptr to an object
-   * under the assumption that the object to be placed here is 
-   * a array object of size bytes which is an instance of the given tib.
-   * 
-   * @param ptr the low memory word of the raw storage to be converted.
-   * @param tib the TIB of the type that the storage will/does belong to.
-   * @param size the size in bytes of the object
-   * @return an object reference to said storage.
-   */
-  public static ADDRESS baseAddressToArrayAddress(ADDRESS ptr, Object[] tib, int size) {
-    return ptr + ARRAY_HEADER_SIZE;
-  }
-
   /**
    * Given the smallest base address in a region, return the smallest
    * object reference that could refer to an object in the region.
@@ -326,7 +353,6 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    * Get the hash code of an object.
    */
   public static int getObjectHashCode(Object o) { 
-    VM_Magic.pragmaInline();
     if (VM_Collector.MOVES_OBJECTS) {
       int hashState = VM_Magic.getIntAtOffset(o, TIB_OFFSET) & HASH_STATE_MASK;
       if (hashState == HASH_STATE_HASHED) {
@@ -336,29 +362,23 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
 	if (t.isArrayType()) {
 	  return VM_Magic.getIntAtOffset(o, HASHCODE_ARRAY_OFFSET);
 	} else {
-	  return VM_Magic.getIntAtOffset(o, HASHCODE_SCALAR_OFFSET);
+	  if (t.isSynchronized) {
+	    return VM_Magic.getIntAtOffset(o, HASHCODE_SYNCH_SCALAR_OFFSET);
+	  } else {
+	    return VM_Magic.getIntAtOffset(o, HASHCODE_UNSYNCH_SCALAR_OFFSET);
+	  }
 	}
       } else {
-	initHashCodeState(o);
+	int tmp;
+	do {
+	  tmp = VM_Magic.prepare(o, TIB_OFFSET);
+	} while (!VM_Magic.attempt(o, TIB_OFFSET, tmp, tmp | HASH_STATE_HASHED));
 	return getObjectHashCode(o);
       }
     } else {
       return VM_Magic.objectAsAddress(o) >> 2;
     }
   }
-
-  private static void initHashCodeState(Object o) {
-    VM_Magic.pragmaNoInline();
-    VM.sysWrite("init hash state ");
-    VM.sysWrite(VM_Magic.objectAsAddress(o));
-    VM.sysWrite("\n");
-    int tmp;
-    do {
-      tmp = VM_Magic.prepare(o, TIB_OFFSET);
-    } while (!VM_Magic.attempt(o, TIB_OFFSET, tmp, tmp | HASH_STATE_HASHED));
-    VM.sysWrite("done\n");
-  }
-
 
   /**
    * how many bytes are needed when the scalar object is copied by GC?
@@ -385,136 +405,125 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
       return size + 4;
     }
   }
-
+  
   /**
    * Copy an object to the given raw storage address
    */
-  public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, VM_Class type, Object[] tib) {
-    VM.assert(false);
-    return null;
-    /*
-    int 
-
-
-    type.isSynchronized()
-    int fromAddress = 
-
-
-
-    boolean isSynchronized = ((VM_Class)tib[0]).isSynchronized;
-    return ptr + size + (isSynchronized ? 0 : THIN_LOCK_SIZE);
-
-    VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes);
-
-
-
-
-    Object toObj = baseAddressToScalarRef(toAddress, tib, numBytes);
-    int tibWord = VM_Magic.getIntAtOffset(toObj, TIB_OFFSET)
-    if ((tibWord & HASH_STATE_MASK) == HASH_STATE_HASHED) {
-      VM.sysWrite("Scalar: storing fromObj address ");
-      VM.sysWrite(fromObj);
-      VM.sysWrite(" in hash code of ");
-      VM.sysWrite(toObj);
-      VM_Magic.setIntAtOffset(toObj, HASHCODE_SCALAR_OFFSET, VM_Magic.addressAsObject(fromObj));
-      VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, tibWord | HASH_STATE_HASHED_AND_MOVED);
-    }
-    return toObj;
-    */
-  }
-
-  /**
-   * Copy an object to the given raw storage address
-   */
-  public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, VM_Array type, Object[] tib) {
-    VM.assert(false);
-    return null;
-    /*
-    int fromAddress = arrayRefToBaseAddress(fromObj, type);
-    VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes);
-    int tibWord = VM_Magic.getIntAtOffset(toObj, TIB_OFFSET);
-    
-
-    Object toObj = baseAddressToArrayRef(toAddress, tib, numBytes);
-    if ((tibWord & HASH_STATE_MASK) == HASH_STATE_HASHED) {
-      VM.sysWrite("Array: storing fromObj address ");
-      VM.sysWrite(fromObj);
-      VM.sysWrite(" in hash code of ");
-      VM.sysWrite(toObj);
-      VM_Magic.setIntAtOffset(toObj, HASHCODE_SCALAR_OFFSET, VM_Magic.addressAsObject(fromObj));
-      VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, tibWord | HASH_STATE_HASHED_AND_MOVED);
-    }
-    return toObj;
-    */
-  }
-
-  /**
-   * Non-atomic read of the word containing o's thin lock.
-   */
-  public static int getThinLock(Object o) {
-    VM_Magic.pragmaInline();
-    if (VM.VerifyAssertions) {
-      VM.assert(hasThinLock(o));
-    }
-    return VM_Magic.getIntAtOffset(o, STATUS_OFFSET);
-  }
-
-  /**
-   * Prepare of the word containing o's thin lock
-   */
-  public static int prepareThinLock(Object o) {
-    VM_Magic.pragmaInline();
-    if (VM.VerifyAssertions) {
-      VM.assert(hasThinLock(o));
-    }
-    return VM_Magic.prepare(o, STATUS_OFFSET);
-  }
-
-  /**
-   * Attempt of the word containing o's thin lock
-   */
-  public static boolean attemptThinLock(Object o, int oldValue, int newValue) {
-    VM_Magic.pragmaInline();
-    if (VM.VerifyAssertions) {
-      VM.assert(hasThinLock(o));
-    }
-    return VM_Magic.attempt(o, STATUS_OFFSET, oldValue, newValue);
-  }
-  /**
-   * Convert a scalar object reference into the low memory word of the raw
-   * storage that holds the object.
-   * 
-   * @param ref a scalar object reference
-   * @param t  the VM_Type of the object
-   */
-  public static ADDRESS scalarRefToBaseAddress(Object ref, VM_Class t) {
-    int size = t.getInstanceSize();
-    boolean isSynchronized = t.isSynchronized;
-    return VM_Magic.objectAsAddress(ref) - size - (isSynchronized ? 0 : THIN_LOCK_SIZE);
-  }
-
-  /**
-   * Convert an array reference into the low memory word of the raw
-   * storage that holds the object.
-   * 
-   * @param ref an array reference
-   * @param t  the VM_Type of the array
-   */
-  public static ADDRESS arrayRefToBaseAddress(Object ref, VM_Type t) {
-    if (HASH_STATE_BITS != 0) {
-      if ((VM_Magic.getIntAtOffset(ref, TIB_OFFSET) & HASH_STATE_MASK) != HASH_STATE_UNHASHED) {
-	return VM_Magic.objectAsAddress(ref) - ARRAY_HEADER_SIZE - 4;
+  public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, 
+				  VM_Class type, Object[] tib, int availBitsWord) {
+    int tibWord = VM_Magic.getIntAtOffset(fromObj, TIB_OFFSET);
+    int hashState = tibWord & HASH_STATE_MASK;
+    if (type.isSynchronized) {
+      if (hashState == HASH_STATE_UNHASHED) {
+	VM.sysWrite("S_S_U\n");
+	int fromAddress = VM_Magic.objectAsAddress(fromObj) - numBytes;
+	VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes);
+	Object toObj = VM_Magic.addressAsObject(toAddress + numBytes);
+	VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, availBitsWord);
+	VM_GCUtil.validRef(VM_Magic.objectAsAddress(toObj));
+	return toObj;
+      } else if (hashState == HASH_STATE_HASHED) {
+	VM.sysWrite("S_S_H\n");
+	int ptrAdjust = numBytes - 4;
+	numBytes -= 4;
+	int fromAddress = VM_Magic.objectAsAddress(fromObj) - ptrAdjust;
+	VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes);
+	Object toObj = VM_Magic.addressAsObject(toAddress + ptrAdjust);
+	VM_Magic.setIntAtOffset(toObj, HASHCODE_SYNCH_SCALAR_OFFSET, VM_Magic.objectAsAddress(fromObj));
+	VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, availBitsWord | HASH_STATE_HASHED_AND_MOVED);
+	VM_GCUtil.validRef(VM_Magic.objectAsAddress(toObj));
+	return toObj;
+      } else { // HASHED_AND_MOVED already
+	VM.sysWrite("S_S_M\n");
+	int ptrAdjust = numBytes - 4;
+	int fromAddress = VM_Magic.objectAsAddress(fromObj) - ptrAdjust;
+	VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes);
+	Object toObj = VM_Magic.addressAsObject(toAddress + ptrAdjust);
+	VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, availBitsWord);
+	VM_GCUtil.validRef(VM_Magic.objectAsAddress(toObj));
+	return toObj;
+      }
+    } else {
+      if (hashState == HASH_STATE_UNHASHED) {
+	VM.sysWrite("S_U_U\n");
+	int ptrAdjust = numBytes + UNSYNCH_PADDING_BYTES;
+	int fromAddress = VM_Magic.objectAsAddress(fromObj) - ptrAdjust;
+	VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes);
+	Object toObj = VM_Magic.addressAsObject(toAddress + ptrAdjust);
+	VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, availBitsWord);
+	VM_GCUtil.validRef(VM_Magic.objectAsAddress(toObj));
+	return toObj;
+      } else if (hashState == HASH_STATE_HASHED) {
+	VM.sysWrite("S_U_H\n");
+	int ptrAdjust = numBytes - 4 + UNSYNCH_PADDING_BYTES;
+	numBytes -= 4;
+	int fromAddress = VM_Magic.objectAsAddress(fromObj) - ptrAdjust;
+	VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes);
+	Object toObj = VM_Magic.addressAsObject(toAddress + ptrAdjust);
+	VM_Magic.setIntAtOffset(toObj, HASHCODE_SYNCH_SCALAR_OFFSET, VM_Magic.objectAsAddress(fromObj));
+	VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, availBitsWord | HASH_STATE_HASHED_AND_MOVED);
+	VM_GCUtil.validRef(VM_Magic.objectAsAddress(toObj));
+	return toObj;
+      } else { // HASHED_AND_MOVED
+	VM.sysWrite("S_U_M\n");
+	int ptrAdjust = numBytes;
+	int fromAddress = VM_Magic.objectAsAddress(fromObj) - ptrAdjust;
+	VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes);
+	Object toObj = VM_Magic.addressAsObject(toAddress + ptrAdjust);
+	VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, availBitsWord);
+	VM_GCUtil.validRef(VM_Magic.objectAsAddress(toObj));
+	return toObj;
       }
     }
-    return VM_Magic.objectAsAddress(ref) - ARRAY_HEADER_SIZE;
   }
 
+  /**
+   * Copy an object to the given raw storage address
+   */
+  public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, 
+				  VM_Array type, Object[] tib, int availBitsWord) {
+    int tibWord = VM_Magic.getIntAtOffset(fromObj, TIB_OFFSET);
+    int hashState = tibWord & HASH_STATE_MASK;
+    if (hashState == HASH_STATE_UNHASHED) {
+      VM.sysWrite("A_U\n");
+      int fromAddress = VM_Magic.objectAsAddress(fromObj) - ARRAY_HEADER_SIZE;
+      VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes); 
+      Object toObj = VM_Magic.addressAsObject(toAddress + ARRAY_HEADER_SIZE);
+      VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, availBitsWord);
+      VM_GCUtil.validRef(VM_Magic.objectAsAddress(toObj));
+      return toObj;
+    } else if (hashState == HASH_STATE_HASHED) {
+      VM.sysWrite("A_H\n");
+      int fromAddress = VM_Magic.objectAsAddress(fromObj) - ARRAY_HEADER_SIZE;
+      VM_Memory.aligned32Copy(toAddress+4, fromAddress, numBytes); 
+      Object toObj = VM_Magic.addressAsObject(toAddress + ARRAY_HEADER_SIZE + 4);
+      VM_Magic.setIntAtOffset(toObj, HASHCODE_ARRAY_OFFSET, VM_Magic.objectAsAddress(fromObj));
+      VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, availBitsWord | HASH_STATE_HASHED_AND_MOVED);
+      VM_GCUtil.validRef(VM_Magic.objectAsAddress(toObj));
+      return toObj;
+    } else { // HASHED_AND_MOVED
+      VM.sysWrite("A_M\n");
+      int fromAddress = VM_Magic.objectAsAddress(fromObj) - ARRAY_HEADER_SIZE -4;
+      VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes); 
+      Object toObj = VM_Magic.addressAsObject(toAddress + ARRAY_HEADER_SIZE + 4);
+      VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, availBitsWord);
+      VM_GCUtil.validRef(VM_Magic.objectAsAddress(toObj));
+      return toObj;
+    }
+  }
+
+  /**
+   * Get the offset of the thin lock word in this object
+   */
+  public static int getThinLockOffset(Object o) {
+    if (VM.VerifyAssertions) VM.assert(hasThinLock(o));
+    return STATUS_OFFSET;
+  }
 
   /**
    * Does an object have a thin lock?
    */
-  public static boolean hasThinLock(Object o) { 
-    VM_Magic.pragmaInline();  
+  protected static boolean hasThinLock(Object o) { 
     return VM_Magic.getObjectType(o).isSynchronized; 
   }
 
@@ -524,7 +533,7 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
   public static void fastPathLock(Object o) { 
     VM_Magic.pragmaInline();
     if (VM.VerifyAssertions) VM.assert(hasThinLock(o));
-    VM_ThinLock.inlineLock(o);
+    VM_ThinLock.inlineLock(o, STATUS_OFFSET);
   }
 
   /**
@@ -533,7 +542,7 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
   public static void fastPathUnlock(Object o) { 
     VM_Magic.pragmaInline();
     if (VM.VerifyAssertions) VM.assert(hasThinLock(o));
-    VM_ThinLock.inlineUnlock(o);
+    VM_ThinLock.inlineUnlock(o, STATUS_OFFSET);
   }
 
   /**
@@ -542,7 +551,7 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
   public static void genericLock(Object o) { 
     VM_Magic.pragmaInline();
     if (hasThinLock(o)) {
-      VM_ThinLock.lock(o);
+      VM_ThinLock.lock(o, STATUS_OFFSET);
     } else {
       VM_LockNursery.lock(o);
     }
@@ -554,7 +563,7 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
   public static void genericUnlock(Object o) {
     VM_Magic.pragmaInline();
     if (hasThinLock(o)) {
-      VM_ThinLock.unlock(o);
+      VM_ThinLock.unlock(o, STATUS_OFFSET);
     } else {
       VM_LockNursery.unlock(o);
     }
@@ -571,7 +580,7 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    */
   public static VM_Lock getHeavyLock(Object o, boolean create) {
     if (hasThinLock(o)) {
-      return VM_ThinLock.getHeavyLock(o, create);
+      return VM_ThinLock.getHeavyLock(o, STATUS_OFFSET, create);
     } else {
       return VM_LockNursery.findOrCreate(o, create);
     }
