@@ -9,7 +9,6 @@ package com.ibm.JikesRVM.memoryManagers.JMTk;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_CollectorThread;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
-import com.ibm.JikesRVM.memoryManagers.vmInterface.WorkQueue;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.AddressSet;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.AddressPairSet;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.AddressTripleSet;
@@ -22,6 +21,7 @@ import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM_Offset;
 import com.ibm.JikesRVM.VM_Magic;
+import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 import com.ibm.JikesRVM.VM_PragmaInterruptible;
 import com.ibm.JikesRVM.VM_Processor;
@@ -34,9 +34,11 @@ import com.ibm.JikesRVM.VM_Thread;
  * @version $Revision$
  * @date $Date$
  */
-public abstract class BasePlan implements Constants {
+public abstract class BasePlan implements Constants, VM_Uninterruptible {
 
   public final static String Id = "$Id$"; 
+
+  public static boolean verbose = false;
 
   protected WorkQueue workQueue;
   public AddressSet values;                 // gray objects
@@ -79,6 +81,7 @@ public abstract class BasePlan implements Constants {
    * semi-spaces and preparing each of the collectors.
    */
   protected final void prepare() {
+    if (verbose) VM.sysWriteln("BasePlan.prepare");
     SynchronizationBarrier barrier = VM_CollectorThread.gcBarrier;
     int id = barrier.rendezvous();
     if (id == 1) {
@@ -88,13 +91,17 @@ public abstract class BasePlan implements Constants {
       resetComputeRoots();
       VM_Interface.prepareNonParticipating(); // The will fix collector threads that are not participating in thie GC.
     }
-    VM_Interface.prepareParticipating();      // Every thread that is participating needs to adjust its context registers.
+    VM_Interface.prepareParticipating();      // Every participating thread needs to adjust its context registers.
     barrier.rendezvous();
     allPrepare();
+    barrier.rendezvous();
   }
 
   protected final void release() {
+    if (verbose) VM.sysWriteln("BasePlan.release");
     SynchronizationBarrier barrier = VM_CollectorThread.gcBarrier;
+    barrier.rendezvous();
+    allRelease();
     int id = barrier.rendezvous();
     if (id == 1) {
       singleRelease();
@@ -103,8 +110,11 @@ public abstract class BasePlan implements Constants {
     barrier.rendezvous();
   }
 
+  // These abstract methods are called in the order singlePrepare, allPrepare, allRelease, 
+  // and singleRelease.  They are all separated by a barrier.
   abstract protected void singlePrepare();
   abstract protected void allPrepare();
+  abstract protected void allRelease();
   abstract protected void singleRelease();
 
   static SynchronizedCounter threadCounter = new SynchronizedCounter();
@@ -127,7 +137,7 @@ public abstract class BasePlan implements Constants {
       // VM.sysWrite("Proc ", VM_Processor.getCurrentProcessor().id); VM.sysWriteln(" scanning thread ", threadIndex);
       // See comment of ScanThread.scanThread
       //
-      VM_Thread th2 = (VM_Thread) VM_Magic.addressAsObject(traceObject(VM_Magic.objectAsAddress(th)));
+      VM_Thread th2 = VM_Magic.addressAsThread(traceObject(VM_Magic.objectAsAddress(th)));
       traceObject(VM_Magic.objectAsAddress(th.stack));
       if (th.jniEnv != null) {
 	traceObject(VM_Magic.objectAsAddress(th.jniEnv));
@@ -151,9 +161,9 @@ public abstract class BasePlan implements Constants {
     values.push(obj);
   }
 
-public static boolean match = false;
-
   private void processAllWork() {
+
+    if (verbose) VM.sysWriteln("BasePlan.processAllWork");
 
     while (true) {
       while (!values.isEmpty()) {
@@ -267,11 +277,6 @@ public static boolean match = false;
   final public void traceObjectLocation(VM_Address objLoc) {
     VM_Address obj = VM_Magic.getMemoryAddress(objLoc);
     VM_Address newObj = traceObject(obj);
-    if (match) {
-      VM.sysWriteln("traceObjLoc = ", objLoc);
-      VM.sysWriteln("        obj = ", obj);
-      VM.sysWriteln("     newObj = ", newObj);
-    }
     VM_Magic.setMemoryAddress(objLoc, newObj);
   }
 

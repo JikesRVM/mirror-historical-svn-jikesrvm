@@ -12,12 +12,13 @@ import com.ibm.JikesRVM.VM_SystemClassLoader;
 import com.ibm.JikesRVM.VM_EventLogger;
 import com.ibm.JikesRVM.VM_BootRecord;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_Uninterruptible;
 
 /*
  * @author Perry Cheng  
  */  
 
-public class AddressSet {
+public class AddressSet implements VM_Uninterruptible {
 
   // Deficiency in compiler prevents use of VM_Address []
   private int [] address;

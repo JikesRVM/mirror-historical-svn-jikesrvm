@@ -1060,7 +1060,7 @@ public class BootImageWriter extends BootImageWriterMessages
 		  value = addr.toInt();
 		  int low = VM_ObjectModel.maximumObjectRef(VM_Address.zero()).toInt();  // yes, max
 		  int high = 0x10000000;  // we shouldn't have that many objects
-		  if (value > low && value < high) {
+		  if (value > low && value < high && value != 32767) {
 		      say("Warning: Suspicious VM_Address value of ", String.valueOf(value),
 			  " written for static field ", rvmField.toString());
 		  }
@@ -1227,7 +1227,7 @@ public class BootImageWriter extends BootImageWriterMessages
 		    value = addr.toInt();
 		    int low = VM_ObjectModel.maximumObjectRef(VM_Address.zero()).toInt();  // yes, max
 		    int high = 0x10000000;  // we shouldn't have that many objects
-		    if (value > low && value < high) {
+		    if (value > low && value < high && value != 32767) {
 			say("Warning: Suspicious VM_Address value of ", String.valueOf(value),
 			    " written for address array");
 		    }
@@ -1352,7 +1352,7 @@ public class BootImageWriter extends BootImageWriterMessages
 		  value = addr.toInt();
 		  int low = VM_ObjectModel.maximumObjectRef(VM_Address.zero()).toInt();  // yes, max
 		  int high = 0x10000000;  // we shouldn't have that many objects
-		  if (value > low && value < high) {
+		  if (value > low && value < high && value != 32767) {
 		    String name = rvmField.toString();
 		    if (!name.equals("com.ibm.JikesRVM.VM_Processor.vpStatusAddress Lcom/ibm/JikesRVM/VM_Address;")) {
 		      say("Warning: Suspicious VM_Address value of ", String.valueOf(value),

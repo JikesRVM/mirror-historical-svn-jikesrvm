@@ -19,7 +19,7 @@ import com.ibm.JikesRVM.VM_Scheduler;
 import com.ibm.JikesRVM.VM_Runtime;
 import com.ibm.JikesRVM.VM_Magic;
 import com.ibm.JikesRVM.VM_Thread;
-import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_Uninterruptible;
 
 /**
  * Class that supports scanning thread stacks for references during
@@ -30,7 +30,7 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
  * @author Stephen Smith
  * @author Perry Cheng
  */  
-public class ScanThread implements VM_Constants, Constants {
+public class ScanThread implements VM_Constants, Constants, VM_Uninterruptible {
 
   // quietly validates each ref reported by map iterators
   static final boolean VALIDATE_STACK_REFS = true;
@@ -132,7 +132,7 @@ public class ScanThread implements VM_Constants, Constants {
    * @param relocate_code  set to store addresses containing return addresses (if null, skip)
    */
   public static void scanThreadInternal (AddressSet rootLocations, AddressPairSet codeLocations,
-					 VM_Thread t, VM_Address top_frame) throws VM_PragmaUninterruptible {
+					 VM_Thread t, VM_Address top_frame) {
     
     VM_CollectorThread collector = VM_Magic.threadAsCollectorThread(VM_Thread.getCurrentThread());
     VM_Address             ip, fp, prevFp;
@@ -362,7 +362,7 @@ public class ScanThread implements VM_Constants, Constants {
   // dump contents of a stack frame. attempts to interpret each
   // word a an object reference
   //
-  static void dumpStackFrame(VM_Address fp, VM_Address prevFp ) throws VM_PragmaUninterruptible {
+  static void dumpStackFrame(VM_Address fp, VM_Address prevFp ) {
     VM_Address start,end;
 //-#if RVM_FOR_IA32
     if (prevFp.isZero()) {

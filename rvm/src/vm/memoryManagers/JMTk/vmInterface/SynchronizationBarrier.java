@@ -141,11 +141,20 @@ public final class SynchronizationBarrier {
    * Other arriving collector threads just wait until all have either arrived or
    * been declared non-participating.
    */
-  public void  startupRendezvous () throws VM_PragmaUninterruptible {
+  public void startupRendezvous () throws VM_PragmaUninterruptible {
 
     int myProcessorId = VM_Processor.getCurrentProcessorId();
-    int myNumber = VM_Magic.threadAsCollectorThread(VM_Thread.getCurrentThread()).getGCOrdinal();
+    VM_CollectorThread th = VM_Magic.threadAsCollectorThread(VM_Thread.getCurrentThread());
+    int myNumber = th.getGCOrdinal();
     int numExcluded = 0;  // number of RVM VPs NOT participating
+
+    if (trace_startup) {
+      VM.sysWrite("Proc ", myProcessorId);
+      VM.sysWrite(" ordinal ", myNumber);
+      VM.sysWrite(" pr = ", VM_Magic.objectAsAddress(VM_Processor.getCurrentProcessor()));
+      VM.sysWrite(" th = ", VM_Magic.objectAsAddress(th));
+      VM.sysWriteln(" entered startupRendezvous");
+    }
 
     rendezvousCount[myProcessorId] = 0;  
 
@@ -155,6 +164,7 @@ public final class SynchronizationBarrier {
 	VM._assert(entryCounts[myProcessorId]==0);
       }
     }
+
     if ( myNumber > 1 ) {
       // enter barrier
       //
@@ -165,14 +175,25 @@ public final class SynchronizationBarrier {
       // ie. for their counts to go to 1 or -1 respectfully
       //
       for (int i = 1; i <= VM_Scheduler.numProcessors; ++i) {
-	while (entryCounts[i] == 0)
+	while (entryCounts[i] == 0) {
+	  if (trace_startup) {
+	    VM.sysWrite("Proc ", myProcessorId);
+	    VM.sysWrite(" waiting for ", i);
+	  }
 	  waitABit(1);
+	}
       }
 
       // now also wait for native daemon processor to be excluded (done so by
       // ordinal=1 thread in code below) or to arrive.
-      while (entryCounts[VM_Scheduler.nativeDPndx] == 0)
-	waitABit(1);
+      while (entryCounts[VM_Scheduler.nativeDPndx] == 0) {
+	  if (trace_startup) {
+	    VM.sysWrite("Proc ", myProcessorId);
+	    VM.sysWrite(" ordinal ", myNumber);
+	    VM.sysWriteln(" waiting for NDP to arrive or be excluded");
+	  }
+	  waitABit(1);
+      }
 
       VM_Magic.isync();   // so subsequent instructions won't see stale values
       if (trace_startup) VM_Scheduler.trace("startupRendezvous:", "leaving - my count =",

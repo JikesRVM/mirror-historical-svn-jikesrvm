@@ -233,17 +233,19 @@ public class VM_Runtime implements VM_Constants {
    *           (ready for initializer to be run on it)
    * See also: bytecode 0xbb ("new")
    */ 
-  static Object newScalar(int dictionaryId) 
+  static Object unresolvedNewScalar(int dictionaryId) 
     throws VM_ResolutionException, OutOfMemoryError { 
 
     VM_Class cls = VM_TypeDictionary.getValue(dictionaryId).asClass();
     if (VM.VerifyAssertions) VM._assert(cls.isClassType());
-    if (!cls.isInitialized())
+    if (!cls.isInitialized()) 
       initializeClassForDynamicLink(cls);
 
-    return quickNewScalar(cls.getInstanceSize(), 
-			  cls.getTypeInformationBlock(), 
-			  cls.hasFinalizer());
+    int allocator = VM_Interface.pickAllocator(cls);
+    return resolvedNewScalar(cls.getInstanceSize(), 
+			     cls.getTypeInformationBlock(), 
+			     cls.hasFinalizer(),
+			     allocator);
   }
    
   /**
@@ -254,9 +256,10 @@ public class VM_Runtime implements VM_Constants {
    *           (ready for initializer to be run on it)
    * See also: bytecode 0xbb ("new")
    */
-  public static Object quickNewScalar(int size, 
-				      Object[] tib, 
-                                      boolean hasFinalizer) 
+  public static Object resolvedNewScalar(int size, 
+					 Object[] tib, 
+					 boolean hasFinalizer, 
+					 int allocator) 
     throws OutOfMemoryError {
 
     // GC stress testing
@@ -273,7 +276,7 @@ public class VM_Runtime implements VM_Constants {
       VM_EventLogger.logObjectAllocationEvent();
 
     // Allocate the object and initialize its header
-    Object newObj = VM_Interface.allocateScalar(size, tib);
+    Object newObj = VM_Interface.allocateScalar(size, tib, allocator);
 
     // Deal with finalization
     if (hasFinalizer) VM_Interface.addFinalizer(newObj);
@@ -290,9 +293,10 @@ public class VM_Runtime implements VM_Constants {
    * to zero/null
    * See also: bytecode 0xbc ("newarray") and 0xbd ("anewarray")
    */ 
-  public static Object quickNewArray(int numElements, 
-				     int size, 
-                                     Object[] tib)
+  public static Object newArray(int numElements, 
+				int size, 
+				Object[] tib,
+				int allocator)
     throws OutOfMemoryError, NegativeArraySizeException {
 
     if (numElements < 0) raiseNegativeArraySizeException();
@@ -311,7 +315,7 @@ public class VM_Runtime implements VM_Constants {
       VM_EventLogger.logObjectAllocationEvent();
 
     // Allocate the array and initialize its header
-    return VM_Interface.allocateArray(numElements, size, tib);
+    return VM_Interface.allocateArray(numElements, size, tib, allocator);
   }
 
 
@@ -333,12 +337,13 @@ public class VM_Runtime implements VM_Constants {
   public static Object clone (Object obj)
     throws OutOfMemoryError, CloneNotSupportedException {
     VM_Type type = VM_Magic.getObjectType(obj);
+    int allocator = VM_Interface.pickAllocator(type);
     if (type.isArrayType()) {
       VM_Array ary   = type.asArray();
       int      nelts = VM_ObjectModel.getArrayLength(obj);
       int      size  = ary.getInstanceSize(nelts);
       Object[] tib   = ary.getTypeInformationBlock();
-      Object newObj  = quickNewArray(nelts, size, tib);
+      Object newObj  = newArray(nelts, size, tib, allocator);
       System.arraycopy(obj, 0, newObj, 0, nelts);
       return newObj;
     } else {
@@ -347,7 +352,7 @@ public class VM_Runtime implements VM_Constants {
       VM_Class cls   = type.asClass();
       int      size  = cls.getInstanceSize();
       Object[] tib   = cls.getTypeInformationBlock();
-      Object newObj  = quickNewScalar(size, tib, cls.hasFinalizer());
+      Object newObj  = resolvedNewScalar(size, tib, cls.hasFinalizer(), allocator);
       VM_Field[] instanceFields = cls.getInstanceFields();
       for (int i=0; i<instanceFields.length; i++) {
 	VM_Field f = instanceFields[i];
@@ -398,96 +403,6 @@ public class VM_Runtime implements VM_Constants {
     return VM_Interface.totalMemory();
   }
 
-  //-#if RVM_WITH_GCTk_ALLOC_ADVICE
-  //---------------------------------------------------------------//
-  //           Object Allocation with "allocator" argument.        //
-  //---------------------------------------------------------------//
-  private static final boolean debug_alloc_advice = false;
-
-  /**
-   * alloc advice versions of corresponding calls with allocator argument
-   */
-  static Object newScalar(int dictionaryId, int allocator) throws VM_ResolutionException, 
-  OutOfMemoryError
-  { 
-    if (debug_alloc_advice) VM.sysWrite("newScalar alloc advised to " + allocator + "\n");
-    // Disable profiling during allocation
-    if (VM.BuildForProfiling) VM_Profiler.disableProfiling();
-    
-    VM_Class cls = VM_TypeDictionary.getValue(dictionaryId).asClass();
-    if (VM.VerifyAssertions) VM._assert(cls.isClassType());
-    if (!cls.isInitialized())
-      initializeClassForDynamicLink(cls);
-
-    Object ret =  VM_Interface.allocateScalar(cls.getInstanceSize(), cls.getTypeInformationBlock(), allocator, cls.hasFinalizer());
-    if (VM.BuildForProfiling) VM_Profiler.enableProfiling();
-    return ret;
-  }
-
-   public static Object quickNewScalar(int size, Object[] tib, boolean hasFinalizer, int allocator)
-       throws OutOfMemoryError
-   {
-     // Disable profiling during allocation
-     if (VM.BuildForProfiling) VM_Profiler.disableProfiling();
-
-     Object ret = VM_Interface.allocateScalar(size, tib, allocator, hasFinalizer);
-     if (VM.BuildForProfiling) VM_Profiler.enableProfiling();
-     return ret;
-   }
-
-   public static Object quickNewScalar(int size, Object[] tib, int allocator) 
-       throws OutOfMemoryError
-   {
-     if (VM.CompileForFinalization)
-     {
-       boolean hasFinalizer = VM_Magic.addressAsType(VM_Magic.getMemoryWord(VM_Magic.objectAsAddress(tib))).hasFinalizer();
-       return quickNewScalar(size, tib, hasFinalizer, allocator);
-     } 
-     else 
-	 return quickNewScalar(size, tib, false, allocator);
-   }
-
-   public static Object quickNewArray(int numElements, int size, Object[] tib, int allocator)
-       throws OutOfMemoryError, NegativeArraySizeException
-   {
-     if (numElements < 0) raiseNegativeArraySizeException();
-     // Disable profiling during allocation
-     if (VM.BuildForProfiling) VM_Profiler.disableProfiling();
-
-     Object ret = VM_Interface.allocateArray(numElements, size, tib, allocator);
-
-     if (VM.BuildForProfiling) VM_Profiler.enableProfiling();
-     return ret;
-   }
-
-   public static Object buildMultiDimensionalArray(int[] numElements, int dimIndex, 
-						   VM_Array arrayType, int allocator)
-   {
-     arrayType.load();
-     arrayType.resolve();
-     arrayType.instantiate();
-     
-     VM.sysWrite("buildMultiDimensionalArray: dimIndex = ", dimIndex);
-     VM.sysWriteln("                            numElements.len = ", numElements.length);
-     for (int i=0; i<numElements.length; i++)
-	 VM.sysWriteln("                            numElements[", i, "] = ", numElements[i]);
-
-     int    nelts     = numElements[dimIndex];
-     int    size      = ARRAY_HEADER_SIZE + (nelts << arrayType.getLogElementSize());
-     Object newObject = VM_Interface.allocateArray(nelts, size, arrayType.getTypeInformationBlock(), allocator);
-     
-     if (++dimIndex == numElements.length)
-       return newObject; // all dimensions have been built
-     
-     Object[] newArray     = (Object[]) newObject;
-     VM_Array newArrayType = arrayType.getElementType().asArray();
-   
-     for (int i = 0; i < nelts; ++i)
-       newArray[i] = buildMultiDimensionalArray(numElements, dimIndex, newArrayType, allocator);
-     
-     return newArray;
-   }
-  //-#endif RVM_WITH_GCTk_ALLOC_ADVICE
 
   /**
    * Helper function to actually throw the required exception.
@@ -780,7 +695,8 @@ public class VM_Runtime implements VM_Constants {
 
     int    nelts     = numElements[dimIndex];
     int    size      = arrayType.getInstanceSize(nelts);
-    Object newObject = quickNewArray(nelts, size, arrayType.getTypeInformationBlock());
+    int allocator    = VM_Interface.pickAllocator(arrayType);
+    Object newObject = newArray(nelts, size, arrayType.getTypeInformationBlock(), allocator);
 
     if (++dimIndex == numElements.length)
       return newObject; // all dimensions have been built

@@ -3,7 +3,12 @@
  */
 //$Id$
 
-package com.ibm.JikesRVM.memoryManagers.vmInterface;
+package com.ibm.JikesRVM.memoryManagers.JMTk;
+
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_CollectorThread;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.ScanObject;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.Util;
 
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Address;
@@ -18,6 +23,7 @@ import com.ibm.JikesRVM.VM_PragmaInline;
 import com.ibm.JikesRVM.VM_PragmaNoInline;
 import com.ibm.JikesRVM.VM_PragmaLogicallyUninterruptible;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.VM_Scheduler;
 import com.ibm.JikesRVM.VM_Memory;
 import com.ibm.JikesRVM.VM_Time;
@@ -50,7 +56,7 @@ import com.ibm.JikesRVM.VM_Thread;
  * @author Tony Cocchi
  * @author Stephen Smith
  */
-public class WorkQueue {
+public class WorkQueue implements VM_Uninterruptible {
    
   //-----------------------
   //static variables

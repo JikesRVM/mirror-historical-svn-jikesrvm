@@ -17,6 +17,7 @@ import com.ibm.JikesRVM.VM_ObjectModel;
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Magic;
 import com.ibm.JikesRVM.VM_Array;
+import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 import com.ibm.JikesRVM.VM_PragmaInline;
 
@@ -27,7 +28,7 @@ import com.ibm.JikesRVM.VM_PragmaInline;
  *
  *  @author Perry Cheng
  */
-public class LOSPointer implements Constants {
+public class LOSPointer implements Constants, VM_Uninterruptible {
 
   public final static String Id = "$Id$"; 
 

@@ -5,7 +5,9 @@
 
 package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
-public class Synchronize {
+import com.ibm.JikesRVM.VM_Uninterruptible;
+
+public class Synchronize implements VM_Uninterruptible {
 
 
 }

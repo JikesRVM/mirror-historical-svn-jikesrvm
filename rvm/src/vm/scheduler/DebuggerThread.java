@@ -4,10 +4,13 @@
 //$Id$
 package com.ibm.JikesRVM;
 
+import com.ibm.JikesRVM.memoryManagers.JMTk.Plan;
+
 import java.lang.reflect.Method;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Vector;
+
 
 /**
  * An interactive debugger that runs inside the virtual machine.
@@ -28,11 +31,18 @@ class DebuggerThread extends VM_Thread {
     return "DebuggerThread";
   }
       
+  String [] debugTokens = { "t" };
+
   public void run() {
     for (;;) {
       try {
+	Plan.showAll();
+	VM_Processor.trace = 2;
 	VM.sysWrite("debug> ");
-	eval(readTokens());
+	// String [] tokens = readTokens();
+	String [] tokens = debugTokens;
+	VM.sysWriteln("!!!Processing as t");
+	eval(tokens);
       } catch (Exception e) { 
 	VM.sysWrite("oops: " + e + "\n"); 
       }
@@ -44,11 +54,15 @@ class DebuggerThread extends VM_Thread {
 
   // Evaluate an expression.
   //
-  private static void eval(String[] tokens) throws Exception {
+  private static void eval(String[] tokens) throws Exception, VM_PragmaUninterruptible {
+
+VM.sysWriteln("DebuggerThread.eval   1");
     char command = tokens        == null ? EOF  // end of file
       : tokens.length == 0    ? ' '  // empty line
       : tokens[0].charAt(0);         // first letter of first token
-
+VM.sysWrite("DebuggerThread.eval   2 command is ");
+VM.sysWrite(command);
+VM.sysWriteln();
     switch (command)      {
     case ' ': // repeat previous command once
       if (previousTokens != null)
@@ -69,7 +83,9 @@ class DebuggerThread extends VM_Thread {
       
     switch (command) {
     case 't': // display thread(s)
+VM.sysWriteln("DebuggerThread.eval   case t");
       if (tokens.length == 1) { //
+VM.sysWriteln("thread array len = ",VM_Scheduler.threads.length);
 	for (int i = 0, col = 0; i < VM_Scheduler.threads.length; ++i) {
 	  VM_Thread thread = VM_Scheduler.threads[i];
 	  if (thread == null) continue;
@@ -233,7 +249,7 @@ class DebuggerThread extends VM_Thread {
      for (int i = 0; i < VM_Scheduler.locks.length; ++i) {
        VM_Lock l = VM_Scheduler.locks[i];
        if (l == null || !l.active) continue;
-       if (l.entering.contains(t)) return "waitingForLock";
+       if (l.entering.contains(t)) return ("waitingForLock" + i);
        if (l.waiting.contains(t))  return "waitingForNotification";
      }
 
@@ -258,8 +274,9 @@ class DebuggerThread extends VM_Thread {
   //
   private static String[] readTokens() {
     String line = new String();
+VM.sysWriteln("newed string in DebuggerThread.readTokens");
     int    bb = VM_FileSystem.readByte(STDIN);
-      
+
     if (bb < 0)
       return null;
     

@@ -5,6 +5,8 @@
 
 package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
+import com.ibm.JikesRVM.memoryManagers.JMTk.WorkQueue;
+
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_BootRecord;
 import com.ibm.JikesRVM.VM_Address;
@@ -66,7 +68,7 @@ public class VM_CollectorThread extends VM_Thread {
 
   private final static boolean debug_native = false;
   
-  private final static boolean trace = false; // emit trace messages?
+  private final static int trace = 1;
 
   /** When true, causes RVM collectors to display heap configuration at startup */
   static final boolean DISPLAY_OPTIONS_AT_BOOT = false;
@@ -126,8 +128,8 @@ public class VM_CollectorThread extends VM_Thread {
    *
    * @param handshake VM_Handshake for the requested collection
    */
-  public static void collect(VM_Handshake handshake) throws VM_PragmaLogicallyUninterruptible /* suppress warning about handshake */{
-    if (trace) {
+  public static void collect(VM_Handshake handshake) {
+    if (trace > 0) {
       double start = VM_Time.now();
       handshake.requestAndAwaitCompletion();
       double stop  = VM_Time.now();
@@ -200,14 +202,18 @@ public class VM_CollectorThread extends VM_Thread {
       // the schedulers collectorQueue
       //
       VM_Scheduler.collectorMutex.lock();
-      if (trace) VM_Scheduler.trace("VM_CollectorThread", "yielding");
+      if (trace > 1) {
+	VM_Scheduler.trace("VM_CollectorThread", "yielding");
+	VM_Processor.getCurrentProcessor().mmPlan.show();
+      }
+
       VM_Thread.getCurrentThread().yield(VM_Scheduler.collectorQueue,
 					 VM_Scheduler.collectorMutex);
       
       // block mutators from running on the current processor
       VM_Processor.getCurrentProcessor().disableThreadSwitching();
       
-      if (trace) VM_Scheduler.trace("VM_CollectorThread", "waking up");
+      if (trace > 2) VM_Scheduler.trace("VM_CollectorThread", "waking up");
 
       // record time it took to stop mutators on this processor and get this
       // collector thread dispatched
@@ -216,7 +222,7 @@ public class VM_CollectorThread extends VM_Thread {
       
       gcOrdinal = VM_Synchronization.fetchAndAdd(participantCount, 0, 1) + 1;
       
-      if (trace)
+      if (trace > 2)
 	VM_Scheduler.trace("VM_CollectorThread", "entering first rendezvous - gcOrdinal =",
 			 gcOrdinal);
 
@@ -261,6 +267,7 @@ public class VM_CollectorThread extends VM_Thread {
       }  // gcOrdinal==1
 
       // wait for other collector threads to arrive or be made non-participants
+      if (trace > 2) VM_Scheduler.trace("VM_CollectorThread", "wait for other threads to arrive or become non-participants");
       gcBarrier.startupRendezvous();
 
       // record time it took for running collector thread to start GC
@@ -271,13 +278,12 @@ public class VM_CollectorThread extends VM_Thread {
       //
       // setup common workqueue for num VPs participating, used to be called once.
       // now count varies for each GC, so call for each GC
-      if ( gcOrdinal == 1 )
-	WorkQueue.workQueue.initialSetup(participantCount[0]);
+      if ( gcOrdinal == 1 ) WorkQueue.workQueue.initialSetup(participantCount[0]);
     
-      if (trace) VM_Scheduler.trace("VM_CollectorThread", "starting collection");
+      if (trace > 2) VM_Scheduler.trace("VM_CollectorThread", "starting collection");
       if (getThis().isActive) 
 	VM_Interface.collect();     // gc
-      if (trace) VM_Scheduler.trace("VM_CollectorThread", "finished collection");
+      if (trace > 1) VM_Scheduler.trace("VM_CollectorThread", "finished collection");
       
       // wait for other collector threads to arrive here
       rendezvousWaitTime += gcBarrier.rendezvous(MEASURE_RENDEZVOUS_TIMES);  

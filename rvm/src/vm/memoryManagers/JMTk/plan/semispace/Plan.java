@@ -11,12 +11,15 @@ import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM_ObjectModel;
 import com.ibm.JikesRVM.VM_Magic;
+import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 import com.ibm.JikesRVM.VM_PragmaInterruptible;
+import com.ibm.JikesRVM.VM_PragmaLogicallyUninterruptible;
 import com.ibm.JikesRVM.VM_PragmaInline;
 import com.ibm.JikesRVM.VM_PragmaNoInline;
 import com.ibm.JikesRVM.VM_Scheduler;
 import com.ibm.JikesRVM.VM_Thread;
+import com.ibm.JikesRVM.VM_Processor;
 
 /**
  * This class implements a simple semi-space collector. See the Jones
@@ -26,11 +29,12 @@ import com.ibm.JikesRVM.VM_Thread;
  * @version $Revision$
  * @date $Date$
  */
-public final class Plan extends BasePlan { // implements Constants 
+public final class Plan extends BasePlan implements VM_Uninterruptible { // implements Constants 
   public final static String Id = "$Id$"; 
 
   public static final boolean needsWriteBarrier = false;
   public static final boolean movesObjects = true;
+  public static int verbose = 0;
 
   ////////////////////////////////////////////////////////////////////////////
   //
@@ -61,9 +65,9 @@ public final class Plan extends BasePlan { // implements Constants
    */
   public Plan() {
     id = count++;
-    ss = new BumpPointer(ss0VM, ssMR);
+    ss = new BumpPointer(ss0VM);
     los = new LOSPointer(losVM, losMR);
-    immortal = new BumpPointer(immortalVM, immortalMR);
+    immortal = new BumpPointer(immortalVM);
   }
 
   /**
@@ -75,7 +79,7 @@ public final class Plan extends BasePlan { // implements Constants
    * @param advice Statically-generated allocation advice for this allocation
    * @return The address of the first byte of the allocated region
    */
-  public VM_Address alloc(int allocator, EXTENT bytes, boolean isScalar, AllocAdvice advice) throws VM_PragmaInline {
+  public VM_Address alloc(EXTENT bytes, boolean isScalar, int allocator, AllocAdvice advice) throws VM_PragmaInline {
     if (VM.VerifyAssertions) VM._assert(bytes == (bytes & (~3)));
     if (allocator == SS_ALLOCATOR && bytes > LOS_SIZE_THRESHOLD) allocator = LOS_ALLOCATOR;
     VM_Address region;
@@ -86,11 +90,20 @@ public final class Plan extends BasePlan { // implements Constants
       default:                 region = VM_Address.zero(); VM.sysFail("No such allocator");
     }
     // VM.sysWrite("Plan ", id); VM.sysWrite(": ", allocatorToString(allocator)); VM.sysWriteln(" alloc returning ", region);
+    if (!Memory.isZeroed(region, bytes)) {
+      VM.sysWrite("Plan ", id); VM.sysWrite(": ", allocatorToString(allocator)); 
+      VM.sysWrite(" alloc returning non-zero area", region);
+      VM.sysWriteln("  bytes = ", bytes);
+      for (int i=0; i<bytes; i+=4) {
+	VM.sysWrite(i, ": ");
+	VM.sysWriteln(VM_Magic.getMemoryWord(region.add(i)));
+      }
+    }
     if (VM.VerifyAssertions) VM._assert(Memory.isZeroed(region, bytes));
     return region;
   }
 
-  public void postAlloc(int allocator, EXTENT bytes, Object obj) throws VM_PragmaInline {
+  public void postAlloc(EXTENT bytes, Object obj, int allocator) throws VM_PragmaInline {
     if (allocator == SS_ALLOCATOR && bytes > LOS_SIZE_THRESHOLD) allocator = LOS_ALLOCATOR;
     switch (allocator) {
       case       SS_ALLOCATOR: return;
@@ -98,6 +111,30 @@ public final class Plan extends BasePlan { // implements Constants
       case      LOS_ALLOCATOR: los.postAlloc(obj); return;
       default:                 VM.sysFail("No such allocator");
     }
+  }
+
+  static public void showAll() {
+    for (int i=0; i<VM_Scheduler.processors.length; i++) {
+      VM_Processor p = VM_Scheduler.processors[i];
+      if (p == null) continue;
+      VM.sysWrite(i, ": ");
+      p.mmPlan.show();
+    }
+  }
+
+  public void show() {
+    VM.sysWrite("plan at ", VM_Magic.objectAsAddress(this));
+    VM.sysWriteln("    ss.bp = ", ss.bp);
+  }
+
+  static public void showUsage() {
+      VM.sysWriteln("used blocks = ", getBlocksReserved());
+      VM.sysWrite("trigger blocks = ", getHeapBlocks());
+      VM.sysWrite(" (", Conversions.blocksToBytes(getHeapBlocks()) / ( 1 << 20));
+      VM.sysWriteln(" Mb) ");
+      VM.sysWriteln("  ss = 2 * ", ssMR.reservedBlocks());
+      VM.sysWriteln("  los = ", losMR.reservedBlocks());
+      VM.sysWriteln("  imm = ", immortalMR.reservedBlocks());
   }
 
   /**
@@ -110,6 +147,7 @@ public final class Plan extends BasePlan { // implements Constants
    * @return The address of the first byte of the allocated region
    */
   public VM_Address allocCopy(VM_Address original, EXTENT bytes, boolean isScalar) {
+    if (VM.VerifyAssertions) VM._assert(bytes < LOS_SIZE_THRESHOLD);
     return ss.alloc(isScalar, bytes);
   }
 
@@ -159,20 +197,28 @@ public final class Plan extends BasePlan { // implements Constants
    * through the runtime, and ultimately call the
    * <code>collect()</code> method of this class or its superclass.
    *
+   * This method is clearly interruptible since it can lead to a GC.
+   * However, the caller is typically uninterruptible and this fiat allows 
+   * the interruptibility check to work.  The caveat is that the caller 
+   * of this method must code as though the method is interruptible. 
+   * In practice, this means that, after this call, processor-specific
+   * values must be reloaded.
    */
 
-  public void poll(boolean mustCollect) {
+  public void poll(boolean mustCollect) throws VM_PragmaLogicallyUninterruptible {
     if (gcInProgress) return;
     if (mustCollect || getBlocksReserved() > getHeapBlocks()) {
-      VM.sysWrite("Collection ", gcCount);
-      VM.sysWriteln(mustCollect ? ":  COULD NOT SATISFY REQUEST" : ":  RESOURCE EXHAUSTED");
-      VM.sysWriteln("  ss = 2 * ", ssMR.reservedBlocks());
-      VM.sysWriteln("  los = ", losMR.reservedBlocks());
-      VM.sysWriteln("  imm = ", immortalMR.reservedBlocks());
-      VM.sysWrite("  heapBlocks = ", getHeapBlocks());
-      VM.sysWrite("    ", Conversions.blocksToBytes(getHeapBlocks()) / ( 1 << 20));
-      VM.sysWriteln(" Mb ");
+      if (verbose > 0) {
+	VM.sysWrite("Collection ", gcCount);
+	VM.sysWriteln(mustCollect ? ":  COULD NOT SATISFY REQUEST" : ":  RESOURCE EXHAUSTED");
+	VM.sysWrite("BEFORE: ");
+	showUsage();
+      }
       VM_Interface.triggerCollection();
+      if (verbose > 0) {
+	VM.sysWrite("AFTER: ");
+	showUsage();
+      }
     }
   }
   
@@ -240,11 +286,9 @@ public final class Plan extends BasePlan { // implements Constants
    * Perform a collection.
    */
   public void collect () {
-    // VM.sysWriteln("VM_Scheduler.threads = ", VM_Magic.objectAsAddress(VM_Scheduler.threads)); VM_Thread.dumpAll(1);
     prepare();
     super.collect();
     release();
-    // VM.sysWriteln("VM_Scheduler.threads = ", VM_Magic.objectAsAddress(VM_Scheduler.threads)); VM_Thread.dumpAll(1);
   }
 
   public static final long freeMemory() throws VM_PragmaUninterruptible {
@@ -294,6 +338,7 @@ public final class Plan extends BasePlan { // implements Constants
     Copy.prepare(((hi) ? ss0VM : ss1VM), ssMR);
     losVM.prepare(losVM, losMR);
     Immortal.prepare(immortalVM, null);
+showUsage();
   }
 
   protected void allPrepare() {
@@ -307,14 +352,20 @@ public final class Plan extends BasePlan { // implements Constants
     allPrepare();
   }
 
+  protected void allRelease() {
+  }
+
   /**
    * Clean up after a collection.
    */
   protected void singleRelease() {
     // release each of the collected regions
+showUsage();
+    ((hi) ? ss0VM : ss1VM).release();
     Copy.release(((hi) ? ss0VM : ss1VM), ssMR);
     losVM.release(losVM, losMR); 
     Immortal.release(immortalVM, null);
+showUsage();
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -334,7 +385,7 @@ public final class Plan extends BasePlan { // implements Constants
   private static LOSVMResource losVM;
   private static MonotoneVMResource ss0VM;
   private static MonotoneVMResource ss1VM;
-  private static ImmortalMonotoneVMResource immortalVM;
+  private static ImmortalVMResource immortalVM;
 
   // memory resources
   private static MemoryResource ssMR;
@@ -391,19 +442,16 @@ public final class Plan extends BasePlan { // implements Constants
    */
   static {
 
-    // virtual memory resources
-    ss0VM      = new MonotoneVMResource("Lower semispace", LOW_SS_START,       SS_SIZE,       
-					(byte) (VMResource.IN_VM | VMResource.MOVABLE));
-    ss1VM      = new MonotoneVMResource("Upper semispace", HIGH_SS_START,  SS_SIZE,       
-					(byte) (VMResource.IN_VM | VMResource.MOVABLE));
-    losVM      = new LOSVMResource("Large obj space", LOS_START,      LOS_SIZE,      
-				   VMResource.IN_VM);
-    immortalVM = new ImmortalMonotoneVMResource("Immortal space",  IMMORTAL_START, IMMORTAL_SIZE, BOOT_END,
-						(byte) (VMResource.IN_VM | VMResource.IMMORTAL));
     // memory resources
     ssMR = new MemoryResource();
     losMR = new MemoryResource();
     immortalMR = new MemoryResource();
+
+    // virtual memory resources
+    ss0VM      = new MonotoneVMResource("Lower SS", ssMR,       LOW_SS_START,   SS_SIZE, VMResource.MOVABLE);
+    ss1VM      = new MonotoneVMResource("Upper SS", ssMR,       HIGH_SS_START,  SS_SIZE, VMResource.MOVABLE);
+    losVM      = new      LOSVMResource("LOS",      losMR,      LOS_START,      LOS_SIZE);
+    immortalVM = new ImmortalVMResource("Immortal", immortalMR, IMMORTAL_START, IMMORTAL_SIZE, BOOT_END);
   }
 
 }

@@ -470,9 +470,11 @@ public final class VM_Array extends VM_Type
 	      dst[dstPos++] = src[srcPos++];
 	  } else {
 	    VM_Array ary = VM_Magic.getObjectType(src).asArray();
+	    int allocator = VM_Interface.pickAllocator(ary);
 	    Object temp[] = 
-	      (Object[])VM_Runtime.quickNewArray(len, ary.getInstanceSize(len), 
-						 ary.getTypeInformationBlock());
+	      (Object[])VM_Runtime.newArray(len, ary.getInstanceSize(len), 
+					    ary.getTypeInformationBlock(),
+					    allocator);
 	    int cnt = len;
 	    int tempPos = 0;
 	    while (cnt-- != 0)

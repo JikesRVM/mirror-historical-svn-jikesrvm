@@ -2374,11 +2374,13 @@ public class VM_Compiler extends VM_BaselineCompiler
   protected final void emit_resolved_new(VM_Class typeRef) {
     int instanceSize = typeRef.getInstanceSize();
     int tibOffset = typeRef.getTibOffset();
-    asm.emitLtoc(T0, VM_Entrypoints.quickNewScalarMethod.getOffset());
+    int whichAllocator = VM_Interface.pickAllocator(typeRef);
+    asm.emitLtoc(T0, VM_Entrypoints.resolvedNewScalarMethod.getOffset());
     asm.emitMTLR(T0);
     asm.emitLVAL(T0, instanceSize);
     asm.emitLtoc(T1, tibOffset);
     asm.emitLVAL(T2, typeRef.hasFinalizer()?1:0);
+    asm.emitLVAL(T3, whichAllocator);
     asm.emitCall(spSaveAreaOffset);
     asm.emitSTU (T0, -4, SP);
   }
@@ -2388,7 +2390,7 @@ public class VM_Compiler extends VM_BaselineCompiler
    * @param the dictionaryId of the VM_Class to dynamically link & instantiate
    */
   protected final void emit_unresolved_new(int dictionaryId) {
-    asm.emitLtoc(T0, VM_Entrypoints.newScalarMethod.getOffset());
+    asm.emitLtoc(T0, VM_Entrypoints.unresolvedNewScalarMethod.getOffset());
     asm.emitMTLR(T0);
     asm.emitLVAL(T0, dictionaryId);
     asm.emitCall(spSaveAreaOffset);
@@ -2403,12 +2405,14 @@ public class VM_Compiler extends VM_BaselineCompiler
     int width      = array.getLogElementSize();
     int tibOffset  = array.getTibOffset();
     int headerSize = VM_ObjectModel.computeArrayHeaderSize(array);
-    asm.emitLtoc (T0, VM_Entrypoints.quickNewArrayMethod.getOffset());
+    int whichAllocator = VM_Interface.pickAllocator(array);
+    asm.emitLtoc (T0, VM_Entrypoints.newArrayMethod.getOffset());
     asm.emitMTLR (T0);
     asm.emitL    (T0,  0, SP);                // T0 := number of elements
     asm.emitSLI  (T1, T0, width);             // T1 := number of bytes
     asm.emitCAL  (T1, headerSize, T1);        //    += header bytes
     asm.emitLtoc (T2, tibOffset);             // T2 := tib
+    asm.emitLVAL (T3, whichAllocator);
     asm.emitCall(spSaveAreaOffset);
     asm.emitST   (T0, 0, SP);
   }
@@ -2420,6 +2424,7 @@ public class VM_Compiler extends VM_BaselineCompiler
    * @param dictionaryId, the dictionaryId of typeRef
    */
   protected final void emit_multianewarray(VM_Array typeRef, int dimensions, int dictionaryId) {
+    int whichAllocator = VM_Interface.pickAllocator(typeRef);
     asm.emitLtoc(T0, VM_Entrypoints.newArrayArrayMethod.getOffset());
     asm.emitMTLR(T0);
     asm.emitLVAL(T0, dimensions);
@@ -2427,6 +2432,7 @@ public class VM_Compiler extends VM_BaselineCompiler
     asm.emitSLI (T2, T0,  2); // number of bytes of array dimension args
     asm.emitA   (T2, SP, T2); // offset of word *above* first...
     asm.emitSF  (T2, FP, T2); // ...array dimension arg
+    asm.emitLVAL (T3, whichAllocator);
     asm.emitCall(spSaveAreaOffset);
     asm.emitSTU (T0, (dimensions - 1)<<2, SP); // pop array dimension args, push return val
   }

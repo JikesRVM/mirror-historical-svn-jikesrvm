@@ -47,10 +47,9 @@ final class BumpPointer implements Constants, VM_Uninterruptible {
    * @param mr The memory resource from which this bump pointer will
    * acquire memory.
    */
-  BumpPointer(MonotoneVMResource vmr, MemoryResource mr) {
+  BumpPointer(MonotoneVMResource vmr) {
     bp = INITIAL_BP_VALUE;
     vmResource = vmr;
-    memoryResource = mr;
   }
 
   /**
@@ -64,19 +63,6 @@ final class BumpPointer implements Constants, VM_Uninterruptible {
   public void rebind(MonotoneVMResource vmr) {
     bp = INITIAL_BP_VALUE;
     vmResource = vmr;
-  }
-
-  /**
-   * Re-associate this bump pointer with a different memory
-   * resource.  Reset the bump pointer so that it will use this 
-   * memory resource on the next call to <code>alloc</code>.
-   *
-   * @param mr The memory resource with which this bump pointer is to
-   * be associated.
-   */
-  public void rebind(MemoryResource mr) {
-    bp = INITIAL_BP_VALUE;
-    memoryResource = mr;
   }
 
   /**
@@ -99,10 +85,8 @@ final class BumpPointer implements Constants, VM_Uninterruptible {
   
   private VM_Address allocSlowPath(EXTENT bytes) throws VM_PragmaNoInline { 
     int blocks = Conversions.bytesToBlocks(bytes);
-    memoryResource.acquire(Conversions.blocksToPages(blocks));
     VM_Address start = vmResource.acquire(blocks);
     bp = start.add(bytes);
-if (start.isZero()) VM.sysWriteln("allocSlowPath returning zero on request for ", bytes);
     return start;
   }
 
@@ -111,9 +95,8 @@ if (start.isZero()) VM.sysWriteln("allocSlowPath returning zero on request for "
   //
   // Instance variables
   //
-  private VM_Address bp;
+  public VM_Address bp; // XXX public for debugging should be private
   private MonotoneVMResource vmResource;
-  private MemoryResource memoryResource;
 
   ////////////////////////////////////////////////////////////////////////////
   //

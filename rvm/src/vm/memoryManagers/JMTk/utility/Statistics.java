@@ -3,7 +3,11 @@
  */
 //$Id$
 
-package com.ibm.JikesRVM.memoryManagers.vmInterface;
+package com.ibm.JikesRVM.memoryManagers.JMTk;
+
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_CollectorThread;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Constants;
@@ -376,7 +380,7 @@ public class Statistics implements Constants, VM_Callbacks.ExitMonitor, VM_Callb
   }
 
 
-  static void profileCopy(Object obj, int size, Object[] tib) throws VM_PragmaInline, VM_PragmaUninterruptible { 
+  public static void profileCopy(Object obj, int size, Object[] tib) throws VM_PragmaInline, VM_PragmaUninterruptible { 
     if (COUNT_BY_TYPE) {
       VM_Type t = VM_Magic.objectAsType(tib[0]);
       t.copyCount++;
@@ -384,7 +388,7 @@ public class Statistics implements Constants, VM_Callbacks.ExitMonitor, VM_Callb
     }
   }
 
-  static void profileScan(Object obj, int size, Object[] tib) throws VM_PragmaInline, VM_PragmaUninterruptible {
+  public static void profileScan(Object obj, int size, Object[] tib) throws VM_PragmaInline, VM_PragmaUninterruptible {
     if (COUNT_BY_TYPE) {
       VM_Type t = VM_Magic.objectAsType(tib[0]);
       t.scanCount++;
@@ -392,7 +396,7 @@ public class Statistics implements Constants, VM_Callbacks.ExitMonitor, VM_Callb
     }
   }
 
-  static void profileAlloc (VM_Address addr, int size, Object[] tib) throws VM_PragmaUninterruptible {
+  public static void profileAlloc (VM_Address addr, int size, Object[] tib) throws VM_PragmaUninterruptible {
     if (COUNT_BY_TYPE) {
       VM_Type t = VM_Magic.objectAsType(tib[0]);
       t.allocCount++;

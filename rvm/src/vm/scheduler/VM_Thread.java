@@ -23,7 +23,7 @@ public class VM_Thread implements VM_Constants, VM_Uninterruptible {
   /**
    * debug flag
    */
-  private final static boolean trace = true;
+  private final static boolean trace = false;
   /**
    * debug flag
    */
@@ -220,9 +220,7 @@ public class VM_Thread implements VM_Constants, VM_Uninterruptible {
       VM_Processor.getCurrentProcessor().needsSync = false;
       // make sure not get stale data
       VM_Magic.isync();
-      synchronized(VM_Scheduler.syncObj) {
-	VM_Scheduler.toSyncProcessors--;
-      }
+      VM_Synchronization.fetchAndDecrement(VM_Magic.getJTOC(), VM_Entrypoints.toSyncProcessorsField.getOffset(), 1);
     }
     //-#endif
 
@@ -457,12 +455,17 @@ public class VM_Thread implements VM_Constants, VM_Uninterruptible {
    * Current thread has been placed onto some queue. Become another thread.
    */ 
   static void morph () {
-    //VM_Scheduler.trace("VM_Thread", "morph");
+    if (trace) VM_Scheduler.trace("VM_Thread", "morph");
     VM_Thread myThread = getCurrentThread();
 
-    if (VM.VerifyAssertions) 
-      VM._assert(VM_Processor.getCurrentProcessor().threadSwitchingEnabled());
-    if (VM.VerifyAssertions) VM._assert(myThread.beingDispatched == true);
+    if (VM.VerifyAssertions) {
+      if (!VM_Processor.getCurrentProcessor().threadSwitchingEnabled()) {
+	VM.sysWrite("no threadswitching on proc ", VM_Processor.getCurrentProcessor().id);
+	VM.sysWriteln(" with addr ", VM_Magic.objectAsAddress(VM_Processor.getCurrentProcessor()));
+      }
+      VM._assert(VM_Processor.getCurrentProcessor().threadSwitchingEnabled(), "thread switching not enabled");
+      VM._assert(myThread.beingDispatched == true, "morph: not beingDispatched");
+    }
 
     // become another thread
     //
@@ -553,7 +556,7 @@ public class VM_Thread implements VM_Constants, VM_Uninterruptible {
    *         to give the thread. Then eliminate scheduleHighPriority().
    */ 
   public final void schedule () {
-    //VM_Scheduler.trace("VM_Thread", "schedule", getIndex());
+    if (trace) VM_Scheduler.trace("VM_Thread", "schedule", getIndex());
     VM_Processor.getCurrentProcessor().scheduleThread(this);
   }
 
@@ -565,7 +568,7 @@ public class VM_Thread implements VM_Constants, VM_Uninterruptible {
    * !!TODO: this method is a no-op, stop using it
    */ 
   public final void scheduleHighPriority () {
-    //VM_Scheduler.trace("VM_Thread", "scheduleHighPriority", getIndex());
+    if (trace) VM_Scheduler.trace("VM_Thread", "scheduleHighPriority", getIndex());
     VM_Processor.getCurrentProcessor().scheduleThread(this);
   }
 
@@ -621,7 +624,7 @@ public class VM_Thread implements VM_Constants, VM_Uninterruptible {
   static void terminate () throws VM_PragmaInterruptible {
     boolean terminateSystem = false;
 
-    //VM_Scheduler.trace("VM_Thread", "terminate");
+    if (trace) VM_Scheduler.trace("VM_Thread", "terminate");
 
     VM_Thread myThread = getCurrentThread();
     // allow java.lang.Thread.exit() to remove this thread from ThreadGroup
@@ -1030,7 +1033,7 @@ public class VM_Thread implements VM_Constants, VM_Uninterruptible {
 
     // create a normal (ie. non-primordial) thread
     //
-    //VM_Scheduler.trace("VM_Thread", "create");
+    if (trace) VM_Scheduler.trace("VM_Thread", "create");
       
     stackLimit = VM_Magic.objectAsAddress(stack).add(STACK_SIZE_GUARD);
 
@@ -1168,7 +1171,6 @@ public class VM_Thread implements VM_Constants, VM_Uninterruptible {
   }
 
   public void dump(int verbosity) {
-    VM_Scheduler.writeString(" ");
     VM_Scheduler.writeDecimal(getIndex());   // id
     if (isDaemon)              VM_Scheduler.writeString("-daemon");     // daemon thread?
     if (isNativeIdleThread)    VM_Scheduler.writeString("-nativeidle");    // NativeIdle

@@ -6,10 +6,11 @@
 package com.ibm.JikesRVM.memoryManagers.JMTk;
 
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
+import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM_Memory;
 
-public class Conversions implements Constants {
+public class Conversions implements Constants, VM_Uninterruptible {
 
   // Round up (if necessary)
   //

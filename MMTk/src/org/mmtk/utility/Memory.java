@@ -20,7 +20,7 @@ import com.ibm.JikesRVM.VM_Memory;
  * @author Perry Cheng  
  */  
 
-public class Memory {
+public class Memory implements VM_Uninterruptible {
 
   static boolean isZeroed(VM_Address start, EXTENT size) {
     if (VM.VerifyAssertions) VM._assert(size == (size & (~3)));

@@ -8,6 +8,8 @@ package com.ibm.JikesRVM.memoryManagers.vmInterface;
 import com.ibm.JikesRVM.memoryManagers.JMTk.VMResource;
 import com.ibm.JikesRVM.memoryManagers.JMTk.Plan;
 import com.ibm.JikesRVM.memoryManagers.JMTk.Options;
+import com.ibm.JikesRVM.memoryManagers.JMTk.Statistics;
+import com.ibm.JikesRVM.memoryManagers.JMTk.WorkQueue;
 
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Entrypoints;
@@ -50,12 +52,12 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
       VM_EventLogger.logGarbageCollectionEvent();
   }
 
-  public static VM_Class createScalarType(String descriptor) {
+  public static VM_Class createScalarType(String descriptor) throws VM_PragmaInterruptible {
     VM_Atom atom = VM_Atom.findOrCreateAsciiAtom(descriptor);
     return VM_ClassLoader.findOrCreateType(atom, VM_SystemClassLoader.getVMClassLoader()).asClass();
   }
 
-  public static VM_Array createArrayType(String descriptor) {
+  public static VM_Array createArrayType(String descriptor) throws VM_PragmaInterruptible {
     VM_Atom atom = VM_Atom.findOrCreateAsciiAtom(descriptor);
     return VM_ClassLoader.findOrCreateType(atom, VM_SystemClassLoader.getVMClassLoader()).asArray();
   }
@@ -80,6 +82,8 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    */
   public static final void init () throws VM_PragmaInterruptible {
     VM_CollectorThread.init();
+    collectorThreadAtom = VM_Atom.findOrCreateAsciiAtom("Lcom/ibm/JikesRVM/memoryManagers/vmInterface/VM_CollectorThread;");
+    runAtom = VM_Atom.findOrCreateAsciiAtom("run");
   }
 
 
@@ -116,7 +120,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   /** 
    *  Process GC parameters.
    */
-  public static void processCommandLineArg(String arg) {
+  public static void processCommandLineArg(String arg) throws VM_PragmaInterruptible {
     Options.process(arg);
   }
 
@@ -208,7 +212,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    *
    * @return The amount of free memory.
    */
-  public static final long freeMemory() throws VM_PragmaInterruptible {
+  public static final long freeMemory() {
     return Plan.freeMemory();
   }
 
@@ -217,7 +221,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    *
    * @return The amount of total memory.
    */
-  public static final long totalMemory() throws VM_PragmaInterruptible {
+  public static final long totalMemory() {
     return Plan.totalMemory();
   }
 
@@ -229,6 +233,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   }
 
   public static final void triggerCollection() throws VM_PragmaInterruptible {
+    // VM_Scheduler.dumpStack();
     VM_CollectorThread.collect(VM_CollectorThread.handshake);
   }
 
@@ -296,24 +301,28 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     return VMResource.getMaxVMResource();
   }
 
-  public static Object allocateScalar(int size, Object [] tib) {
+  public static int pickAllocator(VM_Type type) throws VM_PragmaInterruptible {
+    String s = type.getName();
+    if (s.startsWith("com.ibm.JikesRVM.memoryManagers.") ||
+	s.equals("com.ibm.JikesRVM.VM_Processor"))
+      return Plan.IMMORTAL_ALLOCATOR;
+    return Plan.DEFAULT_ALLOCATOR;
+  }
+
+  public static Object allocateScalar(int size, Object [] tib, int allocator) {
     AllocAdvice advice = getPlan().getAllocAdvice(null, size, null, null);
-    VM_Address region = getPlan().alloc(Plan.DEFAULT_ALLOCATOR, size, true, advice);
+    VM_Address region = getPlan().alloc(size, true, allocator, advice);
     Object result = VM_ObjectModel.initializeScalar(region, tib, size);
-    getPlan().postAlloc(Plan.DEFAULT_ALLOCATOR, size, result);
+    getPlan().postAlloc(size, result, allocator);
     return result;
   }
 
-  public static Object allocateArray(int numElements, int size, Object [] tib) {
-    return allocateArray(Plan.DEFAULT_ALLOCATOR, numElements, size, tib);
-  }
-
-  public static Object allocateArray(int whichAllocator, int numElements, int size, Object [] tib) {
+  public static Object allocateArray(int numElements, int size, Object [] tib, int allocator) {
     size = (size + 3) & (~3);
     AllocAdvice advice = getPlan().getAllocAdvice(null, size, null, null);
-    VM_Address region = getPlan().alloc(whichAllocator, size, false, advice);
+    VM_Address region = getPlan().alloc(size, false, allocator, advice);
     Object result = VM_ObjectModel.initializeArray(region, tib, numElements, size);
-    getPlan().postAlloc(whichAllocator, size, result);
+    getPlan().postAlloc(size, result, allocator);
     return result;
   }
 
@@ -362,8 +371,8 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
     }
   }
 
-  private static VM_Atom collectorThreadAtom = VM_Atom.findOrCreateAsciiAtom("Lcom/ibm/JikesRVM/memoryManagers/vmInterface/VM_CollectorThread;");
-  private static VM_Atom runAtom = VM_Atom.findOrCreateAsciiAtom("run");
+  private static VM_Atom collectorThreadAtom;
+  private static VM_Atom runAtom;
 
     // Set a collector thread's so that a scan of its stack
     // will start at VM_CollectorThread.run
@@ -427,7 +436,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    * @param n The number of instructions to allocate
    * @return The instruction array
    */ 
-  public static INSTRUCTION[] newInstructions(int n) throws VM_PragmaInline {
+  public static INSTRUCTION[] newInstructions(int n) throws VM_PragmaInline, VM_PragmaInterruptible {
 
     if (VM.BuildForRealtimeGC) {
       //-#if RVM_WITH_REALTIME_GC
@@ -444,7 +453,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    * @param n The number of stack slots to allocate
    * @return The stack array
    */ 
-  public static int[] newStack(int n) throws VM_PragmaInline {
+  public static int[] newStack(int n) throws VM_PragmaInline, VM_PragmaInterruptible {
 
     if (VM.BuildForRealtimeGC) {
       //-#if RVM_WITH_REALTIME_GC
@@ -461,14 +470,14 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    * @param n The number of elements
    * @return The short array
    */ 
-  public static short[] newImmortalShortArray (int n) {
+  public static short[] newImmortalShortArray (int n) throws VM_PragmaInterruptible {
 
     if (VM.runningVM) {
       VM_Array shortArrayType = VM_Array.arrayOfShortType;
       Object [] shortArrayTib = shortArrayType.getTypeInformationBlock();
       int offset = VM_JavaHeader.computeArrayHeaderSize(shortArrayType);
       int arraySize = shortArrayType.getInstanceSize(n);
-      Object result = allocateArray(Plan.IMMORTAL_ALLOCATOR, n, arraySize, shortArrayTib);
+      Object result = allocateArray(n, arraySize, shortArrayTib, Plan.IMMORTAL_ALLOCATOR);
       return (short []) result;
     }
 
@@ -481,7 +490,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    * @param n The number of stack slots to allocate
    * @return The stack array
    */ 
-  public static int[] newImmortalStack (int n) {
+  public static int[] newImmortalStack (int n) throws VM_PragmaInterruptible {
 
     if (VM.runningVM) {
       int logAlignment = 12;
@@ -493,12 +502,12 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
       int fullSize = arraySize + alignment;  // somewhat wasteful
       if (VM.VerifyAssertions) VM._assert(alignment > offset);
       AllocAdvice advice = getPlan().getAllocAdvice(null, fullSize, null, null);
-      VM_Address fullRegion = getPlan().alloc(Plan.IMMORTAL_ALLOCATOR, fullSize, false, advice);
+      VM_Address fullRegion = getPlan().alloc(fullSize, false, Plan.IMMORTAL_ALLOCATOR, advice);
       VM_Address tmp = fullRegion.add(alignment);
       int mask = ~((1 << logAlignment) - 1);
       VM_Address region = VM_Address.fromInt(tmp.toInt() & mask).sub(offset);
       Object result = VM_ObjectModel.initializeArray(region, stackTib, n, arraySize);
-      getPlan().postAlloc(Plan.IMMORTAL_ALLOCATOR, arraySize, result);
+      getPlan().postAlloc(arraySize, result, Plan.IMMORTAL_ALLOCATOR);
       return (int []) result;
     }
 
@@ -510,7 +519,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    * @param n The number of ints
    * @return The contiguous int array
    */ 
-  public static int[] newContiguousIntArray(int n) throws VM_PragmaInline {
+  public static int[] newContiguousIntArray(int n) throws VM_PragmaInline, VM_PragmaInterruptible {
 
     if (VM.BuildForRealtimeGC) {
       //-#if RVM_WITH_REALTIME_GC
@@ -526,7 +535,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    * @param n The number of objects
    * @return The contiguous object array
    */ 
-  public static VM_CompiledMethod[] newContiguousCompiledMethodArray(int n) throws VM_PragmaInline {
+  public static VM_CompiledMethod[] newContiguousCompiledMethodArray(int n) throws VM_PragmaInline, VM_PragmaInterruptible {
 
       if (VM.BuildForRealtimeGC) {
         //-#if RVM_WITH_REALTIME_GC
@@ -542,7 +551,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
    * @param n The number of objects
    * @return The contiguous object array
    */ 
-  public static VM_DynamicLibrary[] newContiguousDynamicLibraryArray(int n) throws VM_PragmaInline {
+  public static VM_DynamicLibrary[] newContiguousDynamicLibraryArray(int n) throws VM_PragmaInline, VM_PragmaInterruptible {
 
     if (VM.BuildForRealtimeGC) {
       //-#if RVM_WITH_REALTIME_GC
@@ -554,7 +563,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   }
 
 
-  public static Object[] newTIB (int n) throws VM_PragmaInline {
+  public static Object[] newTIB (int n) throws VM_PragmaInline, VM_PragmaInterruptible {
 
     if (true) {
       //-#if RVM_WITH_COPYING_GC
@@ -583,7 +592,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   // Copy an object using a plan's allocCopy to get space and install the forwarding pointer.
   // On entry, "obj" must have been reserved for copying by the caller.
   //
-  public static VM_Address copy(VM_Address fromObj, int forwardingPtr) {
+  public static VM_Address copy (VM_Address fromObj, int forwardingPtr) {
 
     Object[] tib = VM_ObjectModel.getTIB(fromObj);
     VM_Type type = VM_Magic.objectAsType(tib[TIB_TYPE_INDEX]);

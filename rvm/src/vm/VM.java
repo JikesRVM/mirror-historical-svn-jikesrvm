@@ -640,8 +640,8 @@ public class VM extends VM_Properties
    * The interrupt will be delivered to whatever virtual processor happens 
    * to be running when the timer expires.
    */
-  static void sysVirtualProcessorEnableTimeSlicing() {
-    sysCall0(VM_BootRecord.the_boot_record.sysVirtualProcessorEnableTimeSlicingIP);
+  static void sysVirtualProcessorEnableTimeSlicing(int timeSlice) {
+    sysCall1(VM_BootRecord.the_boot_record.sysVirtualProcessorEnableTimeSlicingIP, timeSlice);
   }
 
   //-#if RVM_FOR_SINGLE_VIRTUAL_PROCESSOR

@@ -93,7 +93,7 @@ public class VM_CompiledMethods {
    // Note: this method is highly inefficient. Normally you should use the following instead:
    //   VM_ClassLoader.getCompiledMethod(VM_Magic.getCompiledMethodID(fp))
    //
-  public static VM_CompiledMethod findMethodForInstruction(VM_Address ip) {
+  public static VM_CompiledMethod findMethodForInstruction(VM_Address ip) throws VM_PragmaUninterruptible {
     for (int i = 0, n = numCompiledMethods(); i < n; ++i) {
       VM_CompiledMethod compiledMethod = compiledMethods[i];
       if (compiledMethod == null || !compiledMethod.isCompiled())

@@ -601,10 +601,14 @@ sysWriteBytes(int fd, char *buf, int cnt)
  // fprintf(SysTraceFile, "sys: timeslice is %dms\n", timerDelay);
     }
 
- extern "C"  void
- sysVirtualProcessorEnableTimeSlicing()
-    {
-    setTimeSlicer(TimerDelay);
+    extern "C" void sysVirtualProcessorEnableTimeSlicing(int timeSlice) {
+      if (VERBOSE_PTHREAD)
+	fprintf(stderr,"Using a time-slice of %d ms\n", timeSlice);
+      if (timeSlice < 10 || timeSlice > 999) {
+	fprintf(SysErrorFile, "vm: timeslice of %d is outside range 10..999\n", timeSlice);
+	sysExit(1);
+      }
+      setTimeSlicer(timeSlice);
     }
 
  //

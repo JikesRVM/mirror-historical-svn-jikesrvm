@@ -13,6 +13,7 @@ import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_ObjectModel;
 
 import com.ibm.JikesRVM.VM_Scheduler;
+import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.VM_Magic;
 
 /**
@@ -26,7 +27,7 @@ import com.ibm.JikesRVM.VM_Magic;
  * @version $Revision$
  * @date $Date$
  */
-final class Immortal extends BasePolicy implements Constants {
+final class Immortal extends BasePolicy implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
 
 

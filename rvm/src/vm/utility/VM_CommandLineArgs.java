@@ -77,11 +77,12 @@ class VM_CommandLineArgs {
   public static final int OPT_HELP_ARG         = 25;
   public static final int PROF_ARG             = 26;
   public static final int VERIFY_ARG           = 27;
-  public static final int GC_HELP_ARG          = 28;
-  public static final int GC_ARG               = 29;
-  public static final int INITIAL_HEAP_ARG     = 30;
-  public static final int MAX_HEAP_ARG         = 31;
-  public static final int LARGE_HEAP_ARG       = 32;
+  public static final int SCHEDULER_ARG        = 28;
+  public static final int GC_HELP_ARG          = 29;
+  public static final int GC_ARG               = 30;
+  public static final int INITIAL_HEAP_ARG     = 31;
+  public static final int MAX_HEAP_ARG         = 32;
+  public static final int LARGE_HEAP_ARG       = 33;
 
   /**
    * A catch-all prefix to find application name.
@@ -147,6 +148,7 @@ class VM_CommandLineArgs {
     new Prefix("-X:opt:",               OPT_ARG),
     new Prefix("-X:prof:",              PROF_ARG),
     new Prefix("-X:verify=",            VERIFY_ARG),
+    new Prefix("-X:scheduler:",         SCHEDULER_ARG),
     app_prefix
   };
 
@@ -687,6 +689,9 @@ class VM_CommandLineArgs {
 	  VM.sysWrite("vm: -X:verify=<option>, where option is true or false\n");
 	  VM.sysExit(1);
 	}
+	break;
+      case SCHEDULER_ARG: // "-X:scheduler:<option>"
+	VM_Scheduler.processArg(arg);
 	break;
       }
     }

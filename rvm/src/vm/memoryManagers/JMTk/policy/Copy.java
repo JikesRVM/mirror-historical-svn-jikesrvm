@@ -7,6 +7,7 @@ package com.ibm.JikesRVM.memoryManagers.JMTk;
 
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
+import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM_Magic;
 import com.ibm.JikesRVM.VM;
@@ -19,7 +20,7 @@ import com.ibm.JikesRVM.VM;
  * @version $Revision$
  * @date $Date$
  */
-final class Copy extends BasePolicy implements Constants {
+final class Copy extends BasePolicy implements Constants, VM_Uninterruptible {
   public final static String Id = "$Id$"; 
 
   public static void prepare(VMResource vm, MemoryResource mr) { }

@@ -10,6 +10,7 @@ import com.ibm.JikesRVM.VM_Thread;
 import com.ibm.JikesRVM.VM_CompiledMethod;
 import com.ibm.JikesRVM.VM_CompiledMethods;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_Uninterruptible;
 
 /**
  * Base class for iterators that identify object references and JSR return addresses
@@ -22,7 +23,7 @@ import com.ibm.JikesRVM.VM_PragmaUninterruptible;
  *
  * @author Janice Shepherd
  */
-public abstract class VM_GCMapIterator {
+public abstract class VM_GCMapIterator implements VM_Uninterruptible {
   
   /** thread whose stack is currently being scanned */
   public VM_Thread thread; 
@@ -38,7 +39,7 @@ public abstract class VM_GCMapIterator {
    *
    * @param thread VM_Thread whose stack is being scanned
    */
-  public void newStackWalk(VM_Thread thread) throws VM_PragmaUninterruptible {
+  public void newStackWalk(VM_Thread thread) {
     this.thread = thread;
   }
   
@@ -63,7 +64,7 @@ public abstract class VM_GCMapIterator {
    * @return address of word containing an object reference
    *         zero if no more references to report
    */
-  public abstract VM_Address getNextReferenceAddress() throws VM_PragmaUninterruptible ;
+  public abstract VM_Address getNextReferenceAddress();
   
   /**
    * Get address of next JSR return address held by current stackframe.
@@ -71,20 +72,20 @@ public abstract class VM_GCMapIterator {
    * @return address of word containing a JSR return address
    *         zero if no more return addresses to report
    */
-  public abstract VM_Address getNextReturnAddressAddress() throws VM_PragmaUninterruptible;
+  public abstract VM_Address getNextReturnAddressAddress();
   
   /**
    * Prepare to re-iterate on same stackframe, and to switch between
    * "reference" iteration and "JSR return address" iteration.
    */
-  public abstract void reset() throws VM_PragmaUninterruptible;
+  public abstract void reset();
   
   /**
    * Iteration is complete, release any internal data structures including 
    * locks acquired during setupIterator for jsr maps.
    * 
    */
-  public abstract void cleanupPointers() throws VM_PragmaUninterruptible;
+  public abstract void cleanupPointers();
   
   /**
    * Get the type of this iterator (BASELINE, OPT, etc.).
@@ -94,5 +95,5 @@ public abstract class VM_GCMapIterator {
    *
    * @return type code for this iterator
    */
-  public abstract int getType() throws VM_PragmaUninterruptible;
+  public abstract int getType();
 }

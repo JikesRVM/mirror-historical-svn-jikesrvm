@@ -54,8 +54,8 @@ public class VM_Scheduler implements VM_Constants, VM_Uninterruptible {
   public static VM_Processor[]       processors;        // list thereof (slot 0 always empty)
   public static boolean              allProcessorsInitialized; // have all completed initialization?
   public static boolean              terminated;        // VM is terminated, clean up and exit
-
   public static int nativeDPndx;
+  public static int timeSlice = 10;  // in milliseconds
 
   // Thread creation and deletion.
   //
@@ -148,6 +148,19 @@ public class VM_Scheduler implements VM_Constants, VM_Uninterruptible {
     // allocate lock structures
     //
     VM_Lock.init();
+  }
+
+  static void processArg(String arg) throws VM_PragmaInterruptible {
+    if (arg.startsWith("timeslice=")) {
+      String tmp = arg.substring(10);
+      int slice = Integer.parseInt(tmp);
+      if (slice< 10 || slice > 999) VM.sysFail("Time slice outside range (10..999) " + slice);
+      timeSlice = slice;
+    }
+    else if (arg.startsWith("verbose=")) {
+      String tmp = arg.substring(8);
+      VM_Processor.trace = Integer.parseInt(tmp);
+    }
   }
 
   // Begin multi-threaded vm operation.
@@ -354,8 +367,8 @@ public class VM_Scheduler implements VM_Constants, VM_Uninterruptible {
 
     // Start interrupt driven timeslicer to improve threading fairness and responsiveness.
     //
-    if (!VM.BuildForDeterministicThreadSwitching)
-      VM.sysVirtualProcessorEnableTimeSlicing();
+    if (!VM.BuildForDeterministicThreadSwitching) 
+     VM.sysVirtualProcessorEnableTimeSlicing(timeSlice);
 
     // Start event logger.
     //
@@ -463,7 +476,8 @@ public class VM_Scheduler implements VM_Constants, VM_Uninterruptible {
     VM_Processor.getCurrentProcessor().disableThreadSwitching();
     writeDecimal(VM_Processor.getCurrentProcessorId());
     writeString("[");
-    writeDecimal(VM_Thread.getCurrentThread().getIndex());
+    VM_Thread t = VM_Thread.getCurrentThread();
+    t.dump();
     writeString("] ");
     if (traceDetails) {
       writeString("(");
@@ -517,7 +531,8 @@ public class VM_Scheduler implements VM_Constants, VM_Uninterruptible {
     lockOutput();
     writeDecimal(VM_Processor.getCurrentProcessorId());
     writeString("[");
-    writeDecimal(VM_Thread.getCurrentThread().getIndex());
+    //writeDecimal(VM_Thread.getCurrentThread().getIndex());
+    VM_Thread.getCurrentThread().dump();
     writeString("] ");
     if (traceDetails) {
       writeString("(");
@@ -829,8 +844,5 @@ public class VM_Scheduler implements VM_Constants, VM_Uninterruptible {
    * one (0) will notify the blocked thread.
    */
   public static int toSyncProcessors;
-  /* synchronize object 
-   */
-  public static Object syncObj = null;
   //-#endif
 }

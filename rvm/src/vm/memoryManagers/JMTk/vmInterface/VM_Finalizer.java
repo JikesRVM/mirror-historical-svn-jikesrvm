@@ -5,6 +5,7 @@
 
 package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
+import com.ibm.JikesRVM.memoryManagers.JMTk.Lock;
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM_Magic;
@@ -12,6 +13,7 @@ import com.ibm.JikesRVM.VM_Atom;
 import com.ibm.JikesRVM.VM_PragmaInline;
 import com.ibm.JikesRVM.VM_PragmaNoInline;
 import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_Uninterruptible;
 import com.ibm.JikesRVM.VM_PragmaLogicallyUninterruptible;
 import com.ibm.JikesRVM.VM_Processor;
 import com.ibm.JikesRVM.VM_Scheduler;
@@ -40,14 +42,14 @@ import com.ibm.JikesRVM.VM_Synchronizer;
  * @author Dick Attanasio
  * @author Stephen Smith
  */
-public class VM_Finalizer {
+public class VM_Finalizer implements VM_Uninterruptible {
 
   //----------------//
   // Implementation //
   //----------------//
 
   private static int INITIAL_SIZE = 2048;
-  private static VM_Synchronizer locker = new VM_Synchronizer(); // to make addElement concurrent
+  private static Lock lock = new Lock();
   private static int [] candidate = new int[INITIAL_SIZE];    // should be VM_Address [] but compiler does not support that type properly
   private static int candidateEnd;                            // candidate[0] .. candidate[candidateEnd-1] contains non-zero entries
   private static Object [] live = new Object[INITIAL_SIZE];
@@ -67,17 +69,17 @@ public class VM_Finalizer {
   //
   // (SJF: This method must NOT be inlined into an inlined allocation sequence, since it contains a lock!)
   //
-  public static final void addCandidate(Object item) throws VM_PragmaNoInline, VM_PragmaUninterruptible {
-    synchronized (locker) {
-      if (TRACE_DETAIL) VM_Scheduler.trace(" VM_Finalizer: ",
-					   " addElement	called, count = ", candidateEnd);
-      if (candidateEnd >= candidate.length) {
-	VM.sysWrite("finalizer queue exceeded - increase size (", candidate.length);
-	VM.sysWriteln(") or implement dynamic adjustment a la write buffer");
-	VM._assert(false);
-      }
-      candidate[candidateEnd++] = VM_Magic.objectAsAddress(item).toInt();
-    } // synchronized
+  public static final void addCandidate(Object item) throws VM_PragmaNoInline {
+    lock.acquire();
+    if (TRACE_DETAIL) VM_Scheduler.trace(" VM_Finalizer: ",
+					 " addElement	called, count = ", candidateEnd);
+    if (candidateEnd >= candidate.length) {
+      VM.sysWrite("finalizer queue exceeded - increase size (", candidate.length);
+      VM.sysWriteln(") or implement dynamic adjustment a la write buffer");
+      VM._assert(false);
+    }
+    candidate[candidateEnd++] = VM_Magic.objectAsAddress(item).toInt();
+    lock.release();
   }
 
   private static final void compactCandidates() {
@@ -104,9 +106,11 @@ public class VM_Finalizer {
       candidateEnd = leftCursor + 1;
   }
 
-  // Add revived object that needs to be finalized
-  //
-  private static void addLive(Object obj) {
+  /* Add revived object that needs to be finalized
+   *
+   * The aastore is actually uninterruptible since the target is an array of Objects.
+   */
+  private static void addLive(Object obj) throws VM_PragmaLogicallyUninterruptible {
     if (liveEnd == live.length) {
       if (liveStart == 0) {
 	VM.sysWriteln("finalizer's live queue exceeded - increase size or implement dynamic adjustment a la write buffer");
@@ -123,8 +127,10 @@ public class VM_Finalizer {
   /**
    * Called from the mutator thread: return the first object queued 
    * on the finalize list, or null if none
+   *
+   * The aastore is actually uninterruptible since the target is an array of Objects.
    */
-  public final static Object get() throws VM_PragmaUninterruptible {
+  public final static Object get() throws VM_PragmaLogicallyUninterruptible {
 
     if (liveStart == liveEnd) return null;
 
@@ -141,7 +147,7 @@ public class VM_Finalizer {
    * Move all finalizable objects to the to-be-finalized queue
    * Called on shutdown
   */
-  public final static void finalizeAll () throws VM_PragmaUninterruptible {
+  public final static void finalizeAll () {
 
     int cursor = 0;
     while (cursor < candidateEnd) {
@@ -164,7 +170,7 @@ public class VM_Finalizer {
    * Scan the array for objects which have become garbage
    * and move them to the Finalizable class
    */
-  public final static int moveToFinalizable () throws VM_PragmaUninterruptible {
+  public final static int moveToFinalizable () {
 
     if (TRACE) VM_Scheduler.trace(" VM_Finalizer: "," move to finalizable ");
 
@@ -208,11 +214,11 @@ public class VM_Finalizer {
 
   // methods for statistics and debugging
 
-  static int countHasFinalizer() throws VM_PragmaUninterruptible {
+  static int countHasFinalizer() {
     return candidateEnd;
   }
 
-  static int countToBeFinalized() throws VM_PragmaUninterruptible {
+  static int countToBeFinalized() {
     return liveEnd - liveStart;
   }
 

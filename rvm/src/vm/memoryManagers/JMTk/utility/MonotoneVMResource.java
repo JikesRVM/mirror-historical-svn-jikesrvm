@@ -35,10 +35,11 @@ public class MonotoneVMResource extends VMResource implements Constants {
   /**
    * Constructor
    */
-  MonotoneVMResource(String vmName, VM_Address vmStart, EXTENT bytes, byte status) {
-    super(vmName, vmStart, bytes, status);
+  MonotoneVMResource(String vmName, MemoryResource mr, VM_Address vmStart, EXTENT bytes, byte status) {
+    super(vmName, vmStart, bytes, (byte) (VMResource.IN_VM | status));
     cursor = start;
     sentinel = start.add(bytes);
+    memoryResource = mr;
   }
 
 
@@ -50,12 +51,16 @@ public class MonotoneVMResource extends VMResource implements Constants {
    * zero on failure.
    */
   public final VM_Address acquire(int blockRequest) {
+    lock.acquire();
+    memoryResource.acquire(blockRequest);
     int bytes = Conversions.blocksToBytes(blockRequest);
     VM_Address tmpCursor = cursor.add(bytes);
     if (tmpCursor.GE(sentinel)) {
-      VM.sysWrite("MonotoneVMResrouce failed to acquire:  cursor = ", cursor);
-      VM.sysWrite("  sentinel = ", sentinel);
-      VM.sysWriteln("  bytes = ", bytes);
+      VM.sysWrite("MonotoneVMResrouce failed to acquire ", bytes);
+      VM.sysWrite(" bytes: cursor = ", cursor);
+      VM.sysWrite("  start = ", start);
+      VM.sysWriteln("  sentinel = ", sentinel);
+      lock.release();
       VM.sysFail("MonotoneVMResource.acquire failed");
       return VM_Address.zero();
     } else {
@@ -63,13 +68,14 @@ public class MonotoneVMResource extends VMResource implements Constants {
       cursor = tmpCursor;
       LazyMmapper.ensureMapped(oldCursor, blockRequest);
       Memory.zero(oldCursor, bytes);
+      lock.release();
       return oldCursor;
     }
   }
 
   public void release() {
     // Unmapping is useful for being a "good citizen" and for debugging
-    LazyMmapper.protect(start, Conversions.bytesToBlocks(end.diff(start).toInt()));
+    LazyMmapper.protect(start, Conversions.bytesToBlocks(cursor.diff(start).toInt()));
     cursor = start;
   }
 
@@ -80,4 +86,7 @@ public class MonotoneVMResource extends VMResource implements Constants {
 
   protected VM_Address cursor;
   protected VM_Address sentinel;
+  protected MemoryResource memoryResource;
+  protected Lock lock = new Lock();
+
 }

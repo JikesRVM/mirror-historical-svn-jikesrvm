@@ -24,9 +24,14 @@ public class VM_Entrypoints implements VM_Constants {
   public static final VM_Method checkcastFinalMethod     = getMethod("Lcom/ibm/JikesRVM/VM_Runtime;", "checkcastFinal", "(Ljava/lang/Object;I)V");
   public static final VM_Method checkstoreMethod         = getMethod("Lcom/ibm/JikesRVM/VM_Runtime;", "checkstore", "(Ljava/lang/Object;Ljava/lang/Object;)V");
   public static final VM_Method athrowMethod             = getMethod("Lcom/ibm/JikesRVM/VM_Runtime;", "athrow", "(Ljava/lang/Throwable;)V");
-  public static final VM_Method newScalarMethod          = getMethod("Lcom/ibm/JikesRVM/VM_Runtime;", "newScalar", "(I)Ljava/lang/Object;");
-  public static final VM_Method quickNewArrayMethod      = getMethod("Lcom/ibm/JikesRVM/VM_Runtime;", "quickNewArray", "(II[Ljava/lang/Object;)Ljava/lang/Object;");
-  public static final VM_Method quickNewScalarMethod     = getMethod("Lcom/ibm/JikesRVM/VM_Runtime;", "quickNewScalar", "(I[Ljava/lang/Object;Z)Ljava/lang/Object;");
+
+  // Allocation-related entry points
+  //
+  public static final VM_Method resolvedNewScalarMethod  = getMethod("Lcom/ibm/JikesRVM/VM_Runtime;", "resolvedNewScalar", "(I[Ljava/lang/Object;ZI)Ljava/lang/Object;");
+  public static final VM_Method unresolvedNewScalarMethod= getMethod("Lcom/ibm/JikesRVM/VM_Runtime;", "unresolvedNewScalar", "(I)Ljava/lang/Object;");
+  public static final VM_Method newArrayMethod      = getMethod("Lcom/ibm/JikesRVM/VM_Runtime;", "newArray", "(II[Ljava/lang/Object;I)Ljava/lang/Object;");
+  public static final VM_Method newArrayArrayMethod   = getMethod("Lcom/ibm/JikesRVM/VM_MultianewarrayHelper;", "newArrayArray", "(III)Ljava/lang/Object;");
+
   public static final VM_Method unimplementedBytecodeMethod = getMethod("Lcom/ibm/JikesRVM/VM_Runtime;", "unimplementedBytecode", "(I)V");
   public static final VM_Method unexpectedAbstractMethodCallMethod = getMethod("Lcom/ibm/JikesRVM/VM_Runtime;", "unexpectedAbstractMethodCall", "()V");
   public static final VM_Method raiseNullPointerException= getMethod("Lcom/ibm/JikesRVM/VM_Runtime;", "raiseNullPointerException", "()V");
@@ -42,13 +47,6 @@ public class VM_Entrypoints implements VM_Constants {
   public static final VM_Method invokeinterfaceImplementsTestMethod            = getMethod("Lcom/ibm/JikesRVM/VM_InterfaceInvocation;", "invokeinterfaceImplementsTest", "(Lcom/ibm/JikesRVM/VM_Class;[Ljava/lang/Object;)V");
   public static final VM_Method unresolvedInvokeinterfaceImplementsTestMethod  = getMethod("Lcom/ibm/JikesRVM/VM_InterfaceInvocation;", "unresolvedInvokeinterfaceImplementsTest", "(I[Ljava/lang/Object;)V");
 
-  //-#if RVM_WITH_GCTk_ALLOC_ADVICE
-  static final VM_Method allocAdviceNewScalarMethod = getMethod("Lcom/ibm/JikesRVM/VM_Runtime;", "newScalar", "(II)Ljava/lang/Object;");
-  static final VM_Method allocAdviceQuickNewArrayMethod = getMethod("Lcom/ibm/JikesRVM/VM_Runtime;", "quickNewArray", "(II[Ljava/lang/Object;I)Ljava/lang/Object;");
-  static final VM_Method allocAdviceQuickNewScalarMethod = getMethod("Lcom/ibm/JikesRVM/VM_Runtime;", "quickNewScalar", "(I[Ljava/lang/Object;I)Ljava/lang/Object;");
-  static final VM_Method allocAdviceQuickNewScalarMethodNEW = getMethod("Lcom/ibm/JikesRVM/VM_Runtime;", "quickNewScalar", "(I[Ljava/lang/Object;ZI)Ljava/lang/Object;");
-  //-#endif
-
   public static final VM_Method instanceOfUnresolvedMethod         = getMethod("Lcom/ibm/JikesRVM/VM_DynamicTypeCheck;", "instanceOfUnresolved", "(Lcom/ibm/JikesRVM/VM_Class;[Ljava/lang/Object;)Z");
   public static final VM_Method instanceOfArrayMethod              = getMethod("Lcom/ibm/JikesRVM/VM_DynamicTypeCheck;", "instanceOfArray", "(Lcom/ibm/JikesRVM/VM_Class;ILcom/ibm/JikesRVM/VM_Type;)Z");
   public static final VM_Method instanceOfUnresolvedArrayMethod    = getMethod("Lcom/ibm/JikesRVM/VM_DynamicTypeCheck;", "instanceOfUnresolvedArray", "(Lcom/ibm/JikesRVM/VM_Class;ILcom/ibm/JikesRVM/VM_Type;)Z");
@@ -58,8 +56,6 @@ public class VM_Entrypoints implements VM_Constants {
 
   public static final VM_Method inlineLockMethod    = getMethod("Lcom/ibm/JikesRVM/VM_ThinLock;", "inlineLock", "(Ljava/lang/Object;I)V");
   public static final VM_Method inlineUnlockMethod  = getMethod("Lcom/ibm/JikesRVM/VM_ThinLock;", "inlineUnlock", "(Ljava/lang/Object;I)V");
-
-  public static final VM_Method newArrayArrayMethod   = getMethod("Lcom/ibm/JikesRVM/VM_MultianewarrayHelper;", "newArrayArray", "(III)Ljava/lang/Object;");
 
   public static final VM_Method lazyMethodInvokerMethod         = getMethod("Lcom/ibm/JikesRVM/VM_DynamicLinker;", "lazyMethodInvoker", "()V");
   public static final VM_Method unimplementedNativeMethodMethod = getMethod("Lcom/ibm/JikesRVM/VM_DynamicLinker;", "unimplementedNativeMethod", "()V");
@@ -183,6 +179,8 @@ public class VM_Entrypoints implements VM_Constants {
   //-#endif
 
   static final VM_Field outputLockField                = getField("Lcom/ibm/JikesRVM/VM_Scheduler;", "outputLock", "I");
+  static final VM_Field toSyncProcessorsField          = getField("Lcom/ibm/JikesRVM/VM_Scheduler;", "toSyncProcessors", "I");
+
   //-#if RVM_WITH_STRONG_VOLATILE_SEMANTICS
   static final VM_Field doublewordVolatileMutexField   = getField("Lcom/ibm/JikesRVM/VM_Scheduler;", "doublewordVolatileMutex", "Lcom/ibm/JikesRVM/VM_ProcessorLock;");
   //-#else
@@ -281,14 +279,6 @@ public class VM_Entrypoints implements VM_Constants {
   static final VM_Method unresolvedGetStaticReadBarrierMethod = getMethod("Lcom/ibm/JikesRVM/VM_ReadBarrier;", "unresolvedGetStaticReadBarrier", "(ILjava/lang/Object;)V");
   //-#endif RVM_WITH_READ_BARRIER2
 
-  //-#if RVM_WITH_GCTk
-  static ADDRESS GCTk_WriteBufferBase;
-  static ADDRESS GCTk_BumpPointerBase;
-  static ADDRESS GCTk_SyncPointerBase;
-  static ADDRESS GCTk_ChunkAllocatorBase;
-  static ADDRESS GCTk_TraceBufferBase;
-  //-#endif
-
 
   //-#if RVM_WITH_OPT_COMPILER
   ////////////////// 
@@ -302,9 +292,6 @@ public class VM_Entrypoints implements VM_Constants {
   public static final VM_Method optResolveMethod                  = getMethod("Lcom/ibm/JikesRVM/opt/VM_OptSaveVolatile;", "OPT_resolve", "()V");
 
   public static final VM_Method optNewArrayArrayMethod            = getMethod("Lcom/ibm/JikesRVM/opt/VM_OptLinker;", "newArrayArray", "([II)Ljava/lang/Object;");
-  //-#if RVM_WITH_GCTk_ALLOC_ADVICE
-  static final VM_Method optAllocAdviceNewArrayArrayMethod = getMethod("Lcom/ibm/JikesRVM/VM_OptLinker;", "allocAdviceNewArrayArray", "([III)Ljava/lang/Object;");
-  //-#endif
 
   public static final VM_Method sysArrayCopy = getMethod("Lcom/ibm/JikesRVM/librarySupport/SystemSupport;", "arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V");
   //-#endif
