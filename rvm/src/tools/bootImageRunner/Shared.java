@@ -8,7 +8,10 @@ class Shared {
   /** 
       These routines all handle I/O.  (More below)
    **/
-  static PrintStream out;
+
+  /** Never instantiated directly; constructor does nothing. . */
+  Shared() {}
+  static PrintStream out = System.out;
   static String outFileName;
 
   static void p(String s) {
@@ -34,15 +37,25 @@ class Shared {
   }
 
   static void reportTrouble(String msg) {
+    reportTrouble(msg, (Exception) null);
+  }
+
+  static void reportTrouble(String msg, Throwable e) {
     epln("GenerateInterfaceDeclarations: While we were creating InterfaceDeclarations.h, there was a problem.");
-    epln(msg);
-    ep("The build system will delete the output file");
-    if (outFileName != null) {
-      ep(" ");
-      ep(outFileName);
+    ep(msg);
+    if (e != null) {
+      ep(": ");
+      ep(e.toString());
     }
     epln();
-    
+    if (outFileName != null) {
+      ep("The build system (my caller) should delete the output file");
+      ep(" ");
+      epln(outFileName);
+    }
+    if (e != null) {
+      e.printStackTrace();
+    }
     System.exit(1);
   }
 
