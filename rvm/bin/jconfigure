@@ -47,18 +47,20 @@ fi
 #
 ## Check if the command does not support the ERR trap.
 unset xited
-support_err_trap=yes
-if ! trap -- 'xited=$?; echo >&2 "$ME: some command we just ran (probably with a
+if trap -- 'xited=$?; echo >&2 "$ME: some command we just ran (probably with a
       final argument of \"$_\") exited with status $xited, possibly in source
       file line # $LINENO and function $FUNCNAME
       I give up; aborting execution."' ERR
 then
+    have_err_trap=yes
+else
     echo >&2 "ME: You are under a version of Bash 
     ($BASH_VERSION; probably pre-2.05) that
     does not support
     the ERR trap.  You may not get as much diagnostic info as you would like."
-    unset support_err_trap
+    unset have_err_trap
 fi
+
 trap -- 'echo >&2 "$ME: We just exited due to an error, exit status was ${xited:-$?}."' EXIT
 set -e;
 
@@ -719,26 +721,39 @@ EOF
 }
 
 function emit_disable_exit_on_error () {
-    cat << 'EOF'
+    cat <<- 'EOF'
 	## BEGIN disable_exit_on_error.
+EOF
+    if [ "$have_err_trap" ]; then
+	cat <<- 'EOF'
 	# This has to be inline or a source'd file; the ERR trap is not
 	# inherited by shell functions.
-	trap - ERR
+	trap - ERR || echo >&2 "$ME: We do not have the ERR Trap in this shell.  Must be cross-configuring or something of the sort."
+	EOF
+    fi
+    cat <<- 'EOF'
 	set +e
 	## END disable_exit_on_error.
 EOF
 }
 
 function emit_enable_exit_on_error () {
-    cat << 'EOF'
+    cat <<- 'EOF'
 	## BEGIN enable_exit_on_error.
+	EOF
+    if [ "$have_err_trap" ]; then
+	cat <<- 'EOF'
 	# This has to be inline or a source'd file; the ERR trap is not
 	# inherited by shell functions.
 	trap 'echo >&2 "$ME: A command I just ran (probably with a final argument of "$_")
-	   exited with status $?.  Something is broken; I give up."' ERR
+	   exited with status $?.  Something is broken; I give up."' ERR \
+	  || echo >&2 "$ME: We do not have the ERR Trap in this shell.  Must be cross-configuring or something of the sort."
+	EOF
+    fi
+    cat <<- 'EOF'
 	set -e
 	## END enable_exit_on_error.
-EOF
+	EOF
 }
 
 
@@ -1038,11 +1053,8 @@ EOF
 # The script, jbuild.linkBooter, will optionally run
 # a command specified by the user of jbuildLinkBooter
 # in the enviroment variable RVM_BUILD_COPY.
-# This variable could be set to rsh the linkBooter
-# command on the target machine.
-# The syntax of the test, while awkward,
-# is needed to run on all implementation of ksh,
-# including linux ksh.  Maria for Steve Blackburn
+# For example, this variable could use rsh to run the linkBooter
+# command remotely on the target machine.
 	if [[ $BOOTER_FLAG = -booter ]]; then
 	    if [[ X"$RVM_BUILD_COPY" != X ]]; then
 	        timeit $RVM_BUILD_COPY
