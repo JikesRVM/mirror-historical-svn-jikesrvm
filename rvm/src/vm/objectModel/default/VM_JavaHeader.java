@@ -5,7 +5,12 @@
 package com.ibm.JikesRVM;
 
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
+//-#if RVM_WITH_JMTK
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_AllocatorHeader;
+//-#endif
+//-#if RVM_WITH_JIKESRVM_MEMORY_MANAGERS
+import com.ibm.JikesRVM.memoryManagers.watson.VM_AllocatorHeader;
+//-#endif
 //-#if RVM_WITH_OPT_COMPILER
 import com.ibm.JikesRVM.opt.*;
 import com.ibm.JikesRVM.opt.ir.*;
@@ -139,6 +144,9 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
   public static void gcProcessTIB(VM_Address ref) {
     VM_Interface.processPtrField(ref.add(TIB_OFFSET));
   }
+  public static void gcProcessTIB(VM_Address ref, boolean root) {
+    VM_Interface.processPtrField(ref.add(TIB_OFFSET), root);
+  }
 
   /**
    * how many bytes are needed when the scalar object is copied by GC?
@@ -201,7 +209,6 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
 	VM_Magic.setIntAtOffset(toObj, STATUS_OFFSET, availBitsWord);
 	return toObj;
       } else if (hashState == HASH_STATE_HASHED) {
-VM.sysWriteln("Moving hashed scalar: ", toAddress);
 	int data = numBytes - HASHCODE_BYTES;
 	VM_Address fromAddress = VM_Magic.objectAsAddress(fromObj).sub(data + SCALAR_PADDING_BYTES);
 	VM_Memory.aligned32Copy(toAddress, fromAddress, data); 
@@ -242,7 +249,6 @@ VM.sysWriteln("Moving hashed scalar: ", toAddress);
 	VM_Magic.setIntAtOffset(toObj, STATUS_OFFSET, availBitsWord);
 	return toObj;
       } else if (hashState == HASH_STATE_HASHED) {
-VM.sysWriteln("Moving hashed array: ", toAddress);
 	VM_Address fromAddress = VM_Magic.objectAsAddress(fromObj).sub(ARRAY_HEADER_SIZE);
 	VM_Memory.aligned32Copy(toAddress.add(HASHCODE_BYTES), fromAddress, numBytes - HASHCODE_BYTES); 
 	Object toObj = VM_Magic.addressAsObject(toAddress.add(ARRAY_HEADER_SIZE + HASHCODE_BYTES));

@@ -1,5 +1,5 @@
 /*
- * (C) Copyright IBM Corp. 2001
+ * (C) Copyright IBM Corp 2001,2002
  */
 //$Id$
 package com.ibm.JikesRVM;
@@ -136,6 +136,12 @@ public final class VM_Array extends VM_Type
 
   public final ClassLoader getClassLoader() {
       return elementType.getClassLoader();
+  }
+
+  public final void setClassLoader(ClassLoader cl) {
+    if (!elementType.isPrimitiveType()) {
+      elementType.setClassLoader(cl);
+    }
   }
 
    //--------------------------------------------------------------------------------------------------//
@@ -420,37 +426,29 @@ public final class VM_Array extends VM_Type
 	  }
 
 	  // handle as two cases, for efficiency and in case subarrays overlap
-	  if ((! VM.BuildForRealtimeGC) && (src != dst || srcPos > dstPos)) {
+	  if ((!VM.BuildForRealtimeGC) && (src != dst || srcPos > dstPos)) {
+	    if (VM_Interface.NEEDS_RC_WRITE_BARRIER) {
+	      VM_Address dstS = VM_Magic.objectAsAddress(dst).add(dstPos<<2);
+	      VM_Address srcS = VM_Magic.objectAsAddress(src).add(srcPos<<2);
+	      for (int i = 0; i < len<<2; i += 4)
+		VM_Interface.arrayCopyRefCountWriteBarrier(dstS.add(i), VM_Magic.getMemoryAddress(srcS.add(i)));
+	    }
 	    VM_Memory.aligned32Copy(VM_Magic.objectAsAddress(dst).add(dstPos<<2),
 				    VM_Magic.objectAsAddress(src).add(srcPos<<2),
 				    len<<2);
-	    if (VM.BuildForConcurrentGC) { // dfb: must increment for copied pointers
-		VM_Address start = VM_Magic.objectAsAddress(dst).add(dstPos<<2);
-		VM_Address end = start.add(len<<2);
-		VM_Processor p = VM_Processor.getCurrentProcessor();
-		//-#if RVM_WITH_CONCURRENT_GC // because VM_RCBuffers only available with concurrent memory managers
-		int diff = end.diff(start);
-		for (int i = 0; i < diff; i += 4) 
-		  VM_RCBuffers.addIncrement(VM_Magic.getMemoryAddress(start.add(i)), p);
-		//-#endif
-	    }
 	  } else if (srcPos < dstPos) {
 	    srcPos = (srcPos + len) << 2;
 	    dstPos = (dstPos + len) << 2;
 	    while (len-- != 0) {
 	      srcPos -= 4;
 	      dstPos -= 4;
-	      if (! VM.BuildForRealtimeGC)
+	      if (VM_Interface.NEEDS_RC_WRITE_BARRIER) {
+		VM_Interface.arrayCopyRefCountWriteBarrier(VM_Magic.objectAsAddress(dst).add(dstPos), VM_Magic.getMemoryAddress(VM_Magic.objectAsAddress(src).add(srcPos)));
+	      }
+	      if (!VM.BuildForRealtimeGC)
 		  VM_Magic.setObjectAtOffset(dst, dstPos, VM_Magic.getObjectAtOffset(src, srcPos));
 	      else
 		  dst[dstPos>>2] = src[srcPos>>2];
-
-	      if (VM.BuildForConcurrentGC) {
-		//-#if RVM_WITH_CONCURRENT_GC // because VM_RCBuffers only available with concurrent memory managers
-		VM_RCBuffers.addIncrement(VM_Magic.getMemoryAddress(VM_Magic.objectAsAddress(dst).add(dstPos)),
-					  VM_Processor.getCurrentProcessor());
-		//-#endif
-	      }
 	    }
 	  } else {
 	    while (len-- != 0)
@@ -458,7 +456,8 @@ public final class VM_Array extends VM_Type
 	  }
 	  if (VM_Interface.NEEDS_WRITE_BARRIER) {
 	    // generate write buffer entries for modified target array entries
-	    VM_Interface.arrayCopyWriteBarrier(dst, dstStart, dstEnd);
+	    if (!VM_Interface.NEEDS_RC_WRITE_BARRIER) 
+	      VM_Interface.arrayCopyWriteBarrier(dst, dstStart, dstEnd);
 	    VM.enableGC();
 	  }
 	} else { 
@@ -472,9 +471,10 @@ public final class VM_Array extends VM_Type
 	    VM_Array ary = VM_Magic.getObjectType(src).asArray();
 	    int allocator = VM_Interface.pickAllocator(ary);
 	    Object temp[] = 
-	      (Object[])VM_Runtime.newArray(len, ary.getInstanceSize(len), 
-					    ary.getTypeInformationBlock(),
-					    allocator);
+	      (Object[])VM_Runtime.resolvedNewArray(len, 
+						    ary.getInstanceSize(len), 
+						    ary.getTypeInformationBlock(),
+						    allocator);
 	    int cnt = len;
 	    int tempPos = 0;
 	    while (cnt-- != 0)
@@ -527,14 +527,15 @@ public final class VM_Array extends VM_Type
     this.dictionaryId   = dictionaryId;
     this.tibSlot        = VM_Statics.allocateSlot(VM_Statics.TIB);
     this.elementType    = VM_ClassLoader.findOrCreateType(descriptor.parseForArrayElementDescriptor(), classloader);
+    if (VM.VerifyAssertions && this.elementType.isWordType()) {
+      VM.sysWriteln("\nDo not create arrays of VM_Address, VM_Word, VM_Offset, or other special primitive types.\n  Use an int array or long array for now and use casts.");
+      VM._assert(false);
+    }
     if (this.elementType.isArrayType()) {
       this.innermostElementType = this.elementType.asArray().getInnermostElementType();
     } else {
       this.innermostElementType = this.elementType;
     }
-
-    if (VM.BuildForConcurrentGC)
-      this.acyclic = elementType.isAcyclicReference(); // Array is acyclic if its references are acyclic
 
     // install partial type information block (type-slot but no method-slots) for use in type checking.
     // later, during instantiate(), we'll replace it with full type information block (including method-slots).
@@ -544,43 +545,25 @@ public final class VM_Array extends VM_Type
     VM_Statics.setSlotContents(tibSlot, tib);
   }
 
-  // Ensure that the elementType is loaded
-  // JVM spec says anewarray forces loading of base class   
+  // Loading an array type also forces loading of element type.
   // 
-  // TODO: this should throw VM_ResolutionException
-  public final synchronized void load() {
+  public final synchronized void load() throws VM_ResolutionException {
     if (isLoaded())
       return;
+    elementType.load();
 
-    if (!elementType.isLoaded()) {
-      // JVM spec says anewarray forces instantiation of base class
-      try {
-        elementType.load(); 
-      }	catch (VM_ResolutionException e) {
-        System.err.println("VM_Array.load: cannot load element type::: " + elementType); // TODO: we should throw e
-      }
-    }
     state = CLASS_LOADED;
     if (VM.verboseClassLoading) VM.sysWrite("[Loaded "+this.descriptor+"]\n");
     if (VM.verboseClassLoading) VM.sysWrite("[Loaded superclasses of "+this.descriptor+"]\n");
   }
 
-  // Ensure that the elementType is resolved
-  // JVM spec says anewarray forces resolution of base class   
+  // Resolution of element type also forces resolution of element type
   //
-  // TODO: this should throw VM_ResolutionException
-  public final synchronized void resolve() {
+  public final synchronized void resolve() throws VM_ResolutionException {
     if (isResolved())
       return;
-    if (VM.VerifyAssertions) VM._assert(state == CLASS_LOADED);
 
-    if (elementType.isLoaded() && !elementType.isResolved()) {
-      try {
-	elementType.resolve(); 
-      }	catch (VM_ResolutionException e) {
-	System.err.println("VM_Array.resolve: cannot resolve element type::: " + elementType); // TODO: we should throw e
-      }
-    }
+    elementType.resolve();
     
     // Using the type information block for java.lang.Object as a template,
     // build a type information block for this new array type by copying the
@@ -593,13 +576,12 @@ public final class VM_Array extends VM_Type
        
     typeInformationBlock = VM_Interface.newTIB(javaLangObjectTIB.length);
     VM_Statics.setSlotContents(tibSlot, typeInformationBlock);
+    // Initialize dynamic type checking data structures
     typeInformationBlock[0] = this;
-    if (VM.BuildForFastDynamicTypeCheck) {
-      typeInformationBlock[TIB_SUPERCLASS_IDS_INDEX] = VM_DynamicTypeCheck.buildSuperclassIds(this);
-      typeInformationBlock[TIB_DOES_IMPLEMENT_INDEX] = VM_DynamicTypeCheck.buildDoesImplement(this);
-      if (!elementType.isPrimitiveType() && elementType.isResolved()) {
-	typeInformationBlock[TIB_ARRAY_ELEMENT_TIB_INDEX] = elementType.getTypeInformationBlock();
-      }
+    typeInformationBlock[TIB_SUPERCLASS_IDS_INDEX] = VM_DynamicTypeCheck.buildSuperclassIds(this);
+    typeInformationBlock[TIB_DOES_IMPLEMENT_INDEX] = VM_DynamicTypeCheck.buildDoesImplement(this);
+    if (!elementType.isPrimitiveType()) {
+      typeInformationBlock[TIB_ARRAY_ELEMENT_TIB_INDEX] = elementType.getTypeInformationBlock();
     }
  
     state = CLASS_RESOLVED;

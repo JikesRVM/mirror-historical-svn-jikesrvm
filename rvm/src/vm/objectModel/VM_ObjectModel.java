@@ -4,7 +4,12 @@
 //$Id$
 package com.ibm.JikesRVM;
 
+//-#if RVM_WITH_JMTK
 import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_AllocatorHeader;
+//-#endif
+//-#if RVM_WITH_JIKESRVM_MEMORY_MANAGERS
+import com.ibm.JikesRVM.memoryManagers.watson.VM_AllocatorHeader;
+//-#endif
 //-#if RVM_WITH_OPT_COMPILER
 import com.ibm.JikesRVM.opt.ir.*;
 //-#endif
@@ -202,6 +207,9 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
    */
   public static void gcProcessTIB(VM_Address ref) {
     VM_JavaHeader.gcProcessTIB(ref);
+  }
+  public static void gcProcessTIB(VM_Address ref, boolean root) {
+    VM_JavaHeader.gcProcessTIB(ref, root);
   }
 
 //   public static int bytesRequiredWhenCopied(Object object) {
@@ -427,7 +435,7 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
    * Compute the header size of an object 
    */
   public static int computeHeaderSize(Object ref) throws VM_PragmaInterruptible {
-    VM_Type type = ref.getClass().getVMType();
+    VM_Type type = java.lang.JikesRVMSupport.getTypeForClass(ref.getClass());
     return computeHeaderSize(type);
   }
 
