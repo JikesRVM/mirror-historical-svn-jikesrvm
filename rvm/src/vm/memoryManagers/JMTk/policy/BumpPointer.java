@@ -1,7 +1,6 @@
 /*
  * (C) Copyright Department of Computer Science,
  * Australian National University. 2002
- * All rights reserved.
  */
 /**
  * This class implements a simple bump pointer allocator.  The
@@ -20,7 +19,7 @@
  * @version $Revision$
  * @date $Date$
  */
-final class AllocatorBumpPointer implements Constants, Uninterruptible extends BasePlan {
+final class BumpPointer implements Constants, Uninterruptible {
   public final static String Id = "$Id$"; 
 
   /**
@@ -31,7 +30,7 @@ final class AllocatorBumpPointer implements Constants, Uninterruptible extends B
    * @param mr The memory resource from which this bump pointer will
    * acquire memory.
    */
-  AllocatorBumpPointer(VMResource vmr, MemoryResource mr) {
+  BumpPointer(VMResource vmr, MemoryResource mr) {
     bp = INITIAL_BP_VALUE;
     vmResource = vmr;
     memoryResource = mr;
@@ -71,20 +70,23 @@ final class AllocatorBumpPointer implements Constants, Uninterruptible extends B
    * @return The address of the first byte of the allocated region
    */
   public Address alloc(boolean isScalar, Extent bytes) throws VM_PragmaInline {
-    Address oldbp = bp;
-    bp += bytes;
-    if ((oldbp ^ bp) >= TRIGGER) 
-      return allocOverflow();
+    VM_Address oldbp = bp;
+    bp.add(bytes);
+    if ((oldbp ^ bp) >= TRIGGER)
+      return allocSlowPath(bytes);
     return oldbp;
   }
 
-  public allocOverflow(Extent bytes) throws VM_PragmaNoInline {
+
+  
+  private Address allocSlowPath(Extent bytes) throws VM_PragmaNoInline { 
     int blocks = Conversions.bytesToBlocks(bytes);
     memoryResource.acquire(blocks);
     VM_Address start = vmResource.acquire(blocks);
     bp = start.add(bytes);
     return start;
   }
+
 
   ////////////////////////////////////////////////////////////////////////////
   //

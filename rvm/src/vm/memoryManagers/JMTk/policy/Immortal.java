@@ -1,7 +1,6 @@
 /*
  * (C) Copyright Department of Computer Science,
- * Australian National University. 2002
- * All rights reserved.
+ *     Australian National University. 2002
  */
 /**
  * This class implements collector behavior for a simple immortal
@@ -13,7 +12,7 @@
  * @version $Revision$
  * @date $Date$
  */
-final class CollectorImmortal implements Constants extends Collector {
+final class Immortal implements Constants extends BasePolicy {
   public final static String Id = "$Id$"; 
 
   /**
@@ -25,7 +24,7 @@ final class CollectorImmortal implements Constants extends Collector {
    * @param object The object to be traced.
    */
   public static void traceReference(Address object) {
-    if (!marked(object)) {
+    if (!testAndMark(object, immortalMarkState)) {
       MM.enqueue(object);
     }
   }
@@ -37,18 +36,6 @@ final class CollectorImmortal implements Constants extends Collector {
    */
   public static void prepare() {
     immortalMarkState = !immortalMarkState;
-  }
-
-  /**
-   * Return true if the object is marked, atomically mark the object
-   * as a side effect.
-   *
-   * @param object The object to be marked.
-   * @return True if the object was not already marked, false if it
-   * was already marked.
-   */
-  private static boolean marked(Address object) {
-    return Runtime.testAndSetMarkBit(object, immortalMarkState);
   }
 
   private static boolean immortalMarkState;

@@ -1,7 +1,6 @@
 /*
  * (C) Copyright Department of Computer Science,
  * Australian National University. 2002
- * All rights reserved.
  */
 
 package com.ibm.JikesRVM.memoryManagers.JMTk;
@@ -159,6 +158,31 @@ public final class Plan extends BasePlan { // implements Constants
       MM.triggerCollection();
   }
   
+   
+  /**
+   * Trace a reference during GC.  This involves determining which
+   * collection policy applies and calling the appropriate
+   * <code>trace</code> method.
+   *
+   * @param slot The address of a slot containing the reference to be traced.
+   * @param ref The reference to be traced.  This <i>may</i> be an
+   * interior pointer.
+   * @param obj A reference to the object containing <code>ref</code>.
+   * Normally <code>ref</code> and <code>obj</code> will be identical.
+   * Only in the case where <code>ref</code> is an interior pointer
+   * will they differ. The object is implicitly reachable (live).
+   */
+  public void traceReference(Address slot, Address ref, Address obj) {
+    if (ref.LE(HEAP_END)) {
+      if (ref.GE(LOS_START))
+	CollectorLOS.traceReference(obj);
+      else if (ref.GE(SS_START))
+	Runtime.setSlot(slot, CollectorCopying.traceReference(ref, obj));
+      else if (ref.GE(IMMORTAL_START))
+	CollectorImmortal.traceReference(obj);
+    } // else this is not a heap pointer
+  }
+
   /**
    * Trace a reference during GC.  This involves determining which
    * collection policy applies and calling the appropriate
