@@ -27,4 +27,5 @@ checkenv RVM_ROOT
 checkenv RVM_BUILD
 
 # Pass these along as parameters to runrvm.
-. "${mydir}/runrvm" "$HOME" "$RVM_ROOT" "$RVM_BUILD" "$@"
+#. "${mydir}/runrvm" "$HOME" "$RVM_ROOT" "$RVM_BUILD" "$@"
+. "${RVM_ROOT}/rvm/bin/runrvm" "$HOME" "$RVM_ROOT" "$RVM_BUILD" "$@"
