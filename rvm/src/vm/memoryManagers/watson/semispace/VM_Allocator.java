@@ -143,6 +143,11 @@ public class VM_Allocator
    */
   static final boolean RENDEZVOUS_WAIT_TIME = VM_CollectorThread.MEASURE_WAIT_TIMES;
 
+  /**
+   * Flag for counting bytes allocated and objects allocated
+   */
+  static final boolean COUNT_ALLOCATIONS = false;
+
   /** count times parallel GC threads attempt to mark the same object */
   private static final boolean COUNT_COLLISIONS = false;
 
@@ -490,6 +495,8 @@ public class VM_Allocator
 
     VM_Magic.pragmaInline();	// make sure this method is inlined
     
+    debugAlloc(size, tib, hasFinalizer); // debug; usually inlined away to nothing
+
     if (VM.BuildForEventLogging && VM.EventLoggingEnabled)
       VM_EventLogger.logObjectAllocationEvent();
   
@@ -569,6 +576,8 @@ public class VM_Allocator
     throws OutOfMemoryError {
   
      VM_Magic.pragmaInline();	// make sure this method is inlined
+
+     debugAlloc(size, tib, false); // debug: usually inlined away to nothing
 
      if (VM.BuildForEventLogging && VM.EventLoggingEnabled)
        VM_EventLogger.logObjectAllocationEvent();
@@ -2126,6 +2135,24 @@ public class VM_Allocator
       ***/
     }
 
+    if (COUNT_ALLOCATIONS) {
+      long bytes = 0, objects = 0, syncObjects = 0;
+      VM_Processor st;
+      for (int i = 1; i <= VM_Scheduler.numProcessors; i++) {
+        st = VM_Scheduler.processors[i];
+        bytes += st.totalBytesAllocated;
+        objects += st.totalObjectsAllocated;
+        syncObjects += st.synchronizedObjectsAllocated;
+      }
+      VM.sysWrite(" Total No. of Objects Allocated in this run ");
+      VM.sysWrite(Long.toString(objects));
+      VM.sysWrite("\n Total No. of Synchronized Objects Allocated in this run ");
+      VM.sysWrite(Long.toString(syncObjects));
+      VM.sysWrite("\n Total No. of bytes Allocated in this run ");
+      VM.sysWrite(Long.toString(bytes));
+      VM.sysWrite("\n");
+    }
+
   }
 
   // DEBUGGING 
@@ -2368,4 +2395,27 @@ public class VM_Allocator
       return ref;
     }
   }
+
+  /**
+   * Encapsulate debugging operations when storage is allocated.  Always inlined.
+   * In production, all debug flags are false and this routine disappears.
+   *   @param size Number of bytes to allocate
+   *   @param tib Pointer to the Type Information Block for the object type 
+   *   @param hasFinalizer Does the object have a finalizer method?
+   */
+  static void debugAlloc (int size, Object[] tib, boolean hasFinalizer) {
+      VM_Magic.pragmaInline();
+
+      if (COUNT_ALLOCATIONS) {
+	  VM_Processor st = VM_Processor.getCurrentProcessor();
+	  st.totalBytesAllocated += size;
+	  st.totalObjectsAllocated++;
+          VM_Type t = VM_Magic.objectAsType(tib[0]);
+          if (t.thinLockOffset != -1) {
+            st.synchronizedObjectsAllocated++;
+          }
+      }
+  }
+
+
 }   // VM_Allocator
