@@ -19,10 +19,10 @@ import instructionFormats.*;
  *
  * <pre>
  * low memory                    high memory
- * field n |...| field 1 | field 0 | TIB word |
- *                                            ^
- *                                            |
- *                                       object reference
+ * field n |...| field 1 | field 0 | TIB word | phantom word |
+ *                                                           ^
+ *                                                           |
+ *                                                    object reference
  * </pre>
  *
  * If there are no "other header bytes",
@@ -30,7 +30,7 @@ import instructionFormats.*;
  *
  * <pre>
  * low memory                                      high memory
- * field n |...| field 1 | field 0 | status word | TIB word |
+ * field n |...| field 1 | field 0 | TIB word | status word |
  *                                                          ^
  *                                                          |
  *                                                  object reference
@@ -40,7 +40,7 @@ import instructionFormats.*;
  * an array is layed out as
  * <pre>
  * low memory                                      high memory
- * length | TIB word | element 0 | element 1 | .... | element n |
+ * TIB word | length | element 0 | element 1 | .... | element n |
  *                   ^
  *                   |
  *            object reference
@@ -48,9 +48,8 @@ import instructionFormats.*;
  * The one word holds a TIB pointer, and the bottom N (N<=2) bits
  * can hold GC state.<p>
  *
- * If there are "other header bytes", they lie in memory directly above
- * the TIB, and the object reference points to the end of the last word of
- * the header. <p>
+ * TODO: this object model does not currently support GC or MISC header bytes.
+ *  we need to fix VM_ObjectModel to support this correctly. <p>
  *
  * The status word, if present, holds the thin lock.<p>
  * 
@@ -77,6 +76,10 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
   private static final int ONE_WORD_HEADER_SIZE = 4;
   private static final int THIN_LOCK_SIZE = 4;
   private static final int ARRAY_HEADER_SIZE = ONE_WORD_HEADER_SIZE + 4;
+  
+  // note that the pointer to an unsychronized scalar actually points 4 bytes above the
+  // scalar object.
+  private static final int SCALAR_PADDING_BYTES = 4;
 
   /**
    * The number of low-order-bits of TIB that must be zero.
@@ -97,10 +100,10 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    */
   private static final int BITS_MASK = ~TIB_MASK;
 
-  private static final int TIB_OFFSET     = -4 - OTHER_HEADER_BYTES;
+  private static final int TIB_OFFSET     = -8 - OTHER_HEADER_BYTES;
 
-  private static final int STATUS_OFFSET  = -8 - OTHER_HEADER_BYTES;
-  private static final int ARRAY_LENGTH_OFFSET  = -8 - OTHER_HEADER_BYTES;
+  private static final int STATUS_OFFSET  = -4 - OTHER_HEADER_BYTES;
+  private static final int ARRAY_LENGTH_OFFSET  = -4 - OTHER_HEADER_BYTES;
 
   /** How many bits are allocated to a thin lock? */
   public static final int NUM_THIN_LOCK_BITS = 32;
@@ -127,7 +130,7 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    * the header?
    */
   public static int getHeaderEndOffset(VM_Class klass) {
-    return klass.isSynchronized ? STATUS_OFFSET : TIB_OFFSET;
+    return TIB_OFFSET;
   }
 
   /**
@@ -135,7 +138,8 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    * the MISC header?
    */
   public static int getMiscHeaderEndOffset() {
-    return TIB_OFFSET + 4 + VM_AllocatorHeader.NUM_BYTES_HEADER;
+    VM.assert(NOT_REACHED);
+    return -1;
   }
 
   /**
@@ -145,7 +149,7 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    * TODO: try to deprecate this?  Seems ugly.
    */
   public static ADDRESS getPointerInMemoryRegion(ADDRESS ref) {
-    return ref - 4;
+    return ref - 8;
   }
 
   /**
@@ -176,7 +180,8 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    * @return an ptr to said object.
    */
   public static ADDRESS baseAddressToScalarAddress(ADDRESS ptr, Object[] tib, int size) {
-    return ptr + size;
+    boolean isSynchronized = ((VM_Class)tib[0]).isSynchronized;
+    return ptr + size + (isSynchronized ? 0 : THIN_LOCK_SIZE);
   }
 
   /**
@@ -202,7 +207,8 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    */
   public static ADDRESS scalarRefToBaseAddress(Object ref, VM_Class t) {
     int size = t.getInstanceSize();
-    return VM_Magic.objectAsAddress(ref) - size ;
+    boolean isSynchronized = t.isSynchronized;
+    return VM_Magic.objectAsAddress(ref) - size - (isSynchronized ? 0 : THIN_LOCK_SIZE);
   }
 
   /**
@@ -459,8 +465,9 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    */
   public static void initializeScalarClone(Object cloneDst, Object cloneSrc, int size) {
     int cnt = size - VM_ObjectModel.computeHeaderSize(cloneSrc);
-    int dst = VM_Magic.objectAsAddress(cloneDst) - size;
-    int src = VM_Magic.objectAsAddress(cloneSrc) - size;
+    VM_Class klass = cloneDst.getClass().getVMType().asClass();
+    int dst = scalarRefToBaseAddress(cloneDst,klass);
+    int src = scalarRefToBaseAddress(cloneSrc,klass);
     VM_Memory.aligned32Copy(dst, src, cnt); 
   }
 
