@@ -98,7 +98,9 @@ public class LocalQueue extends LocalSSB implements Constants, VM_Uninterruptibl
    * false if the queue has been exhausted.
    */
   protected final boolean checkPop(int arity) throws VM_PragmaInline {
-    if (bufferOffset(head) == 0)
+    // FIXME there is a design issue here.  Should be able to do a
+    // single test (not explicitly test for zero).
+    if ((bufferOffset(head) == 0) || (head.EQ(VM_Address.fromInt(headSentinel(arity)))))
       return popOverflow(arity);
     else {
       if (VM.VerifyAssertions)

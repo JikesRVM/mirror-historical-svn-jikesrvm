@@ -44,13 +44,9 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
 
   public static int verbose = 1;
 
-  public AddressSet values;                 // gray objects
-  public AddressSet locations;              // locations containing white objects
-  public AddressPairSet interiorLocations;  // interior locations
-
-  protected AddressQueue valuesX;
-  protected AddressQueue locationsX;
-  protected AddressPairQueue interiorLocationsX;
+  protected AddressQueue values;          // gray objects
+  protected AddressQueue locations;       // locations containing white objects
+  protected AddressPairQueue interiorLocations; // interior locations
   protected static SharedQueue valuePool;
   protected static SharedQueue locationPool;
   protected static SharedQueue interiorPool;
@@ -75,14 +71,11 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
   // private AddressPairQueue interiorLocations;  // interior locations
 
   BasePlan() {
-    values = new AddressSet(64 * 1024);
-    valuesX = new AddressQueue(valuePool);
+    values = new AddressQueue(valuePool);
     valuePool.newClient();
-    locations = new AddressSet(32 * 1024);
-    locationsX = new AddressQueue(locationPool);
+    locations = new AddressQueue(locationPool);
     locationPool.newClient();
-    interiorLocations = new AddressPairSet(16 * 1024);
-    interiorLocationsX = new AddressPairQueue(interiorPool);
+    interiorLocations = new AddressPairQueue(interiorPool);
     interiorPool.newClient();
   }
 
@@ -151,9 +144,9 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
       }
       locationPool.reset();
     }
-    valuesX.reset();
-    locationsX.reset();
-    interiorLocationsX.reset();
+    values.reset();
+    locations.reset();
+    interiorLocations.reset();
     barrier.rendezvous();
   }
 
@@ -174,10 +167,10 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
 
   private void computeRoots() {
 
-    AddressPairQueue codeLocations = VM_Interface.MOVES_OBJECTS ? interiorLocationsX : null;
+    AddressPairQueue codeLocations = VM_Interface.MOVES_OBJECTS ? interiorLocations : null;
 
     //    fetchRemsets(locations);
-    ScanStatics.scanStatics(locationsX);
+    ScanStatics.scanStatics(locations);
 
     while (true) {
       int threadIndex = threadCounter.increment();
@@ -200,40 +193,37 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
       ScanObject.scan(VM_Magic.objectAsAddress(th.contextRegisters.gprs));
       ScanObject.scan(VM_Magic.objectAsAddress(th.hardwareExceptionRegisters));
       ScanObject.scan(VM_Magic.objectAsAddress(th.hardwareExceptionRegisters.gprs));
-      ScanThread.scanThread(th2, locationsX, codeLocations);
+      ScanThread.scanThread(th2, locations, codeLocations);
     }
     ScanObject.scan(VM_Magic.objectAsAddress(VM_Scheduler.threads));
-    // VM.sysWriteln("locations size is ", locations.size());
-    // VM.sysWriteln("values size is ", values.size());
-    // VM.sysWriteln("interiorLocations size is ", interiorLocations.size());
   }
 
   // Add a gray object
   //
   static public void enqueue(VM_Address obj) throws VM_PragmaInline {
-    VM_Interface.getPlan().valuesX.push(obj);
+    VM_Interface.getPlan().values.push(obj);
   }
 
   private void processAllWork() throws VM_PragmaNoInline {
 
     while (true) {
-      while (!valuesX.isEmpty()) {
-	VM_Address v = valuesX.pop();
+      while (!values.isEmpty()) {
+	VM_Address v = values.pop();
 	ScanObject.scan(v);  // NOT traceObject
       }
-      while (!locationsX.isEmpty()) {
-	VM_Address loc = locationsX.pop();
+      while (!locations.isEmpty()) {
+	VM_Address loc = locations.pop();
 	traceObjectLocation(loc);
       }
-      while (!interiorLocationsX.isEmpty()) {
-	VM_Address obj = interiorLocationsX.pop1();
-	VM_Address interiorLoc = interiorLocationsX.pop2();
+      while (!interiorLocations.isEmpty()) {
+	VM_Address obj = interiorLocations.pop1();
+	VM_Address interiorLoc = interiorLocations.pop2();
 	VM_Address interior = VM_Magic.getMemoryAddress(interiorLoc);
 	VM_Address newInterior = traceInteriorReference(obj, interior);
 	VM_Magic.setMemoryAddress(interiorLoc, newInterior);
       }
 
-      if (valuesX.isEmpty() && locationsX.isEmpty() && interiorLocationsX.isEmpty())
+      if (values.isEmpty() && locations.isEmpty() && interiorLocations.isEmpty())
 	break;
     }
 

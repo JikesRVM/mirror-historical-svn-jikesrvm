@@ -267,10 +267,9 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   public boolean poll(boolean mustCollect, MemoryResource mr)
     throws VM_PragmaLogicallyUninterruptible {
     if (gcInProgress) return false;
-    //    VM.sysWrite('@');
     if (mustCollect || 
 	((mr != metaDataMR) && (getPagesReserved() > getTotalPages()))) {
-      //	((getPagesReserved() > getTotalPages()))) {
+      VM.sysWrite("GC: "); VM.sysWrite(getPagesReserved()); VM.sysWrite(" "); VM.sysWrite(getTotalPages()); VM.sysWrite("\n");
       fullHeapGC = mustCollect || fullHeapGC;
       VM_Interface.triggerCollection();
       return true;
