@@ -654,6 +654,6 @@ public final class VM_OptMachineCodeMap implements VM_Constants,
   private static int totalMCSize = 0;
   private static int totalMapSize = 0;
 
-  private static final VM_TypeReference TYPE = VM_TypeReference.findOrCreate(VM_SystemClassLoader.getVMClassLoader(),
+  private static final VM_TypeReference TYPE = VM_TypeReference.findOrCreate(VM_BootstrapClassLoader.getVMClassLoader(),
                                                                              VM_Atom.findOrCreateAsciiAtom("Lcom/ibm/JikesRVM/opt/VM_OptMachineCodeMap;"));
 }

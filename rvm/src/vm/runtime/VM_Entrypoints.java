@@ -291,7 +291,7 @@ public class VM_Entrypoints implements VM_Constants {
     VM_Atom memName       = VM_Atom.findOrCreateAsciiAtom(memberName);
     VM_Atom memDescriptor = VM_Atom.findOrCreateAsciiAtom(memberDescriptor);
     try {
-      VM_TypeReference tRef = VM_TypeReference.findOrCreate(VM_SystemClassLoader.getVMClassLoader(), clsDescriptor);
+      VM_TypeReference tRef = VM_TypeReference.findOrCreate(VM_BootstrapClassLoader.getVMClassLoader(), clsDescriptor);
       VM_Class cls = (VM_Class)tRef.resolve();
       cls.resolve();
 

@@ -13,7 +13,7 @@ import java.net.URL;
 import java.util.Properties;
 
 import com.ibm.JikesRVM.classloader.VM_ClassLoader;
-import com.ibm.JikesRVM.classloader.VM_SystemClassLoader;
+import com.ibm.JikesRVM.classloader.VM_BootstrapClassLoader;
 
 import com.ibm.JikesRVM.FinalizerThread;
 import com.ibm.JikesRVM.VM_Runtime;
@@ -168,7 +168,7 @@ public class Runtime {
     Class[] classes = VMSecurityManager.getClassContext();
     ClassLoader loader = classes[1].getClassLoader();
     
-    if (loader == null) loader = VM_SystemClassLoader.getVMClassLoader();
+    if (loader == null) loader = VM_BootstrapClassLoader.getVMClassLoader();
 
     String libPath = loader.findLibrary(libName);
     if (libPath != null) {

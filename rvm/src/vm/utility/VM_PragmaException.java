@@ -55,7 +55,7 @@ public abstract class VM_PragmaException extends java.lang.RuntimeException {
    * @return the VM_TypeReference for said descriptor
    */
   protected final static VM_TypeReference getTypeRef(String name) {
-    return VM_TypeReference.findOrCreate(VM_SystemClassLoader.getVMClassLoader(),
+    return VM_TypeReference.findOrCreate(VM_BootstrapClassLoader.getVMClassLoader(),
                                          VM_Atom.findOrCreateAsciiAtom(name));
   }
 

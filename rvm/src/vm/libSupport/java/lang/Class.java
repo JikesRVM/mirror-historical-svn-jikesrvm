@@ -93,7 +93,7 @@ public final class Class implements java.io.Serializable {
           }
         }
       }
-      classLoader = VM_SystemClassLoader.getVMClassLoader();
+      classLoader = VM_BootstrapClassLoader.getVMClassLoader();
     }
     return forNameInternal(className, initialize, classLoader);
   }
@@ -135,7 +135,7 @@ public final class Class implements java.io.Serializable {
       }
     }
     ClassLoader cl = type.getClassLoader();
-    return cl == VM_SystemClassLoader.getVMClassLoader() ? null : cl;
+    return cl == VM_BootstrapClassLoader.getVMClassLoader() ? null : cl;
   }
 
   public Class getComponentType() {
@@ -509,7 +509,7 @@ public final class Class implements java.io.Serializable {
 
   public URL getResource(String resName) {
     ClassLoader loader = getClassLoader();
-    if (loader == VM_SystemClassLoader.getVMClassLoader())
+    if (loader == VM_BootstrapClassLoader.getVMClassLoader())
       return ClassLoader.getSystemResource(toResourceName(resName));
     else
       return loader.getResource(toResourceName(resName));
@@ -517,7 +517,7 @@ public final class Class implements java.io.Serializable {
 
   public InputStream getResourceAsStream(String resName) {
     ClassLoader loader = getClassLoader();
-    if (loader == VM_SystemClassLoader.getVMClassLoader())
+    if (loader == VM_BootstrapClassLoader.getVMClassLoader())
       return ClassLoader.getSystemResourceAsStream(toResourceName(resName));
     else
       return loader.getResourceAsStream(toResourceName(resName));

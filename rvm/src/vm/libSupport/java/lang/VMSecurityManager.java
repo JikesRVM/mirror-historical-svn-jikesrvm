@@ -7,7 +7,7 @@ package java.lang;
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.classloader.VM_Type;
 import com.ibm.JikesRVM.VM_StackBrowser;
-import com.ibm.JikesRVM.classloader.VM_SystemClassLoader;
+import com.ibm.JikesRVM.classloader.VM_BootstrapClassLoader;
 
 /**
  * Library support interface of Jikes RVM
@@ -61,7 +61,7 @@ final class VMSecurityManager
       VM.disableGC();
       b.init();
 
-      while(b.hasMoreFrames() && b.getClassLoader() == VM_SystemClassLoader.getVMClassLoader())
+      while(b.hasMoreFrames() && b.getClassLoader() == VM_BootstrapClassLoader.getVMClassLoader())
           b.up();
 
       VM.enableGC();

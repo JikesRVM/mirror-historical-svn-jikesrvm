@@ -11,7 +11,7 @@ import java.util.Enumeration;
 import java.util.Map;
 import java.util.HashMap;
 
-import com.ibm.JikesRVM.classloader.VM_SystemClassLoader;
+import com.ibm.JikesRVM.classloader.VM_BootstrapClassLoader;
 import com.ibm.JikesRVM.classloader.VM_ClassLoader;
 import com.ibm.JikesRVM.classloader.VM_Type;
 
@@ -45,15 +45,15 @@ final class VMClassLoader {
   }
 
   static final Class loadClass(String name, boolean resolve) throws ClassNotFoundException {
-    return VM_SystemClassLoader.getVMClassLoader().loadClass(name, resolve);
+    return VM_BootstrapClassLoader.getVMClassLoader().loadClass(name, resolve);
   }
 
   static URL getResource(String name)  {
-    return VM_SystemClassLoader.getVMClassLoader().findResource(name);
+    return VM_BootstrapClassLoader.getVMClassLoader().findResource(name);
   }
 
   static Enumeration getResources(String name) throws IOException {
-    return VM_SystemClassLoader.getVMClassLoader().findResources(name);
+    return VM_BootstrapClassLoader.getVMClassLoader().findResources(name);
   }
 
   static Package getPackage(String name) {
@@ -112,7 +112,7 @@ final class VMClassLoader {
     return null;
   }
 
-  static ClassLoader getSystemClassLoader() {
-    return VM_SystemClassLoader.getVMClassLoader();
+  static ClassLoader getBootstrapClassLoader() {
+    return VM_BootstrapClassLoader.getVMClassLoader();
   }
 }
