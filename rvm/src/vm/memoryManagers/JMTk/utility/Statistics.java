@@ -5,35 +5,35 @@
 
 package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
-import VM;
-import VM_Constants;
-import VM_Address;
-import VM_Magic;
-import VM_ObjectModel;
-import VM_JavaHeader;
-import VM_Atom;
-import VM_Type;
-import VM_Class;
-import VM_Array;
-import VM_Method;
-import VM_PragmaInline;
-import VM_PragmaNoInline;
-import VM_PragmaUninterruptible;
-import VM_PragmaInterruptible;
-import VM_PragmaLogicallyUninterruptible;
-import VM_Processor;
-import VM_Scheduler;
-import VM_Thread;
-import VM_Memory;
-import VM_Time;
-import VM_Entrypoints;
-import VM_Reflection;
-import VM_Synchronization;
-import VM_Synchronizer;
-import VM_Callbacks;
-import VM_Statistic;
-import VM_TimeStatistic;
-import VM_TypeDictionary;
+import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Constants;
+import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Magic;
+import com.ibm.JikesRVM.VM_ObjectModel;
+import com.ibm.JikesRVM.VM_JavaHeader;
+import com.ibm.JikesRVM.VM_Atom;
+import com.ibm.JikesRVM.VM_Type;
+import com.ibm.JikesRVM.VM_Class;
+import com.ibm.JikesRVM.VM_Array;
+import com.ibm.JikesRVM.VM_Method;
+import com.ibm.JikesRVM.VM_PragmaInline;
+import com.ibm.JikesRVM.VM_PragmaNoInline;
+import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_PragmaInterruptible;
+import com.ibm.JikesRVM.VM_PragmaLogicallyUninterruptible;
+import com.ibm.JikesRVM.VM_Processor;
+import com.ibm.JikesRVM.VM_Scheduler;
+import com.ibm.JikesRVM.VM_Thread;
+import com.ibm.JikesRVM.VM_Memory;
+import com.ibm.JikesRVM.VM_Time;
+import com.ibm.JikesRVM.VM_Entrypoints;
+import com.ibm.JikesRVM.VM_Reflection;
+import com.ibm.JikesRVM.VM_Synchronization;
+import com.ibm.JikesRVM.VM_Synchronizer;
+import com.ibm.JikesRVM.VM_Callbacks;
+import com.ibm.JikesRVM.VM_Statistic;
+import com.ibm.JikesRVM.VM_TimeStatistic;
+import com.ibm.JikesRVM.VM_TypeDictionary;
 
 /**
  * Contains common statistic, profiling, and debugging code
@@ -110,13 +110,13 @@ public class Statistics implements Constants, VM_Callbacks.ExitMonitor, VM_Callb
 
   static void updateGCStats(int GCType, int copied) throws VM_PragmaUninterruptible {
     if (VM.VerifyAssertions) 
-      VM.assert(copied >= 0);
+      VM._assert(copied >= 0);
     if (GCType == DEFAULT || GCType == MAJOR)
       bytesCopied.addSample(copied);
     else if (GCType == MINOR)
       minorBytesCopied.addSample(copied);
     else
-      VM.assert(false);
+      VM._assert(false);
   }
 
   static void printGCStats(int GCType) throws VM_PragmaUninterruptible {

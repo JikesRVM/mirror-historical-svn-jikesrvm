@@ -13,6 +13,7 @@ import com.ibm.JikesRVM.opt.*;
 import java.lang.ClassLoader;
 import java.io.InputStream;
 import java.io.DataInputStream;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
 /**
  *  Description of a java "class" type.
@@ -711,7 +712,7 @@ public final class VM_Class extends VM_Type
     // information block (including method-slots).
     //
     if (VM.VerifyAssertions) VM._assert(TIB_TYPE_INDEX == 0);
-    Object[] tib = VM_RuntimeStructures.newTIB(1);
+    Object[] tib = VM_Interface.newTIB(1);
     tib[TIB_TYPE_INDEX] = this;
     VM_Statics.setSlotContents(tibSlot, tib);
   }
@@ -1213,7 +1214,7 @@ public final class VM_Class extends VM_Type
 
     // create "type information block" and initialize its first four words
     //
-    typeInformationBlock = VM_RuntimeStructures.newTIB(TIB_FIRST_VIRTUAL_METHOD_INDEX + virtualMethods.length);
+    typeInformationBlock = VM_Interface.newTIB(TIB_FIRST_VIRTUAL_METHOD_INDEX + virtualMethods.length);
     VM_Statics.setSlotContents(tibSlot, typeInformationBlock);
     typeInformationBlock[0] = this;
     if (VM.BuildForFastDynamicTypeCheck) {

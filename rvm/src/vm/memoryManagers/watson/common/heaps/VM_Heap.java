@@ -4,7 +4,9 @@
 //$Id$
 
 
-package com.ibm.JikesRVM.memoryManagers;
+package com.ibm.JikesRVM.memoryManagers.watson;
+
+import com.ibm.JikesRVM.memoryManagers.vmInterface.*;
 
 import com.ibm.JikesRVM.VM;
 import com.ibm.JikesRVM.VM_BootRecord;
@@ -45,7 +47,6 @@ import com.ibm.JikesRVM.VM_EventLogger;
 public abstract class VM_Heap 
   implements VM_Constants, VM_GCConstants {
 
-  private static VM_BootRecord bootRecord;
   static VM_BootHeap bootHeap;
   protected static VM_MallocHeap mallocHeap;
   public static final int MAX_HEAPS = 10;
@@ -74,12 +75,11 @@ public abstract class VM_Heap
   /**
    * Boot the heaps.  Must be called exactly once from VM_Allocator.boot.
    */
-  public static void boot(VM_BootHeap bh, VM_MallocHeap mh, VM_BootRecord br) throws VM_PragmaUninterruptible {
+  public static void boot(VM_BootHeap bh, VM_MallocHeap mh) throws VM_PragmaUninterruptible {
     bootHeap = bh;
     mallocHeap = mh;
-    bootRecord = br;
-    bootHeap.start = bootRecord.bootImageStart;
-    bootHeap.end = bootRecord.bootImageEnd;
+    bootHeap.start = VM_BootRecord.the_boot_record.bootImageStart;
+    bootHeap.end = VM_BootRecord.the_boot_record.bootImageEnd;
     bootHeap.setAuxiliary();
     if (VM.VerifyAssertions) VM._assert(bootHeap.refInHeap(VM_Magic.objectAsAddress(bootHeap)));
   }
@@ -152,12 +152,12 @@ public abstract class VM_Heap
 
 
   /**
-   * Set minRef, maxRef, size and update bootRecord heap ranges
+   * Set minRef, maxRef, size and update VM_BootRecord.the_boot_record heap ranges
    */
   void setAuxiliary() throws VM_PragmaUninterruptible {     
-    if (VM.VerifyAssertions) VM._assert(id < bootRecord.heapRanges.length - 2); 
-    bootRecord.heapRanges[2 * id] = start.toInt();
-    bootRecord.heapRanges[2 * id + 1] = end.toInt();
+    if (VM.VerifyAssertions) VM._assert(id < VM_BootRecord.the_boot_record.heapRanges.length - 2); 
+    VM_BootRecord.the_boot_record.heapRanges[2 * id] = start.toInt();
+    VM_BootRecord.the_boot_record.heapRanges[2 * id + 1] = end.toInt();
     minRef = VM_ObjectModel.minimumObjectRef(start);
     maxRef = VM_ObjectModel.maximumObjectRef(end);
     size = end.diff(start);
@@ -210,7 +210,7 @@ public abstract class VM_Heap
    * size is specified in bytes and must be positive - automatically rounded up to the next page
    */
   public void attach(int size) throws VM_PragmaUninterruptible {
-    if (VM.VerifyAssertions) VM._assert(bootRecord != null);
+    if (VM.VerifyAssertions) VM._assert(VM_BootRecord.the_boot_record != null);
     if (size < 0) 
       VM.sysFail("VM_Heap.attach given negative size\n");
     if (this.size != 0)

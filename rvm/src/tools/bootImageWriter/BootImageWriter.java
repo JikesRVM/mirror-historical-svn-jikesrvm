@@ -16,7 +16,7 @@ import java.io.*;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 
-import com.ibm.JikesRVM.memoryManagers.VM_Heap;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 import com.ibm.JikesRVM.*;
 
 /**
@@ -515,7 +515,7 @@ public class BootImageWriter extends BootImageWriterMessages
 
     // Initialize pointer containing field of bootRecord now
     //
-    bootRecord.heapRanges   = new int[2 * (1 + VM_Heap.MAX_HEAPS)];
+    bootRecord.heapRanges   = new int[2 * (1 + VM_Interface.getMaxHeaps())];
     // Indicate end of arary with sentinel value
     bootRecord.heapRanges[bootRecord.heapRanges.length - 1] = -1;
     bootRecord.heapRanges[bootRecord.heapRanges.length - 2] = -1;

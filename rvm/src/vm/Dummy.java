@@ -3,7 +3,7 @@
  */
 //$Id$
 import com.ibm.JikesRVM.*;
-import com.ibm.JikesRVM.memoryManagers.VM_WriteBarrier;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
 /**
  * Dummy class containing enough references to force java compiler
@@ -25,7 +25,7 @@ class Dummy {
   static java.io.StreamTokenizer    i;
   static java.net.PlainSocketImpl   j;
   static java.net.ServerSocket      k;
-  static VM_WriteBarrier            l;
+  static VM_Interface               l;
   static VM_JNIFunctions            m;
   static VM_JNIStartUp              n;
   static VM_RecompilationManager    o;

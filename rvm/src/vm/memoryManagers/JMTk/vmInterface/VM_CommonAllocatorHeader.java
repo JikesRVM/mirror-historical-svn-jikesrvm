@@ -5,15 +5,15 @@
 
 package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
-import VM;
-import VM_Constants;
-import VM_Address;
-import VM_Magic;
-import VM_ObjectModel;
-import VM_PragmaInline;
-import VM_PragmaNoInline;
-import VM_PragmaUninterruptible;
-import VM_PragmaLogicallyUninterruptible;
+import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Constants;
+import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Magic;
+import com.ibm.JikesRVM.VM_ObjectModel;
+import com.ibm.JikesRVM.VM_PragmaInline;
+import com.ibm.JikesRVM.VM_PragmaNoInline;
+import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_PragmaLogicallyUninterruptible;
 
 /**
  * Defines utility routines for manipulating the various GC header bits.  

@@ -5,26 +5,26 @@
 
 package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
-import VM;
-import VM_Constants;
-import VM_Address;
-import VM_Magic;
-import VM_ObjectModel;
-import VM_Atom;
-import VM_Type;
-import VM_Class;
-import VM_Array;
-import VM_Method;
-import VM_PragmaInline;
-import VM_PragmaNoInline;
-import VM_PragmaUninterruptible;
-import VM_PragmaLogicallyUninterruptible;
-import VM_Scheduler;
-import VM_Memory;
-import VM_Time;
-import VM_Entrypoints;
-import VM_Reflection;
-import VM_Synchronization;
+import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Constants;
+import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Magic;
+import com.ibm.JikesRVM.VM_ObjectModel;
+import com.ibm.JikesRVM.VM_Atom;
+import com.ibm.JikesRVM.VM_Type;
+import com.ibm.JikesRVM.VM_Class;
+import com.ibm.JikesRVM.VM_Array;
+import com.ibm.JikesRVM.VM_Method;
+import com.ibm.JikesRVM.VM_PragmaInline;
+import com.ibm.JikesRVM.VM_PragmaNoInline;
+import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_PragmaLogicallyUninterruptible;
+import com.ibm.JikesRVM.VM_Scheduler;
+import com.ibm.JikesRVM.VM_Memory;
+import com.ibm.JikesRVM.VM_Time;
+import com.ibm.JikesRVM.VM_Entrypoints;
+import com.ibm.JikesRVM.VM_Reflection;
+import com.ibm.JikesRVM.VM_Synchronization;
 
 /**
  * Class that supports scanning Objects or Arrays for references
@@ -71,7 +71,7 @@ public class ScanObject implements VM_Constants, Constants {
         VM.sysWrite("\nScanObject: objRef = ");
         VM.sysWrite(VM_Magic.objectAsAddress(type));
         VM.sysWrite("\n");
-        VM.assert(type != null);
+        VM._assert(type != null);
       }
     }
     if ( type.isClassType() ) {
@@ -82,7 +82,7 @@ public class ScanObject implements VM_Constants, Constants {
       Statistics.profileScan(obj, 4 * referenceOffsets.length, tib);
     }
     else {
-      if (VM.VerifyAssertions) VM.assert(type.isArrayType());
+      if (VM.VerifyAssertions) VM._assert(type.isArrayType());
       VM_Type elementType = type.asArray().getElementType();
       if (elementType.isReferenceType()) {
         int num_elements = VM_Magic.getArrayLength(obj);

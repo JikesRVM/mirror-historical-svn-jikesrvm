@@ -5,18 +5,18 @@
 
 package com.ibm.JikesRVM.memoryManagers.watson;
 
-import VM_Thread;
-import VM_Type;
-import VM_Magic;
-import VM_ObjectModel;
-import VM;
-import VM_Address;
-import VM_Scheduler;
-import VM_Array;
-import VM_Memory;
-import VM_Class;
-import VM_Constants;
-import VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_Thread;
+import com.ibm.JikesRVM.VM_Type;
+import com.ibm.JikesRVM.VM_Magic;
+import com.ibm.JikesRVM.VM_ObjectModel;
+import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Scheduler;
+import com.ibm.JikesRVM.VM_Array;
+import com.ibm.JikesRVM.VM_Memory;
+import com.ibm.JikesRVM.VM_Class;
+import com.ibm.JikesRVM.VM_Constants;
+import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 
 /**
  * Shared utility code for copying collectors.
@@ -57,14 +57,14 @@ class RootUtil
 
 	// GC threads are assumed not to have native processors.  if this proves
 	// false, then we will have to deal with its write buffers
-	if (VM.VerifyAssertions) VM.assert(t.nativeAffinity == null);
+	if (VM.VerifyAssertions) VM._assert(t.nativeAffinity == null);
 	
 	// all threads should have been copied out of fromspace earlier
-	if (VM.VerifyAssertions) VM.assert(!fromHeap.refInHeap(ta));
+	if (VM.VerifyAssertions) VM._assert(!fromHeap.refInHeap(ta));
 	
 	if (VM.VerifyAssertions) oldstack = t.stack;    // for verifying gc stacks not moved
 	VM_ScanObject.scanObjectOrArray(t);
-	if (VM.VerifyAssertions) VM.assert(oldstack == t.stack);
+	if (VM.VerifyAssertions) VM._assert(oldstack == t.stack);
 	
 	if (t.jniEnv != null) VM_ScanObject.scanObjectOrArray(t.jniEnv);
 
@@ -82,7 +82,7 @@ class RootUtil
 	if (VM_Allocator.verbose >= 3) VM.sysWriteln("    Processing mutator thread ",i);
 	
 	// all threads should have been copied out of fromspace earlier
-	if (VM.VerifyAssertions) VM.assert(!(fromHeap.refInHeap(ta)));
+	if (VM.VerifyAssertions) VM._assert(!(fromHeap.refInHeap(ta)));
 	
 	// scan thread object to force "interior" objects to be copied, marked, and
 	// queued for later scanning.

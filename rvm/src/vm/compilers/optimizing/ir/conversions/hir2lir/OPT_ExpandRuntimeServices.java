@@ -6,7 +6,7 @@ package com.ibm.JikesRVM.opt;
 
 import com.ibm.JikesRVM.*;
 import com.ibm.JikesRVM.opt.ir.*;
-import com.ibm.JikesRVM.memoryManagers.VM_Collector;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
 /**
  * As part of the expansion of HIR into LIR, this compile phase

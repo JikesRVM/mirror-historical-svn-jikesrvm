@@ -5,7 +5,7 @@
 
 package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
-import VM_Memory;
+import com.ibm.JikesRVM.VM_Memory;
 
 public class Conversions implements Constants {
 

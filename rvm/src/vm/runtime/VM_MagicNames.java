@@ -58,8 +58,7 @@ public class VM_MagicNames {
   public static VM_Atom setCompiledMethodID;
   public static VM_Atom getNextInstructionAddress;
   public static VM_Atom setNextInstructionAddress;
-  public static VM_Atom getReturnAddress;
-  public static VM_Atom setReturnAddress;
+  public static VM_Atom getReturnAddressLocation;
 
   public static VM_Atom getByteAtOffset;
   public static VM_Atom getIntAtOffset;
@@ -197,8 +196,7 @@ public class VM_MagicNames {
     setCompiledMethodID           = VM_Atom.findOrCreateAsciiAtom("setCompiledMethodID");
     getNextInstructionAddress     = VM_Atom.findOrCreateAsciiAtom("getNextInstructionAddress");
     setNextInstructionAddress     = VM_Atom.findOrCreateAsciiAtom("setNextInstructionAddress");
-    getReturnAddress              = VM_Atom.findOrCreateAsciiAtom("getReturnAddress");
-    setReturnAddress              = VM_Atom.findOrCreateAsciiAtom("setReturnAddress");
+    getReturnAddressLocation      = VM_Atom.findOrCreateAsciiAtom("getReturnAddressLocation");
 
     getByteAtOffset               = VM_Atom.findOrCreateAsciiAtom("getByteAtOffset");
     getIntAtOffset                = VM_Atom.findOrCreateAsciiAtom("getIntAtOffset");

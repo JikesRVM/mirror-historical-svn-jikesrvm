@@ -3,8 +3,9 @@
  */
 //$Id$
 
+package com.ibm.JikesRVM.memoryManagers.watson;
 
-package com.ibm.JikesRVM.memoryManagers;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
 import com.ibm.JikesRVM.VM_Constants;
 import com.ibm.JikesRVM.VM_ProcessorLock;
@@ -139,7 +140,7 @@ public class VM_LargeHeap extends VM_Heap
    * For example, setting the GC state bits in the object header.
    */
   protected void postAllocationProcessing(Object newObj) throws VM_PragmaUninterruptible { 
-    if (VM_Collector.NEEDS_WRITE_BARRIER) {
+    if (VM_Interface.NEEDS_WRITE_BARRIER) {
       VM_ObjectModel.initializeAvailableByte(newObj); 
       VM_AllocatorHeader.setBarrierBit(newObj);
     } 

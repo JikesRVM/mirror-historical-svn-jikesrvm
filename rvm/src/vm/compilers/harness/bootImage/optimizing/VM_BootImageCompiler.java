@@ -11,7 +11,7 @@ import com.ibm.JikesRVM.opt.*;
  * @author Dave Grove
  * @author Derek Lieber
  */
-import com.ibm.JikesRVM.memoryManagers.VM_GCMapIterator;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_GCMapIterator;
 
 public class VM_BootImageCompiler {
 

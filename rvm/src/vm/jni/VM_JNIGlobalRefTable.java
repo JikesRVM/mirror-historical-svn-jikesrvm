@@ -4,7 +4,7 @@
 //$Id$
 package com.ibm.JikesRVM;
 
-import com.ibm.JikesRVM.memoryManagers.VM_GCUtil;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
 /**
  * @author Julian Dolby
@@ -17,7 +17,7 @@ class VM_JNIGlobalRefTable {
 
     static int newGlobalRef(Object referent) {
 	if (VM.VerifyAssertions) VM._assert( free < 100 );
-	if (VM.VerifyAssertions) VM._assert( VM_GCUtil.validRef( VM_Magic.objectAsAddress(referent) ) );
+	if (VM.VerifyAssertions) VM._assert( VM_Interface.validRef( VM_Magic.objectAsAddress(referent) ) );
 	refs[ free ] = referent;
 	return - free++;
     }

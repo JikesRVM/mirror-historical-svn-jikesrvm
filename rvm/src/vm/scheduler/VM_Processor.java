@@ -4,11 +4,17 @@
 //$Id$
 package com.ibm.JikesRVM;
 
-import com.ibm.JikesRVM.memoryManagers.VM_GCConstants;
-import com.ibm.JikesRVM.memoryManagers.VM_Collector;
-import com.ibm.JikesRVM.memoryManagers.VM_ContiguousHeap;
-import com.ibm.JikesRVM.memoryManagers.VM_SizeControl;
-import com.ibm.JikesRVM.memoryManagers.VM_SegregatedListHeap;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
+
+//-#if RVM_WITH_JMTK
+import com.ibm.JikesRVM.memoryManagers.JMTk.Plan;
+//-#endif
+
+//-#if RVM_WITH_JIKESRVM_MEMORY_MANAGERS
+import com.ibm.JikesRVM.memoryManagers.watson.VM_ContiguousHeap;
+import com.ibm.JikesRVM.memoryManagers.watson.VM_SizeControl;
+import com.ibm.JikesRVM.memoryManagers.watson.VM_SegregatedListHeap;
+//-#endif
 
 /**
  * Multiplex execution of large number of VM_Threads on small 
@@ -17,7 +23,7 @@ import com.ibm.JikesRVM.memoryManagers.VM_SegregatedListHeap;
  * @author Bowen Alpern 
  * @author Derek Lieber
  */
-public final class VM_Processor implements VM_Uninterruptible,  VM_Constants, VM_GCConstants {
+public final class VM_Processor implements VM_Uninterruptible,  VM_Constants {
 
   // Processor modes
   //
@@ -82,7 +88,7 @@ public final class VM_Processor implements VM_Uninterruptible,  VM_Constants, VM
       this.deterministicThreadSwitchCount = VM.deterministicThreadSwitchInterval;
     }
 
-    VM_Collector.setupProcessor(this);
+    VM_Interface.setupProcessor(this);
   }
 
   /**
@@ -100,7 +106,7 @@ public final class VM_Processor implements VM_Uninterruptible,  VM_Constants, VM
     if (VM.VerifyAssertions) 
       VM._assert(threadSwitchingEnabledCount <= 1);
     if (VM.VerifyAssertions && 
-        VM_Collector.gcInProgress() && !VM.BuildForConcurrentGC) 
+        VM_Interface.gcInProgress() && !VM.BuildForConcurrentGC) 
 	VM._assert(threadSwitchingEnabledCount <1 || getCurrentProcessorId()==0);
     if (threadSwitchingEnabled() && threadSwitchPending) { 
       // re-enable a deferred thread switch
@@ -457,7 +463,7 @@ public final class VM_Processor implements VM_Uninterruptible,  VM_Constants, VM
 
     // create VM_Thread for virtual cpu to execute
     //
-    VM_Thread target = new VM_StartupThread(VM_RuntimeStructures.newStack(STACK_SIZE_NORMAL>>2));
+    VM_Thread target = new VM_StartupThread(VM_Interface.newStack(STACK_SIZE_NORMAL>>2));
 
     // create virtual cpu and wait for execution to enter target's code/stack.
     // this is done with gc disabled to ensure that garbage 
@@ -860,6 +866,7 @@ public final class VM_Processor implements VM_Uninterruptible,  VM_Constants, VM
     VM_Scheduler.writeString(" threadSwitchRequested: ");
     VM_Scheduler.writeDecimal(threadSwitchRequested); 
     VM_Scheduler.writeString("\n");
+    //-#if RVM_WITH_JIKESRVM_MEMORY_MANAGERS
     VM_Scheduler.writeString("Chunk1: "); 
     VM_Scheduler.writeHex(startChunk1.toInt()); VM_Scheduler.writeString(" < ");
     VM_Scheduler.writeHex(currentChunk1.toInt()); VM_Scheduler.writeString(" < ");
@@ -868,6 +875,7 @@ public final class VM_Processor implements VM_Uninterruptible,  VM_Constants, VM
     VM_Scheduler.writeHex(startChunk2.toInt()); VM_Scheduler.writeString(" < ");
     VM_Scheduler.writeHex(currentChunk2.toInt()); VM_Scheduler.writeString(" < ");
     VM_Scheduler.writeHex(endChunk2.toInt()); VM_Scheduler.writeString("\n");
+    //-#endif
   }
 
 

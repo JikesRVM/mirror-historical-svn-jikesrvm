@@ -6,7 +6,7 @@
 
 ///TODO: remove Alloc1, Alloc2, and byte[] alloc.
 //
-package com.ibm.JikesRVM.memoryManagers;
+package com.ibm.JikesRVM.memoryManagers.watson;
 
 import com.ibm.JikesRVM.VM_Address;
 import com.ibm.JikesRVM.VM_ObjectModel;

@@ -4,10 +4,7 @@
 //$Id$
 package com.ibm.JikesRVM;
 
-import com.ibm.JikesRVM.memoryManagers.VM_Collector;
-import com.ibm.JikesRVM.memoryManagers.VM_Allocator;
-import com.ibm.JikesRVM.memoryManagers.VM_Finalizer;
-import com.ibm.JikesRVM.memoryManagers.VM_Heap;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
 /**
  * Entrypoints into the runtime of the virtual machine.
@@ -267,7 +264,7 @@ public class VM_Runtime implements VM_Constants {
       if (countDownToGC-- <= 0) {
 	VM.sysWrite("FORCING GC: Countdown trigger in quickNewScalar\n");
 	countDownToGC = GCInterval;
-	VM_Collector.gc();
+	VM_Interface.gc();
       }
     }
     
@@ -276,10 +273,10 @@ public class VM_Runtime implements VM_Constants {
       VM_EventLogger.logObjectAllocationEvent();
 
     // Allocate the object and initialize its header
-    Object newObj = VM_Allocator.allocateScalar(size, tib);
+    Object newObj = VM_Interface.allocateScalar(size, tib);
 
     // Deal with finalization
-    if (hasFinalizer) VM_Finalizer.addElement(newObj);
+    if (hasFinalizer) VM_Interface.addFinalizer(newObj);
 
     return newObj;
   }
@@ -305,7 +302,7 @@ public class VM_Runtime implements VM_Constants {
       if (countDownToGC-- <= 0) {
 	VM.sysWrite("FORCING GC: Countdown trigger in quickNewArray\n");
 	countDownToGC = GCInterval;
-	VM_Collector.gc();
+	VM_Interface.gc();
       }
     }
 
@@ -314,7 +311,7 @@ public class VM_Runtime implements VM_Constants {
       VM_EventLogger.logObjectAllocationEvent();
 
     // Allocate the array and initialize its header
-    return VM_Allocator.allocateArray(numElements, size, tib);
+    return VM_Interface.allocateArray(numElements, size, tib);
   }
 
 
@@ -381,7 +378,7 @@ public class VM_Runtime implements VM_Constants {
    * called from java/lang/Runtime
    */ 
   public static void gc () {
-    VM_Collector.gc();
+    VM_Interface.gc();
   }
 
   /**
@@ -389,7 +386,7 @@ public class VM_Runtime implements VM_Constants {
    * called from /java/lang/Runtime
    */
   public static long freeMemory() {
-    return VM_Collector.freeMemory();
+    return VM_Interface.freeMemory();
   }
 
 
@@ -398,7 +395,7 @@ public class VM_Runtime implements VM_Constants {
    * called from /java/lang/Runtime
    */
   public static long totalMemory() {
-    return VM_Collector.totalMemory();
+    return VM_Interface.totalMemory();
   }
 
   //-#if RVM_WITH_GCTk_ALLOC_ADVICE
@@ -422,7 +419,7 @@ public class VM_Runtime implements VM_Constants {
     if (!cls.isInitialized())
       initializeClassForDynamicLink(cls);
 
-    Object ret =  VM_Allocator.allocateScalar(cls.getInstanceSize(), cls.getTypeInformationBlock(), allocator, cls.hasFinalizer());
+    Object ret =  VM_Interface.allocateScalar(cls.getInstanceSize(), cls.getTypeInformationBlock(), allocator, cls.hasFinalizer());
     if (VM.BuildForProfiling) VM_Profiler.enableProfiling();
     return ret;
   }
@@ -433,7 +430,7 @@ public class VM_Runtime implements VM_Constants {
      // Disable profiling during allocation
      if (VM.BuildForProfiling) VM_Profiler.disableProfiling();
 
-     Object ret = VM_Allocator.allocateScalar(size, tib, allocator, hasFinalizer);
+     Object ret = VM_Interface.allocateScalar(size, tib, allocator, hasFinalizer);
      if (VM.BuildForProfiling) VM_Profiler.enableProfiling();
      return ret;
    }
@@ -457,7 +454,7 @@ public class VM_Runtime implements VM_Constants {
      // Disable profiling during allocation
      if (VM.BuildForProfiling) VM_Profiler.disableProfiling();
 
-     Object ret = VM_Allocator.allocateArray(numElements, size, tib, allocator);
+     Object ret = VM_Interface.allocateArray(numElements, size, tib, allocator);
 
      if (VM.BuildForProfiling) VM_Profiler.enableProfiling();
      return ret;
@@ -477,7 +474,7 @@ public class VM_Runtime implements VM_Constants {
 
      int    nelts     = numElements[dimIndex];
      int    size      = ARRAY_HEADER_SIZE + (nelts << arrayType.getLogElementSize());
-     Object newObject = VM_Allocator.allocateArray(nelts, size, arrayType.getTypeInformationBlock(), allocator);
+     Object newObject = VM_Interface.allocateArray(nelts, size, arrayType.getTypeInformationBlock(), allocator);
      
      if (++dimIndex == numElements.length)
        return newObject; // all dimensions have been built
@@ -879,7 +876,7 @@ public class VM_Runtime implements VM_Constants {
       callee_fp = fp;
       ip = VM_Magic.getReturnAddress(fp);
       fp = VM_Magic.getCallerFramePointer(fp);
-    } while ( !VM_Heap.refInAnyHeap(ip) && fp.toInt() != STACKFRAME_SENTINAL_FP);
+    } while ( !VM_Interface.refInVM(ip) && fp.toInt() != STACKFRAME_SENTINAL_FP);
     return callee_fp;
   }
 

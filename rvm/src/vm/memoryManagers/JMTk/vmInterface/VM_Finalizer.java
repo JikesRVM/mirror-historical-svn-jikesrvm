@@ -5,20 +5,20 @@
 
 package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
-import VM;
-import VM_Address;
-import VM_Magic;
-import VM_Atom;
-import VM_PragmaInline;
-import VM_PragmaNoInline;
-import VM_PragmaUninterruptible;
-import VM_PragmaLogicallyUninterruptible;
-import VM_Processor;
-import VM_Scheduler;
-import VM_Thread;
-import VM_Memory;
-import VM_Time;
-import VM_Synchronizer;
+import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Magic;
+import com.ibm.JikesRVM.VM_Atom;
+import com.ibm.JikesRVM.VM_PragmaInline;
+import com.ibm.JikesRVM.VM_PragmaNoInline;
+import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_PragmaLogicallyUninterruptible;
+import com.ibm.JikesRVM.VM_Processor;
+import com.ibm.JikesRVM.VM_Scheduler;
+import com.ibm.JikesRVM.VM_Thread;
+import com.ibm.JikesRVM.VM_Memory;
+import com.ibm.JikesRVM.VM_Time;
+import com.ibm.JikesRVM.VM_Synchronizer;
 
 /**
  * This class manages finalization.  When an object is created
@@ -73,7 +73,7 @@ public class VM_Finalizer {
 					   " addElement	called, count = ", candidateEnd);
       if (candidateEnd >= candidate.length) {
 	VM.sysWriteln("finalizer queue exceeded - increase size or implement dynamic adjustment a la write buffer");
-	VM.assert(false);
+	VM._assert(false);
       }
       candidate[candidateEnd++] = VM_Magic.objectAsAddress(item).toInt();
     } // synchronized
@@ -92,8 +92,8 @@ public class VM_Finalizer {
 	rightCursor--;
       if (leftCursor >= rightCursor) // can be greater on first iteration if totally empty
 	break;
-      if (VM.VerifyAssertions) VM.assert(candidate[leftCursor] == 0);
-      if (VM.VerifyAssertions) VM.assert(candidate[rightCursor] != 0);
+      if (VM.VerifyAssertions) VM._assert(candidate[leftCursor] == 0);
+      if (VM.VerifyAssertions) VM._assert(candidate[rightCursor] != 0);
       candidate[leftCursor] = candidate[rightCursor];
       candidate[rightCursor] = 0;
     }
@@ -109,7 +109,7 @@ public class VM_Finalizer {
     if (liveEnd == live.length) {
       if (liveStart == 0) {
 	VM.sysWriteln("finalizer's live queue exceeded - increase size or implement dynamic adjustment a la write buffer");
-	VM.assert(false);
+	VM._assert(false);
       }
       for (int i=liveStart; i<liveEnd; i++)
 	live[i-liveStart] = live[i];

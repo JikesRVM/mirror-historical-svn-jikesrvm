@@ -5,6 +5,8 @@
 package com.ibm.JikesRVM;
 import com.ibm.JikesRVM.opt.*;
 
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
+
 /**
  * VM_Recompilation Strategy
  *
@@ -21,8 +23,6 @@ import com.ibm.JikesRVM.opt.*;
  *
  * @author Matthew Arnold
  */
-import com.ibm.JikesRVM.memoryManagers.VM_Collector;
-
 abstract class VM_RecompilationStrategy {
 
   //------  Interface -------
@@ -222,7 +222,7 @@ abstract class VM_RecompilationStrategy {
 	  // The opt compiler does not implement this calling convention.
 	  return -1;
 	}
-	if (VM_Collector.MOVES_OBJECTS && !cmpMethod.getMethod().isInterruptible()) {
+	if (VM_Interface.MOVES_OBJECTS && !cmpMethod.getMethod().isInterruptible()) {
 	  // A crude filter to identify the subset of core VM methods that 
 	  // can't be recompiled because we require their code to be non-moving.
 	  // We really need to do a better job of this to avoid missing too many opportunities.

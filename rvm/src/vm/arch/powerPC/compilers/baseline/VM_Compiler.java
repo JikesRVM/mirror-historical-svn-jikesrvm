@@ -4,7 +4,7 @@
 //$Id$
 package com.ibm.JikesRVM;
 
-import com.ibm.JikesRVM.memoryManagers.VM_Collector;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
 /**
  * VM_Compiler is the baseline compiler class for powerPC architectures.
@@ -145,8 +145,8 @@ public class VM_Compiler extends VM_BaselineCompiler
    * Emit the code to implement the spcified magic.
    * @param magicMethod desired magic
    */
-  protected final void emit_Magic(VM_Method magicMethod) {
-    VM_MagicCompiler.generateInlineCode(this, magicMethod);
+  protected final boolean emit_Magic(VM_Method magicMethod) {
+    return VM_MagicCompiler.generateInlineCode(this, magicMethod);
   }
 
 
@@ -497,7 +497,7 @@ public class VM_Compiler extends VM_BaselineCompiler
     asm.emitL   (T0,  8, SP);  //  T0 := arrayref
     asm.emitL   (T1,  0, SP);  //  T1 := value
     asm.emitCall(spSaveAreaOffset);   // checkstore(arrayref, value)
-    if (VM_Collector.NEEDS_WRITE_BARRIER) 
+    if (VM_Interface.NEEDS_WRITE_BARRIER) 
       VM_Barriers.compileArrayStoreBarrier(asm, spSaveAreaOffset);
     astoreSetup(-1);	// NOT (dfb): following 4 lines plus emitTLLE seem redundant and possibly bogus
     asm.emitL   (T1,  8, SP);                    // T1 is array ref
@@ -1872,7 +1872,7 @@ public class VM_Compiler extends VM_BaselineCompiler
    * @param fieldRef the referenced field
    */
   protected final void emit_unresolved_putstatic(VM_Field fieldRef) {
-    if (VM_Collector.NEEDS_WRITE_BARRIER && !fieldRef.getType().isPrimitiveType()) {
+    if (VM_Interface.NEEDS_WRITE_BARRIER && !fieldRef.getType().isPrimitiveType()) {
       VM_Barriers.compileUnresolvedPutstaticBarrier(asm, spSaveAreaOffset, fieldRef.getDictionaryId());
     }
     emitDynamicLinkingSequence(fieldRef);		      // leaves field offset in T2
@@ -1900,7 +1900,7 @@ public class VM_Compiler extends VM_BaselineCompiler
    */
   protected final void emit_resolved_putstatic(VM_Field fieldRef) {
     int fieldOffset = fieldRef.getOffset();
-    if (VM_Collector.NEEDS_WRITE_BARRIER && !fieldRef.getType().isPrimitiveType()) {
+    if (VM_Interface.NEEDS_WRITE_BARRIER && !fieldRef.getType().isPrimitiveType()) {
       VM_Barriers.compilePutstaticBarrier(asm, spSaveAreaOffset, fieldOffset);
     }
     if (!(VM.BuildForStrongVolatileSemantics && fieldRef.isVolatile())) { // normal case
@@ -2025,7 +2025,7 @@ public class VM_Compiler extends VM_BaselineCompiler
    * @param fieldRef the referenced field
    */
   protected final void emit_unresolved_putfield(VM_Field fieldRef) {
-    if (VM_Collector.NEEDS_WRITE_BARRIER && !fieldRef.getType().isPrimitiveType()) {
+    if (VM_Interface.NEEDS_WRITE_BARRIER && !fieldRef.getType().isPrimitiveType()) {
       VM_Barriers.compileUnresolvedPutfieldBarrier(asm, spSaveAreaOffset, fieldRef.getDictionaryId());
     }
     emitDynamicLinkingSequence(fieldRef);		      // leaves field offset in T2
@@ -2055,7 +2055,7 @@ public class VM_Compiler extends VM_BaselineCompiler
    */
   protected final void emit_resolved_putfield(VM_Field fieldRef) {
     int fieldOffset = fieldRef.getOffset();
-    if (VM_Collector.NEEDS_WRITE_BARRIER && !fieldRef.getType().isPrimitiveType()) {
+    if (VM_Interface.NEEDS_WRITE_BARRIER && !fieldRef.getType().isPrimitiveType()) {
       VM_Barriers.compilePutfieldBarrier(asm, spSaveAreaOffset, fieldOffset);
     }
     if (!(VM.BuildForStrongVolatileSemantics && fieldRef.isVolatile())) { // normal case

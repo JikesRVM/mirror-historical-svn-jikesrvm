@@ -5,31 +5,31 @@
 
 package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
-import VM;
-import VM_BootRecord;
-import VM_Address;
-import VM_Magic;
-import VM_ObjectModel;
-import VM_Atom;
-import VM_Type;
-import VM_Class;
-import VM_Array;
-import VM_Method;
-import VM_CompiledMethods;
-import VM_PragmaInline;
-import VM_PragmaNoInline;
-import VM_PragmaInterruptible;
-import VM_PragmaUninterruptible;
-import VM_PragmaLogicallyUninterruptible;
-import VM_Scheduler;
-import VM_Registers;
-import VM_Processor;
-import VM_Thread;
-import VM_Memory;
-import VM_Time;
-import VM_Entrypoints;
-import VM_Reflection;
-import VM_Synchronization;
+import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_BootRecord;
+import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Magic;
+import com.ibm.JikesRVM.VM_ObjectModel;
+import com.ibm.JikesRVM.VM_Atom;
+import com.ibm.JikesRVM.VM_Type;
+import com.ibm.JikesRVM.VM_Class;
+import com.ibm.JikesRVM.VM_Array;
+import com.ibm.JikesRVM.VM_Method;
+import com.ibm.JikesRVM.VM_CompiledMethods;
+import com.ibm.JikesRVM.VM_PragmaInline;
+import com.ibm.JikesRVM.VM_PragmaNoInline;
+import com.ibm.JikesRVM.VM_PragmaInterruptible;
+import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_PragmaLogicallyUninterruptible;
+import com.ibm.JikesRVM.VM_Scheduler;
+import com.ibm.JikesRVM.VM_Registers;
+import com.ibm.JikesRVM.VM_Processor;
+import com.ibm.JikesRVM.VM_Thread;
+import com.ibm.JikesRVM.VM_Memory;
+import com.ibm.JikesRVM.VM_Time;
+import com.ibm.JikesRVM.VM_Entrypoints;
+import com.ibm.JikesRVM.VM_Reflection;
+import com.ibm.JikesRVM.VM_Synchronization;
 
 /**
  * System thread used to preform garbage collections.
@@ -321,7 +321,7 @@ public class VM_CollectorThread extends VM_Thread {
 	//
 	for (int i = 1; i <= VM_Processor.numberNativeProcessors; i++) {
 	  VM_Processor vp = VM_Processor.nativeProcessors[i];
-	  if (VM.VerifyAssertions) VM.assert(vp != null);
+	  if (VM.VerifyAssertions) VM._assert(vp != null);
 	  if ( VM_Processor.vpStatus[vp.vpStatusIndex] == VM_Processor.BLOCKED_IN_NATIVE ) {
 	    VM_Processor.vpStatus[vp.vpStatusIndex] = VM_Processor.IN_NATIVE;
 	    if (debug_native)
@@ -335,7 +335,7 @@ public class VM_CollectorThread extends VM_Thread {
 	//
 	for (int i = 1; i <= VM_Scheduler.numProcessors; i++) {
 	  VM_Processor vp = VM_Scheduler.processors[i];
-	  if (VM.VerifyAssertions) VM.assert(vp != null);
+	  if (VM.VerifyAssertions) VM._assert(vp != null);
 	  if ( VM_Processor.vpStatus[vp.vpStatusIndex] == VM_Processor.BLOCKED_IN_NATIVE ) {
 	    VM_Processor.vpStatus[vp.vpStatusIndex] = VM_Processor.IN_NATIVE;
 	    if (debug_native)
@@ -471,7 +471,7 @@ public class VM_CollectorThread extends VM_Thread {
       // should not reach here: system error:
       VM_Scheduler.trace("ERROR", "resumeAttachedProcessors: VP not BLOCKED", i);
       VM_Scheduler.trace("   ", "vpstatus =",VM_Processor.vpStatus[vp.vpStatusIndex]);
-      if (VM.VerifyAssertions) VM.assert(VM.NOT_REACHED);
+      if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
 
     }  // end loop over attachedProcessors[]
   }  // resumeAttachedProcessors
@@ -484,7 +484,7 @@ public class VM_CollectorThread extends VM_Thread {
   // Note: "stack" must be in pinned memory: currently done by allocating it in the boot image.
   //
   public static VM_CollectorThread createActiveCollectorThread(VM_Processor processorAffinity) throws VM_PragmaInterruptible {
-    int[] stack =  VM_RuntimeStructures.newImmortalStack(STACK_SIZE_COLLECTOR>>2);
+    int[] stack =  VM_Interface.newImmortalStack(STACK_SIZE_COLLECTOR>>2);
     //-#if RVM_WITH_CONCURRENT_GC
     return new VM_RCCollectorThread(stack, true, processorAffinity);
     //-#else

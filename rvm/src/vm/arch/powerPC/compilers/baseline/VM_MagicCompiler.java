@@ -41,10 +41,9 @@ class VM_MagicCompiler implements VM_BaselineConstants,
   // Generate inline code sequence for specified method.
   // Taken:    compiler we're generating code with
   //           method whose name indicates semantics of code to be generated
-  // Returned: nothing
+  // Returned: true if there was magic defined for the method
   //
-  static void
-  generateInlineCode(VM_Compiler compiler, VM_Method methodToBeCalled) {
+  static boolean  generateInlineCode(VM_Compiler compiler, VM_Method methodToBeCalled) {
     VM_Atom      methodName       = methodToBeCalled.getName();
     VM_Assembler asm              = compiler.asm;
     int          spSaveAreaOffset = compiler.spSaveAreaOffset;
@@ -155,17 +154,11 @@ class VM_MagicCompiler implements VM_BaselineConstants,
       asm.emitL  (T1,  0, SP); // value
       asm.emitST (T1,  STACKFRAME_NEXT_INSTRUCTION_OFFSET, T0); // *(address+SNIO) := value
       asm.emitCAL(SP,  8, SP); // pop address, pop value
-    } else if (methodName == VM_MagicNames.getReturnAddress) {
-      asm.emitL (T0, 0, SP);                                  // pop  frame pointer of callee frame
-      asm.emitL (T1, STACKFRAME_FRAME_POINTER_OFFSET, T0);    // load frame pointer of caller frame
-      asm.emitL (T2, STACKFRAME_NEXT_INSTRUCTION_OFFSET, T1); // load frame pointer of caller frame
-      asm.emitST(T2, 0, SP);                                  // push frame pointer of caller frame
-    } else if (methodName == VM_MagicNames.setReturnAddress) {
-      asm.emitL  (T0, +4, SP); // fp
-      asm.emitL  (T0, STACKFRAME_FRAME_POINTER_OFFSET, T0);    // load frame pointer of caller frame
-      asm.emitL  (T1,  0, SP); // value
-      asm.emitST (T1,  STACKFRAME_NEXT_INSTRUCTION_OFFSET, T0); // *(address+SNIO) := value
-      asm.emitCAL(SP,  8, SP); // pop address, pop value
+    } else if (methodName == VM_MagicNames.getReturnAddressLocation) {
+      asm.emitL   (T0, 0, SP);                                  // pop  frame pointer of callee frame
+      asm.emitL   (T1, STACKFRAME_FRAME_POINTER_OFFSET, T0);    // load frame pointer of caller frame
+      asm.emitCAL (T2, STACKFRAME_NEXT_INSTRUCTION_OFFSET, T1); // get location containing ret addr
+      asm.emitST  (T2, 0, SP);                                  // push frame pointer of caller frame
     } else if (methodName == VM_MagicNames.getTocPointer ||
 	       methodName == VM_MagicNames.getJTOC) {
       asm.emitSTU(JTOC, -4, SP); // push JTOC
@@ -481,9 +474,11 @@ class VM_MagicCompiler implements VM_BaselineConstants,
       asm.emitLIL (T0, -1);
       asm.emitSTU (T0, -4, SP);
     } else {
-      VM.sysWrite("VM_MagicCompiler.java: no magic for " + methodToBeCalled + "\n");
-      if (VM.VerifyAssertions) VM._assert(NOT_REACHED);
+      // VM.sysWrite("VM_MagicCompiler.java: no magic for " + methodToBeCalled + ".  Hopefully it is synthetic magic.\n");
+      // if (VM.VerifyAssertions) VM._assert(NOT_REACHED);
+      return false;
     }
+    return true;
   }
 
   private static void generateAddrComparison(VM_Assembler asm, int cc) {

@@ -52,11 +52,11 @@ public abstract class BasePlan implements {  // Constants {
   private static int heapBlocks_;
 
   public static final long freeMemory() throws VM_PragmaInterruptible {
-    VM.assert(false);
+    VM._assert(false);
   }
 
   public static final long totalMemory() throws VM_PragmaInterruptible {
-    VM.assert(false);
+    VM._assert(false);
   }
 
   

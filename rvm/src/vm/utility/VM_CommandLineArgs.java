@@ -7,8 +7,14 @@ package com.ibm.JikesRVM;
 //-#if RVM_WITH_OPT_COMPILER
 import com.ibm.JikesRVM.opt.*;
 //-#endif
-import com.ibm.JikesRVM.memoryManagers.VM_GCWorkQueue;
-import com.ibm.JikesRVM.memoryManagers.VM_Collector;
+
+//-#if RVM_WITH_JIKESRVM_MEMORY_MANAGER
+import com.ibm.JikesRVM.memoryManagers.watson.VM_GCWorkQueue;
+//-#endif
+//-#if RVM_WITH_JMTK
+import com.ibm.JikesRVM.memoryManagers.JMTk.VM_GCWorkQueue;
+//-#endif
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
 /**
  * Command line option processing.
@@ -395,10 +401,9 @@ class VM_CommandLineArgs {
 	  VM.sysWrite("vm: the value of "+p.value+arg+" must be a positive integer (number of entries), but found '"+arg+"'\n");
 	  VM.sysExit(1);
 	}
-	VM_GCWorkQueue.WORK_BUFFER_SIZE = workQueueBufferSize * 4;
+	VM_Interface.setWorkBufferSize(workQueueBufferSize);
 	VM.sysWrite("\nOverriding GC WORK_BUFFER_SIZE to ");
-	VM.sysWrite(VM_GCWorkQueue.WORK_BUFFER_SIZE,false);
-	VM.sysWrite("(bytes)\n\n");
+	VM.sysWriteln(workQueueBufferSize, " entries\n");
 	break;
       //-#endif
         // ----------------------------------------------------
@@ -562,10 +567,10 @@ class VM_CommandLineArgs {
         // -------------------------------------------------------------------
       case GC_HELP_ARG:  // -X:gc passed 'help' as an option
 	if (VM.VerifyAssertions) VM._assert(arg.equals(""));
-	VM_Collector.processCommandLineArg("help");
+	VM_Interface.processCommandLineArg("help");
 	break;
       case GC_ARG: // "-X:gc:arg" pass 'arg' as an option
-	VM_Collector.processCommandLineArg(arg);
+	VM_Interface.processCommandLineArg(arg);
 	break;
 
 

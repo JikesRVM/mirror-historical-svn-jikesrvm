@@ -8,23 +8,23 @@ package com.ibm.JikesRVM.memoryManagers.vmInterface;
 import com.ibm.JikesRVM.memoryManagers.JMTk.VMResource;
 import com.ibm.JikesRVM.memoryManagers.JMTk.Plan;
 
-import VM;
-import VM_Processor;
-import VM_Constants;
-import VM_Address;
-import VM_ClassLoader;
-import VM_SystemClassLoader;
-import VM_EventLogger;
-import VM_BootRecord;
-import VM_PragmaUninterruptible;
-import VM_Uninterruptible;
-import VM_PragmaInterruptible;
-import VM_Array;
-import VM_Type;
-import VM_Class;
-import VM_Atom;
-import VM_ObjectModel;
-import VM_Magic;
+import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Processor;
+import com.ibm.JikesRVM.VM_Constants;
+import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_ClassLoader;
+import com.ibm.JikesRVM.VM_SystemClassLoader;
+import com.ibm.JikesRVM.VM_EventLogger;
+import com.ibm.JikesRVM.VM_BootRecord;
+import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_Uninterruptible;
+import com.ibm.JikesRVM.VM_PragmaInterruptible;
+import com.ibm.JikesRVM.VM_Array;
+import com.ibm.JikesRVM.VM_Type;
+import com.ibm.JikesRVM.VM_Class;
+import com.ibm.JikesRVM.VM_Atom;
+import com.ibm.JikesRVM.VM_ObjectModel;
+import com.ibm.JikesRVM.VM_Magic;
 
 /*
  * @author Perry Cheng  
@@ -143,7 +143,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
 
   public static void setHeapRange(int id, VM_Address start, VM_Address end) throws VM_PragmaUninterruptible {
     VM_BootRecord br = VM_BootRecord.the_boot_record;
-    if (VM.VerifyAssertions) VM.assert(id < br.heapRanges.length - 2); 
+    if (VM.VerifyAssertions) VM._assert(id < br.heapRanges.length - 2); 
     br.heapRanges[2 * id] = start.toInt();
     br.heapRanges[2 * id + 1] = end.toInt();
   }
@@ -161,7 +161,7 @@ public class VM_Interface implements VM_Constants, VM_Uninterruptible {
   }
 
   public static void arrayCopyWriteBarrier(Object ref, int start, int end) {
-    VM.assert(false); // need to implement this
+    VM._assert(false); // need to implement this
   }
 
 

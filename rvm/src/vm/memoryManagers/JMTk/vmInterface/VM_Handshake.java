@@ -23,29 +23,29 @@
 
 package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
-import VM;
-import VM_Address;
-import VM_Magic;
-import VM_BootRecord;
-import VM_ObjectModel;
-import VM_Atom;
-import VM_Type;
-import VM_Class;
-import VM_Array;
-import VM_Method;
-import VM_PragmaInline;
-import VM_PragmaNoInline;
-import VM_PragmaUninterruptible;
-import VM_PragmaLogicallyUninterruptible;
-import VM_PragmaInterruptible;
-import VM_Scheduler;
-import VM_Memory;
-import VM_Time;
-import VM_Entrypoints;
-import VM_Reflection;
-import VM_Synchronization;
-import VM_Processor;
-import VM_Thread;
+import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Magic;
+import com.ibm.JikesRVM.VM_BootRecord;
+import com.ibm.JikesRVM.VM_ObjectModel;
+import com.ibm.JikesRVM.VM_Atom;
+import com.ibm.JikesRVM.VM_Type;
+import com.ibm.JikesRVM.VM_Class;
+import com.ibm.JikesRVM.VM_Array;
+import com.ibm.JikesRVM.VM_Method;
+import com.ibm.JikesRVM.VM_PragmaInline;
+import com.ibm.JikesRVM.VM_PragmaNoInline;
+import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_PragmaLogicallyUninterruptible;
+import com.ibm.JikesRVM.VM_PragmaInterruptible;
+import com.ibm.JikesRVM.VM_Scheduler;
+import com.ibm.JikesRVM.VM_Memory;
+import com.ibm.JikesRVM.VM_Time;
+import com.ibm.JikesRVM.VM_Entrypoints;
+import com.ibm.JikesRVM.VM_Reflection;
+import com.ibm.JikesRVM.VM_Synchronization;
+import com.ibm.JikesRVM.VM_Processor;
+import com.ibm.JikesRVM.VM_Thread;
 
 public class VM_Handshake {
   
@@ -154,7 +154,7 @@ public class VM_Handshake {
     // (see VM_CollectorThread.run)
     //
     for (int i = 1; i <= VM_Processor.numberNativeProcessors; i++) {
-      if (VM.VerifyAssertions) VM.assert(VM_Processor.nativeProcessors[i] != null);
+      if (VM.VerifyAssertions) VM._assert(VM_Processor.nativeProcessors[i] != null);
       VM_Processor.nativeProcessors[i].lockInCIfInC();
       if (trace) {
         int newStatus =  VM_Processor.vpStatus[VM_Processor.nativeProcessors[i].vpStatusIndex];
@@ -288,7 +288,7 @@ public class VM_Handshake {
       int lockoutVal = VM_Magic.prepare(VM_BootRecord.the_boot_record,
 					VM_Entrypoints.lockoutProcessorField.offset);
       // check that current value is as expected
-      if (VM.VerifyAssertions && (value!=0)) VM.assert( lockoutVal == value );
+      if (VM.VerifyAssertions && (value!=0)) VM._assert( lockoutVal == value );
       // OK, reset to zero
       if(VM_Magic.attempt(VM_BootRecord.the_boot_record,
 			  VM_Entrypoints.lockoutProcessorField.offset,

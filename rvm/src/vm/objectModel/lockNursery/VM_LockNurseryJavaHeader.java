@@ -4,8 +4,8 @@
 // $Id$
 package com.ibm.JikesRVM;
 
-import com.ibm.JikesRVM.memoryManagers.VM_AllocatorHeader;
-import com.ibm.JikesRVM.memoryManagers.VM_Collector;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_AllocatorHeader;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
 /**
  * Defines shared support for one-word headers in the JikesRVM object

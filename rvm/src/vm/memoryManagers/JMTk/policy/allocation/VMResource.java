@@ -8,10 +8,10 @@ package com.ibm.JikesRVM.memoryManagers.JMTk;
 
 import com.ibm.JikesRVM.memoryManagers.vmInterface.Constants;
 
-import VM;
-import VM_Address;
-import VM_Uninterruptible;
-import VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_Uninterruptible;
+import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 
 /**
  * This class implements a virtual memory resource.  The unit of
@@ -52,7 +52,7 @@ public final class VMResource implements Constants, VM_Uninterruptible {
   }
 
   public static void showAll () {
-    VM.assert(false);
+    VM._assert(false);
   }
 
   public static boolean refInVM(VM_Address ref) throws VM_PragmaUninterruptible {
@@ -76,7 +76,7 @@ public final class VMResource implements Constants, VM_Uninterruptible {
   }
 
   public static int getMaxVMResource() {
-    VM.assert(false);
+    VM._assert(false);
     return 0;
   }
 

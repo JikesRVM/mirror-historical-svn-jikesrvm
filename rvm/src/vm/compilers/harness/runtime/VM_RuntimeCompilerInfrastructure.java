@@ -4,7 +4,7 @@
 //$Id$
 package com.ibm.JikesRVM;
 
-import com.ibm.JikesRVM.memoryManagers.VM_CollectorThread;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_CollectorThread;
 
 /**
  * A place to put code common to all runtime compilers.

@@ -5,14 +5,14 @@
 
 package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
-import VM;
-import VM_Address;
-import VM_ClassLoader;
-import VM_SystemClassLoader;
-import VM_EventLogger;
-import VM_BootRecord;
-import VM_PragmaUninterruptible;
-import VM_Uninterruptible;
+import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_ClassLoader;
+import com.ibm.JikesRVM.VM_SystemClassLoader;
+import com.ibm.JikesRVM.VM_EventLogger;
+import com.ibm.JikesRVM.VM_BootRecord;
+import com.ibm.JikesRVM.VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_Uninterruptible;
 
 /*
  * @author Perry Cheng  
@@ -37,9 +37,9 @@ public class AddressTripleSet implements VM_Uninterruptible {
   }
 
   public void push(VM_Address addr1, VM_Address addr2, VM_Address addr3) { 
-    if (VM.VerifyAssertions) VM.assert(!addr1.isZero());
-    if (VM.VerifyAssertions) VM.assert(!addr2.isZero());
-    if (VM.VerifyAssertions) VM.assert(!addr3.isZero());
+    if (VM.VerifyAssertions) VM._assert(!addr1.isZero());
+    if (VM.VerifyAssertions) VM._assert(!addr2.isZero());
+    if (VM.VerifyAssertions) VM._assert(!addr3.isZero());
     // Backwards so that pop1/pop2/pop3 will return in the right order
     address[cursor++] = addr3.toInt(); 
     address[cursor++] = addr2.toInt(); 
@@ -49,21 +49,21 @@ public class AddressTripleSet implements VM_Uninterruptible {
   public VM_Address pop1() {
     if (cursor == 0)
       return VM_Address.zero();
-    if (VM.VerifyAssertions) VM.assert((cursor % 3) == 0);
+    if (VM.VerifyAssertions) VM._assert((cursor % 3) == 0);
     return VM_Address.fromInt(address[--cursor]);
   }
 
   public VM_Address pop2() {
     if (cursor == 0)
       return VM_Address.zero();
-    if (VM.VerifyAssertions) VM.assert((cursor % 3) == 1);
+    if (VM.VerifyAssertions) VM._assert((cursor % 3) == 1);
     return VM_Address.fromInt(address[--cursor]);
   }
 
   public VM_Address pop3() {
     if (cursor == 0)
       return VM_Address.zero();
-    if (VM.VerifyAssertions) VM.assert((cursor % 3) == 2);
+    if (VM.VerifyAssertions) VM._assert((cursor % 3) == 2);
     return VM_Address.fromInt(address[--cursor]);
   }
 

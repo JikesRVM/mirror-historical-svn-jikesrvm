@@ -4,7 +4,7 @@
 //$Id$
 package com.ibm.JikesRVM;
 
-import com.ibm.JikesRVM.memoryManagers.VM_Collector;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
 /**
  * A virtual machine.
@@ -101,15 +101,15 @@ public class VM extends VM_Properties
     // because the buffer is accessed by compiler-generated write barrier code.
     //
     if (verbose >= 1) VM.sysWriteln("Setting up write barrier");
-    if (VM_Collector.NEEDS_WRITE_BARRIER) {
-      VM_Collector.setupProcessor( VM_Processor.getCurrentProcessor() );
+    if (VM_Interface.NEEDS_WRITE_BARRIER) {
+      VM_Interface.setupProcessor( VM_Processor.getCurrentProcessor() );
     }
 
     // Initialize memory manager.
     //    This must happen before any uses of "new".
     //
     if (verbose >= 1) VM.sysWriteln("Setting up memory manager");
-    VM_Collector.boot(VM_BootRecord.the_boot_record);
+    VM_Interface.boot(VM_BootRecord.the_boot_record);
 
     // Reset the options for the baseline compiler to avoid carrying them over from
     // bootimage writing time.
@@ -235,7 +235,7 @@ public class VM extends VM_Properties
     // Allow Collector to respond to command line arguments
     //
     if (verbose >= 1) VM.sysWriteln("Collector processing rest of boot options");
-    VM_Collector.postBoot();
+    VM_Interface.postBoot();
 
     //-#if RVM_WITH_GNU_CLASSPATH
     VM_SystemClassLoader.getVMClassLoader().jarCache = null;
@@ -891,7 +891,7 @@ public class VM extends VM_Properties
         VM_BootImageCompiler.init(bootCompilerArgs);
       VM_Runtime.init();
       VM_Scheduler.init();
-      VM_Collector.init();
+      VM_Interface.init();
     }
 
   /**

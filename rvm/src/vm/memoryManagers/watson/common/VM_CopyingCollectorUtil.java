@@ -3,7 +3,9 @@
  */
 //$Id$
 
-package com.ibm.JikesRVM.memoryManagers;
+package com.ibm.JikesRVM.memoryManagers.watson;
+
+import  com.ibm.JikesRVM.memoryManagers.vmInterface.*;
 
 import com.ibm.JikesRVM.VM_Thread;
 import com.ibm.JikesRVM.VM_Type;
@@ -154,8 +156,9 @@ class VM_CopyingCollectorUtil implements VM_Constants,
 
 	VM_ScanObject.scanObjectOrArray(t.hardwareExceptionRegisters);
 
-	VM_ScanStack.scanStack(t, VM_Address.zero(), true);
-	
+	ScanStack.scanThreadStack(t, VM_Address.zero(), true);
+	ScanStack.processRoots();
+
       } else if (t.isGCThread && (VM_Magic.threadAsCollectorThread(t).gcOrdinal > 0)) {
 	// skip other collector threads participating (have ordinal number) in this GC
       } else if (VM_GCLocks.testAndSetThreadLock(i)) {
@@ -203,7 +206,8 @@ class VM_CopyingCollectorUtil implements VM_Constants,
 	// have been given references which now reside in the JNIEnv sidestack
 
 	if (VM_Allocator.verbose >= 3) VM.sysWriteln("    Scanning stack for thread ",i);
-	VM_ScanStack.scanStack(t, VM_Address.zero(), true);
+	ScanStack.scanThreadStack(t, VM_Address.zero(), true);
+	ScanStack.processRoots();
       } 
     } 
   }

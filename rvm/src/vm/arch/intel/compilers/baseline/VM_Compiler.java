@@ -4,7 +4,7 @@
 //$Id$
 package com.ibm.JikesRVM;
 
-import com.ibm.JikesRVM.memoryManagers.VM_Collector;
+import com.ibm.JikesRVM.memoryManagers.vmInterface.VM_Interface;
 
 /**
  * 
@@ -443,7 +443,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
     asm.emitPUSH_RegDisp(SP, 1<<LG_WORDSIZE);        // duplicate object value
     genParameterRegisterLoad(2);                     // pass 2 parameter
     asm.emitCALL_RegDisp(JTOC, VM_Entrypoints.checkstoreMethod.getOffset()); // checkstore(array ref, value)
-    if (VM_Collector.NEEDS_WRITE_BARRIER) 
+    if (VM_Interface.NEEDS_WRITE_BARRIER) 
       VM_Barriers.compileArrayStoreBarrier(asm);
     asm.emitMOV_Reg_RegDisp(T0, SP, 4);              // T0 is array index
     asm.emitMOV_Reg_RegDisp(S0, SP, 8);              // S0 is the array ref
@@ -1899,7 +1899,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
    * @param fieldRef the referenced field
    */
   protected final void emit_unresolved_putstatic(VM_Field fieldRef) {
-    if (VM_Collector.NEEDS_WRITE_BARRIER && !fieldRef.getType().isPrimitiveType()) {
+    if (VM_Interface.NEEDS_WRITE_BARRIER && !fieldRef.getType().isPrimitiveType()) {
       VM_Barriers.compileUnresolvedPutstaticBarrier(asm, fieldRef.getDictionaryId());
     }
     emitDynamicLinkingSequence(T0, fieldRef);
@@ -1918,7 +1918,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
    */
   protected final void emit_resolved_putstatic(VM_Field fieldRef) {
     int fieldOffset = fieldRef.getOffset();
-    if (VM_Collector.NEEDS_WRITE_BARRIER && !fieldRef.getType().isPrimitiveType()) {
+    if (VM_Interface.NEEDS_WRITE_BARRIER && !fieldRef.getType().isPrimitiveType()) {
       VM_Barriers.compilePutstaticBarrier(asm, fieldOffset);
     }
     if (fieldRef.getSize() == 4) { // field is one word
@@ -1999,7 +1999,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
    * @param fieldRef the referenced field
    */
   protected final void emit_unresolved_putfield(VM_Field fieldRef) {
-    if (VM_Collector.NEEDS_WRITE_BARRIER && !fieldRef.getType().isPrimitiveType()) {
+    if (VM_Interface.NEEDS_WRITE_BARRIER && !fieldRef.getType().isPrimitiveType()) {
       VM_Barriers.compileUnresolvedPutfieldBarrier(asm, fieldRef.getDictionaryId());
     }
     emitDynamicLinkingSequence(T0, fieldRef);
@@ -2026,7 +2026,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
    * @param fieldRef the referenced field
    */
   protected final void emit_resolved_putfield(VM_Field fieldRef) {
-    if (VM_Collector.NEEDS_WRITE_BARRIER && !fieldRef.getType().isPrimitiveType()) {
+    if (VM_Interface.NEEDS_WRITE_BARRIER && !fieldRef.getType().isPrimitiveType()) {
       VM_Barriers.compilePutfieldBarrier(asm, fieldRef.getOffset());
     }
     int fieldOffset = fieldRef.getOffset();
@@ -3177,19 +3177,13 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
       return;
     }
 
-    if (methodName == VM_MagicNames.getReturnAddress) {
+    if (methodName == VM_MagicNames.getReturnAddressLocation) {
       asm.emitPOP_Reg(T0);                                        // Callee FP
-      asm.emitPUSH_RegDisp(T0, STACKFRAME_RETURN_ADDRESS_OFFSET); // Callee return address
+      asm.emitAdd_Reg_Imm(T0, STACKFRAME_RETURN_ADDRESS_OFFSET);  // location containing callee return address
+      asm.emitPUSH_Reg(T0);                                       // Callee return address
       return;
     }
     
-    if (methodName == VM_MagicNames.setReturnAddress) {
-      asm.emitPOP_Reg(T0);  // value
-      asm.emitPOP_Reg(S0);  // fp
-      asm.emitMOV_RegDisp_Reg(S0, STACKFRAME_RETURN_ADDRESS_OFFSET, T0); // [S0+SRAO] <- T0
-      return;
-    }
-
     if (methodName == VM_MagicNames.getTocPointer ||
 	methodName == VM_MagicNames.getJTOC ) {
       asm.emitPUSH_Reg(JTOC);

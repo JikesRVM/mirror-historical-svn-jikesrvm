@@ -5,14 +5,14 @@
 
 package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
-import VM_Scheduler;
-import VM_Time;
-import VM_Magic;
-import VM;
-import VM_PragmaNoInline;
-import VM_Processor;
-import VM_Thread;
-import VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM_Scheduler;
+import com.ibm.JikesRVM.VM_Time;
+import com.ibm.JikesRVM.VM_Magic;
+import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_PragmaNoInline;
+import com.ibm.JikesRVM.VM_Processor;
+import com.ibm.JikesRVM.VM_Thread;
+import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 
 /**
  * A synchronization barrier used to synchronize collector threads,
@@ -104,7 +104,7 @@ public final class SynchronizationBarrier {
   public double rendezvousRecord(double start, double end) throws VM_PragmaUninterruptible {
     int myProcessorId = VM_Processor.getCurrentProcessorId();
     int which = rendezvousCount[myProcessorId]++;
-    VM.assert(which < rendezvousIn[0].length);
+    VM._assert(which < rendezvousIn[0].length);
     rendezvousIn[myProcessorId][which]  = (int)((start - rendezvousStartTime)*1000000);
     rendezvousOut[myProcessorId][which] = (int)((end - rendezvousStartTime)*1000000);
     return end - start;
@@ -144,7 +144,7 @@ public final class SynchronizationBarrier {
     if (VM.VerifyAssertions) {
       if (entryCounts[myProcessorId]!=0) {
 	VM_Scheduler.trace("startupRendezvous:", "on entry entryCount =",entryCounts[myProcessorId]);
-	VM.assert(entryCounts[myProcessorId]==0);
+	VM._assert(entryCounts[myProcessorId]==0);
       }
     }
     if ( myNumber > 1 ) {
@@ -321,7 +321,7 @@ public final class SynchronizationBarrier {
 	VM_Scheduler.trace("removeProcessor", "no collector thread - dumping vp");
 	vp.dumpProcessorState();
       }
-      VM.assert(ct.isGCThread == true);
+      VM._assert(ct.isGCThread == true);
     }
 
     // put it back on the global collector thread queue

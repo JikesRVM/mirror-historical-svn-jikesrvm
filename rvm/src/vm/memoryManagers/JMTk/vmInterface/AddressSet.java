@@ -5,13 +5,13 @@
 
 package com.ibm.JikesRVM.memoryManagers.vmInterface;
 
-import VM;
-import VM_Address;
-import VM_ClassLoader;
-import VM_SystemClassLoader;
-import VM_EventLogger;
-import VM_BootRecord;
-import VM_PragmaUninterruptible;
+import com.ibm.JikesRVM.VM;
+import com.ibm.JikesRVM.VM_Address;
+import com.ibm.JikesRVM.VM_ClassLoader;
+import com.ibm.JikesRVM.VM_SystemClassLoader;
+import com.ibm.JikesRVM.VM_EventLogger;
+import com.ibm.JikesRVM.VM_BootRecord;
+import com.ibm.JikesRVM.VM_PragmaUninterruptible;
 
 /*
  * @author Perry Cheng  
@@ -36,7 +36,7 @@ public class AddressSet {
   }
 
   public void push(VM_Address addr) { 
-    if (VM.VerifyAssertions) VM.assert(!addr.isZero());
+    if (VM.VerifyAssertions) VM._assert(!addr.isZero());
     address[cursor++] = addr.toInt(); 
   }
 
