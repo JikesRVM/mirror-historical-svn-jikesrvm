@@ -31,12 +31,13 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
     collector = collector_;
   }
 
-  public final void sweepSmall() {
+  public final void sweepSuperPage() {
     VM_Address sp = headSuperPage;
     while (!sp.EQ(VM_Address.zero())) {
+      //      if (isSmall(getSizeClass(sp)))
       int sizeClass = getSizeClass(sp);
-      if ((sizeClass != LARGE_SIZE_CLASS) && (sizeClass <= MAX_SMALL_SIZE_CLASS))
-	collector.sweepSmallSuperPage(this, sp, sizeClass, cellSize(sizeClass));
+      if (!isLarge(sizeClass))
+	collector.sweepSuperPage(this, sp, sizeClass, cellSize(sizeClass));
       sp = getNextSuperPage(sp);
     }
   }
@@ -51,7 +52,7 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
   protected final int pagesForClassSize(int sizeClass) 
     throws VM_PragmaInline {
     if (VM.VerifyAssertions) 
-      VM._assert(sizeClass != LARGE_SIZE_CLASS);
+      VM._assert(!isLarge(sizeClass));
 
     return sizeClassPages[sizeClass];
   }
@@ -68,9 +69,9 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
    */
   protected final int superPageHeaderSize(int sizeClass)
     throws VM_PragmaInline {
-    if (sizeClass == 0)
-      return BASE_SP_HEADER_SIZE;
-    else if (sizeClass <= MAX_SMALL_SIZE_CLASS)
+    if (isLarge(sizeClass))
+      return BASE_SP_HEADER_SIZE + TREADMILL_HEADER_SIZE;
+    else if (isSmall(sizeClass))
       return BASE_SP_HEADER_SIZE + SMALL_BITMAP_SIZE;
     else 
       return BASE_SP_HEADER_SIZE + MID_BITMAP_SIZE;
@@ -82,7 +83,7 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
  
   private static int getCellSize(int sizeClass) {
     if (VM.VerifyAssertions) 
-      VM._assert(sizeClass != LARGE_SIZE_CLASS);
+      VM._assert(!isLarge(sizeClass));
 
     return cellSize[sizeClass];
   }
@@ -109,7 +110,7 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
    */
   protected final int cellHeaderSize(int sizeClass)
     throws VM_PragmaInline {
-    return cellHeaderSize(sizeClass <= MAX_SMALL_SIZE_CLASS);
+    return cellHeaderSize(isSmall(sizeClass));
   }
 
   /**
@@ -120,14 +121,15 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
    * @return The size of the per-cell header for cells of a given class
    * size.
    */
-  protected final int cellHeaderSize(boolean isSmall)
+  protected final int cellHeaderSize(boolean small)
     throws VM_PragmaInline {
-    return (isSmall) ? 0 : (NON_SMALL_OBJ_HEADER_SIZE + TREADMILL_HEADER_SIZE);
+    return small ? 0 : NON_SMALL_OBJ_HEADER_SIZE;
   }
 
   /**
    * Initialize a new cell and return the address of the first useable
-   * word.<p>
+   * word.  This is called only when the cell is first created, not
+   * each time it is reused via a call to alloc.<p>
    *
    * In this system, small cells require no header, but all other
    * cells require a single word that points to the first word of the
@@ -141,39 +143,49 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
    * @return The address of the first useable word.
    */
   protected final VM_Address initializeCell(VM_Address cell, VM_Address sp,
-					   boolean small)
+					    boolean small, boolean large)
     throws VM_PragmaInline {
     if (!small) {
       //      VM.sysWrite("i: "); VM.sysWrite(cell); VM.sysWrite("->"); VM.sysWrite(sp); VM.sysWrite("\n");
-      cell = cell.add(TREADMILL_HEADER_SIZE);
+      
+//       if (large)
+// 	cell = cell.add(TREADMILL_HEADER_SIZE);
       VM_Magic.setMemoryAddress(cell, sp);
       return cell.add(NON_SMALL_OBJ_HEADER_SIZE);
     } else 
       return cell;
   }
 
+  /**
+   *  This is called each time a cell is alloced (i.e. if a cell is
+   *  reused, this will be called each time it is reused in the
+   *  lifetime of the cell, by contrast to initializeCell, which is
+   *  called exactly once.).
+   */
   protected final void postAlloc(VM_Address cell, boolean isScalar,
-				 EXTENT bytes, boolean small) {
+				 EXTENT bytes, boolean small, boolean large) {
     //    sanity();
-    if (small)
+    if (!large)
       collector.setInUseBit(cell, getSuperPage(cell, small), small);
     else {
       //      VM.sysWrite("pa: "); VM.sysWrite(cell); VM.sysWrite((small ? " small\n" : " non-small\n"));
       collector.addToTreadmill(cell);
     }
-//       VM.sysWrite(cell); VM.sysWrite(" a "); VM.sysWrite(getSuperPage(cell, small)); VM.sysWrite("\n");
+//     if (!small && !large) {
+//        VM.sysWrite(cell); VM.sysWrite(" a "); VM.sysWrite(getSuperPage(cell, small)); VM.sysWrite("\n");
+//     }
     //    sanity();
   };
 
   protected final void superPageSanity(VM_Address sp) {
     int sizeClass = getSizeClass(sp);
-    if (sizeClass == LARGE_SIZE_CLASS) {
+    if (isLarge(sizeClass)) {
       VM.sysWrite("    sp: "); VM.sysWrite(sp); VM.sysWrite(" cell: ");
       VM_Address cell = sp.add(superPageHeaderSize(LARGE_SIZE_CLASS)+TREADMILL_HEADER_SIZE+NON_SMALL_OBJ_HEADER_SIZE);
       VM.sysWrite(cell);
       VM.sysWrite("\n");
       VM._assert(collector.isOnTreadmill(cell));
-    } else if (sizeClass > MAX_SMALL_SIZE_CLASS) {
+    } else if (!isSmall(sizeClass)) {
       VM_Address sentinal = sp.add(pagesForClassSize(sizeClass)<<LOG_PAGE_SIZE);
       int cellSize = cellSize(sizeClass);
       VM_Address cursor = sp.add(superPageHeaderSize(sizeClass));
@@ -223,10 +235,11 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
   protected final void postExpandSizeClass(VM_Address sp, int sizeClass) {};
   
   private static final int SMALL_BITMAP_SIZE = MarkSweepCollector.SMALL_BITMAP_SIZE;
-  private static final int MID_BITMAP_SIZE = 0;
+  private static final int MID_BITMAP_SIZE = MarkSweepCollector.MID_BITMAP_SIZE;
+  private static final int MAX_MID_OBJECTS = MarkSweepCollector.MAX_MID_OBJECTS;
   private static final int TREADMILL_HEADER_SIZE = MarkSweepCollector.TREADMILL_HEADER_SIZE;
 
-  public static final int MAX_SMALL_SIZE = 512;
+  public static final int MAX_SMALL_SIZE = 512;  // statically verified below..
   private static int cellSize[];
   private static int sizeClassPages[];
   static {
@@ -234,13 +247,15 @@ final class MarkSweepAllocator extends BaseFreeList implements Constants, VM_Uni
     sizeClassPages = new int[SIZE_CLASSES];
     for(int sc = 1; sc < SIZE_CLASSES; sc++) {
       int size = getBaseCellSize(sc);
-      if (sc <= MAX_SMALL_SIZE_CLASS) {
+      if (isSmall(sc)) {
 	cellSize[sc] = size;
 	sizeClassPages[sc] = 1;
       } else {
-	cellSize[sc] = size + NON_SMALL_OBJ_HEADER_SIZE + TREADMILL_HEADER_SIZE;
+	cellSize[sc] = size + NON_SMALL_OBJ_HEADER_SIZE;
 	sizeClassPages[sc] = optimalPagesForSuperPage(sc, cellSize[sc],
 						      BASE_SP_HEADER_SIZE);
+	int cells = (sizeClassPages[sc]/cellSize[sc]);
+	VM._assert(cells <= MAX_MID_OBJECTS);
       }
       VM.sysWrite("sc: "+sc+" bcs: "+size+" cs: "+cellSize[sc]+" pages: "+sizeClassPages[sc]+"\n");
       if (sc == MAX_SMALL_SIZE_CLASS)

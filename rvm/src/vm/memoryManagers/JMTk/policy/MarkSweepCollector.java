@@ -126,20 +126,21 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
 
   public final void sweep(MarkSweepAllocator allocator) {
     // sweep the small objects
-    allocator.sweepSmall();
+    allocator.sweepSuperPage();
     // sweep the large objects
     sweepLarge();
-    // sweep the remainder
-    sweepMid();
   }
 
-  public final void sweepSmallSuperPage(MarkSweepAllocator allocator,
-					VM_Address sp, int szclass, 
+  public final void sweepSuperPage(MarkSweepAllocator allocator,
+				   VM_Address sp, int szclass, 
 					int cellSize)
     throws VM_PragmaInline {
-//     VM.sysWrite("------------ sweep -----------\n");
+//     if (!MarkSweepAllocator.isSmall(szclass))
+//       VM.sysWrite("------------ sweep -----------\n");
     VM_Address base = sp.add(BITMAP_BASE);
-    for (int pair = 0; pair < SMALL_BITMAP_PAIRS; pair++) {
+    boolean small = MarkSweepAllocator.isSmall(szclass);
+    int bitmapPairs = small ? SMALL_BITMAP_PAIRS : MID_BITMAP_PAIRS;
+    for (int pair = 0; pair < bitmapPairs; pair++) {
       if (VM.VerifyAssertions)
 	VM._assert((INUSE_BITMAP_OFFSET == 0) 
 		   && (MARK_BITMAP_OFFSET == WORD_SIZE));
@@ -152,55 +153,66 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
       int free = mark ^ inuse;
       if (free != 0) {
 	// free them up
-// 	VM.sysWrite("--->");
-// 	VM.sysWrite(inUseBitmap); VM.sysWrite(": ");
-// 	VM.sysWriteHex(inuse); VM.sysWrite(" ");
-// 	VM.sysWriteHex(mark); VM.sysWrite(" ");
-// 	VM.sysWriteHex(free); VM.sysWrite("\n");
-	freeFromBitmap(allocator, sp, free, szclass, cellSize, pair);
+// 	if (!small) {
+// 	  VM.sysWrite("--->");
+// 	  VM.sysWrite(inUseBitmap); VM.sysWrite(": ");
+// 	  VM.sysWriteHex(inuse); VM.sysWrite(" ");
+// 	  VM.sysWriteHex(mark); VM.sysWrite(" ");
+// 	  VM.sysWriteHex(free); VM.sysWrite("\n");
+// 	}
+	freeFromBitmap(allocator, sp, free, szclass, cellSize, pair, small);
 	VM_Magic.setMemoryWord(inUseBitmap, mark); 
       }
       if (mark != 0)
 	VM_Magic.setMemoryWord(markBitmap, 0);
     }
-//     VM.sysWrite("============ sweep ===========\n");
+//     if (!MarkSweepAllocator.isSmall(szclass))
+//       VM.sysWrite("============ sweep ===========\n");
   }
   private final void freeFromBitmap(MarkSweepAllocator allocator, 
 				    VM_Address sp, int free, int szclass,
-				    int cellSize, int pair)
+				    int cellSize, int pair, boolean small)
     throws VM_PragmaInline {
     int index = (pair<<LOG_WORD_BITS);
-    VM_Address base = sp.add(SMALL_OBJ_BASE);
+    VM_Address base = sp.add(small ? SMALL_OBJ_BASE : MID_OBJ_BASE);
     for(int i=0; i < WORD_BITS; i++) {
       if ((free & (1<<i)) != 0) {
-	VM_Address cell = base.add((index + i)*cellSize);
-// 	VM.sysWrite("freeing "); VM.sysWrite(cell); VM.sysWrite(" "); VM.sysWrite(index+i); VM.sysWrite(" "); VM.sysWrite(szclass); VM.sysWrite("...\n");
+	int offset = (index + i)*cellSize + (small ? 0 : MarkSweepAllocator.NON_SMALL_OBJ_HEADER_SIZE);
+	VM_Address cell = base.add(offset);
+// 	if (!MarkSweepAllocator.isSmall(szclass)) {
+// 	  VM.sysWrite("freeing "); VM.sysWrite(cell); VM.sysWrite(" "); VM.sysWrite(index+i); VM.sysWrite(" "); VM.sysWrite(szclass); VM.sysWrite("...\n");
+// 	}
 	allocator.free(cell, sp, szclass);
-//  	VM.sysWrite(cell); VM.sysWrite(" f "); VM.sysWrite(sp); VM.sysWrite("\n");
+// 	if (!MarkSweepAllocator.isSmall(szclass)) {
+// 	  VM.sysWrite(cell); VM.sysWrite(" f "); VM.sysWrite(sp); VM.sysWrite("\n");
+// 	}
       }
     }
   }
 
   private final void sweepLarge() {
   }
-  private final void sweepMid() {
-  }
   private final void internalMarkObject(VM_Address object) 
     throws VM_PragmaInline {
-    VM_Address cell = VM_JavaHeader.objectStartRef(object);
     VM_Address ref = VM_JavaHeader.getPointerInMemoryRegion(object);
 //      VM.sysWrite(cell); VM.sysWrite(" m ");
-    int bytes = VM_ObjectModel.bytesRequiredWhenCopied(object);
-    if (bytes <= MarkSweepAllocator.MAX_SMALL_SIZE) {
+//    if (bytes <= MarkSweepAllocator.MAX_SMALL_SIZE) {
 //       VM.sysWrite(MarkSweepAllocator.getSuperPage(cell, true)); VM.sysWrite("\n");
-      setMarkBit(cell, MarkSweepAllocator.getSuperPage(cell, true), true);
-      if (VM.VerifyAssertions)
-	VM._assert(MarkSweepHeader.isSmallObject(VM_Magic.addressAsObject(object)));
+    if (MarkSweepHeader.isSmallObject(VM_Magic.addressAsObject(object))) {
+      setMarkBit(ref, MarkSweepAllocator.getSuperPage(ref, true), true);
+//       if (VM.VerifyAssertions)
+// 	VM._assert(MarkSweepHeader.isSmallObject(VM_Magic.addressAsObject(object)));
     } else {
-//        VM.sysWrite(MarkSweepAllocator.getSuperPage(cell.sub(TREADMILL_HEADER_SIZE), false)); VM.sysWrite("\n");
-      moveToTreadmill(cell, true);
-      if (VM.VerifyAssertions)
-	VM._assert(!MarkSweepHeader.isSmallObject(VM_Magic.addressAsObject(object)));
+      VM_Address cell = VM_JavaHeader.objectStartRef(object);
+      VM_Address sp = MarkSweepAllocator.getSuperPage(cell, false);
+//       VM.sysWrite(cell); VM.sysWrite(" m "); VM.sysWrite(sp); VM.sysWrite("\n");
+      int sizeClass = MarkSweepAllocator.getSizeClass(sp);
+      if (MarkSweepAllocator.isLarge(sizeClass))
+	moveToTreadmill(cell, true);
+      else
+	setMarkBit(cell, sp, false);
+//       if (VM.VerifyAssertions)
+// 	VM._assert(!MarkSweepHeader.isSmallObject(VM_Magic.addressAsObject(object)));
     }
   }
 
@@ -310,10 +322,10 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
     if (small) {
       sp = sp.add(SMALL_OBJ_BASE);
     } else {
-      VM._assert(false);  ///not ready yet
+      //      VM._assert(false);  ///not ready yet
       sp = sp.add(MID_OBJ_BASE);
+      //    VM.sysWrite("index "); VM.sysWrite(ref); VM.sysWrite(" "); VM.sysWrite(ref.diff(sp).toInt()); VM.sysWrite(" "); VM.sysWrite(cellSize); VM.sysWrite(" "); VM.sysWrite((ref.diff(sp).toInt()/cellSize)); VM.sysWrite("\n");
     }
-//     VM.sysWrite("index "); VM.sysWrite(ref); VM.sysWrite(" "); VM.sysWrite(ref.diff(sp).toInt()); VM.sysWrite(" "); VM.sysWrite(cellSize); VM.sysWrite(" "); VM.sysWrite((ref.diff(sp).toInt()/cellSize)); VM.sysWrite("\n");
     return ref.diff(sp).toInt()/cellSize;
   }
   private static VM_Word getBitMask(int index)
@@ -407,7 +419,9 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   private static final int BITMAP_ENTRIES = PAGE_SIZE>>LOG_BITMAP_GRAIN;
   private static final int SMALL_BITMAP_PAIRS = BITMAP_ENTRIES>>LOG_WORD_BITS;
   public static final int SMALL_BITMAP_SIZE = 2*(SMALL_BITMAP_PAIRS<<LOG_WORD_SIZE);
-  public static final int MID_BITMAP_SIZE = 2*WORD_SIZE;
+  private static final int MID_BITMAP_PAIRS = 1;
+  public static final int MID_BITMAP_SIZE = 2*(MID_BITMAP_PAIRS<<LOG_WORD_SIZE);
+  public static final int MAX_MID_OBJECTS = MID_BITMAP_PAIRS<<LOG_WORD_BITS;
   private static final int BITMAP_BASE = MarkSweepAllocator.BASE_SP_HEADER_SIZE;
   private static final int MAX_SMALL_SIZE = MarkSweepAllocator.MAX_SMALL_SIZE;
   private static final int SMALL_OBJ_BASE = BITMAP_BASE + SMALL_BITMAP_SIZE;
@@ -415,7 +429,9 @@ final class MarkSweepCollector implements Constants, VM_Uninterruptible {
   private static final int LOG_PAIR_GRAIN = LOG_BITMAP_GRAIN + LOG_WORD_BITS;
   private static final int INUSE_BITMAP_OFFSET = 0;
   private static final int MARK_BITMAP_OFFSET = WORD_SIZE;
-  private static final int TREADMILL_PREV_OFFSET = -1 * WORD_SIZE;
-  private static final int TREADMILL_NEXT_OFFSET = -2 * WORD_SIZE;
+//   private static final int TREADMILL_PREV_OFFSET = -1 * WORD_SIZE;
+//   private static final int TREADMILL_NEXT_OFFSET = -2 * WORD_SIZE;
+  private static final int TREADMILL_PREV_OFFSET = -2 * WORD_SIZE;
+  private static final int TREADMILL_NEXT_OFFSET = -3 * WORD_SIZE;
   public static final int TREADMILL_HEADER_SIZE = 2*WORD_SIZE;
 }

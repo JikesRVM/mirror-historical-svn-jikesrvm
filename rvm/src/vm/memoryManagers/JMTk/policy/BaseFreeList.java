@@ -68,14 +68,14 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
     throws VM_PragmaInline {
     
     int sizeClass = getSizeClass(isScalar, bytes);
-    boolean large = (sizeClass == LARGE_SIZE_CLASS);
-    boolean small = !large && (sizeClass <= MAX_SMALL_SIZE_CLASS);
+    boolean large = isLarge(sizeClass);
+    boolean small = isSmall(sizeClass);
     VM_Address cell;
     if (large)
       cell = allocLarge(isScalar, bytes);
     else
       cell = allocCell(isScalar, sizeClass);
-    postAlloc(cell, isScalar, bytes, small);
+    postAlloc(cell, isScalar, bytes, small, large);
     VM_Memory.zero(cell, bytes);
 //     VM.sysWrite("alloc: "); VM.sysWrite(bytes); VM.sysWrite("->"); VM.sysWrite(cell); VM.sysWrite("\n");
     return cell;
@@ -90,7 +90,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   // Abstract methods
   //
   abstract protected void postAlloc(VM_Address cell, boolean isScalar,
-				    EXTENT bytes, boolean isLarge);
+				    EXTENT bytes, boolean small, boolean large);
   abstract protected void postFreeCell(VM_Address cell, VM_Address sp,
 				       int szClass);
   abstract protected int pagesForClassSize(int sizeClass);
@@ -100,7 +100,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   abstract protected int cellHeaderSize(boolean isSmall);
   abstract protected void postExpandSizeClass(VM_Address sp, int sizeClass);
   abstract protected VM_Address initializeCell(VM_Address cell, VM_Address sp,
-					       boolean small);
+					       boolean small, boolean large);
   abstract protected void superPageSanity(VM_Address sp);
 
   ////////////////////////////////////////////////////////////////////////////
@@ -118,7 +118,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
    */
   protected final void free(VM_Address cell, VM_Address sp, int szClass)
     throws VM_PragmaInline {
-    if (szClass == LARGE_SIZE_CLASS)
+    if (isLarge(szClass))
       freeSuperPage(sp);
     else if (decInUse(sp) > 0) {
       setNextCell(cell, freeList[szClass]);
@@ -145,7 +145,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   private final VM_Address allocCell(boolean isScalar, int sizeClass) 
     throws VM_PragmaInline {
     if (VM.VerifyAssertions) 
-      VM._assert(sizeClass != LARGE_SIZE_CLASS);
+      VM._assert(!isLarge(sizeClass));
     
     // grab a freelist entry, expanding if necessary
     if (freeList[sizeClass].isZero()) {
@@ -157,7 +157,9 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
     // take off free list
     VM_Address cell = freeList[sizeClass];
     freeList[sizeClass] = getNextCell(cell);
-//     VM.sysWrite("a "); VM.sysWrite(cell); VM.sysWrite(" ("); VM.sysWrite(getSuperPage(cell, sizeClass <= MAX_SMALL_SIZE_CLASS)); VM.sysWrite(")\n");
+//     if (!isSmall(sizeClass)) {
+//       VM.sysWrite("a "); VM.sysWrite(cell); VM.sysWrite(" ("); VM.sysWrite(getSuperPage(cell, isSmall(sizeClass))); VM.sysWrite(")\n");
+//     }
 
     incInUse(getSuperPage(cell, sizeClass <= MAX_SMALL_SIZE_CLASS));
     return cell;
@@ -180,7 +182,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
     VM_Address sp = allocSuperPage(pages);
     setSizeClass(sp, LARGE_SIZE_CLASS);
 //     VM.sysWrite("************\n");
-    return initializeCell(sp.add(superPageHeaderSize(LARGE_SIZE_CLASS)), sp, false);
+    return initializeCell(sp.add(superPageHeaderSize(LARGE_SIZE_CLASS)), sp, false, true);
   }
   
   /**
@@ -212,7 +214,8 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
     VM_Address cursor = sp.add(superPageHeaderSize(sizeClass));
     while (cursor.add(cellExtent).LE(sentinal)) {
       VM_Address cell = initializeCell(cursor, sp, 
-				       (sizeClass <= MAX_SMALL_SIZE_CLASS));
+				       (sizeClass <= MAX_SMALL_SIZE_CLASS), 
+				       false);
       setNextCell(cell, freeList[sizeClass]);
       freeList[sizeClass] = cell;
 //       VM.sysWrite(cell); VM.sysWrite(", ");
@@ -624,7 +627,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
       pages += vmResource.getSize(sp);
       VM.sysWrite("  pages: ");VM.sysWrite(vmResource.getSize(sp));VM.sysWrite("\n");
       VM.sysWrite("  size class: ");VM.sysWrite(getSizeClass(sp));VM.sysWrite("\n");
-      if (getSizeClass(sp) != LARGE_SIZE_CLASS) {
+      if (!isLarge(getSizeClass(sp))) {
 	VM.sysWrite("    size class bytes: ");VM.sysWrite(getBaseCellSize(getSizeClass(sp)));VM.sysWrite("\n");
 	cells += cellsInSuperPage(sp);
 	VM.sysWrite("    cells: ");VM.sysWrite(cellsInSuperPage(sp));VM.sysWrite("\n");
@@ -652,7 +655,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   private final int countFree(VM_Address sp) {
     int sc = getSizeClass(sp);
     if (VM.VerifyAssertions)
-      VM._assert(sc != LARGE_SIZE_CLASS);
+      VM._assert(!isLarge(sc));
     VM_Address start = sp;
     VM_Address end = start.add(vmResource.getSize(sp)<<LOG_PAGE_SIZE);
     int free = 0;
@@ -681,6 +684,13 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
     return spBytes/cellSize(getSizeClass(sp));
   }
 
+  public static boolean isSmall(int sizeClass) {
+    return (sizeClass != LARGE_SIZE_CLASS) && (sizeClass <= MAX_SMALL_SIZE_CLASS);
+  }
+
+  public static boolean isLarge(int sizeClass) {
+    return sizeClass == LARGE_SIZE_CLASS;
+  }
   ////////////////////////////////////////////////////////////////////////////
   //
   // Static final values (aka constants)
@@ -689,7 +699,7 @@ abstract class BaseFreeList implements Constants, VM_Uninterruptible {
   protected static final int SIZE_CLASSES = BASE_SIZE_CLASSES;
   protected static final int LARGE_SIZE_CLASS = 0;
   protected static final int MAX_SMALL_SIZE_CLASS = 39;
-  protected static final int NON_SMALL_OBJ_HEADER_SIZE = WORD_SIZE;
+  public static final int NON_SMALL_OBJ_HEADER_SIZE = WORD_SIZE;
   private static final int PREV_SP_OFFSET = 0;
   private static final int NEXT_SP_OFFSET = WORD_SIZE;
   private static final int IN_USE_WORD_OFFSET = PREV_SP_OFFSET;
