@@ -376,6 +376,12 @@ minor:  while (0 != retries--) { // repeat if there is contention for thin lock
   static int fastLocks;
   static int slowLocks;
 
+  static void notifyAppRunStart (int value) {
+    if (!STATS) return;
+    fastLocks = 0;
+    slowLocks = 0;
+  }
+
   static void notifyExit (int value) {
     if (!STATS) return;
     VM.sysWrite("ThinLocks: "); VM.sysWrite(fastLocks, false);      VM.sysWrite(" fast locks");

@@ -129,7 +129,11 @@ public final class VM_LockNursery implements VM_Constants, VM_Uninterruptible {
     return b;
   }
 
-
+  static void notifyAppRunStart(int value) {
+    if (! STATS) return;
+    lockNumber = 0;
+    lockOperations = 0;
+  }
   static void notifyExit(int value) {
     if (! STATS) return;
     VM.sysWrite("LockNursery: "); VM.sysWrite(lockNumber, false); VM.sysWrite(" nursery locks created\n");

@@ -78,7 +78,8 @@
  * @author Stephen Smith
  */
 public class VM_Allocator
-  implements VM_Constants, VM_GCConstants, VM_Uninterruptible, VM_Callbacks.ExitMonitor {
+  implements VM_Constants, VM_GCConstants, VM_Uninterruptible,
+  VM_Callbacks.ExitMonitor, VM_Callbacks.AppRunStartMonitor {
 
   private static final VM_ImmortalHeap immortalHeap = new VM_ImmortalHeap();
 
@@ -304,6 +305,15 @@ public class VM_Allocator
    */
   public void notifyExit(int value) {
     printSummaryStatistics();
+  }
+
+  /**
+   * To be called when the application starts a run
+   * @param value the exit value
+   */
+  public void notifyAppRunStart(int value) {
+    VM.sysWrite("Clearing VM_Allocator statistics\n");
+    clearSummaryStatistics();
   }
 
   /**
@@ -1979,6 +1989,20 @@ public class VM_Allocator
       VM.sysWrite(freeLargeSpace(),false);
     }
     VM.sysWrite(">\n");
+  }
+
+  static void clearSummaryStatistics () {
+    VM_ObjectModel.hashRequests = 0;
+    VM_ObjectModel.hashTransition1 = 0;
+    VM_ObjectModel.hashTransition2 = 0;
+
+    VM_Processor st;
+    for (int i = 1; i <= VM_Scheduler.numProcessors; i++) {
+      st = VM_Scheduler.processors[i];
+      st.totalBytesAllocated = 0;
+      st.totalObjectsAllocated = 0;
+      st.synchronizedObjectsAllocated = 0;
+    }
   }
 
   static void

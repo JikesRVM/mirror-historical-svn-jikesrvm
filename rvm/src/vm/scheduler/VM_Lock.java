@@ -617,6 +617,25 @@ public final class VM_Lock implements VM_Constants, VM_Uninterruptible {
 
     public static void boot () {
 	VM_Callbacks.addExitMonitor(new VM_Lock.ExitMonitor());
+	VM_Callbacks.addAppRunStartMonitor(new VM_Lock.AppRunStartMonitor());
+    }
+
+    static final class AppRunStartMonitor implements VM_Callbacks.AppRunStartMonitor {
+
+	public void notifyAppRunStart (int value) {
+	    if (! STATS) return;
+
+	    waitOperations = 0;
+	    timedWaitOperations = 0;
+	    notifyOperations = 0;
+	    notifyAllOperations = 0;
+	    lockOperations = 0;
+	    unlockOperations = 0;
+	    deflations = 0;
+
+	    VM_ThinLock.notifyAppRunStart(0);
+	    VM_LockNursery.notifyAppRunStart(0);
+	}
     }
 
     static final class ExitMonitor implements VM_Callbacks.ExitMonitor {

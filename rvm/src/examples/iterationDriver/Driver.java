@@ -1,5 +1,6 @@
 /**
  * Generic driver to run a program <N> times.
+ * This driver notifies the Jikes RVM of each application run start.
  *
  * Usage: java Driver <N> <main class> <main routine> [program args .. .. ]
  */
@@ -32,6 +33,7 @@ class Driver {
 
       for (int i=0 ; i<N; i++) {
         System.out.println ("Run " + i + " ... ");
+        VM_Callbacks.notifyAppRunStart(i);
     	long elapsedTime = -System.currentTimeMillis();
         m.invoke(null,argv);
         elapsedTime += System.currentTimeMillis();

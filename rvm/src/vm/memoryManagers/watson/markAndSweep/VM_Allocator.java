@@ -38,7 +38,8 @@
  * 
  */
 public class VM_Allocator
-  implements VM_Constants, VM_GCConstants, VM_Uninterruptible, VM_Callbacks.ExitMonitor
+  implements VM_Constants, VM_GCConstants, VM_Uninterruptible,
+  VM_Callbacks.ExitMonitor, VM_Callbacks.AppRunStartMonitor
   {
 
   static final boolean IGNORE_EXPLICIT_GC_CALLS = false;
@@ -484,7 +485,17 @@ public class VM_Allocator
   VM_AllocatorHeader.boot(bootStartAddress, bootEndAddress);
 
   VM_Callbacks.addExitMonitor(new VM_Allocator());
+  VM_Callbacks.addAppRunStartMonitor(new VM_Allocator());
 
+  }
+
+  /**
+   * To be called when the application starts a run
+   * @param value the exit value
+   */
+  public void notifyAppRunStart(int value) {
+    VM.sysWrite("Clearing VM_Allocator statistics\n");
+    clearSummaryStatistics();
   }
 
   /**
@@ -2752,6 +2763,18 @@ public class VM_Allocator
     }
     return is_live;
   }
+
+
+  static void clearSummaryStatistics () {
+      VM_Processor st;
+      for (int i = 1; i <= VM_Scheduler.numProcessors; i++) {
+        st = VM_Scheduler.processors[i];
+        st.totalBytesAllocated = 0;
+        st.totalObjectsAllocated = 0;
+        st.synchronizedObjectsAllocated = 0;
+      }
+  }
+
 
   static void
   printSummaryStatistics () {
