@@ -1371,6 +1371,8 @@ function emitImageLinker
    print "   print 'Ljava/lang/ClassFormatError;'     >> $PRIMORDIAL_CLASSES_STR"
    print "   print 'Ljava/lang/NoClassDefFoundError;' >> $PRIMORDIAL_CLASSES_STR"
 
+   print "   print 'Lcom/ibm/JikesRVM/DebuggerThread;' >> $PRIMORDIAL_CLASSES_STR"
+
    # class loaders
    #
    if (( ! RVM_WITH_GNU_CLASSPATH )); then

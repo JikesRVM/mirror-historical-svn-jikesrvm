@@ -2424,7 +2424,6 @@ public class VM_Compiler extends VM_BaselineCompiler
    * @param dictionaryId, the dictionaryId of typeRef
    */
   protected final void emit_multianewarray(VM_Array typeRef, int dimensions, int dictionaryId) {
-    int whichAllocator = VM_Interface.pickAllocator(typeRef);
     asm.emitLtoc(T0, VM_Entrypoints.newArrayArrayMethod.getOffset());
     asm.emitMTLR(T0);
     asm.emitLVAL(T0, dimensions);
@@ -2432,7 +2431,6 @@ public class VM_Compiler extends VM_BaselineCompiler
     asm.emitSLI (T2, T0,  2); // number of bytes of array dimension args
     asm.emitA   (T2, SP, T2); // offset of word *above* first...
     asm.emitSF  (T2, FP, T2); // ...array dimension arg
-    asm.emitLVAL (T3, whichAllocator);
     asm.emitCall(spSaveAreaOffset);
     asm.emitSTU (T0, (dimensions - 1)<<2, SP); // pop array dimension args, push return val
   }

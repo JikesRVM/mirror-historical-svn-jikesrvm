@@ -482,8 +482,9 @@ public class VM extends VM_Properties
   public static void sysWriteHex(int value) throws VM_PragmaLogicallyUninterruptible, VM_PragmaNoInline /* don't waste code space inlining these --dave */ {
     if (runningVM)
       sysCall2(VM_BootRecord.the_boot_record.sysWriteIP, value, 2 /*just hex*/);
-    else
-      System.err.print(value);
+    else {
+      System.err.print(Integer.toHexString(value));
+    }
   }
 
   /**

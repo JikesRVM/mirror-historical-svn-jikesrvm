@@ -207,8 +207,10 @@ class OPT_GenerateMachineSpecificMagic implements OPT_Operators, VM_Constants {
 	  methodName == VM_MagicNames.pragmaNoOptCompile) {
 	throw OPT_MagicNotImplementedException.EXPECTED(msg);
       } else {
-	throw OPT_MagicNotImplementedException.UNEXPECTED(msg);
+	return false;
+	// throw OPT_MagicNotImplementedException.UNEXPECTED(msg);
       }
     }
+    return true;
   }
 }
