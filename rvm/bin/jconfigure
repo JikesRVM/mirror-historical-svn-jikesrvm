@@ -463,6 +463,8 @@ HOST_JIKES_STR1="HOST_JIKES"
 HOST_JIKES_STR="\$$HOST_JIKES_STR1"
 HOST_JAVA_STR1="HOST_JAVA_RT"
 HOST_JAVA_STR="\$$HOST_JAVA_STR1"
+HOST_PROPRIETARY_JAVA_STR1="HOST_PROPRIETARY_JAVA_RT"
+HOST_PROPRIETARY_JAVA_STR="\$$HOST_PROPRIETARY_JAVA_STR1"
 HOST_JAVAC_STR1="HOST_JAVAC"
 HOST_JAVAC_STR="\$$HOST_JAVAC_STR1"
 HOST_JAVA_HOME_STR1="HOST_JAVA_HOME"
@@ -531,6 +533,8 @@ declare -i RVM_FOR_OSX=0	   # Implies PPC.
 declare -i RVM_FOR_32_ADDR=0
 declare -i RVM_FOR_64_ADDR=0
  
+declare -i RVM_BOOTIMAGE_WRITER_JIKES_RVM=1
+
 # Here are the choices for compiler components and extensions.
 # Note: baseline compiler is always built into bootimage: its presence is not controlled by any flags.
 #
@@ -635,10 +639,12 @@ function unsetEnvironment() {
 
     unset HOST_JIKES $HOST_JIKES_STR1
     unset HOST_JAVA $HOST_JAVA_STR1 
+    unset HOST_PROPRIETARY_JAVA $HOST_PROPRIETARY_JAVA_STR1 
     unset HOST_JAVAC $HOST_JAVAC_STR1
     unset HOST_JAVA_HOME $HOST_JAVA_HOME_STR1 
     unset HOST_JAVADOC $HOST_JAVADOC_STR1 
     unset HOST_JAR $HOST_JAR_STR1 
+    unset FASTJAR
     unset HOST_REPOSITORIES $HOST_REPOSITORIES_STR1 
     unset HOST_TOOLS $HOST_TOOLS_STR1 
     unset GNU_MAKE $GNU_MAKE_STR1 
@@ -771,8 +777,9 @@ PREPROCESSOR_DEFINITIONS="${PREPROCESSOR_DEFINITIONS}
 -DMAXIMUM_MAPPABLE_ADDRESS=${MAXIMUM_MAPPABLE_ADDRESS}"
 CLEANUP='/bin/rm -f ${tmpf-}'	# used by EXIT trap.
 tmpf=/tmp/jconfigure.$$
-set | sed -n -e 's/^RVM_FOR_/-DRVM_FOR_/p' \
-		-e 's/^RVM_WITH_/-DRVM_WITH_/p'			\
+set | sed -n -e 's/^RVM_FOR_/-DRVM_FOR_/p'				\
+		-e 's/^RVM_WITH_/-DRVM_WITH_/p'				\
+		-e 's/^RVM_BOOTIMAGE_WRITER/-DRVM_BOOTIMAGE_WRITER/p' \
 		-e 's/RVM_WITHOUT_/-DRVM_WITHOUT_/p' > $tmpf
 if (( BUILD_WITH_PARANOID_PREPROCESSOR )); then
     from_vars="$(< $tmpf)"
@@ -1187,7 +1194,10 @@ EOF
 EOF
     fi
 
+    [[ ! ${HOST_PROPRIETARY_JAVA} ]] || echo "export $HOST_PROPRIETARY_JAVA_STR1='$HOST_PROPRIETARY_JAVA'"
     [[ ! ${CPP-} ]] || echo "export $HOST_CPP_STR1='$CPP'"
+    [[ ! ${FASTJAR-} ]] || echo "export FASTJAR='$FASTJAR'"
+#    (( ! RVM_BOOTIMAGE_WRITER_JIKES_RVM )) || echo "export RVM_BOOTIMAGE_WRITER_JIKES_RVM='$RVM_BOOTIMAGE_WRITER_JIKES_RVM'"
     [[ ! ${BISON-} ]] || echo "export BISON='$BISON'"  
     [[ ! ${ANT_CMD-} ]] || echo "export ANT_CMD='$ANT_CMD'"
     echo ""
@@ -1259,7 +1269,9 @@ function emitMakefile () {
 
 	CLASSPATH_LIBRARIES = YES
 	EOF
+    (( ! RVM_BOOTIMAGE_WRITER_JIKES_RVM )) || echo "RVM_BOOTIMAGE_WRITER_JIKES_RVM = 1"
     [[ ! ${BISON-} ]] || echo "BISON = '$BISON'"  
+    [[ ! ${FASTJAR-} ]] || echo "FASTJAR = '$FASTJAR'"  
     [[ ! ${BENCHMARK_ROOT-} ]] || echo "BENCHMARK_ROOT = $BENCHMARK_ROOT"
 }
 
@@ -1843,7 +1855,7 @@ EOF
 	    jikes_invocation="$HOST_JIKES_STR $JIKES_WARNING_FLAGS -g +U -classpath .:rvmrt.jar $TOP_LEVEL_SOURCES"
 	    open_paren 'compiling classes'
 	    if tracing jbuild || tracing make || tracing; then
-		cleanline
+	        cleanline
 	        echo "  "\${jikes_invocation}
 	    fi
 	    if \${jikes_invocation}; then
@@ -1858,24 +1870,35 @@ EOF
 	    fi
 	    open_paren 'building jksvm.jar'
 	    rm -f jksvm.jar
-	    ## The Sun JAR manual page claims that '-O' (the letter Oh) is the
-	    ## flag for no-compression.  It is actually '0' (the number zero),
-	    ## not the letter 'O'.
-	    $HOST_JAR_STR -c0f jksvm.jar Dummy.class
 
-	    \$FIND . -name '*.class' | \$XARGS $HOST_JAR_STR -u0f jksvm.jar
+	    ## NB: "fastjar", the open-source program, has a broken -u flag,
+	    ## at least temporarily.  However, it DOES have a very nice @ flag,
+	    ## which the Sun-derived JDKs lack.
+	    if [[ \${FASTJAR-} ]]; then
+ 	        \$FIND . -name '*.class' | \$FASTJAR -c0@f jksvm.jar
+	    else
+	        ## The Sun JAR manual page claims that '-O' (the letter Oh) 
+	        ## is the flag for no-compression.  It is actually
+	        ## '0' (the number zero), not the letter 'O'.
+	        $HOST_JAR_STR -c0f jksvm.jar Dummy.class
+	        \$FIND . -name '*.class' | \$XARGS $HOST_JAR_STR -u0f jksvm.jar
+	    fi
 	    close_paren 'jksvm.jar built'
 
 	    open_paren 'building jksvmsrc.jar'
 	    run rm -f jksvmsrc.jar
-	    run $HOST_JAR_STR -c0f jksvmsrc.jar Dummy.java
-	    ## -r is XARGS's no-run-if-empty flag.
-	    \$FIND . -name '*.java' | run \$XARGS $HOST_JAR_STR -u0f jksvmsrc.jar
+	    if [[ \${FASTJAR-} ]]; then
+ 	        \$FIND . -name '*.java' | \$FASTJAR -c0@f jksvmsrc.jar
+	    else
+	        run $HOST_JAR_STR -c0f jksvmsrc.jar Dummy.java
+	        ## -r is XARGS's no-run-if-empty flag.
+	        \$FIND . -name '*.java' | run \$XARGS $HOST_JAR_STR -u0f jksvmsrc.jar
+	    fi
 	    close_paren 'jksvmsrc.jar built'
 
 	else
 	    if tracing jbuild; then
-	         echo -n "(nothing needed to be compiled) "
+	        echo -n "(nothing needed to be compiled) "
 	    fi
 	fi
 	rm -f $CLASSES_INVALID_STR
@@ -2537,10 +2560,16 @@ EOF
 	# generate InterfaceDeclarations.h
 	#
 	rm -f InterfaceDeclarations.h
-	run $HOST_JAVA_STR -Xmx200M \
-		-classpath .:$CLASSES_DIRECTORY_STR:$CLASSES_DIRECTORY_STR/rvmrt.jar \
-		GenerateInterfaceDeclarations -ia $BOOTIMAGE_LOAD_ADDRESS \
-		-out $SCRATCH_DIRECTORY_STR/InterfaceDeclarations.h
+	declare -a args=( -Xmx200M \
+	   -classpath .:$CLASSES_DIRECTORY_STR:$CLASSES_DIRECTORY_STR/rvmrt.jar \
+	    GenerateInterfaceDeclarations -ia $BOOTIMAGE_LOAD_ADDRESS \
+	    -out $SCRATCH_DIRECTORY_STR/InterfaceDeclarations.h )
+
+	if [[ $HOST_PROPRIETARY_JAVA_STR ]]; then
+	    run $HOST_PROPRIETARY_JAVA_STR  "\${args[@]}"
+	else
+	    run $HOST_JAVA_STR		 "\${args[@]}"
+	fi
 	
 
 	# "cd", not "chdir", since GNU Make will output the directory it is 
