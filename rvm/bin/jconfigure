@@ -919,7 +919,7 @@ function emit_enable_exit_on_error () {
 function emitEnvironmentBash () {
     # read the target environment file
     #
-cat <<EOF
+    cat <<- EOF
 	#! ${BASH}
 	# Note: the above #! ${BASH} is there merely as documentation.
 	# This file will not be run as a program directly, but rather sourced
@@ -947,10 +947,6 @@ cat <<EOF
 	export $HOST_JAR_STR1='$HOST_JAR'
 	export $HOST_REPOSITORIES_STR1='$HOST_REPOSITORIES'
 	export $HOST_TOOLS_STR1='$HOST_TOOLS'
-	export LD_LIBRARY_PATH="\${LD_LIBRARY_PATH-}\${LD_LIBRARY_PATH+:}${HOST_JAVA_LD_LIBRARY_PATH-}"
-	if [[ \$LD_LIBRARY_PATH = : ]]; then
-	    unset LD_LIBRARY_PATH
-	fi
 	export $GNU_MAKE_STR1='$GNU_MAKE'
 	
 	export $HOST_CC_STR1='$CC'
@@ -972,8 +968,13 @@ cat <<EOF
 	export XARGS='$XARGS'
 	export UNZIP_CMD='$UNZIP_CMD'
 	export CLASSPATH_LIBRARIES=YES
-
 EOF
+    if [ "${HOST_JAVA_LD_LIBRARY_PATH-}" ]; then
+	cat <<- EOF
+	[[ \${LD_LIBRARY_PATH-} ]] && LD_LIBRARY_PATH=:\${LD_LIBRARY_PATH}
+	export LD_LIBRARY_PATH="${HOST_JAVA_LD_LIBRARY_PATH}\${LD_LIBRARY_PATH-}"
+EOF
+    fi
 
     [[ ! ${CPP-} ]] || echo "export $HOST_CPP_STR1='$CPP'"
     [[ ! ${BISON-} ]] || echo "export BISON='$BISON'"  
