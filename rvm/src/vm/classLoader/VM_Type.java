@@ -295,6 +295,8 @@
    */
   public static VM_Type JavaLangObjectType;
 
+  public static VM_Type JavaLangClassType;
+
   public static VM_Array JavaLangObjectArrayType;
   
   public static VM_Type NativeBridgeType;
@@ -570,6 +572,7 @@
     // create additional, frequently used, type descriptions
     //
     JavaLangObjectType    = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("Ljava/lang/Object;"));
+    JavaLangClassType     = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("Ljava/lang/Class;"));
     JavaLangObjectArrayType = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("[Ljava/lang/Object;")).asArray();
     JavaLangThrowableType = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("Ljava/lang/Throwable;"));
     JavaLangStringType    = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("Ljava/lang/String;"));

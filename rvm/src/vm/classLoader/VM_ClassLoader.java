@@ -404,10 +404,6 @@ public class VM_ClassLoader
     // Resource caching
     resourceCache = new Hashtable();
     resourceNullKey = new VM_BinaryData( (byte[])null );
-
-    VM_Atom classAtom = VM_Atom.findOrCreateAsciiAtom("Ljava/lang/Class;");
-    VM_Type classType = findOrCreateType(classAtom);
-    VM_ObjectModel.allocateThinLock(classType);
   }
 
   private static Hashtable resourceCache;

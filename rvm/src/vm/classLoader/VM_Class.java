@@ -1052,7 +1052,8 @@ public class VM_Class extends VM_Type
       instanceSize = VM_ObjectModel.computeScalarHeaderSize(this);
     }
 
-    if (isSynchronizedObject()) VM_ObjectModel.allocateThinLock(this);
+    if (isSynchronizedObject() || this == VM_Type.JavaLangClassType)
+      VM_ObjectModel.allocateThinLock(this);
 
     if (VM.verboseClassLoading) VM.sysWrite("[Preparing "+
                                             descriptor.classNameFromDescriptor()
