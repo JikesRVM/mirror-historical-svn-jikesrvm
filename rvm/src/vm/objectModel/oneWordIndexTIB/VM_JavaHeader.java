@@ -35,15 +35,20 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
 
   /**
    * How many bits the TIB index is shifted in the header.
-   * NOTE: when this is equal to 2 then we have slightly more efficient access
-   * to the TIB, since the shifted TIB index is exactly the JTOC offset of the TIB.
+   * NOTE: when this is 2 then we have slightly more efficient access
+   * to the TIB, since the shifted TIB index its JTOC offset.
    */
   private static final int TIB_SHIFT = NUM_AVAILABLE_BITS;
   
   /**
-   * Mask to extract the TIB index from the header word
+   * Mask for available bits
    */  
-  private static final int TIB_MASK = (0xffffffff) << TIB_SHIFT;
+  private static final int AVAILABLE_BITS_MASK = ~(0xffffffff << NUM_AVAILABLE_BITS);
+
+  /**
+   * Mask to extract the TIB index
+   */
+  private static final int TIB_MASK = ~(AVAILABLE_BITS_MASK | HASH_STATE_MASK);
 
   static {
     if (VM.VerifyAssertions) {
@@ -57,8 +62,8 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
   public static Object[] getTIB(Object o) { 
     VM_Magic.pragmaInline();
     int tibWord = VM_Magic.getIntAtOffset(o,TIB_OFFSET) & TIB_MASK;
-    int tibIndex = tibWord >>> TIB_SHIFT;
-    return VM_Statics.getSlotContentsAsObjectArray(tibIndex);
+    int offset = tibWord >>> (TIB_SHIFT - 2);
+    return VM_Magic.addressAsObjectArray(VM_Magic.getMemoryWord(VM_Magic.getTocPointer() + offset));
   }
   
   /**
@@ -66,8 +71,9 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    */
   public static void setTIB(Object ref, Object[] tib) {
     VM_Magic.pragmaInline();
-    int tibSlot = VM_Magic.objectAsType(tib[0]).getTibSlot();
-    int tibWord = (VM_Magic.getIntAtOffset(ref, TIB_OFFSET) & ~TIB_MASK) | (tibSlot << TIB_SHIFT);
+    int idx = VM_Magic.objectAsType(tib[0]).getTibSlot() << TIB_SHIFT;
+    if (VM.VerifyAssertions) VM.assert((idx & TIB_MASK) == idx);
+    int tibWord = (VM_Magic.getIntAtOffset(ref, TIB_OFFSET) & ~TIB_MASK) | idx;
     VM_Magic.setIntAtOffset(ref, TIB_OFFSET, tibWord);
 
   }
@@ -77,14 +83,13 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    * Note: Beware; this function clears the additional bits.
    */
   public static void setTIB(BootImageInterface bootImage, int refOffset, int tibAddr, VM_Type type) {
-    int tibSlot = type.getTibSlot();
-    int tibWord = tibSlot << TIB_SHIFT;
-    bootImage.setAddressWord(refOffset + TIB_OFFSET, tibWord);
+    int idx = type.getTibSlot() << TIB_SHIFT;
+    if (VM.VerifyAssertions) VM.assert((idx & TIB_MASK) == idx);
+    bootImage.setAddressWord(refOffset + TIB_OFFSET, idx);
   }
 
   /**
-   * Process the TIB field during copyingGC.  NOT IMPLEMENTED, since
-   * copyingGC not currently supported.
+   * Process the TIB field during copyingGC.
    */
   public static void gcProcessTIB(int ref) {
     VM.assert(NOT_REACHED);
@@ -140,22 +145,20 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
                                          int object) {
     if (VM.VerifyAssertions) VM.assert(TIB_SHIFT == 2);
     int ME = 31 - TIB_SHIFT;
+    int MB = HASH_STATE_BITS;
     asm.emitL(dest, TIB_OFFSET, object);
-    // The following clears the low-order bits. See p.119 of PowerPC book
-    asm.emitRLWINM(dest, dest, 0, 0, ME);
-    // NOTE: No shift required because TIB_SHIFT == 2. TODO: generalize.
-    // Load the result off the JTOC
+    // The following clears the high and low-order bits. See p.119 of PowerPC book
+    // Because TIB_SHIFT is 2 the masked value is a JTOC offset.
+    asm.emitRLWINM(dest, dest, 0, MB, ME);
     asm.emitLX(dest,JTOC,dest);
   }
   //-#elif RVM_FOR_IA32
   public static void baselineEmitLoadTIB(VM_Assembler asm, byte dest, 
                                          byte object) {
     if (VM.VerifyAssertions) VM.assert(TIB_SHIFT == 2);
-
     asm.emitMOV_Reg_RegDisp(dest, object, TIB_OFFSET);
     asm.emitAND_Reg_Imm(dest,TIB_MASK);
-    // NOTE: No shift required because TIB_SHIFT == 2. TODO: generalize.
-    // Load the result off the JTOC
+    // Because TIB_SHIFT is 2 the masked value is a JTOC offset.
     asm.emitMOV_Reg_RegDisp(dest,JTOC,dest);
   }
   /**
@@ -204,7 +207,6 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
     }
 
     Load.mutate(s, INT_LOAD, result, ir.regpool.makeJTOCOp(ir,s), tibOffset, null);
-
   }
 
   //-#endif

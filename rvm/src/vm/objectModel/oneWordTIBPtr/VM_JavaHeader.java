@@ -38,7 +38,7 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
   static {
     if (VM.VerifyAssertions) {
       VM.assert(VM_MiscHeader.REQUESTED_BITS + VM_AllocatorHeader.REQUESTED_BITS <= NUM_AVAILABLE_BITS);
-      if (VM_Collector.MOVES_OBJECTS) VM.assert(NOT_REACHED);
+      VM.assert(HASH_STATE_BITS == 0); // don't support copying collectors yet.
     }
   }
 

@@ -54,7 +54,8 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
 					    //-#endif
 {
 
-  private static final int ONE_WORD_HEADER_SIZE = 4 + VM_AllocatorHeader.NUM_BYTES_HEADER + VM_MiscHeader.NUM_BYTES_HEADER;
+  private static final int OTHER_HEADER_BYTES = VM_AllocatorHeader.NUM_BYTES_HEADER + VM_MiscHeader.NUM_BYTES_HEADER;
+  private static final int ONE_WORD_HEADER_SIZE = 4 + OTHER_HEADER_BYTES;
   private static final int THIN_LOCK_SIZE = 4;
   private static final int ARRAY_HEADER_SIZE = ONE_WORD_HEADER_SIZE + 4;
   
@@ -77,10 +78,9 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    * How many bits are used to encode the hash code state?
    */
   protected static final int HASH_STATE_BITS = VM_Collector.MOVES_OBJECTS ? 2 : 0;
-  protected static final int HASH_STATE_UNHASHED = 0;
-  protected static final int HASH_STATE_HASHED = 1 << NUM_AVAILABLE_BITS;
-  protected static final int HASH_STATE_HASHED_AND_MOVED = 3 << NUM_AVAILABLE_BITS;
-  protected static final int HASHCODE_OFFSET = 0;
+  protected static final int HASH_STATE_MASK = HASH_STATE_UNHASHED | HASH_STATE_HASHED | HASH_STATE_HASHED_AND_MOVED;
+  protected static final int HASHCODE_SCALAR_OFFSET = 0; // in phantom word
+  protected static final int HASHCODE_ARRAY_OFFSET = JAVA_HEADER_END - OTHER_HEADER_BYTES - 4; // 
   
   /**
    * How small is the minimum object header size? 
@@ -280,24 +280,38 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
   public static int getObjectHashCode(Object o) { 
     VM_Magic.pragmaInline();
     if (VM_Collector.MOVES_OBJECTS) {
-      VM.assert(NOT_REACHED);
-      return -1;
-    } else {
-      return VM_Magic.objectAsAddress(o) >> 2;
-    }
-  }
-  
-  /** Install a new hashcode (only used if Collector.MOVES_OBJECTS) */
-  private static int installHashCode(Object o) {
-    VM_Magic.pragmaNoInline();
-    if (VM_Collector.MOVES_OBJECTS) {
-      VM.assert(NOT_REACHED);
-      return -1;
+      int hashState = VM_Magic.getIntAtOffset(o, TIB_OFFSET) & HASH_STATE_MASK;
+      if (hashState == HASH_STATE_HASHED) {
+	return VM_Magic.objectAsAddress(o) >> 2;
+      } else if (hashState == HASH_STATE_HASHED_AND_MOVED) {
+	VM_Type t = VM_Magic.getObjectType(o);
+	if (t.isArrayType()) {
+	  return VM_Magic.getIntAtOffset(o, HASHCODE_ARRAY_OFFSET);
+	} else {
+	  return VM_Magic.getIntAtOffset(o, HASHCODE_SCALAR_OFFSET);
+	}
+      } else {
+	initHashCodeState(o);
+	return getObjectHashCode(o);
+      }
     } else {
       return VM_Magic.objectAsAddress(o) >> 2;
     }
   }
 
+  private static void initHashCodeState(Object o) {
+    VM_Magic.pragmaNoInline();
+    VM.sysWrite("init hash state ");
+    VM.sysWrite(VM_Magic.objectAsAddress(o));
+    VM.sysWrite("\n");
+    int tmp;
+    do {
+      tmp = VM_Magic.prepare(o, TIB_OFFSET);
+    } while (!VM_Magic.attempt(o, TIB_OFFSET, tmp, tmp | HASH_STATE_HASHED));
+    VM.sysWrite("done\n");
+  }
+
+  
   /**
    * Non-atomic read of the word containing o's thin lock.
    */

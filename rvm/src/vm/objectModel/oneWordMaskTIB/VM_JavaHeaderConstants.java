@@ -21,4 +21,7 @@ public interface VM_JavaHeaderConstants {
   /** How many bits in the header are available for the GC and MISC headers? */
   static final int NUM_AVAILABLE_BITS = 2;
 
+  static final int HASH_STATE_UNHASHED         = 0;
+  static final int HASH_STATE_HASHED           = 0;
+  static final int HASH_STATE_HASHED_AND_MOVED = 0;
 }
