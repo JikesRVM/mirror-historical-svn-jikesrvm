@@ -302,7 +302,7 @@ public class ScanStack implements VM_Constants, VM_GCConstants {
     VM_Address start,end;
 //-#if RVM_FOR_IA32
     if (prevFp.isZero()) {
-      start = fp.sub(20*WORDSIZE);
+      start = fp.sub(20*WORD_SIZE);
       VM.sysWrite("--- 20 words of stack frame with fp = ");
     }
     else {
@@ -321,7 +321,7 @@ public class ScanStack implements VM_Constants, VM_GCConstants {
     end = VM_Magic.getMemoryAddress(fp);   // stop at callers fp
 //-#endif
 
-    for (VM_Address loc = start; loc.LE(end); loc = loc.add(WORDSIZE)) {
+    for (VM_Address loc = start; loc.LE(end); loc = loc.add(WORD_SIZE)) {
       VM.sysWrite(loc.diff(start),false);
       VM.sysWrite(" ");
       VM.sysWrite(loc);

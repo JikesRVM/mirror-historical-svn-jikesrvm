@@ -86,12 +86,12 @@ public class ScanObject implements VM_Constants, Constants {
       VM_Type elementType = type.asArray().getElementType();
       if (elementType.isReferenceType()) {
         int num_elements = VM_Magic.getArrayLength(obj);
-        int numBytes = num_elements * WORDSIZE;
+        int numBytes = num_elements * WORD_SIZE;
         VM_Address location = objRef;    // for arrays = address of [0] entry
         VM_Address end      = objRef.add(numBytes);
         while ( location.LT(end) ) {
           VM_Interface.processPtrField( location );
-          location = location.add(WORDSIZE);  // is this size_of_pointer ?
+          location = location.add(WORD_SIZE);  // is this size_of_pointer ?
         }
         Statistics.profileScan(obj, numBytes, tib);
       }

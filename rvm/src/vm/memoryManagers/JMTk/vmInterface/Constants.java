@@ -15,10 +15,13 @@ import com.ibm.JikesRVM.VM_JavaHeader;
  */
 public interface Constants {
 
-  static final int WORDSIZE = 4;
-  static final int LG_WORDSIZE = 2;
   static final int LOG_ADDRESS_SPACE = 32;
-
+  static final int LOG_WORD_SIZE = 2;
+  static final int WORD_SIZE = 1<<LOG_WORD_SIZE;
+  static final int LOG_MBYTE_SIZE = 20;
+  static final int MBYTE_SIZE = 1<<LOG_MBYTE_SIZE;
+  static final int LOG_PAGE_SIZE = 12;
+  static final int PAGE_SIZE = 1<<LOG_PAGE_SIZE;
   /*
    * Data Fields that control the allocation of memory
    * subpools for the heap; allocate from 
