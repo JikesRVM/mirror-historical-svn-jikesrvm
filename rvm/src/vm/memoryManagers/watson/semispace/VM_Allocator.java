@@ -1474,23 +1474,19 @@ public class VM_Allocator
     if (VM.VerifyAssertions) VM.assert(validRef(type));
     if (type.isClassType()) {
       VM_Class classType = type.asClass();
-      int size = classType.getInstanceSize();
-      int toAddress = gc_getMatureSpace(size);
-      int fromAddress = VM_ObjectModel.scalarRefToBaseAddress(fromObj, classType);
-      VM_Memory.aligned32Copy(toAddress, fromAddress, size);
-      toObj = VM_ObjectModel.baseAddressToScalarRef(toAddress, tib, size);
+      int numBytes = VM_ObjectModel.bytesRequiredWhenCopied(fromObj, classType);
+      int toAddress = gc_getMatureSpace(numBytes);
+      toObj = VM_ObjectModel.moveObject(toAddress, fromObj, numBytes, classType, tib);
     } else {
       VM_Array arrayType = type.asArray();
       int numElements = VM_Magic.getArrayLength(fromObj);
-      int size = (arrayType.getInstanceSize(numElements) + 3) & ~3;
-      int toAddress   = gc_getMatureSpace(size);
-      int fromAddress = VM_ObjectModel.arrayRefToBaseAddress(fromObj, arrayType);
-      VM_Memory.aligned32Copy(toAddress, fromAddress, size);
+      int numBytes = VM_ObjectModel.bytesRequiredWhenCopied(fromObj, arrayType, numElements);
+      int toAddress = gc_getMatureSpace(numBytes);
+      toObj = VM_ObjectModel.moveObject(toAddress, fromObj, numBytes, arrayType, tib);
       if (arrayType == arrayOfIntType) {
 	// sync all arrays of ints - must sync moved code instead of sync'ing chunks when full
-	VM_Memory.sync(toAddress, size);
+	VM_Memory.sync(toAddress, numBytes);
       }
-      toObj = VM_ObjectModel.baseAddressToArrayRef(toAddress, tib, size);
     }
 
     // restore original bit pattern of available bits word in copied object

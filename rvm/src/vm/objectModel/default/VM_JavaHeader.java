@@ -47,7 +47,7 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
 
   // TIB + STATUS + OTHER_HEADER_BYTES
   private static final int SCALAR_HEADER_SIZE = 8 + VM_AllocatorHeader.NUM_BYTES_HEADER + VM_MiscHeader.NUM_BYTES_HEADER;
-  // SCALAR + ARRAY LENGTH;
+  // SCALAR_HEADER + ARRAY LENGTH;
   private static final int ARRAY_HEADER_SIZE = SCALAR_HEADER_SIZE + 4;
 
   // note that the pointer to a scalar actually points 4 bytes above the
@@ -83,64 +83,10 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
   /**
    * Given a reference, return an address which is guaranteed to be inside
    * the memory region allocated to the object.
-   *
-   * TODO: try to deprecate this?  Seems ugly.
    */
   public static ADDRESS getPointerInMemoryRegion(ADDRESS ref) {
     return ref + TIB_OFFSET;
   }
-
-  /**
-   * Convert the raw storage address ptr into a ptr to an object
-   * under the assumption that the object to be placed here is 
-   * a scalar object of size bytes which is an instance of the given tib.
-   * 
-   * @param ptr the low memory word of the raw storage to be converted.
-   * @param tib the TIB of the type that the storage will/does belong to.
-   * @param size the size in bytes of the object
-   * @return an ptr to said object.
-   */
-  public static ADDRESS baseAddressToScalarAddress(ADDRESS ptr, Object[] tib, int size) {
-    return ptr + size + SCALAR_PADDING_BYTES;
-  }
-
-  /**
-   * Convert the raw storage address ptr into a ptr to an object
-   * under the assumption that the object to be placed here is 
-   * a array object of size bytes which is an instance of the given tib.
-   * 
-   * @param ptr the low memory word of the raw storage to be converted.
-   * @param tib the TIB of the type that the storage will/does belong to.
-   * @param size the size in bytes of the object
-   * @return an object reference to said storage.
-   */
-  public static ADDRESS baseAddressToArrayAddress(ADDRESS ptr, Object[] tib, int size) {
-    return ptr + ARRAY_HEADER_SIZE;
-  }
-
-  /**
-   * Convert a scalar object reference into the low memory word of the raw
-   * storage that holds the object.
-   * 
-   * @param ref a scalar object reference
-   * @param t  the VM_Type of the object
-   */
-  public static ADDRESS scalarRefToBaseAddress(Object ref, VM_Class t) {
-    int size = t.getInstanceSize();
-    return VM_Magic.objectAsAddress(ref) - size - SCALAR_PADDING_BYTES;
-  }
-
-  /**
-   * Convert an array reference into the low memory word of the raw
-   * storage that holds the object.
-   * 
-   * @param ref an array reference
-   * @param t  the VM_Type of the array
-   */
-  public static ADDRESS arrayRefToBaseAddress(Object ref, VM_Type t) {
-    return VM_Magic.objectAsAddress(ref) - ARRAY_HEADER_SIZE;
-  }
-
 
   /**
    * Get the TIB for an object.
@@ -168,6 +114,38 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
    */
   public static void gcProcessTIB(int ref) {
     VM_Allocator.processPtrField(ref + TIB_OFFSET);
+  }
+
+  /**
+   * how many bytes are needed when the scalar object is copied by GC?
+   */
+  public static int bytesRequiredWhenCopied(Object fromObj, VM_Class type) {
+    return type.getInstanceSize();
+  }
+
+  /**
+   * how many bytes are needed when the array object is copied by GC?
+   */
+  public static int bytesRequiredWhenCopied(Object fromObj, VM_Array type, int numElements) {
+    return (type.getInstanceSize(numElements) + 3) & ~3;
+  }
+
+  /**
+   * Copy an object to the given raw storage address
+   */
+  public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, VM_Class type, Object[] tib) {
+    int fromAddress = VM_Magic.objectAsAddress(fromObj) - numBytes - SCALAR_PADDING_BYTES;
+    VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes);
+    return VM_Magic.addressAsObject(toAddress + numBytes + SCALAR_PADDING_BYTES);
+  }
+
+  /**
+   * Copy an object to the given raw storage address
+   */
+  public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, VM_Array type, Object[] tib) {
+    int fromAddress = VM_Magic.objectAsAddress(fromObj) - ARRAY_HEADER_SIZE;
+    VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes);
+    return VM_Magic.addressAsObject(toAddress + ARRAY_HEADER_SIZE);
   }
 
   /**
@@ -386,13 +364,14 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
 
   /**
    * Perform any required initialization of the JAVA portion of the header.
-   * @param ref the object ref to the storage to be initialized
+   * @param ptr the raw storage to be initialized
    * @param tib the TIB of the instance being created
    * @param size the number of bytes allocated by the GC system for this object.
-   * @param isScalar are we initializing a scalar (true) or array (false) object?
    */
-  public static void initializeHeader(Object ref, Object[] tib, int size, boolean isScalar) {
-    // nothing to do (TIB set by VM_ObjectModel)
+  public static Object initializeScalarHeader(int ptr, Object[] tib, int size) {
+    // (TIB set by VM_ObjectModel)
+    Object ref = VM_Magic.addressAsObject(ptr + size + SCALAR_PADDING_BYTES);
+    return ref;
   }
 
   /**
@@ -401,10 +380,10 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
    * @param ref the object ref to the storage to be initialized
    * @param tib the TIB of the instance being created
    * @param size the number of bytes allocated by the GC system for this object.
-   * @param isScalar are we initializing a scalar (true) or array (false) object?
    */
-  public static void initializeHeader(BootImageInterface bootImage, int ref, 
-				      Object[] tib, int size, boolean isScalar) {
+  public static int initializeScalarHeader(BootImageInterface bootImage, int ptr, 
+					   Object[] tib, int size) {
+    int ref = ptr + size + SCALAR_PADDING_BYTES;
     // (TIB set by BootImageWriter2)
 
     // If Collector.MOVES_OBJECTS then we must preallocate hash code
@@ -418,8 +397,46 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
       } while (hashCode == 0);
       bootImage.setFullWord(ref + STATUS_OFFSET, hashCode | VM_AllocatorHeader.GC_BARRIER_BIT_MASK);
     }
+    return ref;
   }
 
+  /**
+   * Perform any required initialization of the JAVA portion of the header.
+   * @param ptr the raw storage to be initialized
+   * @param tib the TIB of the instance being created
+   * @param size the number of bytes allocated by the GC system for this object.
+   */
+  public static Object initializeArrayHeader(int ptr, Object[] tib, int size) {
+    // (TIB and array length set by VM_ObjectModel)
+    Object ref = VM_Magic.addressAsObject(ptr + ARRAY_HEADER_SIZE);
+    return ref;
+  }
+
+  /**
+   * Perform any required initialization of the JAVA portion of the header.
+   * @param bootImage the bootimage being written
+   * @param ref the object ref to the storage to be initialized
+   * @param tib the TIB of the instance being created
+   * @param size the number of bytes allocated by the GC system for this object.
+   */
+  public static int initializeArrayHeader(BootImageInterface bootImage, int ptr, 
+					   Object[] tib, int size) {
+    int ref = ptr + ARRAY_HEADER_SIZE;
+    // (TIB set by BootImageWriter2; array length set by VM_ObjectModel)
+
+    // If Collector.MOVES_OBJECTS then we must preallocate hash code
+    // and set the barrier bit to avoid problems with non-atomic access
+    // to available bits byte corrupting hash code by write barrier sequence.
+    if (VM_Collector.MOVES_OBJECTS && VM_Collector.NEEDS_WRITE_BARRIER) {
+      int hashCode;
+      do {
+	hashCodeGenerator += (1 << HASH_CODE_SHIFT);
+	hashCode = hashCodeGenerator & HASH_CODE_MASK;
+      } while (hashCode == 0);
+      bootImage.setFullWord(ref + STATUS_OFFSET, hashCode | VM_AllocatorHeader.GC_BARRIER_BIT_MASK);
+    }
+    return ref;
+  }
 
   /**
    * Initialize a cloned scalar object from the clone src

@@ -167,15 +167,63 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
     return VM_Magic.attempt(o, TIB_OFFSET, oldVal, newVal);
   }
   
-
   /**
    * Given a reference, return an address which is guaranteed to be inside
    * the memory region allocated to the object.
-   *
-   * TODO: try to deprecate this?  Seems ugly.
    */
   public static ADDRESS getPointerInMemoryRegion(ADDRESS ref) {
     return ref - 8;
+  }
+
+  /**
+   * Perform any required initialization of the JAVA portion of the header.
+   * @param ptr the raw storage to be initialized
+   * @param tib the TIB of the instance being created
+   * @param size the number of bytes allocated by the GC system for this object.
+   */
+  public static Object initializeScalarHeader(int ptr, Object[] tib, int size) {
+    // (TIB set by VM_ObjectModel)
+    boolean isSynchronized = ((VM_Class)tib[0]).isSynchronized;
+    return VM_Magic.addressAsObject(ptr + size + (isSynchronized ? 0 : THIN_LOCK_SIZE));
+  }
+
+  /**
+   * Perform any required initialization of the JAVA portion of the header.
+   * @param bootImage the bootimage being written
+   * @param ref the object ref to the storage to be initialized
+   * @param tib the TIB of the instance being created
+   * @param size the number of bytes allocated by the GC system for this object.
+   */
+  public static int initializeScalarHeader(BootImageInterface bootImage, int ptr, 
+					   Object[] tib, int size) {
+    boolean isSynchronized = ((VM_Class)tib[0]).isSynchronized;
+    return ptr + size + (isSynchronized ? 0 : THIN_LOCK_SIZE);
+  }
+
+  /**
+   * Perform any required initialization of the JAVA portion of the header.
+   * @param ptr the raw storage to be initialized
+   * @param tib the TIB of the instance being created
+   * @param size the number of bytes allocated by the GC system for this object.
+   */
+  public static Object initializeArrayHeader(int ptr, Object[] tib, int size) {
+    // (TIB and array length set by VM_ObjectModel)
+    Object ref = VM_Magic.addressAsObject(ptr + ARRAY_HEADER_SIZE);
+    return ref;
+  }
+
+  /**
+   * Perform any required initialization of the JAVA portion of the header.
+   * @param bootImage the bootimage being written
+   * @param ref the object ref to the storage to be initialized
+   * @param tib the TIB of the instance being created
+   * @param size the number of bytes allocated by the GC system for this object.
+   */
+  public static int initializeArrayHeader(BootImageInterface bootImage, int ptr, 
+					   Object[] tib, int size) {
+    int ref = ptr + ARRAY_HEADER_SIZE;
+    // (TIB set by BootImageWriter2; array length set by VM_ObjectModel)
+    return ref;
   }
 
   /**
@@ -311,7 +359,95 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
     VM.sysWrite("done\n");
   }
 
-  
+
+  /**
+   * how many bytes are needed when the scalar object is copied by GC?
+   */
+  public static int bytesRequiredWhenCopied(Object fromObj, VM_Class type) {
+    int size = type.getInstanceSize();
+    int hashState = VM_Magic.getIntAtOffset(fromObj, TIB_OFFSET) & HASH_STATE_MASK;
+    if (hashState == HASH_STATE_UNHASHED) {
+      return size;
+    } else {
+      return size + 4;
+    }
+  }
+
+  /**
+   * how many bytes are needed when the array object is copied by GC?
+   */
+  public static int bytesRequiredWhenCopied(Object fromObj, VM_Array type, int numElements) {
+    int size = (type.getInstanceSize(numElements) + 3) & ~3;
+    int hashState = VM_Magic.getIntAtOffset(fromObj, TIB_OFFSET) & HASH_STATE_MASK;
+    if (hashState == HASH_STATE_UNHASHED) {
+      return size;
+    } else {
+      return size + 4;
+    }
+  }
+
+  /**
+   * Copy an object to the given raw storage address
+   */
+  public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, VM_Class type, Object[] tib) {
+    VM.assert(false);
+    return null;
+    /*
+    int 
+
+
+    type.isSynchronized()
+    int fromAddress = 
+
+
+
+    boolean isSynchronized = ((VM_Class)tib[0]).isSynchronized;
+    return ptr + size + (isSynchronized ? 0 : THIN_LOCK_SIZE);
+
+    VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes);
+
+
+
+
+    Object toObj = baseAddressToScalarRef(toAddress, tib, numBytes);
+    int tibWord = VM_Magic.getIntAtOffset(toObj, TIB_OFFSET)
+    if ((tibWord & HASH_STATE_MASK) == HASH_STATE_HASHED) {
+      VM.sysWrite("Scalar: storing fromObj address ");
+      VM.sysWrite(fromObj);
+      VM.sysWrite(" in hash code of ");
+      VM.sysWrite(toObj);
+      VM_Magic.setIntAtOffset(toObj, HASHCODE_SCALAR_OFFSET, VM_Magic.addressAsObject(fromObj));
+      VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, tibWord | HASH_STATE_HASHED_AND_MOVED);
+    }
+    return toObj;
+    */
+  }
+
+  /**
+   * Copy an object to the given raw storage address
+   */
+  public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, VM_Array type, Object[] tib) {
+    VM.assert(false);
+    return null;
+    /*
+    int fromAddress = arrayRefToBaseAddress(fromObj, type);
+    VM_Memory.aligned32Copy(toAddress, fromAddress, numBytes);
+    int tibWord = VM_Magic.getIntAtOffset(toObj, TIB_OFFSET);
+    
+
+    Object toObj = baseAddressToArrayRef(toAddress, tib, numBytes);
+    if ((tibWord & HASH_STATE_MASK) == HASH_STATE_HASHED) {
+      VM.sysWrite("Array: storing fromObj address ");
+      VM.sysWrite(fromObj);
+      VM.sysWrite(" in hash code of ");
+      VM.sysWrite(toObj);
+      VM_Magic.setIntAtOffset(toObj, HASHCODE_SCALAR_OFFSET, VM_Magic.addressAsObject(fromObj));
+      VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, tibWord | HASH_STATE_HASHED_AND_MOVED);
+    }
+    return toObj;
+    */
+  }
+
   /**
    * Non-atomic read of the word containing o's thin lock.
    */
@@ -365,6 +501,11 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    * @param t  the VM_Type of the array
    */
   public static ADDRESS arrayRefToBaseAddress(Object ref, VM_Type t) {
+    if (HASH_STATE_BITS != 0) {
+      if ((VM_Magic.getIntAtOffset(ref, TIB_OFFSET) & HASH_STATE_MASK) != HASH_STATE_UNHASHED) {
+	return VM_Magic.objectAsAddress(ref) - ARRAY_HEADER_SIZE - 4;
+      }
+    }
     return VM_Magic.objectAsAddress(ref) - ARRAY_HEADER_SIZE;
   }
 

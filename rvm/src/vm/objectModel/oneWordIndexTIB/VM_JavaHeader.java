@@ -92,7 +92,7 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
    * Process the TIB field during copyingGC.
    */
   public static void gcProcessTIB(int ref) {
-    VM.assert(NOT_REACHED);
+    // nothing to do (TIB is not a pointer)
   }
 
   /**
@@ -106,31 +106,6 @@ public final class VM_JavaHeader extends VM_NurseryObjectModel
     int tibIndex = tibWord >>> TIB_SHIFT;
     return jdpService.readJTOCSlot(tibIndex);
   }
-
-  /**
-   * Perform any required initialization of the JAVA portion of the header.
-   * @param ref the object ref to the storage to be initialized
-   * @param tib the TIB of the instance being created
-   * @param size the number of bytes allocated by the GC system for this object.
-   * @param isScalar are we initializing a scalar (true) or array (false) object?
-   */
-  public static void initializeHeader(Object ref, Object[] tib, int size, boolean isScalar) {
-    // nothing to do (TIB set by VM_ObjectModel)
-  }
-
-  /**
-   * Perform any required initialization of the JAVA portion of the header.
-   * @param bootImage the bootimage being written
-   * @param ref the object ref to the storage to be initialized
-   * @param tib the TIB of the instance being created
-   * @param size the number of bytes allocated by the GC system for this object.
-   * @param isScalar are we initializing a scalar (true) or array (false) object?
-   */
-  public static void initializeHeader(BootImageInterface bootImage, int ref, 
-				      Object[] tib, int size, boolean isScalar) {
-    // (TIB set by BootImageWriter2)
-  }
-
 
   /**
    * The following method will emit code that moves a reference to an

@@ -1032,7 +1032,7 @@ public class VM_Allocator
       return theblock;
     }
     else {    // free the existing array space
-      VM.sysCall1(bootrecord.sysFreeIP, VM_ObjectModel.arrayRefToBaseAddress(alloc_block.mark, byteArrayType));
+      VM.sysCall1(bootrecord.sysFreeIP, VM_Magic.objectAsAddress(alloc_block.mark) - VM_ObjectModel.computeHeaderSize(byteArrayType));
     }
   }
   // get space for alloc arrays from AIX.
@@ -1138,7 +1138,7 @@ public class VM_Allocator
       return 0;
     }
     else {    // free the existing array space
-      VM.sysCall1(bootrecord.sysFreeIP, VM_ObjectModel.arrayRefToBaseAddress(alloc_block.mark, byteArrayType));
+      VM.sysCall1(bootrecord.sysFreeIP, VM_Magic.objectAsAddress(alloc_block.mark) - VM_ObjectModel.computeHeaderSize(byteArrayType));
     }
   }
 

@@ -111,8 +111,6 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
   /**
    * Given a reference, return an address which is guaranteed to be inside
    * the memory region allocated to the object.
-   *
-   * TODO: try to deprecate this?  Seems ugly.
    */
   public static ADDRESS getPointerInMemoryRegion(ADDRESS ref) {
     return VM_JavaHeader.getPointerInMemoryRegion(ref);
@@ -166,6 +164,33 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
    */
   public static void gcProcessTIB(int ref) {
     VM_JavaHeader.gcProcessTIB(ref);
+  }
+
+  /**
+   * how many bytes are needed when the scalar object is copied by GC?
+   */
+  public static int bytesRequiredWhenCopied(Object fromObj, VM_Class type) {
+    return VM_JavaHeader.bytesRequiredWhenCopied(fromObj, type);
+  }
+  /**
+   * how many bytes are needed when the array object is copied by GC?
+   */
+  public static int bytesRequiredWhenCopied(Object fromObj, VM_Array type, int numElements) {
+    return VM_JavaHeader.bytesRequiredWhenCopied(fromObj, type, numElements);
+  }
+
+  /**
+   * Copy a scalar object to the given raw storage address
+   */
+  public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, VM_Class type, Object[] tib) {
+    return VM_JavaHeader.moveObject(toAddress, fromObj, numBytes, type, tib);
+  }
+
+  /**
+   * Copy an array object to the given raw storage address
+   */
+  public static Object moveObject(ADDRESS toAddress, Object fromObj, int numBytes, VM_Array type, Object[] tib) {
+    return VM_JavaHeader.moveObject(toAddress, fromObj, numBytes, type, tib);
   }
 
   /**
@@ -397,71 +422,6 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
   }
 
   /**
-   * Convert an object reference into the low memory word of the raw
-   * storage that holds the object.
-   * @param ref an object reference
-   */
-  public static ADDRESS objectRefToBaseAddress(Object ref) {
-    VM_Magic.pragmaInline();
-    VM_Type t = getObjectType(ref);
-    if (t.dimension > 0) {
-      return arrayRefToBaseAddress(ref, t);
-    } else {
-      return scalarRefToBaseAddress(ref, t.asClass());
-    }
-  }      
-
-  /**
-   * Convert an array reference into the low memory word of the raw
-   * storage that holds the object.
-   * 
-   * @param ref an array reference
-   * @param t  the VM_Type of the array
-   */
-  public static ADDRESS arrayRefToBaseAddress(Object ref, VM_Type t) {
-    return VM_JavaHeader.arrayRefToBaseAddress(ref, t);
-  }
-
-  /**
-   * Convert a scalar object reference into the low memory word of the raw
-   * storage that holds the object.
-   * 
-   * @param ref a scalar object reference
-   * @param t  the VM_Type of the object
-   */
-  public static ADDRESS scalarRefToBaseAddress(Object ref, VM_Class t) {
-    return VM_JavaHeader.scalarRefToBaseAddress(ref, t);
-  }
-
-  /**
-   * Convert the raw storage address ptr into an object reference
-   * under the assumption that the object to be placed here is 
-   * a scalar object of size bytes which is an instance of the given tib.
-   * 
-   * @param ptr the low memory word of the raw storage to be converted.
-   * @param tib the TIB of the type that the storage will/does belong to.
-   * @param size the size in bytes of the object
-   * @return an ptr to said object.
-   */
-  public static Object baseAddressToScalarRef(ADDRESS ptr, Object[] tib, int size) {
-    return VM_Magic.addressAsObject(VM_JavaHeader.baseAddressToScalarAddress(ptr, tib, size));
-  }
-
-  /**
-   * Convert the raw storage address ptr into a object reference
-   * under the assumption that the object to be placed here is 
-   * a array object of size bytes which is an instance of the given tib.
-   * 
-   * @param ptr the low memory word of the raw storage to be converted.
-   * @param tib the TIB of the type that the storage will/does belong to.
-   * @param size the size in bytes of the object
-   * @return an object reference to said storage.
-   */
-  public static Object baseAddressToArrayRef(ADDRESS ptr, Object[] tib, int size) {
-    return VM_Magic.addressAsObject(VM_JavaHeader.baseAddressToArrayAddress(ptr, tib, size));
-  }
-
-  /**
    * Initialize raw storage with low memory word ptr of size bytes
    * to be an uninitialized instance of the (scalar) type specified by tib.
    * 
@@ -471,14 +431,12 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
    */
   public static Object initializeScalar(ADDRESS ptr, Object[] tib, int size) {
     VM_Magic.pragmaInline();
-    Object ref = baseAddressToScalarRef(ptr, tib, size);
-    setTIB(ref, tib);
-    VM_JavaHeader.initializeHeader(ref, tib, size, true);
+    Object ref = VM_JavaHeader.initializeScalarHeader(ptr, tib, size);
     VM_AllocatorHeader.initializeHeader(ref, tib, size, true);
     VM_MiscHeader.initializeHeader(ref, tib, size, true);
+    setTIB(ref, tib);
     return ref;
   }
-
 
   /**
    * Allocate and initialize space in the bootimage (at bootimage writing time)
@@ -493,8 +451,7 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
     Object[] tib = klass.getTypeInformationBlock();
     int size = klass.getInstanceSize();
     int ptr = bootImage.allocateStorage(size);
-    int ref = VM_JavaHeader.baseAddressToScalarAddress(ptr, tib, size);
-    VM_JavaHeader.initializeHeader(bootImage, ref, tib, size, true);
+    int ref = VM_JavaHeader.initializeScalarHeader(bootImage, ptr, tib, size);
     VM_AllocatorHeader.initializeHeader(bootImage, ref, tib, size, true);
     VM_MiscHeader.initializeHeader(bootImage, ref, tib, size, true);
     return ref;
@@ -513,12 +470,11 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
    */
   public static Object initializeArray(ADDRESS ptr, Object[] tib, int numElems, int size) {
     VM_Magic.pragmaInline();
-    Object ref = baseAddressToArrayRef(ptr, tib, size);
-    setTIB(ref, tib);
-    setArrayLength(ref, numElems);
-    VM_JavaHeader.initializeHeader(ref, tib, size, false);
+    Object ref = VM_JavaHeader.initializeArrayHeader(ptr, tib, size);
     VM_AllocatorHeader.initializeHeader(ref, tib, size, false);
     VM_MiscHeader.initializeHeader(ref, tib, size, false);
+    setTIB(ref, tib);
+    setArrayLength(ref, numElems);
     return ref;
   }
 
@@ -538,9 +494,8 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
     Object[] tib = array.getTypeInformationBlock();
     int size = array.getInstanceSize(numElements);
     int ptr = bootImage.allocateStorage(size);
-    int ref = VM_JavaHeader.baseAddressToArrayAddress(ptr, tib, size);
+    int ref = VM_JavaHeader.initializeArrayHeader(bootImage, ptr, tib, size);
     bootImage.setFullWord(ref + getArrayLengthOffset(), numElements);
-    VM_JavaHeader.initializeHeader(bootImage, ref, tib, size, false);
     VM_AllocatorHeader.initializeHeader(bootImage, ref, tib, size, false);
     VM_MiscHeader.initializeHeader(bootImage, ref, tib, size, false);
     return ref;
