@@ -531,7 +531,7 @@ public final class VM_Atom implements VM_ClassLoaderConstants {
 
   /**
    * @return true if this is a class descriptor of a system class
-   * (ie a class that must be loaded by the system class loader
+   * (ie a class that must be loaded by the VM class loader)
    */
   public final boolean isSystemClassDescriptor() {
   outer:

@@ -49,7 +49,7 @@ public class ApplicationClassLoader extends URLClassLoader {
     }
   }
 
-  public String toString() { return "AppCL"; }
+  public String toString() { return "SystemAppCL"; }
 
   protected String findLibrary(String libName) {
     String platformLibName = System.mapLibraryName(libName);

@@ -172,7 +172,7 @@ public class VM_ClassLoader implements VM_Constants,
     if (vmClassPath != null)
       setVmRepositories(vmClassPath);
     applicationRepositories = null;
-    VM_SystemClassLoader.boot();
+    VM_BootstrapClassLoader.boot();
 
     // create special method- and attribute- names
     //
