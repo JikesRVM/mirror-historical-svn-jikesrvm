@@ -1,3 +1,2 @@
-public class VM_Synchronizer {
-    public synchronized void dummy () {}
+public class VM_Synchronizer implements VM_SynchronizedObject {
 }

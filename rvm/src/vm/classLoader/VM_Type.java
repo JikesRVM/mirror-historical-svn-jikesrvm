@@ -320,6 +320,11 @@
    */
   static VM_Type UninterruptibleType;   
   /**
+   * interface implemented to hint to the runtime system that an object
+   * may be locked
+   */
+  static VM_Type SynchronizedObjectType;   
+  /**
    * interface implemented to save/restore appropriate registers 
    * during dynamic linking, etc.
    */
@@ -348,6 +353,7 @@
   public final boolean isJavaLangStringType()    { return this == JavaLangStringType;    }
   public final boolean isMagicType()             { return this == MagicType;             }
   public final boolean isUninterruptibleType()   { return this == UninterruptibleType;   }
+  public final boolean isSynchronizedObjectType(){ return this == SynchronizedObjectType;   }
   public final boolean isDynamicBridgeType()     { return this == DynamicBridgeType;     }
   public final boolean isSaveVolatileType()      { return this == SaveVolatileType;      }
   public final boolean isNativeBridgeType()      { return this == NativeBridgeType;      }
@@ -556,26 +562,17 @@
       
     // create additional, frequently used, type descriptions
     //
-    JavaLangObjectType    = VM_ClassLoader.findOrCreateType
-      (VM_Atom.findOrCreateAsciiAtom("Ljava/lang/Object;"));
-    JavaLangThrowableType = VM_ClassLoader.findOrCreateType
-      (VM_Atom.findOrCreateAsciiAtom("Ljava/lang/Throwable;"));
-    JavaLangStringType    = VM_ClassLoader.findOrCreateType
-      (VM_Atom.findOrCreateAsciiAtom("Ljava/lang/String;"));
-    JavaLangCloneableType = VM_ClassLoader.findOrCreateType
-      (VM_Atom.findOrCreateAsciiAtom("Ljava/lang/Cloneable;"));
-    JavaIoSerializableType = VM_ClassLoader.findOrCreateType
-      (VM_Atom.findOrCreateAsciiAtom("Ljava/io/Serializable;"));
-    MagicType             = VM_ClassLoader.findOrCreateType
-      (VM_Atom.findOrCreateAsciiAtom("LVM_Magic;"));
-    UninterruptibleType   = VM_ClassLoader.findOrCreateType
-      (VM_Atom.findOrCreateAsciiAtom("LVM_Uninterruptible;"));
-    DynamicBridgeType     = VM_ClassLoader.findOrCreateType
-      (VM_Atom.findOrCreateAsciiAtom("LVM_DynamicBridge;"));
-    SaveVolatileType      = VM_ClassLoader.findOrCreateType
-      (VM_Atom.findOrCreateAsciiAtom("LVM_SaveVolatile;"));
-    NativeBridgeType      = VM_ClassLoader.findOrCreateType
-      (VM_Atom.findOrCreateAsciiAtom("LVM_NativeBridge;"));
+    JavaLangObjectType    = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("Ljava/lang/Object;"));
+    JavaLangThrowableType = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("Ljava/lang/Throwable;"));
+    JavaLangStringType    = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("Ljava/lang/String;"));
+    JavaLangCloneableType = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("Ljava/lang/Cloneable;"));
+    JavaIoSerializableType = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("Ljava/io/Serializable;"));
+    MagicType             = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("LVM_Magic;"));
+    UninterruptibleType   = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("LVM_Uninterruptible;"));
+    SynchronizedObjectType = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("LVM_SynchronizedObject;"));
+    DynamicBridgeType     = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("LVM_DynamicBridge;"));
+    SaveVolatileType      = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("LVM_SaveVolatile;"));
+    NativeBridgeType      = VM_ClassLoader.findOrCreateType (VM_Atom.findOrCreateAsciiAtom("LVM_NativeBridge;"));
   }
 
   public String toString() {

@@ -323,6 +323,17 @@ public class VM_Class extends VM_Type
   }
 
   /**
+   * Does this object implement the VM_SynchronizedObject interface?
+   * @see VM_SynchronizedObject
+   */ 
+  final boolean isSynchronizedObject() {
+    VM_Class[] interfaces = getDeclaredInterfaces();
+    for (int i = 0, n = interfaces.length; i < n; ++i)
+      if (interfaces[i].isSynchronizedObjectType()) return true;
+    return false;
+  }
+
+  /**
    * Should the methods of this class be compiled with special 
    * register save/restore logic?
    * @see VM_DynamicBridge
@@ -1025,6 +1036,9 @@ public class VM_Class extends VM_Type
       depth = 1 + superClass.depth;
       isSynchronized = superClass.isSynchronized;
     }
+    if (isSynchronizedObject()) isSynchronized = true;
+    
+
     if (VM.verboseClassLoading) VM.sysWrite("[Preparing "+
                                             descriptor.classNameFromDescriptor()
                                             +"]\n");
