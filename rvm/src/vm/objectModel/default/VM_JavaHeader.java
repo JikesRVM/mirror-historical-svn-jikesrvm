@@ -291,21 +291,17 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
   /** Install a new hashcode (only used if !ADDRESS_BASED_HASHING) */
   private static int installHashCode(Object o) {
     VM_Magic.pragmaNoInline();
-    if (VM_Collector.MOVES_OBJECTS) {
-      int hashCode;
-      do {
-	hashCodeGenerator += (1 << HASH_CODE_SHIFT);
-	hashCode = hashCodeGenerator & HASH_CODE_MASK;
-      } while (hashCode == 0);
-      while (true) {
-	int statusWord = VM_Magic.prepare(o, STATUS_OFFSET);
-	if ((statusWord & HASH_CODE_MASK) != 0) // some other thread installed a hashcode
-	  return (statusWord & HASH_CODE_MASK) >> HASH_CODE_SHIFT;
-	if (VM_Magic.attempt(o, STATUS_OFFSET, statusWord, statusWord | hashCode))
-	  return hashCode >> HASH_CODE_SHIFT;  // we installed the hash code
-      }
-    } else {
-      return VM_Magic.objectAsAddress(o) >> 2;
+    int hashCode;
+    do {
+      hashCodeGenerator += (1 << HASH_CODE_SHIFT);
+      hashCode = hashCodeGenerator & HASH_CODE_MASK;
+    } while (hashCode == 0);
+    while (true) {
+      int statusWord = VM_Magic.prepare(o, STATUS_OFFSET);
+      if ((statusWord & HASH_CODE_MASK) != 0) // some other thread installed a hashcode
+	return (statusWord & HASH_CODE_MASK) >> HASH_CODE_SHIFT;
+      if (VM_Magic.attempt(o, STATUS_OFFSET, statusWord, statusWord | hashCode))
+	return hashCode >> HASH_CODE_SHIFT;  // we installed the hash code
     }
   }
 
@@ -481,17 +477,23 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
     int ref = ptr + size + SCALAR_PADDING_BYTES;
     // (TIB set by BootImageWriter2)
 
-    // If Collector.MOVES_OBJECTS then we must preallocate hash code
-    // and set the barrier bit to avoid problems with non-atomic access
-    // to available bits byte corrupting hash code by write barrier sequence.
-    if (VM_Collector.MOVES_OBJECTS && VM_Collector.NEEDS_WRITE_BARRIER) {
-      int hashCode;
-      do {
-	hashCodeGenerator += (1 << HASH_CODE_SHIFT);
-	hashCode = hashCodeGenerator & HASH_CODE_MASK;
-      } while (hashCode == 0);
-      bootImage.setFullWord(ref + STATUS_OFFSET, hashCode | VM_AllocatorHeader.GC_BARRIER_BIT_MASK);
+    if (VM_Collector.NEEDS_WRITE_BARRIER) {
+      // must set barrier bit for bootimage objects
+      // Also, since the write barrier accesses the available bits bytes 
+      // non-atomically we also need to initialize the hash code state
+      // such that the rest of the bits in the byte are frozen.
+      if (ADDRESS_BASED_HASHING) {
+	bootImage.setFullWord(ref + STATUS_OFFSET, HASH_STATE_HASHED | VM_AllocatorHeader.GC_BARRIER_BIT_MASK);
+      } else {
+	int hashCode;
+	do {
+	  hashCodeGenerator += (1 << HASH_CODE_SHIFT);
+	  hashCode = hashCodeGenerator & HASH_CODE_MASK;
+	} while (hashCode == 0);
+	bootImage.setFullWord(ref + STATUS_OFFSET, hashCode | VM_AllocatorHeader.GC_BARRIER_BIT_MASK);
+      }
     }
+
     return ref;
   }
 
@@ -519,17 +521,23 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
     int ref = ptr + ARRAY_HEADER_SIZE;
     // (TIB set by BootImageWriter2; array length set by VM_ObjectModel)
 
-    // If Collector.MOVES_OBJECTS then we must preallocate hash code
-    // and set the barrier bit to avoid problems with non-atomic access
-    // to available bits byte corrupting hash code by write barrier sequence.
-    if (VM_Collector.MOVES_OBJECTS && VM_Collector.NEEDS_WRITE_BARRIER) {
-      int hashCode;
-      do {
-	hashCodeGenerator += (1 << HASH_CODE_SHIFT);
-	hashCode = hashCodeGenerator & HASH_CODE_MASK;
-      } while (hashCode == 0);
-      bootImage.setFullWord(ref + STATUS_OFFSET, hashCode | VM_AllocatorHeader.GC_BARRIER_BIT_MASK);
+    if (VM_Collector.NEEDS_WRITE_BARRIER) {
+      // must set barrier bit for bootimage objects
+      // Also, since the write barrier accesses the available bits bytes 
+      // non-atomically we also need to initialize the hash code state
+      // such that the rest of the bits in the byte are frozen.
+      if (ADDRESS_BASED_HASHING) {
+	bootImage.setFullWord(ref + STATUS_OFFSET, HASH_STATE_HASHED | VM_AllocatorHeader.GC_BARRIER_BIT_MASK);
+      } else {
+	int hashCode;
+	do {
+	  hashCodeGenerator += (1 << HASH_CODE_SHIFT);
+	  hashCode = hashCodeGenerator & HASH_CODE_MASK;
+	} while (hashCode == 0);
+	bootImage.setFullWord(ref + STATUS_OFFSET, hashCode | VM_AllocatorHeader.GC_BARRIER_BIT_MASK);
+      }
     }
+
     return ref;
   }
 
