@@ -48,10 +48,10 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    * How many bits are used to encode the hash code state?
    */
   protected static final int HASH_STATE_BITS = VM_Collector.MOVES_OBJECTS ? 2 : 0;
-  protected static final int HASH_STATE_MASK = HASH_STATE_UNHASHED | HASH_STATE_HASHED | HASH_STATE_HASHED_AND_MOVED;
+  protected static final int HASH_STATE_MASK = VM_Collector.MOVES_OBJECTS ? (HASH_STATE_UNHASHED | HASH_STATE_HASHED | HASH_STATE_HASHED_AND_MOVED) : 0;
+  protected static final int HASHCODE_BYTES  = VM_Collector.MOVES_OBJECTS ? 4 : 0;
   protected static final int HASHCODE_SCALAR_OFFSET = -4; // in "phantom word"
   protected static final int HASHCODE_ARRAY_OFFSET = JAVA_HEADER_END - OTHER_HEADER_BYTES - 4; // to left of header
-  protected static final int HASHCODE_BYTES = 4;
   
   /**
    * How small is the minimum object header size? 
