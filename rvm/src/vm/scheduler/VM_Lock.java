@@ -419,7 +419,8 @@ public final class VM_Lock implements VM_Constants, VM_Uninterruptible {
     lockAllocationMutex = new VM_ProcessorLock();
     VM_Scheduler.locks  = new VM_Lock[MAX_LOCKS+1]; // don't use slot 0
     if (VM.VerifyAssertions) // check that each potential lock is addressable
-      VM.assert(VM_Scheduler.locks.length-1<=(VM_ThinLockConstants.TL_LOCK_ID_MASK>>>VM_ThinLockConstants.TL_LOCK_ID_SHIFT));
+      VM.assert((VM_Scheduler.locks.length-1<=(VM_ThinLockConstants.TL_LOCK_ID_MASK>>>VM_ThinLockConstants.TL_LOCK_ID_SHIFT))
+                || (VM_ThinLockConstants.TL_LOCK_ID_MASK==-1));
   }
   
   /**

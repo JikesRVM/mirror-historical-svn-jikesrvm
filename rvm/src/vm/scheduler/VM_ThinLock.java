@@ -100,6 +100,7 @@ minor:  while (0 != retries--) { // repeat if there is contention for thin lock
             }
             continue minor; // contention, probably spurious, try again (TODO!! worry about this)
           }
+
           if ((old & TL_FAT_LOCK_MASK) != 0) { // o has a heavy lock
             int index = old & TL_LOCK_ID_MASK;
             index >>>= TL_LOCK_ID_SHIFT;
