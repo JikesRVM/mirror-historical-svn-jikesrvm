@@ -2308,7 +2308,7 @@ public class VM_Allocator
     }
     else {
       if (VM.VerifyAssertions) VM.assert(ref >= minLargeRef);
-      int page_num = ((ref + OBJECT_PTR_ADJUSTMENT) - largeHeapStartAddress ) >> 12;
+      int page_num = (VM_ObjectModel.getPointerInMemoryRegion(ref) - largeHeapStartAddress ) >> 12;
       if (largeSpaceMark[page_num] != 0)
 	return true;   // still live, le.value is OK
       else {
