@@ -99,6 +99,11 @@
 public final class VM_ObjectModel implements VM_Uninterruptible, 
 					     VM_JavaHeaderConstants {
 
+  static final boolean HASH_STATS = VM_Lock.STATS; // kludge rhs to simplify scripts
+  static int hashRequests    = 0; // count number of hashCode() operations
+  static int hashTransition1 = 0; // count transitions from HASH_STATE_UNHASHED to HASH_STATE_HASHED
+  static int hashTransition2 = 0; // count transitions from HASH_STATE_HASHED to HASH_STATE_HASHED_AND_MOVED
+
   /**
    * Given a reference to an object of a given class, 
    * what is the offset in bytes to the bottom word of
@@ -248,6 +253,7 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
    * Get the hash code of an object.
    */
   public static int getObjectHashCode(Object o) { 
+    if (HASH_STATS) hashRequests++;
     return VM_JavaHeader.getObjectHashCode(o);
   }
 

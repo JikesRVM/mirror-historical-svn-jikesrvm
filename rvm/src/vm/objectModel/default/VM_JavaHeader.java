@@ -188,6 +188,7 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
 	Object toObj = VM_Magic.addressAsObject(toAddress + data + SCALAR_PADDING_BYTES);
 	VM_Magic.setIntAtOffset(toObj, HASHCODE_SCALAR_OFFSET, VM_Magic.objectAsAddress(fromObj));
 	VM_Magic.setIntAtOffset(toObj, STATUS_OFFSET, availBitsWord | HASH_STATE_HASHED_AND_MOVED);
+	if (VM_ObjectModel.HASH_STATS) VM_ObjectModel.hashTransition2++;
 	return toObj;
       } else { // HASHED_AND_MOVED; 'phanton word' contains hash code.
 	int fromAddress = VM_Magic.objectAsAddress(fromObj) - numBytes + HASHCODE_BYTES - SCALAR_PADDING_BYTES;
@@ -224,6 +225,7 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
 	Object toObj = VM_Magic.addressAsObject(toAddress + ARRAY_HEADER_SIZE + HASHCODE_BYTES);
 	VM_Magic.setIntAtOffset(toObj, HASHCODE_ARRAY_OFFSET, VM_Magic.objectAsAddress(fromObj));
 	VM_Magic.setIntAtOffset(toObj, STATUS_OFFSET, availBitsWord | HASH_STATE_HASHED_AND_MOVED);
+	if (VM_ObjectModel.HASH_STATS) VM_ObjectModel.hashTransition2++;
 	return toObj;
       } else { // HASHED_AND_MOVED
 	int fromAddress = VM_Magic.objectAsAddress(fromObj) - ARRAY_HEADER_SIZE - HASHCODE_BYTES;
@@ -272,6 +274,7 @@ public final class VM_JavaHeader implements VM_JavaHeaderConstants,
 	  do {
 	    tmp = VM_Magic.prepare(o, STATUS_OFFSET);
 	  } while (!VM_Magic.attempt(o, STATUS_OFFSET, tmp, tmp | HASH_STATE_HASHED));
+	  if (VM_ObjectModel.HASH_STATS) VM_ObjectModel.hashTransition1++;
 	  return getObjectHashCode(o);
 	}
       } else {

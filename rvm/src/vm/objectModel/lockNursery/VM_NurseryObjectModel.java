@@ -59,11 +59,6 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    */
   public static final int MINIMUM_HEADER_SIZE = SCALAR_HEADER_SIZE;
 
-
-  static int hashRequests    = 0; // count number of hashCode() operations
-  static int hashTransition1 = 0; // count transitions from HASH_STATE_UNHASHED to HASH_STATE_HASHED
-  static int hashTransition2 = 0; // count transitions from HASH_STATE_HASHED to HASH_STATE_HASHED_AND_MOVED
-
   /**
    * What is the offset of the 'last' byte in the class?
    * For use by VM_ObjectModel.layoutInstanceFields
@@ -267,7 +262,6 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
    * Get the hash code of an object.
    */
   public static int getObjectHashCode(Object o) { 
-    hashRequests++;
     if (VM_Collector.MOVES_OBJECTS) {
       int hashState = VM_Magic.getIntAtOffset(o, TIB_OFFSET) & HASH_STATE_MASK;
       if (hashState == HASH_STATE_HASHED) {
@@ -284,7 +278,7 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
 	do {
 	  tmp = VM_Magic.prepare(o, TIB_OFFSET);
 	} while (!VM_Magic.attempt(o, TIB_OFFSET, tmp, tmp | HASH_STATE_HASHED));
-	hashTransition1++;
+	if (VM_ObjectModel.HASH_STATS) VM_ObjectModel.hashTransition1++;
 	return getObjectHashCode(o);
       }
     } else {
@@ -335,7 +329,7 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
       Object toObj = VM_Magic.addressAsObject(toAddress + data + SCALAR_PADDING_BYTES);
       VM_Magic.setIntAtOffset(toObj, HASHCODE_SCALAR_OFFSET, VM_Magic.objectAsAddress(fromObj));
       VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, tibWord | HASH_STATE_HASHED_AND_MOVED);
-      hashTransition2++;
+      if (VM_ObjectModel.HASH_STATS) VM_ObjectModel.hashTransition2++;
       return toObj;
     } else { // HASHED_AND_MOVED; 'phanton word' contains hash code.
       int fromAddress = VM_Magic.objectAsAddress(fromObj) - numBytes + HASHCODE_BYTES - SCALAR_PADDING_BYTES;
@@ -364,6 +358,7 @@ public class VM_NurseryObjectModel implements VM_Uninterruptible,
       Object toObj = VM_Magic.addressAsObject(toAddress + ARRAY_HEADER_SIZE + HASHCODE_BYTES);
       VM_Magic.setIntAtOffset(toObj, HASHCODE_ARRAY_OFFSET, VM_Magic.objectAsAddress(fromObj));
       VM_Magic.setIntAtOffset(toObj, TIB_OFFSET, tibWord | HASH_STATE_HASHED_AND_MOVED);
+      if (VM_ObjectModel.HASH_STATS) VM_ObjectModel.hashTransition2++;
       return toObj;
     } else { // HASHED_AND_MOVED: hash code to 'left' of array header
       int fromAddress = VM_Magic.objectAsAddress(fromObj) - ARRAY_HEADER_SIZE - HASHCODE_BYTES;

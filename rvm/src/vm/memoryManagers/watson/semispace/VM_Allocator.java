@@ -2024,10 +2024,10 @@ public class VM_Allocator
 
   static void
   printSummaryStatistics () {
-    if (true) {
-      VM.sysWriteln("Hash operations:    ", VM_NurseryObjectModel.hashRequests);
-      VM.sysWriteln("Unhashed -> Hashed: ", VM_NurseryObjectModel.hashTransition1);
-      VM.sysWriteln("Hashed   -> Moved:  ", VM_NurseryObjectModel.hashTransition2);
+    if (VM_ObjectModel.HASH_STATS) {
+      VM.sysWriteln("Hash operations:    ", VM_ObjectModel.hashRequests);
+      VM.sysWriteln("Unhashed -> Hashed: ", VM_ObjectModel.hashTransition1);
+      VM.sysWriteln("Hashed   -> Moved:  ", VM_ObjectModel.hashTransition2);
     }
 
     int avgTime=0, avgBytes=0;
