@@ -1,14 +1,28 @@
+/* -*-coding: iso-8859-1 -*-
+ *
+ * Copyright © IBM Corp 2001, 2002, 2003, 2004
+ *
+ * $Id$
+ */
+//$Id$
+
 // package com.ibm.JikesRVM.GenerateInterfaceDeclarations;
 
 import com.ibm.JikesRVM.classloader.VM_Field;
 import com.ibm.JikesRVM.classloader.VM_Class;
 import com.ibm.JikesRVM.classloader.VM_Atom;
-import  java.io.*;
-import  java.io.PrintStream;
-import  java.util.*;
+import com.ibm.JikesRVM.classloader.VM_TypeReference;
+import java.util.Arrays;
 import java.lang.reflect.*;
-import com.ibm.JikesRVM.*;
-import com.ibm.JikesRVM.classloader.*;
+import com.ibm.JikesRVM.VM_Address;
+
+/**
+ * Actually emit the C declarations required to access VM data structures from
+ * C and C++.
+ *
+ * @author Derek Lieber
+ * @modified Steven Augart 2/2004, 3/2004: self-hosting
+ */
 
 
 class Emitters extends Shared {
@@ -64,10 +78,19 @@ class Emitters extends Shared {
   }
 
   /** Get the version of the GNU Classpath library from
-        gnu.classpath.configuration */
+        gnu.classpath.Configuration */
   public void emitGNUClasspathVersion() 
     throws Exception
   {
+    /* Add some cross-checking here. */
+    Class localClasspathConfig = Class.forName("gnu.classpath.Configuration");
+
+    if (verbose > 0) {
+      epln("localClasspathConfig = " + localClasspathConfig);
+      epln("    used class loader: " + localClasspathConfig.getClassLoader());
+    }      
+    
+
     pln("#ifdef NEED_GNU_CLASSPATH_VERSION");
     /*  We have to use reflection here.
 
@@ -77,6 +100,15 @@ class Emitters extends Shared {
         but where we are building Jikes RVM with GNU Classpath version Y
     */
     Class classpathConfig = getClassNamed("gnu.classpath.Configuration");
+    if (verbose > 0) {
+      epln("classpathConfig = " + classpathConfig);
+      epln("  used class loader: " + classpathConfig.getClassLoader());
+    }      
+    if (classpathConfig == localClasspathConfig) {
+      epln("This should never happen: classpathConfig = localClasspathConfig");
+      
+    }
+    
     Field versionField = classpathConfig.getField("CLASSPATH_VERSION");
     String ver = (String) versionField.get("CLASSPATH_VERSION");
     
@@ -266,7 +298,7 @@ class Emitters extends Shared {
   // Emit virtual machine class interface information.
   //
   void emitVirtualMachineDeclarations (int bootImageAddress) 
-    throws NoSuchFieldException, IllegalAccessException
+    throws NoSuchFieldException, IllegalAccessException, InvocationTargetException, NoSuchMethodException
   {
     // load address for the boot image
     //
@@ -322,39 +354,48 @@ class Emitters extends Shared {
     /* Fields shared among distributions. */
     i.emit(new String[] {
       "STACK_SIZE_GUARD", "INVISIBLE_METHOD_ID",
-      "TL_THREAD_ID_SHIFT", "STACKFRAME_HEADER_SIZE",
-      "STACKFRAME_METHOD_ID_OFFSET", 
-      "STACKFRAME_FRAME_POINTER_OFFSET"
     });
+    IntEmitter thinLockEmitter 
+	= new IntEmitter(
+	    getClassNamed("com.ibm.JikesRVM.VM_ThinLockConstants"),
+	    "VM_ThinLockConstants_");
+    thinLockEmitter.emit("TL_THREAD_ID_SHIFT");
+    i.emit(new String[] { "STACKFRAME_HEADER_SIZE",
+			  "STACKFRAME_METHOD_ID_OFFSET", 
+			  "STACKFRAME_FRAME_POINTER_OFFSET" }
+	);
+    
 
     i.emitAddress("STACKFRAME_SENTINEL_FP");
 
     // values in VM_ObjectModel
     //
     pln("static const int VM_ObjectModel_ARRAY_LENGTH_OFFSET = " + 
-                       VM_ObjectModel.getArrayLengthOffset() + "\n;");
+        getObjectModelArrayLengthOffset() + ";");
 
     // values in VM_Scheduler
     //
-    vc = getClassNamed("com.ibm.JikesRVM.VM_Scheduler");
-    i = new IntEmitter(vc, "VM_Scheduler_");
+    i = new IntEmitter(getClassNamed("com.ibm.JikesRVM.VM_Scheduler"),
+                       "VM_Scheduler_");
     i.emit("PRIMORDIAL_PROCESSOR_ID");
     i.emit("PRIMORDIAL_THREAD_INDEX");
     pln();
 
     // values in VM_ThreadEventConstants
     //
-    vc = getClassNamed("com.ibm.JikesRVM.ThreadEventConstants");
-    DoubleEmitter d = new DoubleEmitter(vc, "VM_ThreadEventConstants_");
+    DoubleEmitter d 
+      = new DoubleEmitter(
+                 getClassNamed("com.ibm.JikesRVM.VM_ThreadEventConstants"),
+                 "VM_ThreadEventConstants_");
+    
     d.emit("WAIT_INFINITE");
 
     // values in VM_ThreadIOQueue
     //
     i = new IntEmitter(getClassNamed("com.ibm.JikesRVM.VM_ThreadIOQueue"),
                        "VM_ThreadIOQueue_");
-    i.emit("READ_OFFSET");
-    i.emit("WRITE_OFFSET");
-    i.emit("EXCEPT_OFFSET");
+    i.emit(new String[] {"READ_OFFSET", "WRITE_OFFSET", "EXCEPT_OFFSET" });
+    
     pln();
 
     // values in VM_ThreadIOConstants
@@ -362,178 +403,105 @@ class Emitters extends Shared {
     
     i = new IntEmitter(getClassNamed("com.ibm.JikesRVM.VM_ThreadIOConstants"),
                        "VM_ThreadIOConstants_");
-    i.emit("FD_READY");
-    //    p("static const int VM_ThreadIOConstants_FD_READY = " +
-    //        VM_ThreadIOConstants.FD_READY + ";\n");
-    p("static const int VM_ThreadIOConstants_FD_READY_BIT = " +
-        VM_ThreadIOConstants.FD_READY_BIT + ";\n");
-    p("static const int VM_ThreadIOConstants_FD_INVALID = " +
-        VM_ThreadIOConstants.FD_INVALID + ";\n");
-    p("static const int VM_ThreadIOConstants_FD_INVALID_BIT = " +
-        VM_ThreadIOConstants.FD_INVALID_BIT + ";\n");
-    p("static const int VM_ThreadIOConstants_FD_MASK = " +
-        VM_ThreadIOConstants.FD_MASK + ";\n");
-    p("\n");
+    i.emit(new String[] {"FD_READY", "FD_READY_BIT", "FD_INVALID", "FD_INVALID_BIT", "FD_MASK"
+    });
+
+    pln();
 
     // values in VM_ThreadProcessWaitQueue
     //
-    p("static const int VM_ThreadProcessWaitQueue_PROCESS_FINISHED = " +
-        VM_ThreadProcessWaitQueue.PROCESS_FINISHED + ";\n");
+    i = new IntEmitter(
+	   getClassNamed("com.ibm.JikesRVM.VM_ThreadProcessWaitQueue"),
+                         "VM_ThreadProcessWaitQueue_");
+    i.emit("PROCESS_FINISHED");
+//     p("static const int VM_ThreadProcessWaitQueue_PROCESS_FINISHED = " +
+//         VM_ThreadProcessWaitQueue.PROCESS_FINISHED + ";\n");
 
     // values in VM_Runtime
     //
-    p("static const int VM_Runtime_TRAP_UNKNOWN        = "
-        + VM_Runtime.TRAP_UNKNOWN + ";\n");
-    p("static const int VM_Runtime_TRAP_NULL_POINTER   = "
-        + VM_Runtime.TRAP_NULL_POINTER + ";\n");
-    p("static const int VM_Runtime_TRAP_ARRAY_BOUNDS   = "
-        + VM_Runtime.TRAP_ARRAY_BOUNDS + ";\n");
-    p("static const int VM_Runtime_TRAP_DIVIDE_BY_ZERO = "
-        + VM_Runtime.TRAP_DIVIDE_BY_ZERO + ";\n");
-    p("static const int VM_Runtime_TRAP_STACK_OVERFLOW = "
-        + VM_Runtime.TRAP_STACK_OVERFLOW + ";\n");
-    p("static const int VM_Runtime_TRAP_CHECKCAST      = "
-        + VM_Runtime.TRAP_CHECKCAST + ";\n");
-    p("static const int VM_Runtime_TRAP_REGENERATE     = "
-        + VM_Runtime.TRAP_REGENERATE + ";\n");
-    p("static const int VM_Runtime_TRAP_JNI_STACK     = "
-        + VM_Runtime.TRAP_JNI_STACK + ";\n");
-    p("static const int VM_Runtime_TRAP_MUST_IMPLEMENT = "
-        + VM_Runtime.TRAP_MUST_IMPLEMENT + ";\n");
-    p("static const int VM_Runtime_TRAP_STORE_CHECK = "
-        + VM_Runtime.TRAP_STORE_CHECK + ";\n");
+    i = new IntEmitter(
+	   getClassNamed("com.ibm.JikesRVM.VM_Runtime"),
+                         "VM_Runtime_");
+    i.emit(new String[] {
+	"TRAP_UNKNOWN", "TRAP_NULL_POINTER", "TRAP_ARRAY_BOUNDS", "TRAP_DIVIDE_BY_ZERO","TRAP_STACK_OVERFLOW", "TRAP_CHECKCAST", "TRAP_REGENERATE", "TRAP_JNI_STACK", "TRAP_MUST_IMPLEMENT", "TRAP_STORE_CHECK"
+    });
+    
     pln();
 
     // values in VM_FileSystem
     //
-    p("static const int VM_FileSystem_OPEN_READ                 = "
-        + VM_FileSystem.OPEN_READ + ";\n");
-    p("static const int VM_FileSystem_OPEN_WRITE                 = "
-        + VM_FileSystem.OPEN_WRITE + ";\n");
-    p("static const int VM_FileSystem_OPEN_MODIFY                 = "
-        + VM_FileSystem.OPEN_MODIFY + ";\n");
-    p("static const int VM_FileSystem_OPEN_APPEND                 = "
-        + VM_FileSystem.OPEN_APPEND + ";\n");
-    p("static const int VM_FileSystem_SEEK_SET                 = "
-        + VM_FileSystem.SEEK_SET + ";\n");
-    p("static const int VM_FileSystem_SEEK_CUR                 = "
-        + VM_FileSystem.SEEK_CUR + ";\n");
-    p("static const int VM_FileSystem_SEEK_END                 = "
-        + VM_FileSystem.SEEK_END + ";\n");
-    p("static const int VM_FileSystem_STAT_EXISTS                 = "
-        + VM_FileSystem.STAT_EXISTS + ";\n");
-    p("static const int VM_FileSystem_STAT_IS_FILE                 = "
-        + VM_FileSystem.STAT_IS_FILE + ";\n");
-    p("static const int VM_FileSystem_STAT_IS_DIRECTORY                 = "
-        + VM_FileSystem.STAT_IS_DIRECTORY + ";\n");
-    p("static const int VM_FileSystem_STAT_IS_READABLE                 = "
-        + VM_FileSystem.STAT_IS_READABLE + ";\n");
-    p("static const int VM_FileSystem_STAT_IS_WRITABLE                 = "
-        + VM_FileSystem.STAT_IS_WRITABLE + ";\n");
-    p("static const int VM_FileSystem_STAT_LAST_MODIFIED                 = "
-        + VM_FileSystem.STAT_LAST_MODIFIED + ";\n");
-    p("static const int VM_FileSystem_STAT_LENGTH                 = "
-        + VM_FileSystem.STAT_LENGTH + ";\n");
+    i = new IntEmitter(getClassNamed("com.ibm.JikesRVM.VM_FileSystem"),
+                       "VM_FileSystem_");
+
+    i.emit(new String[] {
+	"OPEN_READ", "OPEN_WRITE", "OPEN_MODIFY", "OPEN_APPEND", "SEEK_SET",
+	"SEEK_CUR", "SEEK_END", "STAT_EXISTS", "STAT_IS_FILE", "STAT_IS_DIRECTORY", "STAT_IS_READABLE", "STAT_IS_WRITABLE", "STAT_LAST_MODIFIED", "STAT_LENGTH"
+    });
+    
 
     // fields in VM_Processor
     //
-    int offset;
-    offset = VM_Entrypoints.threadSwitchRequestedField.getOffset();
-    p("static const int VM_Processor_threadSwitchRequested_offset = "
-        + offset + ";\n");
-    offset = VM_Entrypoints.activeThreadStackLimitField.getOffset();
-    offset = VM_Entrypoints.activeThreadStackLimitField.getOffset();
-    p("static const int VM_Processor_activeThreadStackLimit_offset = "
-                     + offset + ";\n");
-    offset = VM_Entrypoints.pthreadIDField.getOffset();
-    p("static const int VM_Processor_pthread_id_offset = "
-                     + offset + ";\n");
-    offset = VM_Entrypoints.epochField.getOffset();
-    p("static const int VM_Processor_epoch_offset = "
-                     + offset + ";\n");
-    offset = VM_Entrypoints.activeThreadField.getOffset();
-    p("static const int VM_Processor_activeThread_offset = "
-                     + offset + ";\n");
-    offset = VM_Entrypoints.threadIdField.getOffset();
-    p("static const int VM_Processor_threadId_offset = "
-                     + offset + ";\n");
+    Class entryPoints = getClassNamed("com.ibm.JikesRVM.VM_Entrypoints");
+    OffsetEmitter o = new OffsetEmitter(entryPoints, "VM_Processor_");
+    o.emit("threadSwitchRequested");
+                          
+    o.emit("activeThreadStackLimit");
+    o.emit("pthreadID", "pthread_id");
+    o.emit("epoch");
+    o.emit("activeThread");
+    o.emit("threadId");
+
     //-#if RVM_FOR_IA32
     if (vmBool("BuildForIA32")) {
-      offset = VM_Entrypoints.framePointerField.getOffset();
-      p("static const int VM_Processor_framePointer_offset = "
-        + offset + ";\n");
-      offset = VM_Entrypoints.jtocField.getOffset();
-      p("static const int VM_Processor_jtoc_offset = "
-        + offset + ";\n");
-      offset = VM_Entrypoints.arrayIndexTrapParamField.getOffset();
-      p("static const int VM_Processor_arrayIndexTrapParam_offset = "
-        + offset + ";\n");
+      o.emit(new String[] {"framePointer", "jtoc", "arrayIndexTrapParam"});
     }
     //-#endif
 
-    // fields in VM_Thread
+    // Fields in VM_Thread
     //
-    offset = VM_Entrypoints.threadStackField.getOffset();
-    p("static const int VM_Thread_stack_offset = " + offset + ";\n");
-    offset = VM_Entrypoints.stackLimitField.getOffset();
-    p("static const int VM_Thread_stackLimit_offset = " + offset + ";\n");
-    offset = VM_Entrypoints.threadHardwareExceptionRegistersField.getOffset();
-    p("static const int VM_Thread_hardwareExceptionRegisters_offset = "
-                     + offset + ";\n");
-    offset = VM_Entrypoints.jniEnvField.getOffset();
-    p("static const int VM_Thread_jniEnv_offset = "
-                     + offset + ";\n");
+    o = new OffsetEmitter(entryPoints, "VM_Thread_");
+    o.emit("threadStack", "stack");
+    o.emit("stackLimit");
+    o.emit("threadHardwareExceptionRegisters", "hardwareExceptionRegisters");
+    o.emit("jniEnv");
 
     // fields in VM_Registers
     //
-    offset = VM_Entrypoints.registersGPRsField.getOffset();
-    p("static const int VM_Registers_gprs_offset = " + offset + ";\n");
-    offset = VM_Entrypoints.registersFPRsField.getOffset();
-    p("static const int VM_Registers_fprs_offset = " + offset + ";\n");
-    offset = VM_Entrypoints.registersIPField.getOffset();
-    p("static const int VM_Registers_ip_offset = " + offset + ";\n");
+    o = new OffsetEmitter(entryPoints, "VM_Registers_");
+    o.emit("registersGPRs", "gprs");
+    o.emit("registersFPRs", "fprs");
+    o.emit("registersIP", "ip");
     //-#if RVM_FOR_IA32
     if (vmBool("BuildForIA32")) {
-      offset = VM_Entrypoints.registersFPField.getOffset();
-      p("static const int VM_Registers_fp_offset = " + offset + ";\n");
+      o.emit("registersFP", "fp");
     }
     //-#endif
     //-#if RVM_FOR_POWERPC
     if (vmBool("BuildForPowerPC")) {
-      offset = VM_Entrypoints.registersLRField.getOffset();
-      p("static const int VM_Registers_lr_offset = " + offset + ";\n");
+      o.emit("registersLR", "lr");
     }
     //-#endif
 
-    offset = VM_Entrypoints.registersInUseField.getOffset();
-    p("static const int VM_Registers_inuse_offset = " + 
-                     offset + ";\n");
+    o.emit("registersInUse", "inuse");
 
     // fields in VM_JNIEnvironment
-    offset = VM_Entrypoints.JNIExternalFunctionsField.getOffset();
-    p("static const int VM_JNIEnvironment_JNIExternalFunctions_offset = " +
-      offset + ";\n");
+    o = new OffsetEmitter(entryPoints, "VM_JNIEnvironment_");
+    o.emit("JNIExternalFunctions", "JNIExternalFunctions");
 
     // fields in java.net.InetAddress
     //
-    offset = VM_Entrypoints.inetAddressAddressField.getOffset();
-    p("static const int java_net_InetAddress_address_offset = "
-                     + offset + ";\n");
-    offset = VM_Entrypoints.inetAddressFamilyField.getOffset();
-    p("static const int java_net_InetAddress_family_offset = "
-                     + offset + ";\n");
+    o = new OffsetEmitter(entryPoints, "java_net_");
+    o.emit("inetAddressAddress", "InetAddress_address");
+    o.emit("inetAddressFamily", "InetAddress_family");
 
     // fields in java.net.SocketImpl
     //
-    offset = VM_Entrypoints.socketImplAddressField.getOffset();
-    p("static const int java_net_SocketImpl_address_offset = "
-                     + offset + ";\n");
-    offset = VM_Entrypoints.socketImplPortField.getOffset();
-    p("static const int java_net_SocketImpl_port_offset = "
-                     + offset + ";\n");
+    o.emit("socketImplAddress", "SocketImpl_address");
+    o.emit("socketImplPort", "SocketImpl_port");
 
     // fields in com.ibm.JikesRVM.memoryManagers.JMTk.BasePlan
-    offset = VM_Entrypoints.gcStatusField.getOffset();
+    OffsetReader reader = new OffsetReader(entryPoints);
+    int offset = reader.get("gcStatusField");
     p("static const int com_ibm_JikesRVM_memoryManagers_JMTk_BasePlan_gcStatusOffset = "
                      + offset + ";\n");
   }
@@ -543,36 +511,47 @@ class Emitters extends Shared {
   //
   void emitAssemblerDeclarations () {
 
+    FieldReader bcReader
+      = new FieldReader(getClassNamed(
+                                "com.ibm.JikesRVM.VM_BaselineConstants"));
+    
+    FieldReader constReader
+      = new FieldReader(getClassNamed(
+                                "com.ibm.JikesRVM.VM_Constants"));
+    
+                        
     //-#if RVM_FOR_POWERPC
     if (vmBool("BuildForPowerPC")) {
       //-#if RVM_FOR_OSX
       if (vmBool("BuildForOSX")) {
-        pln("#define FP r"   + VM_BaselineConstants.FP);
-        pln("#define JTOC r" + VM_BaselineConstants.JTOC);
-        pln("#define PROCESSOR_REGISTER r"    + VM_BaselineConstants.PROCESSOR_REGISTER);
-        pln("#define S0 r"   + VM_BaselineConstants.S0);
-        pln("#define T0 r"   + VM_BaselineConstants.T0);
-        pln("#define T1 r"   + VM_BaselineConstants.T1);
-        pln("#define T2 r"   + VM_BaselineConstants.T2);
-        pln("#define T3 r"   + VM_BaselineConstants.T3);
-        pln("#define STACKFRAME_NEXT_INSTRUCTION_OFFSET " + VM_Constants.STACKFRAME_NEXT_INSTRUCTION_OFFSET);
+        pln("#define FP r"   + bcReader.asString("FP"));
+        pln("#define JTOC r" + bcReader.asString("JTOC"));
+        pln("#define PROCESSOR_REGISTER r"    
+            + bcReader.asString("PROCESSOR_REGISTER"));
+        pln("#define S0 r"   + bcReader.asString("S0"));
+        pln("#define T0 r"   + bcReader.asString("T0"));
+        pln("#define T1 r"   + bcReader.asString("T1"));
+        pln("#define T2 r"   + bcReader.asString("T2"));
+        pln("#define T3 r"   + bcReader.asString("T3"));
+        pln("#define STACKFRAME_NEXT_INSTRUCTION_OFFSET " 
+            + constReader("STACKFRAME_NEXT_INSTRUCTION_OFFSET"));
       } else {
         //-#else
         //        if (vmBool("BuildForPowerPC")) {
-          pln(".set FP,"   + VM_BaselineConstants.FP);
-          pln(".set JTOC," + VM_BaselineConstants.JTOC);
+          pln(".set FP,"   + bcReader.asString("FP"));
+          pln(".set JTOC," + bcReader.asString("JTOC"));
           pln(".set PROCESSOR_REGISTER,"    
-              + VM_BaselineConstants.PROCESSOR_REGISTER);
-          pln(".set S0,"   + VM_BaselineConstants.S0);
-          pln(".set T0,"   + VM_BaselineConstants.T0);
-          pln(".set T1,"   + VM_BaselineConstants.T1);
-          pln(".set T2,"   + VM_BaselineConstants.T2);
-          pln(".set T3,"   + VM_BaselineConstants.T3);
+              + bcReader.asString("PROCESSOR_REGISTER"));
+          pln(".set S0,"   + bcReader.asString("S0"));
+          pln(".set T0,"   + bcReader.asString("T0"));
+          pln(".set T1,"   + bcReader.asString("T1"));
+          pln(".set T2,"   + bcReader.asString("T2"));
+          pln(".set T3,"   + bcReader.asString("T3"));
           pln(".set STACKFRAME_NEXT_INSTRUCTION_OFFSET," 
-              + VM_Constants.STACKFRAME_NEXT_INSTRUCTION_OFFSET);
+              + constReader.asString("STACKFRAME_NEXT_INSTRUCTION_OFFSET"));
           //        }
         if (! vmBool("BuildForAix")) 
-          pln(".set T4,"   + (VM_BaselineConstants.T3 + 1));
+          pln(".set T4,"   + (constReader.asInt("T3") + 1));
       }
     }
     //-#endif
@@ -580,36 +559,51 @@ class Emitters extends Shared {
 
     //-#if RVM_FOR_IA32
     if (vmBool("BuildForIA32")) {
-      p("#define JTOC %" 
-        + VM_RegisterConstants.GPR_NAMES[VM_BaselineConstants.JTOC]
-          + ";\n");
-      p("#define PR %"   
-        + VM_RegisterConstants.GPR_NAMES[VM_BaselineConstants.ESI]
-          + ";\n");
+      FieldReader regReader
+        = new FieldReader(getClassNamed(
+                                "com.ibm.JikesRVM.VM_RegisterConstants"));
+      String[]  gpr_names = regReader.asStringArray("GPR_NAMES");
+
+      p("#define JTOC %" + gpr_names[bcReader.asInt("JTOC")] + ";\n");
+      p("#define PR %" + gpr_names[bcReader.asInt("ESI")] + ";\n");
     }
     //-#endif
-
   }
+
+
   /** Return the value of the static field named @param fieldName in the
    * alternate VM class. */ 
   boolean vmBool(String fieldName) 
     //    throws IllegalAccessException
   {
-    Field f;
+    Field f = null;
     try {
       f = vmClass.getField(fieldName);
     } catch (NoSuchFieldException e) {
       reportTrouble("Unable to find a boolean field named " + fieldName
                     + "in the VM class", e);
-      return false;             // unreached.  Yuck.
+      // Unreached
     }
     try {
       return f.getBoolean(null);
     } catch (IllegalAccessException e) {
-      reportTrouble("Protection error while reading the boolean field named " + fieldName
-                    + "in the VM class", e);
-      System.exit(-1);          // unreached
-      return false;             // ditto
+      reportTrouble("Protection error while reading the boolean field named "
+                    + fieldName + "in the VM class", e);
     }
+    return false;             // unreached
+  }
+
+  int getObjectModelArrayLengthOffset() 
+    throws IllegalAccessException, InvocationTargetException 
+  {
+    final Class omClass = getClassNamed("com.ibm.JikesRVM.VM_ObjectModel");
+    Method getOff = null;
+    try {
+      getOff = omClass.getMethod("getArrayLengthOffset", new Class[0]);
+    } catch (NoSuchMethodException e) {
+      reportTrouble(omClass.toString() 
+                    + " doesn't have a method named getArrayLengthOffset", e);
+    }
+    return ((Integer) getOff.invoke(null, new Object[0])).intValue();
   }
 }

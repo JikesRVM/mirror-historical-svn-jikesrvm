@@ -1,25 +1,37 @@
+/* -*-coding: iso-8859-1 -*-
+ *
+ * Copyright © IBM Corp 2004
+ *
+ * $Id$
+ */
+
 // package com.ibm.JikesRVM.GenerateInterfaceDeclarations;
+
 import java.lang.reflect.Field;
+
+/**
+ * Print the specified static fields of a Java class as C "const double"
+ * declarations. 
+ *
+ * @author Steven Augart
+ * @date 11 March 2003
+ */
+
 
 class DoubleEmitter 
   extends Shared
 {
   private String cPrefix;
-  private Class cl;             // Class we'll pull up declarations for?
+  private FieldReader reader;   // Pull up declarations for the class.
 
   DoubleEmitter(Class cl, String cPrefix) {
     this.cPrefix = cPrefix;
-    this.cl = cl;
+    reader = new FieldReader(cl);
   }
-  void emit(String fieldName) 
-    throws NoSuchFieldException,IllegalAccessException 
-  {
 
-    final String f = fieldName;
-    Field fld = cl.getField(f);
-    
+  public void emit(String fieldName) {
     p("static const double " + cPrefix + fieldName
       + "               = "
-      + fld.get(null) + ";\n");
+      + reader.asDouble(fieldName) + ";\n");
   }
 }
