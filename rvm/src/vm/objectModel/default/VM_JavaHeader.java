@@ -126,7 +126,7 @@ public final class VM_JavaHeader implements VM_Uninterruptible,
    * @param t  the VM_Type of the array
    */
   public static ADDRESS arrayRefToBaseAddress(Object ref, VM_Type t) {
-    return VM_Magic.objectAsAddress(ref) + ARRAY_HEADER_SIZE;
+    return VM_Magic.objectAsAddress(ref) - ARRAY_HEADER_SIZE;
   }
 
 
