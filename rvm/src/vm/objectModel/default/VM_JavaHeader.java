@@ -38,11 +38,11 @@ import instructionFormats.*;
  * @author Dave Grove
  * @author Derek Lieber
  */
-public final class VM_JavaHeader implements VM_Uninterruptible, 
+public final class VM_JavaHeader implements VM_Uninterruptible 
 					    //-#if RVM_WITH_OPT_COMPILER
-					    OPT_Operators,
+					    ,OPT_Operators
 					    //-#endif
-					    VM_ObjectModelConstants {
+					    {
 
   private static final int OTHER_HEADER_BYTES = 
     VM_MiscHeader.NUM_BYTES_HEADER + VM_AllocatorHeader.NUM_BYTES_HEADER;
@@ -107,6 +107,22 @@ public final class VM_JavaHeader implements VM_Uninterruptible,
    */
   public static ADDRESS getPointerInMemoryRegion(ADDRESS ref) {
     return ref - 8;
+  }
+
+  /**
+   * Return the offset of the array length field from an object reference
+   * (in bytes)
+   */
+  public static int getArrayLengthOffset() {
+    return -4;
+  }
+
+  /**
+   * Return the offset to array element 0 from an object reference (in
+   * bytes)
+   */
+  public static int getArrayElementOffset() {
+    return 0;
   }
 
   /**

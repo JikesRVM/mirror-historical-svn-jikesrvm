@@ -914,11 +914,13 @@ public class VM_Allocator
 		if (DEBUG_NEXT_SLOT) checkNextAllocation(objaddr, the_size);
 
 		if (((OBJECT_HEADER_OFFSET - OBJECT_TIB_OFFSET) != 0) &&
-		    ((OBJECT_HEADER_OFFSET - ARRAY_LENGTH_OFFSET) != 0))
+		    ((OBJECT_HEADER_OFFSET -
+                      VM_ObjectModel.getArrayLengthOffset()) != 0))
 		    VM_Magic.setMemoryWord(objaddr, 0);
 		objaddr -= OBJECT_HEADER_OFFSET;
 		VM_Magic.setMemoryWord(objaddr + OBJECT_TIB_OFFSET, VM_Magic.objectAsAddress(tib));
-		VM_Magic.setMemoryWord(objaddr + ARRAY_LENGTH_OFFSET, numElements);
+		VM_Magic.setMemoryWord(objaddr +
+                                       VM_ObjectModel.getArrayLengthOffset(), numElements);
 
 		result = refcountifyArray(VM_Magic.addressAsObject(objaddr), tib, the_size);
 	    }
@@ -1062,7 +1064,8 @@ public class VM_Allocator
 	VM_Magic.setMemoryWord(objaddr, 0);
 	objaddr -= OBJECT_HEADER_OFFSET ;
 	VM_Magic.setMemoryWord(objaddr + OBJECT_TIB_OFFSET, VM_Magic.objectAsAddress(tib));
-	VM_Magic.setMemoryWord(objaddr + ARRAY_LENGTH_OFFSET, numElements);
+	VM_Magic.setMemoryWord(objaddr +
+                               VM_ObjectModel.getArrayLengthOffset(), numElements);
 
 	return objaddr;
     }
@@ -1569,7 +1572,8 @@ public class VM_Allocator
 	//     (hashcodeGenerator += VM.OBJECT_HASHCODE_UNIT) & VM.OBJECT_HASHCODE_MASK);
 
 	// set .length field
-	VM_Magic.setMemoryWord(objRef + ARRAY_LENGTH_OFFSET, numElements);
+	VM_Magic.setMemoryWord(objRef +
+                               VM_ObjectModel.getArrayLengthOffset(), numElements);
 
 	// return object reference
 	return VM_Magic.addressAsObject(objRef);
@@ -2657,7 +2661,7 @@ public class VM_Allocator
 
 	int ref = storage - OBJECT_HEADER_OFFSET;
 	VM_Magic.setMemoryWord(ref + OBJECT_TIB_OFFSET, tibptr);
-	VM_Magic.setMemoryWord(ref + ARRAY_LENGTH_OFFSET, num_elements);
+	VM_Magic.setMemoryWord(ref + VM_ObjectModel.getArrayLengthOffset(), num_elements);
 
 	initializeMallocedRefcount(ref, tibptr);
 	return VM_Magic.addressAsByteArray(ref);

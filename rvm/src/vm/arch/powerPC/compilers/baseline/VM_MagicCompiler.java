@@ -21,8 +21,7 @@
  * @author Derek Lieber
  * @author Janice Sheperd
  */
-class VM_MagicCompiler implements VM_BaselineConstants, 
-				  VM_ObjectModelConstants {
+class VM_MagicCompiler implements VM_BaselineConstants {
 
   // These constants do not really belong here, but since I am making this change
   // I might as well make it a little better.  All size in bytes.
@@ -750,7 +749,7 @@ class VM_MagicCompiler implements VM_BaselineConstants,
       //            +-------------------------+    /
 
       asm.emitL (T0,  0, SP);                   // get object pointer
-      asm.emitL (T0,  ARRAY_LENGTH_OFFSET, T0); // get array length field
+      asm.emitL (T0,  VM_ObjectModel.getArrayLengthOffset(), T0); // get array length field
       asm.emitST(T0,  0, SP);                   // *sp := length
       }
 

@@ -265,7 +265,8 @@ public class VM_Allocator implements VM_Constants {
     
     // set .length field
     //
-    VM_Magic.setMemoryWord(objAddress + ARRAY_LENGTH_OFFSET, numElements);
+    VM_Magic.setMemoryWord(objAddress +
+                           VM_ObjectModel.getArrayLengthOffset(), numElements);
     
     // return object reference
     //
@@ -323,7 +324,8 @@ public class VM_Allocator implements VM_Constants {
     
     // set .length field
     //
-    VM_Magic.setMemoryWord(objAddress + ARRAY_LENGTH_OFFSET, numElements);
+    VM_Magic.setMemoryWord(objAddress +
+                           VM_ObjectModel.getArrayLengthOffset(), numElements);
     
     // initialize array elements
     //

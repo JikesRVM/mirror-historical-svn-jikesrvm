@@ -15,8 +15,7 @@
  * @author Steve Fink
  * @author Dave Grove
  */
-public final class VM_MiscHeader implements VM_ObjectModelConstants,
-					    VM_Uninterruptible {
+public final class VM_MiscHeader implements VM_Uninterruptible {
 
   ///////////////////////
   // Support for GC Tracing; uses either 0 or 3 words of MISC HEADER

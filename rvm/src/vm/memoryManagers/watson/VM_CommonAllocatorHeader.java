@@ -14,8 +14,7 @@
  * @author Steve Fink
  * @author Dave Grove
  */
-public class VM_CommonAllocatorHeader implements VM_ObjectModelConstants,
-						 VM_Uninterruptible {
+public class VM_CommonAllocatorHeader implements VM_Uninterruptible {
 
   static final int GC_MARK_BIT_IDX     = 0; // must be lsb of available bits !!!!!!!
   static final int GC_BARRIER_BIT_IDX  = 1;

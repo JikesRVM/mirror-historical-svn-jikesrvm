@@ -808,7 +808,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
 	  astoreSetup(-1);	// NOT (dfb): following 4 lines plus emitTLLE seem redundant and possibly bogus
           asm.emitL   (T1,  8, SP);                    // T1 is array ref
           asm.emitL   (T0,  4, SP);                    // T0 is array index
-          asm.emitL   (T2,  ARRAY_LENGTH_OFFSET, T1);  // T2 is array length
+          asm.emitL   (T2,  VM_ObjectModel.getArrayLengthOffset(), T1);  // T2 is array length
 	  asm.emitL   (T3,  0, SP);                    // T3 is value to store
 	  emitSegmentedArrayAccess (asm, T1, T0, T2, 2);
 	  asm.emitTLLE(T2, T0);      // trap if index < 0 or index >= length
@@ -2691,7 +2691,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
         case 0xbe: /* --- arraylength --- */ {
           if (VM.TraceAssembler) asm.noteBytecode("arraylength");
           asm.emitL (T0, 0, SP);
-          asm.emitL (T1, ARRAY_LENGTH_OFFSET, T0);
+          asm.emitL (T1, VM_ObjectModel.getArrayLengthOffset(), T0);
 	  if (VM.BuildForRealtimeGC) {
 	      asm.emitCMPI(T1, 0);
 	      asm.emitBGE(2);
@@ -3005,7 +3005,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
   private void aloadSetup (int logSize) {
     asm.emitL   (T1,  4, SP);                    // T1 is array ref
     asm.emitL   (T0,  0, SP);                    // T0 is array index
-    asm.emitL   (T2,  ARRAY_LENGTH_OFFSET, T1);  // T2 is array length
+    asm.emitL   (T2,  VM_ObjectModel.getArrayLengthOffset(), T1);  // T2 is array length
     if (logSize >= 0)
 	emitSegmentedArrayAccess(asm, T1, T0, T2, logSize);
     if ( VM.BuildForRealtimeGC || !options.ANNOTATIONS ||
@@ -3018,7 +3018,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
   private void astoreSetup (int logSize) {
     asm.emitL   (T1,  8, SP);                    // T1 is array ref
     asm.emitL   (T0,  4, SP);                    // T0 is array index
-    asm.emitL   (T2,  ARRAY_LENGTH_OFFSET, T1);  // T2 is array length
+    asm.emitL   (T2,  VM_ObjectModel.getArrayLengthOffset(), T1);  // T2 is array length
     asm.emitL   (T3,  0, SP);                    // T3 is value to store
     if (logSize >= 0)
 	emitSegmentedArrayAccess(asm, T1, T0, T2, logSize);
@@ -3032,7 +3032,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
   private void astoreLong () {
     asm.emitL    (T1, 12, SP);                    // T1 is array ref
     asm.emitL    (T0,  8, SP);                    // T0 is array index
-    asm.emitL    (T2,  ARRAY_LENGTH_OFFSET, T1);  // T2 is array length
+    asm.emitL    (T2,  VM_ObjectModel.getArrayLengthOffset(), T1);  // T2 is array length
     asm.emitLFD  (F0,  0, SP);                    // F0 is value to store
     emitSegmentedArrayAccess(asm, T1, T0, T2, 3);
     if ( VM.BuildForRealtimeGC || !options.ANNOTATIONS ||

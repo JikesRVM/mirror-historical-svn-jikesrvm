@@ -66,9 +66,10 @@ final class OPT_ConvertLIRtoMIR extends OPT_OptimizationPlanCompositeElement {
 	    //-#endif
 	    }
 	    else 
-		// array_ref[ARRAY_LENGTH_OFFSET] contains the length
+		// array_ref[VM_ObjectModel.getArrayLengthOffset()] contains the length
 		Load.mutate(s, INT_LOAD, GuardedUnary.getClearResult(s), 
-			    GuardedUnary.getClearVal(s), I(ARRAY_LENGTH_OFFSET), 
+			    GuardedUnary.getClearVal(s),
+                            I(VM_ObjectModel.getArrayLengthOffset()), 
 			    new OPT_LocationOperand(), 
 			    GuardedUnary.getClearGuard(s));
 	  }

@@ -504,7 +504,7 @@ public class VM_Runtime implements VM_Constants {
   public static Object[] findITable(Object[] tib, int id) 
     throws IncompatibleClassChangeError, VM_ResolutionException {
     Object[] iTables = 
-      (Object[])tib[VM_ObjectModelConstants.TIB_ITABLES_TIB_INDEX];
+      (Object[])tib[VM_TIBLayoutConstants.TIB_ITABLES_TIB_INDEX];
     if (VM.DirectlyIndexedITables) {
       // ITable is at fixed offset
       return (Object[])iTables[id];

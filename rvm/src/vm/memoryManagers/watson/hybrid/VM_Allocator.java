@@ -1299,7 +1299,7 @@ public class VM_Allocator
     if (alloc_block.mark != null) {
       if (size <= alloc_block.alloc_size) {
 	VM_Magic.setMemoryWord(VM_Magic.objectAsAddress(alloc_block.mark) +
-			       ARRAY_LENGTH_OFFSET, size);
+			       VM_ObjectModel.getArrayLengthOffset(), size);
 	return 0;
       }
       else {		// free the existing array space
@@ -1340,7 +1340,7 @@ public class VM_Allocator
     if (alloc_block.mark != null)  {
       if (size <= alloc_block.alloc_size) {
 	VM_Magic.setMemoryWord(VM_Magic.objectAsAddress(alloc_block.mark) +
-			       ARRAY_LENGTH_OFFSET, size);
+			       VM_ObjectModel.getArrayLengthOffset(), size);
 	return 0;
       }
       else {		// free the existing array space

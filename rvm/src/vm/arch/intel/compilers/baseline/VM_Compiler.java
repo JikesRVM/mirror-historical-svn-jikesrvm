@@ -2344,7 +2344,8 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
 	// unit test by PArray
 	if (VM_Assembler.TRACE) asm.noteBytecode(biStart, "arraylength");
 	asm.emitMOV_Reg_RegDisp(T0, SP, 0);                   // T0 is array reference
-	asm.emitMOV_Reg_RegDisp(T0, T0, ARRAY_LENGTH_OFFSET); // T0 is array length
+	asm.emitMOV_Reg_RegDisp(T0, T0,
+                                VM_ObjectModel.getArrayLengthOffset()); // T0 is array length
 	asm.emitMOV_RegDisp_Reg(SP, 0, T0);                   // replace reference with length on stack
 	break;
       }
@@ -2679,7 +2680,8 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
 					VM_Method.annotationBoundsCheck)) {
       return;
     }
-    asm.emitCMP_RegDisp_Reg(arrayRefReg, ARRAY_LENGTH_OFFSET, indexReg);  // compare index to array length
+    asm.emitCMP_RegDisp_Reg(arrayRefReg,
+                            VM_ObjectModel.getArrayLengthOffset(), indexReg);  // compare index to array length
     VM_ForwardReference fr = asm.forwardJcc(asm.LGT);                     // Jmp around trap if index is OK
     
     // "pass" index param to C trap handler
@@ -3440,7 +3442,7 @@ public class VM_Compiler extends VM_BaselineCompiler implements VM_BaselineConst
     
     if (methodName == VM_MagicNames.getArrayLength) {
       asm.emitPOP_Reg(T0);			// object ref
-      asm.emitPUSH_RegDisp(T0, ARRAY_LENGTH_OFFSET); 
+      asm.emitPUSH_RegDisp(T0, VM_ObjectModel.getArrayLengthOffset()); 
       return;
     }
     

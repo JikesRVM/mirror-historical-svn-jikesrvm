@@ -94,8 +94,7 @@
  * @author Dave Grove
  * @author Derek Lieber
  */
-public final class VM_ObjectModel implements VM_Uninterruptible, 
-					     VM_ObjectModelConstants {
+public final class VM_ObjectModel implements VM_Uninterruptible {
   /**
    * Given a reference to an object of a given class, 
    * what is the offset in bytes to the bottom word of
@@ -121,6 +120,22 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
    */
   public static ADDRESS getPointerInMemoryRegion(ADDRESS ref) {
     return VM_JavaHeader.getPointerInMemoryRegion(ref);
+  }
+
+  /**
+   * Return the offset of the array length field from an object reference
+   * (in bytes)
+   */
+  public static int getArrayLengthOffset() {
+    return VM_JavaHeader.getArrayLengthOffset();
+  }
+
+  /**
+   * Return the offset to array element 0 from an object reference (in
+   * bytes)
+   */
+  public static int getArrayElementOffset() {
+    return VM_JavaHeader.getArrayElementOffset();
   }
 
   /**
@@ -186,14 +201,14 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
    * Get the length of an array
    */
   public static int getArrayLength(Object o) {
-    return VM_Magic.getIntAtOffset(o, ARRAY_LENGTH_OFFSET);
+    return VM_Magic.getIntAtOffset(o, getArrayLengthOffset());
   }
 
   /**
    * Set the length of an array
    */
   public static void setArrayLength(Object o, int len) {
-    VM_Magic.setIntAtOffset(o, ARRAY_LENGTH_OFFSET, len);
+    VM_Magic.setIntAtOffset(o, getArrayLengthOffset(), len);
   }
 
   /**
@@ -536,7 +551,7 @@ public final class VM_ObjectModel implements VM_Uninterruptible,
     int size = array.getInstanceSize(numElements);
     int ptr = bootImage.allocateStorage(size);
     int ref = VM_JavaHeader.baseAddressToArrayAddress(ptr, tib, size);
-    bootImage.setFullWord(ref + ARRAY_LENGTH_OFFSET, numElements);
+    bootImage.setFullWord(ref + getArrayLengthOffset(), numElements);
     VM_JavaHeader.initializeHeader(bootImage, ref, tib, size, false);
     VM_AllocatorHeader.initializeHeader(bootImage, ref, tib, size, false);
     VM_MiscHeader.initializeHeader(bootImage, ref, tib, size, false);
