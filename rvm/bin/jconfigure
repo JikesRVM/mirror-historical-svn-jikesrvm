@@ -30,11 +30,13 @@
 
 # Where are we?
 mydir="${0%/*}"
+ME="${0##*/}"
 
-echo >&2 ${0##*/} "XXX This code is Experimental Bash.  Appears to work,"
-echo >&2 ${0##*/} "XXX I've checked it, but it's probably not ready"
-echo >&2 ${0##*/} "XXX for prime time until it's been beaten on some more"
-echo >&2 ${0##*/} "XXX  	--Steve Augart"
+echo >&2 ${ME}: "XXX This code is an Experimental port to Bash.  Builds fine, but the"
+echo >&2 ${ME}: "XXX RVM it builds crashes quickly with simple test programs."
+echo >&2 ${ME}: "XXX It's not ready for prime time"
+echo >&2 ${ME}: "XXX  	--Steve Augart"
+echo >&2 ""
 
 #-----------------------------#
 # SECTION 0 - KSH Emulation   #
@@ -866,10 +868,14 @@ function emitController () {
 	set -e
 	ME=${0##*/}
 
+	# timeit() $1: The command to run
+	#	   $2: That command's arguments.
+
 	# The old (until 2003 June) KSH script displayed
 	# seconds of precision to three decimal places.  The
 	# SECONDS variable in my version of Bash only returns
 	# integers.
+
 	function timeit () {
 	    # We can either do some modifications to the output
 	    # format, and use TIMEFORMAT instead of SECONDS...
@@ -877,7 +883,9 @@ function emitController () {
 	    # time "$@"		
 	    # ...Or we can just deal.with integer seconds:
 	    "$@"
+	    local status=$?
 	    echo "$SECONDS s"
+	    return $status;	    
 	}
 
 	while [[ $# != 0 ]]; do
@@ -1103,34 +1111,34 @@ EOF
 # Make the preprocessor
 (cd ${ROOT_DIRECTORY_STR}/rvm/src/tools/preprocessor && ${GNU_MAKE_STR} \${SILENT_MAKE} tool SCRATCH_DIR=${SCRATCH_DIRECTORY_STR})
 cp ${SCRATCH_DIRECTORY_STR}/preprocessModifiedFiles ${BUILD_DIRECTORY_STR}/jbuild.prep"
-    cat <<- 'EOF'
+    echo '
 
+# This may be reset in the loop below.
 FILES_HAVE_CHANGED=0
 
-# Update from directories containing sources that implement virtual machine.
-EOF
-    echo '#
+# Update from directories containing sources that implement the virtual machine.
+#
 for d in $(cat' ${SOURCE_LIST_STR} '); do
     if [[ ${TRACE_FLAG} = -trace ]]; then
-       echo -n "${ME}: ${d}"
+        echo -n "${ME}: ${d}"
     fi
-    if [ X"`/bin/ls ${d}/*.java 2>/dev/null`" != X ]; then
-      FILES=`/bin/ls ${d}/*.java`
-    fi
+    shopt -s nullglob
+    # FILES may be empty.
+    FILES="$(echo ${d}/*.java)"
     set +e
-    '${BUILD_DIRECTORY_STR}/jbuild.prep '${TRACE_FLAG}' ${PREPROCESSOR_DEFINITIONS} ${CLASSES_DIRECTORY_STR} '${FILES} ${FILES2}
+    '${BUILD_DIRECTORY_STR}'/jbuild.prep ${TRACE_FLAG}' ${PREPROCESSOR_DEFINITIONS} ${CLASSES_DIRECTORY_STR} '${FILES}
+    set -e    # Added by Steven Augart
     RC=$?
     if [[ ${RC} = 1 ]]; then
        FILES_HAVE_CHANGED=1
     elif [[ ${RC} != 0 ]]; then
+       echo >&2 "$ME: Trouble while running jbuild.prep; aborting execution."
        exit 1
     fi
-    set -e
+    # set -e	# Original set -e location.
     if [[ ${TRACE_FLAG} = -trace ]]; then
       echo ""
     fi
-    FILES=
-    FILES2=
 done
 
 # Update from directories containing machine generated source files
@@ -1138,11 +1146,11 @@ done
 # overwrite any dummy versions of the files we have sitting
 # around in the shadow (telling people that the file is generated).
 if [[ ${TRACE_FLAG} = -trace ]]; then
-    echo -n "${ME}: '${GENERATED_FILES_DIRECTORY_STR}/'"
+    echo -n "${ME}: '${GENERATED_FILES_DIRECTORY_STR}'/"
 fi
-FILES=$(${FIND} '${GENERATED_FILES_DIRECTORY_STR}' -name "*.java")
+FILES=$(${FIND} '${GENERATED_FILES_DIRECTORY_STR}'/ -name "*.java")
 set +e
-'${BUILD_DIRECTORY_STR}/jbuild.prep '${TRACE_FLAG}' ${PREPROCESSOR_DEFINITIONS} ${CLASSES_DIRECTORY_STR} '${FILES}
+'${BUILD_DIRECTORY_STR}'/jbuild.prep ${TRACE_FLAG}' ${PREPROCESSOR_DEFINITIONS} ${CLASSES_DIRECTORY_STR}' ${FILES}
 RC=$?
 if [[ ${RC} = 1 ]]; then
     FILES_HAVE_CHANGED=1
@@ -1155,10 +1163,10 @@ if [[ ${TRACE_FLAG} = -trace ]]; then
 fi'
 
     # copy classpath jar file
-    if [[ x$CLASSPATH_ROOT = x ]]; then
+    if ! [ "$CLASSPATH_ROOT" ]; then
 	CPS=$RVM_ROOT/classpath
     else
-	CPS=$CLASSPATH_ROOT
+	CPS="${CLASSPATH_ROOT}"
     fi
     echo '
 SYSTEM_TYPE=$('$CPS'/classpath/config.guess)
@@ -1757,9 +1765,10 @@ EOF
    echo 'if [[ $TRACE_FLAG = -trace ]]; then'
    echo '    echo -n "$ME: '$BOOTIMAGE_WRITER_DIR_STR'"'
    echo 'fi'
-   echo 'FILES=`/bin/ls' $BOOTIMAGE_WRITER_DIR_STR'/*.java`'
+   echo 'FILES=$(/bin/ls' $BOOTIMAGE_WRITER_DIR_STR'/*.java)'
    echo 'set +e'
    echo $BUILD_DIRECTORY_STR/jbuild.prep '$TRACE_FLAG' $PREPROCESSOR_DEFINITIONS $SCRATCH_DIRECTORY_STR ' $FILES'
+   echo 'set -e    # Added by Steven Augart'
    echo 'if [[ $TRACE_FLAG = -trace ]]; then'
    echo '   echo ""'
    echo 'fi'
@@ -1778,23 +1787,25 @@ EOF
    echo 'if [[ $TRACE_FLAG = -trace ]]; then'
    echo '    echo -n "$ME: '$BOOTIMAGE_RUNNER_DIR_STR'"'
    echo 'fi'
-   echo 'FILES=`/bin/ls' $BOOTIMAGE_RUNNER_DIR_STR'/GenerateInterfaceDeclarations.java`'
+   echo 'FILES=$(/bin/ls' $BOOTIMAGE_RUNNER_DIR_STR'/GenerateInterfaceDeclarations.java)'
    echo 'set +e'
    echo $BUILD_DIRECTORY_STR/jbuild.prep '$TRACE_FLAG' $PREPROCESSOR_DEFINITIONS $SCRATCH_DIRECTORY_STR ' $FILES'
+   echo 'set -e    # Added by Steven Augart'
    echo 'if [[ $TRACE_FLAG = -trace ]]; then'
    echo '    echo ""'
    echo 'fi'
-   echo ''
-
-   # compile GenerateInterfaceDeclaration.java
-   #
+   echo '
+#
+# compile GenerateInterfaceDeclarations.java
+#'
    echo "cd $SCRATCH_DIRECTORY_STR &&\
           $HOST_JIKES_STR -nowarn +F +Z +KINSTRUCTION=$INSTRUCTION_TYPE +E -g +U\
 	  -classpath $BUILD_DIRECTORY_STR/RVM.classes:$BUILD_DIRECTORY_STR/RVM.classes/rvmrt.jar\
 	  GenerateInterfaceDeclarations.java"
 
-   # generate InterfaceDeclaration.h
-   #
+   echo '#
+# generate InterfaceDeclarations.h
+#'
    echo "rm -f $SCRATCH_DIRECTORY_STR/InterfaceDeclarations.h"
    echo "cd $SCRATCH_DIRECTORY_STR && $HOST_JAVA_STR -Xms200M -Xmx200M\
           -classpath .:$CLASSES_DIRECTORY_STR:$CLASSES_DIRECTORY_STR/rvmrt.jar\
