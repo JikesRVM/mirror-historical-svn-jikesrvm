@@ -359,7 +359,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
       showUsage();
     }
     hi = !hi;          // flip the semi-spaces
-    ssMR.release();    // reset the semispace memory resource, and
+    ssMR.reset();    // reset the semispace memory resource, and
     // prepare each of the collected regions
     Copy.prepare(((hi) ? ss0VM : ss1VM), ssMR);
     Immortal.prepare(immortalVM, null);

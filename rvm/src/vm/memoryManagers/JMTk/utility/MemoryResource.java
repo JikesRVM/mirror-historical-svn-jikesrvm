@@ -64,21 +64,24 @@ final class MemoryResource implements Constants, VM_Uninterruptible {
   /**
    * Reset this memory resource
    *
-   */
-  public void reset() {
-    reset(0);
-  }
-
-  /**
-   * Reset this memory resource
-   *
    * @param pageBudget The budget of pages available to this memory
    * manager before it must poll the collector.
    */
   public void reset(int pageBudget) {
+    lock();
+    this.pageBudget = pageBudget;
+    unlock();
+    reset();
+  }
+
+  /**
+   * Reset this memory resource
+   */
+  public void reset() {
+    lock();
     reserved = 0;
     committed = 0;
-    this.pageBudget = pageBudget;
+    unlock();
   }
 
   /**
@@ -92,23 +95,17 @@ final class MemoryResource implements Constants, VM_Uninterruptible {
    */
   public boolean acquire (int pages) {
     lock();
-    reserved += pages;
-    if ((committed + pages) > pageBudget) {
+    reserved = committed + pages;
+    if (reserved > pageBudget) {
       unlock();   // We cannot hold the lock across a GC point!
-      if (VM_Interface.getPlan().poll(false, this)) 
+      if (VM_Interface.getPlan().poll(false, this)) {
 	return false;
+      }
       lock();
     }
     committed += pages;
     unlock();
     return true;
-  }
-
-  /**
-   * Release all pages from the memory resource.
-   */
-  public void release() {
-    release(reserved);
   }
 
   /**
@@ -118,8 +115,8 @@ final class MemoryResource implements Constants, VM_Uninterruptible {
    */
   public void release(int pages) {
     lock();
-    reserved -= pages;
     committed -= pages;
+    reserved = committed;
     unlock();
   }
 

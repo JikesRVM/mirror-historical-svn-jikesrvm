@@ -365,7 +365,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
       VM.sysWrite("  Before Collection: ");
       showUsage();
     }
-    nurseryMR.release();
+    nurseryMR.reset();
     Copy.prepare(nurseryVM, nurseryMR);
     ms.prepare(msVM, msMR);
     Immortal.prepare(immortalVM, null);

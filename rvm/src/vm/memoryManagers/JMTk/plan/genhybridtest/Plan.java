@@ -396,7 +396,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
       VM.sysWrite("  Before Collection: ");
       showUsage();
     }
-    nurseryMR.release();
+    nurseryMR.reset();
     if (fullHeapGC) {
       Immortal.prepare(immortalVM, null);
     }
@@ -485,8 +485,8 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   private static final VM_Address    NURSERY_END = NURSERY_START.add(NURSERY_SIZE);
   private static final VM_Address       HEAP_END = NURSERY_END;
 
-
-  private static final int NURSERY_THRESHOLD = (1*1024*1024)>>LOG_PAGE_SIZE;
+  private static final int POLL_FREQUENCY = (256*1024)>>LOG_PAGE_SIZE;
+  private static final int NURSERY_THRESHOLD = (512*1024)>>LOG_PAGE_SIZE;
 
   public static final int NURSERY_ALLOCATOR = 0;
   public static final int MS_ALLOCATOR = 1;
@@ -504,9 +504,9 @@ public final class Plan extends BasePlan implements VM_Uninterruptible { // impl
   static {
 
     // memory resources
-    nurseryMR = new MemoryResource();
-    msMR = new MemoryResource();
-    immortalMR = new MemoryResource();
+    nurseryMR = new MemoryResource(POLL_FREQUENCY);
+    msMR = new MemoryResource(POLL_FREQUENCY);
+    immortalMR = new MemoryResource(POLL_FREQUENCY);
 
     // virtual memory resources
     nurseryVM  = new MonotoneVMResource("Nursery", nurseryMR, NURSERY_START, NURSERY_SIZE, VMResource.MOVABLE);

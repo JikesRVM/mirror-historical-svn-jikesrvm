@@ -143,7 +143,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
       VM.sysWrite("used pages = ", getPagesUsed());
       VM.sysWrite(" ("); VM.sysWrite(Conversions.pagesToBytes(getPagesUsed()) >> 20, " Mb) ");
       VM.sysWrite("= (nursery) ", nurseryMR.reservedPages());  
-      VM.sysWrite(" + (nursery) ", matureMR.reservedPages());  
+      VM.sysWrite(" + (mature) ", matureMR.reservedPages());  
       VM.sysWrite(" + (los) ", losMR.reservedPages());
       VM.sysWriteln(" + (imm) ", immortalMR.reservedPages());
   }
@@ -221,8 +221,9 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
   public boolean poll(boolean mustCollect, MemoryResource mr) 
     throws VM_PragmaLogicallyUninterruptible {
     if (gcInProgress) return false;
-    if (mustCollect || 
-	((mr != metaDataMR) && (getPagesReserved() > getTotalPages()))) {
+    if (mustCollect || (getPagesReserved() > getTotalPages())) {
+      if (VM.VerifyAssertions)
+	VM._assert(mr != metaDataMR);
       fullHeapGC = mustCollect || fullHeapGC;
       VM_Interface.triggerCollection();
       return true;
@@ -359,7 +360,7 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
   // Assuming all future allocation comes from coping space
   //
   private static int getPagesAvail() {
-    int copyingTotal = getTotalPages() - losMR.reservedPages() - immortalMR.reservedPages();
+    int copyingTotal = getTotalPages()  - losMR.reservedPages() - immortalMR.reservedPages();
     return (copyingTotal / 2) - matureMR.reservedPages() - nurseryMR.reservedPages();
   }
 
@@ -380,9 +381,9 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
       VM.sysWrite("  Before Collection: ");
       showUsage();
     }
-    nurseryMR.release();    // reset the semispace memory resource, and
+    nurseryMR.reset(); // reset the nursery
     if (fullHeapGC) {
-      matureMR.release();    // reset the semispace memory resource, and
+      matureMR.reset(); // reset the nursery semispace memory resource
       hi = !hi;          // flip the semi-spaces
       // prepare each of the collected regions
       Immortal.prepare(immortalVM, null);
@@ -426,6 +427,12 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
     if (verbose > 0) {
       VM.sysWrite("   After Collection: ");
       showUsage();
+      VM.sysWrite("   Collection ", gcCount);
+      VM.sysWrite(":      reserved = ", getPagesReserved());
+      VM.sysWrite(" (", Conversions.pagesToBytes(getPagesReserved()) / ( 1 << 20)); 
+      VM.sysWrite(" Mb) ");
+      VM.sysWrite("      trigger = ", getTotalPages());
+      VM.sysWrite(" (", Conversions.pagesToBytes(getTotalPages()) / ( 1 << 20)); 
     }
   }
 
@@ -520,13 +527,15 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
 
   private static final int COPY_FUDGE_PAGES = 1;  // Steve - fix this
 
-  private static final int NURSERY_THRESHOLD = (1*1024*1024)>>LOG_PAGE_SIZE;
+  private static final int POLL_FREQUENCY = (256*1024)>>LOG_PAGE_SIZE;
+  private static final int NURSERY_THRESHOLD = (512*1024)>>LOG_PAGE_SIZE;
 
   public static final int NURSERY_ALLOCATOR = 0;
   public static final int MATURE_ALLOCATOR = 1;
   public static final int LOS_ALLOCATOR = 2;
   public static final int IMMORTAL_ALLOCATOR = 3;
   public static final int DEFAULT_ALLOCATOR = NURSERY_ALLOCATOR;
+
 
   private static final String allocatorToString(int type) {
     switch (type) {
@@ -546,10 +555,10 @@ public final class Plan extends BasePlan implements VM_Uninterruptible {
   static {
 
     // memory resources
-    nurseryMR = new MemoryResource();
-    matureMR = new MemoryResource();
-    losMR = new MemoryResource();
-    immortalMR = new MemoryResource();
+    nurseryMR = new MemoryResource(POLL_FREQUENCY);
+    matureMR = new MemoryResource(POLL_FREQUENCY);
+    losMR = new MemoryResource(POLL_FREQUENCY);
+    immortalMR = new MemoryResource(POLL_FREQUENCY);
 
     // virtual memory resources
     nurseryVM  = new MonotoneVMResource("Nursery", nurseryMR, NURSERY_START, NURSERY_SIZE, VMResource.MOVABLE);

@@ -57,9 +57,9 @@ public abstract class BasePlan implements Constants, VM_Uninterruptible {
   protected static final VM_Address META_DATA_START = VM_Address.fromInt(VM_Interface.bootImageAddress).add(MAX_USER_VM);
   protected static final EXTENT     META_DATA_SIZE = 16 * 1024 * 1024;
   private static final VM_Address  META_DATA_END = META_DATA_START.add(META_DATA_SIZE);  
-
+  private static final int META_DATA_POLL_FREQUENCY = (1<<32 - 1); // never
   static {
-    metaDataMR = new MemoryResource();
+    metaDataMR = new MemoryResource(META_DATA_POLL_FREQUENCY);
     metaDataVM = new MonotoneVMResource("Meta data", metaDataMR, META_DATA_START, META_DATA_SIZE, VMResource.META_DATA);
     metaDataRPA = new RawPageAllocator(metaDataVM, metaDataMR);
     valuePool = new SharedQueue(metaDataRPA, 1);
