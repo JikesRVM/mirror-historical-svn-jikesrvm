@@ -197,7 +197,7 @@ public final class VM_JavaHeader implements VM_Uninterruptible,
 	if ((statusWord & HASH_CODE_MASK) != 0) // some other thread installed a hashcode
 	  return (statusWord & HASH_CODE_MASK) >> HASH_CODE_SHIFT;
 	if (VM_Magic.attempt(o, STATUS_OFFSET, statusWord, statusWord | hashCode))
-	  return hashCode; // we installed the hashcode
+	  return hashCode >> HASH_CODE_SHIFT;  // we installed the hash code
       }
     } else {
       return VM_Magic.objectAsAddress(o) >> 2;
@@ -414,8 +414,8 @@ public final class VM_JavaHeader implements VM_Uninterruptible,
    */
   public static void initializeScalarClone(Object cloneDst, Object cloneSrc, int size) {
     int cnt = size - SCALAR_HEADER_SIZE;
-    int dst = VM_Magic.objectAsAddress(cloneDst) + OBJECT_HEADER_END - size;
-    int src = VM_Magic.objectAsAddress(cloneSrc) + OBJECT_HEADER_END - size;
+    int dst = VM_Magic.objectAsAddress(cloneDst) - (size - OBJECT_HEADER_END);
+    int src = VM_Magic.objectAsAddress(cloneSrc) - (size - OBJECT_HEADER_END);
     VM_Memory.aligned32Copy(dst, src, cnt); 
   }
 
