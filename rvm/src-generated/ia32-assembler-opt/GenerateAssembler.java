@@ -88,8 +88,7 @@ public class GenerateAssembler {
         try {
             out.write(s, 0, s.length());
         } catch (IOException e) {
-            e.printStackTrace();
-            System.exit(1);
+          throw new Error(e);
         }
     }
 
@@ -120,8 +119,7 @@ public class GenerateAssembler {
         try {
             formats = Class.forName("OPT_InstructionFormatTables");
         } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-            System.exit(1);
+          throw new Error(e);
         }
     }
 
@@ -163,7 +161,7 @@ public class GenerateAssembler {
      * when an instruction has extra operands that are not used in
      * assembly (e.g. CALL) has mappings only for such instructions.
      */
-    static Hashtable<String,int[]> opcodeArgTables;
+    static final Hashtable<String,int[]> opcodeArgTables;
 
     /**
      *  Initialize the opcodeArgTables table
@@ -200,9 +198,7 @@ public class GenerateAssembler {
             Field f = formats.getDeclaredField(currentFormat+"ParameterNames");
             currentOpcodeSymbolicNames = (String[]) f.get( null );
         } catch (Throwable e) {
-            System.err.println("Cannot handle VM_Assembler opcode " + opcode);
-            e.printStackTrace();
-            System.exit(1);
+          throw new Error("Cannot handle VM_Assembler opcode " + opcode, e);
         }
     }
 
@@ -367,14 +363,14 @@ public class GenerateAssembler {
     /**
      * For a given operand number, return a string which is a valid Java
      * expression for reading that operand out of the current instruction.
-     * This function uses the currentOpcodSymbolicNames table to determine
+     * This function uses the currentOpcodeSymbolicNames table to determine
      * the appropriate accessor (e.g. getValue if the current name is Value),
      * and it uses the currentOpcodeArgTable (in cases where it has an
      * entry for the kind of instruction being processed) to determine which
      * operand in OPT_Instruction corresponds to operand sought.
      *
      * @param op  The operand number sought.
-     * @return A Java expression for adcessing the requested operand.
+     * @return A Java expression for accessing the requested operand.
      */
     private static String getOperand(int op) {
         try {
@@ -383,11 +379,10 @@ public class GenerateAssembler {
             else
                 return currentFormat + ".get" + currentOpcodeSymbolicNames[currentOpcodeArgTable[op]] + "(inst)";
         } catch (ArrayIndexOutOfBoundsException e) {
-            System.err.println(currentOpcode + ": cannot access operand " + op  + ":");
-            for(int i = 0; i < currentOpcodeSymbolicNames.length; i++)
-                System.err.println( currentOpcodeSymbolicNames[i] );
-            System.exit(1);
-            return null;
+          String error = currentOpcode + ": cannot access operand " + op  + ":";
+          for(int i = 0; i < currentOpcodeSymbolicNames.length; i++)
+            error += currentOpcodeSymbolicNames[i];
+          throw new Error(error);
         }
     }
 
@@ -964,9 +959,9 @@ public class GenerateAssembler {
                 }
 
                 if (testsPerformed[rec.argument][rec.test] == true) {
-                    System.err.println("repeated split of " + opcode + "[" + rec.argument + "] for " + encoding[rec.test]);
-                    System.err.println( this );
-                    System.exit(1);
+                  throw new Error("repeated split of " + opcode +
+                                  "[" + rec.argument + "] for " +
+                                  encoding[rec.test] + "\n" + this);
                 }
 
                 testsPerformed[rec.argument][rec.test] = true;
@@ -1126,15 +1121,13 @@ public class GenerateAssembler {
         try {
             out = new FileWriter(System.getProperty("generateToDir") + "/OPT_Assembler.java");
         } catch (IOException e) {
-            e.printStackTrace();
-            System.exit(1);
+          throw new Error(e);
         }
 
         try {
             lowLevelAsm = Class.forName("org.jikesrvm.ia32.VM_Assembler");
         } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-            System.exit(1 );
+          throw new Error(e);
         }
 
         emit("package org.jikesrvm.opt.ia32;\n\n");
@@ -1261,8 +1254,7 @@ public class GenerateAssembler {
         try {
             out.close();
         } catch (IOException e) {
-            e.printStackTrace();
-            System.exit(1 );
+          throw new Error(e);
         }
     }
 }
