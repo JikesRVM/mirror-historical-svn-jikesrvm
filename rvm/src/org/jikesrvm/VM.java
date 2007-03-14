@@ -103,7 +103,7 @@ import org.vmmagic.unboxed.*;
     if (verboseBoot >= 1) VM.sysWriteln("Doing thread initialization");
     VM_Thread currentThread = VM_Processor.getCurrentProcessor().activeThread;
     currentThread.stackLimit = VM_Magic.objectAsAddress(currentThread.stack).plus(ArchitectureSpecific.VM_StackframeLayoutConstants.STACK_SIZE_GUARD);
-    currentThread.isBootThread = true;
+    currentThread.setBootThread();
     
     VM_Processor.getCurrentProcessor().activeThreadStackLimit = currentThread.stackLimit;
     currentThread.startQuantum(VM_Time.cycles());

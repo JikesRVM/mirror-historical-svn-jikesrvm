@@ -298,7 +298,7 @@ import org.vmmagic.unboxed.*;
       return false; // caller will try again
     } else { // can't yield - must spin and let caller retry
       // potential deadlock if user thread is contending for a lock with thread switching disabled
-      if (VM.VerifyAssertions) VM._assert(VM_Thread.getCurrentThread().isGCThread);
+      if (VM.VerifyAssertions) VM._assert(VM_Thread.getCurrentThread().isGCThread());
       mutex.unlock(); // thread-switching benign
       return false; // caller will try again
     }

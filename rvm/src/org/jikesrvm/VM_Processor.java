@@ -215,7 +215,7 @@ implements VM_Constants {
       transferMutex.lock();
       VM_Thread t = transferQueue.dequeue();
       transferMutex.unlock();
-      if (t.isGCThread){
+      if (t.isGCThread()){
         if (VM.TraceThreadScheduling > 1) VM_Scheduler.trace("VM_Processor", "getRunnableThread: collector thread", t.getIndex());
         return t;
       } else if (t.beingDispatched && t != VM_Thread.getCurrentThread()) { // thread's stack in use by some OTHER dispatcher
@@ -293,11 +293,11 @@ implements VM_Constants {
    * Add a thread to this processor's transfer queue.
    */ 
   private void transferThread (VM_Thread t) {
-    if (this != getCurrentProcessor() || t.isGCThread || (t.beingDispatched && t != VM_Thread.getCurrentThread())) {
+    if (this != getCurrentProcessor() || t.isGCThread() || (t.beingDispatched && t != VM_Thread.getCurrentThread())) {
       transferMutex.lock();
       transferQueue.enqueue(t);
       transferMutex.unlock();
-    } else if (t.isIdleThread) {
+    } else if (t.isIdleThread()) {
       idleQueue.enqueue(t);
     } else {
       readyQueue.enqueue(t);
