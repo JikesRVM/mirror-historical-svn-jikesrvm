@@ -20,7 +20,7 @@ import static org.jikesrvm.VM_SysCall.sysCall;
  * @author Bowen Alpern
  * @author Derek Lieber
  */
-class VM_IdleThread extends VM_Thread {
+final class VM_IdleThread extends VM_Thread {
 
   /**
    * Attempt rudimentary load balancing.  If a virtual processor
@@ -46,9 +46,16 @@ class VM_IdleThread extends VM_Thread {
   VM_IdleThread(VM_Processor processorAffinity, boolean runInitProcessor) {
     super(null, myName);
     makeDaemon(true);
-    super.isIdleThread = true;
     super.processorAffinity = processorAffinity;
     runInitProc = runInitProcessor;
+  }
+
+  /**
+   * Is this the idle thread?
+   * @return true
+   */
+  public boolean isIdleThread() {
+    return true;
   }
 
   public String toString() { // overrides VM_Thread

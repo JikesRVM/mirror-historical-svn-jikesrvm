@@ -22,16 +22,12 @@ import org.jikesrvm.VM_Thread;
  *  @author Michael Hind
  *  @author David Grove
  */
-class VM_CompilationThread extends VM_Thread {
-
-  public String toString() {
-    return "VM_CompilationThread";
-  }
-
+final class VM_CompilationThread extends VM_Thread {
   /**
    * constructor
    */
   VM_CompilationThread() {
+    super(null, "VM_CompilationThread");
     makeDaemon(true);
   }
 

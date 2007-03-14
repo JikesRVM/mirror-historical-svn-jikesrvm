@@ -49,14 +49,11 @@ import org.vmmagic.pragma.*;
  * @author Feng Qian
  */
 
-public class OSR_OrganizerThread extends VM_Thread {
-
-  public String toString() {
-    return "OSR_Organizer";
-  }
-
+public final class OSR_OrganizerThread extends VM_Thread {
+  /** Constructor */
   public OSR_OrganizerThread() {
-        makeDaemon(true);
+    super(null, "OSR_Organizer");    
+    makeDaemon(true);
   }
   
   public boolean osr_flag = false;

@@ -22,12 +22,19 @@ import org.vmmagic.unboxed.*;
  * @author Derek Lieber
  * @date 28 April 1999 
  */
-class DebuggerThread extends VM_Thread {
+final class DebuggerThread extends VM_Thread {
 
   DebuggerThread() {
     super(null);
     makeDaemon(true);
-    super.isSystemThread = true;
+  }
+  
+  /**
+   * Is this the debugger thread?
+   * @return true
+   */
+  public boolean isDebuggerThread() {
+    return true;
   }
 
   public String toString() {

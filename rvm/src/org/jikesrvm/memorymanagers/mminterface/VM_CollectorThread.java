@@ -63,7 +63,7 @@ import org.jikesrvm.ArchitectureSpecific;
  * @modified Perry Cheng
  *
  */
-public class VM_CollectorThread extends VM_Thread {
+public final class VM_CollectorThread extends VM_Thread {
   
   /***********************************************************************
    *
@@ -164,13 +164,21 @@ public class VM_CollectorThread extends VM_Thread {
     super(stack, null, myName);
     makeDaemon(true); // this is redundant, but harmless
     this.isActive          = isActive;
-    this.isGCThread        = true;
     this.processorAffinity = processorAffinity;
 
     /* associate this collector thread with its affinity processor */
     collectorThreads[processorAffinity.id] = this;
   }
   
+  /**
+   * Is this the GC thread?
+   * @return true
+   */
+  @Uninterruptible
+  public boolean isGCThread() {
+    return true;
+  }
+
   /**
    * Initialize for boot image.
    */
