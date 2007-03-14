@@ -27,30 +27,40 @@ import org.vmmagic.pragma.*;
  * @author Bowen Alpern
  */
 @Uninterruptible final class VM_Proxy {
-  
-  VM_Thread              patron;
+  /** The thread creating this proxy */
+  volatile VM_Thread     patron;
+  /** The next waiting proxy on the waiting proxy queue */
   VM_Proxy               waitingNext;
+  /** The next wakeup proxy on the waiting proxy queue */
   VM_Proxy               wakeupNext;
-  long                   wakeupCycle;
-  final VM_ProcessorLock lock = new VM_ProcessorLock();
+  /** When to wakeup */
+  final long             wakeupCycle;
+  /** Lock to guarantee proxy is only scheduled on one processor */
+  final VM_ProcessorLock lock;
  
-  // Create a proxy for a thread on a waiting queue
-  //
+  /**
+   * Create a proxy for a thread on a waiting queue
+   */
   VM_Proxy (VM_Thread t) {
     patron = t;
+    wakeupCycle = 0L;
+    lock = new VM_ProcessorLock();
   }
   
-  // Create a proxy for a thread on a wakeup queue 
-  // (may be on a waiting queue also)
-  //
+  /**
+   * Create a proxy for a thread on a wakeup queue (may be on a
+   * waiting queue also)
+   */
   VM_Proxy (VM_Thread t, long cycles) {
     patron = t;
     wakeupCycle = cycles;
+    lock = new VM_ProcessorLock();
   }
   
-  // Remove the thread from the queue
-  // null means the thread has already been scheduled (ignore)
-  //
+  /**
+   * Remove the thread from the queue null means the thread has
+   * already been scheduled (ignore)
+   */
   VM_Thread unproxy () {
     if (patron == null) return null;
     lock.lock(); // make sure only one VP schedules the patron of this proxy
