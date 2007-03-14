@@ -49,6 +49,8 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
   private static final Offset ONE_SLOT    = NO_SLOT.plus(WORDSIZE); 
   private static final Offset TWO_SLOTS   = ONE_SLOT.plus(WORDSIZE);
   private static final Offset THREE_SLOTS = TWO_SLOTS.plus(WORDSIZE);
+  private static final Offset FOUR_SLOTS  = THREE_SLOTS.plus(WORDSIZE);
+  private static final Offset FIVE_SLOTS  = FOUR_SLOTS.plus(WORDSIZE);
 
   /**
    * Create a VM_Compiler object for the compilation of method.
@@ -3106,6 +3108,7 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
       }
 
       if (methodName == VM_MagicNames.loadLong ||
+          methodName == VM_MagicNames.prepareLong ||
           methodName == VM_MagicNames.loadDouble) {
       
         if (types.length == 0) {
@@ -3247,6 +3250,32 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
       VM_ForwardReference fr = asm.forwardJcc(VM_Assembler.NE); // skip if compare fails
       asm.emitMOV_RegInd_Imm (SP, 1);        // 'push' true (overwriting base)
       fr.resolve(asm);
+      return true;
+    }
+    
+    if (methodName == VM_MagicNames.attemptLong) {
+      // attempt gets called with four arguments: base, offset, oldVal, newVal
+      // returns ([base+offset] == oldVal)
+      // if ([base+offset] == oldVal) [base+offset] := newVal
+      // (operation on memory is atomic)
+      //t1:t0 with s0:ebx
+      asm.emitMOV_Reg_RegDisp(T1, SP, TWO_SLOTS);
+      asm.emitMOV_Reg_RegDisp(T0, SP, THREE_SLOTS); // T1:T0 (EDX:EAX) -> oldVal
+      asm.emitMOV_RegDisp_Reg(SP, TWO_SLOTS, EBX);  // Save EBX
+      asm.emitMOV_RegDisp_Reg(SP, THREE_SLOTS, ESI);  // Save ESI
+      asm.emitMOV_Reg_RegDisp(S0, SP, NO_SLOT);
+      asm.emitMOV_Reg_RegDisp(EBX, SP, ONE_SLOT);   // S0:EBX (ECX:EBX) -> newVal
+      asm.emitMOV_Reg_RegDisp(ESI, SP, FIVE_SLOTS); // ESI := base
+      asm.emitADD_Reg_RegDisp(ESI, SP, FOUR_SLOTS); // ESI += offset
+      asm.emitLockNextInstruction();
+      asm.emitCMPXCHG8B_RegInd (ESI);        // atomic compare-and-exchange
+      asm.emitMOV_RegInd_Imm (SP, 0);        // 'push' false (overwriting base)
+      VM_ForwardReference fr = asm.forwardJcc(VM_Assembler.NE); // skip if compare fails
+      asm.emitMOV_RegInd_Imm (SP, 1);        // 'push' true (overwriting base)
+      fr.resolve(asm);
+      asm.emitMOV_Reg_RegDisp(EBX, SP, TWO_SLOTS);  // Restore EBX
+      asm.emitMOV_Reg_RegDisp(ESI, SP, THREE_SLOTS);  // Restore ESI
+      asm.emitADD_Reg_Imm(SP, WORDSIZE*6);      // complete popping the 4 args (6 slots)
       return true;
     }
 

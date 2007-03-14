@@ -357,6 +357,15 @@ public class VM_Magic {
   }
 
   /**
+   * Get contents of (object + offset) and begin conditional critical section.
+   */
+  @Uninterruptible
+  public static long prepareLong(Object object, Offset offset) {
+    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+    return -1;
+  }
+
+  /**
    * Sets the memory at (object + offset) to newValue if its contents are oldValue.  
    * Must be paired with a preceding prepare (which returned the oldValue)
    * Returns true if successful.
@@ -397,6 +406,17 @@ public class VM_Magic {
    */ 
   public static boolean attemptWord(Object object, Offset offset,
                                     Word oldValue, Word newValue) {
+    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+    return false;
+  }
+
+  /**
+   * Sets the memory at (object + offset) to newValue if its contents are oldValue.  
+   * Must be paired with a preceding prepare (which returned the oldValue)
+   * Returns true if successful.
+   * Ends conditional critical section.
+   */ 
+  public static boolean attemptLong(Object object, Offset offset, long oldValue, long newValue) {
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
     return false;
   }

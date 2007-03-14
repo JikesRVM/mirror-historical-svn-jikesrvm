@@ -30,6 +30,7 @@ import org.jikesrvm.opt.ir.MIR_BinaryAcc;
 import org.jikesrvm.opt.ir.MIR_Call;
 import org.jikesrvm.opt.ir.MIR_Compare;
 import org.jikesrvm.opt.ir.MIR_CompareExchange;
+import org.jikesrvm.opt.ir.MIR_CompareExchange8B;
 import org.jikesrvm.opt.ir.MIR_CondBranch;
 import org.jikesrvm.opt.ir.MIR_CondMove;
 import org.jikesrvm.opt.ir.MIR_ConvertDW2QW;
@@ -101,14 +102,14 @@ abstract class OPT_BURS_Helpers extends OPT_BURS_MemOp_Helpers {
       OPT_Instruction def = defs.next().instruction;
 		if (defs.hasMoreElements()) {return use;}
       if (MIR_Move.conforms (def)) {
-		  use = MIR_Move.getValue(def);
-		}
-		else if (Move.conforms(def)){
-		  use = Move.getVal(def);
-		}
-		else {
-		  return use;
-		}
+        use = MIR_Move.getValue(def);
+      }
+      else if (Move.conforms(def)){
+        use = Move.getVal(def);
+      }
+      else {
+        return use;
+      }
     }
   }
 
@@ -1902,13 +1903,17 @@ abstract class OPT_BURS_Helpers extends OPT_BURS_MemOp_Helpers {
 
 
   /**
-   * This routine expands an ATTEMPT instruction 
-   * into an atomic compare exchange.
+   * This routine expands an ATTEMPT instruction into an atomic
+   * compare exchange. The atomic compare and exchange will place at
+   * mo the value of newValue if the value of mo is oldValue. The
+   * result register is set to 0/1 depending on whether the valye was
+   * replaced or not.
    *
-   * @param result   the register operand that is set to 0/1 as a result of the attempt
+   * @param result the register operand that is set to 0/1 as a result
+   * of the attempt
    * @param mo       the address at which to attempt the exchange
-   * @param oldValue the old value at the address mo
-   * @param newValue the new value at the address mo
+   * @param oldValue the old value to check for at the address mo
+   * @param newValue the new value to place at the address mo
    */
   protected final void ATTEMPT(OPT_RegisterOperand result,
                                OPT_MemoryOperand mo,
@@ -1953,8 +1958,72 @@ abstract class OPT_BURS_Helpers extends OPT_BURS_MemOp_Helpers {
     EMIT(MIR_CondBranch.create(IA32_JCC, COND(cond), target, bp));
   }
 
-  /* special case handling OSR instructions 
-   * expand long type variables to two intergers
+  /**
+   * This routine expands an ATTEMPT instruction into an atomic
+   * compare exchange. The atomic compare and exchange will place at
+   * mo the value of newValue if the value of mo is oldValue. The
+   * result register is set to 0/1 depending on whether the valye was
+   * replaced or not.
+   *
+   * @param result the register operand that is set to 0/1 as a result
+   * of the attempt
+   * @param mo       the address at which to attempt the exchange
+   * @param oldValue the old value to check for at the address mo
+   * @param newValue the new value to place at the address mo
+   */
+  protected final void ATTEMPT_LONG(OPT_RegisterOperand result,
+                                    OPT_MemoryOperand mo,
+                                    OPT_Operand oldValue,
+                                    OPT_Operand newValue) {
+    // Set up EDX:EAX with the old value
+    if (oldValue.isRegister()) {
+      OPT_Register oldValue_hval = oldValue.asRegister().register;
+      OPT_Register oldValue_lval = regpool.getSecondReg(oldValue_hval);
+      EMIT(MIR_Move.create(IA32_MOV, new OPT_RegisterOperand(getEDX(), VM_TypeReference.Int),
+                           new OPT_RegisterOperand(oldValue_hval, VM_TypeReference.Int)));
+      EMIT(MIR_Move.create(IA32_MOV, new OPT_RegisterOperand(getEAX(), VM_TypeReference.Int),
+                           new OPT_RegisterOperand(oldValue_lval, VM_TypeReference.Int)));
+    } else {
+      if (VM.VerifyAssertions) VM._assert(oldValue.isLongConstant());
+      OPT_LongConstantOperand val = oldValue.asLongConstant();
+      EMIT(MIR_Move.create(IA32_MOV, new OPT_RegisterOperand(getEDX(), VM_TypeReference.Int),
+                           IC(val.upper32())));
+      EMIT(MIR_Move.create(IA32_MOV, new OPT_RegisterOperand(getEAX(), VM_TypeReference.Int),
+                           IC(val.lower32())));
+    }
+    
+    // Set up ECX:EBX with the new value
+    if (newValue.isRegister()) {
+      OPT_Register newValue_hval = newValue.asRegister().register;
+      OPT_Register newValue_lval = regpool.getSecondReg(newValue_hval);
+      EMIT(MIR_Move.create(IA32_MOV, new OPT_RegisterOperand(getECX(), VM_TypeReference.Int),
+                           new OPT_RegisterOperand(newValue_hval, VM_TypeReference.Int)));
+      EMIT(MIR_Move.create(IA32_MOV, new OPT_RegisterOperand(getEBX(), VM_TypeReference.Int),
+                           new OPT_RegisterOperand(newValue_lval, VM_TypeReference.Int)));
+    } else {
+      if (VM.VerifyAssertions) VM._assert(newValue.isLongConstant());
+      OPT_LongConstantOperand val = newValue.asLongConstant();
+      EMIT(MIR_Move.create(IA32_MOV, new OPT_RegisterOperand(getECX(), VM_TypeReference.Int),
+                           IC(val.upper32())));
+      EMIT(MIR_Move.create(IA32_MOV, new OPT_RegisterOperand(getEBX(), VM_TypeReference.Int),
+                           IC(val.lower32())));
+    }
+
+    EMIT(MIR_CompareExchange8B.create(IA32_LOCK_CMPXCHG8B,
+                                      new OPT_RegisterOperand(getEDX(), VM_TypeReference.Int),
+                                      new OPT_RegisterOperand(getEAX(), VM_TypeReference.Int),
+                                      mo,
+                                      new OPT_RegisterOperand(getECX(), VM_TypeReference.Int),
+                                      new OPT_RegisterOperand(getEBX(), VM_TypeReference.Int))); 
+    OPT_RegisterOperand temp = regpool.makeTemp(result);
+    EMIT(MIR_Set.create(IA32_SET__B, temp, OPT_IA32ConditionOperand.EQ()));
+    // need to zero-extend the result of the set
+    EMIT(MIR_Unary.create(IA32_MOVZX__B, result, temp.copy()));
+  }
+  
+  /**
+   * Special case handling OSR instructions expand long type variables
+   * to two intergers
    */
   void OSR(OPT_BURS burs, OPT_Instruction s) {
    if (VM.VerifyAssertions) VM._assert(OsrPoint.conforms(s));

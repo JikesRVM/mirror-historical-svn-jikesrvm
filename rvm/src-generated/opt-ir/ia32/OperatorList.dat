@@ -501,6 +501,13 @@ compare
 AF_CF_OF_PF_SF_ZF
 
 
+####################
+IA32_LOCK_CMPXCHG8B
+MIR_CompareExchange8B
+compare
+AF_CF_OF_PF_SF_ZF
+
+
 ########################################
 # "Real" IA32 operators (no need to expand further)
 ########################################
@@ -602,6 +609,13 @@ AF_CF_OF_PF_SF_ZF
 ####################
 IA32_CMPXCHG
 MIR_CompareExchange
+compare
+AF_CF_OF_PF_SF_ZF
+
+
+####################
+IA32_CMPXCHG8B
+MIR_CompareExchange8B
 compare
 AF_CF_OF_PF_SF_ZF
 

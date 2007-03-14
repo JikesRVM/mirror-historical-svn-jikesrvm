@@ -830,11 +830,13 @@ public class OPT_GenerateMagic {
       if (type == VM_TypeReference.ObjectReference) return PREPARE_ADDR; 
       if (type == VM_TypeReference.Word)    return PREPARE_ADDR; 
       if (type == VM_TypeReference.Int)     return PREPARE_INT;
+      if (type == VM_TypeReference.Long)    return PREPARE_LONG;
     } else if (operatorClass == ATTEMPT_OP) {
       if (type == VM_TypeReference.Address) return ATTEMPT_ADDR; 
       if (type == VM_TypeReference.ObjectReference) return ATTEMPT_ADDR; 
       if (type == VM_TypeReference.Word)    return ATTEMPT_ADDR; 
       if (type == VM_TypeReference.Int)     return ATTEMPT_INT;
+      if (type == VM_TypeReference.Long)    return ATTEMPT_LONG;
     } else if (operatorClass == STORE_OP) {
       if (type == VM_TypeReference.Address) return REF_STORE; 
       if (type == VM_TypeReference.ObjectReference) return REF_STORE; 
