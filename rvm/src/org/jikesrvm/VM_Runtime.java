@@ -910,8 +910,14 @@ public class VM_Runtime implements VM_Constants, ArchitectureSpecific.VM_Stackfr
       VM.sysWriteln("Nope.");
       VM.sysWriteln("VM_Runtime.deliverException() found no catch block.");
     }
-    /* No appropriate catch block found. */
+    /* No appropriate catch block found - try to use thread exception handler */
+    Thread currentThread = Thread.currentThread();
+    Thread.UncaughtExceptionHandler handler = currentThread.getUncaughtExceptionHandler();
+    if (handler != null) {
+      handler.uncaughtException(currentThread, exceptionObject);
+    }
 
+    /* Thread exception handler finished */
     VM_Thread.getCurrentThread().dyingWithUncaughtException = true;
     
     /* Grow the heap.
