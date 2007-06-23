@@ -69,7 +69,7 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 				new OPT_OptimizationPlanElement[]{
 				//new OPT_OptimizationPlanAtomicElement(new GraphColor())
 				new OPT_OptimizationPlanAtomicElement(new SpillCode())
-				//,new OPT_OptimizationPlanAtomicElement(new UpdateOSRMaps())
+				,new OPT_OptimizationPlanAtomicElement(new UpdateOSRMaps())
 		});
 	}
 	/**
