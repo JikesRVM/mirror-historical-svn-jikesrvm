@@ -17,6 +17,8 @@ import org.jikesrvm.mm.mmtk.Collection;
 import org.jikesrvm.mm.mmtk.Lock;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.scheduler.VM_Thread;
+import org.jikesrvm.scheduler.greenthreads.VM_GreenScheduler;
+import org.jikesrvm.scheduler.greenthreads.VM_GreenThread;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Uninterruptible;
 
@@ -122,7 +124,7 @@ public class VM_Handshake {
   private void initiateCollection() {
 
     /* check that scheduler initialization is complete */
-    if (!VM_Scheduler.allProcessorsInitialized) {
+    if (!VM_GreenScheduler.allProcessorsInitialized) {
       VM.sysWrite("GC required before system fully initialized");
       VM.sysWriteln("Specify larger than default heapsize on command line");
       VM_Scheduler.dumpStack();
@@ -132,7 +134,7 @@ public class VM_Handshake {
     /* wait for preceding GC to complete */
     if (verbose >= 2) {
       VM.sysWrite("GC Message: VM_Handshake.initiateCollection before waiting");
-      VM_Scheduler.collectorQueue.dump();
+      VM_GreenScheduler.collectorQueue.dump();
     }
     int maxCollectorThreads = waitForPrecedingGC();
 
@@ -154,19 +156,19 @@ public class VM_Handshake {
     if (verbose >= 1) {
       VM.sysWriteln("GC Message: VM_Handshake.initiateCollection: scheduling collector threads");
     }
-    VM_Scheduler.collectorMutex.lock();
-    if (VM_Scheduler.collectorQueue.length() != maxCollectorThreads) {
+    VM_GreenScheduler.collectorMutex.lock();
+    if (VM_GreenScheduler.collectorQueue.length() != maxCollectorThreads) {
       VM.sysWriteln("GC Error: Expected ",
                     maxCollectorThreads,
                     " GC threads.   Found ",
-                    VM_Scheduler.collectorQueue.length());
+                    VM_GreenScheduler.collectorQueue.length());
     }
-    while (VM_Scheduler.collectorQueue.length() > 0) {
-      VM_Thread t = VM_Scheduler.collectorQueue.dequeue();
+    while (VM_GreenScheduler.collectorQueue.length() > 0) {
+      VM_GreenThread t = VM_GreenScheduler.collectorQueue.dequeue();
       t.schedule();
       t.processorAffinity.requestYieldToGC();
     }
-    VM_Scheduler.collectorMutex.unlock();
+    VM_GreenScheduler.collectorMutex.unlock();
   }
 
   /**
@@ -181,7 +183,7 @@ public class VM_Handshake {
     * collector thread in the count.  If it exists, check for null to
     * allow builds without a NativeDaemon (see VM_Scheduler)
     */
-    int maxCollectorThreads = VM_Scheduler.numProcessors;
+    int maxCollectorThreads = VM_GreenScheduler.numProcessors;
 
     /* Wait for all gc threads to finish preceeding collection cycle */
     if (verbose >= 1) {
@@ -190,15 +192,15 @@ public class VM_Handshake {
     }
     int count = 0;
     while (true) {
-      VM_Scheduler.collectorMutex.lock();
-      int len = VM_Scheduler.collectorQueue.length();
+      VM_GreenScheduler.collectorMutex.lock();
+      int len = VM_GreenScheduler.collectorQueue.length();
       if (count++ == 100000) {
         VM.sysWriteln("GC Warning: WAITED LONG TIME FOR PRECEEDING GC TO FINISH");
         VM.sysWriteln("GC Warning:          len = ", len);
         VM.sysWriteln("GC Warning:    maxCollTh = ", maxCollectorThreads);
         // VM_Scheduler.collectorQueue.dump();
       }
-      VM_Scheduler.collectorMutex.unlock();
+      VM_GreenScheduler.collectorMutex.unlock();
       if (len < maxCollectorThreads) {
         if (verbose >= 1) {
           VM.sysWrite("GC Message: VM_Handshake.initiateCollection waiting for previous collection to finish");
@@ -215,8 +217,8 @@ public class VM_Handshake {
 
   @Uninterruptible
   private void complete() {
-    for (int i = 1; i <= VM_Scheduler.numProcessors; i++) {
-      VM_Scheduler.processors[i].unblockIfBlockedInC();
+    for (int i = 1; i <= VM_GreenScheduler.numProcessors; i++) {
+      VM_GreenScheduler.processors[i].unblockIfBlockedInC();
     }
   }
 

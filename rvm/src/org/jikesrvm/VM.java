@@ -34,7 +34,6 @@ import org.jikesrvm.runtime.VM_BootRecord;
 import org.jikesrvm.runtime.VM_DynamicLibrary;
 import org.jikesrvm.runtime.VM_Entrypoints;
 import org.jikesrvm.runtime.VM_ExitStatus;
-import org.jikesrvm.runtime.VM_FileSystem;
 import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.runtime.VM_Runtime;
 import static org.jikesrvm.runtime.VM_SysCall.sysCall;
@@ -44,9 +43,11 @@ import org.jikesrvm.scheduler.VM_Lock;
 import org.jikesrvm.scheduler.VM_MainThread;
 import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.scheduler.VM_Scheduler;
+import org.jikesrvm.scheduler.greenthreads.VM_GreenScheduler;
 import org.jikesrvm.scheduler.VM_Synchronization;
 import org.jikesrvm.scheduler.VM_Thread;
-import org.jikesrvm.scheduler.VM_Wait;
+import org.jikesrvm.scheduler.greenthreads.JikesRVMSocketImpl;
+import org.jikesrvm.scheduler.greenthreads.VM_FileSystem;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.LogicallyUninterruptible;
@@ -138,9 +139,8 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     //
     if (verboseBoot >= 1) VM.sysWriteln("Doing thread initialization");
     VM_Thread currentThread = VM_Processor.getCurrentProcessor().activeThread;
-    currentThread.stackLimit =
-        VM_Magic.objectAsAddress(currentThread.stack).plus(ArchitectureSpecific.VM_StackframeLayoutConstants.STACK_SIZE_GUARD);
-    currentThread.setBootThread();
+    currentThread.stackLimit = VM_Magic.objectAsAddress(
+        currentThread.getStack()).plus(ArchitectureSpecific.VM_StackframeLayoutConstants.STACK_SIZE_GUARD);
 
     VM_Processor.getCurrentProcessor().activeThreadStackLimit = currentThread.stackLimit;
     currentThread.startQuantum(VM_Time.cycles());
@@ -165,7 +165,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     // Set up buffer locks used by VM_Thread for logging and status dumping.
     //    This can happen at any point before we start running
     //    multi-threaded.
-    VM_Thread.boot();
+    VM_Services.boot();
 
     // Initialize memory manager.
     //    This must happen before any uses of "new".
@@ -234,8 +234,8 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     // Commented out because we haven't incorporated this into the CVS head
     // yet.
     // java.security.JikesRVMSupport.turnOffChecks();
-    runClassInitializer("java.lang.Thread");
     runClassInitializer("java.lang.ThreadGroup");
+    runClassInitializer("java.lang.Thread");
 
     /* We can safely allocate a java.lang.Thread now.  The boot
        thread (running right now, as a VM_Thread) has to become a full-fledged
@@ -250,7 +250,6 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
         So the boot VM_Thread needs to be associated with a real Thread for
         Thread.getCurrentThread() to return. */
     VM.safeToAllocateJavaThread = true;
-    VM_Scheduler.giveBootVM_ThreadAJavaLangThread();
 
     runClassInitializer("java.lang.ThreadLocal");
     // Possibly fix VMAccessController's contexts and inGetContext fields
@@ -303,14 +302,14 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     // Among other things, after this returns, GC and dynamic class loading are enabled.
     //
     if (verboseBoot >= 1) VM.sysWriteln("Booting scheduler");
-    VM_Scheduler.boot();
+    VM_GreenScheduler.boot();
     VM_DynamicLibrary.boot();
 
     // Create JNI Environment for boot thread.
     // After this point the boot thread can invoke native methods.
     org.jikesrvm.jni.VM_JNIEnvironment.boot();
     if (verboseBoot >= 1) VM.sysWriteln("Initializing JNI for boot thread");
-    VM_Thread.getCurrentThread().initializeJNIEnv();
+    VM_Scheduler.getCurrentThread().initializeJNIEnv();
 
     // Run class intializers that require JNI
     if (verboseBoot >= 1) VM.sysWriteln("Running late class initializers");
@@ -318,7 +317,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     runClassInitializer("java.lang.Math");
     runClassInitializer("gnu.java.nio.VMChannel");
     runClassInitializer("gnu.java.nio.FileChannelImpl");
-
+    
     runClassInitializer("java.io.FileDescriptor");
     runClassInitializer("java.util.jar.JarFile");
 
@@ -407,18 +406,16 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     mainThread.start();
 
     if (verboseBoot >= 1) VM.sysWriteln("Starting debugger thread");
-    // Create one debugger thread.
-    VM_Thread t = new VM_DebuggerThread();
-    t.start(VM_Scheduler.debuggerQueue);
+    VM_Scheduler.startDebuggerThread();
 
     // End of boot thread.
     //
-    if (VM.TraceThreads) VM_Scheduler.trace("VM.boot", "completed - terminating");
+    if (VM.TraceThreads) VM_GreenScheduler.trace("VM.boot", "completed - terminating");
     if (verboseBoot >= 2) {
       VM.sysWriteln("Boot sequence completed; finishing boot thread");
     }
 
-    VM_Thread.terminate();
+    VM_Scheduler.getCurrentThread().terminate();
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
   }
 
@@ -1800,7 +1797,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
 
   private static void showThread() {
     write("Thread ");
-    write(VM_Thread.getCurrentThread().getIndex());
+    write(VM_Scheduler.getCurrentThread().getIndex());
     write(": ");
   }
 
@@ -1993,7 +1990,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     handlePossibleRecursiveCallToSysFail(message);
 
     // print a traceback and die
-    VM_Scheduler.traceback(message);
+    VM_GreenScheduler.traceback(message);
     if (VM.runningVM) {
       VM.shutdown(EXIT_STATUS_SYSFAIL);
     } else {
@@ -2015,7 +2012,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     handlePossibleRecursiveCallToSysFail(message, number);
 
     // print a traceback and die
-    VM_Scheduler.traceback(message, number);
+    VM_GreenScheduler.traceback(message, number);
     if (VM.runningVM) {
       VM.shutdown(EXIT_STATUS_SYSFAIL);
     } else {
@@ -2046,14 +2043,14 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     if (VM_Options.stackTraceAtExit) {
       VM.sysWriteln("[Here is the context of the call to VM.sysExit(", value, ")...:");
       VM.disableGC();
-      VM_Scheduler.dumpStack();
+      VM_GreenScheduler.dumpStack();
       VM.enableGC();
       VM.sysWriteln("... END context of the call to VM.sysExit]");
 
     }
 
     if (runningVM) {
-      VM_Wait.disableIoWait(); // we can't depend on thread switching being enabled
+      VM_Scheduler.sysExit();
       VM_Callbacks.notifyExit(value);
       VM.shutdown(value);
     } else {
@@ -2073,7 +2070,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     if (VM.VerifyAssertions) VM._assert(VM.runningVM);
     if (VM.runningAsSubsystem) {
       // Terminate only the system threads that belong to the VM
-      VM_Scheduler.processorExit(value);
+      VM_GreenScheduler.processorExit(value);
     } else {
       sysCall.sysExit(value);
     }
@@ -2131,7 +2128,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
 
        Possible change: Instead of adjusting by the # of processors, make the
        "depth" variable a per-processor variable. */
-    int nProcessors = VM_Scheduler.numProcessors;
+    int nProcessors = VM_GreenScheduler.numProcessors;
     int nProcessorAdjust = nProcessors - 1;
     if (depth > 1 &&
         (depth <=
@@ -2289,11 +2286,14 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     //    would invalidate the addresses we're holding)
     //
 
-    VM_Thread myThread = VM_Thread.getCurrentThread();
+    VM_Thread myThread = VM_Scheduler.getCurrentThread();
 
     // 0. Sanity Check; recursion
-    if (VM.VerifyAssertions) VM._assert(myThread.disableGCDepth >= 0);
-    if (myThread.disableGCDepth++ > 0) {
+    int gcDepth = myThread.getDisableGCDepth();
+    if (VM.VerifyAssertions) VM._assert(gcDepth >= 0);
+    gcDepth++;
+    myThread.setDisableGCDepth(gcDepth);
+    if (gcDepth > 0) {
       return;                   // We've already disabled it.
     }
 
@@ -2301,9 +2301,8 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     //
     if (VM_Magic.getFramePointer().minus(ArchitectureSpecific.VM_StackframeLayoutConstants.STACK_SIZE_GCDISABLED)
         .LT(myThread.stackLimit) && !myThread.hasNativeStackFrame()) {
-      VM_Thread.resizeCurrentStack(myThread.stack
-          .length + ArchitectureSpecific.VM_StackframeLayoutConstants
-          .STACK_SIZE_GCDISABLED, null);
+      VM_Thread.resizeCurrentStack(myThread.getStackLength()+
+          ArchitectureSpecific.VM_StackframeLayoutConstants.STACK_SIZE_GCDISABLED, null);
     }
 
     // 2.
@@ -2314,9 +2313,9 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     //
     if (VM.VerifyAssertions) {
       if (!recursiveOK) {
-        VM._assert(!myThread.disallowAllocationsByThisThread); // recursion not allowed
+        VM._assert(!myThread.getDisallowAllocationsByThisThread()); // recursion not allowed
       }
-      myThread.disallowAllocationsByThisThread = true;
+      myThread.setDisallowAllocationsByThisThread();
     }
   }
 
@@ -2336,18 +2335,20 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
    */
   @Inline
   public static void enableGC(boolean recursiveOK) {
-    VM_Thread myThread = VM_Thread.getCurrentThread();
+    VM_Thread myThread = VM_Scheduler.getCurrentThread();
+    int gcDepth = myThread.getDisableGCDepth();
     if (VM.VerifyAssertions) {
-      VM._assert(myThread.disableGCDepth >= 1);
-      VM._assert(myThread.disallowAllocationsByThisThread);
+      VM._assert(gcDepth >= 1);
+      VM._assert(myThread.getDisallowAllocationsByThisThread());
     }
-    --myThread.disableGCDepth;
-    if (myThread.disableGCDepth > 0) {
+    gcDepth--;
+    myThread.setDisableGCDepth(gcDepth);
+    if (gcDepth > 0) {
       return;
     }
 
     // Now the actual work of re-enabling GC.
-    myThread.disallowAllocationsByThisThread = false;
+    myThread.clearDisallowAllocationsByThisThread();
     VM_Processor.getCurrentProcessor().enableThreadSwitching();
   }
 

@@ -131,6 +131,11 @@ public class VM_Controller implements VM_Callbacks.ExitMonitor,
   public static VM_PartialCallGraph dcg;
 
   /**
+   * Used to shut down threads
+   */
+  private static final ThreadDeath threadDeath = new ThreadDeath();
+ 
+  /**
    * Has the execution of boot completed successfully?
    */
   private static boolean booted = false;
@@ -323,10 +328,10 @@ public class VM_Controller implements VM_Callbacks.ExitMonitor,
     VM.sysWriteln("AOS: Killing all adaptive system threads");
     for (Enumeration<VM_Organizer> e = organizers.elements(); e.hasMoreElements();) {
       VM_Organizer organizer = e.nextElement();
-      organizer.kill(new ThreadDeath(), true);
+      organizer.kill(threadDeath, true);
     }
-    compilationThread.kill(new ThreadDeath(), true);
-    controllerThread.kill(new ThreadDeath(), true);
+    compilationThread.kill(threadDeath, true);
+    controllerThread.kill(threadDeath, true);
     VM_RuntimeMeasurements.stop();
     report();
   }

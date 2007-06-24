@@ -38,7 +38,7 @@ extern char **environ;
 #include "InterfaceDeclarations.h"
 
 // generated class header
-#include "org_jikesrvm_runtime_VM_0005fProcess.h"
+#include "org_jikesrvm_scheduler_greenthreads_VM_0005fProcess.h"
 
 // local stuff
 

@@ -105,7 +105,7 @@ public final class VM_ProcessorLock implements VM_Constants {
    * Acquire a processor lock.
    */
   public void lock() {
-    if (VM_Scheduler.numProcessors == 1) return;
+    if (VM_Scheduler.getNumberOfProcessors() == 1) return;
     VM_Processor i = VM_Processor.getCurrentProcessor();
     if (VM.VerifyAssertions) i.lockCount += 1;
     VM_Processor p;
@@ -148,8 +148,8 @@ public final class VM_ProcessorLock implements VM_Constants {
    * Conditionally acquire a processor lock.
    * @return whether acquisition succeeded
    */
-  boolean tryLock() {
-    if (VM_Scheduler.numProcessors == 1) return true;
+  public boolean tryLock() {
+    if (VM_Scheduler.getNumberOfProcessors() == 1) return true;
     Offset latestContenderOffset = VM_Entrypoints.latestContenderField.getOffset();
     if (VM_Magic.prepareAddress(this, latestContenderOffset).isZero()) {
       Address cp = VM_Magic.objectAsAddress(VM_Processor.getCurrentProcessor());
@@ -165,7 +165,7 @@ public final class VM_ProcessorLock implements VM_Constants {
    * Release a processor lock.
    */
   public void unlock() {
-    if (VM_Scheduler.numProcessors == 1) return;
+    if (VM_Scheduler.getNumberOfProcessors() == 1) return;
     VM_Magic.sync(); // commit changes while lock was held so they are visiable to the next processor that acquires the lock
     Offset latestContenderOffset = VM_Entrypoints.latestContenderField.getOffset();
     VM_Processor i = VM_Processor.getCurrentProcessor();

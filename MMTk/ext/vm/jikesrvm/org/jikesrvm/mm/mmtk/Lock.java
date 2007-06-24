@@ -13,6 +13,7 @@
 package org.jikesrvm.mm.mmtk;
 
 import org.jikesrvm.VM;
+import org.jikesrvm.VM_Services;
 
 import org.vmmagic.unboxed.*;
 import org.vmmagic.pragma.*;
@@ -238,9 +239,9 @@ import org.mmtk.utility.Log;
    *  @param t  The {@link VM_Thread} we are interested in.
    */
   private static void writeThreadIdToLog(VM_Thread t) {
-    char[] buf = VM_Thread.grabDumpBuffer();
+    char[] buf = VM_Services.grabDumpBuffer();
     int len = t.dump(buf);
     Log.write(buf, len);
-    VM_Thread.releaseDumpBuffer();
+    VM_Services.releaseDumpBuffer();
   }
 }

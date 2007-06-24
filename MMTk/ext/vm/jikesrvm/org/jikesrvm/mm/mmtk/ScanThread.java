@@ -255,8 +255,9 @@ import org.vmmagic.pragma.*;
    * performing the scan.
    */
   private void getHWExceptionRegisters(int verbosity) {
-    if (processCodeLocations && thread.hardwareExceptionRegisters.inuse) {
-      Address ip = thread.hardwareExceptionRegisters.ip;
+    ArchitectureSpecific.VM_Registers hwExReg = thread.getHardwareExceptionRegisters();
+    if (processCodeLocations && hwExReg.inuse) {
+      Address ip = hwExReg.ip;
       VM_CompiledMethod compiledMethod = VM_CompiledMethods.findMethodForInstruction(ip);
       if (VM.VerifyAssertions) {
         VM._assert(compiledMethod != null);
@@ -264,7 +265,7 @@ import org.vmmagic.pragma.*;
       }
       compiledMethod.setActiveOnStack();
       ObjectReference code = ObjectReference.fromObject(compiledMethod.getEntryCodeArray());
-      Address ipLoc = thread.hardwareExceptionRegisters.getIPLocation();
+      Address ipLoc = hwExReg.getIPLocation();
       if (VM.VerifyAssertions) VM._assert(ip == ipLoc.loadAddress());
       codeLocationsPush(code, ipLoc);
     }
@@ -546,15 +547,15 @@ import org.vmmagic.pragma.*;
    * but we can't move the native stack.
    */
   private void assertImmovable() {
-    VM._assert(trace.willNotMove(ObjectReference.fromObject(thread.stack)));
+    VM._assert(trace.willNotMove(ObjectReference.fromObject(thread.getStack())));
     VM._assert(trace.willNotMove(ObjectReference.fromObject(thread)));
-    VM._assert(trace.willNotMove(ObjectReference.fromObject(thread.stack)));
+    VM._assert(trace.willNotMove(ObjectReference.fromObject(thread.getStack())));
     VM._assert(thread.jniEnv == null || trace.willNotMove(ObjectReference.fromObject(thread.jniEnv)));
     VM._assert(thread.jniEnv == null || thread.jniEnv.refsArray() == null || trace.willNotMove(ObjectReference.fromObject(thread.jniEnv.refsArray())));
     VM._assert(trace.willNotMove(ObjectReference.fromObject(thread.contextRegisters)));
     VM._assert(trace.willNotMove(ObjectReference.fromObject(thread.contextRegisters.gprs)));
-    VM._assert(trace.willNotMove(ObjectReference.fromObject(thread.hardwareExceptionRegisters)));
-    VM._assert(trace.willNotMove(ObjectReference.fromObject(thread.hardwareExceptionRegisters.gprs)));
+    VM._assert(trace.willNotMove(ObjectReference.fromObject(thread.getHardwareExceptionRegisters())));
+    VM._assert(trace.willNotMove(ObjectReference.fromObject(thread.getHardwareExceptionRegisters().gprs)));
   }
 
   /**

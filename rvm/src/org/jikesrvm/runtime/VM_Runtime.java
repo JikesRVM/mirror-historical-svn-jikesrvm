@@ -31,8 +31,12 @@ import org.jikesrvm.objectmodel.VM_ObjectModel;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.scheduler.VM_Thread;
 import org.jikesrvm.scheduler.VM_Processor;
+import org.jikesrvm.scheduler.greenthreads.VM_GreenScheduler;
+import org.jikesrvm.scheduler.greenthreads.VM_GreenThread;
+import org.jikesrvm.scheduler.greenthreads.VM_GreenProcessor;
 import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.NoInline;
+import org.vmmagic.pragma.NoOptCompile;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.unboxed.Address;
@@ -637,19 +641,19 @@ public class VM_Runtime implements VM_Constants, ArchitectureSpecific.VM_Stackfr
    */
   static void deliverHardwareException(int trapCode, int trapInfo) {
 
-    VM_Thread myThread = VM_Thread.getCurrentThread();
-    VM_Registers exceptionRegisters = myThread.hardwareExceptionRegisters;
+    VM_Thread myThread = VM_Scheduler.getCurrentThread();
+    VM_Registers exceptionRegisters = myThread.getHardwareExceptionRegisters();
 
     if ((trapCode == TRAP_STACK_OVERFLOW || trapCode == TRAP_JNI_STACK) &&
-        myThread.stack.length < (STACK_SIZE_MAX >> LOG_BYTES_IN_ADDRESS) &&
+        myThread.getStack().length < (STACK_SIZE_MAX >> LOG_BYTES_IN_ADDRESS) &&
         !myThread.hasNativeStackFrame()) {
       // expand stack by the size appropriate for normal or native frame
       // and resume execution at successor to trap instruction
       // (C trap handler has set register.ip to the instruction following the trap).
       if (trapCode == TRAP_JNI_STACK) {
-        VM_Thread.resizeCurrentStack(myThread.stack.length + STACK_SIZE_JNINATIVE_GROW, exceptionRegisters);
+        VM_Thread.resizeCurrentStack(myThread.getStackLength() + STACK_SIZE_JNINATIVE_GROW, exceptionRegisters);
       } else {
-        VM_Thread.resizeCurrentStack(myThread.stack.length + STACK_SIZE_GROW, exceptionRegisters);
+        VM_Thread.resizeCurrentStack(myThread.getStackLength() + STACK_SIZE_GROW, exceptionRegisters);
       }
       if (VM.VerifyAssertions) VM._assert(exceptionRegisters.inuse);
       exceptionRegisters.inuse = false;
@@ -866,6 +870,7 @@ public class VM_Runtime implements VM_Constants, ArchitectureSpecific.VM_Stackfr
    *  <li> <em> or </em> current thread is terminated if no catch block is found
    * </ul>
    */
+  @NoOptCompile
   private static void deliverException(Throwable exceptionObject, VM_Registers exceptionRegisters) {
     if (VM.debugOOM) {
       VM.sysWriteln("VM_Runtime.deliverException() entered; just got an exception object.");
@@ -879,6 +884,7 @@ public class VM_Runtime implements VM_Constants, ArchitectureSpecific.VM_Stackfr
     if (VM.debugOOM) {
       VM.sysWrite("Hunting for a catch block...");
     }
+    VM.sysWriteln(VM_Magic.objectAsAddress(exceptionObject));
     VM_Type exceptionType = VM_Magic.getObjectType(exceptionObject);
     Address fp = exceptionRegisters.getInnermostFramePointer();
     while (VM_Magic.getCallerFramePointer(fp).NE(STACKFRAME_SENTINEL_FP)) {
@@ -913,51 +919,9 @@ public class VM_Runtime implements VM_Constants, ArchitectureSpecific.VM_Stackfr
     }
     /* No appropriate catch block found. */
 
-    VM_Thread.getCurrentThread().uncaughtExceptionCount++;
-
-    /* Grow the heap.
-     * This could be (but isn't) undoable.  That doesn't matter here, since
-     * we're dying in any case.
-     *
-     * There's no way to give the additional memory exclusively to this
-     * particular thread; too bad. */
-    if (VM.doEmergencyGrowHeap && exceptionObject instanceof OutOfMemoryError) {
-      MM_Interface.emergencyGrowHeap(5 * (1 << 20)); // ask for 5 megs and pray
-    }
-    handlePossibleRecursiveException();
-    VM.enableGC();
-    VM_Thread vmThr = VM_Thread.getCurrentThread();
-    Thread thr = vmThr.peekJavaLangThread();
-    if (thr == null) {
-      VM.sysWrite("Exception in the primordial thread \"", vmThr.toString(), "\" while booting: ");
-    } else {
-      // This is output like that of the Sun JDK.
-      VM.sysWrite("Exception in thread \"", thr.getName(), "\": ");
-    }
-    exceptionObject.printStackTrace();
-    VM_Thread.terminate();
-    if (VM.VerifyAssertions) VM._assert(NOT_REACHED);
+    VM_Scheduler.getCurrentThread().handleUncaughtException(exceptionObject);
   }
 
-  /** Handle the case of exception handling triggering new exceptions. */
-  private static void handlePossibleRecursiveException() {
-    int numUncaughtExceptions = VM_Thread.getCurrentThread().uncaughtExceptionCount;
-    if (numUncaughtExceptions > 1 &&
-        numUncaughtExceptions <=
-        VM.maxSystemTroubleRecursionDepth + VM.maxSystemTroubleRecursionDepthBeforeWeStopVMSysWrite) {
-      VM.sysWrite("We got an uncaught exception while (recursively) handling ");
-      VM.sysWrite(numUncaughtExceptions - 1);
-      VM.sysWrite(" uncaught exception");
-      if (numUncaughtExceptions - 1 != 1) {
-        VM.sysWrite("s");
-      }
-      VM.sysWriteln(".");
-    }
-    if (numUncaughtExceptions > VM.maxSystemTroubleRecursionDepth) {
-      VM.dieAbruptlyRecursiveSystemTrouble();
-      if (VM.VerifyAssertions) VM._assert(NOT_REACHED);
-    }
-  }
 
   /**
    * The current frame is expected to be one of the JNI functions
@@ -1093,9 +1057,6 @@ public class VM_Runtime implements VM_Constants, ArchitectureSpecific.VM_Stackfr
    */
   @Inline
   private static boolean canForceGC() {
-    return VM.ForceFrequentGC &&
-           VM_Scheduler.allProcessorsInitialized &&
-           VM_Processor.getCurrentProcessor().threadSwitchingEnabled();
+    return VM.ForceFrequentGC && VM_Scheduler.safeToForceGCs();
   }
-
 }

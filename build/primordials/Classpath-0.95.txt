@@ -53,6 +53,7 @@ Ljava/lang/Cloneable;
 Ljava/lang/VMObject;
 Ljava/lang/VMSystem;
 Ljava/lang/VMString;
+Ljava/lang/VMThread;
 Lgnu/classpath/Configuration;
 # Only in Classpath 0.13 and later
 Lgnu/classpath/SystemProperties;
@@ -245,7 +246,11 @@ Ljava/util/WeakHashMap$WeakBucket;
 Ljava/util/WeakHashMap$WeakEntrySet$1;
 Ljava/util/WeakHashMap$WeakEntrySet;
 [Ljava/util/WeakHashMap$WeakBucket;
-
+Lgnu/java/util/WeakIdentityHashMap;
+Lgnu/java/util/WeakIdentityHashMap$WeakEntrySet;
+Lgnu/java/util/WeakIdentityHashMap$WeakBucket;
+Lgnu/java/util/WeakIdentityHashMap$WeakBucket$WeakEntry;
+[Lgnu/java/util/WeakIdentityHashMap$WeakBucket;
 
 # class loaders
 Ljava/lang/ClassLoader;

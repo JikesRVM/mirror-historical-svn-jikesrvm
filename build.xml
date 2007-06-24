@@ -1129,7 +1129,7 @@ Check to make sure all required properties are specified. This includes properti
     <mkdir dir="${build.native}"/>
     <javah destdir="${build.native}" classpath="${build.vm.jar}">
       <class name="org.jikesrvm.runtime.VM_DynamicLibrary"/>
-      <class name="org.jikesrvm.runtime.VM_Process"/>
+      <class name="org.jikesrvm.scheduler.greenthreads.VM_Process"/>
     </javah>
   </target>
 

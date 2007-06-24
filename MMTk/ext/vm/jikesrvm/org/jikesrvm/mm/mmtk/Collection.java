@@ -325,12 +325,9 @@ import org.vmmagic.pragma.*;
    */
   @Uninterruptible
   public static void scheduleFinalizerThread () {
-
     int finalizedCount = Finalizer.countToBeFinalized();
-    boolean alreadyScheduled = VM_Scheduler.finalizerQueue.isEmpty();
-    if (finalizedCount > 0 && !alreadyScheduled) {
-      VM_Thread t = VM_Scheduler.finalizerQueue.dequeue();
-      VM_Processor.getCurrentProcessor().scheduleThread(t);
+    if (finalizedCount > 0) {
+      VM_Scheduler.scheduleFinalizer();
     }
   }
 }

@@ -13,11 +13,13 @@
 package org.jikesrvm.scheduler;
 
 import org.jikesrvm.VM;
+import org.jikesrvm.VM_Services;
 import org.jikesrvm.classloader.VM_Method;
 import org.jikesrvm.compilers.common.VM_CompiledMethods;
 import org.jikesrvm.objectmodel.VM_ThinLockConstants;
 import org.jikesrvm.runtime.VM_Magic;
 import org.vmmagic.pragma.Inline;
+import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
@@ -46,15 +48,15 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
   private static int getLockIndex(Word lockWord) {
     int index = lockWord.and(TL_LOCK_ID_MASK).rshl(TL_LOCK_ID_SHIFT).toInt();
     if (VM.VerifyAssertions) {
-      if (!(index > 0 && index < VM_Scheduler.locks.length)) {
+      if (!(index > 0 && index < VM_Lock.locks.length)) {
         VM.sysWrite("Lock index out of range! Word: "); VM.sysWrite(lockWord);
         VM.sysWrite(" index: "); VM.sysWrite(index);
-        VM.sysWrite(" locks: "); VM.sysWrite(VM_Scheduler.locks.length);
+        VM.sysWrite(" locks: "); VM.sysWrite(VM_Lock.locks.length);
         VM.sysWriteln();
       }
-      VM._assert(index > 0 && index < VM_Scheduler.locks.length);  // index is in range
+      VM._assert(index > 0 && index < VM_Lock.locks.length);  // index is in range
       VM._assert(!lockWord.and(TL_FAT_LOCK_MASK).isZero());        // fat lock bit is set
-      VM._assert(VM_Scheduler.locks[index] != null);               // the lock is actually there
+      VM._assert(VM_Lock.locks[index] != null);               // the lock is actually there
     }
     return index;
   }
@@ -152,7 +154,7 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
 
         if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // o has a heavy lock
           int index = getLockIndex(old);
-          if (VM_Scheduler.locks[index].lockHeavy(o)) {
+          if (VM_Lock.locks[index].lockHeavy(o)) {
             break major; // lock succeeds (note that lockHeavy has issued an isync)
           }
           // heavy lock failed (deflated or contention for system lock)
@@ -200,14 +202,14 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
       Word threadId = Word.fromIntZeroExtend(VM_Processor.getCurrentProcessor().threadId);
       if (id.NE(threadId)) { // not normal case
         if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // o has a heavy lock
-          VM_Scheduler.locks[getLockIndex(old)].unlockHeavy(o);
+          VM_Lock.locks[getLockIndex(old)].unlockHeavy(o);
           // note that unlockHeavy has issued a sync
           return;
         }
         VM_Scheduler.trace("VM_Lock", "unlock error: thin lock word = ", old.toAddress());
         VM_Scheduler.trace("VM_Lock", "unlock error: thin lock word = ", VM_Magic.objectAsAddress(o));
         // VM_Scheduler.trace("VM_Lock", VM_Thread.getCurrentThread().toString(), 0);
-        VM_Lock.raiseIllegalMonitorStateException("thin unlocking", o);
+        raiseIllegalMonitorStateException("thin unlocking", o);
       }
       if (old.and(TL_LOCK_COUNT_MASK).isZero()) { // get count, 0 is the last lock
         Word changed = old.and(TL_UNLOCK_MASK);
@@ -223,6 +225,11 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
         return; // unlock succeeds
       }
     }
+  }
+
+  @LogicallyUninterruptible
+  private static void raiseIllegalMonitorStateException(String msg, Object o) {
+    throw new IllegalMonitorStateException(msg + o);    
   }
 
   ////////////////////////////////////////////////////////////////
@@ -241,7 +248,7 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
    */
   private static VM_Lock inflate(Object o, Offset lockOffset) {
     if (VM.VerifyAssertions) { 
-      VM._assert(holdsLock(o, lockOffset, VM_Thread.getCurrentThread()));
+      VM._assert(holdsLock(o, lockOffset, VM_Scheduler.ProcessorModel.getCurrentThread()));
       VM._assert((VM_Magic.getWordAtOffset(o, lockOffset).and(TL_FAT_LOCK_MASK).isZero()));
     }
     VM_Lock l = VM_Lock.allocate();
@@ -283,13 +290,13 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
     } else if (l.ownerId == threadId) {
       l.recursionCount++;
     } else if (VM_Processor.getCurrentProcessor().threadSwitchingEnabled()) {
-      VM_Thread.yield(l.entering, l.mutex); // thread-switching benign
+      VM_Scheduler.yieldToOtherThreadWaitingOnLock(l);
       // when this thread next gets scheduled, it will be entitled to the lock,
       // but another thread might grab it first.
       return false; // caller will try again
     } else { // can't yield - must spin and let caller retry
       // potential deadlock if user thread is contending for a lock with thread switching disabled
-      if (VM.VerifyAssertions) VM._assert(VM_Thread.getCurrentThread().isGCThread());
+      if (VM.VerifyAssertions) VM._assert(VM_Scheduler.getCurrentThread().isGCThread());
       l.mutex.unlock(); // thread-switching benign
       return false; // caller will try again
     }
@@ -313,7 +320,7 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
       if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // already a fat lock in place
         VM_Lock.free(l);
         l.mutex.unlock();
-        l = VM_Scheduler.locks[getLockIndex(old)];
+        l = VM_Lock.locks[getLockIndex(old)];
         return l;
       }
       Word locked = TL_FAT_LOCK_MASK.or(Word.fromIntZeroExtend(l.index).lsh(TL_LOCK_ID_SHIFT));
@@ -331,11 +338,11 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
     } while (true);
   }
 
-  static void deflate(Object o, Offset lockOffset, VM_Lock l) {
+  public static void deflate(Object o, Offset lockOffset, VM_Lock l) {
     if (VM.VerifyAssertions) {
       Word old = VM_Magic.getWordAtOffset(o, lockOffset);
       VM._assert(!(old.and(TL_FAT_LOCK_MASK).isZero()));
-      VM._assert(l == VM_Scheduler.locks[getLockIndex(old)]);
+      VM._assert(l == VM_Lock.locks[getLockIndex(old)]);
     }
     Word old;
     do {
@@ -359,7 +366,7 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
     } else {
       // if locked, then it is locked with a fat lock
       int index = getLockIndex(bits);
-      VM_Lock l = VM_Scheduler.locks[index];
+      VM_Lock l = VM_Lock.locks[index];
       return l != null && l.ownerId == tid;
     }
   }
@@ -381,7 +388,7 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
   public static VM_Lock getHeavyLock(Object o, Offset lockOffset, boolean create) {
     Word old = VM_Magic.getWordAtOffset(o, lockOffset);
     if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // already a fat lock in place
-      return VM_Scheduler.locks[getLockIndex(old)];
+      return VM_Lock.locks[getLockIndex(old)];
     } else if (create) {
       return inflate(o, lockOffset);
     } else {
@@ -427,11 +434,11 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
     VM.sysWrite("ThinLocks: ");
     VM.sysWrite(fastLocks);
     VM.sysWrite(" fast locks");
-    VM_Stats.percentage(fastLocks, value, "all lock operations");
+    VM_Services.percentage(fastLocks, value, "all lock operations");
     VM.sysWrite("ThinLocks: ");
     VM.sysWrite(slowLocks);
     VM.sysWrite(" slow locks");
-    VM_Stats.percentage(slowLocks, value, "all lock operations");
+    VM_Services.percentage(slowLocks, value, "all lock operations");
   }
 
 }

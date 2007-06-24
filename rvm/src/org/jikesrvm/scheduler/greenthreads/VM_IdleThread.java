@@ -10,12 +10,14 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.jikesrvm.scheduler;
+package org.jikesrvm.scheduler.greenthreads;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.runtime.VM_Magic;
 import static org.jikesrvm.runtime.VM_SysCall.sysCall;
 import org.jikesrvm.runtime.VM_Time;
+import org.jikesrvm.scheduler.VM_Scheduler;
+import org.jikesrvm.scheduler.VM_Thread;
 import org.vmmagic.pragma.Uninterruptible;
 
 /**
@@ -25,7 +27,7 @@ import org.vmmagic.pragma.Uninterruptible;
  *
  * This follows the Singleton pattern.
  */
-final class VM_IdleThread extends VM_Thread {
+final class VM_IdleThread extends VM_GreenThread {
 
   /**
    * Attempt rudimentary load balancing.  If a virtual processor
@@ -48,11 +50,12 @@ final class VM_IdleThread extends VM_Thread {
   /**
    * A thread to run if there is no other work for a virtual processor.
    */
-  VM_IdleThread(VM_Processor processorAffinity, boolean runInitProcessor) {
-    super(null, myName);
+  VM_IdleThread(VM_GreenProcessor processorAffinity, boolean runInitProcessor) {
+    super(myName);
     makeDaemon(true);
     super.processorAffinity = processorAffinity;
     runInitProc = runInitProcessor;
+    setPriority(Thread.MIN_PRIORITY);
   }
 
   /**
@@ -60,24 +63,22 @@ final class VM_IdleThread extends VM_Thread {
    * @return true
    */
   @Uninterruptible
+  @Override
   public boolean isIdleThread() {
     return true;
   }
 
-  public String toString() { // overrides VM_Thread
-    return myName;
-  }
-
+  @Override
   public void run() { // overrides VM_Thread
-    loadBalancing = VM_Scheduler.numProcessors > 1;
-    VM_Processor myProcessor = VM_Processor.getCurrentProcessor();
+    loadBalancing = VM_GreenScheduler.numProcessors > 1;
+    VM_GreenProcessor myProcessor = VM_GreenProcessor.getCurrentProcessor();
     if (VM.ExtremeAssertions) VM._assert(myProcessor == processorAffinity);
 
     if (runInitProc) myProcessor.initializeProcessor();
     long spinInterval = loadBalancing ? VM_Time.millisToCycles(1) : 0;
     main:
     while (true) {
-      if (VM_Scheduler.terminated) VM_Thread.terminate();
+      if (VM_Scheduler.terminated) terminate();
       long t = VM_Time.cycles() + spinInterval;
 
       if (VM_Scheduler.debugRequested) {
@@ -86,12 +87,12 @@ final class VM_IdleThread extends VM_Thread {
       }
 
       do {
-        VM_Processor.idleProcessor = myProcessor;
+        VM_GreenProcessor.idleProcessor = myProcessor;
         if (availableWork(myProcessor)) {
           if (VM.ExtremeAssertions) {
-            VM._assert(myProcessor == VM_Processor.getCurrentProcessor());
+            VM._assert(myProcessor == VM_GreenProcessor.getCurrentProcessor());
           }
-          VM_Thread.yield(VM_Processor.getCurrentProcessor().idleQueue);
+          VM_GreenThread.yield(VM_GreenProcessor.getCurrentProcessor().idleQueue);
           continue main;
         }
       } while (VM_Time.cycles() < t);
@@ -111,15 +112,15 @@ final class VM_IdleThread extends VM_Thread {
   /**
    * @return true, if there appears to be a runnable thread for the processor to execute
    */
-  private static boolean availableWork(VM_Processor p) {
+  private static boolean availableWork(VM_GreenProcessor p) {
     if (!p.readyQueue.isEmpty()) return true;
     VM_Magic.isync();
     if (!p.transferQueue.isEmpty()) return true;
     if (p.ioQueue.isReady()) return true;
-    if (VM_Scheduler.wakeupQueue.isReady()) {
-      VM_Scheduler.wakeupMutex.lock();
-      VM_Thread t = VM_Scheduler.wakeupQueue.dequeue();
-      VM_Scheduler.wakeupMutex.unlock();
+    if (VM_GreenScheduler.wakeupQueue.isReady()) {
+      VM_GreenScheduler.wakeupMutex.lock();
+      VM_GreenThread t = VM_GreenScheduler.wakeupQueue.dequeue();
+      VM_GreenScheduler.wakeupMutex.unlock();
       if (t != null) {
         t.schedule();
         return true;

@@ -17,7 +17,7 @@ import java.io.File;
 import org.jikesrvm.*;
 import org.jikesrvm.runtime.VM_DynamicLibrary;
 import org.jikesrvm.runtime.VM_Entrypoints;
-import org.jikesrvm.runtime.VM_Process;
+import org.jikesrvm.scheduler.greenthreads.VM_Process;
 import org.jikesrvm.scheduler.VM_Synchronization;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.memorymanagers.mminterface.*;
@@ -28,7 +28,7 @@ import org.vmmagic.unboxed.Offset;
  * Jikes RVM implementation of GNU Classpath's java.lang.VMRuntime.
  * See reference implementation for javadoc.
  */
-final class VMRuntime {
+public final class VMRuntime {
 
   private static boolean runFinalizersOnExit = false;
 
@@ -44,7 +44,7 @@ final class VMRuntime {
   private VMRuntime() { }
 
   static int availableProcessors() {
-    return VM_Scheduler.numProcessors;
+    return VM_Scheduler.availableProcessors();
   }
     
   static long freeMemory() {

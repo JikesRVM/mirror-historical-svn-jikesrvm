@@ -26,13 +26,14 @@ import org.jikesrvm.classloader.VM_TypeReference;
 import org.jikesrvm.objectmodel.VM_ObjectModel;
 import org.jikesrvm.objectmodel.VM_ThinLockConstants;
 import org.jikesrvm.runtime.VM_Entrypoints;
-import org.jikesrvm.runtime.VM_FileSystem;
 import org.jikesrvm.runtime.VM_Runtime;
 import org.jikesrvm.scheduler.VM_Scheduler;
-import org.jikesrvm.scheduler.VM_ThreadEventConstants;
-import org.jikesrvm.scheduler.VM_ThreadIOConstants;
-import org.jikesrvm.scheduler.VM_ThreadIOQueue;
-import org.jikesrvm.scheduler.VM_ThreadProcessWaitQueue;
+import org.jikesrvm.scheduler.greenthreads.VM_GreenScheduler;
+import org.jikesrvm.scheduler.greenthreads.VM_FileSystem;
+import org.jikesrvm.scheduler.greenthreads.VM_ThreadEventConstants;
+import org.jikesrvm.scheduler.greenthreads.VM_ThreadIOConstants;
+import org.jikesrvm.scheduler.greenthreads.VM_ThreadIOQueue;
+import org.jikesrvm.scheduler.greenthreads.VM_ThreadProcessWaitQueue;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -464,7 +465,7 @@ public class GenerateInterfaceDeclarations {
 
     // values in VM_Scheduler
     //
-    p("static const int VM_Scheduler_PRIMORDIAL_PROCESSOR_ID = " + VM_Scheduler.PRIMORDIAL_PROCESSOR_ID + ";\n");
+    p("static const int VM_GreenScheduler_PRIMORDIAL_PROCESSOR_ID = " + VM_GreenScheduler.PRIMORDIAL_PROCESSOR_ID + ";\n");
     p("static const int VM_Scheduler_PRIMORDIAL_THREAD_INDEX = " + VM_Scheduler.PRIMORDIAL_THREAD_INDEX + ";\n");
     p("\n");
 
@@ -491,9 +492,7 @@ public class GenerateInterfaceDeclarations {
     // values in VM_ThreadProcessWaitQueue
     //
     p("static const int VM_ThreadProcessWaitQueue_PROCESS_FINISHED = " +
-      VM_ThreadProcessWaitQueue
-          .PROCESS_FINISHED +
-                            ";\n");
+      VM_ThreadProcessWaitQueue.PROCESS_FINISHED + ";\n");
 
     // values in VM_Runtime
     //

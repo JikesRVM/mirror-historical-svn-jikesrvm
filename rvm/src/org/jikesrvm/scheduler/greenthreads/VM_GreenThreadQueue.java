@@ -10,30 +10,33 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.jikesrvm.scheduler;
+package org.jikesrvm.scheduler.greenthreads;
 
 import org.jikesrvm.VM;
+import org.jikesrvm.scheduler.VM_ProcessorLock;
+import org.jikesrvm.scheduler.VM_Thread;
 import org.vmmagic.pragma.Uninterruptible;
 
 /**
  * A queue of VM_Threads
  */
 @Uninterruptible
-public class VM_ThreadQueue extends VM_AbstractThreadQueue {
+public class VM_GreenThreadQueue extends VM_AbstractThreadQueue {
 
   /**
    * First thread on list.
    */
-  protected VM_Thread head;
+  protected VM_GreenThread head;
 
   /**
    * Last thread on the list.
    */
-  protected VM_Thread tail;
+  protected VM_GreenThread tail;
 
   /**
    * Are any threads on the queue?
    */
+  @Override
   public boolean isEmpty() {
     return head == null;
   }
@@ -52,9 +55,9 @@ public class VM_ThreadQueue extends VM_AbstractThreadQueue {
   }
 
   /** Add a thread to head of queue. */
-  public void enqueueHighPriority(VM_Thread t) {
-    if (VM.VerifyAssertions) VM._assert(t.next == null); // not currently on any other queue
-    t.next = head;
+  public void enqueueHighPriority(VM_GreenThread t) {
+    if (VM.VerifyAssertions) VM._assert(t.getNext() == null); // not currently on any other queue
+    t.setNext(head);
     head = t;
     if (tail == null) {
       tail = t;
@@ -62,86 +65,92 @@ public class VM_ThreadQueue extends VM_AbstractThreadQueue {
   }
 
   /** Add a thread to tail of queue. */
-  public void enqueue(VM_Thread t) {
-    if (VM.VerifyAssertions) VM._assert(t.next == null); // not currently on any other queue
+  @Override
+  public void enqueue(VM_GreenThread t) {
+    if (VM.VerifyAssertions) VM._assert(t.getNext() == null); // not currently on any other queue
     if (head == null) {
       head = t;
     } else {
-      tail.next = t;
+      tail.setNext(t);
     }
     tail = t;
   }
 
-  /** Remove a thread from the head of the queue.
-   @return the thread (null --> queue is empty) */
-  public VM_Thread dequeue() {
-    VM_Thread t = head;
+  /**
+   * Remove a thread from the head of the queue.
+   * @return the thread (null --> queue is empty)
+   */
+  @Override
+  public VM_GreenThread dequeue() {
+    VM_GreenThread t = head;
     if (t == null) {
       return null;
     }
-    head = t.next;
-    t.next = null;
+    head = t.getNext();
+    t.setNext(null);
     if (head == null) {
       tail = null;
     }
-
     return t;
   }
 
-  /** Dequeue the CollectorThread, if any, from this queue.
-   If qlock != null protect by lock.
-   @return The garbage collector thread.  If no thread found, return null. */
-  VM_Thread dequeueGCThread(VM_ProcessorLock qlock) {
-
+  /**
+   * Dequeue the CollectorThread, if any, from this queue. If qlock != null
+   * protect by lock.
+   * @return The garbage collector thread. If no thread found, return null.
+   */
+  VM_GreenThread dequeueGCThread(VM_ProcessorLock qlock) {
     if (qlock != null) qlock.lock();
-    VM_Thread currentThread = head;
+    VM_GreenThread currentThread = head;
     if (head == null) {
       if (qlock != null) qlock.unlock();
       return null;
     }
-    VM_Thread nextThread = head.next;
+    VM_GreenThread nextThread = head.getNext();
 
     if (currentThread.isGCThread()) {
       head = nextThread;
       if (head == null) {
         tail = null;
       }
-      currentThread.next = null;
+      currentThread.setNext(null);
       if (qlock != null) qlock.unlock();
       return currentThread;
     }
 
     while (nextThread != null) {
       if (nextThread.isGCThread()) {
-        currentThread.next = nextThread.next;
+        currentThread.setNext(nextThread.getNext());
         if (nextThread == tail) {
           tail = currentThread;
         }
-        nextThread.next = null;
+        nextThread.setNext(null);
         if (qlock != null) qlock.unlock();
         return nextThread;
       }
       currentThread = nextThread;
-      nextThread = nextThread.next;
+      nextThread = nextThread.getNext();
     }
 
     return null;
   }
 
-  // Number of items on queue (an estimate only: we do not lock the queue
-  // during this scan.)
-  //
+  /**
+   * Number of items on queue (an estimate only: we do not lock the queue during
+   * this scan.)
+   */
+  @Override
   public int length() {
     int length = 0;
-    for (VM_Thread t = head; t != null; t = t.next) {
+    for (VM_GreenThread t = head; t != null; t = t.getNext()) {
       length += 1;
     }
     return length;
   }
 
   /** Debugging. */
-  public boolean contains(VM_Thread x) {
-    for (VM_Thread t = head; t != null; t = t.next) {
+  public boolean contains(VM_GreenThread x) {
+    for (VM_GreenThread t = head; t != null; t = t.getNext()) {
       if (t == x) return true;
     }
     return false;
@@ -151,7 +160,7 @@ public class VM_ThreadQueue extends VM_AbstractThreadQueue {
     // We shall space-separate them, for compactness.
     // I hope this is a good decision.
     boolean pastFirst = false;
-    for (VM_Thread t = head; t != null; t = t.next) {
+    for (VM_GreenThread t = head; t != null; t = t.getNext()) {
       if (pastFirst) {
         VM.sysWrite(" ");
       }

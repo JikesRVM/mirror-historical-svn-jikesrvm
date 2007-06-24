@@ -81,10 +81,18 @@ public class JikesRVMSupport {
    * */
   public static Thread createThread(VM_Thread vmdata, String myName) {
     if (VM.VerifyAssertions) VM._assert(VM.runningVM);
-    return new Thread(vmdata, myName);
+    Thread bootThread = new Thread(new VMThread(vmdata), myName,
+        vmdata.getPriority(), vmdata.isDaemonThread());
+    bootThread.group = ThreadGroup.root;
+    return bootThread;
   }
 
   public static VM_Thread getThread(Thread thread) {
-    return thread.vmdata;
+    return thread.vmThread.vmdata;
   }
+  
+  public static void threadDied(Thread thread) {
+    thread.die();
+  }
+
 }

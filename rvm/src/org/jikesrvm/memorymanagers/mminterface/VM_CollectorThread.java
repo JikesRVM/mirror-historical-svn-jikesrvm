@@ -18,10 +18,12 @@ import org.jikesrvm.compilers.common.VM_CompiledMethods;
 import org.jikesrvm.mm.mmtk.Collection;
 import org.jikesrvm.mm.mmtk.ScanThread;
 import org.jikesrvm.runtime.VM_Time;
-import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.scheduler.VM_Synchronization;
 import org.jikesrvm.scheduler.VM_Thread;
+import org.jikesrvm.scheduler.greenthreads.VM_GreenProcessor;
+import org.jikesrvm.scheduler.greenthreads.VM_GreenThread;
+import org.jikesrvm.scheduler.greenthreads.VM_GreenScheduler;
 import org.mmtk.plan.Plan;
 import org.mmtk.utility.heap.HeapGrowthManager;
 import org.mmtk.utility.options.Options;
@@ -63,7 +65,7 @@ import org.vmmagic.unboxed.Offset;
  *
  * @see VM_Handshake
  */
-public final class VM_CollectorThread extends VM_Thread {
+public final class VM_CollectorThread extends VM_GreenThread {
 
   /***********************************************************************
    *
@@ -157,8 +159,8 @@ public final class VM_CollectorThread extends VM_Thread {
    * @param processorAffinity The processor with which this thread is
    * associated.
    */
-  VM_CollectorThread(byte[] stack, boolean isActive, VM_Processor processorAffinity) {
-    super(stack, null, myName);
+  VM_CollectorThread(byte[] stack, boolean isActive, VM_GreenProcessor processorAffinity) {
+    super(stack, myName);
     makeDaemon(true); // this is redundant, but harmless
     this.isActive          = isActive;
     this.processorAffinity = processorAffinity;
@@ -182,7 +184,7 @@ public final class VM_CollectorThread extends VM_Thread {
   @Interruptible
   public static void init() {
     gcBarrier = new SynchronizationBarrier();
-    collectorThreads = new VM_CollectorThread[1 + VM_Scheduler.MAX_PROCESSORS];
+    collectorThreads = new VM_CollectorThread[1 + VM_GreenScheduler.MAX_PROCESSORS];
   }
 
   /**
@@ -195,7 +197,7 @@ public final class VM_CollectorThread extends VM_Thread {
    * @return a new collector thread
    */
   @Interruptible
-  public static VM_CollectorThread createActiveCollectorThread(VM_Processor processorAffinity) {
+  public static VM_CollectorThread createActiveCollectorThread(VM_GreenProcessor processorAffinity) {
     byte[] stack = MM_Interface.newStack(ArchitectureSpecific.VM_StackframeLayoutConstants.STACK_SIZE_COLLECTOR, true);
     return new VM_CollectorThread(stack, true, processorAffinity);
   }
@@ -212,7 +214,7 @@ public final class VM_CollectorThread extends VM_Thread {
    * @return a new non-particpating collector thread
    */
   @Interruptible
-  static VM_CollectorThread createPassiveCollectorThread(byte[] stack, VM_Processor processorAffinity) {
+  static VM_CollectorThread createPassiveCollectorThread(byte[] stack, VM_GreenProcessor processorAffinity) {
     return new VM_CollectorThread(stack, false, processorAffinity);
   }
 
@@ -308,15 +310,16 @@ public final class VM_CollectorThread extends VM_Thread {
       /* suspend this thread: it will resume when scheduled by
        * VM_Handshake initiateCollection().  while suspended,
        * collector threads reside on the schedulers collectorQueue */
-      VM_Scheduler.collectorMutex.lock();
+      VM_GreenScheduler.collectorMutex.lock();
       if (verbose >= 1) VM.sysWriteln("GC Message: VM_CT.run yielding");
       if (count > 0) { // resume normal scheduling
-        VM_Processor.getCurrentProcessor().enableThreadSwitching();
+        VM_GreenProcessor.getCurrentProcessor().enableThreadSwitching();
       }
-      VM_Thread.yield(VM_Scheduler.collectorQueue, VM_Scheduler.collectorMutex);
+      VM_GreenScheduler.getCurrentThread().yield(VM_GreenScheduler.collectorQueue,
+          VM_GreenScheduler.collectorMutex);
 
       /* block mutators from running on the current processor */
-      VM_Processor.getCurrentProcessor().disableThreadSwitching();
+      VM_GreenProcessor.getCurrentProcessor().disableThreadSwitching();
 
       if (verbose >= 2) VM.sysWriteln("GC Message: VM_CT.run waking up");
 
@@ -382,11 +385,11 @@ public final class VM_CollectorThread extends VM_Thread {
          * were found in C, and were BLOCKED_IN_NATIVE, during the
          * collection, and now need to be unblocked. */
         if (verbose >= 2) VM.sysWriteln("GC Message: VM_CT.run unblocking procs blocked in native during GC");
-        for (int i = 1; i <= VM_Scheduler.numProcessors; i++) {
-          VM_Processor vp = VM_Scheduler.processors[i];
+        for (int i = 1; i <= VM_GreenScheduler.numProcessors; i++) {
+          VM_GreenProcessor vp = VM_GreenScheduler.processors[i];
           if (VM.VerifyAssertions) VM._assert(vp != null);
-          if (vp.vpStatus == VM_Processor.BLOCKED_IN_NATIVE) {
-            vp.vpStatus = VM_Processor.IN_NATIVE;
+          if (vp.vpStatus == VM_GreenProcessor.BLOCKED_IN_NATIVE) {
+            vp.vpStatus = VM_GreenProcessor.IN_NATIVE;
             if (verbose >= 2) VM.sysWriteln("GC Message: VM_CT.run unblocking RVM Processor", vp.id);
           }
         }

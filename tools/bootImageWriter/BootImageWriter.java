@@ -1,71 +1,47 @@
 /*
- *  This file is part of the Jikes RVM project (http://jikesrvm.org).
+ * This file is part of Jikes RVM (http://jikesrvm.sourceforge.net).
+ * The Jikes RVM project is distributed under the Common Public License (CPL).
+ * A copy of the license is included in the distribution, and is also
+ * available at http://www.opensource.org/licenses/cpl1.0.php
  *
- *  This file is licensed to You under the Common Public License (CPL);
- *  You may not use this file except in compliance with the License. You
- *  may obtain a copy of the License at
- *
- *      http://www.opensource.org/licenses/cpl1.0.php
- *
- *  See the COPYRIGHT.txt file distributed with this work for information
- *  regarding copyright ownership.
+ * (C) Copyright IBM Corp 2001,2002, 2004
  */
-import java.io.BufferedOutputStream;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.LineNumberReader;
-import java.io.PrintStream;
+
+
+import java.util.Hashtable;
+import java.util.Vector;
+import java.util.Stack;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Arrays;
+import java.util.concurrent.*;
+
+import java.io.*;
+
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Hashtable;
-import java.util.Stack;
-import java.util.Vector;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import org.jikesrvm.ArchitectureSpecific;
-import org.jikesrvm.ArchitectureSpecific.VM_CodeArray;
-import org.jikesrvm.VM;
-import org.jikesrvm.VM_Callbacks;
-import org.jikesrvm.classloader.VM_Array;
-import org.jikesrvm.classloader.VM_BootstrapClassLoader;
-import org.jikesrvm.classloader.VM_Class;
-import org.jikesrvm.classloader.VM_Field;
-import org.jikesrvm.classloader.VM_Member;
-import org.jikesrvm.classloader.VM_Method;
-import org.jikesrvm.classloader.VM_Type;
-import org.jikesrvm.classloader.VM_TypeDescriptorParsing;
-import org.jikesrvm.classloader.VM_TypeReference;
+
+import org.jikesrvm.*;
 import org.jikesrvm.compilers.common.VM_CompiledMethod;
 import org.jikesrvm.compilers.common.VM_CompiledMethods;
-import org.jikesrvm.jni.VM_JNIEnvironment;
-import org.jikesrvm.objectmodel.VM_MiscHeader;
 import org.jikesrvm.objectmodel.VM_ObjectModel;
-import org.jikesrvm.runtime.VM_BootRecord;
-import org.jikesrvm.runtime.VM_Entrypoints;
-import org.jikesrvm.runtime.VM_Magic;
-import org.jikesrvm.runtime.VM_ObjectAddressRemapper;
+import org.jikesrvm.objectmodel.VM_MiscHeader;
 import org.jikesrvm.runtime.VM_Statics;
-import org.jikesrvm.scheduler.VM_Scheduler;
-import org.jikesrvm.scheduler.VM_Thread;
-import org.vmmagic.unboxed.Address;
-import org.vmmagic.unboxed.AddressArray;
-import org.vmmagic.unboxed.Extent;
-import org.vmmagic.unboxed.ExtentArray;
-import org.vmmagic.unboxed.ObjectReference;
-import org.vmmagic.unboxed.ObjectReferenceArray;
-import org.vmmagic.unboxed.Offset;
-import org.vmmagic.unboxed.OffsetArray;
-import org.vmmagic.unboxed.Word;
-import org.vmmagic.unboxed.WordArray;
+import org.jikesrvm.runtime.VM_BootRecord;
+import org.jikesrvm.runtime.VM_Magic;
+import org.jikesrvm.runtime.VM_Entrypoints;
+import org.jikesrvm.runtime.VM_ObjectAddressRemapper;
+import org.jikesrvm.scheduler.greenthreads.VM_GreenThread;
+import org.jikesrvm.scheduler.greenthreads.VM_GreenScheduler;
+import org.jikesrvm.ArchitectureSpecific.VM_CodeArray;
+import org.jikesrvm.jni.*;
+import org.jikesrvm.classloader.*;
+
+import org.vmmagic.unboxed.*;
 
 /**
  * Construct an RVM virtual machine bootimage.
@@ -734,16 +710,16 @@ public class BootImageWriter extends BootImageWriterMessages
     //
     if (verbose >= 1) say("updating boot record");
 
-    int initProc = VM_Scheduler.PRIMORDIAL_PROCESSOR_ID;
-    VM_Thread startupThread = VM_Scheduler.processors[initProc].activeThread;
-    byte[] startupStack = startupThread.stack;
+    int initProc = VM_GreenScheduler.PRIMORDIAL_PROCESSOR_ID;
+    VM_GreenThread startupThread = VM_GreenScheduler.processors[initProc].activeThread;
+    byte[] startupStack = startupThread.getStack();
     VM_CodeArray startupCode  = VM_Entrypoints.bootMethod.getCurrentEntryCodeArray();
 
     bootRecord.tiRegister  = startupThread.getLockingId();
     bootRecord.spRegister  = BootImageMap.getImageAddress(startupStack, true).plus(startupStack.length);
     bootRecord.ipRegister  = BootImageMap.getImageAddress(startupCode.getBacking(), true);
 
-    bootRecord.processorsOffset = VM_Entrypoints.processorsField.getOffset();
+    bootRecord.greenProcessorsOffset = VM_Entrypoints.greenProcessorsField.getOffset();
 
     bootRecord.bootImageDataStart = bootImageDataAddress;
     bootRecord.bootImageDataEnd   = bootImageDataAddress.plus(bootImage.getDataSize());
@@ -1234,24 +1210,22 @@ public class BootImageWriter extends BootImageWriterMessages
       // Create stack, thread, and processor context in which rvm will begin
       // execution.
       //
-      int initProc = VM_Scheduler.PRIMORDIAL_PROCESSOR_ID;
-      // It's actually useless to set the name of the primordial thread here;
-      // that data is really stored as part of the java.lang.Thread structure,
-      // which we can not safely create yet.
-      VM_Thread startupThread = new VM_Thread(new byte[ArchitectureSpecific.VM_ArchConstants.STACK_SIZE_BOOT], null, "Jikes_RVM_Boot_Thread");
-      VM_Scheduler.processors[initProc].activeThread = startupThread;
+      int initProc = VM_GreenScheduler.PRIMORDIAL_PROCESSOR_ID;
+      byte[] stack = new byte[ArchitectureSpecific.VM_ArchConstants.STACK_SIZE_BOOT];
+      VM_GreenThread startupThread = new VM_GreenThread(stack, "Jikes_RVM_Boot_Thread");
+      VM_GreenScheduler.processors[initProc].activeThread = startupThread;
       // sanity check for bootstrap loader
-      int idx = startupThread.stack.length - 1;
+      int idx = stack.length - 1;
       if (VM.LittleEndian) {
-        startupThread.stack[idx--] = (byte)0xde;
-        startupThread.stack[idx--] = (byte)0xad;
-        startupThread.stack[idx--] = (byte)0xba;
-        startupThread.stack[idx--] = (byte)0xbe;
+        stack[idx--] = (byte)0xde;
+        stack[idx--] = (byte)0xad;
+        stack[idx--] = (byte)0xba;
+        stack[idx--] = (byte)0xbe;
       } else {
-        startupThread.stack[idx--] = (byte)0xbe;
-        startupThread.stack[idx--] = (byte)0xba;
-        startupThread.stack[idx--] = (byte)0xad;
-        startupThread.stack[idx--] = (byte)0xde;
+        stack[idx--] = (byte)0xbe;
+        stack[idx--] = (byte)0xba;
+        stack[idx--] = (byte)0xad;
+        stack[idx--] = (byte)0xde;
       }        
       
       //
@@ -1665,7 +1639,7 @@ public class BootImageWriter extends BootImageWriterMessages
           return copyMagicArrayToBootImage(backing, rvmType.asArray(), allocOnly, overwriteAddress, parentObject);
         }
 
-        if (rvmType.getTypeRef().isMagicType()) { 
+        if (rvmType.getTypeRef().isMagicType()) {
           VM.sysWriteln("Unhandled copying of magic type: " + rvmType.getDescriptor().toString() +
                         " in object of type " + parentObject.getClass().toString());
           VM.sysFail("incomplete boot image support");
