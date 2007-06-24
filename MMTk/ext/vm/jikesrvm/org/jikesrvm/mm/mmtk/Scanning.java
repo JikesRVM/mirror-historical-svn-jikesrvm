@@ -102,7 +102,7 @@ import org.vmmagic.pragma.*;
     VM_CollectorThread ct;
 
     stride = chunkSize * VM_CollectorThread.numCollectors();
-    ct = VM_Magic.threadAsCollectorThread(VM_Thread.getCurrentThread());
+    ct = VM_Magic.threadAsCollectorThread(VM_Scheduler.getCurrentThread());
     start = (ct.getGCOrdinal() - 1) * chunkSize;
 
     int numThreads = VM_Scheduler.getThreadHighWatermark()+1;

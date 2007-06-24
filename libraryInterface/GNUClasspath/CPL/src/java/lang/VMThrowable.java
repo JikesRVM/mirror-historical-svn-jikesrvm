@@ -53,7 +53,7 @@ public final class VMThrowable {
   static VMThrowable fillInStackTrace(Throwable parent){
     if (!VM.fullyBooted) {
       return null;
-    } else if (VM_Thread.getCurrentThread().isGCThread()) {
+    } else if (VM_Scheduler.getCurrentThread().isGCThread()) {
       VM.sysWriteln("Exception in GC thread");
       VM_Scheduler.dumpVirtualMachine();
       return null;
@@ -78,7 +78,7 @@ public final class VMThrowable {
   StackTraceElement[] getStackTrace(Throwable parent) {
     if (this == proxyVMThrowable || stackTrace == null) {
       return zeroLengthStackTrace;
-    } else if (VM_Thread.getCurrentThread().isGCThread()) {
+    } else if (VM_Scheduler.getCurrentThread().isGCThread()) {
       VM.sysWriteln("VMThrowable.getStackTrace called from GC thread: dumping stack using scheduler");
       VM_Scheduler.dumpStack();
       return zeroLengthStackTrace;

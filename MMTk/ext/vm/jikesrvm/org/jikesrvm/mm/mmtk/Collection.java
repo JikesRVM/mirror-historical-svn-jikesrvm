@@ -283,7 +283,7 @@ import org.vmmagic.pragma.*;
     VM_Processor vp = ((Selected.Collector) c).getProcessor();
     int vpStatus = vp.vpStatus;
     if (VM.VerifyAssertions) VM._assert(vpStatus != VM_Processor.BLOCKED_IN_NATIVE);
-    VM_Thread t = VM_Thread.getCurrentThread();
+    VM_Thread t = VM_Scheduler.getCurrentThread();
     Address fp = VM_Magic.getFramePointer();
     while (true) {
       Address caller_ip = VM_Magic.getReturnAddress(fp);
