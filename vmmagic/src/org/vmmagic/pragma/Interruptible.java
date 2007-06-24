@@ -18,6 +18,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.ElementType;
 import org.vmmagic.Pragma;
 
+/**
+ * Method may be interrupted by generated yield point instructions.
+ */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 @Pragma

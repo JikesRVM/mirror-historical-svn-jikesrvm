@@ -18,6 +18,12 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.ElementType;
 import org.vmmagic.Pragma;
 
+/**
+ * The annotated method is uninterruptible but contains use of
+ * non-uninterruptible bytecodes and method calls. Typical use is to allow
+ * methods with interruptible error and debug code to still be uninterruptible
+ * and compile without warnings.
+ */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 @Pragma
