@@ -1,0 +1,96 @@
+package org.jikesrvm.scheduler.nativethreads;
+
+import org.jikesrvm.scheduler.VM_Lock;
+import org.jikesrvm.scheduler.VM_Scheduler;
+
+public class VM_NativeScheduler extends VM_Scheduler {
+
+  @Override
+  protected int availableProcessorsInternal() {
+    // TODO Auto-generated method stub
+    return 0;
+  }
+
+  @Override
+  protected void dumpVirtualMachineInternal() {
+    // TODO Auto-generated method stub
+
+  }
+
+  @Override
+  public boolean gcEnabledInternal() {
+    // TODO Auto-generated method stub
+    return false;
+  }
+
+  @Override
+  protected void initInternal() {
+    // TODO Auto-generated method stub
+
+  }
+
+  @Override
+  protected void lockOutputInternal() {
+    // TODO Auto-generated method stub
+
+  }
+
+  @Override
+  protected void scheduleFinalizerInternal() {
+    // TODO Auto-generated method stub
+
+  }
+
+  @Override
+  protected void startDebuggerThreadInternal() {
+    // TODO Auto-generated method stub
+
+  }
+
+  @Override
+  protected void suspendDebuggerThreadInternal() {
+    // TODO Auto-generated method stub
+
+  }
+
+  @Override
+  protected void suspendFinalizerThreadInternal() {
+    // TODO Auto-generated method stub
+
+  }
+
+  @Override
+  protected void sysExitInternal() {
+    // TODO Auto-generated method stub
+
+  }
+
+  @Override
+  protected void unlockOutputInternal() {
+    // TODO Auto-generated method stub
+
+  }
+
+  @Override
+  protected void yieldToOtherThreadWaitingOnLockInternal(VM_Lock l) {
+    // TODO Auto-generated method stub
+  }
+
+  /**
+   *  Number of VM_Processors
+   */
+  @Override
+  protected int getNumberOfProcessorsInternal() {
+    // TODO Auto-generated method stub
+    return 0;
+  }
+
+  /**
+   * Is it safe to start forcing garbage collects for stress testing?
+   */
+  @Override
+  protected boolean safeToForceGCsInternal() {
+    // TODO Auto-generated method stub
+    return false;
+  }
+}
