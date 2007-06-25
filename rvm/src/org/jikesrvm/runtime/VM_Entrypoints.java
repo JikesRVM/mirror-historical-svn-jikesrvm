@@ -217,7 +217,7 @@ public class VM_Entrypoints implements VM_Constants {
                ArchCodeArray);
 
   public static final VM_Field threadProxyPatronField = 
-    getField(org.jikesrvm.scheduler.greenthreads.VM_ThreadProxy.class, "patron", org.jikesrvm.scheduler.VM_Thread.class);
+    getField(org.jikesrvm.scheduler.greenthreads.VM_ThreadProxy.class, "patron", org.jikesrvm.scheduler.greenthreads.VM_GreenThread.class);
   public static final VM_Field scratchStorageField =
       getField(org.jikesrvm.scheduler.VM_Processor.class, "scratchStorage", double.class);
   public static final VM_Field timeSliceExpiredField =

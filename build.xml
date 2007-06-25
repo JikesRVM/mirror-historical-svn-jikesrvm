@@ -954,6 +954,8 @@ Check to make sure all required properties are specified. This includes properti
     <fileset id="primordials.main" dir="${build.classes}">
       <include name="**/VM*.class"/>
       <include name="org/**/*.class" if="include.all"/>
+      <exclude name="**/ppc/*.class" unless="pp_RVM_FOR_POWERPC"/>
+      <exclude name="**/ia32/*.class" if="pp_RVM_FOR_POWERPC"/>
       <include name="org/jikesrvm/adaptive/**/*.class" if="include.aos"/>
       <exclude name="org/jikesrvm/adaptive/**/*.class" unless="include.aos"/>
       <include name="org/jikesrvm/compilers/opt/**/*.class" if="include.opt"/>

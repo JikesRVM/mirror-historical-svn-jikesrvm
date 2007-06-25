@@ -35,8 +35,8 @@ import org.jikesrvm.runtime.VM_BootRecord;
 import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.runtime.VM_Entrypoints;
 import org.jikesrvm.runtime.VM_ObjectAddressRemapper;
-import org.jikesrvm.scheduler.greenthreads.VM_GreenThread;
-import org.jikesrvm.scheduler.greenthreads.VM_GreenScheduler;
+import org.jikesrvm.scheduler.VM_Thread;
+import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.ArchitectureSpecific.VM_CodeArray;
 import org.jikesrvm.jni.*;
 import org.jikesrvm.classloader.*;
@@ -77,6 +77,11 @@ public class BootImageWriter extends BootImageWriterMessages
    */
   public static int numThreads = Runtime.getRuntime().availableProcessors()+1;
 
+  /**
+   * The boot thread
+   */
+  private static VM_Thread startupThread;
+ 
   /**
    * How much talking while we work?
    */
@@ -710,8 +715,6 @@ public class BootImageWriter extends BootImageWriterMessages
     //
     if (verbose >= 1) say("updating boot record");
 
-    int initProc = VM_GreenScheduler.PRIMORDIAL_PROCESSOR_ID;
-    VM_GreenThread startupThread = VM_GreenScheduler.processors[initProc].activeThread;
     byte[] startupStack = startupThread.getStack();
     VM_CodeArray startupCode  = VM_Entrypoints.bootMethod.getCurrentEntryCodeArray();
 
@@ -1209,11 +1212,8 @@ public class BootImageWriter extends BootImageWriterMessages
       //
       // Create stack, thread, and processor context in which rvm will begin
       // execution.
-      //
-      int initProc = VM_GreenScheduler.PRIMORDIAL_PROCESSOR_ID;
-      byte[] stack = new byte[ArchitectureSpecific.VM_ArchConstants.STACK_SIZE_BOOT];
-      VM_GreenThread startupThread = new VM_GreenThread(stack, "Jikes_RVM_Boot_Thread");
-      VM_GreenScheduler.processors[initProc].activeThread = startupThread;
+      startupThread = VM_Scheduler.setupBootThread();
+      byte[] stack = startupThread.getStack();
       // sanity check for bootstrap loader
       int idx = stack.length - 1;
       if (VM.LittleEndian) {

@@ -160,6 +160,7 @@ public class VM_GreenScheduler extends VM_Scheduler {
    * Initialize boot image.
    */
   @Override
+  @Interruptible
   protected void initInternal() {
     threadAllocationIndex = PRIMORDIAL_THREAD_INDEX;
 
@@ -837,6 +838,7 @@ public class VM_GreenScheduler extends VM_Scheduler {
 
   /** Start the debugger thread */
   @Override
+  @Interruptible
   protected void startDebuggerThreadInternal() {
     // Create one debugger thread.
     VM_GreenThread t = new VM_DebuggerThread();
@@ -845,6 +847,7 @@ public class VM_GreenScheduler extends VM_Scheduler {
 
   /** Scheduler specific sysExit shutdown */
   @Override
+  @Interruptible
   protected void sysExitInternal() {
     VM_Wait.disableIoWait(); // we can't depend on thread switching being enabled
   }
@@ -977,5 +980,19 @@ public class VM_GreenScheduler extends VM_Scheduler {
   protected boolean safeToForceGCsInternal() {
     return VM_GreenScheduler.allProcessorsInitialized &&
     VM_GreenProcessor.getCurrentProcessor().threadSwitchingEnabled();
+  }
+  
+  /**
+   * Set up the initial thread and processors as part of boot image writing
+   * @return the boot thread
+   */
+  @Override
+  @Interruptible
+  protected VM_Thread setupBootThreadInternal() {
+    int initProc = PRIMORDIAL_PROCESSOR_ID;
+    byte[] stack = new byte[ArchitectureSpecific.VM_ArchConstants.STACK_SIZE_BOOT];
+    VM_GreenThread startupThread = new VM_Scheduler.ThreadModel(stack, "Jikes_RVM_Boot_Thread");
+    processors[initProc].activeThread = startupThread;
+    return startupThread;
   }
 }

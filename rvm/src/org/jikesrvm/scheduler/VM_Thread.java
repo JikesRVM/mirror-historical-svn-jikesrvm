@@ -149,6 +149,17 @@ public abstract class VM_Thread {
     TIMED_PARK,
   }
 
+  /** Mapping of state ordinal to string name */
+  private static final String[] stateToStringMap;
+  
+  static {
+    State[] possibleStates = State.values();
+    stateToStringMap = new String[possibleStates.length];
+    for (State i : possibleStates) {
+      stateToStringMap[i.ordinal()] = i.name();
+    }
+  }
+
   /**
    * State of the thread. Either NEW, RUNNABLE, BLOCKED, WAITING, TIMED_WAITING,
    * TERMINATED, SLEEPING, SUSPENDED or PARKED
@@ -944,6 +955,7 @@ public abstract class VM_Thread {
   /**
    * Deliver the throwable stopping/interrupting this thread
    */
+  @LogicallyUninterruptible
   public void kill(Throwable cause, boolean throwImmediately) {
     // yield() will notice the following and take appropriate action
     if (cause instanceof ThreadDeath) {
@@ -1598,6 +1610,7 @@ public abstract class VM_Thread {
   /**
    * Give a string of information on how a thread is set to be scheduled 
    */
+  @Interruptible
   public abstract String getThreadState();
   
   @Interruptible
@@ -1651,7 +1664,6 @@ public abstract class VM_Thread {
    * We do not use any spacing or newline characters.  Callers are responsible
    * for space-separating or newline-terminating output.
    */
-  @Interruptible
   public void dump() {
     dump(0);
   }
@@ -1666,7 +1678,6 @@ public abstract class VM_Thread {
    * @param leftJustify minium number of characters emitted, with any
    * extra characters being spaces.
    */
-  @Interruptible
   public void dumpWithPadding(int leftJustify) {
     char[] buf = VM_Services.grabDumpBuffer();
     int len = dump(buf);
@@ -1687,7 +1698,6 @@ public abstract class VM_Thread {
    *
    * @param verbosity Ignored.
    */
-  @Interruptible
   public void dump(int verbosity) {
     char[] buf = VM_Services.grabDumpBuffer();
     int len = dump(buf);
@@ -1721,7 +1731,6 @@ public abstract class VM_Thread {
    *
    *         -1 if <code>offset</code> is negative.
    */
-  @Interruptible
   public int dump(char[] dest, int offset) {
     offset = VM_Services.sprintf(dest, offset, getIndex());   // id
     if (daemon) {
@@ -1743,7 +1752,7 @@ public abstract class VM_Thread {
       offset = VM_Services.sprintf(dest, offset, "-being_dispatched");
     }
     offset = VM_Services.sprintf(dest, offset, "-");
-    offset = VM_Services.sprintf(dest, offset, state.toString());
+    offset = VM_Services.sprintf(dest, offset, stateToStringMap[java.lang.JikesRVMSupport.getEnumOrdinal(state)]);
     if (throwInterruptWhenScheduled) {
       offset = VM_Services.sprintf(dest, offset, "-interrupted");
     }
@@ -1758,7 +1767,6 @@ public abstract class VM_Thread {
    *  This is identical to calling {@link #dump(char[],int)} with an
    *  <code>offset</code> of zero.
    */
-  @Interruptible
   public int dump(char[] dest) {
     return dump(dest, 0);
   }

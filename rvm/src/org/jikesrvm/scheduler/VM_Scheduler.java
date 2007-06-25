@@ -46,7 +46,10 @@ public abstract class VM_Scheduler {
   private static final VM_Scheduler singleton = new VM_GreenScheduler();
   
   public static class ThreadModel extends org.jikesrvm.scheduler.greenthreads.VM_GreenThread {
-    ThreadModel(String s) {
+    public ThreadModel(byte[] stack, String s) {
+      super(stack, s);
+    }
+    public ThreadModel(String s) {
       super(s);
     }
   }
@@ -153,6 +156,7 @@ public abstract class VM_Scheduler {
    * <b>Assumption:</b> call is guarded by threadCreationMutex.
    * @return the thread slot assigned this thread
    */
+  @LogicallyUninterruptible
   static int assignThreadSlot(VM_Thread thread) {
     if (!VM.runningVM) {
       // create primordial thread (in boot image)
@@ -277,24 +281,30 @@ public abstract class VM_Scheduler {
   }
   
   /** Start the debugger thread */
+  @Interruptible
   protected abstract void startDebuggerThreadInternal();
 
   /** Start the debugger thread */
+  @Interruptible
   public static void startDebuggerThread() {
     getScheduler().startDebuggerThreadInternal();
   }  
 
   /** Scheduler specific initialization */
+  @Interruptible
   protected abstract void initInternal();
 
   /** Scheduler specific initialization */
+  @Interruptible
   public static void init() {
     getScheduler().initInternal();
   }
   /** Scheduler specific sysExit shutdown */
+  @Interruptible
   protected abstract void sysExitInternal();
 
   /** Scheduler specific sysExit shutdown */
+  @Interruptible
   public static void sysExit() {
     getScheduler().sysExitInternal();
   }
@@ -747,5 +757,22 @@ public abstract class VM_Scheduler {
    */
   public static boolean safeToForceGCs() {
     return getScheduler().safeToForceGCsInternal(); 
+  }
+  
+  /**
+   * Set up the initial thread and processors as part of boot image writing
+   * @return the boot thread
+   */
+  @Interruptible
+  protected abstract VM_Thread setupBootThreadInternal();
+
+  /**
+   * Set up the initial thread and processors as part of boot image writing
+   * @return the boot thread
+   */
+  @Interruptible
+  public static VM_Thread setupBootThread() {
+    if (VM.VerifyAssertions) VM._assert(!VM.runningVM);
+    return getScheduler().setupBootThreadInternal();
   }
 }

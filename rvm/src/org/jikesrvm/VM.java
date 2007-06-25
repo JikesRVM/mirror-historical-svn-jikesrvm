@@ -2293,7 +2293,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     if (VM.VerifyAssertions) VM._assert(gcDepth >= 0);
     gcDepth++;
     myThread.setDisableGCDepth(gcDepth);
-    if (gcDepth > 0) {
+    if (gcDepth > 1) {
       return;                   // We've already disabled it.
     }
 

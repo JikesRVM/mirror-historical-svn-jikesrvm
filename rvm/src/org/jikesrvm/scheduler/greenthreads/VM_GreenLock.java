@@ -9,8 +9,10 @@ import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.scheduler.VM_ThinLock;
 import org.jikesrvm.scheduler.VM_Thread;
 import org.vmmagic.pragma.LogicallyUninterruptible;
+import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Offset;
 
+@Uninterruptible
 public class VM_GreenLock extends VM_Lock {
   /**
    * A queue of threads contending for this lock (guarded by <code>mutex</code>).

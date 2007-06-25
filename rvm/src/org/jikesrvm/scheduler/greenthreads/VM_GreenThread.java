@@ -538,6 +538,7 @@ public class VM_GreenThread extends VM_Thread {
    * @param millis the number of milliseconds to wait for notification
    */
   @Override
+  @LogicallyUninterruptible
   protected Throwable waitInternal(Object o, long millis) {
     // Check thread isn't already in interrupted state
     if (isInterrupted()) {
@@ -745,6 +746,7 @@ public class VM_GreenThread extends VM_Thread {
    * Give a string of information on how a thread is set to be scheduled 
    */
   @Override
+  @Interruptible
   public String getThreadState() {
     return VM_GreenScheduler.getThreadState(this);
   }
