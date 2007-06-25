@@ -95,4 +95,11 @@ public class JikesRVMSupport {
     thread.die();
   }
 
+  /***
+   * Enum stuff
+   */
+  @Uninterruptible
+  public static int getEnumOrdinal(Enum e) {
+    return e.ordinal;
+  }
 }
