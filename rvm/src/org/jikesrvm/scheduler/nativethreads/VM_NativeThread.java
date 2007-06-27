@@ -2,13 +2,9 @@ package org.jikesrvm.scheduler.nativethreads;
 
 import static org.jikesrvm.ia32.VM_StackframeLayoutConstants.STACK_SIZE_NORMAL;
 
-import org.jikesrvm.VM;
 import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.scheduler.VM_Lock;
-import org.jikesrvm.scheduler.VM_Processor;
-import org.jikesrvm.scheduler.VM_ProcessorLock;
 import org.jikesrvm.scheduler.VM_Thread;
-import org.jikesrvm.scheduler.greenthreads.VM_AbstractThreadQueue;
 
 public class VM_NativeThread extends VM_Thread {
 

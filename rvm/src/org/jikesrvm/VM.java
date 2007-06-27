@@ -62,12 +62,15 @@ import org.vmmagic.unboxed.Word;
 
 /**
  * A virtual machine.
- *
- *
- *                          such as when out of memory)
  */
 @Uninterruptible
 public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
+  
+  /**
+   * Reference to the main thread that is the first none VM thread run
+   */
+  public static VM_MainThread mainThread;
+  
   //----------------------------------------------------------------------//
   //                          Initialization.                             //
   //----------------------------------------------------------------------//
@@ -305,6 +308,9 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     VM_GreenScheduler.boot();
     VM_DynamicLibrary.boot();
 
+    if (verboseBoot >= 1) VM.sysWriteln("Setting up boot thread");    
+    VM_Scheduler.getCurrentThread().setupBootThread();
+    
     // Create JNI Environment for boot thread.
     // After this point the boot thread can invoke native methods.
     org.jikesrvm.jni.VM_JNIEnvironment.boot();
@@ -323,7 +329,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
 
     runClassInitializer("java.lang.VMDouble");
     runClassInitializer("java.util.PropertyPermission");
-    runClassInitializer("org.jikesrvm.runtime.VM_Process");
+    runClassInitializer("org.jikesrvm.scheduler.greenthreads.VM_Process");
     runClassInitializer("org.jikesrvm.classloader.VM_Annotation");
     runClassInitializer("java.lang.VMClassLoader");
 
@@ -399,7 +405,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     if (verboseBoot >= 2) VM.sysWriteln("Creating main thread");
     // Create main thread.
     if (verboseBoot >= 1) VM.sysWriteln("Constructing mainThread");
-    Thread mainThread = new VM_MainThread(applicationArguments);
+    mainThread = new VM_MainThread(applicationArguments);
 
     // Schedule "main" thread for execution.
     if (verboseBoot >= 1) VM.sysWriteln("Starting main thread");

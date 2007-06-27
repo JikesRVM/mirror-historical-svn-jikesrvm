@@ -149,27 +149,17 @@ public abstract class VM_Thread {
     TIMED_PARK,
   }
 
-  /** Mapping of state ordinal to string name */
-  private static final String[] stateToStringMap;
-  
-  static {
-    State[] possibleStates = State.values();
-    stateToStringMap = new String[possibleStates.length];
-    for (State i : possibleStates) {
-      stateToStringMap[i.ordinal()] = i.name();
-    }
-  }
-
   /**
    * State of the thread. Either NEW, RUNNABLE, BLOCKED, WAITING, TIMED_WAITING,
    * TERMINATED, SLEEPING, SUSPENDED or PARKED
    */
-  private State state;
+  protected State state;
 
   /**
-   * java.lang.Thread wrapper for this VM_Thread.
+   * java.lang.Thread wrapper for this VM_Thread. Not final so it may be
+   * assigned during booting
    */
-  private final Thread thread;
+  private Thread thread;
 
   /** Name of the thread (can be changed during execution) */
   private String name;
@@ -372,11 +362,11 @@ public abstract class VM_Thread {
     this.name = name;
     this.daemon = daemon;
     this.priority = priority;
-    this.state = State.NEW;
     
     contextRegisters           = new VM_Registers();
     hardwareExceptionRegisters = new VM_Registers();
 
+    if(VM.VerifyAssertions) VM._assert(stack != null);
     // put self in list of threads known to scheduler and garbage collector
     if (!VM.runningVM) {
       // create primordial thread (in boot image)
@@ -385,18 +375,21 @@ public abstract class VM_Thread {
       if (VM.VerifyAssertions) VM._assert(bootThread == null);
       bootThread = this;
       this.systemThread = true;
-      // Create wrapper to be filled in by the boot image writer
-      this.thread = new Thread("Jikes_RVM_Boot_Thread");
+      this.state = State.RUNNABLE;
       // assign final field
       onStackReplacementEvent = null;
     } else {
       // create a normal (ie. non-primordial) thread
+      if (trace) VM_Scheduler.trace("VM_Thread create: ", name);
+      if (trace) VM_Scheduler.trace("daemon: ", daemon ? "true" : "false");
       if (trace) VM_Scheduler.trace("VM_Thread", "create");
-      // wrapper Thread
+      // set up wrapper Thread if one exists
       this.thread = thread;
       // Set thread type
       this.systemThread = system;
       
+      this.state = State.NEW;
+
       stackLimit = VM_Magic.objectAsAddress(stack).plus(STACK_SIZE_GUARD);
 
       // get instructions for method to be executed as thread startoff
@@ -424,9 +417,22 @@ public abstract class VM_Thread {
       } else {
         onStackReplacementEvent = null;
       }
+      
+      if (thread == null) {
+        // create wrapper Thread if doesn't exist
+        this.thread = java.lang.JikesRVMSupport.createThread(this, name);
+      }
     }
   }
 
+  /**
+   * Called during booting to give the boot thread a java.lang.Thread
+   */
+  @Interruptible
+  public final void setupBootThread() {
+    thread = java.lang.JikesRVMSupport.createThread(this, "Jikes_RVM_Boot_Thread");
+  }
+  
   /**
    * String representation of thread
    */
@@ -503,11 +509,17 @@ public abstract class VM_Thread {
    */
   @LogicallyUninterruptible
   protected final void changeThreadState(State oldState, State newState) {
+    if (trace) {
+      VM.sysWrite("VM_Thread.changeThreadState: thread=", threadSlot, name);
+      VM.sysWrite(" current=", java.lang.JikesRVMSupport.getEnumName(state)); 
+      VM.sysWrite(" old=", java.lang.JikesRVMSupport.getEnumName(oldState)); 
+      VM.sysWriteln(" new=", java.lang.JikesRVMSupport.getEnumName(newState)); 
+    }
     if (state == oldState) {
       state = newState;
     } else {
       throw new IllegalThreadStateException("Illegal thread state change from " +
-          oldState + " to " + newState + " when in state " + state);
+          oldState + " to " + newState + " when in state " + state + " in thread " + name);
     }
   }
   
@@ -545,7 +557,6 @@ public abstract class VM_Thread {
       VM.sysWriteln("VM_Thread.startoff(): about to call ", currentThread.toString(), ".run()");
     }
 
-    currentThread.changeThreadState(State.NEW, State.RUNNABLE);
     currentThread.run();
 
       if (trace) {
@@ -597,7 +608,6 @@ public abstract class VM_Thread {
     if (VM.VerifyAssertions) VM._assert(VM_Scheduler.getCurrentThread() == this);
     boolean terminateSystem = false;
     if (trace) VM_Scheduler.trace("VM_Thread", "terminate");
-
     if (traceTermination) {
       VM.disableGC();
       VM.sysWriteln("[ BEGIN Verbosely dumping stack at time of thread termination");
@@ -612,40 +622,40 @@ public abstract class VM_Thread {
     }
 
     // allow java.lang.Thread.exit() to remove this thread from ThreadGroup
-    VM_Thread myThread = VM_Scheduler.getCurrentThread();
-    java.lang.JikesRVMSupport.threadDied(myThread.thread);
+    java.lang.JikesRVMSupport.threadDied(thread);
 
-    synchronized (myThread) { // release anybody waiting on this thread -
-
-      // begin critical section
-      //
-      VM_Scheduler.threadCreationMutex.lock();
-      VM_Processor.getCurrentProcessor().disableThreadSwitching();
-
-      // in particular, see {@link #join()}
-      myThread.state = State.TERMINATED;
-      myThread.notifyAll();
-    }
+    // begin critical section
+    //
+    VM_Scheduler.threadCreationMutex.lock();
+    VM_Processor.getCurrentProcessor().disableThreadSwitching();
 
     //
     // if the thread terminated because of an exception, remove
     // the mark from the exception register object, or else the
     // garbage collector will attempt to relocate its ip field.
-    myThread.hardwareExceptionRegisters.inuse = false;
+    hardwareExceptionRegisters.inuse = false;
 
     VM_Scheduler.numActiveThreads -= 1;
-    if (myThread.daemon) {
+    if (daemon) {
       VM_Scheduler.numDaemons -= 1;
     }
-    if (VM_Scheduler.numDaemons == VM_Scheduler.numActiveThreads) {
-      // no non-daemon thread remains
+    if ((VM_Scheduler.numDaemons == VM_Scheduler.numActiveThreads) &&
+        (VM.mainThread != null) &&
+        VM.mainThread.launched) {
+      // no non-daemon thread remains and the main thread was launched
       terminateSystem = true;
     }
     if (traceTermination) {
-      VM.sysWriteln("VM_Thread.terminate: myThread.daemon = ", myThread.daemon);
+      VM.sysWriteln("VM_Thread.terminate: myThread.daemon = ", daemon);
       VM.sysWriteln("  VM_Scheduler.numActiveThreads = ", VM_Scheduler.numActiveThreads);
       VM.sysWriteln("  VM_Scheduler.numDaemons = ", VM_Scheduler.numDaemons);
       VM.sysWriteln("  terminateSystem = ", terminateSystem);
+    }
+
+    synchronized (this) {
+      // release anybody waiting on this thread -
+      // in particular, see {@link #join()}
+      this.notifyAll();
     }
 
     // end critical section
@@ -656,13 +666,13 @@ public abstract class VM_Thread {
       VM._assert((!VM.fullyBooted && terminateSystem) ||
           VM_Processor.getCurrentProcessor().threadSwitchingEnabled());
     }
-
+    state = State.TERMINATED;
     if (terminateSystem) {
-      if (myThread.uncaughtExceptionCount > 0)
+      if (uncaughtExceptionCount > 0)
         /* Use System.exit so that any shutdown hooks are run.  */ {
         System.exit(VM.EXIT_STATUS_DYING_WITH_UNCAUGHT_EXCEPTION);
-      } else if (myThread.thread instanceof VM_MainThread) {
-        VM_MainThread mt = (VM_MainThread) myThread.thread;
+      } else if (thread instanceof VM_MainThread) {
+        VM_MainThread mt = (VM_MainThread) thread;
         if (!mt.launched) {
           /* Use System.exit so that any shutdown hooks are run.  It is
            * possible that shutdown hooks may be installed by static
@@ -680,17 +690,17 @@ public abstract class VM_Thread {
       if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
     }
 
-    if (myThread.jniEnv != null) {
-      VM_JNIEnvironment.deallocateEnvironment(myThread.jniEnv);
-      myThread.jniEnv = null;
+    if (jniEnv != null) {
+      VM_JNIEnvironment.deallocateEnvironment(jniEnv);
+      jniEnv = null;
     }
 
     // become another thread
     // begin critical section
     //
-    VM_Scheduler.releaseThreadSlot(myThread.threadSlot, myThread);
+    VM_Scheduler.releaseThreadSlot(threadSlot, this);
 
-    myThread.beingDispatched = true;
+    beingDispatched = true;
     VM_Processor.getCurrentProcessor().dispatch(false);
 
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
@@ -751,14 +761,6 @@ public abstract class VM_Thread {
   //todo fix this -- related to SaveVolatile
   public static void yieldpointFromEpilogue() {
     yieldpoint(EPILOGUE);
-  }
-
-  /**
-   * Suspend execution of current thread, in favor of some other thread.
-   */
-  @NoInline
-  public static void yield() {
-    yield();
   }
 
   /*
@@ -838,6 +840,7 @@ public abstract class VM_Thread {
     VM_Thread myThread = VM_Scheduler.getCurrentThread();
     myThread.changeThreadState(State.RUNNABLE, State.SLEEPING);
     myThread.sleepInternal(millis, ns);
+    myThread.changeThreadState(State.SLEEPING, State.RUNNABLE);
   }
 
   /*
@@ -920,7 +923,7 @@ public abstract class VM_Thread {
     VM_Lock l = VM_ObjectModel.getHeavyLock(o, false);
     if (l == null) return;
     VM_Processor proc = VM_Processor.getCurrentProcessor();
-    if (l.ownerId != proc.threadId) {
+    if (l.getOwnerId() != proc.threadId) {
       raiseIllegalMonitorStateException("notifying", o);
     }
     VM_Scheduler.getCurrentThread().notifyInternal(o, l);
@@ -937,7 +940,7 @@ public abstract class VM_Thread {
     VM_Scheduler.LockModel l = (VM_Scheduler.LockModel)VM_ObjectModel.getHeavyLock(o, false);
     if (l == null) return;
     VM_Processor proc = VM_Processor.getCurrentProcessor();
-    if (l.ownerId != proc.threadId) {
+    if (l.getOwnerId() != proc.threadId) {
       raiseIllegalMonitorStateException("notifyAll", o);
     }
     VM_Scheduler.getCurrentThread().notifyAllInternal(o, l);
@@ -1544,14 +1547,16 @@ public abstract class VM_Thread {
    */
   @Interruptible
   public final void join(long ms, int ns) throws InterruptedException {
+    VM_Thread myThread = VM_Scheduler.getCurrentThread();
+    if (VM.VerifyAssertions) VM._assert(myThread != this);
     synchronized(this) {
-      changeThreadState(State.RUNNABLE, State.JOINING);
+      myThread.changeThreadState(State.RUNNABLE, State.JOINING);
       if (ms == 0 && ns != 0) {
         ms++;
       }
       if (ms == 0) {
         while (isAlive()) {
-          wait(0);
+          this.wait(0);
         }
       } else {
         long startCycles = VM_Time.cycles();
@@ -1560,11 +1565,11 @@ public abstract class VM_Thread {
           do {
             double elapsedMillis = VM_Time.cyclesToMillis(VM_Time.cycles()-startCycles);
             timeLeft = ms - (long)elapsedMillis;
-            wait(timeLeft);
+            this.wait(timeLeft);
           } while (isAlive() && timeLeft > 0);
         }
       }
-      changeThreadState(State.JOINING, State.RUNNABLE);
+      myThread.changeThreadState(State.JOINING, State.RUNNABLE);
     }
   }
   
@@ -1752,7 +1757,7 @@ public abstract class VM_Thread {
       offset = VM_Services.sprintf(dest, offset, "-being_dispatched");
     }
     offset = VM_Services.sprintf(dest, offset, "-");
-    offset = VM_Services.sprintf(dest, offset, stateToStringMap[java.lang.JikesRVMSupport.getEnumOrdinal(state)]);
+    offset = VM_Services.sprintf(dest, offset, java.lang.JikesRVMSupport.getEnumName(state)); 
     if (throwInterruptWhenScheduled) {
       offset = VM_Services.sprintf(dest, offset, "-interrupted");
     }

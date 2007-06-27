@@ -113,7 +113,7 @@ final class VMThread {
    * Yield control
    */
   static void yield() {
-    VM_Thread.yield();
+    VM_Scheduler.yield();
   }
   /**
    * Put the current thread to sleep

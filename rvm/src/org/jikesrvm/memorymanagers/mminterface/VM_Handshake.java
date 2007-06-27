@@ -71,7 +71,7 @@ public class VM_Handshake {
       gcTrigger = why;
       if (verbose >= 1) VM.sysWriteln("GC Message: VM_Handshake.requestAndAwaitCompletion - yielding");
       /* allow a gc thread to run */
-      VM_Thread.yield();
+      VM_Scheduler.yield();
       complete();
       if (verbose >= 1) VM.sysWriteln("GC Message: VM_Handshake.requestAndAwaitCompletion - mutator running");
     }
@@ -206,7 +206,7 @@ public class VM_Handshake {
           VM.sysWrite("GC Message: VM_Handshake.initiateCollection waiting for previous collection to finish");
         }
         lock.release();   // release lock so other threads can make progress
-        VM_Thread.yield();
+        VM_Scheduler.yield();
         lock.acquire();   // acquire lock to make progress
       } else {
         break;

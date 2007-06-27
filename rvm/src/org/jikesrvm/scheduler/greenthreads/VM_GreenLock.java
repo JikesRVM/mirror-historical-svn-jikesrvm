@@ -94,7 +94,8 @@ public class VM_GreenLock extends VM_Lock {
       mutex.unlock(); // thread-switching benign
       raiseIllegalMonitorStateException("heavy unlocking", o);
     }
-    if (0 < --recursionCount) {
+    recursionCount--;
+    if (0 < recursionCount) {
       mutex.unlock(); // thread-switching benign
       return;
     }

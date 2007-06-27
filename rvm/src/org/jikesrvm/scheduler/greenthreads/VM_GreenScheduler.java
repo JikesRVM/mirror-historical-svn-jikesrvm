@@ -947,6 +947,14 @@ public class VM_GreenScheduler extends VM_Scheduler {
     threadCreationMutex.unlock();
   }
   
+  /**
+   * Schedule another thread
+   */
+  @Override
+  protected void yieldInternal() {
+    VM_GreenThread.yield();
+  }
+
   @Override
   protected void suspendDebuggerThreadInternal() {
     debugRequested = false;
@@ -992,6 +1000,7 @@ public class VM_GreenScheduler extends VM_Scheduler {
     int initProc = PRIMORDIAL_PROCESSOR_ID;
     byte[] stack = new byte[ArchitectureSpecific.VM_ArchConstants.STACK_SIZE_BOOT];
     VM_GreenThread startupThread = new VM_Scheduler.ThreadModel(stack, "Jikes_RVM_Boot_Thread");
+    numDaemons++;
     processors[initProc].activeThread = startupThread;
     return startupThread;
   }

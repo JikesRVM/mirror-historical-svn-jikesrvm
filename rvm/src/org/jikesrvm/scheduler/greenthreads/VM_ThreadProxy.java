@@ -14,7 +14,6 @@ package org.jikesrvm.scheduler.greenthreads;
 
 import org.jikesrvm.runtime.VM_Entrypoints;
 import org.jikesrvm.scheduler.VM_Synchronization;
-import org.jikesrvm.scheduler.VM_Thread;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Offset;
 

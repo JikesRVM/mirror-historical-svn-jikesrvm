@@ -267,6 +267,18 @@ public abstract class VM_Scheduler {
   }
 
   /**
+   * Schedule another thread
+   */
+  protected abstract void yieldInternal();
+  
+  /**
+   * Schedule another thread
+   */
+  public static void yield() {
+    getScheduler().yieldInternal();
+  }
+  
+  /**
    * Schedule thread waiting on l to give it a chance to acquire the lock
    * @param l the lock to allow other thread chance to acquire
    */
@@ -276,7 +288,7 @@ public abstract class VM_Scheduler {
    * Schedule thread waiting on l to give it a chance to acquire the lock
    * @param l the lock to allow other thread chance to acquire
    */
-  static <L extends VM_Lock> void yieldToOtherThreadWaitingOnLock(VM_Lock l) {
+  static void yieldToOtherThreadWaitingOnLock(VM_Lock l) {
     getScheduler().yieldToOtherThreadWaitingOnLockInternal(l);
   }
   

@@ -45,12 +45,12 @@ public final class VM_MainThread extends Thread {
    */
   public VM_MainThread(String[] args) {
     super("MainThread");
+    setDaemon(false); // NB otherwise we inherit the boot threads daemon status
     this.agents = VM_CommandLineArgs.getArgs(VM_CommandLineArgs.JAVAAGENT_ARG);
     this.args = args;
     if (dbg) {
       VM.sysWriteln("VM_MainThread(args.length == ", args.length, "): constructor done");
     }
-
   }
 
   private void runAgents(ClassLoader cl) {

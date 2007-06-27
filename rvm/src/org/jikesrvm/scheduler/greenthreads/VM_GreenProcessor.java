@@ -270,7 +270,12 @@ public class VM_GreenProcessor extends VM_Processor {
    */
   @Override
   public void dispatch(boolean timerTick) {
-    if (VM.VerifyAssertions) VM._assert(lockCount == 0);// no processor locks should be held across a thread switch
+    if (lockCount != 0) {
+      VM.sysWriteln("Lock count==", lockCount);
+      VM_Scheduler.dumpVirtualMachine();
+    }
+    // no processor locks should be held across a thread switch
+    if (VM.VerifyAssertions) VM._assert(lockCount == 0);
 
     VM_GreenThread newThread = getRunnableThread();
     while (newThread.suspendIfPending()) {

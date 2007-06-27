@@ -165,7 +165,8 @@ public class VM_GreenThread extends VM_Thread {
    * @see VM_Lock#unlockHeavy(Object)
    */
   public void unblock() {
-    changeThreadState(VM_Thread.State.BLOCKED, State.RUNNABLE);
+    if (state == State.BLOCKED)
+      changeThreadState(VM_Thread.State.BLOCKED, State.RUNNABLE);
     schedule();
   }
 
@@ -488,7 +489,8 @@ public class VM_GreenThread extends VM_Thread {
     // Check thread isn't already in interrupted state
     if (isInterrupted()) {
       // it is so throw either thread death (from stop) or interrupted exception
-      changeThreadState(State.RUNNABLE, State.RUNNABLE);
+      if (state != State.JOINING)
+        changeThreadState(State.RUNNABLE, State.RUNNABLE);
       clearInterrupted();
       if(causeOfThreadDeath == null) {
         return new InterruptedException("wait interrupted");
@@ -499,20 +501,21 @@ public class VM_GreenThread extends VM_Thread {
       // get lock for object
       VM_GreenLock l = (VM_GreenLock)VM_ObjectModel.getHeavyLock(o, true);
       // this thread is supposed to own the lock on o
-      if (l.ownerId != getLockingId()) {
+      if (l.getOwnerId() != getLockingId()) {
         return new IllegalMonitorStateException("waiting on" + o);
       }
       // non-interrupted wait
-      changeThreadState(State.RUNNABLE, State.WAITING);
+      if (state != State.JOINING)
+        changeThreadState(State.RUNNABLE, State.WAITING);
       // allow an entering thread a chance to get the lock
       l.mutex.lock(); // until unlock(), thread-switching fatal
       VM_Thread n = l.entering.dequeue();
       if (n != null) n.schedule();
       // squirrel away lock state in current thread
-      waitObject = l.lockedObject;
-      waitCount = l.recursionCount;
+      waitObject = l.getLockedObject();
+      waitCount = l.getRecursionCount();
       // release l and simultaneously put t on l's waiting queue
-      l.ownerId = 0;
+      l.setOwnerId(0);
       Throwable rethrow = null;
       try {
         // cache the proxy before obtaining lock
@@ -526,7 +529,7 @@ public class VM_GreenThread extends VM_Thread {
       waitObject = null;
       if (waitCount != 1) { // reset recursion count
         l = (VM_GreenLock)VM_ObjectModel.getHeavyLock(o, true);
-        l.recursionCount = waitCount;
+        l.setRecursionCount(waitCount);
       }
       return rethrow;
     }
@@ -542,7 +545,8 @@ public class VM_GreenThread extends VM_Thread {
   protected Throwable waitInternal(Object o, long millis) {
     // Check thread isn't already in interrupted state
     if (isInterrupted()) {
-      changeThreadState(State.RUNNABLE, State.RUNNABLE);
+      if (state != State.JOINING)
+        changeThreadState(State.RUNNABLE, State.RUNNABLE);
       clearInterrupted();
       if(causeOfThreadDeath == null) {
         return new InterruptedException("wait interrupted");
@@ -551,7 +555,8 @@ public class VM_GreenThread extends VM_Thread {
       }
     } else {
       // non-interrupted wait
-      changeThreadState(State.RUNNABLE, State.TIMED_WAITING);
+      if (state != State.JOINING)
+        changeThreadState(State.RUNNABLE, State.TIMED_WAITING);
       // Get proxy and set wakeup time
       wakeupCycle = VM_Time.cycles() + VM_Time.millisToCycles(millis);
       // cache the proxy before obtaining locks
@@ -559,7 +564,7 @@ public class VM_GreenThread extends VM_Thread {
       // Get monitor lock
       VM_GreenLock l = (VM_GreenLock)VM_ObjectModel.getHeavyLock(o, true);
       // this thread is supposed to own the lock on o
-      if (l.ownerId != getLockingId()) {
+      if (l.getOwnerId() != getLockingId()) {
         return new IllegalMonitorStateException("waiting on" + o);
       }
       // allow an entering thread a chance to get the lock
@@ -568,10 +573,10 @@ public class VM_GreenThread extends VM_Thread {
       if (n != null) n.schedule();
       VM_GreenScheduler.wakeupMutex.lock();
       // squirrel away lock state in current thread
-      waitObject = l.lockedObject;
-      waitCount = l.recursionCount;
+      waitObject = l.getLockedObject();
+      waitCount = l.getRecursionCount();
       // release locks and simultaneously put t on their waiting queues
-      l.ownerId = 0;
+      l.setOwnerId(0);
       Throwable rethrow = null;
       try {
         yield(l.waiting,
@@ -586,7 +591,7 @@ public class VM_GreenThread extends VM_Thread {
       waitObject = null;
       if (waitCount != 1) { // reset recursion count
         l = (VM_GreenLock)VM_ObjectModel.getHeavyLock(o, true);
-        l.recursionCount = waitCount;
+        l.setRecursionCount(waitCount);
       }
       return rethrow;
     }
@@ -601,20 +606,13 @@ public class VM_GreenThread extends VM_Thread {
   @Override
   protected void notifyInternal(Object o, VM_Lock lock) {
     VM_GreenLock l = (VM_GreenLock)lock;
-    changeThreadState(State.WAITING, State.RUNNABLE);
     l.mutex.lock(); // until unlock(), thread-switching fatal
     VM_GreenThread t = l.waiting.dequeue();
     
-    if (false) { // this "optimization" seems tempting, but actually makes things worse (on Volano, at least) [--DL]
-      if (t != null) { // global queue: check to see if thread's stack in use by some other dispatcher
-        if (t.beingDispatched) {
-          l.entering.enqueue(t); // normal scheduling
-        } else {
-          VM_GreenProcessor.getCurrentProcessor().readyQueue.enqueueHighPriority(t); // optimized scheduling
-        }
-      }
-    } else {
-      if (t != null) l.entering.enqueue(t);
+    if (t != null) {
+      if (t.state != State.JOINING)
+        t.changeThreadState(State.WAITING, State.RUNNABLE);
+      l.entering.enqueue(t);
     }
     l.mutex.unlock(); // thread-switching benign
   }
@@ -628,10 +626,11 @@ public class VM_GreenThread extends VM_Thread {
   @Override
   protected void notifyAllInternal(Object o, VM_Lock lock) {
     VM_GreenLock l = (VM_GreenLock)lock;
-    changeThreadState(State.WAITING, State.RUNNABLE);
     l.mutex.lock(); // until unlock(), thread-switching fatal
     VM_GreenThread t = l.waiting.dequeue();
     while (t != null) {
+      if (t.state != State.JOINING)
+        t.changeThreadState(State.WAITING, State.RUNNABLE);
       l.entering.enqueue(t);
       t = l.waiting.dequeue();
     }

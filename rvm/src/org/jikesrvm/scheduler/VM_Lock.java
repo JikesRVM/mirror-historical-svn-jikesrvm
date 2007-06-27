@@ -115,11 +115,11 @@ VM_ProcessorLock}, have been investigate, then a larger performance issue
 @Uninterruptible
 public abstract class VM_Lock implements VM_Constants {
   /** The object being locked (if any). */
-  public Object lockedObject;
+  protected Object lockedObject;
   /** The id of the thread that owns this lock (if any). */
-  public int ownerId;
+  protected int ownerId;
   /** The number of times the owning thread (if any) has acquired this lock. */
-  public int recursionCount;
+  protected int recursionCount;
   /** A spin lock to handle contention for the data structures of this lock. */
   public final VM_ProcessorLock mutex;
 
@@ -138,13 +138,6 @@ public abstract class VM_Lock implements VM_Constants {
   public static int unlockOperations;
   /** Number of deflations */
   public static int deflations;
-  /**
-   * A heavy weight lock to handle extreme contention and wait/notify
-   * synchronization.
-   */
-  public VM_Lock() {
-    mutex = new VM_ProcessorLock();
-  }
   
   /**
    * Acquires this heavy-weight lock on the indicated object.
@@ -166,9 +159,9 @@ public abstract class VM_Lock implements VM_Constants {
 
   // lock table implementation
   //
-  boolean active;
+  protected boolean active;
   private VM_Lock nextFreeLock;
-  int index;
+  protected int index;
 
   // Maximum number of VM_Lock's that we can support
   //
@@ -182,6 +175,36 @@ public abstract class VM_Lock implements VM_Constants {
   private static VM_Lock globalFreeLock;
   private static int globalFreeLocks;
 
+  /**
+   * A heavy weight lock to handle extreme contention and wait/notify
+   * synchronization.
+   */
+  public VM_Lock() {
+    mutex = new VM_ProcessorLock();
+  }
+
+  public void setOwnerId(int id) {
+    ownerId = id;
+  }
+  public int getOwnerId() {
+    return ownerId;
+  }
+
+  public void setRecursionCount(int c) {
+    recursionCount = c;
+  }
+  public int getRecursionCount() {
+    return recursionCount;
+  }
+
+  public void setLockedObject(Object o) {
+    lockedObject = o;
+  }
+  public Object getLockedObject() {
+    return lockedObject;
+  }
+
+  
   /**
    * Sets up the data structures for holding heavy-weight locks.
    */

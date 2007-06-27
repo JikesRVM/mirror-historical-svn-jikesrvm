@@ -70,6 +70,8 @@ final class VM_IdleThread extends VM_GreenThread {
 
   @Override
   public void run() { // overrides VM_Thread
+    if (state != State.RUNNABLE)
+      changeThreadState(State.NEW, State.RUNNABLE);
     loadBalancing = VM_GreenScheduler.numProcessors > 1;
     VM_GreenProcessor myProcessor = VM_GreenProcessor.getCurrentProcessor();
     if (VM.ExtremeAssertions) VM._assert(myProcessor == processorAffinity);

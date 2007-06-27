@@ -139,7 +139,7 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
           if (changed.and(TL_LOCK_COUNT_MASK).isZero()) { // count wrapped around (most unlikely), make heavy lock
             while (!inflateAndLock(o, lockOffset)) { // wait for a lock to become available
               if (VM_Processor.getCurrentProcessor().threadSwitchingEnabled()) {
-                VM_Thread.yield();
+                VM_Scheduler.yield();
               }
             }
             break major;  // lock succeeds (note that lockHeavy has issued an isync)
@@ -159,7 +159,7 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
           }
           // heavy lock failed (deflated or contention for system lock)
           if (VM_Processor.getCurrentProcessor().threadSwitchingEnabled()) {
-            VM_Thread.yield(); // wait, hope o gets unlocked
+            VM_Scheduler.yield(); // wait, hope o gets unlocked
           }
           continue major;    // try again
         }
@@ -176,7 +176,7 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
           VM_Scheduler.trace(VM_Magic.getObjectType(o).toString(), s, -2 - retries);
         }
         if (0 != retries && VM_Processor.getCurrentProcessor().threadSwitchingEnabled()) {
-          VM_Thread.yield(); // wait, hope o gets unlocked
+          VM_Scheduler.yield(); // wait, hope o gets unlocked
         }
       }
       // create a heavy lock for o and lock it
@@ -277,18 +277,18 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
     VM_Lock rtn = attemptToInflate(o, lockOffset, l);
     if (l != rtn) {
       l.mutex.lock();
-      if (l.lockedObject != o) {
+      if (l.getLockedObject() != o) {
         l.mutex.unlock();
         return false;  /* lock must have been deflated while we've been trying */
       }
       l = rtn;
     }
     int threadId = VM_Processor.getCurrentProcessor().threadId;
-    if (l.ownerId == 0) {
-      l.ownerId = threadId;
-      l.recursionCount = 1;
-    } else if (l.ownerId == threadId) {
-      l.recursionCount++;
+    if (l.getOwnerId() == 0) {
+      l.setOwnerId(threadId);
+      l.setRecursionCount(1);
+    } else if (l.getOwnerId() == threadId) {
+      l.setRecursionCount(l.getRecursionCount()+1);
     } else if (VM_Processor.getCurrentProcessor().threadSwitchingEnabled()) {
       VM_Scheduler.yieldToOtherThreadWaitingOnLock(l);
       // when this thread next gets scheduled, it will be entitled to the lock,
@@ -327,10 +327,10 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
       Word changed = locked.or(old.and(TL_UNLOCK_MASK));
       if (VM.VerifyAssertions) VM._assert(getLockIndex(changed) == l.index);
       if (VM_Magic.attemptWord(o, lockOffset, old, changed)) {
-        l.lockedObject = o;
-        l.ownerId = old.and(TL_THREAD_ID_MASK).toInt();
-        if (l.ownerId != 0) {
-          l.recursionCount = old.and(TL_LOCK_COUNT_MASK).rshl(TL_LOCK_COUNT_SHIFT).toInt() + 1;
+        l.setLockedObject(o);
+        l.setOwnerId(old.and(TL_THREAD_ID_MASK).toInt());
+        if (l.getOwnerId() != 0) {
+          l.setRecursionCount(old.and(TL_LOCK_COUNT_MASK).rshl(TL_LOCK_COUNT_SHIFT).toInt() + 1);
         }
         return l;
       }
@@ -367,7 +367,7 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
       // if locked, then it is locked with a fat lock
       int index = getLockIndex(bits);
       VM_Lock l = VM_Lock.locks[index];
-      return l != null && l.ownerId == tid;
+      return l != null && l.getOwnerId() == tid;
     }
   }
 

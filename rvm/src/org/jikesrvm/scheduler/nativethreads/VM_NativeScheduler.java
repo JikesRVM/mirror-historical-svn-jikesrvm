@@ -2,6 +2,8 @@ package org.jikesrvm.scheduler.nativethreads;
 
 import org.jikesrvm.scheduler.VM_Lock;
 import org.jikesrvm.scheduler.VM_Scheduler;
+import org.jikesrvm.scheduler.VM_Thread;
+import org.vmmagic.pragma.Interruptible;
 
 public class VM_NativeScheduler extends VM_Scheduler {
 
@@ -92,5 +94,24 @@ public class VM_NativeScheduler extends VM_Scheduler {
   protected boolean safeToForceGCsInternal() {
     // TODO Auto-generated method stub
     return false;
+  }
+  
+  /**
+   * Schedule another thread
+   */
+  @Override
+  protected void yieldInternal() {
+    // TODO Auto-generated method stub    
+  }
+  
+  /**
+   * Set up the initial thread and processors as part of boot image writing
+   * @return the boot thread
+   */
+  @Interruptible
+  @Override
+  protected VM_Thread setupBootThreadInternal() {
+    // TODO Auto-generated method stub
+    return null;
   }
 }
