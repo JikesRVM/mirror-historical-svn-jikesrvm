@@ -141,7 +141,7 @@ public class OSR_OnStackReplacementPlan implements VM_Constants {
       }
     }
 
-    suspendedThread.resume();
+    suspendedThread.osrResume();
     suspendedThread = null;
     compPlan = null;
     CMID = 0;
