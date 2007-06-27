@@ -102,4 +102,8 @@ public class JikesRVMSupport {
   public static int getEnumOrdinal(Enum e) {
     return e.ordinal;
   }
+  @Uninterruptible
+  public static String getEnumName(Enum e) {
+    return e.name;
+  }
 }
