@@ -3213,7 +3213,7 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
           return DefUseEffect.TRAP_REDUCED;
         } else if (calleeThis.isConstant() || calleeThis.asRegister().isPreciseType()) {
           VM_TypeReference calleeClass = calleeThis.getType();
-          if (calleeClass.isResolved()) {
+          if (calleeClass.isResolved() && calleeClass.peekResolvedType().isResolved()) {
             methOp.refine(calleeClass.peekResolvedType());
             return DefUseEffect.UNCHANGED;
           }
