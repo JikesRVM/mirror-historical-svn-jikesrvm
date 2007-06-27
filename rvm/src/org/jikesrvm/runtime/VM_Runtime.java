@@ -884,7 +884,6 @@ public class VM_Runtime implements VM_Constants, ArchitectureSpecific.VM_Stackfr
     if (VM.debugOOM) {
       VM.sysWrite("Hunting for a catch block...");
     }
-    VM.sysWriteln(VM_Magic.objectAsAddress(exceptionObject));
     VM_Type exceptionType = VM_Magic.getObjectType(exceptionObject);
     Address fp = exceptionRegisters.getInnermostFramePointer();
     while (VM_Magic.getCallerFramePointer(fp).NE(STACKFRAME_SENTINEL_FP)) {
