@@ -185,8 +185,10 @@ public class VM_GreenScheduler extends VM_Scheduler {
   /**
    * Begin multi-threaded vm operation.
    */
+  /** Scheduler specific boot up */
   @Interruptible
-  public static void boot() {
+  @Override
+  protected void bootInternal() {
     if (VM.VerifyAssertions) VM._assert(1 <= numProcessors && numProcessors <= MAX_PROCESSORS);
 
     if (VM.TraceThreads) {

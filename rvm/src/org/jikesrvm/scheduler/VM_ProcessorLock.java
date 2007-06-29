@@ -14,6 +14,7 @@ package org.jikesrvm.scheduler;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.VM_Constants;
+import org.jikesrvm.VM_Services;
 import org.jikesrvm.runtime.VM_Entrypoints;
 import org.jikesrvm.runtime.VM_Magic;
 import org.vmmagic.pragma.NoInline;
@@ -82,7 +83,6 @@ import org.vmmagic.unboxed.Offset;
  * @see VM_Lock */
 @Uninterruptible
 public final class VM_ProcessorLock implements VM_Constants {
-  private static final boolean ians_paranoia = false;
   /**
    * Should contending <code>VM_Processor</code>s spin on processor local addresses (true)
    * or on a globally shared address (false).
@@ -108,10 +108,6 @@ public final class VM_ProcessorLock implements VM_Constants {
     if (VM_Scheduler.getNumberOfProcessors() == 1) return;
     VM_Processor i = VM_Processor.getCurrentProcessor();
     if (VM.VerifyAssertions) i.lockCount += 1;
-    if (ians_paranoia) {
-      VM.sysWriteln("lock count==", i.lockCount);
-      VM_Scheduler.dumpStack();
-    }
     VM_Processor p;
     int attempts = 0;
     Offset latestContenderOffset = VM_Entrypoints.latestContenderField.getOffset();
@@ -174,10 +170,9 @@ public final class VM_ProcessorLock implements VM_Constants {
     Offset latestContenderOffset = VM_Entrypoints.latestContenderField.getOffset();
     VM_Processor i = VM_Processor.getCurrentProcessor();
     if (!MCS_Locking) {
-      if (VM.VerifyAssertions) i.lockCount -= 1;
-      if (ians_paranoia) {
-        VM.sysWriteln("1:unlock count==", i.lockCount);
-        VM_Scheduler.dumpStack();
+      if (VM.VerifyAssertions) { 
+        i.lockCount -= 1;
+        VM._assert(i.lockCount >= 0);
       }
       VM_Magic.setObjectAtOffset(this, latestContenderOffset, null);  // latestContender = null;
       return;
@@ -212,10 +207,9 @@ public final class VM_ProcessorLock implements VM_Constants {
         VM_Magic.setObjectAtOffset(this, latestContenderOffset, p); // other contenders can get at the lock
       }
     }
-    if (VM.VerifyAssertions) i.lockCount -= 1;
-    if (ians_paranoia) {
-      VM.sysWriteln("2:unlock count==", i.lockCount);
-      VM_Scheduler.dumpStack();
+    if (VM.VerifyAssertions) { 
+      i.lockCount -= 1;
+      VM._assert(i.lockCount >= 0);
     }
   }
 

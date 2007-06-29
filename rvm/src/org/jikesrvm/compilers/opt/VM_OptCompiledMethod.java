@@ -34,7 +34,6 @@ import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.runtime.VM_StackBrowser;
 import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.scheduler.VM_Scheduler;
-import org.jikesrvm.scheduler.VM_Thread;
 import org.jikesrvm.scheduler.greenthreads.VM_GreenScheduler;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.SynchronizedObject;

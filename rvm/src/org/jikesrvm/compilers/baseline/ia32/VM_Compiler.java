@@ -3013,11 +3013,14 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
       // push java.lang.Class object for klass
       asm.emitPUSH_RegDisp(JTOC, klassOffset);
     } else {
-      asm.emitPUSH_RegDisp(ESP, localOffset(0));                           // push "this" object
+      // push "this" object
+      asm.emitPUSH_RegDisp(ESP, localOffset(0));
     }
-    genParameterRegisterLoad(1);                                   // pass 1 parameter
+    // pass 1 parameter
+    genParameterRegisterLoad(1);
     asm.emitCALL_RegDisp(JTOC, VM_Entrypoints.lockMethod.getOffset());
-    lockOffset = asm.getMachineCodeIndex();                       // after this instruction, the method has the monitor
+    // after this instruction, the method has the monitor
+    lockOffset = asm.getMachineCodeIndex();
   }
 
   private void genMonitorExit() {

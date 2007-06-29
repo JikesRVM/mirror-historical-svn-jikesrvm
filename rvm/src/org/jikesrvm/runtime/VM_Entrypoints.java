@@ -218,6 +218,8 @@ public class VM_Entrypoints implements VM_Constants {
 
   public static final VM_Field threadProxyPatronField = 
     getField(org.jikesrvm.scheduler.greenthreads.VM_ThreadProxy.class, "patron", org.jikesrvm.scheduler.greenthreads.VM_GreenThread.class);
+  public static final VM_Field suspendPendingField = 
+    getField(org.jikesrvm.scheduler.greenthreads.VM_GreenThread.class, "suspendPending", int.class);
   public static final VM_Field scratchStorageField =
       getField(org.jikesrvm.scheduler.VM_Processor.class, "scratchStorage", double.class);
   public static final VM_Field timeSliceExpiredField =
@@ -229,9 +231,10 @@ public class VM_Entrypoints implements VM_Constants {
   public static final VM_Field activeThreadStackLimitField =
       getField(org.jikesrvm.scheduler.VM_Processor.class, "activeThreadStackLimit", org.vmmagic.unboxed.Address.class);
   public static final VM_Field pthreadIDField = getField(org.jikesrvm.scheduler.VM_Processor.class, "pthread_id", int.class);
-  public static final VM_Field timerTicksField = getField(org.jikesrvm.scheduler.VM_Processor.class, "timerTicks", int.class);
+  public static final VM_Field timerTicksField = 
+    getField(org.jikesrvm.scheduler.greenthreads.VM_GreenProcessor.class, "timerTicks", int.class);
   public static final VM_Field reportedTimerTicksField =
-      getField(org.jikesrvm.scheduler.VM_Processor.class, "reportedTimerTicks", int.class);
+      getField(org.jikesrvm.scheduler.greenthreads.VM_GreenProcessor.class, "reportedTimerTicks", int.class);
   public static final VM_Field vpStatusField = getField(org.jikesrvm.scheduler.VM_Processor.class, "vpStatus", int.class);
   public static final VM_Field threadIdField = getField(org.jikesrvm.scheduler.VM_Processor.class, "threadId", int.class);
   public static final VM_Field jtocField =

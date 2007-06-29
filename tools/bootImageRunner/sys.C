@@ -599,7 +599,7 @@ extern "C" void processTimerTick(void) {
     /*
      * Increment VM_Processor.timerTicks
      */
-    int* ttp = (int *) ((char *) VmToc + VM_Processor_timerTicks_offset);
+    int* ttp = (int *) ((char *) VmToc + VM_GreenProcessor_timerTicks_offset);
     *ttp = *ttp + 1;
 
     /*
@@ -612,7 +612,7 @@ extern "C" void processTimerTick(void) {
     /*
      * Increment VM_Processor.reportedTimerTicks
      */
-    int* rttp = (int *) ((char *) VmToc + VM_Processor_reportedTimerTicks_offset);
+    int* rttp = (int *) ((char *) VmToc + VM_GreenProcessor_reportedTimerTicks_offset);
     *rttp = *rttp + 1;
 
     /*

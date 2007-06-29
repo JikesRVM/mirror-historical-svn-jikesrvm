@@ -99,6 +99,7 @@ Ljava/lang/UnsatisfiedLinkError;
 Ljava/lang/InternalError;
 Ljava/lang/IllegalMonitorStateException;
 Ljava/lang/ExceptionInInitializerError;
+Ljava/lang/InterruptedException;
 
 # primitive wrapper types
 Ljava/lang/Boolean;

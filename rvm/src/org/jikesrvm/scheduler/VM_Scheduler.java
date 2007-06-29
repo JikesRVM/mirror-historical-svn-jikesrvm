@@ -311,6 +311,16 @@ public abstract class VM_Scheduler {
   public static void init() {
     getScheduler().initInternal();
   }
+  
+  /** Scheduler specific boot up */
+  @Interruptible
+  protected abstract void bootInternal();
+  
+    /** Scheduler specific boot up */
+  @Interruptible
+  public static void boot() {
+    getScheduler().bootInternal();
+  }
   /** Scheduler specific sysExit shutdown */
   @Interruptible
   protected abstract void sysExitInternal();

@@ -229,19 +229,6 @@ public abstract class VM_Processor extends MM_ProcessorContext implements VM_Con
   public int lockCount;
 
   /**
-   * Number of timer ticks that have actually been forwarded to the VM from
-   * the C time slicing code
-   */
-  public static int reportedTimerTicks = 0;
-
-  /**
-   * How many times has the C time slicing code been entered due to a timer tick.
-   * Invariant: timerTicks >= reportedTimerTicks
-   * reportedTimerTicks can be lower because we supress the reporting of timer ticks during GC.
-   */
-  public static int timerTicks = 0;
-
-  /**
    * Status of the processor.
    * Always one of IN_JAVA, IN_NATIVE or BLOCKED_IN_NATIVE.
    */

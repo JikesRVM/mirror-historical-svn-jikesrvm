@@ -25,7 +25,7 @@ import org.vmmagic.pragma.Uninterruptible;
  * The producers are application threads, and the consumer thread is the
  * organizer. The buffer is VM_Scheduler.threads array. The producer set
  * it is own flag "requesting_osr" and notify the consumer. The consumer
- * scans the threads array and collect requests. To work with concrrency,
+ * scans the threads array and collect requests. To work with concurrency,
  * we use following scheme:
  * P - producer, C - consumer
  * P1, P2:

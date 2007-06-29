@@ -38,7 +38,6 @@ import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.runtime.VM_Runtime;
 import static org.jikesrvm.runtime.VM_SysCall.sysCall;
 import org.jikesrvm.runtime.VM_Time;
-import org.jikesrvm.scheduler.VM_DebuggerThread;
 import org.jikesrvm.scheduler.VM_Lock;
 import org.jikesrvm.scheduler.VM_MainThread;
 import org.jikesrvm.scheduler.VM_Processor;
@@ -305,7 +304,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     // Among other things, after this returns, GC and dynamic class loading are enabled.
     //
     if (verboseBoot >= 1) VM.sysWriteln("Booting scheduler");
-    VM_GreenScheduler.boot();
+    VM_Scheduler.boot();
     VM_DynamicLibrary.boot();
 
     if (verboseBoot >= 1) VM.sysWriteln("Setting up boot thread");    

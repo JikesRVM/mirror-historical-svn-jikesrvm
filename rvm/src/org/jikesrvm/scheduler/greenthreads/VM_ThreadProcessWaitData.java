@@ -33,7 +33,7 @@ public final class VM_ThreadProcessWaitData extends VM_ThreadEventWaitData {
   public int exitStatus;
 
   /**
-   * Constuctor.
+   * Constructor.
    * @param maxWaitCycle timeout value for wait, or negative
    *   if there is no timeout
    * @param pid process ID of process being waited for

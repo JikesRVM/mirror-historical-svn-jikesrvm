@@ -96,7 +96,9 @@ public abstract class VM_BaselineExceptionDeliverer extends VM_ExceptionDelivere
               VM_Magic.addressAsObject(fp.plus(VM_Compiler.locationToOffset(((VM_BaselineCompiledMethod) compiledMethod).getGeneralLocalLocation(
                   0)) - BYTES_IN_ADDRESS).loadAddress());
         }
-        VM_ObjectModel.genericUnlock(lock);
+        if (VM_ObjectModel.holdsLock(lock, VM_Scheduler.getCurrentThread())) {
+          VM_ObjectModel.genericUnlock(lock);
+        }
       }
     }
     // Restore nonvolatile registers used by the baseline compiler.

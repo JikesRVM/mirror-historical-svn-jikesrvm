@@ -99,8 +99,15 @@ public final class VM_ThreadProxyWaitingQueue extends VM_AbstractThreadQueue {
   }
 
   void dump() {
+    boolean pastFirst = false;
     for (VM_ThreadProxy p = head; p != null; p = p.getWaitingNext()) {
-      if (p.getPatron() != null) p.getPatron().dump();
+      if (pastFirst) {
+        VM.sysWrite(" ");
+      }
+      if (p.getPatron() != null) {
+        p.getPatron().dump();
+        pastFirst = true;
+      }
     }
     VM.sysWrite("\n");
   }

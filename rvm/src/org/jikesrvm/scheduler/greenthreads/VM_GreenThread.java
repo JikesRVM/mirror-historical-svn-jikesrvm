@@ -20,6 +20,7 @@ import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.NoInline;
+import org.vmmagic.unboxed.Offset;
 
 /**
  * A green thread's Java execution context
@@ -27,13 +28,13 @@ import org.vmmagic.pragma.NoInline;
 @Uninterruptible
 public class VM_GreenThread extends VM_Thread {
   /** Lock controlling the suspending of a thread */
-  private final VM_ProcessorLock suspendLock;
+  private static final Offset suspendPendingOffset = VM_Entrypoints.suspendPendingField.getOffset();
   
   /**
    * Should this thread be suspended the next time it is considered
-   * for scheduling?
+   * for scheduling? NB int as we CAS to modify it
    */
-  private boolean suspendPending;
+  private volatile int suspendPending;
 
   /**
    * This thread's successor on a queue.
@@ -108,8 +109,6 @@ public class VM_GreenThread extends VM_Thread {
     super(stack, thread, name, daemon, system, priority);
     // for load balancing
     chosenProcessorId = (VM.runningVM ? VM_Processor.getCurrentProcessorId() : 0);
-
-    suspendLock = new VM_ProcessorLock();
   }
 
   /*
@@ -156,7 +155,6 @@ public class VM_GreenThread extends VM_Thread {
    * @see VM_Lock#lockHeavy(Object)
    */
   public void block(VM_ThreadQueue entering, VM_ProcessorLock mutex) {
-    changeThreadState(State.RUNNABLE, State.BLOCKED);
     yield(entering, mutex);
   }
   
@@ -165,8 +163,6 @@ public class VM_GreenThread extends VM_Thread {
    * @see VM_Lock#unlockHeavy(Object)
    */
   public void unblock() {
-    if (state == State.BLOCKED)
-      changeThreadState(VM_Thread.State.BLOCKED, State.RUNNABLE);
     schedule();
   }
 
@@ -186,8 +182,8 @@ public class VM_GreenThread extends VM_Thread {
   @NoInline
   public static void yieldpoint(int whereFrom) {
     boolean threadSwitch = false;
-    int takeYieldpointVal = VM_GreenProcessor.getCurrentProcessor().takeYieldpoint;
     VM_GreenProcessor p = VM_GreenProcessor.getCurrentProcessor();
+    int takeYieldpointVal = p.takeYieldpoint;
     p.takeYieldpoint = 0;
 
     // Process request for code-patch memory sync operation
@@ -382,6 +378,8 @@ public class VM_GreenThread extends VM_Thread {
   @NoInline
   public void yield(VM_AbstractThreadQueue q, VM_ProcessorLock l) {
     if (VM.VerifyAssertions) VM._assert(this == VM_GreenScheduler.getCurrentThread());
+    if (state == State.RUNNABLE)
+      changeThreadState(State.RUNNABLE, State.BLOCKED);
     beingDispatched = true;
     q.enqueue(this);
     l.unlock();
@@ -400,7 +398,7 @@ public class VM_GreenThread extends VM_Thread {
    * @param l2 the {@link VM_ProcessorLock} guarding <code>q2</code> (currently locked)
    */
   @NoInline
-  static void yield(VM_ThreadProxyWaitingQueue q1, VM_ProcessorLock l1,
+  private static void yield(VM_ThreadProxyWaitingQueue q1, VM_ProcessorLock l1,
       VM_ThreadProxyWakeupQueue q2, VM_ProcessorLock l2) {
     VM_GreenThread myThread = VM_GreenScheduler.getCurrentThread();
     myThread.beingDispatched = true;
@@ -436,7 +434,7 @@ public class VM_GreenThread extends VM_Thread {
     VM_GreenProcessor.getCurrentProcessor().dispatch(timerTick);
     // respond to interrupt sent to this thread by some other thread
     //
-    if (myThread.isInterrupted()) {
+    if (myThread.throwInterruptWhenScheduled) {
       myThread.postExternalInterrupt();
     }
   }
@@ -461,21 +459,28 @@ public class VM_GreenThread extends VM_Thread {
    */
   @Interruptible
   @Override
-  protected void sleepInternal(long millis, int ns) { 
+  protected void sleepInternal(long millis, int ns) throws InterruptedException { 
     wakeupCycle = VM_Time.cycles() + VM_Time.millisToCycles(millis);
     // cache the proxy before obtaining lock
     VM_ThreadProxy proxy = new VM_ThreadProxy(this, wakeupCycle);
-    this.threadProxy = proxy;
-
-    sleepImpl();
+    if(sleepImpl(proxy)) {
+      throw new InterruptedException("sleep interrupted");
+    }
   }
   
   /**
    * Uninterruptible portion of going to sleep
+   * @return were we interrupted prior to going to sleep
    */
-  private void sleepImpl() {
+  private boolean sleepImpl(VM_ThreadProxy proxy) {
     VM_GreenScheduler.wakeupMutex.lock();
+    if (isInterrupted()) {
+      // we were interrupted before putting this thread to sleep
+      return true;
+    }
+    this.threadProxy = proxy;
     yield(VM_GreenScheduler.wakeupQueue, VM_GreenScheduler.wakeupMutex);
+    return false;
   }
   
   /**
@@ -484,55 +489,9 @@ public class VM_GreenThread extends VM_Thread {
    * @param o the object synchronized on
    */
   @Override
-  @LogicallyUninterruptible
+  @Interruptible
   protected Throwable waitInternal(Object o) {
-    // Check thread isn't already in interrupted state
-    if (isInterrupted()) {
-      // it is so throw either thread death (from stop) or interrupted exception
-      if (state != State.JOINING)
-        changeThreadState(State.RUNNABLE, State.RUNNABLE);
-      clearInterrupted();
-      if(causeOfThreadDeath == null) {
-        return new InterruptedException("wait interrupted");
-      } else {
-        return causeOfThreadDeath;
-      }
-    } else {
-      // get lock for object
-      VM_GreenLock l = (VM_GreenLock)VM_ObjectModel.getHeavyLock(o, true);
-      // this thread is supposed to own the lock on o
-      if (l.getOwnerId() != getLockingId()) {
-        return new IllegalMonitorStateException("waiting on" + o);
-      }
-      // non-interrupted wait
-      if (state != State.JOINING)
-        changeThreadState(State.RUNNABLE, State.WAITING);
-      // allow an entering thread a chance to get the lock
-      l.mutex.lock(); // until unlock(), thread-switching fatal
-      VM_Thread n = l.entering.dequeue();
-      if (n != null) n.schedule();
-      // squirrel away lock state in current thread
-      waitObject = l.getLockedObject();
-      waitCount = l.getRecursionCount();
-      // release l and simultaneously put t on l's waiting queue
-      l.setOwnerId(0);
-      Throwable rethrow = null;
-      try {
-        // cache the proxy before obtaining lock
-        threadProxy = new VM_ThreadProxy(this);
-        yield(l.waiting, l.mutex); // thread-switching benign
-      } catch (Throwable thr) {
-        rethrow = thr; // An InterruptedException. We'll rethrow it after regaining the lock on o.
-      }
-      // regain lock
-      VM_ObjectModel.genericLock(o);
-      waitObject = null;
-      if (waitCount != 1) { // reset recursion count
-        l = (VM_GreenLock)VM_ObjectModel.getHeavyLock(o, true);
-        l.setRecursionCount(waitCount);
-      }
-      return rethrow;
-    }
+    return waitInternal2(o, false, 0L);
   }
   /**
    * Support for Java {@link java.lang.Object#wait()} synchronization primitive.
@@ -541,57 +500,109 @@ public class VM_GreenThread extends VM_Thread {
    * @param millis the number of milliseconds to wait for notification
    */
   @Override
-  @LogicallyUninterruptible
+  @Interruptible
   protected Throwable waitInternal(Object o, long millis) {
+    return waitInternal2(o, true, millis);    
+  }
+  /**
+   * Combine the two outer waitInternal into one bigger one
+   * @param o the object to wait upon
+   * @param hasTimeout have a timeout ?
+   * @param millis timeout value
+   * @return any exceptions created along the way
+   */
+  @Interruptible
+  private Throwable waitInternal2(Object o, boolean hasTimeout, long millis) {
+    // get lock for object
+    VM_GreenLock l = (VM_GreenLock)VM_ObjectModel.getHeavyLock(o, true);
+    // this thread is supposed to own the lock on o
+    if (l.getOwnerId() != getLockingId()) {
+      return new IllegalMonitorStateException("waiting on " + o);
+    }
+    // Get proxy and set wakeup time
+    VM_ThreadProxy proxy;
+    if (!hasTimeout) {
+      proxy = new VM_ThreadProxy(this);
+    } else {
+      wakeupCycle = VM_Time.cycles() + VM_Time.millisToCycles(millis);
+      proxy = new VM_ThreadProxy(this, wakeupCycle);      
+    }
+    // carry on to uninterruptible portion
+    Throwable t = waitImpl(o, l, hasTimeout, millis, proxy);
+    if (t == proxyInterruptException) {
+      // Create a proper stack trace
+      t = new InterruptedException("wait interrupted");
+    }
+    return t;
+  }
+  /**
+   * Uninterruptible portion of waiting
+   */
+  private Throwable waitImpl(Object o, VM_GreenLock l, boolean hasTimeout, long millis, VM_ThreadProxy proxy) {
     // Check thread isn't already in interrupted state
     if (isInterrupted()) {
-      if (state != State.JOINING)
+      // it is so throw either thread death (from stop) or interrupted exception
+      if (VM.VerifyAssertions && (state != State.JOINING))
         changeThreadState(State.RUNNABLE, State.RUNNABLE);
       clearInterrupted();
       if(causeOfThreadDeath == null) {
-        return new InterruptedException("wait interrupted");
+        return proxyInterruptException;
       } else {
         return causeOfThreadDeath;
       }
     } else {
       // non-interrupted wait
-      if (state != State.JOINING)
-        changeThreadState(State.RUNNABLE, State.TIMED_WAITING);
-      // Get proxy and set wakeup time
-      wakeupCycle = VM_Time.cycles() + VM_Time.millisToCycles(millis);
-      // cache the proxy before obtaining locks
-      threadProxy = new VM_ThreadProxy(this, wakeupCycle);
-      // Get monitor lock
-      VM_GreenLock l = (VM_GreenLock)VM_ObjectModel.getHeavyLock(o, true);
-      // this thread is supposed to own the lock on o
-      if (l.getOwnerId() != getLockingId()) {
-        return new IllegalMonitorStateException("waiting on" + o);
+      Throwable rethrow = null;
+      if (state != State.JOINING) {
+        if (hasTimeout) {
+          changeThreadState(State.RUNNABLE, State.TIMED_WAITING);
+        } else {
+          changeThreadState(State.RUNNABLE, State.WAITING);        
+        }
       }
       // allow an entering thread a chance to get the lock
       l.mutex.lock(); // until unlock(), thread-switching fatal
       VM_Thread n = l.entering.dequeue();
       if (n != null) n.schedule();
-      VM_GreenScheduler.wakeupMutex.lock();
+      if (hasTimeout) {
+        VM_GreenScheduler.wakeupMutex.lock();
+      }
       // squirrel away lock state in current thread
       waitObject = l.getLockedObject();
       waitCount = l.getRecursionCount();
-      // release locks and simultaneously put t on their waiting queues
+      // cache the proxy before obtaining lock
+      threadProxy = proxy;
+      // release l and simultaneously put t on l's waiting queue
       l.setOwnerId(0);
-      Throwable rethrow = null;
-      try {
-        yield(l.waiting,
-            l.mutex,
-            VM_GreenScheduler.wakeupQueue,
-            VM_GreenScheduler.wakeupMutex); // thread-switching benign
-      } catch (Throwable thr) {
-        rethrow = thr;
+      if (!hasTimeout) {
+        try {
+          yield(l.waiting, l.mutex); // thread-switching benign
+        } catch (Throwable thr) {
+          rethrow = thr; // An InterruptedException. We'll rethrow it after regaining the lock on o.
+        }
+      } else {
+        try {
+          yield(l.waiting,
+              l.mutex,
+              VM_GreenScheduler.wakeupQueue,
+              VM_GreenScheduler.wakeupMutex); // thread-switching benign
+        } catch (Throwable thr) {
+          rethrow = thr;
+        }
+      }
+      if (state != State.JOINING && rethrow == null) {
+        if (hasTimeout) {
+          changeThreadState(State.TIMED_WAITING, State.RUNNABLE);
+        } else {
+          changeThreadState(State.WAITING, State.RUNNABLE);        
+        }
       }
       // regain lock
       VM_ObjectModel.genericLock(o);
       waitObject = null;
       if (waitCount != 1) { // reset recursion count
-        l = (VM_GreenLock)VM_ObjectModel.getHeavyLock(o, true);
-        l.setRecursionCount(waitCount);
+        VM_Lock l2 = VM_ObjectModel.getHeavyLock(o, true);
+        l2.setRecursionCount(waitCount);
       }
       return rethrow;
     }
@@ -610,8 +621,6 @@ public class VM_GreenThread extends VM_Thread {
     VM_GreenThread t = l.waiting.dequeue();
     
     if (t != null) {
-      if (t.state != State.JOINING)
-        t.changeThreadState(State.WAITING, State.RUNNABLE);
       l.entering.enqueue(t);
     }
     l.mutex.unlock(); // thread-switching benign
@@ -629,8 +638,6 @@ public class VM_GreenThread extends VM_Thread {
     l.mutex.lock(); // until unlock(), thread-switching fatal
     VM_GreenThread t = l.waiting.dequeue();
     while (t != null) {
-      if (t.state != State.JOINING)
-        t.changeThreadState(State.WAITING, State.RUNNABLE);
       l.entering.enqueue(t);
       t = l.waiting.dequeue();
     }
@@ -645,7 +652,9 @@ public class VM_GreenThread extends VM_Thread {
   public static void ioWaitImpl(VM_ThreadIOWaitData waitData) {
     VM_GreenThread myThread = VM_GreenScheduler.getCurrentThread();
     myThread.waitData = waitData;
+    myThread.changeThreadState(State.RUNNABLE, State.IO_WAITING);
     yield(VM_GreenProcessor.getCurrentProcessor().ioQueue);
+    myThread.changeThreadState(State.IO_WAITING, State.RUNNABLE);
   }
 
   /**
@@ -657,6 +666,7 @@ public class VM_GreenThread extends VM_Thread {
   public static void processWaitImpl(VM_ThreadProcessWaitData waitData, VM_Process process) {
     VM_GreenThread myThread = VM_GreenScheduler.getCurrentThread();
     myThread.waitData = waitData;
+    myThread.changeThreadState(State.RUNNABLE, State.PROCESS_WAITING);
 
     // Note that we have to perform the wait on the pthread
     // that created the process, which may involve switching
@@ -669,6 +679,7 @@ public class VM_GreenThread extends VM_Thread {
     // This will throw InterruptedException if the thread
     // is interrupted while on the queue.
     myThread.yield(creatingProcessor.processWaitQueue, queueLock);
+    myThread.changeThreadState(State.PROCESS_WAITING, State.RUNNABLE);
   }
 
   /**
@@ -698,9 +709,7 @@ public class VM_GreenThread extends VM_Thread {
    */
   @Override
   protected void suspendInternal() {
-    suspendLock.lock();
-    suspendPending = true;
-    suspendLock.unlock();
+    VM_Synchronization.tryCompareAndSwap(this, suspendPendingOffset, 0, 1);
     if (this == VM_GreenScheduler.getCurrentThread()) yield();
   }
   /**
@@ -708,9 +717,7 @@ public class VM_GreenThread extends VM_Thread {
    */
   @Override
   protected void resumeInternal() {
-    suspendLock.lock();
-    suspendPending = false;
-    suspendLock.unlock();
+    VM_Synchronization.tryCompareAndSwap(this, suspendPendingOffset, 1, 0);
     VM_GreenProcessor.getCurrentProcessor().scheduleThread(this);
   }
 
@@ -719,13 +726,15 @@ public class VM_GreenThread extends VM_Thread {
    * @return whether the thread had a suspend pending
    */
   final boolean suspendIfPending() {
-    suspendLock.lock();
-    if (suspendPending) {
-      suspendPending = false;
-      suspendLock.unlock();
-      return true;
+    if (suspendPending == 1) {
+      if(VM_Synchronization.tryCompareAndSwap(this, suspendPendingOffset, 1, 0)) {
+        // we turned the suspendPending flag off 
+        return true;
+      } else {
+        // swap failed, so it must have been resumed prior to being suspended
+        return false;
+      }
     } else {
-      suspendLock.unlock();
       return false;     
     }
   }
@@ -738,6 +747,8 @@ public class VM_GreenThread extends VM_Thread {
   @Override
   public final void schedule() {
     if (trace) VM_Scheduler.trace("VM_GreenThread", "schedule", getIndex());
+    if (state == State.BLOCKED)
+      changeThreadState(VM_Thread.State.BLOCKED, State.RUNNABLE);
     VM_GreenProcessor.getCurrentProcessor().scheduleThread(this);
   }
   

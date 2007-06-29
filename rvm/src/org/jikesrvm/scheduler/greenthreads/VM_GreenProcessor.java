@@ -22,7 +22,6 @@ import org.jikesrvm.runtime.VM_Time;
 import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.scheduler.VM_ProcessorLock;
 import org.jikesrvm.scheduler.VM_Scheduler;
-import org.jikesrvm.scheduler.VM_Thread;
 import org.jikesrvm.scheduler.greenthreads.VM_GlobalGreenThreadQueue;
 import org.jikesrvm.scheduler.greenthreads.VM_ThreadIOQueue;
 import org.jikesrvm.scheduler.greenthreads.VM_ThreadProcessWaitQueue;
@@ -270,10 +269,6 @@ public class VM_GreenProcessor extends VM_Processor {
    */
   @Override
   public void dispatch(boolean timerTick) {
-    if (lockCount != 0) {
-      VM.sysWriteln("Lock count==", lockCount);
-      VM_Scheduler.dumpVirtualMachine();
-    }
     // no processor locks should be held across a thread switch
     if (VM.VerifyAssertions) VM._assert(lockCount == 0);
 

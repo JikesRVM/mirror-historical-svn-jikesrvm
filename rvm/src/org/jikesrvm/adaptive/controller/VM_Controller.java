@@ -30,7 +30,7 @@ import org.jikesrvm.adaptive.util.VM_AOSOptions;
 import org.jikesrvm.adaptive.util.VM_BlockingPriorityQueue;
 import org.jikesrvm.compilers.baseline.VM_EdgeCounts;
 import org.jikesrvm.compilers.common.VM_RecompilationManager;
-import org.jikesrvm.scheduler.VM_Processor;
+import org.jikesrvm.scheduler.greenthreads.VM_GreenProcessor;
 
 /**
  * This class contains top level adaptive compilation subsystem functions.
@@ -307,8 +307,8 @@ public class VM_Controller implements VM_Callbacks.ExitMonitor,
 
     if (options.REPORT_INTERRUPT_STATS) {
       VM.sysWriteln("Timer Interrupt and Listener Stats");
-      VM.sysWriteln("\tTotal number of clock ticks ", VM_Processor.timerTicks);
-      VM.sysWriteln("\tReported clock ticks ", VM_Processor.reportedTimerTicks);
+      VM.sysWriteln("\tTotal number of clock ticks ", VM_GreenProcessor.timerTicks);
+      VM.sysWriteln("\tReported clock ticks ", VM_GreenProcessor.reportedTimerTicks);
       VM.sysWriteln("\tController clock ", controllerClock);
       VM.sysWriteln("\tNumber of method samples taken ", (int) methodSamples.getTotalNumberOfSamples());
     }

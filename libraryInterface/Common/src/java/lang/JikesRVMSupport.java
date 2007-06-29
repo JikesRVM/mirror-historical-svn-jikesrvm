@@ -94,7 +94,12 @@ public class JikesRVMSupport {
   public static void threadDied(Thread thread) {
     thread.die();
   }
-
+  public static Throwable getStillBorn(Thread thread) {
+    return thread.stillborn;
+  }
+  public static void setStillBorn(Thread thread, Throwable stillborn) {
+    thread.stillborn = stillborn;
+  }
   /***
    * Enum stuff
    */

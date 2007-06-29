@@ -132,7 +132,7 @@ public class Unsafe {
     vmthread.unpark();
   }
 
-  public void park(boolean isAbsolute,long time) throws InterruptedException  {
+  public void park(boolean isAbsolute,long time) throws Throwable  {
     VM_Thread vmthread = java.lang.JikesRVMSupport.getThread(Thread.currentThread());
     vmthread.park(isAbsolute, time);
   }

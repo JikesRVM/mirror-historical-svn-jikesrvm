@@ -30,7 +30,7 @@ import org.jikesrvm.adaptive.recompilation.VM_InvocationCounts;
 import org.jikesrvm.adaptive.util.VM_AOSGenerator;
 import org.jikesrvm.adaptive.util.VM_AOSLogging;
 import org.jikesrvm.adaptive.util.VM_AOSOptions;
-import org.jikesrvm.scheduler.greenthreads.VM_GreenThread;
+import org.jikesrvm.scheduler.VM_Scheduler.ThreadModel;;
 
 /**
  * This class implements the controller thread.  This entity is the brains of
@@ -42,7 +42,7 @@ import org.jikesrvm.scheduler.greenthreads.VM_GreenThread;
  *     c) static information about a method; or
  *     d) all of the above.
  */
-public final class VM_ControllerThread extends VM_GreenThread {
+public final class VM_ControllerThread extends ThreadModel {
 
   /**
    * constructor

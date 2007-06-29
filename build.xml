@@ -1245,7 +1245,7 @@ Check to make sure all required properties are specified. This includes properti
       <arg line="${rvm.c++.args}"/>
       <arg value="-o"/>
       <arg value="${build.base}/${rvmexec.dll}"/>
-      <arg value="${bl.dir}/org_jikesrvm_runtime_VM_0005fProcess.c"/>
+      <arg value="${bl.dir}/org_jikesrvm_scheduler_greenthreads_VM_0005fProcess.c"/>
     </exec>
 
     <!-- create rvmdynlib shared library -->
@@ -1260,7 +1260,7 @@ Check to make sure all required properties are specified. This includes properti
     </exec>
 
     <exec executable="${c++.exe}" failonerror="true">
-      <arg line="${c++.args} ${rvm.common.args} ${gcspy.lib.dir} -lpthread ${rvm.src} -rdynamic -O2 -g"/>
+      <arg line="${c++.args} ${rvm.common.args} ${gcspy.lib.dir} -lpthread ${rvm.src} -rdynamic -g"/>
       <arg value="-o"/>
       <arg value="${build.base}/JikesRVM"/>
       <arg value="-L${build.base}"/>

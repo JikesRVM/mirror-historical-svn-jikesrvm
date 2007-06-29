@@ -30,10 +30,6 @@ import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.objectmodel.VM_ObjectModel;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.scheduler.VM_Thread;
-import org.jikesrvm.scheduler.VM_Processor;
-import org.jikesrvm.scheduler.greenthreads.VM_GreenScheduler;
-import org.jikesrvm.scheduler.greenthreads.VM_GreenThread;
-import org.jikesrvm.scheduler.greenthreads.VM_GreenProcessor;
 import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.NoOptCompile;
@@ -64,7 +60,7 @@ import org.vmmagic.unboxed.Offset;
  * (by writing
  * straight line code with no "non-magic" method invocations) or we
  * must turn off the
- * collector (so that a gc request inititiated by another thread will
+ * collector (so that a gc request initiated by another thread will
  * not run until we're
  * done manipulating the bare pointers). Furthermore, while
  * the collector is turned off,

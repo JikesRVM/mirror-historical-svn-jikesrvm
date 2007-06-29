@@ -124,12 +124,13 @@ public abstract class VM_Thread {
     SLEEPING,
     /**
      * The thread is suspended awaiting a resume. This state maps to
-     * {@link Thread.State#RUNNABLE} matching JDK 1.5 convention
+     * {@link Thread.State#WAITING} which makes better sense than the JDK 1.5
+     * convention
      */
     SUSPENDED,
     /**
      * The thread is suspended awaiting a resume. This state maps to
-     * {@link Thread.State#RUNNABLE}
+     * {@link Thread.State#WAITING}
      */
     OSR_SUSPENDED,
     /**
@@ -147,6 +148,16 @@ public abstract class VM_Thread {
      * {@link Thread.State#TIMED_WAITING} matching JDK 1.5 convention
      */
     TIMED_PARK,
+    /**
+     * This state is valid only for green threads. The thread is awaiting IO to
+     * readable. This state maps to {@link Thread.State#WAITING}.
+     */    
+    IO_WAITING,
+    /**
+     * This state is valid only for green threads. The thread is awaiting a
+     * process to finish. This state maps to {@link Thread.State#WAITING}.
+     */    
+    PROCESS_WAITING
   }
 
   /**
@@ -173,13 +184,16 @@ public abstract class VM_Thread {
   /**
    * Should the thread throw the external interrupt object the next time it's scheduled?
    */
-  protected boolean throwInterruptWhenScheduled;
+  protected volatile boolean throwInterruptWhenScheduled;
   /**
-   * The cause of the thread interruption or null if the interruption was from
-   * interrupt
+   * Has the thread been interrupted? We should throw an interrupted exception
+   * when we next get to an interruptible operation
    */
-  protected ThreadDeath causeOfThreadDeath;
-
+  protected volatile boolean interrupted;
+  /**
+   * The cause of the thread interruption (stop) or interruption
+   */
+  protected volatile Throwable causeOfThreadDeath;
   /**
    * Scheduling priority for this thread.
    * Note that: {@link java.lang.Thread#MIN_PRIORITY} <= priority
@@ -280,9 +294,11 @@ public abstract class VM_Thread {
 
   /**
    * An interrupted parked thread never sees the stack trace so use a proxy
-   * interrupt exception in all cases
+   * interrupt exception in all cases. Also used to substitute for an
+   * interrupted exception when we're in uninterruptible code and unable to
+   * create one.
    */
-  private static final InterruptedException proxyParkInterruptException =
+  protected static final InterruptedException proxyInterruptException =
     new InterruptedException("park interrupted");
 
   /*
@@ -365,7 +381,7 @@ public abstract class VM_Thread {
     
     contextRegisters           = new VM_Registers();
     hardwareExceptionRegisters = new VM_Registers();
-
+        
     if(VM.VerifyAssertions) VM._assert(stack != null);
     // put self in list of threads known to scheduler and garbage collector
     if (!VM.runningVM) {
@@ -409,7 +425,7 @@ public abstract class VM_Thread {
       VM.enableGC();
 
       // only do this at runtime because it will call VM_Magic;
-      // we set this explictly for the boot thread as part of booting.
+      // we set this explicitly for the boot thread as part of booting.
       jniEnv = VM_JNIEnvironment.allocateEnvironment();
 
       if (VM.BuildForAdaptiveSystem) {
@@ -503,7 +519,9 @@ public abstract class VM_Thread {
   
   /**
    * Change the state of the thread and fail if we're not in the expected thread
-   * state
+   * state. This method is logically uninterruptible as we should never be in
+   * the wrong state
+   * 
    * @param oldState the previous thread state
    * @param newState the new thread state
    */
@@ -533,7 +551,28 @@ public abstract class VM_Thread {
    */
   @Interruptible
   public synchronized void run() {
-    thread.run();
+    try {
+      synchronized(thread) {
+        Throwable t = java.lang.JikesRVMSupport.getStillBorn(thread);
+        if(t != null) {
+          java.lang.JikesRVMSupport.setStillBorn(thread, null);
+          throw t;
+        }
+      }
+      thread.run();
+    }
+    catch(Throwable t)
+    {
+      try
+      {
+        Thread.UncaughtExceptionHandler handler;
+        handler = thread.getUncaughtExceptionHandler();
+        handler.uncaughtException(thread, t);
+      }
+      catch(Throwable ignore)
+      {
+      }
+    }
   }
 
   /**
@@ -557,14 +596,17 @@ public abstract class VM_Thread {
       VM.sysWriteln("VM_Thread.startoff(): about to call ", currentThread.toString(), ".run()");
     }
 
-    currentThread.run();
-
-      if (trace) {
-      VM.sysWriteln("VM_Thread.startoff(): finished ", currentThread.toString(), ".run()");
+    try {
+      currentThread.run();
     }
-
-    currentThread.terminate();
-    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
+    finally
+    {
+      if (trace) {
+        VM.sysWriteln("VM_Thread.startoff(): finished ", currentThread.toString(), ".run()");
+      }
+      currentThread.terminate();
+      if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
+    }
   }
 
   /**
@@ -652,16 +694,15 @@ public abstract class VM_Thread {
       VM.sysWriteln("  terminateSystem = ", terminateSystem);
     }
 
+    // end critical section
+    //
+    VM_Processor.getCurrentProcessor().enableThreadSwitching();
+    VM_Scheduler.threadCreationMutex.unlock();
     synchronized (this) {
       // release anybody waiting on this thread -
       // in particular, see {@link #join()}
       this.notifyAll();
     }
-
-    // end critical section
-    //
-    VM_Processor.getCurrentProcessor().enableThreadSwitching();
-    VM_Scheduler.threadCreationMutex.unlock();
     if (VM.VerifyAssertions) {
       VM._assert((!VM.fullyBooted && terminateSystem) ||
           VM_Processor.getCurrentProcessor().threadSwitchingEnabled());
@@ -709,7 +750,7 @@ public abstract class VM_Thread {
   /**
    * Get the field that holds the cause of a thread death caused by a stop
    */
-  public ThreadDeath getCauseOfThreadDeath() {
+  public Throwable getCauseOfThreadDeath() {
     return causeOfThreadDeath;
   }
   
@@ -743,9 +784,9 @@ public abstract class VM_Thread {
   @BaselineSaveLSRegisters
   //Save all non-volatile registers in prologue
   @NoOptCompile
-  //We should also have a pragma that saves all non-volatiles in opt compiler,
+  // We should also have a pragma that saves all non-volatiles in opt compiler,
   // OSR_BaselineExecStateExtractor.java, should then restore all non-volatiles before stack replacement
-  //todo fix this -- related to SaveVolatile
+  // TODO fix this -- related to SaveVolatile
   public static void yieldpointFromBackedge() {
     yieldpoint(BACKEDGE);
   }
@@ -758,7 +799,7 @@ public abstract class VM_Thread {
   @NoOptCompile
   //We should also have a pragma that saves all non-volatiles in opt compiler,
   // OSR_BaselineExecStateExtractor.java, should then restore all non-volatiles before stack replacement
-  //todo fix this -- related to SaveVolatile
+  // TODO fix this -- related to SaveVolatile
   public static void yieldpointFromEpilogue() {
     yieldpoint(EPILOGUE);
   }
@@ -778,7 +819,11 @@ public abstract class VM_Thread {
    */
   public final void suspend() {
     changeThreadState(State.RUNNABLE, State.SUSPENDED);
+    // let go of outer lock
+    VM_ObjectModel.genericUnlock(thread);
     suspendInternal();
+    // regain outer lock
+    VM_ObjectModel.genericLock(thread);
   }
   
   /**
@@ -853,6 +898,7 @@ public abstract class VM_Thread {
    * @param o the object synchronized on
    * @param millis the number of milliseconds to wait for notification
    */
+  @Interruptible
   protected abstract Throwable waitInternal(Object o, long millis);
 
   /**
@@ -860,6 +906,7 @@ public abstract class VM_Thread {
    *
    * @param o the object synchronized on
    */
+  @Interruptible
   protected abstract Throwable waitInternal(Object o);
 
   /**
@@ -867,7 +914,7 @@ public abstract class VM_Thread {
    *
    * @param o the object synchronized on
    */
-  @LogicallyUninterruptible
+  @Interruptible
   /* only loses control at expected points -- I think -dave */
   public static void wait(Object o) {
     if (STATS) waitOperations++;
@@ -961,9 +1008,7 @@ public abstract class VM_Thread {
   @LogicallyUninterruptible
   public void kill(Throwable cause, boolean throwImmediately) {
     // yield() will notice the following and take appropriate action
-    if (cause instanceof ThreadDeath) {
-      this.causeOfThreadDeath = (ThreadDeath)cause;
-    }
+    this.causeOfThreadDeath = cause;
     if (throwImmediately) {
       // FIXME - this is dangerous.  Only called from Thread.stop(),
       // which is deprecated.
@@ -982,7 +1027,7 @@ public abstract class VM_Thread {
    * @param time the timeout value in nanoseconds, 0 => no timeout
    */
   @Interruptible
-  public final void park (boolean isAbsolute, long time) throws InterruptedException {
+  public final void park (boolean isAbsolute, long time) throws Throwable {
     if (VM.VerifyAssertions) {
       VM_Thread curThread = VM_Scheduler.getCurrentThread();
       VM._assert(curThread == this);
@@ -1017,8 +1062,8 @@ public abstract class VM_Thread {
       } else {
         parkedState = State.PARKED;
       }
+      changeThreadState(State.RUNNABLE, parkedState);
       try {        
-        changeThreadState(State.RUNNABLE, parkedState);
         sleepInternal(millis, ns);
       } catch (InterruptedException thr) {
         // swallow thread interruptions      
@@ -1030,11 +1075,10 @@ public abstract class VM_Thread {
   /**
    * Unpark this thread, not necessarily the current thread
    */
-  @Interruptible
   public void unpark () {
     if (state == State.PARKED) {
       // Wake up sleeping thread
-      kill(proxyParkInterruptException , false);
+      kill(proxyInterruptException , false);
     } else if (state == State.RUNNABLE) {
       // Allow next call to park to just run through
       parkingPermit = true;
@@ -1452,13 +1496,13 @@ public abstract class VM_Thread {
    * Throw the external interrupt associated with the thread now it is running
    */
   @LogicallyUninterruptible
-  public void postExternalInterrupt() {
+  protected void postExternalInterrupt() {
     Throwable t = causeOfThreadDeath;
-    if (t != null) {
-      causeOfThreadDeath = null;
-    } else {
-      t = new InterruptedException(state.toString().toLowerCase() + " interrupted");
+    causeOfThreadDeath = null;
+    if (t instanceof InterruptedException  && t != proxyInterruptException) {
+      t.fillInStackTrace();
     }
+    state = State.RUNNABLE;
     throwInterruptWhenScheduled = false;
     VM_Runtime.athrow(t);
   }
@@ -1469,14 +1513,14 @@ public abstract class VM_Thread {
    * @see java.lang.Thread#isInterrupted()
    */
   public final boolean isInterrupted() {
-    return throwInterruptWhenScheduled;
+    return interrupted;
   }
   /**
    * Clear the interrupted status of this thread
    * @see java.lang.Thread#interrupted()
    */
   public final void clearInterrupted() {
-    throwInterruptWhenScheduled = false; 
+    interrupted = false; 
   }
   /**
    * Interrupt this thread
@@ -1484,9 +1528,25 @@ public abstract class VM_Thread {
    */
   @Interruptible
   public final void interrupt() {
-    throwInterruptWhenScheduled = true;
-    kill(null, false);
-    wakeupCycle = VM_Time.cycles();
+    interrupted = true;
+    switch (state) {
+    case WAITING:
+    case TIMED_WAITING:
+      kill(new InterruptedException("wait interrupted"), false);
+      break;
+    case SLEEPING:
+      kill(new InterruptedException("sleep interrupted"), false);
+      break;
+    case JOINING:
+      kill(new InterruptedException("join interrupted"), false);
+      break;
+    case PARKED:
+    case TIMED_PARK:
+      kill(proxyInterruptException, false);
+      break;
+    default:
+      kill(new InterruptedException(), false);
+    }
   }
   /**
    * Get the priority of the thread
@@ -1519,23 +1579,19 @@ public abstract class VM_Thread {
     case BLOCKED:
       return Thread.State.BLOCKED;
     case WAITING:
+    case SUSPENDED:
+    case OSR_SUSPENDED:
+    case JOINING:
+    case PARKED:
+    case IO_WAITING:
+    case PROCESS_WAITING:
       return Thread.State.WAITING;
     case TIMED_WAITING:
+    case TIMED_PARK:
+    case SLEEPING:
       return Thread.State.TIMED_WAITING;
     case TERMINATED:
       return Thread.State.TERMINATED;
-    case SLEEPING:
-      return Thread.State.TIMED_WAITING;
-    case SUSPENDED:
-      return Thread.State.RUNNABLE;
-    case OSR_SUSPENDED:
-      return Thread.State.RUNNABLE;
-    case JOINING:
-      return Thread.State.WAITING;
-    case PARKED:
-      return Thread.State.WAITING;  
-    case TIMED_PARK:
-      return Thread.State.TIMED_WAITING;  
     }
     VM.sysFail("Unknown thread state " + state);
     return null;
@@ -1556,7 +1612,7 @@ public abstract class VM_Thread {
       }
       if (ms == 0) {
         while (isAlive()) {
-          this.wait(0);
+          wait(this);
         }
       } else {
         long startCycles = VM_Time.cycles();
@@ -1565,7 +1621,7 @@ public abstract class VM_Thread {
           do {
             double elapsedMillis = VM_Time.cyclesToMillis(VM_Time.cycles()-startCycles);
             timeLeft = ms - (long)elapsedMillis;
-            this.wait(timeLeft);
+            wait(this, timeLeft);
           } while (isAlive() && timeLeft > 0);
         }
       }
@@ -1758,6 +1814,12 @@ public abstract class VM_Thread {
     }
     offset = VM_Services.sprintf(dest, offset, "-");
     offset = VM_Services.sprintf(dest, offset, java.lang.JikesRVMSupport.getEnumName(state)); 
+    if (state == State.TIMED_WAITING || state == State.TIMED_PARK) {
+      offset = VM_Services.sprintf(dest, offset, "(");
+      long timeLeft = wakeupCycle - VM_Time.cycles();
+      offset = VM_Services.sprintf(dest, offset, (long)VM_Time.cyclesToMillis(timeLeft));
+      offset = VM_Services.sprintf(dest, offset, "ms)");
+    }
     if (throwInterruptWhenScheduled) {
       offset = VM_Services.sprintf(dest, offset, "-interrupted");
     }

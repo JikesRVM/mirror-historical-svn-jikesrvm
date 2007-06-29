@@ -131,6 +131,7 @@ public final class VM_MainThread extends Thread {
    */
   @Override
   public void run() {
+    launched = true;
 
     if (dbg) VM.sysWriteln("VM_MainThread.run() starting ");
 
@@ -185,7 +186,6 @@ public final class VM_MainThread extends Thread {
     //
     VM_Callbacks.notifyStartup();
 
-    launched = true;
     if (dbg) VM.sysWriteln("[VM_MainThread.run() invoking \"main\" method... ");
     // invoke "main" method with argument list
     VM_Reflection.invoke(mainMethod, null, new Object[]{mainArgs}, false);

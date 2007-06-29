@@ -47,18 +47,13 @@ public class GenerateInterfaceDeclarations {
   static PrintStream out;
   static PrintStream e;
   static final GenArch arch;
-  private static final String BOOT_RECORD_CLASSNAME = "org/jikesrvm/runtime/VM_BootRecord";
 
   static {
-    GenArch tmp = null;
-    try {
-      tmp =
-          (GenArch) Class.forName(VM.BuildForIA32 ? "org.jikesrvm.tools.header_gen.GenArch_ia32" : "org.jikesrvm.tools.header_gen.GenArch_ppc").newInstance();
-    } catch (Exception e) {
-      e.printStackTrace();
-      System.exit(-1);     // we must *not* go on if the above has failed
+    if (VM.BuildForIA32) {
+      arch = new org.jikesrvm.tools.header_gen.GenArch_ia32(); 
+    } else {
+      arch = new org.jikesrvm.tools.header_gen.GenArch_ppc();
     }
-    arch = tmp;
   }
 
   static void p(String s) {
@@ -335,34 +330,14 @@ public class GenerateInterfaceDeclarations {
   }
 
   static void emitBootRecordDeclarations() {
-    VM_Atom className = VM_Atom.findOrCreateAsciiAtom(BOOT_RECORD_CLASSNAME);
-    VM_Atom classDescriptor = className.descriptorFromClassName();
-    VM_Class bootRecord = null;
-    try {
-      bootRecord =
-          VM_TypeReference.findOrCreate(VM_BootstrapClassLoader.getBootstrapClassLoader(),
-                                        classDescriptor).resolve().asClass();
-    } catch (NoClassDefFoundError e) {
-      System.err.println("Failed to load VM_BootRecord!");
-      System.exit(1);
-    }
+    VM_Class bootRecord = VM_TypeReference.findOrCreate(org.jikesrvm.runtime.VM_BootRecord.class).resolve().asClass();
     emitCDeclarationsForJavaType("VM_BootRecord", bootRecord);
   }
 
   // Emit declarations for VM_BootRecord object.
   //
   static void emitBootRecordInitialization() {
-    VM_Atom className = VM_Atom.findOrCreateAsciiAtom(BOOT_RECORD_CLASSNAME);
-    VM_Atom classDescriptor = className.descriptorFromClassName();
-    VM_Class bootRecord = null;
-    try {
-      bootRecord =
-          VM_TypeReference.findOrCreate(VM_BootstrapClassLoader.getBootstrapClassLoader(),
-                                        classDescriptor).resolve().asClass();
-    } catch (NoClassDefFoundError e) {
-      System.err.println("Failed to load VM_BootRecord!");
-      System.exit(1);
-    }
+    VM_Class bootRecord = VM_TypeReference.findOrCreate(org.jikesrvm.runtime.VM_BootRecord.class).resolve().asClass();
     VM_Field[] fields = bootRecord.getDeclaredFields();
 
     // emit function declarations
@@ -543,9 +518,9 @@ public class GenerateInterfaceDeclarations {
     offset = VM_Entrypoints.pthreadIDField.getOffset();
     pln("VM_Processor_pthread_id_offset = ", offset);
     offset = VM_Entrypoints.timerTicksField.getOffset();
-    pln("VM_Processor_timerTicks_offset = ", offset);
+    pln("VM_GreenProcessor_timerTicks_offset = ", offset);
     offset = VM_Entrypoints.reportedTimerTicksField.getOffset();
-    pln("VM_Processor_reportedTimerTicks_offset = ", offset);
+    pln("VM_GreenProcessor_reportedTimerTicks_offset = ", offset);
     offset = VM_Entrypoints.activeThreadField.getOffset();
     pln("VM_Processor_activeThread_offset = ", offset);
     offset = VM_Entrypoints.vpStatusField.getOffset();

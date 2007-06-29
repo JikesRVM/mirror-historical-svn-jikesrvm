@@ -397,17 +397,21 @@ public abstract class VM_Lock implements VM_Constants {
     VM.sysWrite("Lock ");
     VM.sysWriteInt(index);
     VM.sysWrite(":\n");
-    VM.sysWrite(" lockedObject: 0x");
+    VM.sysWrite(" lockedObject: ");
     VM.sysWriteHex(VM_Magic.objectAsAddress(lockedObject));
     VM.sysWrite("   thin lock = ");
     VM.sysWriteHex(VM_Magic.objectAsAddress(lockedObject).loadAddress(VM_ObjectModel.defaultThinLockOffset()));
-    VM.sysWrite("\n");
+    VM.sysWrite(" object type = ");
+    VM.sysWrite(VM_Magic.getObjectType(lockedObject).getDescriptor());
+    VM.sysWriteln();
 
     VM.sysWrite(" ownerId: ");
     VM.sysWriteInt(ownerId);
-    VM.sysWrite(" recursionCount: ");
+    VM.sysWrite(" (");
+    VM.sysWriteInt(ownerId >>> VM_ThinLockConstants.TL_THREAD_ID_SHIFT);
+    VM.sysWrite(") recursionCount: ");
     VM.sysWriteInt(recursionCount);
-    VM.sysWrite("\n");
+    VM.sysWriteln();
     dumpBlockedThreads();
     dumpWaitingThreads();
 

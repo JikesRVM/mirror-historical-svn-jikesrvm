@@ -28,7 +28,11 @@ public class VM_NativeScheduler extends VM_Scheduler {
   @Override
   protected void initInternal() {
     // TODO Auto-generated method stub
+  }
 
+  @Override
+  protected void bootInternal() {
+    // TODO Auto-generated method stub
   }
 
   @Override
