@@ -96,8 +96,6 @@ public class VM_GreenScheduler extends VM_Scheduler {
   public static VM_GreenProcessor[] processors;
   /** Have all processors completed initialization? */
   public static boolean allProcessorsInitialized;
-  /** VM is terminated, clean up and exit */
-  public static boolean terminated;
 
   // Thread execution.
   //
@@ -119,42 +117,8 @@ public class VM_GreenScheduler extends VM_Scheduler {
   public static final VM_GreenThreadQueue finalizerQueue = new VM_GreenThreadQueue();
   public static final VM_ProcessorLock finalizerMutex = new VM_ProcessorLock();
 
-  /**
-   * Flag set by external signal to request debugger activation at next thread switch.
-   * See also: RunBootImage.C
-   */
-  public static boolean debugRequested;
-
-  /** Number of times dump stack has been called recursively */
-  private static int inDumpStack = 0;
-
-  /** In dump stack and dying */
-  private static boolean exitInProgress = false;
-
   /** How many extra procs (not counting primordial) ? */
   private static int NUM_EXTRA_PROCS = 0;
-
-  /** Extra debug from traces */
-  private static final boolean traceDetails = false;
-
-  /** Int controlling output. 0 => output can be used, otherwise ID of processor */
-  @SuppressWarnings({"unused", "UnusedDeclaration"})
-  private static int outputLock;
-  
-  ////////////////////////////////////////////////
-  // fields for synchronizing code patching
-  ////////////////////////////////////////////////
-
-  /**
-   * How may processors to be synchronized for code patching, the last one (0)
-   * will notify the blocked thread. Used only if RVM_FOR_POWERPC is true
-   */
-  public static int toSyncProcessors;
-
-  /**
-   * Synchronize object. Used only if RVM_FOR_POWERPC is true
-   */
-  public static Object syncObj = null;
 
   /**
    * Initialize boot image.
@@ -943,7 +907,7 @@ public class VM_GreenScheduler extends VM_Scheduler {
    * a thread is about to start
    */
   static void registerThread(VM_GreenThread thread) {
-    threadCreationMutex.lock();
+    threadCreationMutex.lock("thread registration");
     numActiveThreads += 1;
     if (thread.isDaemonThread()) numDaemons += 1;
     threadCreationMutex.unlock();
@@ -960,7 +924,7 @@ public class VM_GreenScheduler extends VM_Scheduler {
   @Override
   protected void suspendDebuggerThreadInternal() {
     debugRequested = false;
-    debuggerMutex.lock();
+    debuggerMutex.lock("debugger queue mutex");
     VM_GreenScheduler.getCurrentThread().yield(debuggerQueue, debuggerMutex);
   }
 
@@ -970,7 +934,7 @@ public class VM_GreenScheduler extends VM_Scheduler {
    */
   @Override
   protected void suspendFinalizerThreadInternal() {
-    finalizerMutex.lock();
+    finalizerMutex.lock("suspend finalizer mutex");
     VM_GreenScheduler.getCurrentThread().yield(finalizerQueue, finalizerMutex);
   }
   /**

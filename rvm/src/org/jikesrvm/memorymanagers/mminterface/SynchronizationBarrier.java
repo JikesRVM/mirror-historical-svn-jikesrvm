@@ -166,14 +166,14 @@ public final class SynchronizationBarrier {
     VM_GreenProcessor vp = VM_GreenScheduler.processors[id];
 
     // get processors collector thread off its transfer queue
-    vp.transferMutex.lock();
+    vp.transferMutex.lock("removing a processor");
     VM_GreenThread ct = vp.transferQueue.dequeueGCThread(null);
     vp.transferMutex.unlock();
     if (VM.VerifyAssertions) {
       VM._assert(ct != null && ct.isGCThread());
     }
     // put it back on the global collector thread queue
-    VM_GreenScheduler.collectorMutex.lock();
+    VM_GreenScheduler.collectorMutex.lock("collector mutex for processor removal");
     VM_GreenScheduler.collectorQueue.enqueue(ct);
     VM_GreenScheduler.collectorMutex.unlock();
 

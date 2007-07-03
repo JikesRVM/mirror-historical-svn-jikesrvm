@@ -270,7 +270,7 @@ public class VM_GreenProcessor extends VM_Processor {
   @Override
   public void dispatch(boolean timerTick) {
     // no processor locks should be held across a thread switch
-    if (VM.VerifyAssertions) VM._assert(lockCount == 0);
+    if (VM.VerifyAssertions) checkLockCount(0);
 
     VM_GreenThread newThread = getRunnableThread();
     while (newThread.suspendIfPending()) {
@@ -309,7 +309,7 @@ public class VM_GreenProcessor extends VM_Processor {
   private VM_GreenThread getRunnableThread() {
 
     for (int i = transferQueue.length(); 0 < i; i--) {
-      transferMutex.lock();
+      transferMutex.lock("transfer queue mutex for dequeue");
       VM_GreenThread t = transferQueue.dequeue();
       transferMutex.unlock();
       if (t.isGCThread()) {
@@ -322,7 +322,7 @@ public class VM_GreenProcessor extends VM_Processor {
         if (VM.TraceThreadScheduling > 1) {
           VM_Scheduler.trace("VM_Processor", "getRunnableThread: stack in use", t.getIndex());
         }
-        transferMutex.lock();
+        transferMutex.lock("transfer queue mutex for an enqueue due to dispatch");
         transferQueue.enqueue(t);
         transferMutex.unlock();
       } else {
@@ -358,7 +358,7 @@ public class VM_GreenProcessor extends VM_Processor {
     if ((reportedTimerTicks % NUM_TICKS_BETWEEN_WAIT_POLL) == id) {
       VM_GreenThread result = null;
 
-      processWaitQueueLock.lock();
+      processWaitQueueLock.lock("looking at the wait queue");
       if (processWaitQueue.isReady()) {
         VM_GreenThread t = processWaitQueue.dequeue();
         if (VM.VerifyAssertions) {
@@ -425,7 +425,7 @@ public class VM_GreenProcessor extends VM_Processor {
   private void transferThread(VM_GreenThread t) {
     if (this != getCurrentProcessor() || t.isGCThread() ||
         (t.beingDispatched && t != VM_Scheduler.getCurrentThread())) {
-      transferMutex.lock();
+      transferMutex.lock("thread transfer");
       transferQueue.enqueue(t);
       transferMutex.unlock();
     } else if (t.isIdleThread()) {

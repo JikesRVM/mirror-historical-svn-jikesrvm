@@ -104,10 +104,12 @@ public final class VM_ProcessorLock implements VM_Constants {
   /**
    * Acquire a processor lock.
    */
-  public void lock() {
+  public void lock(String reason) {
     if (VM_Scheduler.getNumberOfProcessors() == 1) return;
     VM_Processor i = VM_Processor.getCurrentProcessor();
-    if (VM.VerifyAssertions) i.lockCount += 1;
+    if (VM.VerifyAssertions) {
+      i.registerLock(reason);
+    }
     VM_Processor p;
     int attempts = 0;
     Offset latestContenderOffset = VM_Entrypoints.latestContenderField.getOffset();
@@ -170,10 +172,7 @@ public final class VM_ProcessorLock implements VM_Constants {
     Offset latestContenderOffset = VM_Entrypoints.latestContenderField.getOffset();
     VM_Processor i = VM_Processor.getCurrentProcessor();
     if (!MCS_Locking) {
-      if (VM.VerifyAssertions) { 
-        i.lockCount -= 1;
-        VM._assert(i.lockCount >= 0);
-      }
+      if (VM.VerifyAssertions) i.registerUnlock();
       VM_Magic.setObjectAtOffset(this, latestContenderOffset, null);  // latestContender = null;
       return;
     }
@@ -207,10 +206,7 @@ public final class VM_ProcessorLock implements VM_Constants {
         VM_Magic.setObjectAtOffset(this, latestContenderOffset, p); // other contenders can get at the lock
       }
     }
-    if (VM.VerifyAssertions) { 
-      i.lockCount -= 1;
-      VM._assert(i.lockCount >= 0);
-    }
+    if (VM.VerifyAssertions) i.registerUnlock();
   }
 
   /**

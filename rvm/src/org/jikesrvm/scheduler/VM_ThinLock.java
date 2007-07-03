@@ -276,7 +276,7 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
     if (l == null) return false; // can't allocate locks during GC
     VM_Lock rtn = attemptToInflate(o, lockOffset, l);
     if (l != rtn) {
-      l.mutex.lock();
+      l.mutex.lock("looking at heavy weight lock in thin lock");
       if (l.getLockedObject() != o) {
         l.mutex.unlock();
         return false;  /* lock must have been deflated while we've been trying */
@@ -313,7 +313,7 @@ public final class VM_ThinLock implements VM_ThinLockConstants {
    */
   private static VM_Lock attemptToInflate(Object o, Offset lockOffset, VM_Lock l) {
     Word old;
-    l.mutex.lock();
+    l.mutex.lock("inflating lightweight lock");
     do {
       old = VM_Magic.prepareWord(o, lockOffset);
       // check to see if another thread has already created a fat lock

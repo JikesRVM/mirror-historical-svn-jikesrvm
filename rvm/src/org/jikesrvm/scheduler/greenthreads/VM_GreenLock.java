@@ -51,7 +51,7 @@ public class VM_GreenLock extends VM_Lock {
         return false;
       }
     } else {
-      mutex.lock();  // Note: thread switching is not allowed while mutex is held.
+      mutex.lock("lock heavy mutex");  // Note: thread switching is not allowed while mutex is held.
     }
     if (lockedObject != o) { // lock disappeared before we got here
       mutex.unlock(); // thread switching benign
@@ -88,7 +88,7 @@ public class VM_GreenLock extends VM_Lock {
   @Override
   public void unlockHeavy(Object o) {
     boolean deflated = false;
-    mutex.lock(); // Note: thread switching is not allowed while mutex is held.
+    mutex.lock("unlock heavy"); // Note: thread switching is not allowed while mutex is held.
     VM_Processor mine = VM_Processor.getCurrentProcessor();
     if (ownerId != mine.threadId) {
       mutex.unlock(); // thread-switching benign

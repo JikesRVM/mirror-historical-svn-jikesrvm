@@ -156,7 +156,7 @@ public class VM_Handshake {
     if (verbose >= 1) {
       VM.sysWriteln("GC Message: VM_Handshake.initiateCollection: scheduling collector threads");
     }
-    VM_GreenScheduler.collectorMutex.lock();
+    VM_GreenScheduler.collectorMutex.lock("handshake collector mutex");
     if (VM_GreenScheduler.collectorQueue.length() != maxCollectorThreads) {
       VM.sysWriteln("GC Error: Expected ",
                     maxCollectorThreads,
@@ -192,7 +192,7 @@ public class VM_Handshake {
     }
     int count = 0;
     while (true) {
-      VM_GreenScheduler.collectorMutex.lock();
+      VM_GreenScheduler.collectorMutex.lock("waiting for preceeding GC");
       int len = VM_GreenScheduler.collectorQueue.length();
       if (count++ == 100000) {
         VM.sysWriteln("GC Warning: WAITED LONG TIME FOR PRECEEDING GC TO FINISH");

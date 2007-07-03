@@ -20,6 +20,7 @@ import org.jikesrvm.runtime.VM_Entrypoints;
 import org.jikesrvm.runtime.VM_Magic;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -226,8 +227,28 @@ public abstract class VM_Processor extends MM_ProcessorContext implements VM_Con
   /**
    * number of processor locks currently held (for assertion checking)
    */
-  public int lockCount;
+  private int lockCount;
 
+  private final String[] lockReasons = VM.VerifyAssertions ? new String[100] : null;
+  
+  public void registerLock(String reason) {
+    VM_Magic.setObjectAtOffset(lockReasons, Offset.fromIntSignExtend(lockCount<<2), reason);
+    lockCount ++;
+  }
+  public void registerUnlock() {
+    lockCount --;
+    VM._assert(lockCount >= 0);
+  }
+  protected void checkLockCount(int i) {
+    if (lockCount != i) {
+      VM.sysWrite("Error lock count not ", i);
+      VM.sysWriteln(" but ", lockCount);
+      for (int j=0; j < lockCount; j++) {
+        VM.sysWrite("Processor lock ", j);
+        VM.sysWriteln(" acquired for ", lockReasons[j]);        
+      }
+    }
+  }
   /**
    * Status of the processor.
    * Always one of IN_JAVA, IN_NATIVE or BLOCKED_IN_NATIVE.

@@ -668,7 +668,7 @@ public abstract class VM_Thread {
 
     // begin critical section
     //
-    VM_Scheduler.threadCreationMutex.lock();
+    VM_Scheduler.threadCreationMutex.lock("thread termination");
     VM_Processor.getCurrentProcessor().disableThreadSwitching();
 
     //
@@ -1056,7 +1056,9 @@ public abstract class VM_Thread {
         parkedState = State.TIMED_PARK;
         millis = time / 1000000;
         if (isAbsolute) {
-          millis += VM_Time.currentTimeMillis();
+          // if it's an absolute amount of time then remove the current time as
+          // we will adjust up by this much in the sleep
+          millis -= VM_Time.cyclesToMillis(VM_Time.cycles());
         }
         ns = (int)time % 1000000;
       } else {
@@ -1068,7 +1070,10 @@ public abstract class VM_Thread {
       } catch (InterruptedException thr) {
         // swallow thread interruptions      
       }
-      changeThreadState(parkedState, State.RUNNABLE);
+      if (state != State.RUNNABLE) {
+        // change thread to runnable unless already performed by athrow
+        changeThreadState(parkedState, State.RUNNABLE);
+      }
     }
   }
 
@@ -1339,7 +1344,7 @@ public abstract class VM_Thread {
       if (state == State.NEW) {
         // thread will start as a daemon
       } else {
-        VM_Scheduler.threadCreationMutex.lock();
+        VM_Scheduler.threadCreationMutex.lock("daemon creation mutex");
         VM_Scheduler.numDaemons += on ? 1 : -1;
         VM_Scheduler.threadCreationMutex.unlock();
 

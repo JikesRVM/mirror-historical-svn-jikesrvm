@@ -263,7 +263,7 @@ public abstract class VM_Lock implements VM_Constants {
       l = new VM_Scheduler.LockModel(); // may cause thread switch (and processor loss)
       mine = VM_Processor.getCurrentProcessor();
       if (mine.lastLockIndex < mine.nextLockIndex) {
-        lockAllocationMutex.lock();
+        lockAllocationMutex.lock("lock allocation mutex");
         mine.nextLockIndex = 1 + (LOCK_ALLOCATION_UNIT_SIZE * lockUnitsAllocated++);
         lockAllocationMutex.unlock();
         mine.lastLockIndex = mine.nextLockIndex + LOCK_ALLOCATION_UNIT_SIZE - 1;
@@ -313,7 +313,7 @@ public abstract class VM_Lock implements VM_Constants {
       while (q.nextFreeLock != null) {
         q = q.nextFreeLock;
       }
-      lockAllocationMutex.lock();
+      lockAllocationMutex.lock("lock allocation mutex for globalizing locks");
       q.nextFreeLock = globalFreeLock;
       globalFreeLock = mine.freeLock;
       globalFreeLocks += mine.freeLocks;
@@ -327,7 +327,7 @@ public abstract class VM_Lock implements VM_Constants {
         p = q;
         q = q.nextFreeLock;
       }
-      lockAllocationMutex.lock();
+      lockAllocationMutex.lock("lock allocation mutex for globalizing locks");
       p.nextFreeLock = globalFreeLock;
       globalFreeLock = mine.freeLock;
       globalFreeLocks += LOCK_ALLOCATION_UNIT_SIZE;
@@ -347,7 +347,7 @@ public abstract class VM_Lock implements VM_Constants {
   private static void localizeFreeLocks(VM_Processor mine) {
     if (true) return; // TEMP
     if (VM.VerifyAssertions) VM._assert(mine.freeLock == null);
-    lockAllocationMutex.lock();
+    lockAllocationMutex.lock("lock allocation mutex for localize");
     if (globalFreeLocks <= LOCK_ALLOCATION_UNIT_SIZE) {
       mine.freeLock = globalFreeLock;
       mine.freeLocks = globalFreeLocks;

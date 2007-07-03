@@ -170,7 +170,7 @@ public class VM_ThreadProcessWaitQueue extends VM_ThreadEventWaitQueue implement
       return true;
     }
 
-    waitPidLock.lock();
+    waitPidLock.lock("mutex while reading pids");
 
     // Call sysWaitPids() to see which (if any) have finished
     sysCall.sysWaitPids(VM_Magic.objectAsAddress(pidArray), VM_Magic.objectAsAddress(exitStatusArray), numPids);

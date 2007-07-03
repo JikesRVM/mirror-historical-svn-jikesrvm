@@ -236,7 +236,7 @@ public final class VM_ThreadIOQueue extends VM_ThreadEventWaitQueue
 
     // Do the select()
     VM_GreenProcessor.getCurrentProcessor().isInSelect = true;
-    selectInProgressMutex.lock();
+    selectInProgressMutex.lock("select in progress mutex");
     int ret = sysCall.sysNetSelect(allFds, readCount, writeCount, exceptCount);
     selectInProgressMutex.unlock();
     VM_GreenProcessor.getCurrentProcessor().isInSelect = false;

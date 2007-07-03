@@ -120,20 +120,17 @@ public abstract class VM_Scheduler {
   public static volatile boolean debugRequested;
 
   /** Number of times dump stack has been called recursively */
-  private static int inDumpStack = 0;
+  protected static int inDumpStack = 0;
 
   /** In dump stack and dying */
-  private static boolean exitInProgress = false;
-
-  /** How many extra procs (not counting primordial) ? */
-  private static int NUM_EXTRA_PROCS = 0;
+  protected static boolean exitInProgress = false;
 
   /** Extra debug from traces */
-  private static final boolean traceDetails = false;
+  protected static final boolean traceDetails = false;
 
   /** Int controlling output. 0 => output can be used, otherwise ID of processor */
   @SuppressWarnings({"unused", "UnusedDeclaration"})
-  private static int outputLock;
+  protected static int outputLock;
   
   ////////////////////////////////////////////////
   // fields for synchronizing code patching
@@ -167,7 +164,7 @@ public abstract class VM_Scheduler {
       VM_Scheduler.numActiveThreads ++;
       return PRIMORDIAL_THREAD_INDEX;
     } else {
-      VM_Scheduler.threadCreationMutex.lock();
+      VM_Scheduler.threadCreationMutex.lock("thread creation mutex");
       for (int cnt = threads.length; --cnt >= 1; ) {
         int index = threadAllocationIndex;
         threadAllocationIndex++;
@@ -210,7 +207,7 @@ public abstract class VM_Scheduler {
      * are invoked if they are to be able to do JNI.
      */
   static void releaseThreadSlot(int threadSlot, VM_Thread thread) {
-    threadCreationMutex.lock();
+    threadCreationMutex.lock("releasing a thread slot");
     if (VM.VerifyAssertions) VM._assert(VM_Scheduler.threads[threadSlot] == thread);
     /*
      * Problem:

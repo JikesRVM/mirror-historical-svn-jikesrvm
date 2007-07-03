@@ -120,7 +120,7 @@ final class VM_IdleThread extends VM_GreenThread {
     if (!p.transferQueue.isEmpty()) return true;
     if (p.ioQueue.isReady()) return true;
     if (VM_GreenScheduler.wakeupQueue.isReady()) {
-      VM_GreenScheduler.wakeupMutex.lock();
+      VM_GreenScheduler.wakeupMutex.lock("wakeup mutex");
       VM_GreenThread t = VM_GreenScheduler.wakeupQueue.dequeue();
       VM_GreenScheduler.wakeupMutex.unlock();
       if (t != null) {

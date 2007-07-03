@@ -310,7 +310,7 @@ public final class VM_CollectorThread extends VM_GreenThread {
       /* suspend this thread: it will resume when scheduled by
        * VM_Handshake initiateCollection().  while suspended,
        * collector threads reside on the schedulers collectorQueue */
-      VM_GreenScheduler.collectorMutex.lock();
+      VM_GreenScheduler.collectorMutex.lock("collector mutex");
       if (verbose >= 1) VM.sysWriteln("GC Message: VM_CT.run yielding");
       if (count > 0) { // resume normal scheduling
         VM_GreenProcessor.getCurrentProcessor().enableThreadSwitching();

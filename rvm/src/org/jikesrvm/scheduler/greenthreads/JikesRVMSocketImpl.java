@@ -165,7 +165,7 @@ public final class JikesRVMSocketImpl extends SocketImpl implements VM_SizeConst
     // the timeout (if any) is reached, or an error occurs.
     while (true) {
       // Try to accept a connection
-      VM_ThreadIOQueue.selectInProgressMutex.lock();
+      VM_ThreadIOQueue.selectInProgressMutex.lock("select in progress mutex");
 
       connectionFd = sysCall.sysNetSocketAccept(native_fd, newSocket);
       VM_ThreadIOQueue.selectInProgressMutex.unlock();
@@ -551,7 +551,7 @@ public final class JikesRVMSocketImpl extends SocketImpl implements VM_SizeConst
     address |= ((ip[0] << (3 * BITS_IN_BYTE)) & 0xff000000);
 
     while (rc < 0) {
-      VM_ThreadIOQueue.selectInProgressMutex.lock();
+      VM_ThreadIOQueue.selectInProgressMutex.lock("select in progress mutex");
       rc = sysCall.sysNetSocketConnect(native_fd, family, address, remotePort);
       VM_ThreadIOQueue.selectInProgressMutex.unlock();
 

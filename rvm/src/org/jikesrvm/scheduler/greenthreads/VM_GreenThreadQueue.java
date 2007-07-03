@@ -48,7 +48,7 @@ public class VM_GreenThreadQueue extends VM_AbstractThreadQueue {
   boolean atomicIsEmpty(VM_ProcessorLock lock) {
     boolean r;
 
-    lock.lock();
+    lock.lock("atomic is empty");
     r = (head == null);
     lock.unlock();
     return r;
@@ -100,7 +100,7 @@ public class VM_GreenThreadQueue extends VM_AbstractThreadQueue {
    * @return The garbage collector thread. If no thread found, return null.
    */
   VM_GreenThread dequeueGCThread(VM_ProcessorLock qlock) {
-    if (qlock != null) qlock.lock();
+    if (qlock != null) qlock.lock("dequeue GC thread");
     VM_GreenThread currentThread = head;
     if (head == null) {
       if (qlock != null) qlock.unlock();
