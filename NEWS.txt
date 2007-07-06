@@ -5,9 +5,57 @@ Jikes RVM NEWS -- History of significant changes
 This file contains the release notes since Jikes RVM 2.0.0, released
 on October 14, 2001,
 
-
-*Jikes RVM 2.9.1 Release Notes (Future)
+*Jikes RVM 2.9.2 Release Notes (Future)
 ** Highlights
+** Bug Fixes
+** Other Notes
+
+
+*Jikes RVM 2.9.1 Release Notes (July 2, 2007)
+** Highlights
+
+*** A major stability drive has resulted in Jikes RVM being able to
+    reliably run the entire DaCapo benchmark suite on ia32-linux.
+    The following issues were resolved to make this possible:
+
+    multiple benchmarks:
+    r12809: Missed lock prefix (stack scanning failures).
+    r12737: GC map iterator crashed on dynamic link frames.
+
+    eclipse:
+    r12302: Classpath RandomAccessFile incorrectly truncated.
+    r12394: PLOS exhaustion bug in MMTk.
+    r12375: ThinLock of interface from OPT code.
+    r12815: Bad GC map in JNI methods.
+    r12722: Fix for GC map bugs around expection throws.
+
+    lusearch:
+    r12602: Floating point precision (SSE2).
+    r12633: Parallel hardware traps.
+
+    hsqldb:
+    r12683: Invalid assertion in VM_Thread.
+
+    xalan:
+    r12742: Missing static initializer broke jar caching (halves runtime).
+    r12753: FileOutputStream wastefully copying arrays (halves runtime).
+
+*** New eclipse-project ant target to make it easy to get up and running
+    in eclipse.
+
+*** As part of the stability drive, many O2 optimizations in the
+    optimizing compiler have been moved to O3 (and thus are not enabled by
+    default). The performance impact of this has been mixed. For example, 
+    on ia32-linux SPECjvm98 performance actually improved by 29% due to
+    massive improvements in mtrt and mpegaudio enabled by SSE2. Performance 
+    on SPECjbb2005 degraded by 3-10%. There were significant gains on some 
+    individual DaCapo benchmarks (most notably xalan). 
+    Re-building an aggressive O2 optimization package by stabilizing 
+    current O3 optimizations and by building new optimization passes will be 
+    one of the focus areas for the project going forward.
+
+*** The recommended version of GNU classpath is 0.95.
+    Earlier versions of GNU classpath are not supported.
 
 *** SSA expression folding has been expanded to cover far more cases than
     previously. This leads to a > 1% speedup on benchmarks such as SpecJBB'05.
@@ -19,16 +67,21 @@ on October 14, 2001,
 *** Methods in VM_Type that duplicated functionality in VM_TypeReference
     now delegate to associated VM_TypeReference.
 
-*** ObjectReference is now classified as an unboxed/primitive type and for
-    all intents and purposes it is treated like other word/Address types
-    except that it can be traced during garbage collection. Conversion of
-    Objects to ObjectReferences must now be explicit or else it will generate
-    an error in the optimizing compiler.
-
 *** The ability to force a garbage collection after N allocations or at every
     exception delivery has been revived and is controlled by the configuration
     variable config.stress-gc-interval which should be set to non-zero value to
     enable.
+
+*** Simplistic debug symbols to show boot image method entry points in
+    gdb. Resolved issues with rvm script so this works with rvm -gdb now.
+
+*** New faster primary regression machine (Core 2 Duo) for ia32-linux
+    at ANU. Resolved performance issues with previous regression machine.
+
+*** Introduced the capability to patch against classpath versions. This allows
+    us to keep backported performance optimizations and/or bug fixes
+
+*** Implementation of returning global JNI references from C to Java.
 
 *** VM_ prefix added to classes that must be included in the primordial
     class list. Classes affected include; PrintLN, PrintContainer,
@@ -48,6 +101,12 @@ on October 14, 2001,
     been moved in to the "org.jikesrvm.runtime" package.
 
 ** Bug fixes
+
+*** Baseline GC map bug for handler blocks affecting SPECjbb2000
+    (r12685).
+
+*** Classpath race in cloning of XML Node affecting SPECjbb2005
+    (r12395).
 
 *** Fix final field chasing in OPT_Simplifier and re-enable constant
     folding for fields.

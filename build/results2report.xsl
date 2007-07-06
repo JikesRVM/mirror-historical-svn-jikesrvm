@@ -20,7 +20,7 @@
       <id>
         <xsl:value-of select="@name"/>
       </id>
-      <xsl:copy-of select="revision|time|builds"/>
+      <xsl:copy-of select="revision|time|variant|builds"/>
       <target>
         <parameters>
           <xsl:copy-of select="test-configuration[1]/results[1]/build-parameters/parameter[starts-with(@key,'target.')]"/>
@@ -78,7 +78,7 @@
           <id>
             <xsl:value-of select="../../group/text()"/>
           </id>
-          <xsl:for-each select="../../test">
+          <xsl:for-each select="../../test/result[text() != 'EXCLUDED']/..">
             <test>
               <id>
                 <xsl:value-of select="tag"/>

@@ -12,27 +12,19 @@
  */
 package org.jikesrvm.compilers.opt.ia32;
 
-import org.jikesrvm.classloader.VM_TypeReference;
 import org.jikesrvm.compilers.opt.OPT_CompilerPhase;
 import org.jikesrvm.compilers.opt.OPT_DefUse;
 import org.jikesrvm.compilers.opt.OPT_OptimizingCompilerException;
 import org.jikesrvm.compilers.opt.OPT_Simplifier;
-import org.jikesrvm.compilers.opt.ir.Binary;
 import org.jikesrvm.compilers.opt.ir.CondMove;
-import org.jikesrvm.compilers.opt.ir.Move;
 import org.jikesrvm.compilers.opt.ir.OPT_IR;
-import org.jikesrvm.compilers.opt.ir.OPT_IRTools;
 import org.jikesrvm.compilers.opt.ir.OPT_Instruction;
 import org.jikesrvm.compilers.opt.ir.OPT_InstructionEnumeration;
 import org.jikesrvm.compilers.opt.ir.OPT_Operand;
 import org.jikesrvm.compilers.opt.ir.OPT_OperandEnumeration;
-import org.jikesrvm.compilers.opt.ir.OPT_Operator;
 import org.jikesrvm.compilers.opt.ir.OPT_Operators;
 import org.jikesrvm.compilers.opt.ir.OPT_Register;
-import org.jikesrvm.compilers.opt.ir.OPT_RegisterOperand;
-import org.jikesrvm.compilers.opt.ir.Unary;
 import org.jikesrvm.ia32.VM_ArchConstants;
-import org.vmmagic.pragma.NoOptCompile;
 
 /**
  * <ul>
@@ -142,7 +134,7 @@ public class OPT_ConvertALUOperators extends OPT_CompilerPhase implements OPT_Op
     // Reverse pass over instructions supports simple live analysis.
     for (OPT_Instruction next, s = ir.lastInstructionInCodeOrder(); s != null; s = next) {
       next = s.prevInstructionInCodeOrder();
-      
+
       switch(s.getOpcode()) {
       case BOOLEAN_NOT_opcode: break;
       case REF_NOT_opcode: s.operator = INT_NOT; break;

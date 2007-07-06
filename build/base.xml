@@ -38,8 +38,8 @@
   <!-- base location for all test results -->
   <property name="results.dir" location="${jikesrvm.dir}/results"/>
 
-  <!-- by default not working on patch -->
-  <property name="patch.name" value=""/>
+  <!-- by default not working on config variant-->
+  <property name="config.variant" value=""/>
 
   <!-- **************************************************************************** -->
   <!-- *                                                                          * -->
@@ -54,8 +54,8 @@
     <sequential>
       <condition property="@{property}"
                  value="@{config}_${target.name}"
-                 else="@{config}_${target.name}_${patch.name}">
-        <equals arg1="${patch.name}" arg2=""/>
+                 else="@{config}_${config.variant}_${target.name}">
+        <equals arg1="${config.variant}" arg2=""/>
       </condition>
     </sequential>
   </macrodef>
@@ -123,4 +123,35 @@
     </sequential>
   </macrodef>
 
+  <!-- **************************************************************************** -->
+  <!-- *                                                                          * -->
+  <!-- *                      Targets for retrieving svn version                  * -->
+  <!-- *                                                                          * -->
+  <!-- **************************************************************************** -->
+
+  <target name="check-svn-present">
+    <available property="svn.present" file=".svn" type="dir"/>
+    <property name="svn.exe" value="svn"/>
+  </target>
+
+  <target name="extract-svn-version" depends="check-svn-present" if="svn.present">
+    <exec executable="${svn.exe}">
+      <arg value="info"/>
+      <redirector outputproperty="svn.revision">
+        <outputfilterchain>
+          <linecontains>
+            <contains value="Revision: "/>
+          </linecontains>
+          <tokenfilter>
+            <replacestring from="Revision: " to=""/>
+          </tokenfilter>
+        </outputfilterchain>
+      </redirector>
+    </exec>
+  </target>
+
+  <target name="get-svn-version" depends="extract-svn-version">
+    <!-- set property if not already set -->
+    <property name="svn.revision" value="Unknown"/>
+  </target>
 </project>

@@ -10,7 +10,6 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-import org.jikesrvm.*;
 
 /**
  * Test native method with threads
@@ -23,7 +22,7 @@ class tNativeThreads
 
   public static native int nativeFoo(int count);
 
-  public static        int javaFoo(int count) { 
+  public static        int javaFoo(int count) {
     NativeThreadsWorker.say("tNativeThreads.javaFoo"," - entered and about to return");
     return count +1;
   }
@@ -41,11 +40,11 @@ class tNativeThreads
 
 
       System.out.println("starting TestDispatch stuff");
-      
+
       NativeThreadsWorker a[] = new NativeThreadsWorker[NUMBER_OF_WORKERS];
       for ( int wrk = 0; wrk < NUMBER_OF_WORKERS; wrk++ )
          {
-           a[wrk] = new NativeThreadsWorker("ping"); 
+           a[wrk] = new NativeThreadsWorker("ping");
            a[wrk].start();
          }
 
@@ -67,18 +66,18 @@ class tNativeThreads
         //     VM_Scheduler.dumpVirtualMachine();
       }
 
-      
+
       for ( int wrk = 0; wrk < NUMBER_OF_WORKERS; wrk ++ )
         while ( ! a[wrk].isFinished ) {
-          try {              
+          try {
             //say(name, "sleeping");
             Thread.currentThread().sleep(300);
-          } 
+          }
           catch (InterruptedException e) {}
           Thread.currentThread().yield();
         }
 
-      //      VM_Scheduler.dumpVirtualMachine();    
+      //      VM_Scheduler.dumpVirtualMachine();
   }
 }
 

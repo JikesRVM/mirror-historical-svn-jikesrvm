@@ -13,10 +13,10 @@
 package test.org.jikesrvm.basic.core.serialization;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
 
 class TestSerialization {
@@ -62,7 +62,7 @@ class TestSerialization {
         if( data[i] != bytes[i] ) {
           System.out.println("data differs at " + i);
           break;
-        }               
+        }
       }
     } catch (java.io.IOException e) {
       e.printStackTrace(System.out);

@@ -131,7 +131,7 @@ public abstract class VM_Scheduler {
   /** Int controlling output. 0 => output can be used, otherwise ID of processor */
   @SuppressWarnings({"unused", "UnusedDeclaration"})
   protected static int outputLock;
-  
+
   ////////////////////////////////////////////////
   // fields for synchronizing code patching
   ////////////////////////////////////////////////

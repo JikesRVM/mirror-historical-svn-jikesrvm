@@ -25,6 +25,7 @@ import org.jikesrvm.compilers.opt.ir.MIR_CondBranch;
 import org.jikesrvm.compilers.opt.ir.MIR_CondBranch2;
 import org.jikesrvm.compilers.opt.ir.MIR_Empty;
 import org.jikesrvm.compilers.opt.ir.MIR_LowTableSwitch;
+import org.jikesrvm.compilers.opt.ir.MIR_Lea;
 import org.jikesrvm.compilers.opt.ir.MIR_Move;
 import org.jikesrvm.compilers.opt.ir.MIR_Nullary;
 import org.jikesrvm.compilers.opt.ir.MIR_Return;
@@ -66,6 +67,7 @@ import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_INT;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_JCC;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_JCC2_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_JMP;
+import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_LEA_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_LOCK;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_LOCK_CMPXCHG_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_LOCK_CMPXCHG8B_opcode;
@@ -310,6 +312,58 @@ public class OPT_FinalMIRExpansion extends OPT_IRTools {
           }
           break;
 
+        case IA32_LEA_opcode: {
+          // Sometimes we're over eager in BURS in using LEAs and after register
+	  // allocation we can simplify to the accumulate form
+          // replace reg1 = LEA [reg1 + reg2] with reg1 = reg1 + reg2
+	  // replace reg1 = LEA [reg1 + c1] with reg1 = reg1 + c1
+	  // replace reg1 = LEA [reg1 << c1] with reg1 = reg1 << c1
+          OPT_MemoryOperand value = MIR_Lea.getValue(p);
+          OPT_RegisterOperand result = MIR_Lea.getResult(p);
+          if ((value.base != null && value.base.register == result.register) ||
+              (value.index != null && value.index.register == result.register)) {
+            // Calculate what flags are defined in coming instructions before a use of a flag or BBend
+            OPT_Instruction x = next;
+            int futureDefs = 0;
+            while(!BBend.conforms(x) && !OPT_PhysicalDefUse.usesEFLAGS(x.operator)) {
+              futureDefs |= x.operator.implicitDefs;
+              x = x.nextInstructionInCodeOrder();
+            }
+            // If the flags will be destroyed prior to use or we reached the end of the basic block
+            if (BBend.conforms(x) ||
+                (futureDefs & OPT_PhysicalDefUse.maskAF_CF_OF_PF_SF_ZF) == OPT_PhysicalDefUse.maskAF_CF_OF_PF_SF_ZF) {
+	      if (value.base != null &&
+		  value.index != null && value.index.register == result.register &&
+		  value.disp.isZero() &&
+		  value.scale == 0) {
+		// reg1 = lea [base + reg1] -> add reg1, base
+                MIR_BinaryAcc.mutate(p, IA32_ADD, result, value.base);
+              } else if (value.base != null && value.base.register == result.register &&
+			 value.index != null &&
+			 value.disp.isZero() &&
+			 value.scale == 0) {
+		// reg1 = lea [reg1 + index] -> add reg1, index
+                MIR_BinaryAcc.mutate(p, IA32_ADD, result, value.index);                
+              } else if (value.base != null && value.base.register == result.register &&
+			 value.index == null) {
+		// reg1 = lea [reg1 + disp] -> add reg1, disp
+                MIR_BinaryAcc.mutate(p, IA32_ADD, result, IC(value.disp.toInt()));                
+              } else if (value.base == null &&
+			 value.index == null && value.index.register == result.register &&
+			 value.scale == 0) {
+		// reg1 = lea [reg1 + disp] -> add reg1, disp
+                MIR_BinaryAcc.mutate(p, IA32_ADD, result, IC(value.disp.toInt()));                
+              } else if (value.base == null &&
+			 value.index == null && value.index.register == result.register &&
+			 value.disp.isZero()) {
+		// reg1 = lea [reg1 << scale] -> shl reg1, scale
+                MIR_BinaryAcc.mutate(p, IA32_SHL, result, IC(value.scale));                
+              }
+            }
+          }
+        }
+        break;
+          
         case IA32_FCLEAR_opcode:
           expandFClear(p, ir);
           break;

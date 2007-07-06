@@ -326,6 +326,74 @@ public abstract class VM_Thread {
    */
   private long totalCycles;
 
+  /** Used by GC to determine collection success */
+  private boolean physicalAllocationFailed;
+
+  /** Used by GC to determine collection success */
+  private int collectionAttempt;
+
+  /** Set the initial attempt. */
+  public void reportCollectionAttempt() {
+    collectionAttempt++;
+  }
+
+  /** Set the initial attempt. */
+  public int getCollectionAttempt() {
+    return collectionAttempt;
+  }
+
+  /** Resets the attempts. */
+  public void resetCollectionAttempts() {
+    collectionAttempt = 0;
+  }
+  
+  /** Get the physical allocation failed flag. */
+  public boolean physicalAllocationFailed() {
+    return physicalAllocationFailed;
+  }
+
+  /** Get the physical allocation failed flag. */
+  public void setPhysicalAllocationFailed() {
+    physicalAllocationFailed = true;
+  }
+
+  /** Clear the physical allocation failed flag. */
+  public void clearPhysicalAllocationFailed() {
+    physicalAllocationFailed = false;
+  }
+
+  /** The OOME to throw */
+  private OutOfMemoryError outOfMemoryError;
+
+  /**
+   * Returns the outstanding OutOfMemoryError.
+   */
+  public OutOfMemoryError getOutOfMemoryError() {
+    return outOfMemoryError;
+  }
+  
+  /**
+   * Sets the outstanding OutOfMemoryError.
+   */
+  public void setOutOfMemoryError(OutOfMemoryError oome) {
+    outOfMemoryError = oome;
+  }
+  
+  /**
+   * Get the thread to use for building stack traces.
+   */
+  @Uninterruptible
+  public VM_Thread getThreadForStackTrace() {
+    return this;
+  }
+  
+  /**
+   * Clears the outstanding OutOfMemoryError.
+   */
+  public void clearOutOfMemoryError() {
+    outOfMemoryError = null;
+  }
+  
   /*
    * Enumerate different types of yield points for sampling
    */
@@ -817,13 +885,22 @@ public abstract class VM_Thread {
    * Suspend execution of current thread until it is resumed.
    * Call only if caller has appropriate security clearance.
    */
+  @LogicallyUninterruptible
   public final void suspend() {
+    Throwable rethrow = null;
     changeThreadState(State.RUNNABLE, State.SUSPENDED);
-    // let go of outer lock
-    VM_ObjectModel.genericUnlock(thread);
-    suspendInternal();
+    try {
+      // let go of outer lock
+      VM_ObjectModel.genericUnlock(thread);
+      suspendInternal();
+    } catch (Throwable t) {
+      rethrow = t;
+    }
     // regain outer lock
     VM_ObjectModel.genericLock(thread);
+    if (rethrow != null) {
+      VM_Runtime.athrow(rethrow);
+    }
   }
   
   /**
@@ -1065,10 +1142,20 @@ public abstract class VM_Thread {
         parkedState = State.PARKED;
       }
       changeThreadState(State.RUNNABLE, parkedState);
-      try {        
+      // Do we hold the lock on the surrounding java.lang.Thread?
+      boolean holdsLock = holdsLock(thread);
+      if (holdsLock) {
+        // If someone locked the java.lang.Thread, release before going to sleep
+        // to allow interruption
+        VM_ObjectModel.genericUnlock(thread);
+      }
+      try {
         sleepInternal(millis, ns);
       } catch (InterruptedException thr) {
         // swallow thread interruptions      
+      }
+      if (holdsLock) {
+        VM_ObjectModel.genericLock(thread);
       }
       if (state != State.RUNNABLE) {
         // change thread to runnable unless already performed by athrow
@@ -1098,7 +1185,7 @@ public abstract class VM_Thread {
   @LogicallyUninterruptible
   public final int getIndex() {
     if (VM.VerifyAssertions) VM._assert((state == State.TERMINATED) || VM_Scheduler.threads[threadSlot] == this);
-    return threadSlot; 
+    return threadSlot;
   }
 
   /**

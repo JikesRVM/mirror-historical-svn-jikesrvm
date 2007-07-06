@@ -58,20 +58,24 @@ public final class VM_ThreadProxyWakeupQueue extends VM_AbstractThreadQueue {
    * Add the proxy for a thread in a place determined by its wakeup time
    */
   public void enqueue(VM_ThreadProxy p) {
-    VM_ThreadProxy previous = null;
-    VM_ThreadProxy current = head;
-    // skip proxies with earlier wakeupCycles
-    while (current != null && current.getWakeupCycle() <= p.getWakeupCycle()) {
-      previous = current;
-      current = current.getWakeupNext();
+    if (p != null) {
+      p.mutex.lock("Enqueueing proxy");
+      VM_ThreadProxy previous = null;
+      VM_ThreadProxy current = head;
+      // skip proxies with earlier wakeupCycles
+      while (current != null && current.getWakeupCycle() <= p.getWakeupCycle()) {
+        previous = current;
+        current = current.getWakeupNext();
+      }
+      // insert p
+      if (previous == null) {
+        head = p;
+      } else {
+        previous.setWakeupNext(p);
+      }
+      p.setWakeupNext(current);
+      p.mutex.unlock();
     }
-    // insert p
-    if (previous == null) {
-      head = p;
-    } else {
-      previous.setWakeupNext(p);
-    }
-    p.setWakeupNext(current);
   }
 
   /**

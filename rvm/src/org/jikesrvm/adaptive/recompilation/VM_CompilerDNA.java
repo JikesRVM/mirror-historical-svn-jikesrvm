@@ -50,19 +50,19 @@ public class VM_CompilerDNA implements VM_Constants {
   private static int numCompilers;
 
   /**
-   * Average bytecodes compiled per millisec
-   * These numbers were from a shadow on July 22, 2004 on munchkin (AIX/PPC)
-   * and Dec 2nd, 2004 on wormtongue (Linux/IA32) using unweighted compilation rate.
+   * Average bytecodes compiled per millisecond.
+   * These numbers were measured on July 1, 2007 on excalibur (AIX/PPC)
+   * and July 1, 2007 on legato (Linux/IA32) using unweighted compilation rate.
    */
   private static final double[] compilationRates;
 
   static {
     if (VM.BuildForPowerPC) {
-      compilationRates = new double[]{359.17,             // base
-                                      10.44, 4.69, 1.56}; // opt 0...2
+      compilationRates = new double[]{525.53,             // base
+                                      15.28, 7.74, 7.68}; // opt 0...2
     } else if (VM.BuildForIA32) {
-      compilationRates = new double[]{696.58,             // base
-                                      18.19, 8.90, 3.90}; // opt 0...2
+      compilationRates = new double[]{1246.22,              // base
+                                      30.03, 14.60, 14.59}; // opt 0...2
     } else {
       if (VM.VerifyAssertions) VM._assert(NOT_REACHED);
       compilationRates = null;
@@ -71,18 +71,18 @@ public class VM_CompilerDNA implements VM_Constants {
 
   /**
    * What is the execution rate of each compiler normalized to the 1st compiler
-   * These numbers were from a shadow on July 22, 2004 on munchkin (AIX/PPC)
-   * and Dec 2nd, 2004 on wormtongue (Linux/IA32) using unweighted compilation rate.
+   * These numbers were measured on July 1, 2007 on excalibur (AIX/PPC, IBM Power4+)
+   * and July 1, 2007 on legato (Linux/IA32, IBM LS20) using unweighted compilation rate.
    */
   private static final double[] speedupRates;
 
   static {
     if (VM.BuildForPowerPC) {
       speedupRates = new double[]{1.00,               // base
-                                  4.73, 6.65, 7.39};  // opt 0...2
+                                  8.22, 13.25, 13.26};  // opt 0...2
     } else if (VM.BuildForIA32) {
       speedupRates = new double[]{1.00,               // base
-                                  4.56, 7.13, 7.35};  // opt 0...2
+                                  4.86, 6.39, 6.40};  // opt 0...2
     } else {
       if (VM.VerifyAssertions) VM._assert(NOT_REACHED);
       speedupRates = null;

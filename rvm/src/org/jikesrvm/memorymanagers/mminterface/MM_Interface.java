@@ -73,9 +73,6 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
    */
   private static final boolean CHECK_MEMORY_IS_ZEROED = false;
 
-  /** Used by mmtypes for arrays */
-  private static final int[] zeroLengthIntArray = new int[0];
-
   /***********************************************************************
    *
    * Initialization
@@ -197,8 +194,8 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
                                         0, // do not have location metadata
                                         PUTFIELD_WRITE_BARRIER);
   }
-  
-  
+
+
   /**
    * Write barrier for putstatic operations.
    *

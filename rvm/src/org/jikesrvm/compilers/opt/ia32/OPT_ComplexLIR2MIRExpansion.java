@@ -14,12 +14,14 @@ package org.jikesrvm.compilers.opt.ia32;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.classloader.VM_TypeReference;
+import org.jikesrvm.runtime.VM_Entrypoints;
 import org.jikesrvm.compilers.opt.OPT_DefUse;
 import org.jikesrvm.compilers.opt.OPT_OptimizingCompilerException;
-import org.jikesrvm.compilers.opt.ir.Binary;
-import org.jikesrvm.compilers.opt.ir.Label;
 import org.jikesrvm.compilers.opt.ir.BBend;
+import org.jikesrvm.compilers.opt.ir.Binary;
 import org.jikesrvm.compilers.opt.ir.IfCmp;
+import org.jikesrvm.compilers.opt.ir.Label;
+import org.jikesrvm.compilers.opt.ir.Unary;
 import org.jikesrvm.compilers.opt.ir.MIR_BinaryAcc;
 import org.jikesrvm.compilers.opt.ir.MIR_Branch;
 import org.jikesrvm.compilers.opt.ir.MIR_Compare;
@@ -29,6 +31,7 @@ import org.jikesrvm.compilers.opt.ir.MIR_DoubleShift;
 import org.jikesrvm.compilers.opt.ir.MIR_Move;
 import org.jikesrvm.compilers.opt.ir.MIR_Multiply;
 import org.jikesrvm.compilers.opt.ir.MIR_Test;
+import org.jikesrvm.compilers.opt.ir.MIR_Unary;
 import org.jikesrvm.compilers.opt.ir.MIR_UnaryAcc;
 import org.jikesrvm.compilers.opt.ir.OPT_BasicBlock;
 import org.jikesrvm.compilers.opt.ir.OPT_BranchOperand;
@@ -40,30 +43,35 @@ import org.jikesrvm.compilers.opt.ir.OPT_Instruction;
 import org.jikesrvm.compilers.opt.ir.OPT_IntConstantOperand;
 import org.jikesrvm.compilers.opt.ir.OPT_LongConstantOperand;
 import org.jikesrvm.compilers.opt.ir.OPT_Operand;
+import org.jikesrvm.compilers.opt.ir.OPT_MemoryOperand;
+import static org.jikesrvm.compilers.opt.ir.OPT_Operators.FLOAT_2INT_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.DOUBLE_IFCMP_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.FLOAT_IFCMP_opcode;
-import static org.jikesrvm.compilers.opt.ir.OPT_Operators.LONG_IFCMP_opcode;
-import static org.jikesrvm.compilers.opt.ir.OPT_Operators.LONG_MUL_opcode;
-import static org.jikesrvm.compilers.opt.ir.OPT_Operators.LONG_SHL_opcode;
-import static org.jikesrvm.compilers.opt.ir.OPT_Operators.LONG_SHR_opcode;
-import static org.jikesrvm.compilers.opt.ir.OPT_Operators.LONG_USHR_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_ADD;
-import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_IMUL2;
-import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_MUL;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_CMP;
+import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_IMUL2;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_JCC;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_JCC2;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_JMP;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_MOV;
+import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_MOVSS;
+import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_MUL;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_NOT;
+import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_OR;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_SAR;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_SHL;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_SHLD;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_SHR;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_SHRD;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_TEST;
-import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_OR;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_XOR;
+import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_UCOMISS;
+import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_CVTTSS2SI;
+import static org.jikesrvm.compilers.opt.ir.OPT_Operators.LONG_IFCMP_opcode;
+import static org.jikesrvm.compilers.opt.ir.OPT_Operators.LONG_MUL_opcode;
+import static org.jikesrvm.compilers.opt.ir.OPT_Operators.LONG_SHL_opcode;
+import static org.jikesrvm.compilers.opt.ir.OPT_Operators.LONG_SHR_opcode;
+import static org.jikesrvm.compilers.opt.ir.OPT_Operators.LONG_USHR_opcode;
 import org.jikesrvm.compilers.opt.ir.OPT_Register;
 import org.jikesrvm.compilers.opt.ir.OPT_RegisterOperand;
 import org.jikesrvm.compilers.opt.ir.ia32.OPT_IA32ConditionOperand;
@@ -108,12 +116,87 @@ public abstract class OPT_ComplexLIR2MIRExpansion extends OPT_IRTools {
         case DOUBLE_IFCMP_opcode:
           nextInstr = fp_ifcmp(s);
           break;
+        case FLOAT_2INT_opcode:
+          nextInstr = float_2int(s, ir);
+          break;
         default:
           nextInstr = s.nextInstructionInCodeOrder();
           break;
       }
     }
     OPT_DefUse.recomputeSpansBasicBlock(ir);
+  }
+
+  private static OPT_Instruction float_2int(OPT_Instruction s, OPT_IR ir) {
+    OPT_Instruction nextInstr = s.nextInstructionInCodeOrder();
+    while(Label.conforms(nextInstr)||BBend.conforms(nextInstr)) {
+      nextInstr = nextInstr.nextInstructionInCodeOrder();
+    }
+    // we need 6 basic blocks (in code order)
+    // 1: the current block that does a test to see if this is a regular f2i or
+    //    branches to the maxint/NaN case
+    // 2: a block to perform a regular f2i
+    // 3: a block to test for NaN
+    // 4: a block to perform give maxint
+    // 5: a block to perform NaN
+    // 6: the next basic block
+    OPT_BasicBlock testBB = s.getBasicBlock();
+    OPT_BasicBlock nextBB = testBB.splitNodeAt(s,ir);
+    ir.cfg.linkInCodeOrder(testBB, nextBB);
+    OPT_BasicBlock nanBB = testBB.splitNodeAt(s,ir);
+    ir.cfg.linkInCodeOrder(testBB, nanBB);
+    OPT_BasicBlock maxintBB = testBB.splitNodeAt(s,ir);
+    ir.cfg.linkInCodeOrder(testBB, maxintBB);
+    OPT_BasicBlock nanTestBB = testBB.splitNodeAt(s,ir);
+    ir.cfg.linkInCodeOrder(testBB, nanTestBB);
+    OPT_BasicBlock f2iBB = testBB.splitNodeAt(s,ir);
+    ir.cfg.linkInCodeOrder(testBB, f2iBB);
+
+    // Move the maxintFloat value and the value into registers and compare and
+    // branch if they are <= or unordered. NB we don't use a memory operand as
+    // that would require 2 jccs
+    OPT_RegisterOperand result = Unary.getResult(s);
+    OPT_RegisterOperand value = Unary.getVal(s).asRegister();
+    OPT_MemoryOperand maxint = OPT_BURS_Helpers.loadFromJTOC(VM_Entrypoints.maxintFloatField.getOffset());
+    OPT_RegisterOperand maxintReg = ir.regpool.makeTempFloat();;
+    s.insertBefore(CPOS(s,MIR_Move.create(IA32_MOVSS, maxintReg, maxint)));
+    MIR_Compare.mutate(s, IA32_UCOMISS, maxintReg.copyRO(), value);
+    testBB.appendInstruction(CPOS(s, MIR_CondBranch.create(IA32_JCC,
+        OPT_IA32ConditionOperand.LLE(),
+        nanTestBB.makeJumpTarget(),
+        OPT_BranchProfileOperand.unlikely())));
+    testBB.insertOut(f2iBB);
+    testBB.insertOut(nanTestBB);
+
+    // Convert float to int knowing that if the value is < min int the Intel
+    // unspecified result is min int
+    f2iBB.appendInstruction(CPOS(s, MIR_Unary.create(IA32_CVTTSS2SI, result, value.copy())));
+    f2iBB.appendInstruction(CPOS(s, MIR_Branch.create(IA32_JMP,
+        nextBB.makeJumpTarget())));
+    f2iBB.insertOut(nextBB);
+    
+    // Did the compare find a NaN or a maximum integer?
+    nanTestBB.appendInstruction(CPOS(s, MIR_CondBranch.create(IA32_JCC,
+        OPT_IA32ConditionOperand.PE(),
+        nanBB.makeJumpTarget(),
+        OPT_BranchProfileOperand.unlikely())));
+    nanTestBB.insertOut(nanBB);
+    nanTestBB.insertOut(maxintBB);
+
+    // Value was >= max integer
+    maxintBB.appendInstruction(CPOS(s, MIR_Move.create(IA32_MOV,
+                                                       result.copyRO(),
+                                                       IC(Integer.MAX_VALUE))));
+    maxintBB.appendInstruction(CPOS(s, MIR_Branch.create(IA32_JMP,
+        nextBB.makeJumpTarget())));
+    maxintBB.insertOut(nextBB);
+    
+    // In case of NaN result is 0
+    nanBB.appendInstruction(CPOS(s, MIR_Move.create(IA32_MOV,
+                                                    result.copyRO(),
+                                                    IC(0))));
+    nanBB.insertOut(nextBB);
+    return nextInstr; 
   }
 
   private static OPT_Instruction long_shl(OPT_Instruction s, OPT_IR ir) {
@@ -147,7 +230,7 @@ public abstract class OPT_ComplexLIR2MIRExpansion extends OPT_IRTools {
       // shift is of a constant so set up registers
       int low = val1.asLongConstant().lower32();
       int high = val1.asLongConstant().upper32();
-      
+
       testBB.appendInstruction(CPOS(s, MIR_Move.create(IA32_MOV,
           new OPT_RegisterOperand(lowlhsReg, VM_TypeReference.Int),
           IC(low))));
@@ -188,7 +271,7 @@ public abstract class OPT_ComplexLIR2MIRExpansion extends OPT_IRTools {
     shift64BB.appendInstruction(CPOS(s, MIR_Move.create(IA32_MOV,
         new OPT_RegisterOperand(lowlhsReg, VM_TypeReference.Int),
         IC(0))));
-    
+
     shift64BB.appendInstruction(CPOS(s, MIR_Branch.create(IA32_JMP,
         nextBB.makeJumpTarget())));
     shift64BB.insertOut(nextBB);
@@ -247,7 +330,7 @@ public abstract class OPT_ComplexLIR2MIRExpansion extends OPT_IRTools {
       // shift is of a constant so set up registers
       int low = val1.asLongConstant().lower32();
       int high = val1.asLongConstant().upper32();
-      
+
       testBB.appendInstruction(CPOS(s, MIR_Move.create(IA32_MOV,
           new OPT_RegisterOperand(lowlhsReg, VM_TypeReference.Int),
           IC(low))));
@@ -293,7 +376,7 @@ public abstract class OPT_ComplexLIR2MIRExpansion extends OPT_IRTools {
     shift64BB.appendInstruction(CPOS(s, MIR_BinaryAcc.create(IA32_SAR,
         new OPT_RegisterOperand(lhsReg, VM_TypeReference.Int),
         IC(31))));
-    
+
     shift64BB.appendInstruction(CPOS(s, MIR_Branch.create(IA32_JMP,
         nextBB.makeJumpTarget())));
     shift64BB.insertOut(nextBB);
@@ -352,7 +435,7 @@ public abstract class OPT_ComplexLIR2MIRExpansion extends OPT_IRTools {
       // shift is of a constant so set up registers
       int low = val1.asLongConstant().lower32();
       int high = val1.asLongConstant().upper32();
-      
+
       testBB.appendInstruction(CPOS(s, MIR_Move.create(IA32_MOV,
           new OPT_RegisterOperand(lowlhsReg, VM_TypeReference.Int),
           IC(low))));
@@ -393,7 +476,7 @@ public abstract class OPT_ComplexLIR2MIRExpansion extends OPT_IRTools {
     shift64BB.appendInstruction(CPOS(s, MIR_Move.create(IA32_MOV,
         new OPT_RegisterOperand(lhsReg, VM_TypeReference.Int),
         IC(0))));
-    
+
     shift64BB.appendInstruction(CPOS(s, MIR_Branch.create(IA32_JMP,
         nextBB.makeJumpTarget())));
     shift64BB.insertOut(nextBB);
@@ -438,7 +521,7 @@ public abstract class OPT_ComplexLIR2MIRExpansion extends OPT_IRTools {
     ir.cfg.linkInCodeOrder(testBB, mul64BB);
     OPT_BasicBlock mul32BB = testBB.splitNodeAt(s,ir);
     ir.cfg.linkInCodeOrder(testBB, mul32BB);
-    
+
     // Source registers
     OPT_Register lhsReg = Binary.getResult(s).register;
     OPT_Register lowlhsReg = ir.regpool.getSecondReg(lhsReg);
@@ -471,10 +554,10 @@ public abstract class OPT_ComplexLIR2MIRExpansion extends OPT_IRTools {
         new OPT_RegisterOperand(tmp, VM_TypeReference.Int))));
     testBB.appendInstruction(CPOS(s, MIR_Move.create(IA32_MOV,
         new OPT_RegisterOperand(edx, VM_TypeReference.Int),
-        new OPT_RegisterOperand(lowrhsReg1, VM_TypeReference.Int))));            
+        new OPT_RegisterOperand(lowrhsReg1, VM_TypeReference.Int))));
     testBB.appendInstruction(CPOS(s, MIR_Move.create(IA32_MOV,
         new OPT_RegisterOperand(eax, VM_TypeReference.Int),
-        new OPT_RegisterOperand(lowrhsReg2, VM_TypeReference.Int))));            
+        new OPT_RegisterOperand(lowrhsReg2, VM_TypeReference.Int))));
     testBB.appendInstruction(CPOS(s, MIR_CondBranch.create(IA32_JCC,
         OPT_IA32ConditionOperand.NE(),
         mul64BB.makeJumpTarget(),
@@ -482,7 +565,7 @@ public abstract class OPT_ComplexLIR2MIRExpansion extends OPT_IRTools {
     testBB.insertOut(mul64BB);
     testBB.insertOut(mul32BB);
 
-    // multiply 32: on entry EAX = d, EDX = b, tmp = a 
+    // multiply 32: on entry EAX = d, EDX = b, tmp = a
     // edx:eax = b * d
     mul32BB.appendInstruction(CPOS(s, MIR_Multiply.create(IA32_MUL,
         new OPT_RegisterOperand(edx, VM_TypeReference.Int),
@@ -490,7 +573,7 @@ public abstract class OPT_ComplexLIR2MIRExpansion extends OPT_IRTools {
         new OPT_RegisterOperand(edx, VM_TypeReference.Int))));
     mul32BB.appendInstruction(MIR_Branch.create(IA32_JMP, nextBB.makeJumpTarget()));
     mul32BB.insertOut(nextBB);
-    
+
     // multiply 64: on entry EAX = d, EDX = b, tmp = a
     // edx = b imul c
     // tmp = a imul d
@@ -525,7 +608,7 @@ public abstract class OPT_ComplexLIR2MIRExpansion extends OPT_IRTools {
     s.remove();
     return nextInstr;
   }
-  
+
   private static OPT_Instruction long_ifcmp(OPT_Instruction s, OPT_IR ir) {
     OPT_Instruction nextInstr = s.nextInstructionInCodeOrder();
     OPT_ConditionOperand cond = IfCmp.getCond(s);

@@ -12,12 +12,11 @@
  */
 package org.jikesrvm.runtime;
 
-import static org.jikesrvm.ArchitectureSpecific.VM_StackframeLayoutConstants.STACKFRAME_SENTINEL_FP;
 import static org.jikesrvm.ArchitectureSpecific.VM_StackframeLayoutConstants.INVISIBLE_METHOD_ID;
+import static org.jikesrvm.ArchitectureSpecific.VM_StackframeLayoutConstants.STACKFRAME_SENTINEL_FP;
 import org.jikesrvm.VM;
 import org.jikesrvm.VM_Options;
 import org.jikesrvm.classloader.VM_Atom;
-import org.jikesrvm.classloader.VM_DynamicTypeCheck;
 import org.jikesrvm.classloader.VM_MemberReference;
 import org.jikesrvm.classloader.VM_Method;
 import org.jikesrvm.classloader.VM_NormalMethod;
@@ -27,6 +26,7 @@ import org.jikesrvm.compilers.opt.VM_OptCompiledMethod;
 import org.jikesrvm.compilers.opt.VM_OptEncodedCallSiteTree;
 import org.jikesrvm.compilers.opt.VM_OptMachineCodeMap;
 import org.jikesrvm.scheduler.VM_Scheduler;
+import org.jikesrvm.scheduler.VM_Thread;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -49,14 +49,14 @@ public class VM_StackTrace {
 
   /** Index of this stack trace */
   private final int traceIndex;
-  
+
   /** Should this be (or is this) a verbose stack trace? */
   private boolean isVerbose() {
-    // If we're printing verbose stack traces...   
+    // If we're printing verbose stack traces...
     // AND this particular trace meets the periodicity requirements
     return (VM.VerboseStackTracePeriod > 0) &&
     (((traceIndex - 1) % VM.VerboseStackTracePeriod) == 0);
-    
+
   }
 
   /**
@@ -93,9 +93,19 @@ public class VM_StackTrace {
   private int walkFrames(boolean record) {
     int stackFrameCount = 0;
     VM.disableGC(); // so fp & ip don't change under our feet
-    Address fp = VM_Magic.getFramePointer();
-    Address ip = VM_Magic.getReturnAddress(fp);
-    fp = VM_Magic.getCallerFramePointer(fp);
+    VM_Thread stackTraceThread = VM_Scheduler.getCurrentThread().getThreadForStackTrace();
+    Address fp;
+    Address ip;
+    if (stackTraceThread != VM_Scheduler.getCurrentThread()) {
+      /* Stack trace for a sleeping thread */
+      fp = stackTraceThread.contextRegisters.getInnermostFramePointer();
+      ip = stackTraceThread.contextRegisters.getInnermostInstructionAddress();
+    } else {
+      /* Stack trace for the current thread */
+      fp = VM_Magic.getFramePointer();
+      ip = VM_Magic.getReturnAddress(fp);
+      fp = VM_Magic.getCallerFramePointer(fp);
+    }
     while (VM_Magic.getCallerFramePointer(fp).NE(STACKFRAME_SENTINEL_FP)) {
       int compiledMethodId = VM_Magic.getCompiledMethodID(fp);
       if (compiledMethodId != INVISIBLE_METHOD_ID) {
@@ -135,7 +145,7 @@ public class VM_StackTrace {
     private final boolean isInvisible;
     /** Is this a hardware trap method? */
     private final boolean isTrap;
-    /** Constructor for non-opt compiled methods */     
+    /** Constructor for non-opt compiled methods */
     Element(VM_CompiledMethod cm, int off) {
       isInvisible = (cm == null);
       if (!isInvisible) {
@@ -236,14 +246,14 @@ public class VM_StackTrace {
               VM_Method method = VM_MemberReference.getMemberRef(mid).asMethodReference().getResolvedMember();
               int lineNumber = ((VM_NormalMethod)method).getLineNumberForBCIndex(bci);
               elements[element] = new Element(method, lineNumber);
-              element++;        
+              element++;
             }
           }
         }
       }
     }
     return elements;
-  } 
+  }
 
   /**
    * Count number of stack frames including those inlined by the opt compiler
@@ -284,11 +294,11 @@ public class VM_StackTrace {
    * trace. As we're working with the compiled methods we're assumig the
    * constructor of the exception won't have been inlined into the throwing
    * method.
-   * 
+   *
    * @param cause the cause of generating the stack trace marking the end of the
    *          frames to elide
    * @return the index of the method throwing the exception or else 0
-   */  
+   */
   private int firstRealMethod(Throwable cause) {
     /* We expect a hardware trap to look like:
      * at org.jikesrvm.runtime.VM_StackTrace.<init>(VM_StackTrace.java:78)
@@ -311,12 +321,37 @@ public class VM_StackTrace {
      * at java.lang.LinkageError.<init>(LinkageError.java:72)
      * at java.lang.ExceptionInInitializerError.<init>(ExceptionInInitializerError.java:85)
      * at java.lang.ExceptionInInitializerError.<init>(ExceptionInInitializerError.java:75)
+     *
+     * and an OutOfMemoryError to look like:
+     * at org.jikesrvm.scheduler.VM_Processor.dispatch(VM_Processor.java:211)
+     * at org.jikesrvm.scheduler.VM_Thread.morph(VM_Thread.java:1125)
+     * ...
+     * at org.jikesrvm.memorymanagers.mminterface.MM_Interface.allocateSpace(MM_Interface.java:613)
+     * ...
+     * at org.jikesrvm.runtime.VM_Runtime.unresolvedNewArray(VM_Runtime.java:401)
      */
     if (VM_Options.stackTraceFull) {
       return 0;
     } else {
-      // (1) remove any VM_StackTrace frames
       int element = 0;
+      // Deal with OutOfMemoryError
+      if (cause instanceof OutOfMemoryError) {
+        // (1) search until VM_Runtime
+        while((element < compiledMethods.length) &&
+            (compiledMethods[element] != null) &&
+            compiledMethods[element].method.getDeclaringClass().getClassForType() != VM_Runtime.class) {
+          element++;
+        }
+        // (2) continue until not VM_Runtime
+        while((element < compiledMethods.length) &&
+            (compiledMethods[element] != null) &&
+            compiledMethods[element].method.getDeclaringClass().getClassForType() == VM_Runtime.class) {
+          element++;
+        }
+        return element;
+      }
+
+      // (1) remove any VM_StackTrace frames
       while((element < compiledMethods.length) &&
           (compiledMethods[element] != null) &&
           compiledMethods[element].method.getDeclaringClass().getClassForType() == VM_StackTrace.class) {
@@ -367,7 +402,7 @@ public class VM_StackTrace {
    * @param first the first real method of the stack trace
    * @return compiledMethods.length-1 if no non-VM methods found else the index of
    *         the method
-   */  
+   */
   private int lastRealMethod(int first) {
     /* We expect an exception on the main thread to look like:
      * at <invisible method>(Unknown Source:0)
@@ -375,7 +410,7 @@ public class VM_StackTrace {
      * at org.jikesrvm.scheduler.VM_MainThread.run(VM_MainThread.java:195)
      * at org.jikesrvm.scheduler.VM_Thread.run(VM_Thread.java:534)
      * at org.jikesrvm.scheduler.VM_Thread.startoff(VM_Thread.java:1113
-     * 
+     *
      * and on another thread to look like:
      * at org.jikesrvm.scheduler.VM_Thread.run(VM_Thread.java:534)
      * at org.jikesrvm.scheduler.VM_Thread.startoff(VM_Thread.java:1113)

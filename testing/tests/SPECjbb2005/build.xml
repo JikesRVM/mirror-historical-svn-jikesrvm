@@ -12,10 +12,13 @@
  -->
 <project name="SPECjbb2005" default="test" basedir=".">
 
+  <condition property="test.time.limit" value="1800">
+    <equals arg1="${test.mode}" arg2="gcstress"/>
+  </condition>
   <condition property="test.time.limit" value="2700" else="1000">
     <equals arg1="${test.mode}" arg2="performance"/>
   </condition>
-  <condition property="test.max.heapsize" value="600" else="400">
+  <condition property="test.max.heapsize" value="600" else="500">
     <equals arg1="${test.mode}" arg2="performance"/>
   </condition>
 

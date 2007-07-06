@@ -16,10 +16,9 @@ import org.jikesrvm.VM;
 import org.jikesrvm.mm.mmtk.Collection;
 import org.jikesrvm.mm.mmtk.Lock;
 import org.jikesrvm.scheduler.VM_Scheduler;
-import org.jikesrvm.scheduler.VM_Thread;
 import org.jikesrvm.scheduler.greenthreads.VM_GreenScheduler;
 import org.jikesrvm.scheduler.greenthreads.VM_GreenThread;
-import org.vmmagic.pragma.Interruptible;
+import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.Uninterruptible;
 
 /**
@@ -65,10 +64,10 @@ public class VM_Handshake {
    * collector thread, which will disable further thread switching on
    * the processor until it has completed the collection.
    */
-  @Interruptible
+  @LogicallyUninterruptible
+  @Uninterruptible
   public void requestAndAwaitCompletion(int why) {
-    if (request()) {
-      gcTrigger = why;
+    if (request(why)) {
       if (verbose >= 1) VM.sysWriteln("GC Message: VM_Handshake.requestAndAwaitCompletion - yielding");
       /* allow a gc thread to run */
       VM_Scheduler.yield();
@@ -84,8 +83,8 @@ public class VM_Handshake {
    * this call at an otherwise unsafe point.
    */
   @Uninterruptible
-  public void requestAndContinue() {
-    request();
+  public void requestAndContinue(int why) {
+    request(why);
   }
 
   @Uninterruptible
@@ -147,8 +146,8 @@ public class VM_Handshake {
     VM_CollectorThread.participantCount[0] = 0;
 
     /* reset rendezvous counters to 0, the decision about which
- * collector threads will participate has moved to the run method
- * of CollectorThread */
+     * collector threads will participate has moved to the run method
+     * of CollectorThread */
     VM_CollectorThread.gcBarrier.resetRendezvous();
 
     /* Deque and schedule collector threads on ALL RVM Processors.
@@ -179,10 +178,10 @@ public class VM_Handshake {
   @Uninterruptible
   private int waitForPrecedingGC() {
     /*
-    * Get the number of GC threads.  Include NativeDaemonProcessor
-    * collector thread in the count.  If it exists, check for null to
-    * allow builds without a NativeDaemon (see VM_Scheduler)
-    */
+     * Get the number of GC threads.  Include NativeDaemonProcessor
+     * collector thread in the count.  If it exists, check for null to
+     * allow builds without a NativeDaemon (see VM_Scheduler)
+     */
     int maxCollectorThreads = VM_GreenScheduler.numProcessors;
 
     /* Wait for all gc threads to finish preceeding collection cycle */
@@ -231,7 +230,7 @@ public class VM_Handshake {
    * @return true if the completion flag is not already set.
    */
   @Uninterruptible
-  private boolean request() {
+  private boolean request(int why) {
     lock.acquire();
     if (completionFlag) {
       if (verbose >= 1) {
@@ -240,6 +239,7 @@ public class VM_Handshake {
       lock.release();
       return false;
     }
+    if (why > gcTrigger) gcTrigger = why;
     if (requestFlag) {
       if (verbose >= 1) {
         VM.sysWriteln("GC Message: mutator: already in progress");

@@ -14,7 +14,6 @@ package org.jikesrvm.compilers.opt;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
-import java.lang.reflect.InvocationTargetException;
 import org.jikesrvm.VM;
 import static org.jikesrvm.VM_SizeConstants.BITS_IN_ADDRESS;
 import static org.jikesrvm.VM_SizeConstants.BITS_IN_INT;
@@ -263,7 +262,7 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
    * Constant fold TIB operations?  Default is true, flip to avoid
    * consuming precious JTOC slots to hold new constant values.
    */
-  public static final boolean CF_TIB = false;
+  public static final boolean CF_TIB = true;
 
   /**
    * Effect of the simplification on Def-Use chains
@@ -830,7 +829,7 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
       Empty.mutate(s, NOP);
       return DefUseEffect.REDUCED;
     } else if (ans == OPT_Constants.NO) {
-      VM_Type rType = rhsType.peekResolvedType();
+      VM_Type rType = rhsType.peekType();
       if (rType != null && rType.isClassType() && rType.asClass().isFinal()) {
         // only final (or precise) rhs types can be optimized since rhsType may be conservative
         Trap.mutate(s, TRAP, null, OPT_TrapCodeOperand.CheckCast());
@@ -856,7 +855,7 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
       byte ans = OPT_ClassLoaderProxy.includesType(lhsType, rhsType);
       // NOTE: OPT_Constants.YES doesn't help because ref may be null and null instanceof T is false
       if (ans == OPT_Constants.NO) {
-        VM_Type rType = rhsType.peekResolvedType();
+        VM_Type rType = rhsType.peekType();
         if (rType != null && rType.isClassType() && rType.asClass().isFinal()) {
           // only final (or precise) rhs types can be optimized since rhsType may be conservative
           Move.mutate(s, INT_MOVE, InstanceOf.getClearResult(s), IC(0));
@@ -880,7 +879,7 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
         Move.mutate(s, INT_MOVE, InstanceOf.getClearResult(s), IC(1));
         return DefUseEffect.MOVE_FOLDED;
       } else if (ans == OPT_Constants.NO) {
-        VM_Type rType = rhsType.peekResolvedType();
+        VM_Type rType = rhsType.peekType();
         if (rType != null && rType.isClassType() && rType.asClass().isFinal()) {
           // only final (or precise) rhs types can be optimized since rhsType may be conservative
           Move.mutate(s, INT_MOVE, InstanceOf.getClearResult(s), IC(0));
@@ -900,9 +899,9 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
     } else {
       OPT_Operand ref = StoreCheck.getRef(s);
       VM_TypeReference arrayTypeRef = ref.getType();
-      VM_Type typeOfIMElem = arrayTypeRef.getInnermostElementType().peekResolvedType();
+      VM_Type typeOfIMElem = arrayTypeRef.getInnermostElementType().peekType();
       if (typeOfIMElem != null) {
-        VM_Type typeOfVal = val.getType().peekResolvedType();
+        VM_Type typeOfVal = val.getType().peekType();
         if ((typeOfIMElem == typeOfVal) && (typeOfIMElem.isPrimitiveType() || typeOfIMElem.asClass().isFinal())) {
           // Writing something of a final type to an array of that
           // final type is safe
@@ -937,9 +936,9 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
     OPT_Operand val = StoreCheck.getVal(s);
     OPT_Operand ref = StoreCheck.getRef(s);
     VM_TypeReference arrayTypeRef = ref.getType();
-    VM_Type typeOfIMElem = arrayTypeRef.getInnermostElementType().peekResolvedType();
+    VM_Type typeOfIMElem = arrayTypeRef.getInnermostElementType().peekType();
     if (typeOfIMElem != null) {
-      VM_Type typeOfVal = val.getType().peekResolvedType();
+      VM_Type typeOfVal = val.getType().peekType();
       if ((typeOfIMElem == typeOfVal) && (typeOfIMElem.isPrimitiveType() || typeOfIMElem.asClass().isFinal())) {
         // Writing something of a final type to an array of that
         // final type is safe
@@ -984,7 +983,7 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
         Empty.mutate(s, NOP);
         return DefUseEffect.REDUCED;
       } else if (ans == OPT_Constants.NO) {
-        VM_Type rType = rhsType.peekResolvedType();
+        VM_Type rType = rhsType.peekType();
         if (rType != null && rType.isClassType() && rType.asClass().isFinal()) {
           // only final (or precise) rhs types can be optimized since rhsType may be conservative
           Trap.mutate(s, TRAP, null, OPT_TrapCodeOperand.MustImplement());
@@ -3213,8 +3212,8 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
           return DefUseEffect.TRAP_REDUCED;
         } else if (calleeThis.isConstant() || calleeThis.asRegister().isPreciseType()) {
           VM_TypeReference calleeClass = calleeThis.getType();
-          if (calleeClass.isResolved() && calleeClass.peekResolvedType().isResolved()) {
-            methOp.refine(calleeClass.peekResolvedType());
+          if (calleeClass.isResolved() && calleeClass.peekType().isResolved()) {
+            methOp.refine(calleeClass.peekType());
             return DefUseEffect.UNCHANGED;
           }
         }
@@ -3262,7 +3261,7 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
         catch (Throwable e) { t = e;}
         if (t != null) {
           // Call threw exception so leave in to generate at execution time
-          return DefUseEffect.UNCHANGED;            
+          return DefUseEffect.UNCHANGED;
         }
         if(method.getReturnType().isVoidType()) {
           Empty.mutate(s, NOP);
@@ -3348,7 +3347,7 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
       return new OPT_ObjectConstantOperand(x, Offset.zero());
     }
   }
-  
+
   private static DefUseEffect getField(OPT_Instruction s) {
     if (CF_FIELDS) {
       OPT_Operand ref = GetField.getRef(s);
@@ -3385,30 +3384,21 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
   }
 
   private static DefUseEffect getObjTib(OPT_Instruction s) {
-    if (CF_TIB) {
+    // Constant folding object tibs is disabled as it causes
+    // failures in SPECjbb200* benchmarks. See RVM-16
+    if (CF_TIB && false) {
       OPT_Operand op = GuardedUnary.getVal(s);
-      if (VM.VerifyAssertions && op.isNullConstant()) {
+      if (op.isNullConstant()) {
         // Simplify to an unreachable operand, this instruction is dead code
         // guarded by a nullcheck that should already have been simplified
         OPT_RegisterOperand result = GetField.getClearResult(s);
         Move.mutate(s, OPT_IRTools.getMoveOp(result.getType()), result, new OPT_UnreachableOperand());
         return DefUseEffect.MOVE_FOLDED;
       } else if (op.isConstant()) {
-        try {
-          // NB as the operand is final it must already have been
-          // resolved.
-          VM_Type type = op.getType().resolve();
-          Move.mutate(s, REF_MOVE, GuardedUnary.getClearResult(s), new OPT_TIBConstantOperand(type));
+        final VM_TypeReference typeRef = op.getType();
+        if (typeRef.isResolved()) {
+          Move.mutate(s, REF_MOVE, GuardedUnary.getClearResult(s), new OPT_TIBConstantOperand(op.getType().peekType()));
           return DefUseEffect.MOVE_FOLDED;
-        } catch (NoClassDefFoundError e) {
-          if (VM.runningVM) {
-            // this is unexpected
-            throw e;
-          } else {
-            // Class not found during bootstrap due to chasing a class
-            // only valid in the bootstrap JVM
-            System.out.println("Failed to resolve: " + op.getType() + ": " + e.getMessage());
-          }
         }
       } else {
         OPT_RegisterOperand rop = op.asRegister();
@@ -3417,7 +3407,7 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
           Move.mutate(s,
                       REF_MOVE,
                       GuardedUnary.getClearResult(s),
-                      new OPT_TIBConstantOperand(typeRef.peekResolvedType()));
+                      new OPT_TIBConstantOperand(typeRef.peekType()));
           return DefUseEffect.MOVE_FOLDED;
         }
       }
@@ -3432,7 +3422,7 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
         Move.mutate(s,
                     REF_MOVE,
                     Unary.getClearResult(s),
-                    new OPT_TIBConstantOperand(typeOp.getTypeRef().peekResolvedType()));
+                    new OPT_TIBConstantOperand(typeOp.getTypeRef().peekType()));
         return DefUseEffect.MOVE_FOLDED;
       }
     }

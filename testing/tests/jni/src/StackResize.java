@@ -10,7 +10,8 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-import org.jikesrvm.*;
+
+import org.jikesrvm.VM;
 import org.jikesrvm.runtime.VM_Magic;
 
 /**
@@ -33,7 +34,7 @@ class StackResize
   public static native boolean expectNoResize(int count);
 
   /* Java callback from native
-   * From here we do another native call which should not cause the 
+   * From here we do another native call which should not cause the
    * stack to resize because there are native frames on the stack
    */
   public static boolean makeSecondNativeCall() {
@@ -53,10 +54,10 @@ class StackResize
   public static boolean checkResizeOccurred(int previousStackSize) {
     VM_Thread th = VM_Thread.getCurrentThread();
     int currentStackSize = VM_Magic.getArrayLength(th.stack);
-    
+
     if (verbose) {
-      VM.sysWrite("check resize: previous "); 
-      VM.sysWrite(previousStackSize); VM.sysWrite(", current "); 
+      VM.sysWrite("check resize: previous ");
+      VM.sysWrite(previousStackSize); VM.sysWrite(", current ");
       VM.sysWrite(currentStackSize); VM.sysWrite("\n");
     }
 
@@ -70,9 +71,9 @@ class StackResize
   /* recurse until the frame is within a few words of the
    * stack limit, then call a native method expecting the
    * stack to get resized.
-   */ 
+   */
   @NoOptCompile
-  public static boolean nativeWithStackAlmostFull() { 
+  public static boolean nativeWithStackAlmostFull() {
     VM_Thread th = VM_Thread.getCurrentThread();
     // VM.disableGC();   // holding frame pointer
     int fp = VM_Magic.getFramePointer();
@@ -80,7 +81,7 @@ class StackResize
 
     // debug printing:  OK until last frame, will cause stack overflow
     // because sysWrite will need many frames
-    // VM.sysWrite("filling: left "); 
+    // VM.sysWrite("filling: left ");
     // VM.sysWrite(spaceLeft); VM.sysWrite("\n");
     // recursion to fill stack up to 3 words left
     if ((spaceLeft) > (500*4)) {
@@ -110,9 +111,9 @@ class StackResize
 
     if (args.length!=0) {
       if (args[0].equals("-quiet")) {
-        verbose = false;        
+        verbose = false;
         // for verbose native, have to edit the flag in StackResize.c
-      }         
+      }
     }
 
     if (verbose)
@@ -127,7 +128,7 @@ class StackResize
         VM.sysWrite("StackResize:  normal stack size already exceeds native requirement, stack will not get resized.\n  Set up the system configuration for smaller normal stack:  VM_StackFrameLayoutConstants.java\n");
       VM.sysWrite("FAIL: StackResize\n");
     }
-    
+
     if (verbose)
       VM.sysWrite("Starting test 1\n");
 
@@ -136,7 +137,7 @@ class StackResize
     checkTest(0, returnValue, "first stack resize");
 
     // Test 2
-    // After the stack has been resized once, fill up the stack 
+    // After the stack has been resized once, fill up the stack
     // and call native again to force a second resize
     if (verbose)
       VM.sysWrite("Starting test 2\n");
@@ -146,7 +147,7 @@ class StackResize
 
     if (allTestPass)
       System.out.println("PASS: StackResize");
-    else 
+    else
       System.out.println("FAIL: StackResize");
  }
 

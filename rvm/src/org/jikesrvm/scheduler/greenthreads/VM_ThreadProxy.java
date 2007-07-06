@@ -14,6 +14,7 @@ package org.jikesrvm.scheduler.greenthreads;
 
 import org.jikesrvm.runtime.VM_Entrypoints;
 import org.jikesrvm.scheduler.VM_Synchronization;
+import org.jikesrvm.scheduler.VM_ProcessorLock;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Offset;
 
@@ -39,10 +40,9 @@ public final class VM_ThreadProxy {
    */
   private volatile VM_GreenThread patron;
   /**
-   * The offset to the patron field for atomic swaps
+   * Ensure atomicity of certain events
    */
-  private static final Offset patronOffset =
-    VM_Entrypoints.threadProxyPatronField.getOffset();
+  final VM_ProcessorLock mutex = new VM_ProcessorLock();
   /** When the thread is scheduled to wake up if it's on the wakeup queue */
   private final long wakeupCycle;
   /** The next element in the waiting queue */
@@ -70,17 +70,12 @@ public final class VM_ThreadProxy {
    * @return null means the thread has already been scheduled (ignore)
    */
   public VM_GreenThread unproxy() {
+    mutex.lock("Unproxying thread");
     VM_GreenThread t = patron;
     if (t != null) {
-      if (VM_Synchronization.tryCompareAndSwap(this, patronOffset, t, null)) {
-        // we succeeded in nullifying the patron, so nullify the proxy holder in
-        // the thread
-        t.threadProxy = null;
-      } else {
-        // other thread nullified first proxy in patron
-        t = null;
-      }
+      t.threadProxy = null;
     }
+    mutex.unlock();
     return t;
   }
 

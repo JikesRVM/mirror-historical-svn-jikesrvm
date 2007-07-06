@@ -185,6 +185,8 @@ public class VM_Entrypoints implements VM_Constants {
   public static final VM_Field maxintFloatField =
     getField(org.jikesrvm.runtime.VM_Math.class, "maxintF", float.class);
   /** IEEEmagic constant */
+  public static final VM_Field maxlongFloatField =
+    getField(org.jikesrvm.runtime.VM_Math.class, "maxlongF", float.class);
   public static final VM_Field IEEEmagicField =
       getField(org.jikesrvm.runtime.VM_Math.class, "IEEEmagic", double.class);
   /** special double value for use in int <--> double conversions */
@@ -216,8 +218,6 @@ public class VM_Entrypoints implements VM_Constants {
                "invokeNativeFunctionInstructions",
                ArchCodeArray);
 
-  public static final VM_Field threadProxyPatronField = 
-    getField(org.jikesrvm.scheduler.greenthreads.VM_ThreadProxy.class, "patron", org.jikesrvm.scheduler.greenthreads.VM_GreenThread.class);
   public static final VM_Field suspendPendingField = 
     getField(org.jikesrvm.scheduler.greenthreads.VM_GreenThread.class, "suspendPending", int.class);
   public static final VM_Field scratchStorageField =

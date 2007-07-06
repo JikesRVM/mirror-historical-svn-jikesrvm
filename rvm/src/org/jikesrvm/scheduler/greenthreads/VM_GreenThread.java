@@ -513,6 +513,10 @@ public class VM_GreenThread extends VM_Thread {
    */
   @Interruptible
   private Throwable waitInternal2(Object o, boolean hasTimeout, long millis) {
+    // Check early otherwise we'll fail an assert when creating the heavy lock
+    if (!VM_ObjectModel.holdsLock(o, VM_Scheduler.getCurrentThread())) {
+      return new IllegalMonitorStateException("waiting on " + o);      
+    }
     // get lock for object
     VM_GreenLock l = (VM_GreenLock)VM_ObjectModel.getHeavyLock(o, true);
     // this thread is supposed to own the lock on o

@@ -18,10 +18,10 @@ import org.jikesrvm.classloader.VM_TypeReference;
 import org.jikesrvm.compilers.opt.OPT_GenericStackManager;
 import org.jikesrvm.compilers.opt.OPT_OptimizingCompilerException;
 import org.jikesrvm.compilers.opt.OPT_RegisterAllocatorState;
+import static org.jikesrvm.compilers.opt.ia32.OPT_PhysicalRegisterConstants.DOUBLE_REG;
 import static org.jikesrvm.compilers.opt.ia32.OPT_PhysicalRegisterConstants.DOUBLE_VALUE;
 import static org.jikesrvm.compilers.opt.ia32.OPT_PhysicalRegisterConstants.FLOAT_VALUE;
 import static org.jikesrvm.compilers.opt.ia32.OPT_PhysicalRegisterConstants.INT_REG;
-import static org.jikesrvm.compilers.opt.ia32.OPT_PhysicalRegisterConstants.DOUBLE_REG;
 import static org.jikesrvm.compilers.opt.ia32.OPT_PhysicalRegisterConstants.INT_VALUE;
 import org.jikesrvm.compilers.opt.ir.Empty;
 import org.jikesrvm.compilers.opt.ir.MIR_BinaryAcc;
@@ -48,14 +48,14 @@ import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_FMOV_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_FNINIT;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_FNSAVE;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_FRSTOR;
-import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_MOVQ;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_LEA;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_MOV;
-import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_MOV_opcode;
+import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_MOVQ;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_MOVSD;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_MOVSD_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_MOVSS;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_MOVSS_opcode;
+import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_MOV_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_POP;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_PUSH;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IA32_RET_opcode;
@@ -75,7 +75,6 @@ import org.jikesrvm.compilers.opt.ir.ia32.OPT_IA32ConditionOperand;
 import org.jikesrvm.compilers.opt.ir.ia32.OPT_PhysicalDefUse;
 import org.jikesrvm.compilers.opt.ir.ia32.OPT_PhysicalRegisterSet;
 import org.jikesrvm.ia32.VM_ArchConstants;
-
 import static org.jikesrvm.ia32.VM_StackframeLayoutConstants.STACKFRAME_ALIGNMENT;
 import org.jikesrvm.runtime.VM_Entrypoints;
 import org.vmmagic.unboxed.Offset;
@@ -266,7 +265,7 @@ public abstract class OPT_StackManager extends OPT_GenericStackManager {
 
       if (VM_ArchConstants.SSE2_FULL) {
         for(int i=0; i < 8; i++) {
-          fsaveLocation = allocateNewSpillLocation(DOUBLE_REG);  
+          fsaveLocation = allocateNewSpillLocation(DOUBLE_REG);
         }
       } else {
         // Grab 108 bytes (same as 27 4-byte spills) in the stack
@@ -571,12 +570,12 @@ public abstract class OPT_StackManager extends OPT_GenericStackManager {
    * @param inst the first instruction after the prologue.
    */
   private void saveFloatingPointState(OPT_Instruction inst) {
-    
+
     if (VM_ArchConstants.SSE2_FULL) {
       OPT_PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
       for (int i=0; i < 8; i++) {
-        inst.insertBefore(MIR_Move.create(IA32_MOVQ, 
-            new OPT_StackLocationOperand(true, -fsaveLocation + (i * 8), 8), 
+        inst.insertBefore(MIR_Move.create(IA32_MOVQ,
+            new OPT_StackLocationOperand(true, -fsaveLocation + (i * 8), 8),
             new OPT_RegisterOperand(phys.getFPR(i), VM_TypeReference.Long)));
       }
     } else {
@@ -594,7 +593,7 @@ public abstract class OPT_StackManager extends OPT_GenericStackManager {
     if (VM_ArchConstants.SSE2_FULL) {
       OPT_PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
       for (int i=0; i < 8; i++) {
-        inst.insertBefore(MIR_Move.create(IA32_MOVQ, 
+        inst.insertBefore(MIR_Move.create(IA32_MOVQ,
             new OPT_RegisterOperand(phys.getFPR(i), VM_TypeReference.Long),
             new OPT_StackLocationOperand(true, -fsaveLocation + (i * 8), 8)));
       }
