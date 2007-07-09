@@ -332,67 +332,8 @@ public abstract class VM_Thread {
   /** Used by GC to determine collection success */
   private int collectionAttempt;
 
-  /** Set the initial attempt. */
-  public void reportCollectionAttempt() {
-    collectionAttempt++;
-  }
-
-  /** Set the initial attempt. */
-  public int getCollectionAttempt() {
-    return collectionAttempt;
-  }
-
-  /** Resets the attempts. */
-  public void resetCollectionAttempts() {
-    collectionAttempt = 0;
-  }
-  
-  /** Get the physical allocation failed flag. */
-  public boolean physicalAllocationFailed() {
-    return physicalAllocationFailed;
-  }
-
-  /** Get the physical allocation failed flag. */
-  public void setPhysicalAllocationFailed() {
-    physicalAllocationFailed = true;
-  }
-
-  /** Clear the physical allocation failed flag. */
-  public void clearPhysicalAllocationFailed() {
-    physicalAllocationFailed = false;
-  }
-
   /** The OOME to throw */
   private OutOfMemoryError outOfMemoryError;
-
-  /**
-   * Returns the outstanding OutOfMemoryError.
-   */
-  public OutOfMemoryError getOutOfMemoryError() {
-    return outOfMemoryError;
-  }
-  
-  /**
-   * Sets the outstanding OutOfMemoryError.
-   */
-  public void setOutOfMemoryError(OutOfMemoryError oome) {
-    outOfMemoryError = oome;
-  }
-  
-  /**
-   * Get the thread to use for building stack traces.
-   */
-  @Uninterruptible
-  public VM_Thread getThreadForStackTrace() {
-    return this;
-  }
-  
-  /**
-   * Clears the outstanding OutOfMemoryError.
-   */
-  public void clearOutOfMemoryError() {
-    outOfMemoryError = null;
-  }
   
   /*
    * Enumerate different types of yield points for sampling
@@ -805,7 +746,6 @@ public abstract class VM_Thread {
     }
 
     // become another thread
-    // begin critical section
     //
     VM_Scheduler.releaseThreadSlot(threadSlot, this);
 
@@ -1765,6 +1705,67 @@ public abstract class VM_Thread {
    */
   @Interruptible
   public abstract String getThreadState();
+  
+
+
+  /** Set the initial attempt. */
+  public void reportCollectionAttempt() {
+    collectionAttempt++;
+  }
+
+  /** Set the initial attempt. */
+  public int getCollectionAttempt() {
+    return collectionAttempt;
+  }
+
+  /** Resets the attempts. */
+  public void resetCollectionAttempts() {
+    collectionAttempt = 0;
+  }
+  
+  /** Get the physical allocation failed flag. */
+  public boolean physicalAllocationFailed() {
+    return physicalAllocationFailed;
+  }
+
+  /** Get the physical allocation failed flag. */
+  public void setPhysicalAllocationFailed() {
+    physicalAllocationFailed = true;
+  }
+
+  /** Clear the physical allocation failed flag. */
+  public void clearPhysicalAllocationFailed() {
+    physicalAllocationFailed = false;
+  }
+
+  /**
+   * Returns the outstanding OutOfMemoryError.
+   */
+  public OutOfMemoryError getOutOfMemoryError() {
+    return outOfMemoryError;
+  }
+  
+  /**
+   * Sets the outstanding OutOfMemoryError.
+   */
+  public void setOutOfMemoryError(OutOfMemoryError oome) {
+    outOfMemoryError = oome;
+  }
+  
+  /**
+   * Get the thread to use for building stack traces.
+   */
+  @Uninterruptible
+  public VM_Thread getThreadForStackTrace() {
+    return this;
+  }
+  
+  /**
+   * Clears the outstanding OutOfMemoryError.
+   */
+  public void clearOutOfMemoryError() {
+    outOfMemoryError = null;
+  }
   
   @Interruptible
   public final void handleUncaughtException(Throwable exceptionObject) {

@@ -70,12 +70,16 @@ public final class VM_ThreadProxy {
    * @return null means the thread has already been scheduled (ignore)
    */
   public VM_GreenThread unproxy() {
-    mutex.lock("Unproxying thread");
     VM_GreenThread t = patron;
     if (t != null) {
-      t.threadProxy = null;
+      mutex.lock("Unproxying thread");
+      t = patron;
+      patron = null;
+      if (t != null) {
+        t.threadProxy = null;
+      }
+      mutex.unlock();
     }
-    mutex.unlock();
     return t;
   }
 

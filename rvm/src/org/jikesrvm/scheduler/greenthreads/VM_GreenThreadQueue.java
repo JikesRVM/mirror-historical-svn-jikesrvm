@@ -68,6 +68,7 @@ public class VM_GreenThreadQueue extends VM_AbstractThreadQueue {
   @Override
   public void enqueue(VM_GreenThread t) {
     if (VM.VerifyAssertions) VM._assert(t.getNext() == null); // not currently on any other queue
+    if (VM.VerifyAssertions) VM._assert(t.isQueueable());
     if (head == null) {
       head = t;
     } else {
@@ -91,6 +92,7 @@ public class VM_GreenThreadQueue extends VM_AbstractThreadQueue {
     if (head == null) {
       tail = null;
     }
+    if (VM.VerifyAssertions) VM._assert(t.isQueueable());
     return t;
   }
 

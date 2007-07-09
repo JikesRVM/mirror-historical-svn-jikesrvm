@@ -60,20 +60,23 @@ public final class VM_ThreadProxyWakeupQueue extends VM_AbstractThreadQueue {
   public void enqueue(VM_ThreadProxy p) {
     if (p != null) {
       p.mutex.lock("Enqueueing proxy");
-      VM_ThreadProxy previous = null;
-      VM_ThreadProxy current = head;
-      // skip proxies with earlier wakeupCycles
-      while (current != null && current.getWakeupCycle() <= p.getWakeupCycle()) {
-        previous = current;
-        current = current.getWakeupNext();
+      if (p.getPatron() != null) {
+        if(VM.VerifyAssertions) VM._assert(p.getPatron().isQueueable());
+        VM_ThreadProxy previous = null;
+        VM_ThreadProxy current = head;
+        // skip proxies with earlier wakeupCycles
+        while (current != null && current.getWakeupCycle() <= p.getWakeupCycle()) {
+          previous = current;
+          current = current.getWakeupNext();
+        }
+        // insert p
+        if (previous == null) {
+          head = p;
+        } else {
+          previous.setWakeupNext(p);
+        }
+        p.setWakeupNext(current);
       }
-      // insert p
-      if (previous == null) {
-        head = p;
-      } else {
-        previous.setWakeupNext(p);
-      }
-      p.setWakeupNext(current);
       p.mutex.unlock();
     }
   }

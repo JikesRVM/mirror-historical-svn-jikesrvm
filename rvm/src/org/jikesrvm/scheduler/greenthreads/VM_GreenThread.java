@@ -764,5 +764,13 @@ public class VM_GreenThread extends VM_Thread {
   public String getThreadState() {
     return VM_GreenScheduler.getThreadState(this);
   }
+  
+  /**
+   * Is this thread suitable for putting on a queue?
+   * @return whether the thread is terminated
+   */
+  final boolean isQueueable() {
+    return state != State.TERMINATED;
+  }
 }
 
