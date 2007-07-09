@@ -64,12 +64,15 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 	/**
 	 * Build this phase as a composite of others.
 	 */
+
 	public OPT_GraphColor() {
 		super("Graph Color Composite Phase",
 				new OPT_OptimizationPlanElement[]{
-				new OPT_OptimizationPlanAtomicElement(new GraphColor())
-				,new OPT_OptimizationPlanAtomicElement(new SpillCode())
-				,new OPT_OptimizationPlanAtomicElement(new UpdateOSRMaps())
+				new OPT_OptimizationPlanAtomicElement(new GraphColor()),
+				new OPT_OptimizationPlanAtomicElement(new UpdateGCMaps1()),
+				new OPT_OptimizationPlanAtomicElement(new SpillCode()),
+				new OPT_OptimizationPlanAtomicElement(new UpdateGCMaps2()),
+				new OPT_OptimizationPlanAtomicElement(new UpdateOSRMaps())
 		});
 	}
 	/**
@@ -92,6 +95,8 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 	 */
 	private static final boolean debug = false;
 	private static final boolean verboseDebug = false;
+	private static final boolean spillAllRegs = true;
+	private static final boolean gcdebug = false;
 
 	/**
 	 * Attempt to coalesce to eliminate register moves?
@@ -157,19 +162,19 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 		 * number of spilled registers
 		 */
 		private int numSpilledRegs = 0;
-		
+
 		/**
 		 * Dump statistics
 		 */
 		public void dumpStat() {
-			
+
 			System.out.println("************** GraphColor Statistics **************");
 			System.out.println("# algo iterations:   " + numIterations);
 			System.out.println("# symbolic regs:     " + numSymbRegs);
 			System.out.println("# move instructions: " + numMoves);
 			System.out.println("# move coalesced:    " + numCoalescedMoves);
 			System.out.println("# spilled regs:      " + numSpilledRegs);
-			
+
 		}
 
 		/**
@@ -181,15 +186,21 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 		 *  @param ir the IR
 		 */
 		public void perform(OPT_IR ir) {
+			
+			this.ir = ir;
+			
+			if(spillAllRegs) {
+				SpillAllRegs();
+				return;
+			}
+			
 			if(debug) {
 				System.out.println(">>>>>>>>>>>>>>>>   START   <<<<<<<<<<<<<<<<<<<<");
 				System.out.println("method " + ir.method.getName().toString());
 			}
 
-			this.ir = ir;
-	
 			IteratedCoalescing();
-			
+
 			if(debug) {
 				System.out.println("<<<<<<<<<<<<<<<<    END    >>>>>>>>>>>>>>>>>>>>>\n");
 			}
@@ -283,7 +294,7 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 
 			return RegToId.get(reg);
 		}
-		
+
 		/**
 		 * Get register identifier
 		 * @param reg JikesRVM register class
@@ -298,7 +309,7 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 
 			return RegToId.get(reg);
 		}
-		
+
 		/**
 		 * Map Integer Id to OPT_Register 
 		 * @param id Unique register id
@@ -310,53 +321,77 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 				throw new RuntimeException("OPT_GraphColor PANIC MapIdToReg: Identifier does not exists.");
 				//System.out.println("[MapIdToReg]: Error. identifier does no exists");
 			}
-			
+
 			return IdToReg.get(id);
 		}
 		
+		/**
+		 * Method for spilling all registers
+		 *
+		 */
+		public void SpillAllRegs() {
+			for (OPT_Register reg = ir.regpool.getFirstSymbolicRegister(); reg != null; reg = reg.getNext()) {
+
+				// clear the 'long' type if it's persisted to here.
+				if (VM.BuildFor32Addr && reg.isLong()) {
+					reg.clearType();
+					reg.setInteger();
+				}
+
+				int type = OPT_PhysicalRegisterSet.getPhysicalRegisterType(reg);
+				if (type == -1) {
+					type = 1;//DOUBLE_REG;
+				}
+				int spillSize = OPT_PhysicalRegisterSet.getSpillSize(type);
+				int location = ir.stackManager.allocateNewSpillLocation(type);	
+
+				OPT_RegisterAllocatorState.setSpill(reg, location);
+			}
+		}
+
 		/**
 		 * 
 		 *
 		 */
 		public void IteratedCoalescing() {
 
-			
+
 			if(debug) {
 				for (OPT_Register reg = ir.regpool.getFirstSymbolicRegister(); reg != null; reg = reg.getNext()) {
 					System.out.print(reg.toString() + " ");
 				}
 				System.out.println("");
 			}
-			
-			
+
+
 			initPrecoloredSet();
-			
-			
+
+
 			for (OPT_Register reg = ir.regpool.getFirstSymbolicRegister(); reg != null; reg = reg.getNext()) {
 				initial.add(mapRegToId(reg));
 				igraph.addNode(getRegId(reg));
 			}
-			
+
 			// number of symbolic registers
 			numSymbRegs = initial.size();
-			
+
 			//OPT_CoalesceMoves cm = new OPT_CoalesceMoves();
 			//cm.perform(ir);
-			
+
 			build();
-			
+
 			if(debug) {
 				System.out.println("igraph.size() = " + igraph.size());
 			}
-			
-			
-			
+
+
+
 			main();
-			
+
 			if(debug) {
 				dumpStat();
 			}
-			
+
 			//dumpMap();
 		}
 
@@ -367,14 +402,14 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 		public void main()
 		{
 			numIterations ++;
-			
+
 			// STUB 
 			for(Integer n : initial)
 				selectStack.push(n);
 
 			if(false) { // STUB
-				
-				
+
+
 				makeWorkList();
 
 				do {
@@ -433,6 +468,7 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 				if(verboseDebug)
 					this.DumpBB(bb, liveAnalysis);
 
+				//OPT_Instruction toDel = null;
 				/*
 				 * BUG????
 				 */
@@ -453,6 +489,24 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 						// only mov r1,r2
 
 						if(MIR_Move.getResult(inst).isRegister() && MIR_Move.getValue(inst).isRegister()) {
+
+							/*
+							if(MIR_Move.getResult(inst).asRegister().register == MIR_Move.getValue(inst).asRegister().register) {
+								System.out.println("Found mov r1,r1 :" + inst.toString());
+
+								toDel = inst;
+								igraph.DumpDot(ir.method.getName().toString());
+
+							}
+
+							// experimental stub
+							igraph.addEdge(
+									mapRegToId(MIR_Move.getResult(inst).asRegister().register), 
+									mapRegToId(MIR_Move.getValue(inst).asRegister().register)
+									);
+
+							 */
+
 
 							igraph.addMovePair(
 									this.mapRegToId(MIR_Move.getResult(inst).asRegister().register), 
@@ -512,15 +566,26 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 							live.add(op.asRegister().register);
 						}
 					}
-				}
-			}
-			
-			
-			numMoves = Math.max(numMoves, workListMoves.size());
-			
+				} // Instruction enumeration
 
-			
-			
+				/*
+				if(toDel != null){
+					// Compute def-use information.
+					OPT_DefUse.computeDU(ir);
+					OPT_DefUse.removeInstructionAndUpdateDU(toDel);
+				}
+				 */
+
+			} // BasicBlock enumeration
+
+
+
+
+			numMoves = Math.max(numMoves, workListMoves.size());
+
+
+
+
 			if(verboseDebug) {
 				igraph.DumpDot(ir.method.getName().toString());
 
@@ -544,16 +609,16 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 		public void makeWorkList() {
 
 			for(Integer n : initial) {
-					// modify heuristic for irregular architecture
-					if(igraph.getDegree(n) > K) {
-						spillWorkList.add(n);
-					} else if(moveRelated(n)) {
-						freezeWorkList.add(n);
-					} else {
-						simplifyWorkList.add(n);
-					}
+				// modify heuristic for irregular architecture
+				if(igraph.getDegree(n) > K) {
+					spillWorkList.add(n);
+				} else if(moveRelated(n)) {
+					freezeWorkList.add(n);
+				} else {
+					simplifyWorkList.add(n);
+				}
 			}
-			
+
 			initial.clear();
 		}
 
@@ -670,12 +735,12 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 			Integer x,y,u,v;
 
 			MovePair move = workListMoves.iterator().next();
-			
+
 			numCoalescedMoves ++;
-			
+
 			x = getAlias(move.dst);
 			y = getAlias(move.src);
-			
+
 			if(precolored.contains(y)) {
 				u = y;
 				v = x;
@@ -685,7 +750,7 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 				v = y;
 			}
 			workListMoves.remove(move);
-			
+
 			if(u == v) {
 				coalescedMoves.add(move);
 				addWorkList(u);
@@ -694,34 +759,34 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 				addWorkList(u);
 				addWorkList(v);
 			} else if((precolored.contains(u) && OK(v,u)) ||
-					  (!precolored.contains(u) && conservative(u,v))) {
+					(!precolored.contains(u) && conservative(u,v))) {
 				coalescedMoves.add(move);
 				combine(u,v);
 				addWorkList(u);
 			} else
 				activeMoves.add(move);
 		}
-		
+
 		public void addWorkList(Integer u) {
 			if(!precolored.contains(u) && !moveRelated(u) && igraph.getDegree(u) < K) {
 				freezeWorkList.remove(u);
 				simplifyWorkList.add(u);
 			}
 		}
-		
+
 		public boolean OK(Integer v, Integer u) {
 			for(Integer t : adjacent(v)) {
 				if(igraph.getDegree(t) < K || precolored.contains(t) || igraph.containsEdge(t, u)) {
-					
+
 				} else
 					return false;
 			}
 			return true;
 		}
-		
+
 		public boolean conservative(Integer u, Integer v) {
 			int k = 0;
-			
+
 			for(Integer n : adjacent(u)) {
 				if(igraph.getDegree(n) >= K) k = k + 1; 
 			}
@@ -729,10 +794,10 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 			for(Integer n : adjacent(v)) {
 				if(igraph.getDegree(n) >= K) k = k + 1; 
 			}
-			
+
 			return (k < K);
 		}
-		
+
 		public Integer getAlias(Integer n) {
 			if(coalescedNodes.contains(n)) {
 				return getAlias(alias.get(n));
@@ -782,25 +847,25 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 
 		public void freezeMoves(Integer u) {
 			Integer v;
-			
+
 			for(MovePair move : nodeMoves(u)) {
-				
+
 				if(u == move.dst) {
 					v = move.src;
 				}
 				else {
 					v = move.dst;
 				}
-				
+
 				if(activeMoves.contains(move)) {
 					activeMoves.remove(move);
 				}
 				else {
 					workListMoves.remove(move);
 				}
-				
+
 				frozenMoves.add(move);
-				
+
 				if(nodeMoves(v).isEmpty() && igraph.getDegree(v) < K) {
 					freezeWorkList.remove(v);
 					simplifyWorkList.add(v);
@@ -809,9 +874,9 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 		}
 
 		public void selectSpill() {
-			
+
 			Integer m = spillWorkList.iterator().next();
-			
+
 			spillWorkList.remove(m);
 			simplifyWorkList.add(m);
 			freezeMoves(m);
@@ -820,19 +885,19 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 		public void assignColors() {
 			HashSet<Integer> okColors = new HashSet<Integer>();
 			HashSet<Integer> fixed = new HashSet<Integer>();
-			
-		    OPT_PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
-		    OPT_Register eax = phys.getEAX();
-		    OPT_Register edx = phys.getEDX();
-		    OPT_Register ebx = phys.getEBX();
-		    
-		    if(debug) {
-		    	System.out.println("selectStack.size() = " + selectStack.size());
-		    }
-			
+
+			OPT_PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
+			OPT_Register eax = phys.getEAX();
+			OPT_Register edx = phys.getEDX();
+			OPT_Register ebx = phys.getEBX();
+
+			if(debug) {
+				System.out.println("selectStack.size() = " + selectStack.size());
+			}
+
 			while(!selectStack.empty()) {
 				Integer n = selectStack.pop();
-				
+
 				// STUB
 				if(mapIdToReg(n).isFloat() || mapIdToReg(n).isDouble()) {
 					System.out.println("Float: " + mapIdToReg(n).toString());
@@ -846,12 +911,12 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 				okColors.add(getRegId(eax));
 				okColors.add(getRegId(edx));
 				okColors.add(getRegId(ebx));
-				
+
 
 				fixed.clear();
 				fixed.addAll(coloredNodes);
 				fixed.addAll(precolored);
-				
+
 				//System.out.print("Reg: " + mapIdToReg(n).toString() + "| ");
 
 				for(Integer w : igraph.adjList.get(n)) {
@@ -867,12 +932,12 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 					}
 					//System.out.print(" ");
 				}
-				
+
 				//System.out.print("okColors ");
 				for(Integer c : okColors) {
 					//System.out.print(mapIdToReg(c).toString() + "[" + c + "] ");
 				}
-				
+
 
 				if(okColors.isEmpty()) {
 					spilledNodes.add(n);
@@ -893,9 +958,9 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 				}
 				//System.out.println();
 			}
-			
+
 			numSpilledRegs += spilledNodes.size();
-			
+
 			for(Integer n : coalescedNodes) {
 				color.put(n, color.get(getAlias(n)));
 			}
@@ -904,31 +969,31 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 		public void rewriteProgram() {
 
 		}
-		
+
 		public void initPrecoloredSet() {
 			OPT_PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
-			
+
 			if(debug) {
 				System.out.println("initPrecolored: ");
 			}
-			
-		    for (Enumeration<OPT_Register> e = phys.enumerateAll(); e.hasMoreElements();) {
-			      OPT_Register nv = e.nextElement();
-			      if(nv != null) {
-			    	  
-			    	  if(debug) {
-			    		  System.out.print(nv.toString() + " ");
-			    	  }
-			    	  precolored.add(mapRegToId(nv));
-			      }
-		    }
-		    
-		    
-		    if(debug) {
-		    	System.out.println("");
-		    }
+
+			for (Enumeration<OPT_Register> e = phys.enumerateAll(); e.hasMoreElements();) {
+				OPT_Register nv = e.nextElement();
+				if(nv != null) {
+
+					if(debug) {
+						System.out.print(nv.toString() + " ");
+					}
+					precolored.add(mapRegToId(nv));
+				}
+			}
+
+
+			if(debug) {
+				System.out.println("");
+			}
 		}
-		
+
 		public void dumpMap() {
 			System.out.println("Map Table Dump:");
 			for(OPT_Register r : RegToId.keySet()) {
@@ -1069,7 +1134,7 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 				moveList.get(src).add(new MovePair(dst, src, moveInstr));
 				moveList.get(dst).add(new MovePair(dst, src, moveInstr));
 			}
-			
+
 			public boolean deleteNode(Integer u) {
 				return true;
 			}
@@ -1089,7 +1154,7 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 					return false;
 				}
 			}
-			
+
 			/**
 			 * 
 			 * @param u
@@ -1127,7 +1192,7 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 			public int getDegree(Integer u) {
 				return nodeDegree.get(u);
 			}
-			
+
 			/**
 			 * Node count
 			 * @return
@@ -1388,11 +1453,11 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 			for (OPT_BasicBlock bb = ir.cfg.entry(); bb != null; bb = (OPT_BasicBlock) bb.nextSorted) {
 				bb.printExtended();
 			}
-			*/
+			 */
 
-			
-			
-			mySpill(ir);
+
+
+			//mySpill(ir);
 
 			/*
 			if(ir.method.getName().toString().equalsIgnoreCase("main")) 
@@ -1400,9 +1465,9 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 				System.out.println("Spill apply");
 				replaceSymbolicRegisters(ir);
 			}
-			*/
-			
-			replaceSymbolicRegisters(ir);
+			 */
+
+			//replaceSymbolicRegisters(ir);
 
 
 			//if (ir.hasSysCall() || ir.MIRInfo.linearScanState.spilledSomething) {
@@ -1421,7 +1486,7 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 			for (OPT_BasicBlock bb = ir.cfg.entry(); bb != null; bb = (OPT_BasicBlock) bb.nextSorted) {
 				bb.printExtended();
 			}
-			*/
+			 */
 		}
 
 		public void mySpill(OPT_IR ir) {
@@ -1429,18 +1494,20 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 			int d = 0;
 			//System.out.println(ir.method.getName().toString());
 			for (OPT_Register reg = ir.regpool.getFirstSymbolicRegister(); reg != null; reg = reg.getNext()) {
-				
+
 				// check for allocated register
+				/*
 				if(OPT_RegisterAllocatorState.getMapping(reg) != null) {
 					continue;
 				}
-				
+				 */
+
 				//if(reg.isValidation()) continue;
-				
-				
-				
+
+
+
 				//System.out.print(reg.toString() + " ");
-				
+
 				/*
 				if(ir.method.getName().toString().equalsIgnoreCase("main")) {
 					if((OPT_RegisterAllocatorState.getMapping(reg) != null) && (d < 10))
@@ -1450,8 +1517,8 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 						continue;
 					}
 				}
-				*/
-				
+				 */
+
 				// clear the 'long' type if it's persisted to here.
 				if (VM.BuildFor32Addr && reg.isLong()) {
 					reg.clearType();
@@ -1488,6 +1555,179 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 							rop.register = p;
 						}
 					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Update GC maps after register allocation but before inserting spill
+	 * code.
+	 */
+	static final class UpdateGCMaps1 extends OPT_CompilerPhase {
+
+		public boolean shouldPerform(OPT_Options options) {
+			return true;
+		}
+
+		/**
+		 * Return this instance of this phase. This phase contains no
+		 * per-compilation instance fields.
+		 * @param ir not used
+		 * @return this
+		 */
+		public OPT_CompilerPhase newExecution(OPT_IR ir) {
+			return this;
+		}
+
+		public String getName() {
+			return "Update GCMaps 1";
+		}
+
+		public boolean printingEnabled(OPT_Options options, boolean before) {
+			return false;
+		}
+
+		/**
+		 *  Iterate over the IR-based GC map collection and for each entry
+		 *  replace the symbolic reg with the real reg or spill it was allocated
+		 *  @param ir the IR
+		 */
+		public void perform(OPT_IR ir) {
+
+			for (OPT_GCIRMapElement GCelement : ir.MIRInfo.gcIRMap) {
+				if (gcdebug) {
+					VM.sysWrite("GCelement " + GCelement);
+				}
+
+				for (OPT_RegSpillListElement elem : GCelement.regSpillList()) {
+					OPT_Register symbolic = elem.getSymbolicReg();
+
+					if (gcdebug) {
+						VM.sysWrite("get location for " + symbolic + '\n');
+					}
+
+					if (symbolic.isAllocated()) {
+						OPT_Register ra = OPT_RegisterAllocatorState.getMapping(symbolic);
+						elem.setRealReg(ra);
+						if (gcdebug) { VM.sysWrite(ra + "\n"); }
+
+					} else if (symbolic.isSpilled()) {
+						int spill = symbolic.getSpillAllocated();
+						elem.setSpill(spill);
+						if (gcdebug) { VM.sysWrite(spill + "\n"); }
+					} else {
+						OPT_OptimizingCompilerException.UNREACHABLE("LinearScan", "register not alive:", symbolic.toString());
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Update GC Maps again, to account for changes induced by spill code.
+	 */
+	static final class UpdateGCMaps2 extends OPT_CompilerPhase {
+		/**
+		 * Return this instance of this phase. This phase contains no
+		 * per-compilation instance fields.
+		 * @param ir not used
+		 * @return this
+		 */
+		public OPT_CompilerPhase newExecution(OPT_IR ir) {
+			return this;
+		}
+
+		public boolean shouldPerform(OPT_Options options) {
+			return true;
+		}
+
+		public String getName() {
+			return "Update GCMaps 2";
+		}
+
+		public boolean printingEnabled(OPT_Options options, boolean before) {
+			return false;
+		}
+
+		/**
+		 *  @param ir the IR
+		 */
+		public void perform(OPT_IR ir) {
+			OPT_PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
+			OPT_ScratchMap scratchMap = ir.stackManager.getScratchMap();
+
+			if (gcdebug) {
+				System.out.println("SCRATCH MAP:\n" + scratchMap);
+			}
+			if (scratchMap.isEmpty()) return;
+
+			// Walk over each instruction that has a GC point.
+			for (OPT_GCIRMapElement GCelement : ir.MIRInfo.gcIRMap) {
+				// new elements to add to the gc map
+				HashSet<OPT_RegSpillListElement> newElements = new HashSet<OPT_RegSpillListElement>();
+
+				OPT_Instruction GCinst = GCelement.getInstruction();
+
+				// Get the linear-scan DFN for this instruction.
+				int dfn = GCinst.scratch;
+
+				if (gcdebug) {
+					VM.sysWrite("GCelement at " + dfn + " , " + GCelement);
+				}
+
+				// a set of elements to delete from the GC Map
+				HashSet<OPT_RegSpillListElement> toDelete = new HashSet<OPT_RegSpillListElement>(3);
+
+				// For each element in the GC Map ...
+				for (OPT_RegSpillListElement elem : GCelement.regSpillList()) {
+					if (gcdebug) {
+						VM.sysWrite("Update " + elem + "\n");
+					}
+					if (elem.isSpill()) {
+						// check if the spilled value currently is cached in a scratch
+						// register
+						OPT_Register r = elem.getSymbolicReg();
+						OPT_Register scratch = scratchMap.getScratch(r, dfn);
+						if (scratch != null) {
+							if (gcdebug) {
+								VM.sysWrite("cached in scratch register " + scratch + "\n");
+							}
+							// we will add a new element noting that the scratch register
+							// also must be including in the GC map
+							OPT_RegSpillListElement newElem = new OPT_RegSpillListElement(r);
+							newElem.setRealReg(scratch);
+							newElements.add(newElem);
+							// if the scratch register is dirty, then delete the spill
+							// location from the map, since it doesn't currently hold a
+							// valid value
+							if (scratchMap.isDirty(GCinst, r)) {
+								toDelete.add(elem);
+							}
+						}
+					} else {
+						// check if the physical register is currently spilled.
+						int n = elem.getRealRegNumber();
+						OPT_Register r = phys.get(n);
+						if (scratchMap.isScratch(r, dfn)) {
+							// The regalloc state knows where the physical register r is
+							// spilled.
+							if (gcdebug) {
+								VM.sysWrite("CHANGE to spill location " + OPT_RegisterAllocatorState.getSpill(r) + "\n");
+							}
+							elem.setSpill(OPT_RegisterAllocatorState.getSpill(r));
+						}
+					}
+
+				}
+				// delete all obsolete elements
+				for (OPT_RegSpillListElement deadElem : toDelete) {
+					GCelement.deleteRegSpillElement(deadElem);
+				}
+
+				// add each new Element to the gc map
+				for (OPT_RegSpillListElement newElem : newElements) {
+					GCelement.addRegSpillElement(newElem);
 				}
 			}
 		}
