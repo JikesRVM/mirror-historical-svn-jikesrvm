@@ -354,7 +354,7 @@ public final class VM_CollectorThread extends VM_GreenThread {
           VM_GreenScheduler.collectorMutex);
 
       /* block mutators from running on the current processor */
-      VM_GreenProcessor.getCurrentProcessor().disableThreadSwitching();
+      VM_GreenProcessor.getCurrentProcessor().disableThreadSwitching("Disabled in collector to stop mutators from running on current processor");
 
       if (verbose >= 2) VM.sysWriteln("GC Message: VM_CT.run waking up");
 

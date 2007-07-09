@@ -426,7 +426,7 @@ public abstract class VM_Scheduler {
    */
   public static void trace(String who, String what) {
     lockOutput();
-    VM_Processor.getCurrentProcessor().disableThreadSwitching();
+    VM_Processor.getCurrentProcessor().disableThreadSwitching("disabled for scheduler to trace processor(1)");
     VM.sysWriteInt(VM_Processor.getCurrentProcessorId());
     VM.sysWrite("[");
     VM_Thread t = getCurrentThread();
@@ -482,7 +482,7 @@ public abstract class VM_Scheduler {
   }
 
   public static void trace(String who, String what, Address addr) {
-    VM_Processor.getCurrentProcessor().disableThreadSwitching();
+    VM_Processor.getCurrentProcessor().disableThreadSwitching("disabled for scheduler to trace processor(2)");
     lockOutput();
     VM.sysWriteInt(VM_Processor.getCurrentProcessorId());
     VM.sysWrite("[");
@@ -506,7 +506,7 @@ public abstract class VM_Scheduler {
   }
 
   private static void _trace(String who, String what, int howmany, boolean hex) {
-    VM_Processor.getCurrentProcessor().disableThreadSwitching();
+    VM_Processor.getCurrentProcessor().disableThreadSwitching("disabled for scheduler to trace processor(3)");
     lockOutput();
     VM.sysWriteInt(VM_Processor.getCurrentProcessorId());
     VM.sysWrite("[");
@@ -546,7 +546,7 @@ public abstract class VM_Scheduler {
    */
   public static void traceback(String message) {
     if (VM.runningVM) {
-      VM_Processor.getCurrentProcessor().disableThreadSwitching();
+      VM_Processor.getCurrentProcessor().disableThreadSwitching("disabled for scheduler to trace processor(3)");
       lockOutput();
     }
     VM.sysWriteln(message);
@@ -559,7 +559,7 @@ public abstract class VM_Scheduler {
 
   public static void traceback(String message, int number) {
     if (VM.runningVM) {
-      VM_Processor.getCurrentProcessor().disableThreadSwitching();
+      VM_Processor.getCurrentProcessor().disableThreadSwitching("disabled for scheduler to trace processor(4)");
       lockOutput();
     }
     VM.sysWriteln(message, number);
@@ -599,7 +599,7 @@ public abstract class VM_Scheduler {
    * @param fp address of starting frame. first frame output
    *           is the calling frame of passed frame
    */
-  static void dumpStack(Address fp) {
+  public static void dumpStack(Address fp) {
     if (VM.VerifyAssertions) {
       VM._assert(VM.runningVM);
     }

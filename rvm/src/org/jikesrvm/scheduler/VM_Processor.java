@@ -403,14 +403,20 @@ public abstract class VM_Processor extends MM_ProcessorContext implements VM_Con
   }
   /**
    * Disable thread switching in this processor.
+   * @param reason for disabling thread switching
    */
-  public abstract void disableThreadSwitching();
+  public abstract void disableThreadSwitching(String reason);
   
   /**
    * Enable thread switching in this processor.
    */
   public abstract void enableThreadSwitching();
   
+  /**
+   * Fail if thread switching is disabled on this processor
+   */
+  public abstract void failIfThreadSwitchingDisabled();
+
   public void dumpLocks() {
     VM.sysWrite(" processor ");
     VM.sysWriteInt(id);

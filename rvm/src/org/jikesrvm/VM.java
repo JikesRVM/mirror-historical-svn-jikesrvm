@@ -2312,7 +2312,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
 
     // 2.
     //
-    VM_Processor.getCurrentProcessor().disableThreadSwitching();
+    VM_Processor.getCurrentProcessor().disableThreadSwitching("disabling GC");
 
     // 3.
     //

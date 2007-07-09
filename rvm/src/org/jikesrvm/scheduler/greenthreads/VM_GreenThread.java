@@ -422,11 +422,7 @@ public class VM_GreenThread extends VM_Thread {
     if (trace) VM_Scheduler.trace("VM_GreenThread", "morph ");
     VM_GreenThread myThread = VM_GreenScheduler.getCurrentThread();
     if (VM.VerifyAssertions) {
-      if (!VM_GreenProcessor.getCurrentProcessor().threadSwitchingEnabled()) {
-        VM.sysWrite("no threadswitching on proc ", VM_GreenProcessor.getCurrentProcessor().id);
-        VM.sysWriteln(" with addr ", VM_Magic.objectAsAddress(VM_GreenProcessor.getCurrentProcessor()));
-      }
-      VM._assert(VM_GreenProcessor.getCurrentProcessor().threadSwitchingEnabled(), "thread switching not enabled");
+      VM_GreenProcessor.getCurrentProcessor().failIfThreadSwitchingDisabled();
       VM._assert(myThread.beingDispatched, "morph: not beingDispatched");
     }
     // become another thread

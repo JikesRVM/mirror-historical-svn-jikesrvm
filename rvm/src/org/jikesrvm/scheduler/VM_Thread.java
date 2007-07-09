@@ -678,7 +678,7 @@ public abstract class VM_Thread {
     // begin critical section
     //
     VM_Scheduler.threadCreationMutex.lock("thread termination");
-    VM_Processor.getCurrentProcessor().disableThreadSwitching();
+    VM_Processor.getCurrentProcessor().disableThreadSwitching("disabled for thread termination");
 
     //
     // if the thread terminated because of an exception, remove
@@ -713,10 +713,10 @@ public abstract class VM_Thread {
       this.notifyAll();
     }
     if (VM.VerifyAssertions) {
-      VM._assert((!VM.fullyBooted && terminateSystem) ||
-          VM_Processor.getCurrentProcessor().threadSwitchingEnabled());
+      if (VM.fullyBooted || !terminateSystem) {
+        VM_Processor.getCurrentProcessor().failIfThreadSwitchingDisabled();
+      }
     }
-    state = State.TERMINATED;
     if (terminateSystem) {
       if (uncaughtExceptionCount > 0)
         /* Use System.exit so that any shutdown hooks are run.  */ {
@@ -747,6 +747,7 @@ public abstract class VM_Thread {
 
     // become another thread
     //
+    state = State.TERMINATED;
     VM_Scheduler.releaseThreadSlot(threadSlot, this);
 
     beingDispatched = true;
@@ -1151,7 +1152,7 @@ public abstract class VM_Thread {
       VM.sysFail("system error: resizing stack while GC is in progress");
     }
     byte[] newStack = MM_Interface.newStack(newSize, false);
-    VM_Processor.getCurrentProcessor().disableThreadSwitching();
+    VM_Processor.getCurrentProcessor().disableThreadSwitching("disabled for stack resizing");
     transferExecutionToNewStack(newStack, exceptionRegisters);
     VM_Processor.getCurrentProcessor().enableThreadSwitching();
     if (traceAdjustments) {

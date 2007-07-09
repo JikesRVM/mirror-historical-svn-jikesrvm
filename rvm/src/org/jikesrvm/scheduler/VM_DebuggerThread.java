@@ -108,7 +108,7 @@ public class VM_DebuggerThread extends VM_Scheduler.ThreadModel {
               (thread == VM_Scheduler.getCurrentThread()) ? VM_Magic.getFramePointer() :
                  thread.contextRegisters.getInnermostFramePointer();
 
-          VM_Processor.getCurrentProcessor().disableThreadSwitching();
+          VM_Processor.getCurrentProcessor().disableThreadSwitching("disabled for debugger to dump stacks");
           VM_Scheduler.dumpStack(fp);
           VM_Processor.getCurrentProcessor().enableThreadSwitching();
         } else {

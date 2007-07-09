@@ -14,15 +14,6 @@ package org.jikesrvm.scheduler.greenthreads;
 
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.VM;
-import org.jikesrvm.classloader.VM_MemberReference;
-import org.jikesrvm.classloader.VM_Method;
-import org.jikesrvm.classloader.VM_NormalMethod;
-import org.jikesrvm.compilers.common.VM_CompiledMethod;
-import org.jikesrvm.compilers.common.VM_CompiledMethods;
-import org.jikesrvm.compilers.opt.VM_OptCompiledMethod;
-import org.jikesrvm.compilers.opt.VM_OptEncodedCallSiteTree;
-import org.jikesrvm.compilers.opt.VM_OptMachineCodeMap;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.memorymanagers.mminterface.VM_CollectorThread;
 import org.jikesrvm.osr.OSR_ObjectHolder;
 import org.jikesrvm.runtime.VM_BootRecord;
@@ -31,7 +22,6 @@ import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.scheduler.VM_DebuggerThread;
 import org.jikesrvm.scheduler.VM_FinalizerThread;
 import org.jikesrvm.scheduler.VM_Lock;
-import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.scheduler.VM_ProcessorLock;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.scheduler.VM_Thread;
@@ -40,10 +30,8 @@ import org.jikesrvm.scheduler.greenthreads.VM_GreenThreadQueue;
 
 import static org.jikesrvm.runtime.VM_SysCall.sysCall;
 import org.vmmagic.pragma.Interruptible;
-import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
-import org.vmmagic.unboxed.Offset;
 
 /**
  * Global variables used to implement virtual machine thread scheduler.
@@ -54,9 +42,6 @@ import org.vmmagic.unboxed.Offset;
  */
 @Uninterruptible
 public class VM_GreenScheduler extends VM_Scheduler {
-
-  /** Toggle display of frame pointer address in stack dump */
-  private static final boolean SHOW_FP_IN_STACK_DUMP = false;
 
   /** Index of initial processor in which "VM.boot()" runs. */
   public static final int PRIMORDIAL_PROCESSOR_ID = 1;
@@ -393,355 +378,6 @@ public class VM_GreenScheduler extends VM_Scheduler {
     return VM_GreenProcessor.getCurrentProcessor().threadSwitchingEnabled() &&
       allProcessorsInitialized;
   }
-  /**
-   * Print out message in format "p[j] (cez#td) who: what", where:
-   *    p  = processor id
-   *    j  = java thread id
-   *    c* = ava thread id of the owner of threadCreationMutex (if any)
-   *    e* = java thread id of the owner of threadExecutionMutex (if any)
-   *    z* = VM_Processor.getCurrentProcessor().threadSwitchingEnabledCount
-   *         (0 means thread switching is enabled outside of the call to debug)
-   *    t* = numActiveThreads
-   *    d* = numDaemons
-   *
-   * * parenthetical values, printed only if traceDetails = true)
-   *
-   * We serialize against a mutex to avoid intermingling debug output from multiple threads.
-   */
-  public static void trace(String who, String what) {
-    lockOutput();
-    VM_GreenProcessor.getCurrentProcessor().disableThreadSwitching();
-    VM.sysWriteInt(VM_GreenProcessor.getCurrentProcessorId());
-    VM.sysWrite("[");
-    VM_GreenThread t = getCurrentThread();
-    t.dump();
-    VM.sysWrite("] ");
-    if (traceDetails) {
-      VM.sysWrite("(");
-      // VM.sysWriteInt(threadCreationMutex.owner);
-      // VM.sysWrite("-");
-      // VM.sysWriteInt(-VM_Processor.getCurrentProcessor().threadSwitchingEnabledCount);
-      // VM.sysWrite("#");
-      VM.sysWriteInt(numDaemons);
-      VM.sysWrite("/");
-      VM.sysWriteInt(numActiveThreads);
-      VM.sysWrite(") ");
-    }
-    VM.sysWrite(who);
-    VM.sysWrite(": ");
-    VM.sysWrite(what);
-    VM.sysWrite("\n");
-    VM_GreenProcessor.getCurrentProcessor().enableThreadSwitching();
-    unlockOutput();
-  }
-
-  /**
-   * Print out message in format "p[j] (cez#td) who: what howmany", where:
-   *    p  = processor id
-   *    j  = java thread id
-   *    c* = java thread id of the owner of threadCreationMutex (if any)
-   *    e* = java thread id of the owner of threadExecutionMutex (if any)
-   *    z* = VM_Processor.getCurrentProcessor().threadSwitchingEnabledCount
-   *         (0 means thread switching is enabled outside of the call to debug)
-   *    t* = numActiveThreads
-   *    d* = numDaemons
-   *
-   * * parenthetical values, printed only if traceDetails = true)
-   *
-   * We serialize against a mutex to avoid intermingling debug output from multiple threads.
-   */
-  public static void trace(String who, String what, int howmany) {
-    _trace(who, what, howmany, false);
-  }
-
-  // same as trace, but prints integer value in hex
-  //
-  public static void traceHex(String who, String what, int howmany) {
-    _trace(who, what, howmany, true);
-  }
-
-  public static void trace(String who, String what, Address addr) {
-    VM_GreenProcessor.getCurrentProcessor().disableThreadSwitching();
-    lockOutput();
-    VM.sysWriteInt(VM_GreenProcessor.getCurrentProcessorId());
-    VM.sysWrite("[");
-    VM_Scheduler.getCurrentThread().dump();
-    VM.sysWrite("] ");
-    if (traceDetails) {
-      VM.sysWrite("(");
-      VM.sysWriteInt(numDaemons);
-      VM.sysWrite("/");
-      VM.sysWriteInt(numActiveThreads);
-      VM.sysWrite(") ");
-    }
-    VM.sysWrite(who);
-    VM.sysWrite(": ");
-    VM.sysWrite(what);
-    VM.sysWrite(" ");
-    VM.sysWriteHex(addr);
-    VM.sysWrite("\n");
-    unlockOutput();
-    VM_GreenProcessor.getCurrentProcessor().enableThreadSwitching();
-  }
-
-  private static void _trace(String who, String what, int howmany, boolean hex) {
-    VM_GreenProcessor.getCurrentProcessor().disableThreadSwitching();
-    lockOutput();
-    VM.sysWriteInt(VM_GreenProcessor.getCurrentProcessorId());
-    VM.sysWrite("[");
-    //VM.sysWriteInt(VM_Thread.getCurrentThread().getIndex());
-    VM_Scheduler.getCurrentThread().dump();
-    VM.sysWrite("] ");
-    if (traceDetails) {
-      VM.sysWrite("(");
-      // VM.sysWriteInt(threadCreationMutex.owner);
-      // VM.sysWrite("-");
-      // VM.sysWriteInt(-VM_Processor.getCurrentProcessor().threadSwitchingEnabledCount);
-      // VM.sysWrite("#");
-      VM.sysWriteInt(numDaemons);
-      VM.sysWrite("/");
-      VM.sysWriteInt(numActiveThreads);
-      VM.sysWrite(") ");
-    }
-    VM.sysWrite(who);
-    VM.sysWrite(": ");
-    VM.sysWrite(what);
-    VM.sysWrite(" ");
-    if (hex) {
-      VM.sysWriteHex(howmany);
-    } else {
-      VM.sysWriteInt(howmany);
-    }
-    VM.sysWrite("\n");
-    unlockOutput();
-    VM_GreenProcessor.getCurrentProcessor().enableThreadSwitching();
-  }
-
-  /**
-   * Print interesting scheduler information, starting with a stack traceback.
-   * Note: the system could be in a fragile state when this method
-   * is called, so we try to rely on as little runtime functionality
-   * as possible (eg. use no bytecodes that require VM_Runtime support).
-   */
-  public static void traceback(String message) {
-    if (VM.runningVM) {
-      VM_GreenProcessor.getCurrentProcessor().disableThreadSwitching();
-      lockOutput();
-    }
-    VM.sysWriteln(message);
-    tracebackWithoutLock();
-    if (VM.runningVM) {
-      unlockOutput();
-      VM_GreenProcessor.getCurrentProcessor().enableThreadSwitching();
-    }
-  }
-
-  public static void traceback(String message, int number) {
-    if (VM.runningVM) {
-      VM_GreenProcessor.getCurrentProcessor().disableThreadSwitching();
-      lockOutput();
-    }
-    VM.sysWriteln(message, number);
-    tracebackWithoutLock();
-    if (VM.runningVM) {
-      unlockOutput();
-      VM_GreenProcessor.getCurrentProcessor().enableThreadSwitching();
-    }
-  }
-
-  static void tracebackWithoutLock() {
-    if (VM.runningVM) {
-      dumpStack(VM_Magic.getCallerFramePointer(VM_Magic.getFramePointer()));
-    } else {
-      dumpStack();
-    }
-  }
-
-  /**
-   * Dump stack of calling thread, starting at callers frame
-   */
-  @LogicallyUninterruptible
-  public static void dumpStack() {
-    if (VM.runningVM) {
-      dumpStack(VM_Magic.getFramePointer());
-    } else {
-      StackTraceElement[] elements =
-        (new Throwable("--traceback from Jikes RVM's VM_Scheduler class--")).getStackTrace();
-      for (StackTraceElement element: elements) {
-        System.err.println(element.toString());
-      }
-    }
-  }
-
-  /**
-   * Dump state of a (stopped) thread's stack.
-   * @param fp address of starting frame. first frame output
-   *           is the calling frame of passed frame
-   */
-  static void dumpStack(Address fp) {
-    if (VM.VerifyAssertions) {
-      VM._assert(VM.runningVM);
-    }
-
-    Address ip = VM_Magic.getReturnAddress(fp);
-    fp = VM_Magic.getCallerFramePointer(fp);
-    dumpStack(ip, fp);
-
-  }
-
-  /**
-   * Dump state of a (stopped) thread's stack.
-   * @param ip instruction pointer for first frame to dump
-   * @param fp frame pointer for first frame to dump
-   */
-  public static void dumpStack(Address ip, Address fp) {
-    ++inDumpStack;
-    if (inDumpStack > 1 &&
-        inDumpStack <= VM.maxSystemTroubleRecursionDepth + VM.maxSystemTroubleRecursionDepthBeforeWeStopVMSysWrite) {
-      VM.sysWrite("VM_Scheduler.dumpStack(): in a recursive call, ");
-      VM.sysWrite(inDumpStack);
-      VM.sysWriteln(" deep.");
-    }
-    if (inDumpStack > VM.maxSystemTroubleRecursionDepth) {
-      VM.dieAbruptlyRecursiveSystemTrouble();
-      if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
-    }
-
-    VM.sysWrite("-- Stack --\n");
-    while (VM_Magic.getCallerFramePointer(fp).NE(ArchitectureSpecific.VM_StackframeLayoutConstants.STACKFRAME_SENTINEL_FP)) {
-
-      // if code is outside of RVM heap, assume it to be native code,
-      // skip to next frame
-      if (!MM_Interface.addressInVM(ip)) {
-        showMethod("native frame", fp);
-        ip = VM_Magic.getReturnAddress(fp);
-        fp = VM_Magic.getCallerFramePointer(fp);
-        continue; // done printing this stack frame
-      }
-
-      int compiledMethodId = VM_Magic.getCompiledMethodID(fp);
-      if (compiledMethodId == ArchitectureSpecific.VM_StackframeLayoutConstants.INVISIBLE_METHOD_ID) {
-        showMethod("invisible method", fp);
-      } else {
-        // normal java frame(s)
-        VM_CompiledMethod compiledMethod = VM_CompiledMethods.getCompiledMethod(compiledMethodId);
-        if (compiledMethod == null) {
-          showMethod(compiledMethodId, fp);
-        } else if (compiledMethod.getCompilerType() == VM_CompiledMethod.TRAP) {
-          showMethod("hardware trap", fp);
-        } else {
-          VM_Method method = compiledMethod.getMethod();
-          Offset instructionOffset = compiledMethod.getInstructionOffset(ip);
-          int lineNumber = compiledMethod.findLineNumberForInstruction(instructionOffset);
-
-          if (VM.BuildForOptCompiler && compiledMethod.getCompilerType() == VM_CompiledMethod.OPT) {
-            VM_OptCompiledMethod optInfo = (VM_OptCompiledMethod) compiledMethod;
-            // Opt stack frames may contain multiple inlined methods.
-            VM_OptMachineCodeMap map = optInfo.getMCMap();
-            int iei = map.getInlineEncodingForMCOffset(instructionOffset);
-            if (iei >= 0) {
-              int[] inlineEncoding = map.inlineEncoding;
-              int bci = map.getBytecodeIndexForMCOffset(instructionOffset);
-              for (; iei >= 0; iei = VM_OptEncodedCallSiteTree.getParent(iei, inlineEncoding)) {
-                int mid = VM_OptEncodedCallSiteTree.getMethodID(iei, inlineEncoding);
-                method = VM_MemberReference.getMemberRef(mid).asMethodReference().getResolvedMember();
-                lineNumber = ((VM_NormalMethod)method).getLineNumberForBCIndex(bci);
-                showMethod(method, lineNumber, fp);
-                if (iei > 0) {
-                  bci = VM_OptEncodedCallSiteTree.getByteCodeOffset(iei, inlineEncoding);
-                }
-              }
-            } else {
-              showMethod(method, lineNumber, fp);
-            }
-            ip = VM_Magic.getReturnAddress(fp);
-            fp = VM_Magic.getCallerFramePointer(fp);
-            continue; // done printing this stack frame
-          }
-
-          showMethod(method, lineNumber, fp);
-        }
-      }
-      ip = VM_Magic.getReturnAddress(fp);
-      fp = VM_Magic.getCallerFramePointer(fp);
-    }
-    --inDumpStack;
-  }
-
-  private static void showPrologue(Address fp) {
-    VM.sysWrite("   at ");
-    if (SHOW_FP_IN_STACK_DUMP) {
-      VM.sysWrite("[");
-      VM.sysWrite(fp);
-      VM.sysWrite("] ");
-    }
-  }
-
-  /**
-   * Show a method where getCompiledMethod returns null
-   *
-   * @param compiledMethodId
-   * @param fp
-   */
-  private static void showMethod(int compiledMethodId, Address fp) {
-    showPrologue(fp);
-    VM.sysWrite("<unprintable normal Java frame: VM_CompiledMethods.getCompiledMethod(",
-                compiledMethodId,
-                ") returned null>\n");
-  }
-
-  /**
-   * Show a method that we can't show (ie just a text description of the
-   * stack frame
-   *
-   * @param name
-   * @param fp
-   */
-  private static void showMethod(String name, Address fp) {
-    showPrologue(fp);
-    VM.sysWrite("<");
-    VM.sysWrite(name);
-    VM.sysWrite(">\n");
-  }
-
-  /** Helper function for {@link #dumpStack(Address,Address)}.  Print a
-   * stack frame showing the method.  */
-  private static void showMethod(VM_Method method, int lineNumber, Address fp) {
-    showPrologue(fp);
-    if (method == null) {
-      VM.sysWrite("<unknown method>");
-    } else {
-      VM.sysWrite(method.getDeclaringClass().getDescriptor());
-      VM.sysWrite(" ");
-      VM.sysWrite(method.getName());
-      VM.sysWrite(method.getDescriptor());
-    }
-    if (lineNumber > 0) {
-      VM.sysWrite(" at line ");
-      VM.sysWriteInt(lineNumber);
-    }
-    VM.sysWrite("\n");
-  }
-
-  /**
-   * Dump state of a (stopped) thread's stack and exit the virtual machine.
-   * @param fp address of starting frame
-   * Returned: doesn't return.
-   * This method is called from RunBootImage.C when something goes horrifically
-   * wrong with exception handling and we want to die with useful diagnostics.
-   */
-  public static void dumpStackAndDie(Address fp) {
-    if (!exitInProgress) {
-      // This is the first time I've been called, attempt to exit "cleanly"
-      exitInProgress = true;
-      dumpStack(fp);
-      VM.sysExit(VM.EXIT_STATUS_DUMP_STACK_AND_DIE);
-    } else {
-      // Another failure occured while attempting to exit cleanly.
-      // Get out quick and dirty to avoid hanging.
-      sysCall.sysExit(VM.EXIT_STATUS_RECURSIVELY_SHUTTING_DOWN);
-    }
-  }
 
   /**
    * Dump state of virtual machine.
@@ -791,7 +427,7 @@ public class VM_GreenScheduler extends VM_Scheduler {
 
     VM.sysWriteln("Attempting to dump the stack of all other live threads");
     VM.sysWriteln("This is somewhat risky since if the thread is running we're going to be quite confused");
-    VM_GreenProcessor.getCurrentProcessor().disableThreadSwitching();
+    VM_GreenProcessor.getCurrentProcessor().disableThreadSwitching("disabled by scheduler to dump stack");
     for (int i = 1; i < threads.length; ++i) {
       VM_Thread thr = threads[i];
       if (thr != null && thr != VM_Scheduler.getCurrentThread() && thr.isAlive()) {
@@ -824,7 +460,7 @@ public class VM_GreenScheduler extends VM_Scheduler {
   @Override
   protected void lockOutputInternal() {
     if (VM_GreenScheduler.numProcessors == 1) return;
-    VM_GreenProcessor.getCurrentProcessor().disableThreadSwitching();
+    VM_GreenProcessor.getCurrentProcessor().disableThreadSwitching("disabled by scheduler to lock output");
     do {
       int processorId = VM_Magic.prepareInt(VM_Magic.getJTOC(), VM_Entrypoints.outputLockField.getOffset());
       if (processorId != 0) {

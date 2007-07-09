@@ -51,7 +51,7 @@ public class VM_GreenProcessor extends VM_Processor {
    *    1 means "yes" (switching enabled)
    * <= 0 means "no"  (switching disabled)
    */
-  int threadSwitchingEnabledCount;
+  private int threadSwitchingEnabledCount;
 
   /**
    * Was "threadSwitch" called while this processor had
@@ -59,6 +59,10 @@ public class VM_GreenProcessor extends VM_Processor {
    */
   int threadSwitchPending;
 
+  /**
+   * The reason given for disabling thread switching
+   */
+  private String threadSwitchDisabledReason; 
   /**
    * threads to be added to ready queue
    */
@@ -215,11 +219,13 @@ public class VM_GreenProcessor extends VM_Processor {
 
   /**
    * Disable thread switching in this processor.
+   * @param reason for disabling thread switching
    */
   @Inline
   @Override
-  public void disableThreadSwitching() {
+  public void disableThreadSwitching(String reason) {
     --threadSwitchingEnabledCount;
+    threadSwitchDisabledReason = reason;
   }
 
   /**
@@ -557,5 +563,18 @@ public class VM_GreenProcessor extends VM_Processor {
     VM.sysWrite(" timeSliceExpired: ");
     VM.sysWriteInt(timeSliceExpired);
     VM.sysWrite("\n");
+  }
+  
+  /**
+   * Fail if thread switching is disabled on this processor
+   */
+  @Override
+  public void failIfThreadSwitchingDisabled() {
+    if (!threadSwitchingEnabled()) {
+      VM.sysWrite("No threadswitching on proc ", id);
+      VM.sysWrite(" with addr ", VM_Magic.objectAsAddress(VM_GreenProcessor.getCurrentProcessor()));
+      VM.sysWriteln(" because: ", threadSwitchDisabledReason);
+      VM._assert(false);
+    }
   }
 }
