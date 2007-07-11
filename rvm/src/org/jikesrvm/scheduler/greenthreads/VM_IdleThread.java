@@ -81,10 +81,11 @@ final class VM_IdleThread extends VM_GreenThread {
     main:
     while (true) {
       if (VM_Scheduler.terminated) terminate();
+      if (VM.VerifyAssertions) VM._assert(processorAffinity.idleQueue.isEmpty());
       long t = VM_Time.cycles() + spinInterval;
 
       if (VM_Scheduler.debugRequested) {
-        System.err.println("debug requested in idle thread");
+        VM.sysWriteln("debug requested in idle thread");
         VM_Scheduler.debugRequested = false;
       }
 
@@ -105,6 +106,7 @@ final class VM_IdleThread extends VM_GreenThread {
         if (availableWork(myProcessor)) {
           continue main;
         }
+        VM_GreenThread.yield(VM_GreenProcessor.getCurrentProcessor().idleQueue);
         /* Doze a millisecond (well, Linux rounds it up to a centisecond)  */
         sysCall.sysNanosleep(1000 * 1000);
       }

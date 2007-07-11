@@ -68,7 +68,7 @@ public abstract class VM_Scheduler {
   }
   
   /** Toggle display of frame pointer address in stack dump */
-  private static final boolean SHOW_FP_IN_STACK_DUMP = false;
+  private static final boolean SHOW_FP_IN_STACK_DUMP = true;
 
   /** Index of thread in which "VM.boot()" runs */
   public static final int PRIMORDIAL_THREAD_INDEX = 1;
@@ -628,63 +628,75 @@ public abstract class VM_Scheduler {
       if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
     }
 
-    VM.sysWrite("-- Stack --\n");
-    while (VM_Magic.getCallerFramePointer(fp).NE(ArchitectureSpecific.VM_StackframeLayoutConstants.STACKFRAME_SENTINEL_FP)) {
+    VM.sysWriteln();
+    if (fp.toInt() < 0x10000) {
+      VM.sysWrite("Bogus looking frame pointer: ", fp);
+      VM.sysWriteln(" not dumping stack");
+    } else {
+      try {
+        VM.sysWriteln("-- Stack --");
+        while (VM_Magic.getCallerFramePointer(fp).NE(ArchitectureSpecific.VM_StackframeLayoutConstants.STACKFRAME_SENTINEL_FP)) {
 
-      // if code is outside of RVM heap, assume it to be native code,
-      // skip to next frame
-      if (!MM_Interface.addressInVM(ip)) {
-        showMethod("native frame", fp);
-        ip = VM_Magic.getReturnAddress(fp);
-        fp = VM_Magic.getCallerFramePointer(fp);
-        continue; // done printing this stack frame
-      }
+          // if code is outside of RVM heap, assume it to be native code,
+          // skip to next frame
+          if (!MM_Interface.addressInVM(ip)) {
+            showMethod("native frame", fp);
+            ip = VM_Magic.getReturnAddress(fp);
+            fp = VM_Magic.getCallerFramePointer(fp);
+          } else {
 
-      int compiledMethodId = VM_Magic.getCompiledMethodID(fp);
-      if (compiledMethodId == ArchitectureSpecific.VM_StackframeLayoutConstants.INVISIBLE_METHOD_ID) {
-        showMethod("invisible method", fp);
-      } else {
-        // normal java frame(s)
-        VM_CompiledMethod compiledMethod = VM_CompiledMethods.getCompiledMethod(compiledMethodId);
-        if (compiledMethod == null) {
-          showMethod(compiledMethodId, fp);
-        } else if (compiledMethod.getCompilerType() == VM_CompiledMethod.TRAP) {
-          showMethod("hardware trap", fp);
-        } else {
-          VM_Method method = compiledMethod.getMethod();
-          Offset instructionOffset = compiledMethod.getInstructionOffset(ip);
-          int lineNumber = compiledMethod.findLineNumberForInstruction(instructionOffset);
-
-          if (VM.BuildForOptCompiler && compiledMethod.getCompilerType() == VM_CompiledMethod.OPT) {
-            VM_OptCompiledMethod optInfo = (VM_OptCompiledMethod) compiledMethod;
-            // Opt stack frames may contain multiple inlined methods.
-            VM_OptMachineCodeMap map = optInfo.getMCMap();
-            int iei = map.getInlineEncodingForMCOffset(instructionOffset);
-            if (iei >= 0) {
-              int[] inlineEncoding = map.inlineEncoding;
-              int bci = map.getBytecodeIndexForMCOffset(instructionOffset);
-              for (; iei >= 0; iei = VM_OptEncodedCallSiteTree.getParent(iei, inlineEncoding)) {
-                int mid = VM_OptEncodedCallSiteTree.getMethodID(iei, inlineEncoding);
-                method = VM_MemberReference.getMemberRef(mid).asMethodReference().getResolvedMember();
-                lineNumber = ((VM_NormalMethod)method).getLineNumberForBCIndex(bci);
-                showMethod(method, lineNumber, fp);
-                if (iei > 0) {
-                  bci = VM_OptEncodedCallSiteTree.getByteCodeOffset(iei, inlineEncoding);
+            int compiledMethodId = VM_Magic.getCompiledMethodID(fp);
+            if (compiledMethodId == ArchitectureSpecific.VM_StackframeLayoutConstants.INVISIBLE_METHOD_ID) {
+              showMethod("invisible method", fp);
+            } else {
+              // normal java frame(s)
+              VM_CompiledMethod compiledMethod = VM_CompiledMethods.getCompiledMethod(compiledMethodId);
+              if (compiledMethod == null) {
+                showMethod(compiledMethodId, fp);
+              } else if (compiledMethod.getCompilerType() == VM_CompiledMethod.TRAP) {
+                showMethod("hardware trap", fp);
+              } else {
+                VM_Method method = compiledMethod.getMethod();
+                Offset instructionOffset = compiledMethod.getInstructionOffset(ip);
+                int lineNumber = compiledMethod.findLineNumberForInstruction(instructionOffset);
+                boolean frameShown = false;
+                if (VM.BuildForOptCompiler && compiledMethod.getCompilerType() == VM_CompiledMethod.OPT) {
+                  VM_OptCompiledMethod optInfo = (VM_OptCompiledMethod) compiledMethod;
+                  // Opt stack frames may contain multiple inlined methods.
+                  VM_OptMachineCodeMap map = optInfo.getMCMap();
+                  int iei = map.getInlineEncodingForMCOffset(instructionOffset);
+                  if (iei >= 0) {
+                    int[] inlineEncoding = map.inlineEncoding;
+                    int bci = map.getBytecodeIndexForMCOffset(instructionOffset);
+                    for (; iei >= 0; iei = VM_OptEncodedCallSiteTree.getParent(iei, inlineEncoding)) {
+                      int mid = VM_OptEncodedCallSiteTree.getMethodID(iei, inlineEncoding);
+                      method = VM_MemberReference.getMemberRef(mid).asMethodReference().getResolvedMember();
+                      lineNumber = ((VM_NormalMethod)method).getLineNumberForBCIndex(bci);
+                      showMethod(method, lineNumber, fp);
+                      if (iei > 0) {
+                        bci = VM_OptEncodedCallSiteTree.getByteCodeOffset(iei, inlineEncoding);
+                      }
+                    }
+                    frameShown=true;
+                  }
+                }
+                if(!frameShown) {
+                  showMethod(method, lineNumber, fp);
                 }
               }
-            } else {
-              showMethod(method, lineNumber, fp);
             }
             ip = VM_Magic.getReturnAddress(fp);
             fp = VM_Magic.getCallerFramePointer(fp);
-            continue; // done printing this stack frame
           }
-
-          showMethod(method, lineNumber, fp);
-        }
+          if (fp.toInt() < 0x10000) {
+            VM.sysWrite("Bogus looking frame pointer: ", fp);
+            VM.sysWriteln(" end of stack dump");
+            break;
+          }
+        } // end while
+      } catch (Throwable t) {
+        VM.sysWriteln("Something bad killed the stack dump. The last frame pointer was: ", fp);        
       }
-      ip = VM_Magic.getReturnAddress(fp);
-      fp = VM_Magic.getCallerFramePointer(fp);
     }
     --inDumpStack;
   }

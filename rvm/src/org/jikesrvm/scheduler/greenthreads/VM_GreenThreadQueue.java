@@ -13,9 +13,10 @@
 package org.jikesrvm.scheduler.greenthreads;
 
 import org.jikesrvm.VM;
+import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.scheduler.VM_ProcessorLock;
-import org.jikesrvm.scheduler.VM_Thread;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.UninterruptibleNoWarn;
 
 /**
  * A queue of VM_Threads
@@ -66,8 +67,15 @@ public class VM_GreenThreadQueue extends VM_AbstractThreadQueue {
 
   /** Add a thread to tail of queue. */
   @Override
+  @UninterruptibleNoWarn
   public void enqueue(VM_GreenThread t) {
-    if (VM.VerifyAssertions) VM._assert(t.getNext() == null); // not currently on any other queue
+    // not currently on any other queue
+    if (VM.VerifyAssertions && t.getNext() != null) {
+      VM.sysWrite("Thread sitting on >1 queue: ");
+      VM.sysWriteln(VM_Magic.getObjectType(t).getDescriptor());
+      VM._assert(false);
+    }
+    // not dead
     if (VM.VerifyAssertions) VM._assert(t.isQueueable());
     if (head == null) {
       head = t;
@@ -158,6 +166,13 @@ public class VM_GreenThreadQueue extends VM_AbstractThreadQueue {
     return false;
   }
 
+  public boolean containsGCThread() {
+    for (VM_GreenThread t = head; t != null; t = t.getNext()) {
+      if (t.isGCThread()) return true;
+    }
+    return false;    
+  }
+  
   public void dump() {
     // We shall space-separate them, for compactness.
     // I hope this is a good decision.

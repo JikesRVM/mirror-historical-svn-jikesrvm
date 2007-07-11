@@ -417,6 +417,7 @@ public class VM_GreenThread extends VM_Thread {
    * Current thread has been placed onto some queue. Become another thread.
    * @param timerTick   timer interrupted if true
    */
+  @LogicallyUninterruptible
   static void morph(boolean timerTick) {
     VM_Magic.sync();  // to ensure beingDispatched flag written out to memory
     if (trace) VM_Scheduler.trace("VM_GreenThread", "morph ");
@@ -429,7 +430,7 @@ public class VM_GreenThread extends VM_Thread {
     //
     VM_GreenProcessor.getCurrentProcessor().dispatch(timerTick);
     // respond to interrupt sent to this thread by some other thread
-    //
+    // NB this can create a stack trace, so is interruptible
     if (myThread.throwInterruptWhenScheduled) {
       myThread.postExternalInterrupt();
     }

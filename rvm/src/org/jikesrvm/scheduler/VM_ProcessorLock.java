@@ -218,6 +218,11 @@ public final class VM_ProcessorLock implements VM_Constants {
   @NoInline
   private static void handleMicrocontention(int n) {
     if (n <= 0) return;                                  // method call overhead is delay enough
+    if (n > 100) {
+      VM.sysWriteln("Unexpectedly large processor lock contention");
+      VM_Scheduler.dumpStack();
+      VM._assert(false);
+    }
     int pid = VM_Processor.getCurrentProcessorId();
     if (pid < 0) pid = -pid;                            // native processors have negative ids
     delayIndex = (delayIndex + pid) % delayCount.length;

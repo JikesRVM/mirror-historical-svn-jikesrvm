@@ -247,6 +247,7 @@ public abstract class VM_Processor extends MM_ProcessorContext implements VM_Con
         VM.sysWrite("Processor lock ", j);
         VM.sysWriteln(" acquired for ", lockReasons[j]);        
       }
+      VM_Scheduler.dumpStack();
     }
   }
   /**

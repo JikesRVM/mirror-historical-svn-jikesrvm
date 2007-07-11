@@ -1995,7 +1995,14 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     handlePossibleRecursiveCallToSysFail(message);
 
     // print a traceback and die
-    VM_GreenScheduler.traceback(message);
+    if(!VM_Scheduler.getCurrentThread().isGCThread()) {
+      VM_GreenScheduler.traceback(message);
+    } else {
+      VM.sysWriteln("Died in GC:");
+      VM_GreenScheduler.traceback(message);
+      VM.sysWriteln("Virtual machine state:");
+      VM_Scheduler.dumpVirtualMachine();
+    }
     if (VM.runningVM) {
       VM.shutdown(EXIT_STATUS_SYSFAIL);
     } else {

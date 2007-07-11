@@ -52,6 +52,7 @@ public class VM_DebuggerThread extends VM_Scheduler.ThreadModel {
         eval(tokens);
       } catch (Exception e) {
         VM.sysWrite("oops: " + e + "\n");
+        e.printStackTrace();
       }
     }
   }

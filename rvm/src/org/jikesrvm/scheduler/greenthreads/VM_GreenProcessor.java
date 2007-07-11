@@ -14,6 +14,7 @@ package org.jikesrvm.scheduler.greenthreads;
 
 import org.jikesrvm.ArchitectureSpecific.VM_ProcessorLocalState;
 import org.jikesrvm.VM;
+import org.jikesrvm.VM_Constants;
 import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.runtime.VM_Entrypoints;
 import org.jikesrvm.runtime.VM_Magic;
@@ -62,7 +63,7 @@ public class VM_GreenProcessor extends VM_Processor {
   /**
    * The reason given for disabling thread switching
    */
-  private String threadSwitchDisabledReason; 
+  private final String[] threadSwitchDisabledReason = VM.VerifyAssertions ? new String[10] : null; 
   /**
    * threads to be added to ready queue
    */
@@ -225,7 +226,8 @@ public class VM_GreenProcessor extends VM_Processor {
   @Override
   public void disableThreadSwitching(String reason) {
     --threadSwitchingEnabledCount;
-    threadSwitchDisabledReason = reason;
+    VM_Magic.setObjectAtOffset(threadSwitchDisabledReason, Offset.fromIntZeroExtend(-threadSwitchingEnabledCount << VM_Constants.BYTES_IN_ADDRESS), reason);
+    // threadSwitchDisabledReason[-threadSwitchingEnabledCount] = reason;
   }
 
   /**
@@ -234,8 +236,28 @@ public class VM_GreenProcessor extends VM_Processor {
    */
   @Override
   public void requestYieldToGC() {
-    takeYieldpoint = 1;
-    yieldToGCRequested = true;
+    if (!activeThread.isGCThread()) {
+      takeYieldpoint = 1;
+      yieldToGCRequested = true;
+      if (VM.VerifyAssertions) {
+        int errorCount = 0;
+        while(errorCount < 100) {
+          transferMutex.lock("Checking GC thread");
+          if(!transferQueue.containsGCThread() && !activeThread.isGCThread()) {
+            transferMutex.unlock();
+            errorCount++;
+          } else {
+            transferMutex.unlock();
+            break;
+          }
+        }
+        if (errorCount >= 100) {
+          VM.sysWriteln("Requesting yield to GC on processor with no GC thread scheduled: ", id);
+          VM_Scheduler.dumpVirtualMachine();
+          VM._assert(false);
+        }
+      }
+    }
   }
 
   /**
@@ -416,9 +438,9 @@ public class VM_GreenProcessor extends VM_Processor {
       }
       return t;
     }
-
-    VM._assert(VM.NOT_REACHED); // should never get here (the idle thread should always be: running, on the idleQueue, or (maybe) on the transferQueue)
-    return null;
+    // should only get here if the idle thread contended on a lock (due to debug)
+    if (VM.VerifyAssertions) VM._assert(VM_Scheduler.getCurrentThread() instanceof VM_IdleThread);
+    return VM_GreenScheduler.getCurrentThread();
   }
 
   //-----------------//
@@ -573,7 +595,12 @@ public class VM_GreenProcessor extends VM_Processor {
     if (!threadSwitchingEnabled()) {
       VM.sysWrite("No threadswitching on proc ", id);
       VM.sysWrite(" with addr ", VM_Magic.objectAsAddress(VM_GreenProcessor.getCurrentProcessor()));
-      VM.sysWriteln(" because: ", threadSwitchDisabledReason);
+      if (VM.VerifyAssertions) {
+        for (int i=0; i <= -threadSwitchingEnabledCount; i++) {
+          VM.sysWrite(" because: ", threadSwitchDisabledReason[i]);
+        }
+      }
+      VM.sysWriteln();
       VM._assert(false);
     }
   }
