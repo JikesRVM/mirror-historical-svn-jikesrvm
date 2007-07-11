@@ -707,11 +707,7 @@ public abstract class VM_Thread {
     //
     VM_Processor.getCurrentProcessor().enableThreadSwitching();
     VM_Scheduler.threadCreationMutex.unlock();
-    synchronized (this) {
-      // release anybody waiting on this thread -
-      // in particular, see {@link #join()}
-      this.notifyAll();
-    }
+
     if (VM.VerifyAssertions) {
       if (VM.fullyBooted || !terminateSystem) {
         VM_Processor.getCurrentProcessor().failIfThreadSwitchingDisabled();
@@ -745,9 +741,14 @@ public abstract class VM_Thread {
       jniEnv = null;
     }
 
+    // release anybody waiting on this thread -
+    // in particular, see {@link #join()}
+    synchronized (this) {
+      state = State.TERMINATED;
+      notifyAll(this);
+    }
     // become another thread
     //
-    state = State.TERMINATED;
     VM_Scheduler.releaseThreadSlot(threadSlot, this);
 
     beingDispatched = true;
@@ -1528,7 +1529,7 @@ public abstract class VM_Thread {
   /**
    * Throw the external interrupt associated with the thread now it is running
    */
-  @LogicallyUninterruptible
+  @Interruptible
   protected void postExternalInterrupt() {
     Throwable t = causeOfThreadDeath;
     causeOfThreadDeath = null;
