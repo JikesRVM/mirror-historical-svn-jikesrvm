@@ -57,14 +57,13 @@ import org.vmmagic.unboxed.Word;
 
 
 /**
- * Main driver for linear scan register allocation.
+ * Main driver for graph color register allocation.
  */
 public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 
 	/**
 	 * Build this phase as a composite of others.
 	 */
-
 	public OPT_GraphColor() {
 		super("Graph Color Composite Phase",
 				new OPT_OptimizationPlanElement[]{
@@ -75,6 +74,7 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 				new OPT_OptimizationPlanAtomicElement(new UpdateOSRMaps())
 		});
 	}
+
 	/**
 	 * Register allocation is required
 	 */
@@ -97,13 +97,18 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 	private static final boolean verboseDebug = false;
 	private static final boolean spillAllRegs = true;
 	private static final boolean gcdebug = false;
+	private static final boolean dumpStatistics = false;
 
 	/**
 	 * Attempt to coalesce to eliminate register moves?
 	 */
 	static final boolean COALESCE_MOVES = true;
 
-
+	/**
+	 * 
+	 * @author Alexey Gorodilov
+	 *
+	 */
 	public static final class GraphColor extends OPT_CompilerPhase {
 
 		/**
@@ -135,77 +140,68 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 		}
 
 		/**
-		 * Statistics
-		 */ 
-
-		/**
-		 * Number of iterations in main
-		 */ 
-		private int numIterations = 0;
-
-		/**
-		 * number of moves
-		 */
-		private int numMoves = 0;
-
-		/**
-		 * number of coalesced moves
-		 */
-		private int numCoalescedMoves = 0;
-
-		/**
-		 * number of symbolic registers
-		 */
-		private int numSymbRegs = 0;
-
-		/**
-		 * number of spilled registers
-		 */
-		private int numSpilledRegs = 0;
-
-		/**
-		 * Dump statistics
-		 */
-		public void dumpStat() {
-
-			System.out.println("************** GraphColor Statistics **************");
-			System.out.println("# algo iterations:   " + numIterations);
-			System.out.println("# symbolic regs:     " + numSymbRegs);
-			System.out.println("# move instructions: " + numMoves);
-			System.out.println("# move coalesced:    " + numCoalescedMoves);
-			System.out.println("# spilled regs:      " + numSpilledRegs);
-
-		}
-
-		/**
 		 * The governing IR
 		 */
 		protected OPT_IR ir;
 
+		// OPT_Register to Integer Id mapping
+		public HashMap<OPT_Register, Integer> RegToId = new HashMap<OPT_Register, Integer>();
+
+		// Integer Id to OPT_Register mapping
+		public HashMap<Integer, OPT_Register> IdToReg = new HashMap<Integer, OPT_Register>();
+
+		public int currentRegId = -1;
+
 		/**
-		 *  @param ir the IR
+		 * Map from OPT_Register to Integer Id
+		 * @param reg JikesRVM register class
+		 * @return Unique identifier
 		 */
-		public void perform(OPT_IR ir) {
-			
-			this.ir = ir;
-			
-			if(spillAllRegs) {
-				SpillAllRegs();
-				return;
-			}
-			
-			if(debug) {
-				System.out.println(">>>>>>>>>>>>>>>>   START   <<<<<<<<<<<<<<<<<<<<");
-				System.out.println("method " + ir.method.getName().toString());
+		public Integer mapRegToId(OPT_Register reg) {
+
+			if(!RegToId.containsKey(reg)) {
+				currentRegId ++;
+				RegToId.put(reg, currentRegId);
+				IdToReg.put(currentRegId, reg);
+				return currentRegId;
 			}
 
-			IteratedCoalescing();
-
-			if(debug) {
-				System.out.println("<<<<<<<<<<<<<<<<    END    >>>>>>>>>>>>>>>>>>>>>\n");
-			}
+			return RegToId.get(reg);
 		}
 
+		/**
+		 * Get register identifier
+		 * @param reg JikesRVM register class
+		 * @return Unique identifier
+		 */
+		public Integer getRegId(OPT_Register reg) {
+
+			if(!RegToId.containsKey(reg)) {
+				throw new RuntimeException("OPT_GraphColor PANIC getRegId: Identifier for register " +
+						reg.toString() + " does not exists.");
+			}
+
+			return RegToId.get(reg);
+		}
+
+
+		// to delete in future
+		/**
+		 * Map Integer Id to OPT_Register 
+		 * @param id Unique register id
+		 * @return JikesRVM register class
+		 */
+		public OPT_Register mapIdToReg(Integer id) {
+
+			if(!IdToReg.containsKey(id)) {
+				throw new RuntimeException("OPT_GraphColor PANIC mapIdToReg: Register with identifier " + 
+						id + " does not exists.");
+			}
+
+			return IdToReg.get(id);
+		}
+		
+		
 
 		// machine registers, preassigned a color
 		public HashSet<Integer> precolored = new HashSet<Integer>();
@@ -266,86 +262,30 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 		 */ 
 		protected IGraph igraph = new IGraph();
 
-		// OPT_Register to Integer Id mapping
-		public HashMap<OPT_Register, Integer> RegToId = new HashMap<OPT_Register, Integer>();
-
-		// Integer Id to OPT_Register mapping
-		public HashMap<Integer, OPT_Register> IdToReg = new HashMap<Integer, OPT_Register>();
-
-		// 
-		public int currentRegId = -1;
-
 		// number of colors
 		public int K;
 
 		/**
-		 * Map from OPT_Register to Integer Id
-		 * @param reg JikesRVM register class
-		 * @return Unique identifier
+		 *  @param ir the IR
 		 */
-		public Integer mapRegToId(OPT_Register reg) {
+		public void perform(OPT_IR ir) {
 
-			if(!RegToId.containsKey(reg)) {
-				currentRegId ++;
-				RegToId.put(reg, currentRegId);
-				IdToReg.put(currentRegId, reg);
-				return currentRegId;
+			this.ir = ir;
+
+			if(spillAllRegs) {
+				SpillAllRegs();
+				return;
 			}
 
-			return RegToId.get(reg);
-		}
-
-		/**
-		 * Get register identifier
-		 * @param reg JikesRVM register class
-		 * @return Unique identifier
-		 */
-		public Integer getRegId(OPT_Register reg) {
-
-			if(!RegToId.containsKey(reg)) {
-				throw new RuntimeException("OPT_GraphColor PANIC GetRegId: Identifier does not exists.");
-				//System.out.println("[GetRegId]: Error. identifier does no exists");
+			if(!debug) {
+				System.out.println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>   START   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
+				System.out.println("method " + ir.method.getName().toString());
 			}
 
-			return RegToId.get(reg);
-		}
+			IteratedCoalescing();
 
-		/**
-		 * Map Integer Id to OPT_Register 
-		 * @param id Unique register id
-		 * @return JikesRVM register class
-		 */
-		public OPT_Register mapIdToReg(Integer id) {
-
-			if(!IdToReg.containsKey(id)) {
-				throw new RuntimeException("OPT_GraphColor PANIC MapIdToReg: Identifier does not exists.");
-				//System.out.println("[MapIdToReg]: Error. identifier does no exists");
-			}
-
-			return IdToReg.get(id);
-		}
-		
-		/**
-		 * Method for spilling all registers
-		 *
-		 */
-		public void SpillAllRegs() {
-			for (OPT_Register reg = ir.regpool.getFirstSymbolicRegister(); reg != null; reg = reg.getNext()) {
-
-				// clear the 'long' type if it's persisted to here.
-				if (VM.BuildFor32Addr && reg.isLong()) {
-					reg.clearType();
-					reg.setInteger();
-				}
-
-				int type = OPT_PhysicalRegisterSet.getPhysicalRegisterType(reg);
-				if (type == -1) {
-					type = 1;//DOUBLE_REG;
-				}
-				int spillSize = OPT_PhysicalRegisterSet.getSpillSize(type);
-				int location = ir.stackManager.allocateNewSpillLocation(type);	
-
-				OPT_RegisterAllocatorState.setSpill(reg, location);
+			if(!debug) {
+				System.out.println("_____________________________________    END    _____________________________________\n\n\n");
 			}
 		}
 
@@ -355,17 +295,14 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 		 */
 		public void IteratedCoalescing() {
 
-
-			if(debug) {
+			if(!debug) {
 				for (OPT_Register reg = ir.regpool.getFirstSymbolicRegister(); reg != null; reg = reg.getNext()) {
 					System.out.print(reg.toString() + " ");
 				}
 				System.out.println("");
 			}
 
-
 			initPrecoloredSet();
-
 
 			for (OPT_Register reg = ir.regpool.getFirstSymbolicRegister(); reg != null; reg = reg.getNext()) {
 				initial.add(mapRegToId(reg));
@@ -375,24 +312,47 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 			// number of symbolic registers
 			numSymbRegs = initial.size();
 
-			//OPT_CoalesceMoves cm = new OPT_CoalesceMoves();
-			//cm.perform(ir);
-
 			build();
 
 			if(debug) {
 				System.out.println("igraph.size() = " + igraph.size());
 			}
 
-
-
 			main();
 
-			if(debug) {
+			// Dump register allocation statistics
+			if(dumpStatistics) {
 				dumpStat();
 			}
+		}
 
-			//dumpMap();
+		public void initPrecoloredSet() {
+			OPT_PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
+
+			if(debug) {
+				System.out.println("initPrecolored: ");
+			}
+
+			for (Enumeration<OPT_Register> e = phys.enumerateAll(); e.hasMoreElements();) {
+
+				OPT_Register physReg = e.nextElement();
+				if(physReg != null) {
+
+					if(debug) {
+						System.out.print(physReg.toString() + " ");
+					}
+					Integer regId = mapRegToId(physReg); 
+					precolored.add(regId);
+
+					// Assign color
+					color.put(regId, regId);
+				}
+			}
+
+
+			if(debug) {
+				System.out.println("");
+			}
 		}
 
 		/**
@@ -490,14 +450,17 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 
 						if(MIR_Move.getResult(inst).isRegister() && MIR_Move.getValue(inst).isRegister()) {
 
+							
 							/*
 							if(MIR_Move.getResult(inst).asRegister().register == MIR_Move.getValue(inst).asRegister().register) {
-								System.out.println("Found mov r1,r1 :" + inst.toString());
+								//System.out.println("Found mov r1,r1 :" + inst.toString());
 
-								toDel = inst;
-								igraph.DumpDot(ir.method.getName().toString());
-
+								//toDel = inst;
+								//igraph.DumpDot(ir.method.getName().toString());
+								
 							}
+							*/
+							
 
 							// experimental stub
 							igraph.addEdge(
@@ -505,18 +468,18 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 									mapRegToId(MIR_Move.getValue(inst).asRegister().register)
 									);
 
-							 */
+							 
 
 
 							igraph.addMovePair(
-									this.mapRegToId(MIR_Move.getResult(inst).asRegister().register), 
-									this.mapRegToId(MIR_Move.getValue(inst).asRegister().register),
+									mapRegToId(MIR_Move.getResult(inst).asRegister().register), 
+									mapRegToId(MIR_Move.getValue(inst).asRegister().register),
 									inst);
 
 							this.workListMoves.add( 
 									new MovePair(
-											this.mapRegToId(MIR_Move.getResult(inst).asRegister().register), 
-											this.mapRegToId(MIR_Move.getValue(inst).asRegister().register), 
+											mapRegToId(MIR_Move.getResult(inst).asRegister().register), 
+											mapRegToId(MIR_Move.getValue(inst).asRegister().register), 
 											inst)
 							);
 
@@ -586,6 +549,7 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 
 
 
+			igraph.DumpDot(ir.method.getName().toString());
 			if(verboseDebug) {
 				igraph.DumpDot(ir.method.getName().toString());
 
@@ -882,6 +846,78 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 			freezeMoves(m);
 		}
 
+		/**
+		 * Method for spilling all registers
+		 *
+		 */
+		public void SpillAllRegs() {
+			for (OPT_Register reg = ir.regpool.getFirstSymbolicRegister(); reg != null; reg = reg.getNext()) {
+
+				// why this register arise
+				if(reg.isValidation()) continue;
+
+				// clear the 'long' type if it's persisted to here.
+				if (VM.BuildFor32Addr && reg.isLong()) {
+					reg.clearType();
+					reg.setInteger();
+				}
+
+
+		/*
+						public static int getPhysicalRegisterType(OPT_Register r) {
+							if (r.isInteger() || r.isLong() || r.isAddress()) {
+								return INT_REG;
+							} else if (r.isFloatingPoint()) {
+								return DOUBLE_REG;
+							} else if (r.isCondition()) {
+								return CONDITION_REG;
+							} else {
+								throw new OPT_OptimizingCompilerException("getPhysicalRegisterType " + " unexpected " + r);
+							}
+						}
+		*/
+
+				int type = OPT_PhysicalRegisterSet.getPhysicalRegisterType(reg);
+				if (type == -1) {
+					type = 1;//DOUBLE_REG;
+				}
+				int spillSize = OPT_PhysicalRegisterSet.getSpillSize(type);
+				int location = ir.stackManager.allocateNewSpillLocation(type);	
+
+				OPT_RegisterAllocatorState.setSpill(reg, location);
+			}
+		}
+
+		/**
+		 * 
+		 *
+		 */
+		public void spillRegister(OPT_Register reg) {
+			int type;
+
+
+			// clear the 'long' type if it's persisted to here.
+			if (VM.BuildFor32Addr && reg.isLong()) {
+				reg.clearType();
+				reg.setInteger();
+			}
+
+			if(reg.isInteger() || reg.isLong() || reg.isFloat() || reg.isDouble()) {
+				type = OPT_PhysicalRegisterSet.getPhysicalRegisterType(reg);
+				if (type == -1) {
+					type = 1;//DOUBLE_REG;
+				}
+			} else {
+				type = 0;
+			}
+
+			int spillSize = OPT_PhysicalRegisterSet.getSpillSize(type);
+			int location = ir.stackManager.allocateNewSpillLocation(type);	
+
+			OPT_RegisterAllocatorState.setSpill(reg, location);
+
+		}
+
 		public void assignColors() {
 			HashSet<Integer> okColors = new HashSet<Integer>();
 			HashSet<Integer> fixed = new HashSet<Integer>();
@@ -891,17 +927,28 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 			OPT_Register edx = phys.getEDX();
 			OPT_Register ebx = phys.getEBX();
 
-			if(debug) {
-				System.out.println("selectStack.size() = " + selectStack.size());
-			}
+
+			String dumpAdj = "";
+			String dumpState = "";
+
+			System.out.println("assignColors:");
+			System.out.println("  Reg  |  Type  |  AdjList");
 
 			while(!selectStack.empty()) {
 				Integer n = selectStack.pop();
 
+				System.out.print(mapIdToReg(n).toString() + " ");
+
+
 				// STUB
 				if(mapIdToReg(n).isFloat() || mapIdToReg(n).isDouble()) {
-					System.out.println("Float: " + mapIdToReg(n).toString());
+
+					if(debug) {
+						System.out.println("Float: " + mapIdToReg(n).toString());
+					}
+					spillRegister(mapIdToReg(n));
 					spilledNodes.add(n);
+					
 					continue;
 				}
 
@@ -917,46 +964,58 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 				fixed.addAll(coloredNodes);
 				fixed.addAll(precolored);
 
-				//System.out.print("Reg: " + mapIdToReg(n).toString() + "| ");
-
+				dumpAdj = "";
 				for(Integer w : igraph.adjList.get(n)) {
-					//System.out.print(mapIdToReg(w).toString() + "[" + w + "]");
+
+					dumpAdj += mapIdToReg(w).toString() + "[" + w + "]";
+
 					if(fixed.contains(getAlias(w))) {
+						/*
 						if(precolored.contains(w)) {
 							okColors.remove(getAlias(w));
 							//System.out.print("(-" + getAlias(w) + ")");
 						} else {
-							okColors.remove(color.get(getAlias(w)));
-							//System.out.print("(-" + color.get(getAlias(w)) + ")");
-						}
+						 */
+						okColors.remove(color.get(getAlias(w)));
+						dumpAdj += "(" + mapIdToReg(color.get(getAlias(w))).toString() + ")";
+						//System.out.print("(-" + color.get(getAlias(w)) + ")");
+						//}
 					}
-					//System.out.print(" ");
+					dumpAdj += " ";
 				}
 
-				//System.out.print("okColors ");
+				System.out.print("okColors ");
 				for(Integer c : okColors) {
-					//System.out.print(mapIdToReg(c).toString() + "[" + c + "] ");
+					System.out.print(mapIdToReg(c).toString() + "[" + c + "] ");
 				}
 
 
 				if(okColors.isEmpty()) {
+
 					spilledNodes.add(n);
-					//System.out.print("spilled");
+					spillRegister(mapIdToReg(n));
+					dumpState = "spilled";
+
 				} else {
+
 					coloredNodes.add(n);
 					Integer c = okColors.iterator().next();
 
 					color.put(n, c);
 
-					if(debug) 
-					{
-						System.out.println();
-						System.out.println(mapIdToReg(n) + ">>" + mapIdToReg(c).toString());
-					}
-					mapIdToReg(n).mapsToRegister = mapIdToReg(c);
-					OPT_RegisterAllocatorState.mapOneToOne(mapIdToReg(n), mapIdToReg(c));
+					OPT_Register sReg = mapIdToReg(n); 
+					OPT_Register phReg = mapIdToReg(c);
+
+					dumpState = phReg.toString();
+
+					sReg.freeRegister();
+					sReg.allocateRegister(phReg);
+					sReg.mapsToRegister = phReg;
+					// mapOnToOne set prev to null
+					//OPT_RegisterAllocatorState.mapOneToOne(sReg, phReg);
+					System.out.println(sReg.toString() + ">>" + phReg.toString());
 				}
-				//System.out.println();
+				System.out.println("|" + dumpState + "|" + dumpAdj);
 			}
 
 			numSpilledRegs += spilledNodes.size();
@@ -964,41 +1023,68 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 			for(Integer n : coalescedNodes) {
 				color.put(n, color.get(getAlias(n)));
 			}
+			
+			
+			System.out.println("***********");
+			for (OPT_Register reg = ir.regpool.getFirstSymbolicRegister(); reg != null; reg = reg.getNext()) {
+				if(reg.isAllocated()) {
+					if(OPT_RegisterAllocatorState.getMapping(reg) == null) {
+						System.out.println(reg.toString() + "-->null");
+					} else {
+						System.out.println(reg.toString() + "-->" + OPT_RegisterAllocatorState.getMapping(reg).toString());
+					}
+				}
+			}
+			System.out.println("");
 		}
 
 		public void rewriteProgram() {
 
 		}
 
-		public void initPrecoloredSet() {
-			OPT_PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
-
-			if(debug) {
-				System.out.println("initPrecolored: ");
-			}
-
-			for (Enumeration<OPT_Register> e = phys.enumerateAll(); e.hasMoreElements();) {
-				OPT_Register nv = e.nextElement();
-				if(nv != null) {
-
-					if(debug) {
-						System.out.print(nv.toString() + " ");
-					}
-					precolored.add(mapRegToId(nv));
-				}
-			}
 
 
-			if(debug) {
-				System.out.println("");
-			}
-		}
+		/**
+		 * Statistics
+		 */ 
 
-		public void dumpMap() {
-			System.out.println("Map Table Dump:");
-			for(OPT_Register r : RegToId.keySet()) {
-				System.out.println(r.toString() + "->" + RegToId.get(r).toString());
-			}
+		/**
+		 * Number of iterations in main
+		 */ 
+		private int numIterations = 0;
+
+		/**
+		 * number of moves
+		 */
+		private int numMoves = 0;
+
+		/**
+		 * number of coalesced moves
+		 */
+		private int numCoalescedMoves = 0;
+
+		/**
+		 * number of symbolic registers
+		 */
+		private int numSymbRegs = 0;
+
+		/**
+		 * number of spilled registers
+		 */
+		private int numSpilledRegs = 0;
+
+		/**
+		 * Dump statistics
+		 */
+		public void dumpStat() {
+
+			System.out.println("************** GraphColor Statistics **************");
+			System.out.println("# algo iterations:   " + numIterations);
+			System.out.println("# symbolic regs:     " + numSymbRegs);
+			System.out.println("# move instructions: " + numMoves);
+			System.out.println("# move coalesced:    " + numCoalescedMoves);
+			System.out.println("# spilled regs:      " + numSpilledRegs);
+
 		}
 
 		/**
@@ -1246,6 +1332,13 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 		public boolean dump_moves = false;
 		public boolean dump_build = true;
 
+		public void dumpMap() {
+			System.out.println("Map Table Dump:");
+			for(OPT_Register r : RegToId.keySet()) {
+				System.out.println(r.toString() + "->" + RegToId.get(r).toString());
+			}
+		}
+
 		public void DumpBB(OPT_BasicBlock bb, OPT_LiveAnalysis live) {
 			if(bb == null) return;
 
@@ -1444,30 +1537,7 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 		 */
 		public void perform(OPT_IR ir) {
 
-
-			// Generate spill code if necessary
-
-			/*
-			VM.sysWrite("################# method " + ir.method.getName().toString() + "\n");
-			VM.sysWrite("Before\n");
-			for (OPT_BasicBlock bb = ir.cfg.entry(); bb != null; bb = (OPT_BasicBlock) bb.nextSorted) {
-				bb.printExtended();
-			}
-			 */
-
-
-
-			//mySpill(ir);
-
-			/*
-			if(ir.method.getName().toString().equalsIgnoreCase("main")) 
-			{
-				System.out.println("Spill apply");
-				replaceSymbolicRegisters(ir);
-			}
-			 */
-
-			//replaceSymbolicRegisters(ir);
+			replaceSymbolicRegisters(ir);
 
 
 			//if (ir.hasSysCall() || ir.MIRInfo.linearScanState.spilledSomething) {
@@ -1478,61 +1548,6 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 
 			if (VM.BuildForIA32 && !VM.BuildForSSE2Full) {
 				OPT_Operators.helper.rewriteFPStack(ir);
-			}
-
-			/*
-			VM.sysWrite("After\n");
-
-			for (OPT_BasicBlock bb = ir.cfg.entry(); bb != null; bb = (OPT_BasicBlock) bb.nextSorted) {
-				bb.printExtended();
-			}
-			 */
-		}
-
-		public void mySpill(OPT_IR ir) {
-
-			int d = 0;
-			//System.out.println(ir.method.getName().toString());
-			for (OPT_Register reg = ir.regpool.getFirstSymbolicRegister(); reg != null; reg = reg.getNext()) {
-
-				// check for allocated register
-				/*
-				if(OPT_RegisterAllocatorState.getMapping(reg) != null) {
-					continue;
-				}
-				 */
-
-				//if(reg.isValidation()) continue;
-
-
-
-				//System.out.print(reg.toString() + " ");
-
-				/*
-				if(ir.method.getName().toString().equalsIgnoreCase("main")) {
-					if((OPT_RegisterAllocatorState.getMapping(reg) != null) && (d < 10))
-					{
-						d++;
-						System.out.println("RRRRR: " + reg.toString());
-						continue;
-					}
-				}
-				 */
-
-				// clear the 'long' type if it's persisted to here.
-				if (VM.BuildFor32Addr && reg.isLong()) {
-					reg.clearType();
-					reg.setInteger();
-				}
-
-				int type = OPT_PhysicalRegisterSet.getPhysicalRegisterType(reg);
-				if (type == -1) {
-					type = 1;//DOUBLE_REG;
-				}
-				int spillSize = OPT_PhysicalRegisterSet.getSpillSize(type);
-				int location = ir.stackManager.allocateNewSpillLocation(type);	
-
-				OPT_RegisterAllocatorState.setSpill(reg, location);
 			}
 		}
 
@@ -1601,6 +1616,7 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 				}
 
 				for (OPT_RegSpillListElement elem : GCelement.regSpillList()) {
+					
 					OPT_Register symbolic = elem.getSymbolicReg();
 
 					if (gcdebug) {
@@ -1611,13 +1627,12 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 						OPT_Register ra = OPT_RegisterAllocatorState.getMapping(symbolic);
 						elem.setRealReg(ra);
 						if (gcdebug) { VM.sysWrite(ra + "\n"); }
-
 					} else if (symbolic.isSpilled()) {
 						int spill = symbolic.getSpillAllocated();
 						elem.setSpill(spill);
 						if (gcdebug) { VM.sysWrite(spill + "\n"); }
 					} else {
-						OPT_OptimizingCompilerException.UNREACHABLE("LinearScan", "register not alive:", symbolic.toString());
+						OPT_OptimizingCompilerException.UNREACHABLE("GraphColor", "register not alive:", symbolic.toString());
 					}
 				}
 			}
@@ -1841,7 +1856,7 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 						} else if (VM.BuildFor64Addr && op.isLongConstant()) {
 							setTupleValue(tuple, OSR_Constants.LCONST, Word.fromLong(((OPT_LongConstantOperand) op).value));
 						} else {
-							throw new OPT_OptimizingCompilerException("OPT_LinearScan", "Unexpected operand type at ", op.toString());
+							throw new OPT_OptimizingCompilerException("OPT_GraphColor", "Unexpected operand type at ", op.toString());
 						} // for the op type
 					} // for each tuple
 				} // for each inlined method
@@ -1866,7 +1881,7 @@ public final class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 				setTupleValue(tuple, OSR_Constants.SPILL, sym_reg.getSpillAllocated());
 			} else {
 				dumpIR(ir, "PANIC");
-				throw new RuntimeException("OPT_LinearScan PANIC in OSRMAP, " + sym_reg + " is not alive");
+				throw new RuntimeException("OPT_GraphColor PANIC in OSRMAP, " + sym_reg + " is not alive");
 			}
 		} // end of setRealPosition
 
