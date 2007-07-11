@@ -58,15 +58,24 @@ import org.vmmagic.unboxed.Extent;
 import org.vmmagic.unboxed.ObjectReference;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
+import gnu.classpath.jdwp.Jdwp;
 
 /**
  * A virtual machine.
  *
  *
  *                          such as when out of memory)
+ *
+ *                          
  */
 @Uninterruptible
 public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
+  
+  /**
+   * Arguments for JDWP
+   */
+  public static String jdwpArgs;
+	
   //----------------------------------------------------------------------//
   //                          Initialization.                             //
   //----------------------------------------------------------------------//
@@ -354,8 +363,11 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     if (VM.verboseClassLoading || verboseBoot >= 1) VM.sysWrite("[VM booted]\n");
 
     // set up JikesRVM socket I/O
-    if (verboseBoot >= 1) VM.sysWriteln("Initializing socket factories");
-    JikesRVMSocketImpl.boot();
+    if(jdwpArgs == null) { // use the default socket factory if using jdwp
+      if (verboseBoot >= 1) VM.sysWriteln("Initializing socket factories");
+      JikesRVMSocketImpl.boot();
+    }
+
 
     if (VM.BuildForAdaptiveSystem) {
       if (verboseBoot >= 1) VM.sysWriteln("Initializing adaptive system");
@@ -395,6 +407,24 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     if (VM.BuildForAdaptiveSystem) {
       VM_CompilerAdvice.postBoot();
     }
+   
+    if (jdwpArgs != null) {
+			// Run necessary class initializsers
+    		runClassInitializer("gnu.classpath.jdwp.VMVirtualMachine");
+			runClassInitializer("gnu.classpath.jdwp.transport.JdwpConnection");
+			runClassInitializer("gnu.classpath.jdwp.event.EventManager");
+			runClassInitializer("gnu.classpath.jdwp.Jdwp");
+			// Create a daemon Jdwp thread and wait for it to be initialized
+			Jdwp jdwp = new Jdwp();
+			jdwp.setDaemon(true);
+			jdwp.configure(jdwpArgs);
+			jdwp.start();
+			try {
+				jdwp.join();
+			} catch (InterruptedException e) {
+				throw new Error(e);
+			}
+		}
 
     // Schedule "main" thread for execution.
     if (verboseBoot >= 2) VM.sysWriteln("Creating main thread");
@@ -2029,8 +2059,8 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
 //     return (inSysExit != 0) || (inShutdown != 0);
 //   }
 
-  public static boolean debugOOM = false; // debug out-of-memory exception. DEBUG
-  public static boolean doEmergencyGrowHeap = !debugOOM; // DEBUG
+  public final static boolean debugOOM = false; // debug out-of-memory exception. DEBUG
+  public final static boolean doEmergencyGrowHeap = !debugOOM; // DEBUG
 
   /**
    * Exit virtual machine.

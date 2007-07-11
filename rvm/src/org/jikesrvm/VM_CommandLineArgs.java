@@ -22,6 +22,7 @@ import org.jikesrvm.compilers.common.VM_RuntimeCompiler;
 import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import static org.jikesrvm.runtime.VM_SysCall.sysCall;
 import org.jikesrvm.scheduler.VM_Scheduler;
+import gnu.classpath.jdwp.Jdwp;
 
 /**
  * Command line option processing.
@@ -97,6 +98,8 @@ public class VM_CommandLineArgs {
   public static final int BOOTSTRAP_CLASSES_ARG = 27;
   public static final int CPUAFFINITY_ARG = 28;
   public static final int PROCESSORS_ARG = 29;
+  public static final int JDWP_ARG = 30;
+
 
   /**
    * A catch-all prefix to find application name.
@@ -156,6 +159,7 @@ public class VM_CommandLineArgs {
                                             new Prefix("-X:vm:help$", VM_HELP_ARG),
                                             new Prefix("-X:vm$", VM_HELP_ARG),
                                             new Prefix("-X:vm:", VM_ARG),
+                                            new Prefix("-X:runjdwp:", JDWP_ARG),
 
                                             /* Silently ignored */
                                             new Prefix("-Xverify", VERIFY_ARG),
@@ -573,6 +577,13 @@ public class VM_CommandLineArgs {
             VM.sysExit(VM.EXIT_STATUS_BOGUS_COMMAND_LINE_ARG);
           }
           break;
+
+        // -------------------------------------------------------------------
+        // JDWP (Java Debugger Wire Protocol) arguments
+        // -------------------------------------------------------------------
+		case JDWP_ARG:
+		  VM.jdwpArgs = arg;
+		  break;
       }
     }
   }

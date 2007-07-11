@@ -474,3 +474,11 @@ Ljava/security/ProtectionDomain;
 [Ljava/security/ProtectionDomain;
 [Ljava/lang/Package;
 
+Lgnu/classpath/jdwp/transport/JdwpConnection;
+Lgnu/classpath/jdwp/event/EventManager;
+Lgnu/classpath/jdwp/Jdwp;
+Lgnu/classpath/jdwp/processor/EventRequestCommandSet;
+Lgnu/classpath/jdwp/VMVirtualMachine;
+
+
+
