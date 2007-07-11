@@ -52,8 +52,8 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
-import com.ibm.JikesRVM.VM_Callbacks;
-import com.ibm.JikesRVM.classloader.VM_Class;
+import org.jikesrvm.VM_Callbacks;
+import org.jikesrvm.classloader.VM_Class;
 
 /**
  * A virtual machine according to JDWP.
