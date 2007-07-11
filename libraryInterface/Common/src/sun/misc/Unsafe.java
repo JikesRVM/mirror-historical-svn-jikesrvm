@@ -129,7 +129,9 @@ public class Unsafe {
 
   public void unpark(Thread thread) {
     VM_Thread vmthread = java.lang.JikesRVMSupport.getThread(thread);
-    vmthread.unpark();
+    if (vmthread != null) {
+      vmthread.unpark();
+    }
   }
 
   public void park(boolean isAbsolute,long time) throws Throwable  {
