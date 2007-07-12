@@ -88,8 +88,10 @@
 
   <target name="init" depends="prepare-ant-tasks">
     <tstamp prefix="test-run.start">
-      <format property="time" pattern="EE MMM d HH:mm:ss z yyyy"/>
+      <format property="time" pattern="EEE MMM dd HH:mm:ss z yyyy" timezone="UTC"/>
+      <format property="time-stamp" pattern="yyyyMMddHHmmss" timezone="UTC"/>
     </tstamp>
+    <hostname property="local.hostname"/>
   </target>
 
     <!-- **************************************************************************** -->
@@ -144,7 +146,18 @@
             <concat destfile="${build.results.file}" append="true">
               <path path="${driver.scratch.dir}/Build-${test.config.@{tag}.configuration}.txt"/>
             </concat>
-            <bres>]<![CDATA[]></output></build>]]></bres>
+            <bres>]<![CDATA[]></output><parameters>]]></bres>
+            <property prefix="@{tag}" file="${test.config.@{tag}.rvm.dir}/constants.properties"/>
+
+            <property name="properties.config"
+                      value="config.name config.runtime.compiler config.bootimage.compiler config.mmtk.plan config.include.aos config.include.gcspy config.include.gcspy-client config.include.all-classes config.assertions config.default-heapsize.initial config.default-heapsize.maximum config.bootimage.compiler.args config.stress-gc-interval"/>
+            <forEach list="${properties.config}" property="property">
+              <sequential>
+                <bres><![CDATA[<parameter key="@{property}" value="${@{tag}.@{property}}"/>]]></bres>
+              </sequential>
+            </forEach>
+            <bres><![CDATA[</parameters></build>]]></bres>
+
           </sequential>
         </if>
         <propertycopy name="test.config.@{tag}.build.error" from="${test.config.@{tag}.configuration}.build.error"/>
@@ -184,25 +197,6 @@
     </forEach>
 
     <bres><![CDATA[</builds>]]></bres>
-
-    <if>
-      <conditions>
-        <and>
-          <not>
-            <isset property="skip.build"/>
-          </not>
-          <not>
-            <isset property="skip.javadoc"/>
-          </not>
-        </and>
-      </conditions>
-      <sequential>
-        <erant antfile="${jikesrvm.dir}/build.xml" failonerror="false" target="apidoc">
-          <property name="config.name" value="prototype-opt"/>
-        </erant>
-      </sequential>
-    </if>
-
   </target>
 
   <!-- **************************************************************************** -->
@@ -218,6 +212,7 @@
   <revision>${svn.revision}</revision>
   <time>${test-run.start.time}</time>
   <variant>${test-run.variant}</variant>
+  <host>${local.hostname}</host>
 ]]></echo>
     <concat destfile="${build.results.dir}/Results.xml" append="true">
       <path path="${build.results.file}"/>
@@ -226,6 +221,29 @@
     <forEach list="${test.configs}" property="tag">
       <sequential>
         <testRunPropertyInit tag="@{tag}"/>
+        <property prefix="@{tag}" file="${test.config.@{tag}.rvm.dir}/constants.properties"/>
+
+        <if>
+          <conditions>
+            <not>
+              <isset property="properties.target"/>
+            </not>
+          </conditions>
+          <sequential>
+            <property name="properties.target"
+                      value="target.name target.arch target.address.size target.os target.bootimage.code.address target.bootimage.data.address target.bootimage.rmap.address target.max-mappable.address target.arch.sse2"/>
+            <echo file="${build.results.dir}/Results.xml" append="true"><![CDATA[<target><parameters>]]></echo>
+            <forEach list="${properties.target}" property="property">
+              <sequential>
+                <echo file="${build.results.dir}/Results.xml" append="true"><![CDATA[
+            <parameter key="@{property}" value="${@{tag}.@{property}}"/>
+    ]]></echo>
+              </sequential>
+            </forEach>
+            <echo file="${build.results.dir}/Results.xml" append="true"><![CDATA[</parameters></target>]]></echo>
+          </sequential>
+        </if>
+
         <echo file="${build.results.dir}/@{tag}.xml" append="false">
           <![CDATA[<test-configuration tag="@{tag}" name="${test.config.@{tag}.name}">]]></echo>
         <condition property="test.config.@{tag}.prefix" value="" else="${test.config.@{tag}.name}_">
@@ -275,14 +293,8 @@
 
   <target name="archive" depends="gen-xml-report">
     <mkdir dir="${results.archive}"/>
-
-    <hostname property="local.hostname"/>
-    <tstamp prefix="report"/>
-
-    <property name="archive.filename" value="${local.hostname}_${test-run.name}_${report.DSTAMP}${report.TSTAMP}_r${svn.revision}_${target.name}_Report.xml"/>
+    <property name="archive.filename" value="${local.hostname}_${test-run.variant}_${test-run.start.time-stamp}_r${svn.revision}_${target.name}_Report.xml"/>
     <gzip src="${test.results.dir}/Report.xml" destfile="${results.archive}/${archive.filename}.gz"/>
-
-    <gzip src="${test.results.dir}/Report.xml" destfile="${results.archive}/${report.DSTAMP}.xml.gz"/>
   </target>
 
   <!-- **************************************************************************** -->
@@ -301,41 +313,7 @@
       <outputproperty name="encoding" value="US-ASCII"/>
       <outputproperty name="indent" value="yes"/>
     </xslt>
-
-    <condition property="upload-opt" value="" else="-s ${upload.location}">
-      <equals arg1="${upload.location}" arg2=""/>
-    </condition>
-
-    <condition property="webdir-opt" value="" else="-d ${web.directory}">
-      <equals arg1="${web.directory}" arg2=""/>
-    </condition>
-
-    <exec executable="${perl.exe}" failonerror="true">
-      <arg value="${jikesrvm.dir}/testing/harness/nightlyreport.pl"/>
-      <arg value="-x"/>
-      <arg value="${test.results.dir}/Report.xml"/>
-      <arg value="-o"/>
-      <arg value="${test.results.dir}/ReportNG.html"/>
-      <arg line="${upload-opt}"/>
-    </exec>
-    <exec executable="${perl.exe}" failonerror="true">
-      <arg value="${jikesrvm.dir}/testing/harness/regressionsummary.pl"/>
-      <arg value="-r"/>
-      <arg value="${results.archive}/${report.DSTAMP}.xml.gz"/>
-      <arg line="-a"/>
-      <arg value="${results.archive}"/>
-      <arg value="-p"/>
-      <arg value="Linux.i686.32"/>
-      <arg value="-h"/>
-      <arg value="${reporting.host.name}"/>
-      <arg value="-s"/>
-      <arg value="${jikesrvm.dir}/testing/harness/nightlyreport.pl"/>
-      <arg value="-o"/>
-      <arg value="${test.results.dir}/ReportSummary.html"/>
-      <arg line="${webdir-opt}"/>
-    </exec>
   </target>
-
 
   <!-- **************************************************************************** -->
   <!-- *                                                                          * -->
@@ -366,37 +344,6 @@
       <arg value="${cattrack.upload.incoming.dir}/${local.hostname}/${archive.filename}.gz_tmp"/>
       <arg value="${cattrack.upload.incoming.dir}/${local.hostname}/${archive.filename}.gz"/>
     </exec>
-<!--
-    <exec executable="ssh" failonerror="true">
-      <arg value="${cattrack.upload.account}"/>
-      <arg value="cd ~/cattrack &amp;&amp; ./script/runner -e production &quot;TestRunImporter.process_incoming_test_runs(true)&quot;"/>
-    </exec>
--->
-  </target>
-
-  <!-- **************************************************************************** -->
-  <!-- *                                                                          * -->
-  <!-- *                          Targets for sending report                      * -->
-  <!-- *                                                                          * -->
-  <!-- **************************************************************************** -->
-
-  <target name="send-report" depends="gen-report" if="send.reports">
-    <selectRegex property="testcount"
-                 select="\1"
-                 file="${test.results.dir}/ReportSummary.html"
-                 pattern="Failed (\d+)/.*"/>
-    <condition property="test-run.description" value="SUCCESS" else="FAILED ${testcount} tests">
-      <equals arg1="${testcount}" arg2="0"/>
-    </condition>
-    <mail mailhost="${mail.host}"
-          mailport="${mail.port}"
-          messagemimetype="text/html"
-          subject="${test-run.description}"
-          messagefile="${test.results.dir}/ReportSummary.html">
-      <from address='"[${target.name}][${test-run.name}]" &lt;${mail.from}&gt;'/>
-      <replyto address="jikesrvm-core@lists.sourceforge.net"/>
-      <to address="${mail.to}"/>
-    </mail>
   </target>
 
   <!-- **************************************************************************** -->
@@ -405,6 +352,6 @@
   <!-- *                                                                          * -->
   <!-- **************************************************************************** -->
 
-  <target name="report" depends="test,upload-results,send-report"/>
+  <target name="report" depends="test,upload-results,gen-report"/>
 
 </project>

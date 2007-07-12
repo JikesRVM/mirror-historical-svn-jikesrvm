@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import org.jikesrvm.VM;
-import org.jikesrvm.scheduler.VM_Processor;
 import org.vmmagic.pragma.Uninterruptible;
 
 /**

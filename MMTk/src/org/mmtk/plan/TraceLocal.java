@@ -33,7 +33,8 @@ import org.vmmagic.unboxed.*;
  * @see org.mmtk.plan.Plan
  * @see org.mmtk.plan.Trace
  */
-@Uninterruptible public abstract class TraceLocal extends TraceStep
+@Uninterruptible 
+public abstract class TraceLocal extends TraceStep
   implements Constants {
   /****************************************************************************
    *
@@ -296,7 +297,7 @@ import org.vmmagic.unboxed.*;
    * @param object The object that must not move during the collection.
    * @return True If the object will not move during collection
    */
-  public boolean willNotMove(ObjectReference object) {
+  public boolean willNotMoveInCurrentCollection(ObjectReference object) {
     if (!VM.activePlan.constraints().movesObjects())
       return true;
     if (Space.isInSpace(Plan.LOS, object))

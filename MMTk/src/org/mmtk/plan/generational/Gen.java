@@ -242,19 +242,6 @@ import org.vmmagic.unboxed.*;
    * Correctness
    */
 
-  /**
-   * Remset entries should never be produced by MMTk code.  If the host JVM
-   * produces remset entries during GC, it is the responsibility of the host
-   * JVM to flush those remset entries out of the mutator contexts.
-   */
-  public static void assertMutatorRemsetsFlushed() {
-    if (VM.VERIFY_ASSERTIONS) {
-      GenMutator mutator = null;
-      while ((mutator = (GenMutator) VM.activePlan.getNextMutator()) != null)
-        mutator.assertRemsetFlushed();
-    }
-  }
-
   /*****************************************************************************
    *
    * Accounting
@@ -355,15 +342,15 @@ import org.vmmagic.unboxed.*;
   }
 
   /**
-   * @see org.mmtk.plan.Plan#objectCanMove
+   * @see org.mmtk.plan.Plan#willNeverMove
    *
-   * @param object
-   * @return
+   * @param object Object in question
+   * @return True if the object will never move
    */
   @Override
-  public boolean objectCanMove(ObjectReference object) {
+  public boolean willNeverMove(ObjectReference object) {
     if (Space.isInSpace(NURSERY, object))
-      return true;
-    return super.objectCanMove(object);
+      return false;
+    return super.willNeverMove(object);
   }
 }

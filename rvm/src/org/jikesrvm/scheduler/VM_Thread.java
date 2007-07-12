@@ -42,6 +42,7 @@ import org.jikesrvm.scheduler.greenthreads.VM_GreenScheduler;
 import org.jikesrvm.scheduler.greenthreads.VM_GreenThread;
 import org.jikesrvm.scheduler.greenthreads.VM_ThreadProxy;
 import org.jikesrvm.scheduler.greenthreads.VM_ThreadQueue;
+import org.jikesrvm.runtime.VM_ArchEntrypoints;
 import org.vmmagic.pragma.BaselineNoRegisters;
 import org.vmmagic.pragma.BaselineSaveLSRegisters;
 import org.vmmagic.pragma.Interruptible;
@@ -49,6 +50,7 @@ import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.NoOptCompile;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 /**
@@ -206,11 +208,13 @@ public abstract class VM_Thread {
    * This value must be non-zero because it is shifted
    * and used in {@link Object} lock ownership tests.
    */
+  @Entrypoint
   private final int threadSlot;
   /**
    * Is this thread's stack being "borrowed" by thread dispatcher
    * (ie. while choosing next thread to run)?
    */
+  @Entrypoint
   public boolean beingDispatched;
 
   /**
@@ -244,20 +248,24 @@ public abstract class VM_Thread {
   /**
    * Execution stack for this thread.
    */
+  @Entrypoint
   private byte[] stack;
 
   /** The {@link Address} of the guard area for {@link #stack}. */
+  @Entrypoint
   public Address stackLimit;
 
   /**
    * Place to save register state when this thread is not actually running.
    */
+  @Entrypoint
   public final VM_Registers contextRegisters;
 
   /**
    * Place to save register state when C signal handler traps
    * an exception while this thread is running.
    */
+  @Entrypoint
   private final VM_Registers hardwareExceptionRegisters;
 
   /** Count of recursive uncaught exceptions, we need to bail out at some point */
@@ -308,6 +316,7 @@ public abstract class VM_Thread {
   /**
    * Cached JNI environment for this thread
    */
+  @Entrypoint
   public VM_JNIEnvironment jniEnv;
 
   /*
@@ -334,7 +343,7 @@ public abstract class VM_Thread {
 
   /** The OOME to throw */
   private OutOfMemoryError outOfMemoryError;
-  
+
   /*
    * Enumerate different types of yield points for sampling
    */
@@ -379,7 +388,6 @@ public abstract class VM_Thread {
   public boolean requesting_osr = false;
 
   /**
-   * Create a thread. Should only be done by sub-classes.
    * @param stack stack in which to execute the thread
    */
   protected VM_Thread (byte[] stack, Thread thread, String name, boolean daemon, boolean system, int priority) {
@@ -535,6 +543,7 @@ public abstract class VM_Thread {
    * @param newState the new thread state
    */
   @LogicallyUninterruptible
+  @Entrypoint
   protected final void changeThreadState(State oldState, State newState) {
     if (trace) {
       VM.sysWrite("VM_Thread.changeThreadState: thread=", threadSlot, name);
@@ -559,6 +568,7 @@ public abstract class VM_Thread {
    * java.lang.Thread.run but system threads can override directly.
    */
   @Interruptible
+  @Entrypoint
   public synchronized void run() {
     try {
       synchronized(thread) {
@@ -784,6 +794,7 @@ public abstract class VM_Thread {
   //We should also have a pragma that saves all non-volatiles in opt compiler,
   // OSR_BaselineExecStateExtractor.java, should then restore all non-volatiles before stack replacement
   //todo fix this -- related to SaveVolatile
+  @Entrypoint
   public static void yieldpointFromPrologue() {
     yieldpoint(PROLOGUE);
   }
@@ -797,6 +808,7 @@ public abstract class VM_Thread {
   // We should also have a pragma that saves all non-volatiles in opt compiler,
   // OSR_BaselineExecStateExtractor.java, should then restore all non-volatiles before stack replacement
   // TODO fix this -- related to SaveVolatile
+  @Entrypoint
   public static void yieldpointFromBackedge() {
     yieldpoint(BACKEDGE);
   }
@@ -810,6 +822,7 @@ public abstract class VM_Thread {
   //We should also have a pragma that saves all non-volatiles in opt compiler,
   // OSR_BaselineExecStateExtractor.java, should then restore all non-volatiles before stack replacement
   // TODO fix this -- related to SaveVolatile
+  @Entrypoint
   public static void yieldpointFromEpilogue() {
     yieldpoint(EPILOGUE);
   }
@@ -1708,8 +1721,6 @@ public abstract class VM_Thread {
   @Interruptible
   public abstract String getThreadState();
   
-
-
   /** Set the initial attempt. */
   public void reportCollectionAttempt() {
     collectionAttempt++;
@@ -1724,7 +1735,7 @@ public abstract class VM_Thread {
   public void resetCollectionAttempts() {
     collectionAttempt = 0;
   }
-  
+
   /** Get the physical allocation failed flag. */
   public boolean physicalAllocationFailed() {
     return physicalAllocationFailed;
@@ -1739,21 +1750,20 @@ public abstract class VM_Thread {
   public void clearPhysicalAllocationFailed() {
     physicalAllocationFailed = false;
   }
-
+  
   /**
    * Returns the outstanding OutOfMemoryError.
    */
   public OutOfMemoryError getOutOfMemoryError() {
     return outOfMemoryError;
   }
-  
   /**
    * Sets the outstanding OutOfMemoryError.
    */
   public void setOutOfMemoryError(OutOfMemoryError oome) {
     outOfMemoryError = oome;
   }
-  
+
   /**
    * Get the thread to use for building stack traces.
    */
@@ -1761,14 +1771,14 @@ public abstract class VM_Thread {
   public VM_Thread getThreadForStackTrace() {
     return this;
   }
-  
+
   /**
    * Clears the outstanding OutOfMemoryError.
    */
   public void clearOutOfMemoryError() {
     outOfMemoryError = null;
-  }
-  
+  }  
+
   @Interruptible
   public final void handleUncaughtException(Throwable exceptionObject) {
     uncaughtExceptionCount++;

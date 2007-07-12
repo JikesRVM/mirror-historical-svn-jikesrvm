@@ -13,21 +13,20 @@
 package org.jikesrvm.runtime;
 
 import org.jikesrvm.VM;
-import org.jikesrvm.VM_Constants;
 import org.jikesrvm.classloader.VM_Atom;
-import org.jikesrvm.classloader.VM_BootstrapClassLoader;
 import org.jikesrvm.classloader.VM_Class;
 import org.jikesrvm.classloader.VM_Field;
-import org.jikesrvm.classloader.VM_Member;
 import org.jikesrvm.classloader.VM_Method;
 import org.jikesrvm.classloader.VM_NormalMethod;
 import org.jikesrvm.classloader.VM_TypeReference;
+import static org.jikesrvm.runtime.VM_EntrypointHelper.getField;
+import static org.jikesrvm.runtime.VM_EntrypointHelper.getMethod;
 
 /**
  * Fields and methods of the virtual machine that are needed by
  * compiler-generated machine code or C runtime code.
  */
-public class VM_Entrypoints implements VM_Constants {
+public class VM_Entrypoints {
   // The usual causes for getField/Method() to fail are:
   //  1. you mispelled the class name, member name, or member signature
   //  2. the class containing the specified member didn't get compiled
@@ -91,8 +90,6 @@ public class VM_Entrypoints implements VM_Constants {
   public static final VM_Field dumpBufferLockField =
       getField(org.jikesrvm.VM_Services.class, "dumpBufferLock", int.class);
 
-  public static final VM_NormalMethod unimplementedBytecodeMethod =
-      getMethod(org.jikesrvm.runtime.VM_Runtime.class, "unimplementedBytecode", "(I)V");
   public static final VM_NormalMethod unexpectedAbstractMethodCallMethod =
       getMethod(org.jikesrvm.runtime.VM_Runtime.class, "unexpectedAbstractMethodCall", "()V");
   public static final VM_NormalMethod raiseNullPointerException =
@@ -429,7 +426,7 @@ public class VM_Entrypoints implements VM_Constants {
   // Entrypoints that are valid only when the opt compiler is included in the build
   //////////////////
   public static final VM_Field specializedMethodsField;
-
+  
   public static final VM_Field osrOrganizerQueueLockField;
   public static final VM_NormalMethod optThreadSwitchFromOsrOptMethod;
   public static final VM_NormalMethod optThreadSwitchFromPrologueMethod;
@@ -468,7 +465,7 @@ public class VM_Entrypoints implements VM_Constants {
       sysArrayCopy = getMethod(java.lang.VMSystem.class, "arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V");
       sysArrayCopy.setRuntimeServiceMethod(false);
     } else {
-      specializedMethodsField = null;
+      specializedMethodsField = null; 
       osrOrganizerQueueLockField = null;
       optThreadSwitchFromOsrOptMethod = null;
       optThreadSwitchFromPrologueMethod = null;
@@ -484,7 +481,7 @@ public class VM_Entrypoints implements VM_Constants {
 
   public static final VM_NormalMethod osrGetRefAtMethod;
   public static final VM_NormalMethod osrCleanRefsMethod;
-
+  
   static {
     if (VM.BuildForAdaptiveSystem) {
       osrGetRefAtMethod = getMethod(org.jikesrvm.osr.OSR_ObjectHolder.class, "getRefAt", "(II)Ljava/lang/Object;");

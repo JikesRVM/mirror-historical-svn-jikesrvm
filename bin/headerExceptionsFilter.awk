@@ -21,6 +21,12 @@
 
 /MMTk\/doc\// { next }
 
+# Ignore patches
+/build\/test-runs\/local.\.properties/ {next}
+
+# Ignore patches
+/build\/components\/patches/ {next}
+
 # Test results
 /testing\/tests\/javalex\/qb1.lex.ref/ {next}
 /testing\/tests\/SPECjbb2000\/SPECjbb./ {next}

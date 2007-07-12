@@ -21,6 +21,7 @@ import org.jikesrvm.runtime.VM_Magic;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.LogicallyUninterruptible;
+import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -65,24 +66,28 @@ public abstract class VM_Processor extends MM_ProcessorContext implements VM_Con
    *   >0 means that the next yieldpoint of any type should be taken
    *   <0 means that the next prologue/epilogue yieldpoint should be taken
    */
+  @Entrypoint
   public int takeYieldpoint;
 
   /**
    * Thread currently running on this processor. NB for native threads this
    * field could be final
    */
+  @Entrypoint
   public VM_Thread activeThread;
 
   /**
    * cached activeThread.stackLimit;
    * removes 1 load from stackoverflow sequence.
    */
+  @Entrypoint
   public Address activeThreadStackLimit;
 
   /**
    * Cache the results of activeThread.getLockingId()
    * for use in monitor operations.
    */
+  @Entrypoint
   public int threadId;
 
   /* --------- BEGIN IA-specific fields. NOTE: NEED TO REFACTOR --------- */
@@ -128,6 +133,7 @@ public abstract class VM_Processor extends MM_ProcessorContext implements VM_Con
    * Is set approximately once every VM.interruptQuantum ms except when
    * GC is in progress.
    */
+  @Entrypoint
   public int timeSliceExpired;
 
   /**
@@ -288,7 +294,7 @@ public abstract class VM_Processor extends MM_ProcessorContext implements VM_Con
   // Scratch area for use for gpr <=> fpr transfers by
   // PPC baseline compiler
   @SuppressWarnings({"unused", "CanBeFinal", "UnusedDeclaration"})
-// accessed via VM_EntryPoints
+  //accessed via VM_EntryPoints
   private double scratchStorage;
 
   /**

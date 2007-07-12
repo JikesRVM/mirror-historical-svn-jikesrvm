@@ -51,8 +51,6 @@ public final class VM {
   /*
    * VM-specific constant values
    */
-  /** <code>true</code> if the references are implemented as heap objects */
-  public static final boolean REFERENCES_ARE_OBJECTS;
   /** <code>true</code> if assertions should be verified */
   public static final boolean VERIFY_ASSERTIONS;
   /** The lowest address in virtual memory known to MMTk */
@@ -87,10 +85,13 @@ public final class VM {
   public static final Assert assertions;
   public static final Barriers barriers;
   public static final Collection collection;
+  public static final Config config;
   public static final Memory memory;
   public static final ObjectModel objectModel;
   public static final Options options;
-  public static final ReferenceGlue referenceTypes;
+  public static final ReferenceProcessor weakReferences;
+  public static final ReferenceProcessor softReferences;
+  public static final ReferenceProcessor phantomReferences;
   public static final Scanning scanning;
   public static final Statistics statistics;
   public static final Strings strings;
@@ -131,11 +132,14 @@ public final class VM {
     memory = factory.newMemory();
     objectModel = factory.newObjectModel();
     options = factory.newOptions();
-    referenceTypes = factory.newReferenceGlue();
+    weakReferences = factory.newReferenceProcessor(ReferenceProcessor.Semantics.WEAK);
+    softReferences = factory.newReferenceProcessor(ReferenceProcessor.Semantics.SOFT);
+    phantomReferences = factory.newReferenceProcessor(ReferenceProcessor.Semantics.PHANTOM);
     scanning = factory.newScanning();
     statistics = factory.newStatistics();
     strings = factory.newStrings();
     traceInterface = factory.newTraceInterface();
+    config = new Config(factory.newBuildTimeConfig());
 
     /* Now initialize the constants using the vm-specific singletons */
     VERIFY_ASSERTIONS = Assert.verifyAssertionsTrapdoor(assertions);
@@ -151,7 +155,6 @@ public final class VM {
     MAX_BYTES_PADDING = Memory.maxBytesPaddingTrapdoor(memory);
     ALIGNMENT_VALUE = Memory.alignmentValueTrapdoor(memory);
     ARRAY_BASE_OFFSET = ObjectModel.arrayBaseOffsetTrapdoor(objectModel);
-    REFERENCES_ARE_OBJECTS = ReferenceGlue.referencesAreObjectsTrapdoor(referenceTypes);
   }
 
   /**

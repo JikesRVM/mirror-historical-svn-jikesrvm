@@ -3384,9 +3384,7 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
   }
 
   private static DefUseEffect getObjTib(OPT_Instruction s) {
-    // Constant folding object tibs is disabled as it causes
-    // failures in SPECjbb200* benchmarks. See RVM-16
-    if (CF_TIB && false) {
+    if (CF_TIB) {
       OPT_Operand op = GuardedUnary.getVal(s);
       if (op.isNullConstant()) {
         // Simplify to an unreachable operand, this instruction is dead code
@@ -3403,7 +3401,11 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
       } else {
         OPT_RegisterOperand rop = op.asRegister();
         VM_TypeReference typeRef = rop.getType();
-        if (typeRef.isResolved() && rop.isPreciseType()) {
+        // Is the type of this register only one possible type?
+        if (typeRef.isResolved() && rop.isPreciseType() && typeRef.resolve().isInstantiated()) {
+          // before simplifying ensure that the type is instantiated, this stops
+          // constant propagation potentially moving the TIB constant before the
+          // runtime call that instantiates it
           Move.mutate(s,
                       REF_MOVE,
                       GuardedUnary.getClearResult(s),
@@ -3463,7 +3465,7 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
         OPT_TIBConstantOperand tib = tibOp.asTIBConstant();
         Move.mutate(s,
                     REF_MOVE,
-                    Load.getClearResult(s),
+                    Unary.getClearResult(s),
                     new OPT_ObjectConstantOperand(tib.value.getSuperclassIds(), Offset.zero()));
         return DefUseEffect.MOVE_FOLDED;
       }
@@ -3478,7 +3480,7 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
         OPT_TIBConstantOperand tib = tibOp.asTIBConstant();
         Move.mutate(s,
                     REF_MOVE,
-                    Load.getClearResult(s),
+                    Unary.getClearResult(s),
                     new OPT_ObjectConstantOperand(tib.value.getDoesImplement(), Offset.zero()));
         return DefUseEffect.MOVE_FOLDED;
       }

@@ -26,6 +26,7 @@ import org.jikesrvm.classloader.VM_ClassLoader;
 import org.jikesrvm.classloader.VM_Method;
 import org.jikesrvm.classloader.VM_TypeReference;
 import org.jikesrvm.runtime.VM_Reflection;
+import org.vmmagic.pragma.Entrypoint;
 
 /**
  * Thread in which user's "main" program runs.
@@ -130,6 +131,7 @@ public final class VM_MainThread extends Thread {
    * likely to go wrong, but there you have it....
    */
   @Override
+  @Entrypoint
   public void run() {
     launched = true;
 

@@ -32,6 +32,7 @@ import static org.jikesrvm.runtime.VM_SysCall.sysCall;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -90,7 +91,6 @@ public abstract class VM_Scheduler {
    * sequentially)
    */
   public static int cpuAffinity = NO_CPU_AFFINITY;
-
   /** VM is terminated, clean up and exit */
   public static boolean terminated;
 
@@ -130,6 +130,7 @@ public abstract class VM_Scheduler {
 
   /** Int controlling output. 0 => output can be used, otherwise ID of processor */
   @SuppressWarnings({"unused", "UnusedDeclaration"})
+  @Entrypoint
   protected static int outputLock;
 
   ////////////////////////////////////////////////
@@ -765,6 +766,7 @@ public abstract class VM_Scheduler {
    * This method is called from RunBootImage.C when something goes horrifically
    * wrong with exception handling and we want to die with useful diagnostics.
    */
+  @Entrypoint
   public static void dumpStackAndDie(Address fp) {
     if (!exitInProgress) {
       // This is the first time I've been called, attempt to exit "cleanly"

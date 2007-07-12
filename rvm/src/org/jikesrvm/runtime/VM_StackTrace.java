@@ -93,7 +93,7 @@ public class VM_StackTrace {
   private int walkFrames(boolean record) {
     int stackFrameCount = 0;
     VM.disableGC(); // so fp & ip don't change under our feet
-    VM_Thread stackTraceThread = VM_Scheduler.getCurrentThread().getThreadForStackTrace();
+    VM_Thread stackTraceThread = VM_Scheduler.getCurrentThread();
     Address fp;
     Address ip;
     if (stackTraceThread != VM_Scheduler.getCurrentThread()) {
