@@ -226,8 +226,12 @@ public class VM_GreenProcessor extends VM_Processor {
   @Override
   public void disableThreadSwitching(String reason) {
     --threadSwitchingEnabledCount;
-    VM_Magic.setObjectAtOffset(threadSwitchDisabledReason, Offset.fromIntZeroExtend(-threadSwitchingEnabledCount << VM_Constants.BYTES_IN_ADDRESS), reason);
-    // threadSwitchDisabledReason[-threadSwitchingEnabledCount] = reason;
+    if (VM.VerifyAssertions && (-threadSwitchingEnabledCount < threadSwitchDisabledReason.length)) {
+      VM_Magic.setObjectAtOffset(threadSwitchDisabledReason,
+          Offset.fromIntZeroExtend(-threadSwitchingEnabledCount << VM_Constants.BYTES_IN_ADDRESS),
+          reason);
+      // threadSwitchDisabledReason[-threadSwitchingEnabledCount] = reason;
+    }
   }
 
   /**
