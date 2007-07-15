@@ -12,6 +12,8 @@
  */
 package org.jikesrvm;
 
+import gnu.java.lang.management.VMClassLoadingMXBeanImpl;
+
 import org.jikesrvm.ArchitectureSpecific.VM_OutOfLineMachineCode;
 import org.jikesrvm.ArchitectureSpecific.VM_ProcessorLocalState;
 import org.jikesrvm.adaptive.controller.VM_Controller;
@@ -206,6 +208,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     //
     if (verboseBoot >= 1) VM.sysWriteln("Initializing bootstrap class loader");
     String bootstrapClasses = VM_CommandLineArgs.getBootstrapClasses();
+    VM_Callbacks.addClassLoadedMonitor(new VMClassLoadingMXBeanImpl());
     VM_ClassLoader.boot();      // Wipe out cached application class loader
     VM_BootstrapClassLoader.boot(bootstrapClasses);
 
