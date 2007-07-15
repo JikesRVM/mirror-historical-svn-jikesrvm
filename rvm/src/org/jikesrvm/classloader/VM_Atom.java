@@ -557,7 +557,16 @@ public final class VM_Atom implements VM_ClassLoaderConstants {
       {"Ljava/".getBytes(),
        "Lorg/jikesrvm/".getBytes(),
        "Lgnu/java/".getBytes(),
-       "Lgnu/classpath/".getBytes(),
+       "Lgnu/classpath/debug/".getBytes(),
+       "Lgnu/classpath/jdwp/".getBytes(),
+       "Lgnu/classpath/NotImplementedException".getBytes(),
+       "Lgnu/classpath/Pair".getBytes(),
+       "Lgnu/classpath/Pointer".getBytes(),
+       "Lgnu/classpath/Pointer32".getBytes(),
+       "Lgnu/classpath/Pointer64".getBytes(),
+       "Lgnu/classpath/ServiceFactory".getBytes(),
+       "Lgnu/classpath/ServiceProviderLoadingAction".getBytes(),
+       "Lgnu/classpath/SystemProperties".getBytes(),
        "Lorg/vmmagic/".getBytes(),
        "Lorg/mmtk/".getBytes()};
 
@@ -569,6 +578,8 @@ public final class VM_Atom implements VM_ClassLoaderConstants {
    * (ie a class that must be loaded by the bootstrap class loader)
    */
   public boolean isBootstrapClassDescriptor() {
+    if (new String(val).contains("ant/"))
+      return false;
     outer:
     for (byte[] test : bootstrapClassPrefixes) {
       if (test.length > val.length) continue;
