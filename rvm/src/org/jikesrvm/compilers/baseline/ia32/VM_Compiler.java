@@ -4169,12 +4169,6 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
       return true;
     }
 
-    if (methodName == VM_MagicNames.clearFloatingPointState) {
-      // Clear the hardware floating-point state
-      asm.emitFNINIT();
-      return true;
-    }
-
     if (methodName == VM_MagicNames.getTimeBase) {
       asm.emitRDTSC();       // read timestamp counter instruction
       asm.emitPUSH_Reg(EDX); // upper 32 bits

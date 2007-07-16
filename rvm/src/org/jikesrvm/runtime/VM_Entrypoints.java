@@ -191,8 +191,6 @@ public class VM_Entrypoints {
       getField(org.jikesrvm.runtime.VM_Math.class,
                "I2Dconstant",
                double.class);
-  public static final VM_Field FPUControlWordField = !VM.BuildForIA32 ? null :
-    getField(org.jikesrvm.ia32.VM_MachineSpecificIA.class, "FPUControlWord", int.class);
 
   public static final Class ArchCodeArray = org.jikesrvm.ArchitectureSpecific.VM_CodeArray.class;
   private static final Class OutOfLineMachineCode = VM.BuildForIA32 ?
