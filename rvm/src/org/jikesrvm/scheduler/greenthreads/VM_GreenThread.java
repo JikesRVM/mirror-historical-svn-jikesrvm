@@ -7,6 +7,7 @@ import org.jikesrvm.adaptive.OSR_Listener;
 import org.jikesrvm.adaptive.measurements.VM_RuntimeMeasurements;
 import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.objectmodel.VM_ObjectModel;
+import org.jikesrvm.runtime.VM_ArchEntrypoints;
 import org.jikesrvm.runtime.VM_Entrypoints;
 import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.runtime.VM_Time;
@@ -192,7 +193,7 @@ public class VM_GreenThread extends VM_Thread {
       // TODO: Is this sufficient? Ask Steve why we don't need to sync icache/dcache. --dave
       // make sure not get stale data
       VM_Magic.isync();
-      VM_Synchronization.fetchAndDecrement(VM_Magic.getJTOC(), VM_Entrypoints.toSyncProcessorsField.getOffset(), 1);
+      VM_Synchronization.fetchAndDecrement(VM_Magic.getJTOC(), VM_ArchEntrypoints.toSyncProcessorsField.getOffset(), 1);
     }
 
     // If thread is in critical section we can't switch right now, defer until later
