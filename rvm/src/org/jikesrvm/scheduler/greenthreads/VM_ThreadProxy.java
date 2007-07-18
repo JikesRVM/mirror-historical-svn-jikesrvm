@@ -12,11 +12,8 @@
  */
 package org.jikesrvm.scheduler.greenthreads;
 
-import org.jikesrvm.runtime.VM_Entrypoints;
-import org.jikesrvm.scheduler.VM_Synchronization;
 import org.jikesrvm.scheduler.VM_ProcessorLock;
 import org.vmmagic.pragma.Uninterruptible;
-import org.vmmagic.unboxed.Offset;
 
 /**
  * To implement timed waits, a thread may need to be (logically) on two queues:

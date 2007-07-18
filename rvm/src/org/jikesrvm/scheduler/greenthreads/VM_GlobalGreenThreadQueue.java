@@ -13,7 +13,6 @@
 package org.jikesrvm.scheduler.greenthreads;
 
 import org.jikesrvm.scheduler.VM_ProcessorLock;
-import org.jikesrvm.scheduler.VM_Thread;
 import org.vmmagic.pragma.Uninterruptible;
 
 /**

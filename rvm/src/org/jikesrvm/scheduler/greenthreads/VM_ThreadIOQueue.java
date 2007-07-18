@@ -13,9 +13,7 @@
 package org.jikesrvm.scheduler.greenthreads;
 
 import org.jikesrvm.VM;
-import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.scheduler.VM_ProcessorLock;
-import org.jikesrvm.scheduler.VM_Thread;
 
 import static org.jikesrvm.runtime.VM_SysCall.sysCall;
 import org.vmmagic.pragma.Interruptible;

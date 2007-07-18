@@ -17,7 +17,6 @@ import org.jikesrvm.runtime.VM_Magic;
 import static org.jikesrvm.runtime.VM_SysCall.sysCall;
 import org.jikesrvm.runtime.VM_Time;
 import org.jikesrvm.scheduler.VM_Scheduler;
-import org.jikesrvm.scheduler.VM_Thread;
 import org.vmmagic.pragma.Uninterruptible;
 
 /**

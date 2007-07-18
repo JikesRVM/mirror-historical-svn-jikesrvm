@@ -9,7 +9,7 @@ public class VM_NativeProcessor extends VM_Processor {
   }
   
   @Override
-  public void disableThreadSwitching() {
+  public void disableThreadSwitching(String s) {
     // TODO Auto-generated method stub
 
   }
@@ -30,5 +30,13 @@ public class VM_NativeProcessor extends VM_Processor {
   public boolean threadSwitchingEnabled() {
     // TODO Auto-generated method stub
     return false;
+  }
+
+  /**
+   * Fail if thread switching is disabled on this processor
+   */
+  @Override
+  public void failIfThreadSwitchingDisabled() {
+    // TODO Auto-generated method stub
   }
 }

@@ -25,7 +25,6 @@ import static org.jikesrvm.runtime.VM_SysCall.sysCall;
 import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.runtime.VM_Time;
 import org.jikesrvm.runtime.VM_TimeoutException;
-import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.util.VM_StringUtilities;
 import org.vmmagic.pragma.Inline;
 

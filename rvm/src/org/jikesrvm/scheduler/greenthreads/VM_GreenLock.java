@@ -4,7 +4,6 @@ import org.jikesrvm.VM;
 import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.scheduler.VM_Lock;
 import org.jikesrvm.scheduler.VM_Processor;
-import org.jikesrvm.scheduler.VM_ProcessorLock;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.scheduler.VM_ThinLock;
 import org.jikesrvm.scheduler.VM_Thread;

@@ -1,5 +1,6 @@
 package org.jikesrvm.scheduler.nativethreads;
 
+import org.jikesrvm.classloader.VM_TypeReference;
 import org.jikesrvm.scheduler.VM_Lock;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.scheduler.VM_Thread;
@@ -117,5 +118,13 @@ public class VM_NativeScheduler extends VM_Scheduler {
   protected VM_Thread setupBootThreadInternal() {
     // TODO Auto-generated method stub
     return null;
+  }
+  /**
+   * Get the type of the processor (to avoid guarded inlining..)
+   */
+  @Override
+  @Interruptible
+  protected VM_TypeReference getProcessorTypeInternal() {
+    return VM_TypeReference.findOrCreate(VM_NativeProcessor.class);
   }
 }

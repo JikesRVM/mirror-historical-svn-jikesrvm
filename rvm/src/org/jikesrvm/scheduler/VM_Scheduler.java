@@ -18,6 +18,7 @@ import org.jikesrvm.VM_SizeConstants;
 import org.jikesrvm.classloader.VM_MemberReference;
 import org.jikesrvm.classloader.VM_Method;
 import org.jikesrvm.classloader.VM_NormalMethod;
+import org.jikesrvm.classloader.VM_TypeReference;
 import org.jikesrvm.compilers.common.VM_CompiledMethod;
 import org.jikesrvm.compilers.common.VM_CompiledMethods;
 import org.jikesrvm.compilers.opt.VM_OptCompiledMethod;
@@ -55,13 +56,7 @@ public abstract class VM_Scheduler {
     }
   }
 
-  public static class LockModel extends org.jikesrvm.scheduler.greenthreads.VM_GreenLock {
-  }
-
-  public static class ProcessorModel extends org.jikesrvm.scheduler.greenthreads.VM_GreenProcessor {
-    ProcessorModel(int id) {
-      super(id);
-    }
+  public static final class LockModel extends org.jikesrvm.scheduler.greenthreads.VM_GreenLock {
   }
 
   private static VM_Scheduler getScheduler() {
@@ -807,5 +802,19 @@ public abstract class VM_Scheduler {
   public static VM_Thread setupBootThread() {
     if (VM.VerifyAssertions) VM._assert(!VM.runningVM);
     return getScheduler().setupBootThreadInternal();
+  }
+  
+  /**
+   * Get the type of the processor (to avoid guarded inlining..)
+   */
+  @Interruptible
+  protected abstract VM_TypeReference getProcessorTypeInternal();
+
+  /**
+   * Get the type of the processor (to avoid guarded inlining..)
+   */
+  @Interruptible
+  public static VM_TypeReference getProcessorType() {
+    return getScheduler().getProcessorTypeInternal();
   }
 }

@@ -37,7 +37,7 @@ import org.vmmagic.unboxed.Offset;
  * number of o/s kernel threads.
  */
 @Uninterruptible
-public class VM_GreenProcessor extends VM_Processor {
+public final class VM_GreenProcessor extends VM_Processor {
   /**
    * thread previously running on this processor
    */

@@ -14,6 +14,7 @@ package org.jikesrvm.scheduler.greenthreads;
 
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.VM;
+import org.jikesrvm.classloader.VM_TypeReference;
 import org.jikesrvm.memorymanagers.mminterface.VM_CollectorThread;
 import org.jikesrvm.osr.OSR_ObjectHolder;
 import org.jikesrvm.runtime.VM_BootRecord;
@@ -41,7 +42,7 @@ import org.vmmagic.unboxed.Address;
  *    - locks
  */
 @Uninterruptible
-public class VM_GreenScheduler extends VM_Scheduler {
+public final class VM_GreenScheduler extends VM_Scheduler {
 
   /** Index of initial processor in which "VM.boot()" runs. */
   public static final int PRIMORDIAL_PROCESSOR_ID = 1;
@@ -605,5 +606,14 @@ public class VM_GreenScheduler extends VM_Scheduler {
     numDaemons++;
     processors[initProc].activeThread = startupThread;
     return startupThread;
+  }
+  
+  /**
+   * Get the type of the processor (to avoid guarded inlining..)
+   */
+  @Override
+  @Interruptible
+  protected VM_TypeReference getProcessorTypeInternal() {
+    return VM_TypeReference.findOrCreate(VM_GreenProcessor.class);
   }
 }
