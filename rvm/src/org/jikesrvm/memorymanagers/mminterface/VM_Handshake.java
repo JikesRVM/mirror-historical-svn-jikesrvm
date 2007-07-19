@@ -165,7 +165,6 @@ public class VM_Handshake {
     while (VM_GreenScheduler.collectorQueue.length() > 0) {
       VM_GreenThread t = VM_GreenScheduler.collectorQueue.dequeue();
       t.schedule();
-      t.processorAffinity.requestYieldToGC();
     }
     VM_GreenScheduler.collectorMutex.unlock();
   }

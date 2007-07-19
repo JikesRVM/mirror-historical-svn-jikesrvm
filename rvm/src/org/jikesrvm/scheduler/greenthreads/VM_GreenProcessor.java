@@ -236,36 +236,6 @@ public final class VM_GreenProcessor extends VM_Processor {
 
   /**
    * Request the thread executing on the processor to take the next executed yieldpoint
-   * and initiate a GC
-   */
-  @Override
-  public void requestYieldToGC() {
-    if (!activeThread.isGCThread()) {
-      takeYieldpoint = 1;
-      yieldToGCRequested = true;
-      if (VM.VerifyAssertions) {
-        int errorCount = 0;
-        while(errorCount < 100) {
-          transferMutex.lock("Checking GC thread");
-          if(!transferQueue.containsGCThread() && !activeThread.isGCThread()) {
-            transferMutex.unlock();
-            errorCount++;
-          } else {
-            transferMutex.unlock();
-            break;
-          }
-        }
-        if (errorCount >= 100) {
-          VM.sysWriteln("Requesting yield to GC on processor with no GC thread scheduled: ", id);
-          VM_Scheduler.dumpVirtualMachine();
-          VM._assert(false);
-        }
-      }
-    }
-  }
-
-  /**
-   * Request the thread executing on the processor to take the next executed yieldpoint
    * and issue memory synchronization instructions
    */
   @Override
@@ -455,7 +425,13 @@ public final class VM_GreenProcessor extends VM_Processor {
    * Add a thread to this processor's transfer queue.
    */
   private void transferThread(VM_GreenThread t) {
-    if (this != getCurrentProcessor() || t.isGCThread() ||
+    if (t.isGCThread()) {
+      transferMutex.lock("thread transfer");
+      transferQueue.enqueue(t);
+      // Enqueueing the GC thread means we wish to enter a GC
+      requestYieldToGC();
+      transferMutex.unlock();      
+    } else if (this != getCurrentProcessor() || 
         (t.beingDispatched && t != VM_Scheduler.getCurrentThread())) {
       transferMutex.lock("thread transfer");
       transferQueue.enqueue(t);
