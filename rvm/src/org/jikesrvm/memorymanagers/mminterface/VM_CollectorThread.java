@@ -189,6 +189,7 @@ public final class VM_CollectorThread extends VM_GreenThread {
    * Get the thread to use for building stack traces.
    */
   @Uninterruptible
+  @Override
   public VM_Thread getThreadForStackTrace() {
     if (stackTraceThread.isZero())
       return this;

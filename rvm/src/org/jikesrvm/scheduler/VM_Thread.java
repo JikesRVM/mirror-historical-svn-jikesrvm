@@ -1766,6 +1766,7 @@ public abstract class VM_Thread {
 
   /**
    * Get the thread to use for building stack traces.
+   * NB overridden by {@link VM_CollectorThread}
    */
   @Uninterruptible
   public VM_Thread getThreadForStackTrace() {
