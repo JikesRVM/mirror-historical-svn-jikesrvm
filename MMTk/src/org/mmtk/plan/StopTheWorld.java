@@ -18,14 +18,13 @@ import org.mmtk.utility.Conversions;
 import org.mmtk.utility.Log;
 import org.mmtk.utility.options.*;
 import org.mmtk.utility.sanitychecker.SanityChecker;
-import org.mmtk.utility.statistics.Stats;
 import org.mmtk.utility.statistics.Timer;
 import org.mmtk.vm.VM;
 
 import org.vmmagic.pragma.*;
 
 /**
- * This abstract class implments the core functionality for
+ * This abstract class implements the core functionality for
  * stop-the-world collectors.  Stop-the-world collectors should
  * inherit from this class.<p>
  *
@@ -49,115 +48,128 @@ import org.vmmagic.pragma.*;
   private static final Timer finalizeTime = new Timer("finalize", false, true);
 
   /* Phases */
-  public static final int SET_COLLECTION_KIND = new SimplePhase("set-collection-kind", null,      Phase.GLOBAL_ONLY  ).getId();
-  public static final int INITIATE            = new SimplePhase("initiate", null,                 Phase.GLOBAL_FIRST  ).getId();
-  public static final int INITIATE_MUTATOR    = new SimplePhase("initiate-mutator",               Phase.MUTATOR_ONLY  ).getId();
-  public static final int PREPARE             = new SimplePhase("prepare",                        Phase.GLOBAL_FIRST  ).getId();
-  public static final int PREPARE_MUTATOR     = new SimplePhase("prepare-mutator",                Phase.MUTATOR_ONLY  ).getId();
-  public static final int PRECOPY             = new SimplePhase("precopy",                        Phase.COLLECTOR_ONLY).getId();
-  public static final int ROOTS               = new SimplePhase("root",                           Phase.GLOBAL_LAST       ).getId();
-  public static final int BOOTIMAGE_ROOTS     = new SimplePhase("bootimage-root",                 Phase.COLLECTOR_ONLY).getId();
-  public static final int START_CLOSURE       = new SimplePhase("start-closure",    scanTime,     Phase.COLLECTOR_ONLY).getId();
-  public static final int SOFT_REFS           = new SimplePhase("soft-ref",         refTypeTime,  Phase.COLLECTOR_ONLY).getId();
-  public static final int COMPLETE_CLOSURE    = new SimplePhase("complete-closure", scanTime,     Phase.COLLECTOR_ONLY).getId();
-  public static final int WEAK_REFS           = new SimplePhase("weak-ref",         refTypeTime,  Phase.COLLECTOR_ONLY).getId();
-  public static final int FINALIZABLE         = new SimplePhase("finalize",         finalizeTime, Phase.COLLECTOR_ONLY).getId();
-  public static final int WEAK_TRACK_REFS     = new SimplePhase("weak-track-ref",   refTypeTime,  Phase.PLACEHOLDER       ).getId();
-  public static final int PHANTOM_REFS        = new SimplePhase("phantom-ref",      refTypeTime,  Phase.COLLECTOR_ONLY).getId();
-  public static final int FORWARD             = new SimplePhase("forward",                        Phase.PLACEHOLDER       ).getId();
-  public static final int FORWARD_REFS        = new SimplePhase("forward-ref",      refTypeTime,  Phase.COLLECTOR_ONLY).getId();
-  public static final int FORWARD_FINALIZABLE = new SimplePhase("forward-finalize", finalizeTime, Phase.COLLECTOR_ONLY).getId();
-  public static final int RELEASE             = new SimplePhase("release",                        Phase.GLOBAL_LAST   ).getId();
-  public static final int RELEASE_MUTATOR     = new SimplePhase("release-mutator",                Phase.MUTATOR_ONLY  ).getId();
-  public static final int COMPLETE            = new SimplePhase("complete",  null,                Phase.GLOBAL_LAST   ).getId();
+  public static final short SET_COLLECTION_KIND = Phase.createSimple("set-collection-kind", null);
+  public static final short INITIATE            = Phase.createSimple("initiate", null);
+  public static final short PREPARE             = Phase.createSimple("prepare");
+  public static final short PRECOPY             = Phase.createSimple("precopy");
+  public static final short ROOTS               = Phase.createSimple("root");
+  public static final short BOOTIMAGE_ROOTS     = Phase.createSimple("bootimage-root");
+  public static final short START_CLOSURE       = Phase.createSimple("start-closure", scanTime);
+  public static final short SOFT_REFS           = Phase.createSimple("soft-ref", refTypeTime);
+  public static final short COMPLETE_CLOSURE    = Phase.createSimple("complete-closure", scanTime);
+  public static final short WEAK_REFS           = Phase.createSimple("weak-ref", refTypeTime);
+  public static final short FINALIZABLE         = Phase.createSimple("finalize", finalizeTime);
+  public static final short WEAK_TRACK_REFS     = Phase.createSimple("weak-track-ref", refTypeTime);
+  public static final short PHANTOM_REFS        = Phase.createSimple("phantom-ref", refTypeTime);
+  public static final short FORWARD             = Phase.createSimple("forward");
+  public static final short FORWARD_REFS        = Phase.createSimple("forward-ref", refTypeTime);
+  public static final short FORWARD_FINALIZABLE = Phase.createSimple("forward-finalize", finalizeTime);
+  public static final short RELEASE             = Phase.createSimple("release");
+  public static final short COMPLETE            = Phase.createSimple("complete", null);
 
   /* Sanity placeholder */
-  public static final int SANITY_PLACEHOLDER  = new SimplePhase("sanity-placeholder", null,       Phase.PLACEHOLDER       ).getId();
+  public static final short PRE_SANITY_PLACEHOLDER  = Phase.createSimple("pre-sanity-placeholder", null);
+  public static final short POST_SANITY_PLACEHOLDER = Phase.createSimple("post-sanity-placeholder", null);
 
   /* Sanity phases */
-  public static final int SANITY_PREPARE      = new SimplePhase("sanity-prepare",     null,       Phase.GLOBAL_FIRST      ).getId();
-  public static final int SANITY_ROOTS        = new SimplePhase("sanity-roots",       null,       Phase.GLOBAL_LAST       ).getId();
-  public static final int SANITY_CHECK        = new SimplePhase("sanity",             null,       Phase.COLLECTOR_ONLY        ).getId();
-  public static final int SANITY_RELEASE      = new SimplePhase("sanity-release",     null,       Phase.GLOBAL_LAST       ).getId();
+  public static final short SANITY_PREPARE      = Phase.createSimple("sanity-prepare", null);
+  public static final short SANITY_ROOTS        = Phase.createSimple("sanity-roots", null);
+  public static final short SANITY_BUILD_TABLE  = Phase.createSimple("sanity-build-table", null);
+  public static final short SANITY_CHECK_TABLE  = Phase.createSimple("sanity-check-table", null);
+  public static final short SANITY_RELEASE      = Phase.createSimple("sanity-release", null);
 
-  /* Sanity check phase sequence */
-  private static final int sanityPhase = new ComplexPhase("sanity-check", null, new int[] {
-      SANITY_PREPARE,
-      SANITY_ROOTS,
-      SANITY_CHECK,
-      SANITY_RELEASE
-  }).getId();
+  /** Trace and set up a sanity table */
+  private static final short sanityBuildPhase = Phase.createComplex("sanity-build", null,
+      Phase.scheduleGlobal     (SANITY_PREPARE),
+      Phase.scheduleCollector  (SANITY_PREPARE),
+      Phase.scheduleCollector  (SANITY_ROOTS),
+      Phase.scheduleGlobal     (SANITY_ROOTS),
+      Phase.scheduleCollector  (SANITY_BUILD_TABLE));
 
-  /**
-   * Start the collection, including preparation for any collected spaces.
-   */
-  protected static final int initPhase = new ComplexPhase("init", new int[] {
-      SET_COLLECTION_KIND,
-      INITIATE,
-      INITIATE_MUTATOR,
-      SANITY_PLACEHOLDER,
-      }).getId();
+  /** Validate a sanity table */
+  private static final short sanityCheckPhase = Phase.createComplex("sanity-check", null,
+      Phase.scheduleCollector  (SANITY_CHECK_TABLE),
+      Phase.scheduleCollector  (SANITY_RELEASE),
+      Phase.scheduleGlobal     (SANITY_RELEASE));
+
+  /** Build and validate a sanity table */
+  private static final short sanityPhase = Phase.createComplex("sanity", null,
+      Phase.scheduleComplex    (sanityBuildPhase),
+      Phase.scheduleComplex    (sanityCheckPhase));
+
+  /** Start the collection, including preparation for any collected spaces. */
+  protected static final short initPhase = Phase.createComplex("init",
+      Phase.scheduleGlobal     (SET_COLLECTION_KIND),
+      Phase.scheduleGlobal     (INITIATE),
+      Phase.scheduleCollector  (INITIATE),
+      Phase.scheduleMutator    (INITIATE),
+      Phase.schedulePlaceholder(PRE_SANITY_PLACEHOLDER));
 
   /**
    * Perform the initial determination of liveness from the roots.
    */
-  protected static final int rootClosurePhase = new ComplexPhase("initial-closure", null, new int[] {
-      PREPARE_MUTATOR,
-      PREPARE,
-      PRECOPY,
-      BOOTIMAGE_ROOTS,
-      ROOTS,
-      START_CLOSURE}).getId();
+  protected static final short rootClosurePhase = Phase.createComplex("initial-closure", null,
+      Phase.scheduleMutator    (PREPARE),
+      Phase.scheduleGlobal     (PREPARE),
+      Phase.scheduleCollector  (PREPARE),
+      Phase.scheduleCollector  (PRECOPY),
+      Phase.scheduleCollector  (BOOTIMAGE_ROOTS),
+      Phase.scheduleCollector  (ROOTS),
+      Phase.scheduleGlobal     (ROOTS),
+      Phase.scheduleCollector  (START_CLOSURE));
 
   /**
    * Complete closure including reference types and finalizable objects.
    */
-  protected static final int refTypeClosurePhase = new ComplexPhase("refType-closure", null, new int[] {
-      SOFT_REFS,    COMPLETE_CLOSURE,
-      WEAK_REFS,
-      FINALIZABLE,  COMPLETE_CLOSURE,
-      WEAK_TRACK_REFS,
-      PHANTOM_REFS}).getId();
+  protected static final short refTypeClosurePhase = Phase.createComplex("refType-closure", null,
+      Phase.scheduleCollector  (SOFT_REFS),    
+      Phase.scheduleCollector  (COMPLETE_CLOSURE),
+      Phase.scheduleCollector  (WEAK_REFS),
+      Phase.scheduleCollector  (FINALIZABLE),  
+      Phase.scheduleCollector  (COMPLETE_CLOSURE),
+      Phase.schedulePlaceholder(WEAK_TRACK_REFS),
+      Phase.scheduleCollector  (PHANTOM_REFS));
 
   /**
    * Ensure that all references in the system are correct.
    */
-  protected static final int forwardPhase = new ComplexPhase("forward-all", null, new int[] {
+  protected static final short forwardPhase = Phase.createComplex("forward-all", null,
       /* Finish up */
-      FORWARD,
-      FORWARD_REFS,
-      FORWARD_FINALIZABLE}).getId();
+      Phase.schedulePlaceholder(FORWARD),
+      Phase.scheduleCollector  (FORWARD_REFS),
+      Phase.scheduleCollector  (FORWARD_FINALIZABLE));
 
   /**
    * Complete closure including reference types and finalizable objects.
    */
-  protected static final int completeClosurePhase = new ComplexPhase("refType-closure", null, new int[] {
-      RELEASE_MUTATOR,
-      RELEASE,
-      }).getId();
+  protected static final short completeClosurePhase = Phase.createComplex("refType-closure", null,
+      Phase.scheduleMutator    (RELEASE),
+      Phase.scheduleCollector  (RELEASE),
+      Phase.scheduleGlobal     (RELEASE));
 
 
   /**
    * The collection scheme - this is a small tree of complex phases.
    */
-  protected static final int finishPhase = new ComplexPhase("finish", new int[] {
-      SANITY_PLACEHOLDER,
-      COMPLETE}).getId();
+  protected static final short finishPhase = Phase.createComplex("finish",
+      Phase.schedulePlaceholder(POST_SANITY_PLACEHOLDER),
+      Phase.scheduleCollector  (COMPLETE),
+      Phase.scheduleGlobal     (COMPLETE));
 
   /**
    * This is the phase that is executed to perform a collection.
    */
-  public ComplexPhase collection = new ComplexPhase("collection", null, new int[] {
-      initPhase,
-      rootClosurePhase,
-      refTypeClosurePhase,
-      forwardPhase,
-      completeClosurePhase,
-      finishPhase});
+  public short collection = Phase.createComplex("collection", null,
+      Phase.scheduleComplex(initPhase),
+      Phase.scheduleComplex(rootClosurePhase),
+      Phase.scheduleComplex(refTypeClosurePhase),
+      Phase.scheduleComplex(forwardPhase),
+      Phase.scheduleComplex(completeClosurePhase),
+      Phase.scheduleComplex(finishPhase));
 
   /* Basic GC sanity checker */
   private SanityChecker sanityChecker = new SanityChecker();
-  
+
   /**
    * The current collection attempt.
    */
@@ -181,7 +193,8 @@ import org.vmmagic.pragma.*;
         Log.writeln("Collector does not support sanity checking!");
       } else {
         Log.writeln("Collection sanity checking enabled.");
-        replacePhase(SANITY_PLACEHOLDER, sanityPhase);
+        replacePhase(PRE_SANITY_PLACEHOLDER, Phase.scheduleComplex(sanityPhase));
+        replacePhase(POST_SANITY_PLACEHOLDER, Phase.scheduleComplex(sanityPhase));
       }
     }
   }
@@ -199,27 +212,23 @@ import org.vmmagic.pragma.*;
    * @param phaseId The unique of the phase to perform.
    */
   @Inline
-  public void collectionPhase(int phaseId) {
+  public void collectionPhase(short phaseId) {
     if (phaseId == SET_COLLECTION_KIND) {
       requiredAtStart = getPagesRequired();
       collectionAttempt = VM.collection.maximumCollectionAttempt();
-      emergencyCollection = (lastCollectionFullHeap() && collectionAttempt > 1);
+      emergencyCollection = lastCollectionFullHeap() && collectionAttempt > 1;
       if (collectionAttempt > MAX_COLLECTION_ATTEMPTS) {
         VM.assertions.fail("Too many collection attempts. Suspect plan is not setting FullHeap flag");
       }
       if (emergencyCollection) {
-        if (Options.verbose.getValue() > 1) Log.write("[Emergency]");
+        if (Options.verbose.getValue() >= 1) Log.write("[Emergency]");
         forceFullHeapCollection();
       }
       return;
     }
 
     if (phaseId == INITIATE) {
-      if (Stats.gatheringStats()) {
-        Stats.startGC();
-        printPreStats();
-      }
-      Plan.setGCStatus(GC_PREPARE);
+      setGCStatus(GC_PREPARE);
       return;
     }
 
@@ -233,7 +242,7 @@ import org.vmmagic.pragma.*;
 
     if (phaseId == ROOTS) {
       VM.scanning.resetThreadCounter();
-      Plan.setGCStatus(GC_PROPER);
+      setGCStatus(GC_PROPER);
       return;
     }
 
@@ -246,11 +255,7 @@ import org.vmmagic.pragma.*;
     }
 
     if (phaseId == COMPLETE) {
-      Plan.setGCStatus(NOT_IN_GC);
-      if (Stats.gatheringStats()) {
-        Stats.endGC();
-        printPostStats();
-      }
+      setGCStatus(NOT_IN_GC);
       Space.clearAllAllocationFailed();
       awaitingAsyncCollection = false;
       return;
@@ -267,94 +272,24 @@ import org.vmmagic.pragma.*;
   }
 
   /**
-   * Replace a phase.
-   *
-   * @param oldPhase The phase to be replaced
-   * @param newPhase The phase to replace with
+   * Replace a scheduled phase. Used for example to replace a placeholder.
+   * 
+   * @param oldScheduledPhase The scheduled phase to replace.
+   * @param newScheduledPhase The new scheduled phase.
    */
-  @Interruptible
-  public void replacePhase(int oldPhase, int newPhase) {
-    collection.replacePhase(oldPhase, newPhase);
+  public void replacePhase(int oldScheduledPhase, int newScheduledPhase) {
+    ComplexPhase cp = (ComplexPhase)Phase.getPhase(collection);
+    cp.replacePhase(oldScheduledPhase, newScheduledPhase);
   }
 
   /**
-   * Print out statistics at the start of a GC
+   * Replace a placeholder phase.
+   * 
+   * @param placeHolderPhase The placeholder phase
+   * @param newScheduledPhase The new scheduled phase.
    */
-  public void printPreStats() {
-    if ((Options.verbose.getValue() == 1) ||
-        (Options.verbose.getValue() == 2)) {
-      Log.write("[GC "); Log.write(Stats.gcCount());
-      if (Options.verbose.getValue() == 1) {
-        Log.write(" Start ");
-        Plan.totalTime.printTotalSecs();
-        Log.write(" s");
-      } else {
-        Log.write(" Start ");
-        Plan.totalTime.printTotalMillis();
-        Log.write(" ms");
-      }
-      Log.write("   ");
-      Log.write(Conversions.pagesToKBytes(getPagesUsed()));
-      Log.write("KB ");
-      Log.flush();
-    }
-    if (Options.verbose.getValue() > 2) {
-      Log.write("Collection "); Log.write(Stats.gcCount());
-      Log.write(":        ");
-      printUsedPages();
-      Log.write("  Before Collection: ");
-      Space.printUsageMB();
-      if (Options.verbose.getValue() >= 4) {
-        Log.write("                     ");
-        Space.printUsagePages();
-      }
-    }
-  }
-
-  /**
-   * Print out statistics at the end of a GC
-   */
-  public final void printPostStats() {
-    if ((Options.verbose.getValue() == 1) ||
-        (Options.verbose.getValue() == 2)) {
-      Log.write("-> ");
-      Log.writeDec(Conversions.pagesToBytes(getPagesUsed()).toWord().rshl(10));
-      Log.write("KB   ");
-      if (Options.verbose.getValue() == 1) {
-        totalTime.printLast();
-        Log.writeln(" ms]");
-      } else {
-        Log.write("End ");
-        totalTime.printTotal();
-        Log.writeln(" ms]");
-      }
-    }
-    if (Options.verbose.getValue() > 2) {
-      Log.write("   After Collection: ");
-      Space.printUsageMB();
-      if (Options.verbose.getValue() >= 4) {
-        Log.write("                     ");
-        Space.printUsagePages();
-      }
-      Log.write("                     ");
-      printUsedPages();
-      Log.write("    Collection time: ");
-      totalTime.printLast();
-      Log.writeln(" ms");
-    }
-  }
-
-  public final void printUsedPages() {
-    Log.write("reserved = ");
-    Log.write(Conversions.pagesToMBytes(getPagesReserved()));
-    Log.write(" MB (");
-    Log.write(getPagesReserved());
-    Log.write(" pgs)");
-    Log.write("      total = ");
-    Log.write(Conversions.pagesToMBytes(getTotalPages()));
-    Log.write(" MB (");
-    Log.write(getTotalPages());
-    Log.write(" pgs)");
-    Log.writeln();
+  public void replacePlaceholderPhase(short placeholderPhase, int newScheduledPhase) {
+    ComplexPhase cp = (ComplexPhase)Phase.getPhase(collection);
+    cp.replacePhase(Phase.schedulePlaceholder(placeholderPhase), newScheduledPhase);
   }
 }

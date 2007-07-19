@@ -152,13 +152,24 @@ import org.vmmagic.unboxed.*;
    * @param phaseId Collection phase to execute.
    */
   @Inline
-  public void collectionPhase(int phaseId) {
+  public void collectionPhase(short phaseId) {
 
     if (phaseId == PREPARE) {
       rcTrace.prepare();
       return;
     }
+
+    if (phaseId == ROOTS) {
+      oldRootPool.reset();
+      super.collectionPhase(phaseId);
+      return;
+    }
+
     if (phaseId == RELEASE) {
+      newRootPool.reset();
+      decPool.reset();
+      modPool.reset();
+      
       rcTrace.release();
       previousMetaDataPages = metaDataSpace.reservedPages();
       return;

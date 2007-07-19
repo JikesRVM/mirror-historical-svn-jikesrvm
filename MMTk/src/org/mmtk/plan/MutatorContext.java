@@ -109,7 +109,7 @@ import org.vmmagic.unboxed.*;
    * @param primary Should this thread be used to execute any single-threaded
    * local operations?
    */
-  public abstract void collectionPhase(int phaseId, boolean primary);
+  public abstract void collectionPhase(short phaseId, boolean primary);
 
   /****************************************************************************
    *
@@ -352,6 +352,19 @@ import org.vmmagic.unboxed.*;
     // write barriers are not used and this is never called
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(false);
     return false;
+  }
+
+  /**
+   * Read a reference type. In a concurrent collector this may
+   * involve adding the referent to the marking queue.
+   *
+   * @param src The referent being read.
+   * @return The new referent.
+   */
+  @Inline
+  public ObjectReference referenceTypeReadBarrier(ObjectReference referent) {
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(false);
+    return ObjectReference.nullReference();
   }
 
   /**
