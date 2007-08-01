@@ -146,6 +146,12 @@ public class VMSystemProperties {
         p.put(prop, s);
       }
     }
+
+    /* Properties for JMX; this lets the implementation know which
+     * features JikesRVM supports */
+    p.put("gnu.java.compiler.name","JikesRVM");
+    if (VM.MeasureCompilation)
+      p.put("gnu.java.lang.management.CompilationTimeSupport","true");
   }
 
   /** Set java.library.path.

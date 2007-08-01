@@ -787,4 +787,14 @@ public class VM_RuntimeCompiler implements VM_Constants, VM_Callbacks.ExitMonito
     return name[compiler];
   }
 
+  /**
+   * Returns the total compilation time of compiler number, using the naming scheme
+   * in this file
+   * @param compiler the compiler of interest
+   * @return the total compilation time.
+   */
+  public static double getTotalCompilationTime(byte compiler) {
+    return totalCompTime[compiler];
+  }
+
 }
