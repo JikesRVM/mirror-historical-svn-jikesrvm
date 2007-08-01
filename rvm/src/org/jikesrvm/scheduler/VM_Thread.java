@@ -16,6 +16,7 @@ import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.ArchitectureSpecific.VM_CodeArray;
 import org.jikesrvm.ArchitectureSpecific.VM_Registers;
 import org.jikesrvm.VM;
+import org.jikesrvm.VM_Callbacks;
 import org.jikesrvm.VM_Configuration;
 import org.jikesrvm.VM_SizeConstants;
 import org.jikesrvm.adaptive.OSR_Listener;
@@ -86,6 +87,8 @@ public class VM_Thread implements ArchitectureSpecific.VM_StackframeLayoutConsta
 
   /** Is the thread suspended? */
   boolean suspended;
+  
+  private int suspendCount = 0;
 
   /** A running thread */
   private static final byte RUNNING = 0;
@@ -627,6 +630,7 @@ public class VM_Thread implements ArchitectureSpecific.VM_StackframeLayoutConsta
     suspendPending = true;
     suspendLock.unlock();
     if (this == getCurrentThread()) yield();
+    suspendCount ++;
   }
 
   /**
@@ -645,6 +649,7 @@ public class VM_Thread implements ArchitectureSpecific.VM_StackframeLayoutConsta
     } else {         // this thread is queued somewhere
       suspendLock.unlock();
     }
+    suspendCount --;
   }
 
   /**
@@ -1205,6 +1210,7 @@ public class VM_Thread implements ArchitectureSpecific.VM_StackframeLayoutConsta
    */
   @Interruptible
   public synchronized void start() {
+	VM_Callbacks.notifyThreadStart(this);
     registerThread();
     schedule();
   }
@@ -1215,6 +1221,7 @@ public class VM_Thread implements ArchitectureSpecific.VM_StackframeLayoutConsta
    * @param q the VM_ThreadQueue on which to enqueue this thread.
    */
   public final void start(VM_ThreadQueue q) {
+	VM_Callbacks.notifyThreadStart(this);
     registerThread();
     q.enqueue(this);
   }
@@ -1327,6 +1334,7 @@ public class VM_Thread implements ArchitectureSpecific.VM_StackframeLayoutConsta
 
     VM_Processor.getCurrentProcessor().dispatch(false);
 
+    VM_Callbacks.notifyThreadEnd(myThread);
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
   }
 
@@ -2069,5 +2077,10 @@ public class VM_Thread implements ArchitectureSpecific.VM_StackframeLayoutConsta
   @Interruptible
   public boolean isAlive() {
     return isAlive;
+  }
+  
+  /** Returns suspend count as specified by JDWP **/
+  public int getSuspendCount() {
+	  return suspendCount;
   }
 }

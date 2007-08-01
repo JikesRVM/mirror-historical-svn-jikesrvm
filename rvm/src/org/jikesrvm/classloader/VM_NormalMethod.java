@@ -201,6 +201,14 @@ public final class VM_NormalMethod extends VM_Method implements VM_BytecodeConst
   public VM_BytecodeStream getBytecodes() {
     return new VM_BytecodeStream(this, bytecodes);
   }
+  
+  /**
+   * Get a raw representation of the bytecodes in the code attribute of this method.
+   * @return array holding the bytecodes
+   */
+  public final byte[] getRawBytecodes() {
+    return bytecodes;
+  }
 
   /**
    * Fill in DynamicLink object for the invoke at the given bytecode index
@@ -252,6 +260,16 @@ public final class VM_NormalMethod extends VM_Method implements VM_BytecodeConst
       }
     }
     return lineNumberMap[--idx] >>> 16; // upper 16 bits are line number
+  }
+  
+  /**
+   * Return the line number map.
+   * @see #lineNumberMap
+   * @return map of line numbers
+   */
+  @Uninterruptible
+  public final int[] getLineNumberMap() {
+	  return lineNumberMap; 
   }
 
   // Extra methods for on-stack replacement

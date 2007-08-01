@@ -36,7 +36,7 @@ public final class VM_MainThread extends Thread {
   private VM_Method mainMethod;
   protected boolean launched = false;
 
-  private static final boolean dbg = false;
+  private static final boolean dbg = true;
 
   /**
    * Create "main" thread.
@@ -186,13 +186,12 @@ public final class VM_MainThread extends Thread {
     if (dbg) VM.sysWriteln("compiled.]");
 
     // Notify other clients that the startup is complete.
-    //
     VM_Callbacks.notifyStartup();
 
     launched = true;
     if (dbg) VM.sysWriteln("[VM_MainThread.run() invoking \"main\" method... ");
     // invoke "main" method with argument list
-    VM_Reflection.invoke(mainMethod, null, new Object[]{mainArgs}, false);
+    VM_Reflection.invoke(mainMethod, null, new Object[]{ mainArgs }, false);
     if (dbg) VM.sysWriteln("  VM_MainThread.run(): \"main\" method completed.]");
   }
 }

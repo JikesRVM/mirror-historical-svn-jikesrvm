@@ -59,6 +59,7 @@ import org.vmmagic.unboxed.ObjectReference;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 import gnu.classpath.jdwp.Jdwp;
+import gnu.classpath.jdwp.VMVirtualMachine;
 
 /**
  * A virtual machine.
@@ -410,20 +411,22 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
    
     if (jdwpArgs != null) {
 			// Run necessary class initializsers
-    		runClassInitializer("gnu.classpath.jdwp.VMVirtualMachine");
 			runClassInitializer("gnu.classpath.jdwp.transport.JdwpConnection");
 			runClassInitializer("gnu.classpath.jdwp.event.EventManager");
 			runClassInitializer("gnu.classpath.jdwp.Jdwp");
 			// Create a daemon Jdwp thread and wait for it to be initialized
 			Jdwp jdwp = new Jdwp();
 			jdwp.setDaemon(true);
+			
 			jdwp.configure(jdwpArgs);
 			jdwp.start();
 			try {
+				// wait for intialization.. not related for starting suspeneded.
 				jdwp.join();
 			} catch (InterruptedException e) {
 				throw new Error(e);
 			}
+			VM.sysWriteln("Wheter JDWP Intilaization done:  ", Jdwp.isDebugging);
 		}
 
     // Schedule "main" thread for execution.
@@ -2275,7 +2278,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
    * such as:
    *   - calling methods or accessing fields of classes that haven't yet
    *     been loaded/resolved/instantiated
-   *   - calling synchronized methods
+   *   - calling synchronized methodsp
    *   - entering synchronized blocks
    *   - allocating objects with "new"
    *   - throwing exceptions

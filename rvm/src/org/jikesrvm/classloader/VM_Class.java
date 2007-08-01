@@ -2326,6 +2326,14 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
   public boolean isInitialized() {
     return state == CLASS_INITIALIZED;
   }
+  
+  /**
+   * Loading status.
+   */
+  @Uninterruptible
+  public boolean isLoaded() {
+    return state == CLASS_LOADED;
+  }
 
   /**
    * Only intended to be used by the BootImageWriter

@@ -43,7 +43,14 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.jikesrvm.classloader.VM_Class;
+import org.jikesrvm.classloader.VM_Method;
+import org.jikesrvm.classloader.VM_MethodReference;
+import org.jikesrvm.classloader.VM_NormalMethod;
+import org.jikesrvm.classloader.VM_Type;
+
 import gnu.classpath.jdwp.exception.JdwpException;
+import gnu.classpath.jdwp.exception.NativeMethodException;
 import gnu.classpath.jdwp.util.LineTable;
 import gnu.classpath.jdwp.util.VariableTable;
 
@@ -54,7 +61,7 @@ import gnu.classpath.jdwp.util.VariableTable;
  *
  * @author Keith Seitz  (keiths@redhat.com)
  */
-public class VMMethod
+public final class VMMethod
 {
   /**
    * Returns the size of a JDWP method ID
@@ -63,10 +70,13 @@ public class VMMethod
    public static final int SIZE = 8;
 
   // The class in which this method is declared
-  private Class _class;
+  private final Class _class;
 
   // The method's ID
-  private long _methodId;
+  private final long _methodId;
+  
+  // JikesRVM method reference.
+  private final VM_MethodReference _vmMethRef; 
 
   /**
    * Constructs a new VMMethod object. This constructor is protected
@@ -78,16 +88,20 @@ public class VMMethod
    * @see gnu.classpath.jdwp.VMVirtualMachine#getAllClassMethods
    * @see gnu.classpath.jdwp.VMVirtualMachine#getClassMethod
    */
-  protected VMMethod(Class klass, long id)
+  protected VMMethod(final Class klass, final long id)
   {
     _class = klass;
     _methodId = id;
+    VM_Type vmType = java.lang.JikesRVMSupport.getTypeForClass(klass);
+	VM_Class vmClass = (VM_Class) vmType;
+	_vmMethRef= vmClass.getMethodRef((int) id).asMethodReference();
+	_vmMethRef.resolve();
   }
 
   /**
    * Returns the internal method ID for this method
    */
-  public long getId()
+  public final long getId()
   {
     return _methodId;
   }
@@ -95,25 +109,37 @@ public class VMMethod
   /**
    * Returns the method's declaring class
    */
-  public Class getDeclaringClass()
+  public final Class getDeclaringClass()
   {
     return _class;
+  }
+  /**
+   * Returns the corresponding RVM method representation.
+   */
+  protected final VM_Method  getVMMethod() {
+	  return _vmMethRef.getResolvedMember();
   }
 
   /**
    * Returns the name of this method
    */
-  public native String getName();
+  public final String getName() {
+	  return _vmMethRef.getName().toString();
+  }
 
   /**
    * Returns the signature of this method
    */
-  public native String getSignature();
+  public final String getSignature() {
+	  return _vmMethRef.getResolvedMember().getSignature().toString();
+  };
 
   /**
    * Returns the method's modifier flags
    */
-  public native int getModifiers();
+  public final int getModifiers(){
+	  return _vmMethRef.getResolvedMember().getModifiers();
+  }
 
   /**
    * "Returns line number information for the method, if present. The line
@@ -125,26 +151,53 @@ public class VMMethod
    * @return the line table
    * @throws JdwpException
    */
-  public native LineTable getLineTable()
-    throws JdwpException;
+  public final LineTable getLineTable() throws JdwpException{
+	  if (!(_vmMethRef.getResolvedMember() instanceof VM_NormalMethod))
+			throw new NativeMethodException(_methodId);
+
+		int[] lineNums =
+				((VM_NormalMethod) _vmMethRef.getResolvedMember())
+						.getLineNumberMap();
+		long[] byteCodeIndecies = new long[lineNums.length];
+
+		int idx = 0;
+		for (long bci : byteCodeIndecies) {
+			byteCodeIndecies[idx++] = bci & 0xffff;
+		}
+
+		for (int line : lineNums) {
+			line = line >>> 16;
+		}
+		return new LineTable(0, 0, lineNums, byteCodeIndecies);
+	}
 
   /**
-   * "Returns variable information for the method. The variable table
-   * includes arguments and locals declared within the method. For instance
-   * methods, the "this" reference is included in the table. Also, synthetic
-   * variables may be present."
-   *
-   * @return the variable table
-   * @throws JdwpException
-   */
-  public native VariableTable getVariableTable()
-    throws JdwpException;
+	 * "Returns variable information for the method. The variable table includes
+	 * arguments and locals declared within the method. For instance methods,
+	 * the "this" reference is included in the table. Also, synthetic variables
+	 * may be present."
+	 * 
+	 * @return the variable table
+	 * @throws JdwpException
+	 */
+  public final VariableTable getVariableTable() throws JdwpException {
+	//  if (!(_vmMethRef.getResolvedMember() instanceof VM_NormalMethod))
+			throw new NativeMethodException(_methodId);
+	  
+//	  int argCnt,
+//	  int slots, 
+//	  long lineCI[],
+//	  String names[],
+//      String sigs[],
+//      int lengths[], 
+//      int slot[]
+	}
 
   /**
    * Returns a string representation of this method (not
    * required but nice for debugging).
    */
-  public String toString()
+  public final String toString()
   {
     return getDeclaringClass().getName() + "." + getName();
   }
@@ -156,7 +209,7 @@ public class VMMethod
    * @throws IOException for any errors writing to the stream
    * @see gnu.classpath.jdwp.id.JdwpId#write
    */
-  public void writeId(DataOutputStream ostream)
+  public final void writeId(DataOutputStream ostream)
     throws IOException
   {
     ostream.writeLong(getId());
@@ -170,7 +223,7 @@ public class VMMethod
    * @throws JdwpException for any errors creating the method
    * @throws IOException for any errors reading from the buffer
    */
-  public static VMMethod readId(Class klass, ByteBuffer bb)
+  public final static VMMethod readId(Class klass, ByteBuffer bb)
     throws JdwpException, IOException
   {
     return VMVirtualMachine.getClassMethod(klass, bb.getLong());

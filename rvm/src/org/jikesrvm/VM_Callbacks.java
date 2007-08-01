@@ -47,6 +47,8 @@ import org.jikesrvm.util.VM_Synchronizer;
  * <li> BootImageWriting  - called when boot image writing is started
  * <li> Startup           - called when the VM has completed booting
  * <li> Exit              - called when the VM is about to exit
+ * <li> ThreadStart		  - called when thread about to start
+ * <li>	ThreadEnd		   -callend when thread is terminated
  * <li> AppStart          - called before the application starts executing
  *                          all runs -- needs application support)
  * <li> AppComplete       - called after the application completes executing
@@ -454,7 +456,8 @@ public final class VM_Callbacks {
    * Interface for monitoring forName calls.
    */
   public interface ForNameMonitor {
-    /**
+    
+	  /**
      * Notify the monitor that java.lang.Class.forName was called.
      * @param type the type that will be returned
      */
@@ -803,7 +806,125 @@ public final class VM_Callbacks {
       }
     }
   }
+  
+  /**
+   * Interface for monitoring thread start.
+   */
+  public interface ThreadStartMonitor {
+    /**
+     * Notify the monitor that a thread about to start.
+     * @param vmThread the thrread about to start.
+     */
+    void notifyThreadStart(VM_Thread vmThread);
+  }
 
+  /**
+   * Thread start callback list.
+   */
+  private static CallbackList threadStartCallbacks = null;
+  private static final Object threadStartLock = new Object();
+  private static boolean threadStartEnabled = true;
+
+  /**
+   * Register a callback for thread start.
+   * @param cb the object to notify when event happens
+   */
+  public static void addThreadStartedMonitor(ThreadStartMonitor cb) {
+    synchronized (threadStartLock) {
+      if (TRACE_ADDMONITOR || TRACE_THREADSTART) {
+        VM.sysWrite("adding thread started monitor: ");
+        VM.sysWrite(getClass(cb));
+        VM.sysWrite("\n");
+      }
+      threadStartCallbacks = new CallbackList(cb, threadStartCallbacks);
+    }
+  }
+
+  /**
+   * Notify the callback manager that a thread is about to start.
+   * @param vmThread the thread about to start.
+   */
+  public static void notifyThreadStart(VM_Thread vmThread) {
+    // NOTE: will need synchronization if allowing unregistering
+    if (!threadStartEnabled) return;
+    threadStartEnabled = false;
+    if (TRACE_THREADSTART) {
+      VM.sysWrite("invoking thread start monitors: ");
+      VM.sysWrite(vmThread.getJavaLangThread().getName());
+      VM.sysWrite("\n");
+    }
+    for (CallbackList l = threadStartCallbacks; l != null; l = l.next) {
+      if (TRACE_THREADSTART) {
+        VM.sysWrite("    ");
+        VM.sysWrite(getClass(l.callback));
+        VM.sysWrite("\n");
+      }
+      ((ThreadStartMonitor) l.callback).notifyThreadStart(vmThread);
+    }
+    threadStartEnabled = true;
+  }
+
+
+  
+  
+  
+  /**
+   * Interface for monitoring thread end.
+   */
+  public interface ThreadEndMonitor {
+    /**
+     * Notify the monitor that a thread ended.
+     * @param vmThread the thread that was ended.
+     */
+    void notifyThreadEnd(VM_Thread vmThread);
+  }
+
+  /**
+   * Thread end callback list.
+   */
+  private static CallbackList threadEndCallbacks = null;
+  private static final Object threadEndLock = new Object();
+  private static boolean threadEndEnabled = true;
+
+  /**
+   * Register a callback for thread end.
+   * @param cb the object to notify when event happens
+   */
+  public static void addThreadendMonitor(ThreadEndMonitor cb) {
+    synchronized (threadEndLock) {
+      if (TRACE_ADDMONITOR || TRACE_THREADEND) {
+        VM.sysWrite("adding thread ended monitor: ");
+        VM.sysWrite(getClass(cb));
+        VM.sysWrite("\n");
+      }
+      threadEndCallbacks = new CallbackList(cb, threadEndCallbacks);
+    }
+  }
+
+  /**
+   * Notify the callback manager that a thread is about to end.
+   * @param vmThread the thread about to end.
+   */
+  public static void notifyThreadEnd(VM_Thread vmThread) {
+    // NOTE: will need synchronization if allowing unregistering
+    if (!threadEndEnabled) return;
+    threadEndEnabled = false;
+    if (TRACE_THREADEND) {
+      VM.sysWrite("invoking thread end monitors: ");
+      VM.sysWrite(vmThread.getJavaLangThread().getName());
+      VM.sysWrite("\n");
+    }
+    for (CallbackList l = threadEndCallbacks; l != null; l = l.next) {
+      if (TRACE_THREADEND) {
+        VM.sysWrite("    ");
+        VM.sysWrite(getClass(l.callback));
+        VM.sysWrite("\n");
+      }
+      ((ThreadEndMonitor) l.callback).notifyThreadEnd(vmThread);
+    }
+    threadEndEnabled = true;
+  }
+  
   /**
    * Interface for monitoring when an application starts executing
    */
@@ -1112,19 +1233,21 @@ public final class VM_Callbacks {
     public final CallbackList next;
   }
 
-  private static final boolean TRACE_ADDMONITOR = false;
+  private static final boolean TRACE_ADDMONITOR = true;
   private static final boolean TRACE_CLASSLOADED = false;
-  private static final boolean TRACE_CLASSRESOLVED = false;
-  private static final boolean TRACE_CLASSINITIALIZED = false;
-  private static final boolean TRACE_CLASSINSTANTIATED = false;
+  private static final boolean TRACE_CLASSRESOLVED = true;
+  private static final boolean TRACE_CLASSINITIALIZED = true;
+  private static final boolean TRACE_CLASSINSTANTIATED = true;
   private static final boolean TRACE_METHODOVERRIDE = false;
   private static final boolean TRACE_METHODCOMPILE = false;
   private static final boolean TRACE_FORNAME = false;
   private static final boolean TRACE_DEFINECLASS = false;
   private static final boolean TRACE_LOADCLASS = false;
   private static final boolean TRACE_BOOTIMAGE = false;
-  private static final boolean TRACE_STARTUP = false;
-  private static final boolean TRACE_EXIT = false;
+  private static final boolean TRACE_STARTUP = true;
+  private static final boolean TRACE_EXIT = true;
+  private static final boolean TRACE_THREADSTART = true;
+  private static final boolean TRACE_THREADEND = true;
   private static final boolean TRACE_APP_RUN_START = false;
   private static final boolean TRACE_APP_RUN_COMPLETE = false;
   private static final boolean TRACE_APP_START = false;
