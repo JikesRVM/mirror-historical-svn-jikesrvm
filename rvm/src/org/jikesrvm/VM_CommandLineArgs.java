@@ -210,7 +210,7 @@ public class VM_CommandLineArgs {
         app_prefix.count++;
         continue;
       }
-
+      
       // Note: This loop will never run to the end.
       for (Prefix p : prefixes) {
         String v = p.value;
@@ -823,4 +823,25 @@ character set.
     }
     return b;
   }
+
+  /**
+   * Returns the original input arguments.
+   *
+   * @return the original arguments specified on the command line.
+   */
+  public static String[] getInputArgs() {
+    String[] inputArgs = new String[args.length];
+    int lastIndex = 0;
+    for (int i = 0; i < args.length; ++i) {
+      if (arg_types[i] == APPLICATION_ARG)
+	continue;
+      if (args[i] == null)
+	continue;
+      inputArgs[lastIndex++] = findPrefix(arg_types[i]).value + args[i];
+    }
+    String[] finalArgs = new String[lastIndex];
+    System.arraycopy(inputArgs, 0, finalArgs, 0, lastIndex);
+    return finalArgs;
+  }
+
 }

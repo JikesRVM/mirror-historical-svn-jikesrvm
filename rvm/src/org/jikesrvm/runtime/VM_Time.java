@@ -132,4 +132,12 @@ public class VM_Time {
   public static long currentTimeSecs() {
     return currentTimeMicros() / 1000000;
   }
+
+  /**
+   * Start time in microseconds (epoch Jan 1 1970).
+   */
+  public static long bootTime() {
+    return bootNow;
+  }
+
 }
