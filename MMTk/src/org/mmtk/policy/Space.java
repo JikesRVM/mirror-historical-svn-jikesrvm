@@ -71,8 +71,8 @@ import org.vmmagic.unboxed.*;
   private static final int PAGES_MB = 2;
   private static final int MB_PAGES = 3;
 
-  private static int spaceCount = 0;
-  private static Space[] spaces = new Space[MAX_SPACES];
+  public static int spaceCount = 0;
+  public static Space[] spaces = new Space[MAX_SPACES];
   private static Address heapCursor = HEAP_START;
   private static Address heapLimit = HEAP_END;
 
@@ -692,4 +692,7 @@ import org.vmmagic.unboxed.*;
     Extent rtn = mb.lsh(LOG_BYTES_IN_MBYTE).toExtent();
     return chunkAlign(rtn, false);
   }
+
+
 }
+
