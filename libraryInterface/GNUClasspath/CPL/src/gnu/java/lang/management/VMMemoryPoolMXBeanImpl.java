@@ -45,10 +45,10 @@ public final class VMMemoryPoolMXBeanImpl {
     if (pools == null)
       {
 	pools = new HashMap<String,Integer>();
-	for (int a = 0; a < Space.spaceCount; ++a)
-	  pools.put(Space.spaces[a].getName(), a);
+	for (int a = 0; a < Space.getSpaceCount(); ++a)
+	  pools.put(Space.getSpaces()[a].getName(), a);
       }
-    return pools.keySet().toArray(new String[Space.spaceCount]);
+    return pools.keySet().toArray(new String[pools.size()]);
   }
 
   /**
@@ -123,7 +123,7 @@ public final class VMMemoryPoolMXBeanImpl {
    * @return the type of the memory pool.
    */
   static String getType(String name) {
-    return (Space.spaces[pools.get(name)].isImmortal() ? "NON_HEAP" : "HEAP");
+    return (Space.getSpaces()[pools.get(name)].isImmortal() ? "NON_HEAP" : "HEAP");
   }
 
   /**
@@ -137,8 +137,8 @@ public final class VMMemoryPoolMXBeanImpl {
    * @return the usage of the specified pool.
    */
   static MemoryUsage getUsage(String name) {
-    Space space = Space.spaces[pools.get(name)];
-    return new MemoryUsage(0,
+    Space space = Space.getSpaces()[pools.get(name)];
+    return new MemoryUsage(-1,
 			   Conversions.pagesToBytes(space.reservedPages()).toLong(),
 			   Conversions.pagesToBytes(space.committedPages()).toLong(),
 			   space.getExtent().toLong());

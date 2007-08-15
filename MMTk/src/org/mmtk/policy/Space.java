@@ -71,8 +71,8 @@ import org.vmmagic.unboxed.*;
   private static final int PAGES_MB = 2;
   private static final int MB_PAGES = 3;
 
-  public static int spaceCount = 0;
-  public static Space[] spaces = new Space[MAX_SPACES];
+  private static int spaceCount = 0;
+  private static Space[] spaces = new Space[MAX_SPACES];
   private static Address heapCursor = HEAP_START;
   private static Address heapLimit = HEAP_END;
 
@@ -693,6 +693,25 @@ import org.vmmagic.unboxed.*;
     return chunkAlign(rtn, false);
   }
 
+  /**
+   * Retrieve an array containing all the {@link Space}s.
+   *
+   * @return an array of spaces.
+   */
+  public static Space[] getSpaces()
+  {
+    return spaces;
+  }
+
+  /**
+   * Returns the number of spaces.
+   *
+   * @return the number of spaces.
+   */
+  public static int getSpaceCount()
+  {
+    return spaceCount;
+  }
 
 }
 
