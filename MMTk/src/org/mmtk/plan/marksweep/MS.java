@@ -56,14 +56,6 @@ import org.vmmagic.unboxed.*;
 
   public final Trace msTrace = new Trace(metaDataSpace);
 
-  /**
-   * Boot-time initialization
-   */
-  @Interruptible
-  public void boot() {
-    super.boot();
-  }
-
   /*****************************************************************************
    *
    * Collection
@@ -75,7 +67,7 @@ import org.vmmagic.unboxed.*;
    * @param phaseId Collection phase to execute.
    */
   @Inline
-  public final void collectionPhase(int phaseId) {
+  public final void collectionPhase(short phaseId) {
 
     if (phaseId == PREPARE) {
       super.collectionPhase(phaseId);
@@ -114,7 +106,7 @@ import org.vmmagic.unboxed.*;
   /**
    * Calculate the number of pages a collection is required to free to satisfy
    * outstanding allocation requests.
-   * 
+   *
    * @return the number of pages a collection is required to free to satisfy
    * outstanding allocation requests.
    */

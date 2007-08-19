@@ -170,7 +170,7 @@ public final class VM_Field extends VM_Member {
    * place a reading the field.
    * @return whether the method has a pure annotation
    */
-  public final boolean isRuntimeFinal() {
+  public boolean isRuntimeFinal() {
    return hasRuntimeFinalAnnotation();
   }
 
@@ -178,7 +178,7 @@ public final class VM_Field extends VM_Member {
    * Get the value from the runtime final field
    * @return whether the method has a pure annotation
    */
-  public final boolean getRuntimeFinalValue() {
+  public boolean getRuntimeFinalValue() {
     org.vmmagic.pragma.RuntimeFinal ann;
     if (VM.runningVM) {
       ann = getAnnotation(org.vmmagic.pragma.RuntimeFinal.class);
@@ -204,7 +204,7 @@ public final class VM_Field extends VM_Member {
   }
 
   //-------------------------------------------------------------------//
-  // Lowlevel support for various reflective operations                //
+  // Low level support for various reflective operations               //
   // Because different clients have different error checking           //
   // requirements, these operations are completely unsafe and we       //
   // assume that the client has done the required error checking.      //
@@ -317,14 +317,6 @@ public final class VM_Field extends VM_Member {
       return VM_Statics.getSlotContentsAsLong(getOffset());
     } else {
       return VM_Magic.getLongAtOffset(obj, getOffset());
-    }
-  }
-  
-  private Word getWord(Object obj) {
-    if (isStatic()) {
-      return VM_Statics.getSlotContentsAsAddress(getOffset()).toWord();
-    } else {
-      return VM_Magic.getWordAtOffset(obj, getOffset());
     }
   }
 

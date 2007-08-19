@@ -28,14 +28,13 @@ import org.jikesrvm.compilers.common.VM_CompiledMethod;
 import org.jikesrvm.compilers.common.VM_CompiledMethods;
 import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.objectmodel.VM_ObjectModel;
-import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.scheduler.VM_Thread;
+import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
-import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -61,7 +60,7 @@ import org.vmmagic.unboxed.Offset;
  * (by writing
  * straight line code with no "non-magic" method invocations) or we
  * must turn off the
- * collector (so that a gc request inititiated by another thread will
+ * collector (so that a gc request initiated by another thread will
  * not run until we're
  * done manipulating the bare pointers). Furthermore, while
  * the collector is turned off,
@@ -644,19 +643,19 @@ public class VM_Runtime implements VM_Constants, ArchitectureSpecific.VM_Stackfr
   @Entrypoint
   static void deliverHardwareException(int trapCode, int trapInfo) {
 
-    VM_Thread myThread = VM_Thread.getCurrentThread();
-    VM_Registers exceptionRegisters = myThread.hardwareExceptionRegisters;
+    VM_Thread myThread = VM_Scheduler.getCurrentThread();
+    VM_Registers exceptionRegisters = myThread.getHardwareExceptionRegisters();
 
     if ((trapCode == TRAP_STACK_OVERFLOW || trapCode == TRAP_JNI_STACK) &&
-        myThread.stack.length < (STACK_SIZE_MAX >> LOG_BYTES_IN_ADDRESS) &&
+        myThread.getStack().length < (STACK_SIZE_MAX >> LOG_BYTES_IN_ADDRESS) &&
         !myThread.hasNativeStackFrame()) {
       // expand stack by the size appropriate for normal or native frame
       // and resume execution at successor to trap instruction
       // (C trap handler has set register.ip to the instruction following the trap).
       if (trapCode == TRAP_JNI_STACK) {
-        VM_Thread.resizeCurrentStack(myThread.stack.length + STACK_SIZE_JNINATIVE_GROW, exceptionRegisters);
+        VM_Thread.resizeCurrentStack(myThread.getStackLength() + STACK_SIZE_JNINATIVE_GROW, exceptionRegisters);
       } else {
-        VM_Thread.resizeCurrentStack(myThread.stack.length + STACK_SIZE_GROW, exceptionRegisters);
+        VM_Thread.resizeCurrentStack(myThread.getStackLength() + STACK_SIZE_GROW, exceptionRegisters);
       }
       if (VM.VerifyAssertions) VM._assert(exceptionRegisters.inuse);
       exceptionRegisters.inuse = false;
@@ -880,16 +879,13 @@ public class VM_Runtime implements VM_Constants, ArchitectureSpecific.VM_Stackfr
    * </ul>
    */
   private static void deliverException(Throwable exceptionObject, VM_Registers exceptionRegisters) {
-    if (VM.debugOOM) {
+    if (VM.TraceExceptionDelivery) {
       VM.sysWriteln("VM_Runtime.deliverException() entered; just got an exception object.");
-    }
-    if (VM.BuildForIA32) {
-      VM_Magic.clearFloatingPointState();
     }
 
     // walk stack and look for a catch block
     //
-    if (VM.debugOOM) {
+    if (VM.TraceExceptionDelivery) {
       VM.sysWrite("Hunting for a catch block...");
     }
     VM_Type exceptionType = VM_Magic.getObjectType(exceptionObject);
@@ -905,7 +901,7 @@ public class VM_Runtime implements VM_Constants, ArchitectureSpecific.VM_Stackfr
 
         if (catchBlockOffset >= 0) {
           // found an appropriate catch block
-          if (VM.debugOOM) {
+          if (VM.TraceExceptionDelivery) {
             VM.sysWriteln("found one; delivering.");
           }
           Address catchBlockStart = compiledMethod.getInstructionAddress(Offset.fromIntSignExtend(catchBlockOffset));
@@ -920,76 +916,36 @@ public class VM_Runtime implements VM_Constants, ArchitectureSpecific.VM_Stackfr
       fp = exceptionRegisters.getInnermostFramePointer();
     }
 
-    if (VM.debugOOM) {
+    if (VM.TraceExceptionDelivery) {
       VM.sysWriteln("Nope.");
       VM.sysWriteln("VM_Runtime.deliverException() found no catch block.");
     }
     /* No appropriate catch block found. */
 
-    VM_Thread.getCurrentThread().uncaughtExceptionCount++;
-
-    /* Grow the heap.
-     * This could be (but isn't) undoable.  That doesn't matter here, since
-     * we're dying in any case.
-     *
-     * There's no way to give the additional memory exclusively to this
-     * particular thread; too bad. */
-    if (VM.doEmergencyGrowHeap && exceptionObject instanceof OutOfMemoryError) {
-      MM_Interface.emergencyGrowHeap(5 * (1 << 20)); // ask for 5 megs and pray
-    }
-    handlePossibleRecursiveException();
-    VM.enableGC();
-    VM_Thread vmThr = VM_Thread.getCurrentThread();
-    Thread thr = vmThr.peekJavaLangThread();
-    if (thr == null) {
-      VM.sysWrite("Exception in the primordial thread \"", vmThr.toString(), "\" while booting: ");
-    } else {
-      // This is output like that of the Sun JDK.
-      VM.sysWrite("Exception in thread \"", thr.getName(), "\": ");
-    }
-    exceptionObject.printStackTrace();
-    VM_Thread.terminate();
-    if (VM.VerifyAssertions) VM._assert(NOT_REACHED);
+    VM_Scheduler.getCurrentThread().handleUncaughtException(exceptionObject);
   }
 
-  /** Handle the case of exception handling triggering new exceptions. */
-  private static void handlePossibleRecursiveException() {
-    int numUncaughtExceptions = VM_Thread.getCurrentThread().uncaughtExceptionCount;
-    if (numUncaughtExceptions > 1 &&
-        numUncaughtExceptions <=
-        VM.maxSystemTroubleRecursionDepth + VM.maxSystemTroubleRecursionDepthBeforeWeStopVMSysWrite) {
-      VM.sysWrite("We got an uncaught exception while (recursively) handling ");
-      VM.sysWrite(numUncaughtExceptions - 1);
-      VM.sysWrite(" uncaught exception");
-      if (numUncaughtExceptions - 1 != 1) {
-        VM.sysWrite("s");
-      }
-      VM.sysWriteln(".");
-    }
-    if (numUncaughtExceptions > VM.maxSystemTroubleRecursionDepth) {
-      VM.dieAbruptlyRecursiveSystemTrouble();
-      if (VM.VerifyAssertions) VM._assert(NOT_REACHED);
-    }
-  }
 
   /**
-   * The current frame is expected to be one of the JNI functions
-   * called from C,
-   * below which is one or more native stack frames
-   * Skip over all frames below with saved code pointers outside of heap
-   * (C frames),
-   * stopping at the native frame immediately preceding the glue frame which
-   * contains
-   * the method ID of the native method
-   * (this is necessary to allow retrieving the
-   * return address of the glue frame)
-   * Ton Ngo 7/30/01
+   * Skip over all frames below currfp with saved code pointers outside of heap
+   * (C frames), stopping at the native frame immediately preceding the glue
+   * frame which contains the method ID of the native method (this is necessary
+   * to allow retrieving the return address of the glue frame)
+   *
+   * @param currfp The current frame is expected to be one of the JNI functions
+   *            called from C, below which is one or more native stack frames
    */
   @Uninterruptible
   public static Address unwindNativeStackFrame(Address currfp) {
-    Address ip, callee_fp;
+    // Remembered address of previous FP
+    Address callee_fp;
+    // Address of native frame
     Address fp = VM_Magic.getCallerFramePointer(currfp);
+    // Instruction pointer for current native frame
+    Address ip;
 
+    // Loop until either we fall off the stack or we find an instruction address
+    // in one of our heaps
     do {
       callee_fp = fp;
       ip = VM_Magic.getReturnAddress(fp);
@@ -1106,9 +1062,6 @@ public class VM_Runtime implements VM_Constants, ArchitectureSpecific.VM_Stackfr
    */
   @Inline
   private static boolean canForceGC() {
-    return VM.ForceFrequentGC &&
-           VM_Scheduler.allProcessorsInitialized &&
-           VM_Processor.getCurrentProcessor().threadSwitchingEnabled();
+    return VM.ForceFrequentGC && VM_Scheduler.safeToForceGCs();
   }
-
 }

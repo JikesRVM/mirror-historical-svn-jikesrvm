@@ -20,8 +20,9 @@ import org.vmmagic.pragma.*;
 import org.vmmagic.unboxed.*;
 
 import org.jikesrvm.VM;
+import org.jikesrvm.memorymanagers.mminterface.DebugUtil;
 import org.jikesrvm.runtime.VM_Entrypoints;
-import org.jikesrvm.scheduler.VM_Thread;
+import org.jikesrvm.scheduler.VM_Scheduler;
 
 import java.lang.ref.Reference;
 import java.lang.ref.SoftReference;
@@ -38,45 +39,44 @@ import java.lang.ref.PhantomReference;
  * gc, the various lists are processed in the proper order to
  * determine if any Reference objects are ready to be enqueued or
  * whether referents that have died should be kept alive until the
- * Reference is explicitly cleared. MMTk drives this processing and 
- * uses this class, via the VM interface, to scan the lists of pending 
+ * Reference is explicitly cleared. MMTk drives this processing and
+ * uses this class, via the VM interface, to scan the lists of pending
  * reference objects.
- * 
- * Most of the functionality resides in the abstract class ReferenceProcessor,
- * which contains instances of the concrete types Soft, Weak and Phantom.
  *
  * As an optimization for generational collectors, each reference type
- * maintains two queues: a nursery queue and the main queue. 
+ * maintains two queues: a nursery queue and the main queue.
  */
-@Uninterruptible 
-public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
-  
+@Uninterruptible
+public final class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
+
   /********************************************************************
-   * Class fields 
+   * Class fields
    */
 
   private static Lock lock = new Lock("ReferenceProcessor");
 
-  private static final ReferenceProcessor softReferenceProcessor = 
+  private static final ReferenceProcessor softReferenceProcessor =
     new ReferenceProcessor(Semantics.SOFT);
-  private static final ReferenceProcessor weakReferenceProcessor = 
+  private static final ReferenceProcessor weakReferenceProcessor =
     new ReferenceProcessor(Semantics.WEAK);
-  private static final ReferenceProcessor phantomReferenceProcessor = 
+  private static final ReferenceProcessor phantomReferenceProcessor =
     new ReferenceProcessor(Semantics.PHANTOM);
 
   // Debug flags
   private static final boolean TRACE = false;
+  private static final boolean TRACE_UNREACHABLE = false;
   private static final boolean TRACE_DETAIL = false;
+  private static final boolean STRESS = false || VM.ForceFrequentGC;
 
   /** Initial size of the reference object table */
-  private static final int INITIAL_SIZE = 256;
-  
-  /** 
+  private static final int INITIAL_SIZE = STRESS ? 1 : 256;
+
+  /**
    * Grow the reference object table by this multiplier
    * on overflow
    */
   private static final double GROWTH_FACTOR = 2.0;
-  
+
 
   /*************************************************************************
    * Instance fields
@@ -85,7 +85,7 @@ public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
   /**
    * The table of reference objects for the current semantics
    */
-  private AddressArray references = AddressArray.create(INITIAL_SIZE);
+  private volatile AddressArray references = AddressArray.create(INITIAL_SIZE);
 
   /**
    * Index into the <code>references</code> table for the start of
@@ -96,26 +96,26 @@ public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
   /**
    * Index of the first free slot in the reference table.
    */
-  private int maxIndex = 0;
-  
+  private volatile int maxIndex = 0;
+
   /**
    * Flag to prevent a race between threads growing the reference object
    * table.
    */
-  private boolean growingTable = false;
-  
+  private volatile boolean growingTable = false;
+
   /**
    * Semantics
    */
   private final Semantics semantics;
-  
+
   /** Copy of semantics.toString() for use in uninterruptible code */
   private final String semanticsStr;
 
-  
+
   /**
    * Create a reference processor for a given semantics
-   * 
+   *
    * @param semantics
    */
   private ReferenceProcessor(Semantics semantics) {
@@ -131,9 +131,9 @@ public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
   @Interruptible
   public static ReferenceProcessor get(Semantics semantics) {
     switch(semantics) {
-    case WEAK:    return weakReferenceProcessor; 
-    case SOFT:    return softReferenceProcessor; 
-    case PHANTOM: return phantomReferenceProcessor; 
+    case WEAK:    return weakReferenceProcessor;
+    case SOFT:    return softReferenceProcessor;
+    case PHANTOM: return phantomReferenceProcessor;
     default:
       VM._assert(false,"Unrecognized semantics");
       return null;
@@ -144,27 +144,25 @@ public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
    * Add a reference at the end of the table
    * @param ref The reference to add
    */
-  private void addReference(Reference<?> ref) {
-    setReference(maxIndex++,ObjectReference.fromObject(ref));
+  private void addReference(Reference<?> ref, ObjectReference referent) {
+    ObjectReference reference = ObjectReference.fromObject(ref);
+    setReferent(reference, referent);
+    setReference(maxIndex++,reference);
   }
 
   /**
    * Update the reference table
-   * 
+   *
    * @param i The table index
    * @param ref The reference to insert
    */
   private void setReference(int i, ObjectReference ref) {
-    if (TRACE) {
-      VM.sysWriteln("  reference ",i);
-      VM.sysWriteln(" <- ",ref);
-    }
     references.set(i,ref.toAddress());
   }
-  
+
   /**
    * Retrieve from the reference table
-   * 
+   *
    * @param i Table index
    * @return The reference object at index i
    */
@@ -173,15 +171,18 @@ public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
   }
 
   /**
-   * Grow the reference table by GROWTH_FACTOR
-   * 
-   * Logically Uninterruptible because it can GC when it allocates, but
-   * the rest of the code can't tolerate GC
+   * Grow the reference table by GROWTH_FACTOR.
+   *
+   * <p>Logically Uninterruptible because it can GC when it allocates, but
+   * the rest of the code can't tolerate GC.
+   *
+   * <p>This method is called without the reference processor lock held,
+   * but with the flag <code>growingTable</code> set.
    */
-  @LogicallyUninterruptible
+  @UninterruptibleNoWarn
   private AddressArray growReferenceTable() {
-    int newLength = (int)(references.length() * GROWTH_FACTOR);
-    if (TRACE) VM.sysWriteln("Expanding reference type table ",semantics.toString()," to ",newLength);
+    int newLength = STRESS ? references.length() + 1 : (int)(references.length() * GROWTH_FACTOR);
+    if (TRACE) VM.sysWriteln("Expanding reference type table ",semanticsStr," to ",newLength);
     AddressArray newReferences = AddressArray.create(newLength);
     for (int i=0; i < references.length(); i++)
       newReferences.set(i,references.get(i));
@@ -189,56 +190,71 @@ public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
   }
 
   /**
-   * Add a reference to the list of references.
+   * Add a reference to the list of references.  This method is responsible
+   * for installing the  address of the referent into the Reference object
+   * so that the referent is traced at all yield points before the Reference
+   * is correctly installed in the reference table.
    *
    * (SJF: This method must NOT be inlined into an inlined allocation
    * sequence, since it contains a lock!)
-   * 
-   * @param ref the reference to add
+   *
+   * @param referent The referent of the reference
+   * @param ref The reference to add
    */
   @NoInline
-  private void addCandidate(Reference<?> ref) { 
+  private void addCandidate(Reference<?> ref, ObjectReference referent) {
     if (TRACE) {
       ObjectReference referenceAsAddress = ObjectReference.fromObject(ref);
-      ObjectReference referent = getReferent(referenceAsAddress);
-      VM.sysWriteln("Adding Reference: ", referenceAsAddress);
-      VM.sysWriteln("       Referent:  ", referent);
+      VM.sysWrite("Adding Reference: ", referenceAsAddress);
+      VM.sysWriteln(" ~> ", referent);
     }
 
-    /* TODO add comments */
+    /*
+     * Ensure that only one thread at a time can grow the
+     * table of references.  The volatile flag <code>growingTable</code> is
+     * used to allow growing the table to trigger GC, but to prevent
+     * any other thread from accessing the table while it is being grown.
+     *
+     * If the table has space, threads will add the reference, incrementing maxIndex
+     * and exit.
+     *
+     * If the table is full, the first thread to notice will grow the table.
+     * Subsequent threads will release the lock and yield at (1) while the
+     * first thread
+     */
     lock.acquire();
-    while (maxIndex >= references.length()) {
+    while (growingTable || maxIndex >= references.length()) {
       if (growingTable) {
         lock.release();
-        VM_Thread.yield();
+        VM_Scheduler.yield(); // (1) Allow another thread to grow the table
         lock.acquire();
       } else {
-        growingTable = true;
-        lock.release();
+        growingTable = true;  // Prevent other threads from growing table while lock is released
+        lock.release();       // Can't hold the lock while allocating
         AddressArray newTable = growReferenceTable();
         lock.acquire();
         references = newTable;
-        growingTable = false;
+        growingTable = false; // Allow other threads to grow the table rather than waiting for us
       }
     }
-    addReference(ref);
+    addReference(ref,referent);
     lock.release();
   }
-  
+
   /***********************************************************************
    *              GC time processing
    */
 
   /**
    * Scan through all references and forward.
-   * 
+   *
    * Collectors like MarkCompact determine liveness and move objects
    * using separate traces.
-   * 
+   *
    * Currently ignores the nursery hint.
-   * 
+   *
    * TODO parallelise this code
-   * 
+   *
    * @param trace The trace
    * @param nursery Is this a nursery collection ?
    */
@@ -252,7 +268,6 @@ public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
       ObjectReference newReference = trace.getForwardedReference(reference);
       setReference(i, newReference);
     }
-
     if (TRACE) VM.sysWriteln("Ending ReferenceGlue.forward(",semanticsStr,")");
   }
 
@@ -260,21 +275,21 @@ public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
    * Scan through the list of references. Calls ReferenceProcessor's
    * processReference method for each reference and builds a new
    * list of those references still active.
-   * 
+   *
    * Depending on the value of <code>nursery</code>, we will either
    * scan all references, or just those created since the last scan.
-   * 
+   *
    * TODO parallelise this code
-   * 
+   *
    * @param nursery Scan only the newly created references
    */
   @Override
-  public void scan(TraceLocal trace, boolean nursery) { 
+  public void scan(TraceLocal trace, boolean nursery) {
     int toIndex = nursery ? nurseryIndex : 0;
 
     for (int fromIndex = toIndex; fromIndex < maxIndex; fromIndex++) {
       ObjectReference reference = getReference(fromIndex);
-      
+
       /* Determine liveness (and forward if necessary) the reference */
       ObjectReference newReference = processReference(trace,reference);
       if (!newReference.isNull()) {
@@ -298,16 +313,14 @@ public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
    * class rather than the public Reference class to ensure that Jikes
    * has a safe way of enqueueing the object, one that cannot be
    * overridden by the application program.
-   * 
+   *
    * ************************ TODO *********************************
    * Change this so that we don't call reference.enqueue directly
    * as this can be overridden by the user.
    * ***************************************************************
-   * 
+   *
    * @see java.lang.ref.ReferenceQueue
    * @param addr the address of the Reference object
-   * @param onlyOnce <code>true</code> if the reference has ever
-   * been enqueued previously it will not be enqueued
    * @return <code>true</code> if the reference was enqueued
    */
   public boolean enqueueReference(ObjectReference addr) {
@@ -320,8 +333,8 @@ public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
    * @param ref the SoftReference to add
    */
   @Interruptible
-  public static void addSoftCandidate(SoftReference<?> ref) { 
-    softReferenceProcessor.addCandidate(ref);
+  public static void addSoftCandidate(SoftReference<?> ref, ObjectReference referent) {
+    softReferenceProcessor.addCandidate(ref, referent);
   }
 
   /**
@@ -329,8 +342,8 @@ public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
    * @param ref the WeakReference to add
    */
   @Interruptible
-  public static void addWeakCandidate(WeakReference<?> ref) { 
-    weakReferenceProcessor.addCandidate(ref);
+  public static void addWeakCandidate(WeakReference<?> ref, ObjectReference referent) {
+    weakReferenceProcessor.addCandidate(ref, referent);
   }
 
   /**
@@ -338,45 +351,49 @@ public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
    * @param ref the PhantomReference to add
    */
   @Interruptible
-  public static void addPhantomCandidate(PhantomReference<?> ref) { 
-    phantomReferenceProcessor.addCandidate(ref);
+  public static void addPhantomCandidate(PhantomReference<?> ref, ObjectReference referent) {
+    phantomReferenceProcessor.addCandidate(ref, referent);
   }
-  
+
   /****************************************************************************
-   * 
+   *
    *               Semantics of reference types
-   * 
+   *
    */
-  
+
   /**
    * Process a reference with the current semantics.
    * @param reference the address of the reference. This may or may not
    * be the address of a heap object, depending on the VM.
-   * @param semantics the code number of the semantics
+   * @param trace the thread local trace element.
    */
   public ObjectReference processReference(TraceLocal trace, ObjectReference reference) {
     if (VM.VerifyAssertions) VM._assert(!reference.isNull());
 
-    if (TRACE) VM.sysWriteln("### old reference: ",reference);
-
+    if (TRACE_DETAIL) {
+      VM.sysWrite("Processing reference: ",reference);
+    }
     /*
      * If the reference is dead, we're done with it. Let it (and
      * possibly its referent) be garbage-collected.
      */
     if (!trace.isLive(reference)) {
       clearReferent(reference);                   // Too much paranoia ...
+      if (TRACE_UNREACHABLE) { VM.sysWriteln(" UNREACHABLE reference:  ",reference); }
+      if (TRACE_DETAIL) {
+        VM.sysWriteln(" (unreachable)");
+      }
       return ObjectReference.nullReference();
-    } 
+    }
 
     /* The reference object is live */
     ObjectReference newReference = trace.getForwardedReference(reference);
     ObjectReference oldReferent = getReferent(reference);
 
     if (TRACE_DETAIL) {
-      VM.sysWriteln("    new reference: ",newReference);
-      VM.sysWriteln("    old referent: ",oldReferent);
+      VM.sysWrite(" ~> ",oldReferent);
     }
-    
+
     /*
      * If the application has cleared the referent the Java spec says
      * this does not cause the Reference object to be enqueued. We
@@ -384,20 +401,23 @@ public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
      * waiting list.
      */
     if (oldReferent.isNull()) {
+      if (TRACE_DETAIL) VM.sysWriteln(" (null referent)");
       return ObjectReference.nullReference();
-    } 
-    
+    }
+
+    if (TRACE_DETAIL)  VM.sysWrite(" => ",newReference);
+
     if (semantics == Semantics.SOFT) {
       /*
        * Unless we've completely run out of memory, we keep
        * softly reachable objects alive.
        */
       if (!Plan.isEmergencyCollection()) {
-        if (TRACE_DETAIL) VM.sysWriteln("    resurrecting: ",oldReferent);
+        if (TRACE_DETAIL) VM.sysWrite(" (soft) ");
         trace.retainReferent(oldReferent);
       }
     } else if (semantics == Semantics.PHANTOM) {
-      /* 
+      /*
        * The spec says we should forward the reference.  Without unsafe uses of
        * reflection, the application can't tell the difference whether we do or not,
        * so we don't forward the reference.
@@ -406,13 +426,29 @@ public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
     }
 
     if (trace.isLive(oldReferent)) {
+      if (VM.VerifyAssertions) {
+        if (!DebugUtil.validRef(oldReferent)) {
+          VM.sysWriteln("Error in old referent.");
+          DebugUtil.dumpRef(oldReferent);
+          VM.sysFail("Invalid reference");
+        }
+      }
       /*
        * Referent is still reachable in a way that is as strong as
        * or stronger than the current reference level.
        */
       ObjectReference newReferent = trace.getForwardedReferent(oldReferent);
 
-      if (TRACE) VM.sysWriteln(" new referent: ",newReferent);
+      if (TRACE_DETAIL) VM.sysWriteln(" ~> ",newReferent);
+
+      if (VM.VerifyAssertions) {
+        if (!DebugUtil.validRef(newReferent)) {
+          VM.sysWriteln("Error forwarding reference object.");
+          DebugUtil.dumpRef(oldReferent);
+          VM.sysFail("Invalid reference");
+        }
+        VM._assert(trace.isLive(newReferent));
+      }
 
       /*
        * The reference object stays on the waiting list, and the
@@ -428,14 +464,15 @@ public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
     } else {
       /* Referent is unreachable. Clear the referent and enqueue the reference object. */
 
-      if (TRACE) VM.sysWriteln(" UNREACHABLE:  ",oldReferent);
+      if (TRACE_DETAIL) VM.sysWriteln(" UNREACHABLE");
+      else if (TRACE_UNREACHABLE) VM.sysWriteln(" UNREACHABLE referent:  ",oldReferent);
 
       clearReferent(newReference);
       enqueueReference(newReference);
       return ObjectReference.nullReference();
     }
   }
-  
+
   /**
    * Weak and soft references always clear the referent
    * before enqueueing. We don't actually call
@@ -446,8 +483,6 @@ public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
   protected void clearReferent(ObjectReference newReference) {
     setReferent(newReference, ObjectReference.nullReference());
   }
-  
-  
 
   /***********************************************************************
    *
@@ -457,8 +492,8 @@ public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
   /**
    * Get the referent from a reference.  For Java the reference
    * is a Reference object.
-   * @param addr the address of the reference
-   * @return the referent address
+   * @param object the object reference.
+   * @return the referent object reference.
    */
   protected ObjectReference getReferent(ObjectReference object) {
     return object.toAddress().loadObjectReference(VM_Entrypoints.referenceReferentField.getOffset());
@@ -467,8 +502,8 @@ public class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
   /**
    * Set the referent in a reference.  For Java the reference is
    * a Reference object.
-   * @param addr the address of the reference
-   * @param referent the referent address
+   * @param ref the ObjectReference for the reference (confusing eh?).
+   * @param referent the referent object reference.
    */
   protected void setReferent(ObjectReference ref, ObjectReference referent) {
     ref.toAddress().store(referent, VM_Entrypoints.referenceReferentField.getOffset());

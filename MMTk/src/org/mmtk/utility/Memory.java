@@ -26,7 +26,7 @@ import org.vmmagic.pragma.*;
  *
  * FIXME: Why can't these operations be performed at word-granularity?
  */
-@Uninterruptible 
+@Uninterruptible
 public class Memory implements Constants {
 
   /****************************************************************************
@@ -210,8 +210,7 @@ public class Memory implements Constants {
    * @param afterBytes The number of bytes after the address to be
    * included in the dump
    */
-  public static void dumpMemory(Address addr, int beforeBytes, int afterBytes)
-  {
+  public static void dumpMemory(Address addr, int beforeBytes, int afterBytes) {
     VM.memory.dumpMemory(addr, beforeBytes, afterBytes);
   }
 }

@@ -18,8 +18,8 @@ import java.util.HashSet;
 import java.util.NoSuchElementException;
 import org.jikesrvm.ArchitectureSpecific.OPT_RegisterPool;
 import org.jikesrvm.VM;
-import org.jikesrvm.adaptive.controller.VM_Controller;
 import org.jikesrvm.adaptive.VM_AosEntrypoints;
+import org.jikesrvm.adaptive.controller.VM_Controller;
 import org.jikesrvm.classloader.VM_Array;
 import org.jikesrvm.classloader.VM_BytecodeConstants;
 import org.jikesrvm.classloader.VM_BytecodeStream;
@@ -192,7 +192,7 @@ public final class OPT_BC2IR
    * OSR: used for PSEUDO_InvokeStatic to recover the type info
    */
   private int param1, param2;
-  
+
   /**
    * osr barrier needs type information of locals and stacks,
    * it has to be created before a _callHelper.
@@ -1540,8 +1540,7 @@ public final class OPT_BC2IR
                     // only valid in the bootstrap JVM
                   }
                 }
-              }
-              else if (field.isRuntimeFinal()) {
+              } else if (field.isRuntimeFinal()) {
                 if (VM.VerifyAssertions) VM._assert(fieldType.isBooleanType());
                 boolean rhsBool = field.getRuntimeFinalValue();
                 push(new OPT_IntConstantOperand(rhsBool? 1 : 0));
@@ -3515,7 +3514,7 @@ public final class OPT_BC2IR
    * @return true if an unconditional throw is generated, false otherwise
    */
   public boolean do_NullCheck(OPT_Operand ref) {
-    if (gc.options.NO_NULL_CHECK) {
+    if (gc.noNullChecks()) {
       return false;
     }
     if (ref.isDefinitelyNull()) {
@@ -3609,7 +3608,7 @@ public final class OPT_BC2IR
    */
   public boolean do_BoundsCheck(OPT_Operand ref, OPT_Operand index) {
     // Unsafely eliminate all bounds checks
-    if (gc.options.NO_BOUNDS_CHECK) {
+    if (gc.noBoundsChecks()) {
       return false;
     }
     OPT_RegisterOperand guard = gc.temps.makeTempValidation();

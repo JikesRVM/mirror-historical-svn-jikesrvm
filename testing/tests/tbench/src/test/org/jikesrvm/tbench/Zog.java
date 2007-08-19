@@ -24,6 +24,8 @@ package test.org.jikesrvm.tbench;
  * @link http://www.sics.se/~joe/ericsson/du98024.html
  */
 public class Zog extends Thread {
+  private static final boolean DEBUG = false;
+
   private Zog next;
   private boolean flag;
   private int message;
@@ -54,26 +56,16 @@ public class Zog extends Thread {
   }
 
   static class ZugZug extends Zog {
-    private long linkTime;
-    private long initTime;
-    private long runTime;
-
-    public void run() {
-      final long startTime = System.nanoTime();
-      super.run();
-      final long endTime = System.nanoTime();
-
-      initTime = linkTime - startTime;
-      runTime = endTime - linkTime;
-    }
-
-    public void link(final Zog zog) {
-      super.link(zog);
-      linkTime = System.nanoTime();
+    public synchronized void send(int n) throws InterruptedException {
+      super.send(n);
+      if (DEBUG) {
+        final String marker = (n == 0) ? "." : (n % 100 == 0) ? "*\n" : (n % 10 == 0) ? "+" : ".";
+        System.out.print(marker);
+      }
     }
   }
 
-  public static void main(String args[]) {
+  public static void main(String[] args) {
     final int threadCount = Integer.parseInt(args[0]);
     final int messageCount = Integer.parseInt(args[1]);
 
@@ -108,11 +100,16 @@ public class Zog extends Thread {
   }
 
   private static Results performTestRun(final int threadCount, final int messageCount) {
+    final long startTime = System.nanoTime();
     final ZugZug first = new ZugZug();
     first.start();
 
     Zog old = first;
     for (int i = 0; i < threadCount; i++) {
+      if (DEBUG) {
+        final String marker = (i == 0) ? "." : (i % 100 == 0) ? "*\n" : (i % 10 == 0) ? "+" : ".";
+        System.out.print(marker);
+      }
       final Zog current = new Zog();
       current.link(old);
       current.start();
@@ -120,6 +117,8 @@ public class Zog extends Thread {
     }
 
     first.link(old);
+    final long linkTime = System.nanoTime();
+    final long initTime = linkTime - startTime;
 
     try {
       first.send(messageCount);
@@ -133,6 +132,9 @@ public class Zog extends Thread {
       e.printStackTrace();
       System.exit(16);
     }
-    return new Results(threadCount, messageCount, first.initTime, first.runTime);
+    final long endTime = System.nanoTime();
+    final long runTime = endTime - linkTime;
+
+    return new Results(threadCount, messageCount, initTime, runTime);
   }
 }

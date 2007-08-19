@@ -27,6 +27,7 @@ import org.jikesrvm.osr.OSR_ExecStateExtractor;
 import org.jikesrvm.osr.OSR_ExecutionState;
 import org.jikesrvm.osr.OSR_Profiler;
 import org.jikesrvm.osr.OSR_SpecialCompiler;
+import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.scheduler.VM_Thread;
 import org.vmmagic.unboxed.Offset;
 
@@ -88,14 +89,11 @@ public class OSR_OnStackReplacementPlan implements VM_Constants {
 
     VM_AOSLogging.logOsrEvent("OSR compiling " + compPlan.method);
 
-    VM_Thread cpThread = VM_Thread.getCurrentThread();
+    VM_Thread cpThread = VM_Scheduler.getCurrentThread();
 
     setTimeInitiated(VM_Controller.controllerClock);
 
     {
-      // we will reuse the compilation plan before
-      cpThread.accumulateCycles();
-
       OSR_ExecStateExtractor extractor = null;
 
       VM_CompiledMethod cm = VM_CompiledMethods.getCompiledMethod(this.CMID);
@@ -124,8 +122,6 @@ public class OSR_OnStackReplacementPlan implements VM_Constants {
       // compile from callee to caller
       VM_CompiledMethod newCM = OSR_SpecialCompiler.recompileState(state, invalidate);
 
-      cpThread.accumulateCycles();
-
       setTimeCompleted(VM_Controller.controllerClock);
 
       if (newCM == null) {
@@ -140,7 +136,7 @@ public class OSR_OnStackReplacementPlan implements VM_Constants {
       }
     }
 
-    suspendedThread.resume();
+    suspendedThread.osrResume();
     suspendedThread = null;
     compPlan = null;
     CMID = 0;

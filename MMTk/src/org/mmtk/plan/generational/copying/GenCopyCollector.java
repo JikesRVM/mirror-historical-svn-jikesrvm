@@ -39,7 +39,6 @@ import org.vmmagic.pragma.*;
  * @see GenCollector
  * @see org.mmtk.plan.StopTheWorldCollector
  * @see org.mmtk.plan.CollectorContext
- * @see org.mmtk.plan.SimplePhase#delegatePhase
  */
 @Uninterruptible public abstract class GenCopyCollector extends GenCollector {
 
@@ -124,7 +123,7 @@ import org.vmmagic.pragma.*;
    * @param primary True if this thread should peform local single-threaded
    * actions.
    */
-  public void collectionPhase(int phaseId, boolean primary) {
+  public void collectionPhase(short phaseId, boolean primary) {
     if (global().traceFullHeap()) {
       if (phaseId == GenCopy.PREPARE) {
         super.collectionPhase(phaseId, primary);

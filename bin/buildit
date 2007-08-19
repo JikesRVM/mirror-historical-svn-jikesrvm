@@ -74,11 +74,16 @@ Building Options:
  -j, --java-home      Specify a JAVA_HOME directory to use
      --build-arg      Specify an additional argument for the ant build
      --bc-arg         Specify arguments for the bootimage compiler
+     --checkstyle     Perform source code style checks.
+     --profile        Perform a profiled build (including creation of a profile)	
+     --comp-cache-dir Specify a cache location for component downloads
+     --clear-cc       Clear out the component caches
 
 Testing Options:
  -t, --test           Specify a test to run (overriden by --test-run)
  -n, --name           Give the results run a name, link in results/buildit
      --test-run       The test run to use for each configuration on the target
+     --test-arg       Specify additional arguments(s) for the test
      --run-arg        Specify an additional argument for the test execution
      --email-report   Send a result summary email when done
      --ext-lib-dir    Specify the benchmarks directory for testing.
@@ -100,6 +105,9 @@ load_config($configFile);
 # Benchmarks directory
 $extlibdir=$config{"global.ext.lib.dir"};
 
+# Components download cache
+$compcachedir=$config{"global.components.cache.dir"};
+
 # Upload Information
 $upload_base=$config{"global.upload.base"};
 $upload_host=$config{"global.upload.host"};
@@ -119,11 +127,14 @@ GetOptions(
   "m|mmtk-config=s" => \$mmtk_config,
   "nuke" => \$nuke,
   "c|cross-to=s" => \$target,
+  "checkstyle" => \$checkstyle,
+  "profile" => \$profile,
   "u|user=s" => \$cmd_user,
   "build-user=s" => \$cmd_hostUser,
   "target-user=s" => \$cmd_targetUser,
   "classpath-cvs" => \$cvs_head,
   "g|gdb-symbols" => \$gdb_symbols,
+  "test-arg=s" => \@test_arg_array,
   "test-run=s" => \$test_set,
   "t|test=s" => \@test_array,
   "build-arg=s" => \@build_array,
@@ -141,6 +152,8 @@ GetOptions(
   "x87" => \$x87,
   "j|java-home=s" => \$javaHomeCmd,
   "ext-lib-dir=s" => \$extlibdir,
+  "comp-cache-dir=s" => \$compcachedir,
+  "clear-cc" => \$clearcc,
   "e|email-report" => \$email_report) or bad_usage();
 
 if ($clear_cache) {
@@ -151,6 +164,7 @@ load_config($cacheFile);
 $test_list = join(" ", @test_array);
 $build_args = join(" ", @build_array);
 $run_args = join(" ", @run_array);
+$test_args = join(" ", @test_arg_array);
 $bc_args = join(" ", @bcarg_array);
   
 $start = `date`;
@@ -235,6 +249,26 @@ if ($config{"$target.home"} ne "") {
 } else {
   $targetHome = `ssh $sshTarget pwd`;
   chomp($targetHome);
+}
+
+if ($compcachedir ne "") {
+  if ($config{"$local.components.cache"} ne "") {
+    $localCompCache = $config{"$local.components.cache"};
+  } else {
+    $localCompCache = $localHome."/".$compcachedir;
+  }
+
+  if ($config{"$host.components.cache"} ne "") {
+    $hostCompCache = $config{"$host.components.cache"};
+  } else {
+    $hostCompCache = $hostHome."/".$compcachedir;
+  }
+
+  if ($config{"$target.components.cache"} ne "") {
+    $targetCompCache = $config{"$target.components.cache"};
+  } else {
+    $targetCompCache = $targetHome."/".$compcachedir;
+  }
 }
 
 $localRoot = abs_path($root);
@@ -344,6 +378,13 @@ if ($test_list ne "") {
 #
 # Configuration 
 #
+if ($test_set && !$checkstyle) {
+  $checkstyle = `grep require.checkstyle $localRoot/build/test-runs/$test_set.properties`;
+  chomp($checkstyle);
+  if ($checkstyle ne "") {
+    $checkstyle = 1;
+  }
+}
 $implicitconfigs = ($#gcs == -1 && $compiler eq "");
 if ($#gcs == -1 && $test_set && $compiler eq "") {
   my $rawconfigs = `grep \"^test.configs=.*$\" $localRoot/build/test-runs/$test_set.properties`;
@@ -473,17 +514,45 @@ if ($nuke) {
 #
 # Now do it!
 #
-if ($host ne "localhost") {
-  $rsync .= "ssh -t $sshHost mkdir -p $hostRoot;\n";
-  $rsync .= "rsync -azvLe ssh --delete --exclude=.svn --exclude=\*.class ".$sourcedirs." $sshHost:$hostRoot";
-  if ($host ne $target) {
-    $rsync .= ";\nrsync -azvLe ssh --delete --exclude=.svn --exclude=\*.class ".$sourcedirs." $sshTarget:$targetRoot";
+if ($compcachedir) {
+  if (! -d $localCompCache) {
+    $mkcc = "mkdir -p $localCompCache";
+  } elsif ($clearcc ne "") {
+    $mkcc = "rm -rf $localCompCache/*";
   }
-  print "$rsync\n\n";
-  if (! $dry_run) {
-    $rsyncRet = system ($rsync);
+  if ($mkcc ne "") {
+    print "$mkcc\n\n";
+    if (! $dry_run) {
+      $mkccRet = system ($mkcc);
+    }
   }
 }
+
+my $ok = ($mkccRet == 0);
+
+if ($ok) {
+  if ($host ne "localhost") {
+    $rsync .= "ssh -t $sshHost mkdir -p $hostRoot;\n";
+    if ($compcachedir ne "") {
+      $rsync .= "ssh -t $sshHost mkdir -p $hostCompCache;\n";
+      $rsync .= "rsync -azvLe ssh --delete $localCompCache/ $sshHost:$hostCompCache/;\n";
+    }
+    $rsync .= "rsync -azvLe ssh --delete --exclude=.svn --exclude=\*.class ".$sourcedirs." $sshHost:$hostRoot";
+    if ($host ne $target) {
+      $rsync .= ";\nrsync -azvLe ssh --delete --exclude=.svn --exclude=\*.class ".$sourcedirs." $sshTarget:$targetRoot";
+      if ($compcachedir ne "") {
+        $rsync .= ";\nssh -t $sshTarget mkdir -p $targetCompCache;\n";
+        $rsync .= "rsync -azvLe ssh --delete $localCompCache/ $sshTarget:$targetCompCache;\n";
+      }
+    }
+    print "$rsync\n\n";
+    if (! $dry_run) {
+      $rsyncRet = system ($rsync);
+    }
+  }
+}
+
+$ok = $ok && ($mkccRet == 0);
 
 #
 # Additional ant flags for building classpath
@@ -492,8 +561,6 @@ $cp_flags = "";
 if ($cvs_head) {
   $cp_flags .= "-Dclasspath.from-cvs=true ";
 }
-
-my $ok = ($rsyncRet == 0);
 
 if ($ok) {
   foreach $g (@gcs) {
@@ -515,8 +582,9 @@ if ($ok) {
     } else {
       $targetDir = $config."_".$targetConfig;
     }
- 
-      
+    if ($checkstyle ne "") {
+      $defs .= "-Drequire.checkstyle=true ";
+    } 
     if ($x87 ne "") {
       $defs .= "-Dtarget.arch.sse2=none ";
     }
@@ -532,11 +600,20 @@ if ($ok) {
     if ($build_args ne "") {
       $defs       = $defs." ".$build_args." ";
     }
-    if ($bc_args ne "") {
-      $defs       = $defs."-Dconfig.bootimage.compiler.args=\"$bc_args\" ";
+    if ($profile ne "") {
+      $defs       = $defs." profiled-image ";
     }
+    if ($bc_args ne "") {
+      $defs       = $defs."-Dconfig.bootimage.compiler.args=\\\"$bc_args\\\" ";
+    }
+
     $hostdefs   = $defs."-Dhost.name=$hostConfig ";
     $targetdefs = $defs."-Dhost.name=$targetConfig ";
+
+    if ($compcachedir ne "") {
+      $hostdefs   .= "-Dcomponents.cache.dir=$hostCompCache ";
+      $targetdefs .= "-Dcomponents.cache.dir=$targetCompCache ";
+    }
 
     #
     # Build classpath on host
@@ -546,67 +623,80 @@ if ($ok) {
     if ($skip_build) {
       $build .= "echo Skipping build ";
     } else {
-      $build .= "ssh -t $sshHost '\n".
-               "  cd $hostRoot &&\n".
-               "  export JAVA_HOME=$javaHome{$host} && \n";
+      $build .= "ssh -t $sshHost '/bin/bash -c \" ".
+               "  cd $hostRoot &&".
+               "  export JAVA_HOME=$javaHome{$host} && ";
 
       if (! $quick) {
-        $build .= "  ant very-clean -Dhost.name=$hostConfig &&\n";
+        $build .= "  ant very-clean -Dhost.name=$hostConfig &&";
       }
       $build .= "  ant check-components-properties ".
                 "-Dhost.name=$hostConfig ".
-                "-Dtarget.name=$hostConfig ".
-                $cp_flags."&& \n"; 
-    
+                "-Dtarget.name=$hostConfig ";
+
+      if ($compcachedir ne "") {
+        $build .= "-Dcomponents.cache.dir=$hostCompCache ";
+      }
+      $build .= $cp_flags." && "; 
+
       #
       # Initial build
       #
       if ($hostConfig eq $targetConfig) {
-        $build .= "  ant $hostdefs\n";
+        $build .= "  ant $hostdefs";
       } else {
-        $build .= "  ant cross-compile-host $hostdefs\n";
+        $build .= "  ant cross-compile-host $hostdefs";
       }
-      $build .= "' ";
+      $build .= "\"' ";
+      if ($compcachedir ne "") {
+        $build .= "&& rsync -azvLe ssh --delete $sshHost:$hostCompCache/ $localCompCache/ ";
+      }
     }
 
     #
     # Cross-builds
     #
     if ($host ne $target) {
-      $build .= "&& \n\n".
-                "ssh -t $sshTarget mkdir -p $targetRoot && \n\n";
+      if ($compcachedir ne "") {
+        $build .= "&& rsync -azvLe ssh --delete $localCompCache/ $sshTarget:$targetCompCache/ ";
+      }
+      $build .= "&& ".
+                "ssh -t $sshTarget mkdir -p $targetRoot && ";
       if ($hostConfig eq $targetConfig) {
         #
         # Same architecture: just copy the dist directory
         #
         $build .= "ssh -t $sshHost rsync -avz $hostRoot/dist/$targetDir ";
-        $build .= " $sshTarget:$targetRoot/dist/ \n";
+        $build .= " $sshTarget:$targetRoot/dist/ ";
       } else {
         # Copy the compiled classes and boot image
-        $build .= "ssh -t $sshHost '\n".
+        $build .= "ssh -t $sshHost '".
                   "  rsync -avz $hostRoot/target/$targetDir ".
-                  " $sshTarget:$targetRoot/target/ &&\n";
+                  " $sshTarget:$targetRoot/target/ &&";
         $copydirs = "";
         foreach $d (@ccdirs) {
           $copydirs .= " $hostRoot/$d";
         }
-        $build .= "  rsync -avz $copydirs $sshTarget:$targetRoot/' &&\n\n";
+        $build .= "  rsync -avz $copydirs $sshTarget:$targetRoot/' &&";
 
         #
         # post-processing for cross-compile
         #
 
         # For the classpath build, the host is now the target ;)
-        $build .= "ssh -t $sshTarget '\n".
-                  "  cd $targetRoot && \n".
-                  "  export JAVA_HOME=$javaHome{$target} && \n";
+        $build .= "ssh -t $sshTarget '/bin/bash -c \"".
+	          "  cd $targetRoot && ".
+                  "  export JAVA_HOME=$javaHome{$target} && ";
 
         $build .= "  ant check-components-properties ".
                   "-Dhost.name=$targetConfig ".
                   "-Dtarget.name=$targetConfig ".
-                  $cp_flags."&& \n";
+                  $cp_flags."&& ";
 
-        $build .= "  ant cross-compile-target $targetdefs '\n";
+        $build .= "  ant cross-compile-target $targetdefs \"'";
+      }
+      if ($compcachedir ne "") {
+        $build .= " && rsync -azvLe ssh --delete $sshTarget:$targetCompCache/ $localCompCache/ ";
       }
     }
     print "---> Config: $compiler$g\n";
@@ -632,15 +722,23 @@ if ($ok && ($test_set ne "" || $test_list ne "")) {
   }
   $configs =~ s/^ //;
 
-  $test = "ssh -t $sshTarget '\n".
-          "  cd $targetRoot && \n".
-          "  mkdir -p $resultdir && \n".
-          "  export JAVA_HOME=$javaHome{$target} && \n".
+  $test = "ssh -t $sshTarget '/bin/bash -c \" ".
+          "  cd $targetRoot && ".
+          "  mkdir -p $resultdir && ".
+          "  export JAVA_HOME=$javaHome{$target} && ".
           "  ant -f test.xml ".
           "-Dhost.name=$targetConfig ".
           "-Dskip.build=true ".
           "-Dexternal.lib.dir=$extlibdir ".
           "-Dresults.dir=$targetRoot/$resultdir ";
+
+  if ($compcachedir ne "") {
+    $test .= "-Dcomponents.cache.dir=$targetCompCache ";
+  }
+
+  if ($suffix ne "") {
+    $test .= "-Dconfig.variant=$suffix ";
+  }
 
   if ($xvfb_run ne "") {
     $test .="-Ddisplay-wrapper.exe=$xvfb_run ";
@@ -674,20 +772,24 @@ if ($ok && ($test_set ne "" || $test_list ne "")) {
   }
 
   if ($test_list ne "") {
-    $test .= "-Dtest.tests=\"$test_list\" ".
+    $test .= "-Dtest.tests='$test_list' ".
              "-Dtest-run.name=local ";
   }
 
+  if ($test_args ne "") {
+    $test .= " $test_args ";
+  }
+
   if(! $implicitconfigs) {
-    $test .= "-Dtest.configs=\"$configs\" ";
+    $test .= "-Dtest.configs='$configs' ";
     if ($run_args ne "") {
       foreach $conf (split(" ", $configs)) {
-        $test .= "-Dtest.config.$conf.extra.args=\"$run_args\" ";
+        $test .= "-Dtest.config.$conf.extra.args='$run_args' ";
       }
     }
   }
 
-  $test .= "' \n";
+  $test .= "\"' \n";
   print "$test\n";
   if(! $dry_run) {
     system($test);
@@ -728,11 +830,21 @@ foreach $g (@gcs) {
 }
 if ($test_set || $test_list) {
   print "Test Dir: $resultdir \n";
-  my $html = `find $localRoot/$resultdir -name Report.html`;
-  chomp ($html);
-  if (! $dry_run && $html ne "") { 
+  my $xmls = `find $localRoot/$resultdir -name Results.xml`;
+  chomp ($xmls);
+  $xmls =~ s/\n/ /g; 
+  if (! $dry_run && $xmls ne "") { 
     print "===================== Results =====================\n";
-    system("w3m -dump $html");
+    print "Total Results Found : ";
+    system("cat $xmls | grep \"\\<result\\>\" | wc -l");
+    print "           EXCLUDED : ";
+    system("cat $xmls | grep \"\\<result\\>\" | grep EXCLUDED | wc -l");
+    print "            SUCCESS : ";
+    system("cat $xmls | grep \"\\<result\\>\" | grep SUCCESS | wc -l");
+    print "               FAIL : ";
+    system("cat $xmls | grep \"\\<result\\>\" | grep FAIL | wc -l");
+# We used to have a working report :(
+#system("w3m -dump $html");
   }
 }
 print "===================================================\n";
@@ -771,7 +883,7 @@ sub load_config {
     open(CONFIG, "< $file");
     while (<CONFIG>) {
       if (($_ =~ m/^#(.*)/) eq "") { 
-        my ($key, $value) = $_ =~ m/^(\S+)\s*=\s*(\S+)\s*$/;
+        my ($key, $value) = $_ =~ m/^(\S+)\s*=\s*(\S*)\s*$/;
         if ($key ne "") {
           $value = eval("\"".$value."\"");
           $config{$key} = $value;

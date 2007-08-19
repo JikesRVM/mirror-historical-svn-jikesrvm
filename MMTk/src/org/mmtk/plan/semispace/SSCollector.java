@@ -36,7 +36,6 @@ import org.vmmagic.pragma.*;
  * @see SSMutator
  * @see StopTheWorldCollector
  * @see CollectorContext
- * @see SimplePhase#delegatePhase
  */
 @Uninterruptible public abstract class SSCollector extends StopTheWorldCollector {
 
@@ -120,7 +119,7 @@ import org.vmmagic.pragma.*;
    * @param primary Perform any single-threaded activities using this thread.
    */
   @Inline
-  public void collectionPhase(int phaseId, boolean primary) {
+  public void collectionPhase(short phaseId, boolean primary) {
     if (phaseId == SS.PREPARE) {
       // rebind the copy bump pointer to the appropriate semispace.
       ss.rebind(SS.toSpace());

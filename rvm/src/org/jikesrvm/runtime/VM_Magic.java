@@ -20,8 +20,8 @@ import org.jikesrvm.memorymanagers.mminterface.VM_CollectorThread;
 import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.scheduler.VM_Thread;
 import org.vmmagic.Intrinsic;
-import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Entrypoint;
+import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
@@ -537,6 +537,17 @@ public final class VM_Magic {
   }
 
   /**
+   * Cast object.
+   * Note:     for use by gc to avoid checkcast during GC
+   * @param object object reference
+   * @return object reference as thread (no checking on cast)
+   */
+  public static VM_Thread objectAsThread(Object object) {
+    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+    return null;
+  }
+
+  /**
    * Cast bits.
    * @param number A floating point number
    * @return   <code>number</code> as bits
@@ -763,13 +774,6 @@ public final class VM_Magic {
   public static Object invokeMethodReturningObject(VM_CodeArray code, WordArray gprs, double[] fprs, byte[] fprmeta, WordArray spills) {
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
     return null;
-  }
-
-  /**
-   * Clear the hardware floating point state. NOTE: IA-specific
-   */
-  public static void clearFloatingPointState() {
-    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
   }
 
   //---------------------------------------//

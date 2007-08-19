@@ -14,8 +14,8 @@ package org.jikesrvm.runtime;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
-import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Entrypoint;
+import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.AddressArray;
 import org.vmmagic.unboxed.Extent;
@@ -193,9 +193,9 @@ public class VM_BootRecord {
    */
   public Offset dumpStackAndDieOffset;
   /**
-   * jtoc offset of VM_Scheduler.processors[]
+   * jtoc offset of VM_GreenScheduler.processors[]
    */
-  public Offset processorsOffset;
+  public Offset greenProcessorsOffset;
   /**
    * jtoc offset of VM_Scheduler.debugRequested
    */
@@ -286,7 +286,8 @@ public class VM_BootRecord {
   public Address sysParseMemorySizeIP;
 
   // time
-  Address sysGetTimeOfDayIP;
+  Address sysCurrentTimeMillisIP;
+  Address sysNanoTimeIP;
   Address sysNanosleepIP;
 
   // shared libraries

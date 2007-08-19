@@ -74,12 +74,12 @@ import org.vmmagic.pragma.*;
    * Joins an already requested collection.
    */
   @LogicallyUninterruptible
-  public abstract void joinCollection(); 
+  public abstract void joinCollection();
 
   /**
    * Trigger an asynchronous collection, checking for memory
    * exhaustion first.
-   * 
+   *
    * @param why the reason why a collection was triggered.  0 to
    *          <code>TRIGGER_REASONS - 1</code>.
    */
@@ -94,11 +94,17 @@ import org.vmmagic.pragma.*;
    * Report that the allocation has succeeded.
    */
   public abstract void reportAllocationSuccess();
-  
+
   /**
    * Report that a physical allocation has failed.
    */
   public abstract void reportPhysicalAllocationFailed();
+
+  /**
+   * Does the VM consider this an emergency alloction, where the normal
+   * heap size rules can be ignored.
+   */
+  public abstract boolean isEmergencyAllocation();
 
   /**
    * Determine whether a collection cycle has fully completed (this is

@@ -230,7 +230,7 @@ public class VM_Memory implements VM_SizeConstants {
       //       we are going into memcopy anyways and that will be faster than anything we do here.
       Address endPtr = srcPtr.plus(copyBytes);
       while (srcPtr.LT(endPtr)) {
-    	dstPtr.store(srcPtr.loadInt());
+        dstPtr.store(srcPtr.loadInt());
         srcPtr = srcPtr.plus(4);
         dstPtr = dstPtr.plus(4);
       }
@@ -527,7 +527,7 @@ public class VM_Memory implements VM_SizeConstants {
     return address.toWord().and(Word.fromIntSignExtend(~(alignment - 1))).toAddress();
   }
 
-  // These versions are here to accomodate the boot image writer
+  // These versions are here to accommodate the boot image writer
   @Inline
   public static int alignUp(int address, int alignment) {
     return ((address + alignment - 1) & ~(alignment - 1));

@@ -14,8 +14,8 @@ package org.jikesrvm.compilers.baseline.ia32;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.VM_SizeConstants;
-import org.jikesrvm.adaptive.recompilation.VM_InvocationCounts;
 import org.jikesrvm.adaptive.VM_AosEntrypoints;
+import org.jikesrvm.adaptive.recompilation.VM_InvocationCounts;
 import org.jikesrvm.classloader.VM_Array;
 import org.jikesrvm.classloader.VM_Atom;
 import org.jikesrvm.classloader.VM_Class;
@@ -40,11 +40,11 @@ import org.jikesrvm.jni.ia32.VM_JNICompiler;
 import org.jikesrvm.memorymanagers.mminterface.MM_Constants;
 import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.objectmodel.VM_ObjectModel;
+import org.jikesrvm.runtime.VM_ArchEntrypoints;
 import org.jikesrvm.runtime.VM_Entrypoints;
 import org.jikesrvm.runtime.VM_MagicNames;
 import org.jikesrvm.runtime.VM_Runtime;
 import org.jikesrvm.runtime.VM_Statics;
-import org.jikesrvm.runtime.VM_ArchEntrypoints;
 import org.jikesrvm.scheduler.VM_Thread;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Uninterruptible;
@@ -57,6 +57,8 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
 
   private final int parameterWords;
   private int firstLocalOffset;
+  /** Generate array index out of bounds checks? */
+  private final boolean generateBoundsChecks;
 
   private static final Offset NO_SLOT = Offset.zero();
   private static final Offset ONE_SLOT = NO_SLOT.plus(WORDSIZE);
@@ -73,6 +75,7 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
     super(cm);
     stackHeights = new int[bcodes.length()];
     parameterWords = method.getParameterWords() + (method.isStatic() ? 0 : 1); // add 1 for this pointer
+    generateBoundsChecks = !method.hasNoBoundsCheckAnnotation();
   }
 
   protected void initializeCompiler() {
@@ -1517,14 +1520,14 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
    * Emit code to implement the f2l bytecode
    */
   protected final void emit_f2l() {
-	 // TODO: SSE3 has a FISTTP instruction that stores the value with truncation
+    // TODO: SSE3 has a FISTTP instruction that stores the value with truncation
     // meaning the FPSCW can be left alone
 
-	 // Setup value into FP1
+    // Setup value into FP1
     asm.emitFLD_Reg_RegInd(FP0, SP);
-    // Setup maxint into FP0
+    // Setup maxlong into FP0
     asm.emitFLD_Reg_RegDisp(FP0, JTOC, VM_Entrypoints.maxlongFloatField.getOffset());
-    // if value > maxint or NaN goto fr1; FP0 = value
+    // if value > maxlong or NaN goto fr1; FP0 = value
     asm.emitFUCOMIP_Reg_Reg(FP0, FP1);
     VM_ForwardReference fr1 = asm.forwardJcc(VM_Assembler.LLE);
     // Normally the status and control word rounds numbers, but for conversion
@@ -1556,62 +1559,90 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
    * Emit code to implement the d2i bytecode
    */
   protected final void emit_d2i() {
-    // TODO: use SSE/x87 operations to do this conversion inline taking care of
-    // the boundary cases that differ between x87 and Java
-
-    // (1) save RVM nonvolatiles
-    int numNonVols = NONVOLATILE_GPRS.length;
-    Offset off = Offset.fromIntSignExtend(numNonVols * WORDSIZE);
-    for (int i = 0; i < numNonVols; i++) {
-      asm.emitPUSH_Reg(NONVOLATILE_GPRS[i]);
+    if (SSE2_BASE) {
+      // Set up max int in XMM0
+      asm.emitMOVSD_Reg_RegDisp(XMM0, JTOC, VM_Entrypoints.maxintField.getOffset());
+      // Set up value in XMM1
+      asm.emitMOVSD_Reg_RegInd(XMM1, SP);
+      asm.emitADD_Reg_Imm(SP, 4);        // adjust stack
+      // if value > maxint or NaN goto fr1; FP0 = value
+      asm.emitUCOMISD_Reg_Reg(XMM0, XMM1);
+      VM_ForwardReference fr1 = asm.forwardJcc(VM_Assembler.LLE);
+      asm.emitCVTTSD2SI_Reg_Reg(T0, XMM1);
+      asm.emitMOV_RegInd_Reg(SP, T0);
+      VM_ForwardReference fr2 = asm.forwardJMP();
+      fr1.resolve(asm);
+      VM_ForwardReference fr3 = asm.forwardJcc(VM_Assembler.PE); // if value == NaN goto fr3
+      asm.emitMOV_RegInd_Imm(SP, 0x7FFFFFFF);
+      VM_ForwardReference fr4 = asm.forwardJMP();
+      fr3.resolve(asm);
+      asm.emitMOV_RegInd_Imm(SP, 0);
+      fr2.resolve(asm);
+      fr4.resolve(asm);
+    } else {
+      // TODO: use SSE/x87 operations to do this conversion inline taking care of
+      // the boundary cases that differ between x87 and Java
+      // (1) save RVM nonvolatiles
+      int numNonVols = NONVOLATILE_GPRS.length;
+      Offset off = Offset.fromIntSignExtend(numNonVols * WORDSIZE);
+      for (int i = 0; i < numNonVols; i++) {
+        asm.emitPUSH_Reg(NONVOLATILE_GPRS[i]);
+      }
+      // (2) Push args to C function (reversed)
+      asm.emitPUSH_RegDisp(SP, off.plus(4));
+      asm.emitPUSH_RegDisp(SP, off.plus(4));
+      // (3) invoke C function through bootrecord
+      asm.emitMOV_Reg_RegDisp(S0, JTOC, VM_Entrypoints.the_boot_recordField.getOffset());
+      asm.emitCALL_RegDisp(S0, VM_Entrypoints.sysDoubleToIntIPField.getOffset());
+      // (4) pop arguments
+      asm.emitPOP_Reg(S0);
+      asm.emitPOP_Reg(S0);
+      // (5) restore RVM nonvolatiles
+      for (int i = numNonVols - 1; i >= 0; i--) {
+        asm.emitPOP_Reg(NONVOLATILE_GPRS[i]);
+      }
+      // (6) put result on expression stack
+      asm.emitPOP_Reg(S0); // shrink stack by 1 word
+      asm.emitMOV_RegDisp_Reg(SP, NO_SLOT, T0);
     }
-    // (2) Push args to C function (reversed)
-    asm.emitPUSH_RegDisp(SP, off.plus(4));
-    asm.emitPUSH_RegDisp(SP, off.plus(4));
-    // (3) invoke C function through bootrecord
-    asm.emitMOV_Reg_RegDisp(S0, JTOC, VM_Entrypoints.the_boot_recordField.getOffset());
-    asm.emitCALL_RegDisp(S0, VM_Entrypoints.sysDoubleToIntIPField.getOffset());
-    // (4) pop arguments
-    asm.emitPOP_Reg(S0);
-    asm.emitPOP_Reg(S0);
-    // (5) restore RVM nonvolatiles
-    for (int i = numNonVols - 1; i >= 0; i--) {
-      asm.emitPOP_Reg(NONVOLATILE_GPRS[i]);
-    }
-    // (6) put result on expression stack
-    asm.emitPOP_Reg(S0); // shrink stack by 1 word
-    asm.emitMOV_RegDisp_Reg(SP, NO_SLOT, T0);
   }
 
   /**
    * Emit code to implement the d2l bytecode
    */
   protected final void emit_d2l() {
-    // TODO: use SSE/x87 operations to do this conversion inline taking care of
-    // the boundary cases that differ between x87 and Java
+     // TODO: SSE3 has a FISTTP instruction that stores the value with truncation
+    // meaning the FPSCW can be left alone
 
-    // (1) save RVM nonvolatiles
-    int numNonVols = NONVOLATILE_GPRS.length;
-    Offset off = Offset.fromIntSignExtend(numNonVols * WORDSIZE);
-    for (int i = 0; i < numNonVols; i++) {
-      asm.emitPUSH_Reg(NONVOLATILE_GPRS[i]);
-    }
-    // (2) Push args to C function (reversed)
-    asm.emitPUSH_RegDisp(SP, off.plus(4));
-    asm.emitPUSH_RegDisp(SP, off.plus(4));
-    // (3) invoke C function through bootrecord
-    asm.emitMOV_Reg_RegDisp(S0, JTOC, VM_Entrypoints.the_boot_recordField.getOffset());
-    asm.emitCALL_RegDisp(S0, VM_Entrypoints.sysDoubleToLongIPField.getOffset());
-    // (4) pop arguments
-    asm.emitPOP_Reg(S0);
-    asm.emitPOP_Reg(S0);
-    // (5) restore RVM nonvolatiles
-    for (int i = numNonVols - 1; i >= 0; i--) {
-      asm.emitPOP_Reg(NONVOLATILE_GPRS[i]);
-    }
-    // (6) put result on expression stack
-    asm.emitMOV_RegDisp_Reg(SP, ONE_SLOT, T1);
-    asm.emitMOV_RegDisp_Reg(SP, NO_SLOT, T0);
+     // Setup value into FP1
+    asm.emitFLD_Reg_RegInd_Quad(FP0, SP);
+    // Setup maxlong into FP0
+    asm.emitFLD_Reg_RegDisp_Quad(FP0, JTOC, VM_Entrypoints.maxlongField.getOffset());
+    // if value > maxlong or NaN goto fr1; FP0 = value
+    asm.emitFUCOMIP_Reg_Reg(FP0, FP1);
+    VM_ForwardReference fr1 = asm.forwardJcc(VM_Assembler.LLE);
+    // Normally the status and control word rounds numbers, but for conversion
+    // to an integer/long value we want truncation. We therefore save the FPSCW,
+    // set it to truncation perform operation then restore
+    asm.emitFNSTCW_RegDisp(SP, MINUS_ONE_SLOT);              // [SP-4] = fpscw
+    asm.emitMOVZX_Reg_RegDisp_Word(T0, SP, MINUS_ONE_SLOT);  // EAX = fpscw
+    asm.emitOR_Reg_Imm(T0, 0xC00);                           // EAX = FPSCW in truncate mode
+    asm.emitMOV_RegInd_Reg(SP, T0);                          // [SP] = new fpscw value
+    asm.emitFLDCW_RegInd(SP);                                // Set FPSCW
+    asm.emitFISTP_RegInd_Reg_Quad(SP, FP0);                  // Store 64bit long
+    asm.emitFLDCW_RegDisp(SP, MINUS_ONE_SLOT);               // Restore FPSCW
+    VM_ForwardReference fr2 = asm.forwardJMP();
+    fr1.resolve(asm);
+    asm.emitFSTP_Reg_Reg(FP0, FP0);                          // pop FPU*1
+    VM_ForwardReference fr3 = asm.forwardJcc(VM_Assembler.PE); // if value == NaN goto fr3
+    asm.emitMOV_RegDisp_Imm(SP, ONE_SLOT, 0x7FFFFFFF);
+    asm.emitMOV_RegInd_Imm(SP, -1);
+    VM_ForwardReference fr4 = asm.forwardJMP();
+    fr3.resolve(asm);
+    asm.emitMOV_RegDisp_Imm(SP, ONE_SLOT, 0);
+    asm.emitMOV_RegInd_Imm(SP, 0);
+    fr2.resolve(asm);
+    fr4.resolve(asm);
   }
 
   /**
@@ -2949,8 +2980,8 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
         asm.emitMOV_RegDisp_Reg(SP, T1_SAVE_OFFSET, T1);
         if (SSE2_FULL) {
           // TODO: Store SSE2 Control word?
-          asm.emitMOVQ_RegDisp_Reg(SP, XMM_SAVE_OFFSET.plus( 0), XMM0);
-          asm.emitMOVQ_RegDisp_Reg(SP, XMM_SAVE_OFFSET.plus( 8), XMM1);
+          asm.emitMOVQ_RegDisp_Reg(SP, XMM_SAVE_OFFSET.plus(0),  XMM0);
+          asm.emitMOVQ_RegDisp_Reg(SP, XMM_SAVE_OFFSET.plus(8),  XMM1);
           asm.emitMOVQ_RegDisp_Reg(SP, XMM_SAVE_OFFSET.plus(16), XMM2);
           asm.emitMOVQ_RegDisp_Reg(SP, XMM_SAVE_OFFSET.plus(24), XMM3);
           savedRegistersSize += XMM_STATE_SIZE;
@@ -3046,11 +3077,14 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
       // push java.lang.Class object for klass
       asm.emitPUSH_RegDisp(JTOC, klassOffset);
     } else {
-      asm.emitPUSH_RegDisp(ESP, localOffset(0));                           // push "this" object
+      // push "this" object
+      asm.emitPUSH_RegDisp(ESP, localOffset(0));
     }
-    genParameterRegisterLoad(1);                                   // pass 1 parameter
+    // pass 1 parameter
+    genParameterRegisterLoad(1);
     asm.emitCALL_RegDisp(JTOC, VM_Entrypoints.lockMethod.getOffset());
-    lockOffset = asm.getMachineCodeIndex();                       // after this instruction, the method has the monitor
+    // after this instruction, the method has the monitor
+    lockOffset = asm.getMachineCodeIndex();
   }
 
   private void genMonitorExit() {
@@ -3072,20 +3106,22 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
    * @param indexReg the register containing the index
    * @param arrayRefReg the register containing the array reference
    */
-  private static void genBoundsCheck(VM_Assembler asm, byte indexReg, byte arrayRefReg) {
-    // compare index to array length
-    asm.emitCMP_RegDisp_Reg(arrayRefReg,
-                            VM_ObjectModel.getArrayLengthOffset(),
-                            indexReg);
-    // Jmp around trap if index is OK
-    asm.emitBranchLikelyNextInstruction();
-    VM_ForwardReference fr = asm.forwardJcc(VM_Assembler.LGT);
-    // "pass" index param to C trap handler
-    VM_ProcessorLocalState.emitMoveRegToField(asm,
-        VM_ArchEntrypoints.arrayIndexTrapParamField.getOffset(), indexReg);
-    // trap
-    asm.emitINT_Imm(VM_Runtime.TRAP_ARRAY_BOUNDS + RVM_TRAP_BASE);
-    fr.resolve(asm);
+  private void genBoundsCheck(VM_Assembler asm, byte indexReg, byte arrayRefReg) {
+    if (generateBoundsChecks) {
+      // compare index to array length
+      asm.emitCMP_RegDisp_Reg(arrayRefReg,
+          VM_ObjectModel.getArrayLengthOffset(),
+          indexReg);
+      // Jmp around trap if index is OK
+      asm.emitBranchLikelyNextInstruction();
+      VM_ForwardReference fr = asm.forwardJcc(VM_Assembler.LGT);
+      // "pass" index param to C trap handler
+      VM_ProcessorLocalState.emitMoveRegToField(asm,
+          VM_ArchEntrypoints.arrayIndexTrapParamField.getOffset(), indexReg);
+      // trap
+      asm.emitINT_Imm(VM_Runtime.TRAP_ARRAY_BOUNDS + RVM_TRAP_BASE);
+      fr.resolve(asm);
+    }
   }
 
   /**
@@ -3514,9 +3550,9 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
         return true;
       }
 
-      if (methodName == VM_MagicNames.prepareLong
-               || methodName == VM_MagicNames.loadLong
-               || methodName == VM_MagicNames.loadDouble) {
+      if (methodName == VM_MagicNames.prepareLong ||
+          methodName == VM_MagicNames.loadLong ||
+          methodName == VM_MagicNames.loadDouble) {
 
         if (types.length == 0) {
           // No offset
@@ -3630,7 +3666,6 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
           // No offset
           asm.emitMOV_Reg_RegInd(S0, SP);  // S0 = base
         }
-        asm.emitXOR_Reg_Reg(T0, T0);
         asm.emitLockNextInstruction();
         asm.emitCMPXCHG_RegInd_Reg(S0, T1);   // atomic compare-and-exchange
         asm.emitMOV_RegInd_Imm(SP, 1);        // 'push' true (overwriting base)
@@ -3671,24 +3706,24 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
       // (operation on memory is atomic)
       //t1:t0 with s0:ebx
       asm.emitMOV_Reg_RegDisp(T1, SP, THREE_SLOTS);
-      asm.emitMOV_Reg_RegDisp(T0, SP, TWO_SLOTS);   // T1:T0 (EDX:EAX) -> oldVal
+      asm.emitMOV_Reg_RegDisp(T0, SP, TWO_SLOTS);     // T1:T0 (EDX:EAX) -> oldVal
       asm.emitMOV_RegDisp_Reg(SP, THREE_SLOTS, EBX);  // Save EBX
       asm.emitMOV_RegDisp_Reg(SP, TWO_SLOTS, ESI);    // Save ESI
       asm.emitMOV_Reg_RegInd(EBX, SP);
-      asm.emitMOV_Reg_RegDisp(S0, SP, ONE_SLOT);   // S0:EBX (ECX:EBX) -> newVal
-      asm.emitMOV_Reg_RegDisp(ESI, SP, FIVE_SLOTS); // ESI := base
-      asm.emitADD_Reg_RegDisp(ESI, SP, FOUR_SLOTS); // ESI += offset
+      asm.emitMOV_Reg_RegDisp(S0, SP, ONE_SLOT);      // S0:EBX (ECX:EBX) -> newVal
+      asm.emitMOV_Reg_RegDisp(ESI, SP, FIVE_SLOTS);   // ESI := base
+      asm.emitADD_Reg_RegDisp(ESI, SP, FOUR_SLOTS);   // ESI += offset
       asm.emitLockNextInstruction();
-      asm.emitCMPXCHG8B_RegInd (ESI);        // atomic compare-and-exchange
+      asm.emitCMPXCHG8B_RegInd(ESI);                  // atomic compare-and-exchange
       VM_ForwardReference fr1 = asm.forwardJcc(VM_Assembler.NE); // skip if compare fails
-      asm.emitMOV_RegDisp_Imm (SP, FIVE_SLOTS, 1);        // 'push' true (overwriting base)
-      VM_ForwardReference fr2 = asm.forwardJMP(); // skip if compare fails
+      asm.emitMOV_RegDisp_Imm(SP, FIVE_SLOTS, 1);     // 'push' true (overwriting base)
+      VM_ForwardReference fr2 = asm.forwardJMP();     // skip if compare fails
       fr1.resolve(asm);
-      asm.emitMOV_RegDisp_Imm (SP, FIVE_SLOTS, 0);        // 'push' false (overwriting base)
+      asm.emitMOV_RegDisp_Imm(SP, FIVE_SLOTS, 0);     // 'push' false (overwriting base)
       fr2.resolve(asm);
       asm.emitMOV_Reg_RegDisp(EBX, SP, THREE_SLOTS);  // Restore EBX
-      asm.emitMOV_Reg_RegDisp(ESI, SP, TWO_SLOTS);  // Restore ESI
-      asm.emitADD_Reg_Imm(SP, WORDSIZE*5);      // adjust SP popping the 4 args (6 slots) and pushing the result
+      asm.emitMOV_Reg_RegDisp(ESI, SP, TWO_SLOTS);    // Restore ESI
+      asm.emitADD_Reg_Imm(SP, WORDSIZE*5);            // adjust SP popping the 4 args (6 slots) and pushing the result
       return true;
     }
 
@@ -4012,6 +4047,7 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
         methodName == VM_MagicNames.objectAsShortArray ||
         methodName == VM_MagicNames.objectAsIntArray ||
         methodName == VM_MagicNames.objectAsProcessor ||
+        methodName == VM_MagicNames.objectAsThread ||
         methodName == VM_MagicNames.threadAsCollectorThread ||
         methodName == VM_MagicNames.floatAsIntBits ||
         methodName == VM_MagicNames.intBitsAsFloat ||
@@ -4120,8 +4156,8 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
 
       if (SSE2_FULL) {
         // TODO: Restore SSE2 Control word?
-        asm.emitMOVQ_Reg_RegDisp(XMM0, SP, XMM_SAVE_OFFSET.plus( 0));
-        asm.emitMOVQ_Reg_RegDisp(XMM1, SP, XMM_SAVE_OFFSET.plus( 8));
+        asm.emitMOVQ_Reg_RegDisp(XMM0, SP, XMM_SAVE_OFFSET.plus(0));
+        asm.emitMOVQ_Reg_RegDisp(XMM1, SP, XMM_SAVE_OFFSET.plus(8));
         asm.emitMOVQ_Reg_RegDisp(XMM2, SP, XMM_SAVE_OFFSET.plus(16));
         asm.emitMOVQ_Reg_RegDisp(XMM3, SP, XMM_SAVE_OFFSET.plus(24));
       } else {
@@ -4162,13 +4198,7 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
     // software prefetch
     if (methodName == VM_MagicNames.prefetch || methodName == VM_MagicNames.prefetchNTA) {
       asm.emitPOP_Reg(T0);
-      asm.emitPREFETCH_Reg(T0);
-      return true;
-    }
-
-    if (methodName == VM_MagicNames.clearFloatingPointState) {
-      // Clear the hardware floating-point state
-      asm.emitFNINIT();
+      asm.emitPREFETCHNTA_Reg(T0);
       return true;
     }
 
@@ -4414,8 +4444,7 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
   }
 
   protected final void emit_loadretaddrconst(int bcIndex) {
-    asm.registerLoadRetAddrConst(bcIndex);
-    asm.emitPUSH_Imm(bcIndex);
+    asm.generateLoadReturnAddress(bcIndex);
   }
 
   /* bTarget is optional, it emits a JUMP instruction, but the caller

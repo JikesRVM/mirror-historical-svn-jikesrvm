@@ -12,9 +12,9 @@
  */
 package org.jikesrvm.runtime;
 
-import org.jikesrvm.classloader.VM_NormalMethod;
-import org.jikesrvm.classloader.VM_Field;
 import org.jikesrvm.VM;
+import org.jikesrvm.classloader.VM_Field;
+import org.jikesrvm.classloader.VM_NormalMethod;
 
 /**
  * Entrypoints that are specific to instruction architecture.
@@ -23,8 +23,6 @@ public interface VM_ArchEntrypoints {
   VM_NormalMethod newArrayArrayMethod =
       VM_EntrypointHelper.getMethod("Lorg/jikesrvm/" + VM_ArchEntrypoints.arch + "/VM_MultianewarrayHelper;", "newArrayArray", "(IIII)Ljava/lang/Object;");
   String arch = VM.BuildForIA32 ? "ia32" : "ppc";
-  VM_Field FPUControlWordField =
-      (VM.BuildForIA32) ? VM_EntrypointHelper.getField("Lorg/jikesrvm/" + arch + "/VM_MachineSpecificIA;", "FPUControlWord", "I") : null;
   String ArchCodeArrayName = "Lorg/jikesrvm/ArchitectureSpecific$VM_CodeArray;";
   VM_Field reflectiveMethodInvokerInstructionsField =
       VM_EntrypointHelper.getField("Lorg/jikesrvm/" + arch + "/VM_OutOfLineMachineCode;",

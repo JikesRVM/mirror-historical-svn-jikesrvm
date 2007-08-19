@@ -88,7 +88,7 @@ public abstract class Plan implements Constants {
   public static final int ALLOC_GCSPY = 5;
   public static final int ALLOC_HOT_CODE = ALLOC_DEFAULT;
   public static final int ALLOC_COLD_CODE = ALLOC_DEFAULT;
-  public static final int ALLOC_STACK = ALLOC_DEFAULT;
+  public static final int ALLOC_STACK = ALLOC_LOS;
   public static final int ALLOC_IMMORTAL_STACK = ALLOC_IMMORTAL;
   public static final int ALLOCATORS = 6;
   public static final int DEFAULT_SITE = -1;
@@ -150,6 +150,7 @@ public abstract class Plan implements Constants {
     Options.noFinalizer = new NoFinalizer();
     Options.noReferenceTypes = new NoReferenceTypes();
     Options.fullHeapSystemGC = new FullHeapSystemGC();
+    Options.harnessAll = new HarnessAll();
     Options.ignoreSystemGC = new IgnoreSystemGC();
     Options.metaDataLimit = new MetaDataLimit();
     Options.nurserySize = new NurserySize();
@@ -195,6 +196,7 @@ public abstract class Plan implements Constants {
   @Interruptible
   public void fullyBooted() {
     initialized = true;
+    if (Options.harnessAll.getValue()) harnessBegin();
   }
 
   /**
@@ -202,7 +204,9 @@ public abstract class Plan implements Constants {
    *
    * @param value The exit value
    */
+  @Interruptible
   public void notifyExit(int value) {
+    if (Options.harnessAll.getValue()) harnessEnd();
     if (Options.verbose.getValue() == 1) {
       Log.write("[End ");
       totalTime.printTotalSecs();
@@ -257,16 +261,16 @@ public abstract class Plan implements Constants {
   /**
    * Perform a (global) collection phase.
    */
-  public abstract void collectionPhase(int phase);
+  public abstract void collectionPhase(short phase);
 
   /**
    * Replace a phase.
    *
-   * @param oldPhase The phase to be replaced
-   * @param newPhase The phase to replace with
+   * @param oldScheduledPhase The scheduled phase to insert after
+   * @param scheduledPhase The scheduled phase to insert
    */
   @Interruptible
-  public void replacePhase(int oldPhase, int newPhase) {
+  public void replacePhase(int oldScheduledPhase, int scheduledPhase) {
     VM.assertions.fail("replacePhase not implemented for this plan");
   }
 
@@ -274,16 +278,13 @@ public abstract class Plan implements Constants {
   /**
    * Insert a phase.
    *
-   * @param marker The phase to insert after
-   * @param newPhase The phase to replace with
+   * @param markerScheduledPhase The scheduled phase to insert after
+   * @param scheduledPhase The scheduled phase to insert
    */
   @Interruptible
-  public void insertPhaseAfter(int marker, int newPhase) {
-    int newComplexPhase = (new ComplexPhase("auto-gen",
-                                            null,
-                                            new int[] {marker,newPhase})
-                          ).getId();
-    replacePhase(marker, newComplexPhase);
+  public void insertPhaseAfter(int markerScheduledPhase, int scheduledPhase) {
+    short tempPhase = Phase.createComplex("auto-gen", null, markerScheduledPhase, scheduledPhase);
+    replacePhase(markerScheduledPhase, Phase.scheduleComplex(tempPhase));
   }
 
   /**
@@ -296,7 +297,7 @@ public abstract class Plan implements Constants {
   /**
    * @return Is last GC a full collection?
    */
-  public static final boolean isEmergencyCollection() {
+  public static boolean isEmergencyCollection() {
     return emergencyCollection;
   }
 
@@ -357,7 +358,6 @@ public abstract class Plan implements Constants {
   private static boolean collectionTriggered;
   @Entrypoint
   private static int gcStatus = NOT_IN_GC; // shared variable
-  private static boolean emergencyAllocation;
 
   /** @return Is the memory management system initialized? */
   public static boolean isInitialized() {
@@ -386,27 +386,6 @@ public abstract class Plan implements Constants {
   }
 
   /**
-   * Are we in a region of emergency allocation?
-   */
-  public static boolean isEmergencyAllocation() {
-    return emergencyAllocation;
-  }
-
-  /**
-   * Start a region of emergency allocation.
-   */
-  public static void startEmergencyAllocation() {
-    emergencyAllocation = true;
-  }
-
-  /**
-   * Finish a region of emergency allocation.
-   */
-  public static void finishEmergencyAllocation() {
-    emergencyAllocation = false;
-  }
-
-  /**
    * Return true if a collection is in progress.
    *
    * @return True if a collection is in progress.
@@ -430,14 +409,108 @@ public abstract class Plan implements Constants {
    * @param s The new GC status.
    */
   public static void setGCStatus(int s) {
+    if (gcStatus == NOT_IN_GC) {
+      /* From NOT_IN_GC to any phase */
+      if (Stats.gatheringStats()) {
+        Stats.startGC();
+        VM.activePlan.global().printPreStats();
+      }
+    }
     VM.memory.isync();
     gcStatus = s;
     VM.memory.sync();
+    if (gcStatus == NOT_IN_GC) {
+      /* From any phase to NOT_IN_GC */
+      if (Stats.gatheringStats()) {
+        Stats.endGC();
+        VM.activePlan.global().printPostStats();
+      }
+    }
   }
 
   /**
-   * A user-triggered GC has been initiated.  By default, do nothing,
-   * but this may be overridden.
+   * Print out statistics at the start of a GC
+   */
+  public void printPreStats() {
+    if ((Options.verbose.getValue() == 1) ||
+        (Options.verbose.getValue() == 2)) {
+      Log.write("[GC "); Log.write(Stats.gcCount());
+      if (Options.verbose.getValue() == 1) {
+        Log.write(" Start ");
+        Plan.totalTime.printTotalSecs();
+        Log.write(" s");
+      } else {
+        Log.write(" Start ");
+        Plan.totalTime.printTotalMillis();
+        Log.write(" ms");
+      }
+      Log.write("   ");
+      Log.write(Conversions.pagesToKBytes(getPagesUsed()));
+      Log.write("KB ");
+      Log.flush();
+    }
+    if (Options.verbose.getValue() > 2) {
+      Log.write("Collection "); Log.write(Stats.gcCount());
+      Log.write(":        ");
+      printUsedPages();
+      Log.write("  Before Collection: ");
+      Space.printUsageMB();
+      if (Options.verbose.getValue() >= 4) {
+        Log.write("                     ");
+        Space.printUsagePages();
+      }
+    }
+  }
+
+  /**
+   * Print out statistics at the end of a GC
+   */
+  public final void printPostStats() {
+    if ((Options.verbose.getValue() == 1) ||
+        (Options.verbose.getValue() == 2)) {
+      Log.write("-> ");
+      Log.writeDec(Conversions.pagesToBytes(getPagesUsed()).toWord().rshl(10));
+      Log.write("KB   ");
+      if (Options.verbose.getValue() == 1) {
+        totalTime.printLast();
+        Log.writeln(" ms]");
+      } else {
+        Log.write("End ");
+        totalTime.printTotal();
+        Log.writeln(" ms]");
+      }
+    }
+    if (Options.verbose.getValue() > 2) {
+      Log.write("   After Collection: ");
+      Space.printUsageMB();
+      if (Options.verbose.getValue() >= 4) {
+        Log.write("                     ");
+        Space.printUsagePages();
+      }
+      Log.write("                     ");
+      printUsedPages();
+      Log.write("    Collection time: ");
+      totalTime.printLast();
+      Log.writeln(" ms");
+    }
+  }
+
+  public final void printUsedPages() {
+    Log.write("reserved = ");
+    Log.write(Conversions.pagesToMBytes(getPagesReserved()));
+    Log.write(" MB (");
+    Log.write(getPagesReserved());
+    Log.write(" pgs)");
+    Log.write("      total = ");
+    Log.write(Conversions.pagesToMBytes(getTotalPages()));
+    Log.write(" MB (");
+    Log.write(getTotalPages());
+    Log.write(" pgs)");
+    Log.writeln();
+  }
+
+  /**
+   * A user-triggered GC has been initiated.
    */
   public static void setUserTriggeredCollection(boolean value) {
     userTriggeredCollection = value;

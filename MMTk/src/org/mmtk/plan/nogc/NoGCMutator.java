@@ -35,7 +35,6 @@ import org.vmmagic.unboxed.*;
  * @see NoGCCollector
  * @see org.mmtk.plan.StopTheWorldMutator
  * @see org.mmtk.plan.MutatorContext
- * @see org.mmtk.plan.SimplePhase#delegatePhase
  */
 @Uninterruptible  public abstract class NoGCMutator extends MutatorContext {
 
@@ -139,13 +138,13 @@ import org.vmmagic.unboxed.*;
    * @param phaseId The collection phase to perform
    * @param primary perform any single-threaded local activities.
    */
-  public final void collectionPhase(int phaseId, boolean primary) {
+  public final void collectionPhase(short phaseId, boolean primary) {
     VM.assertions.fail("GC Triggered in NoGC Plan.");
     /*
-     if (phaseId == NoGC.PREPARE_MUTATOR) {
+     if (phaseId == NoGC.PREPARE) {
      }
 
-     if (phaseId == NoGC.RELEASE_MUTATOR) {
+     if (phaseId == NoGC.RELEASE) {
      }
      super.collectionPhase(phaseId, participating, primary);
      */

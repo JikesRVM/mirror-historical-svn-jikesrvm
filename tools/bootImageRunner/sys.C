@@ -72,12 +72,10 @@ extern "C" int sched_yield(void);
 #include <sys/types.h>
 #include <sys/sysctl.h>
 extern "C"     int sigaltstack(const struct sigaltstack *ss, struct sigaltstack *oss);
-# if (defined HAS_DLCOMPAT)
-# include <dlfcn.h>
-# endif
+/* As of 10.4, dlopen comes with the OS */
+#include <dlfcn.h>
 #define MAP_ANONYMOUS MAP_ANON
 #include <sched.h>
-
 
 /* AIX/PowerPC */
 #else
@@ -599,7 +597,7 @@ extern "C" void processTimerTick(void) {
     /*
      * Increment VM_Processor.timerTicks
      */
-    int* ttp = (int *) ((char *) VmToc + VM_Processor_timerTicks_offset);
+    int* ttp = (int *) ((char *) VmToc + VM_GreenProcessor_timerTicks_offset);
     *ttp = *ttp + 1;
 
     /*
@@ -612,7 +610,7 @@ extern "C" void processTimerTick(void) {
     /*
      * Increment VM_Processor.reportedTimerTicks
      */
-    int* rttp = (int *) ((char *) VmToc + VM_Processor_reportedTimerTicks_offset);
+    int* rttp = (int *) ((char *) VmToc + VM_GreenProcessor_reportedTimerTicks_offset);
     *rttp = *rttp + 1;
 
     /*
@@ -624,7 +622,7 @@ extern "C" void processTimerTick(void) {
     VM_Address *processors = *(VM_Address **) ((char *) VmToc + getProcessorsOffset());
     unsigned cnt = getArrayLength(processors);
     unsigned longest_stuck_ticks = 0;
-    for (unsigned i = VM_Scheduler_PRIMORDIAL_PROCESSOR_ID; i < cnt ; i++) {
+    for (unsigned i = VM_GreenScheduler_PRIMORDIAL_PROCESSOR_ID; i < cnt ; i++) {
         // Set takeYieldpoint field to 1; decrement timeSliceExpired field;
         // See how many ticks this VP has ignored, if too many have passed we will issue a warning below
         *(int *)((char *)processors[i] + VM_Processor_takeYieldpoint_offset) = 1;
@@ -711,37 +709,8 @@ getTimeSlice_msec(void)
     return timeSlice_msec;
 }
 
-
-//
-// returns the time of day in the buffer provided
-//
-/*
-  extern "C" int
-  sysGetTimeOfDay(char * buffer) {
-  int rc;
-  struct timeval tv;
-  struct timezone tz;
-
-  rc = gettimeofday(&tv, &tz);
-  if (rc != 0) return rc;
-
-  buffer[0] = (tv.tv_sec >> 24) & 0x000000ff;
-  buffer[1] = (tv.tv_sec >> 16) & 0x000000ff;
-  buffer[2] = (tv.tv_sec >> 8) & 0x000000ff;
-  buffer[3] = tv.tv_sec & 0x000000ff;
-
-  buffer[4] = (tv.tv_usec >> 24) & 0x000000ff;
-  buffer[5] = (tv.tv_usec >> 16) & 0x000000ff;
-  buffer[6] = (tv.tv_usec >> 8) & 0x000000ff;
-  buffer[7] = tv.tv_usec & 0x000000ff;
-
-  return rc;
-  }
-*/
-
-
 extern "C" long long
-sysGetTimeOfDay()
+sysCurrentTimeMillis()
 {
     int rc;
     long long returnValue;
@@ -754,11 +723,37 @@ sysGetTimeOfDay()
     if (rc != 0) {
         returnValue = rc;
     } else {
-        returnValue = (long long) tv.tv_sec * 1000000;
-        returnValue += tv.tv_usec;
+        returnValue = ((long long) tv.tv_sec * 1000) + tv.tv_usec/1000;
     }
 
     return returnValue;
+}
+
+
+#ifdef __MACH__
+mach_timebase_info_data_t timebaseInfo;
+#endif
+
+extern "C" long long
+sysNanoTime()
+{
+	long long retVal;
+#ifndef __MACH__
+	struct timespec tp;
+    int rc = clock_gettime(CLOCK_MONOTONIC, &tp);
+	if (rc != 0) {
+		retVal = rc;
+	    if (lib_verbose) {
+	        fprintf(stderr, "sysNanoTime: Non-zero return code %d from clock_gettime\n", rc);
+	    }
+	} else {
+		retVal = (((long long) tp.tv_sec) * 1000000000) + tp.tv_nsec;
+	}
+#else
+        Nanoseconds nanoTime;
+        retVal = mach_absolute_time() * timebaseInfo.numer / timebaseInfo.denom;
+#endif
+    return retVal;
 }
 
 
@@ -1713,10 +1708,6 @@ findMappable()
 extern "C" void*
 sysDlopen(char *libname)
 {
-#if (defined RVM_FOR_OSX) && (!defined HAS_DLCOMPAT)
-   fprintf(SysTraceFile, "sys: dlopen not implemented yet\n");
-   return 0;
-#else
     void * libHandler;
     do {
         libHandler = dlopen(libname, RTLD_LAZY|RTLD_GLOBAL);
@@ -1730,7 +1721,6 @@ sysDlopen(char *libname)
     }
 
     return libHandler;
-#endif
 }
 
 // Look up symbol in dynamic library.
@@ -1740,12 +1730,7 @@ sysDlopen(char *libname)
 extern "C" void*
 sysDlsym(VM_Address libHandler, char *symbolName)
 {
-#if (defined RVM_FOR_OSX) && (!defined HAS_DLCOMPAT)
-   fprintf(SysTraceFile, "sys: dlsym not implemented yet\n");
-   return 0;
-#else
     return dlsym((void *) libHandler, symbolName);
-#endif
 }
 
 //---------------------//

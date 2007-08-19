@@ -67,8 +67,7 @@ import org.vmmagic.unboxed.*;
   /****************************************************************************
    * Class variables
    */
-  public static final ExplicitFreeListSpace rcSpace
-    = new ExplicitFreeListSpace("rc", DEFAULT_POLL_FREQUENCY, (float) 0.5);
+  public static final ExplicitFreeListSpace rcSpace = new ExplicitFreeListSpace("rc", DEFAULT_POLL_FREQUENCY, (float) 0.5);
   public static final int REF_COUNT = rcSpace.getDescriptor();
 
   // Counters
@@ -152,13 +151,24 @@ import org.vmmagic.unboxed.*;
    * @param phaseId Collection phase to execute.
    */
   @Inline
-  public void collectionPhase(int phaseId) {
+  public void collectionPhase(short phaseId) {
 
     if (phaseId == PREPARE) {
       rcTrace.prepare();
       return;
     }
+
+    if (phaseId == ROOTS) {
+      oldRootPool.reset();
+      super.collectionPhase(phaseId);
+      return;
+    }
+
     if (phaseId == RELEASE) {
+      newRootPool.reset();
+      decPool.reset();
+      modPool.reset();
+
       rcTrace.release();
       previousMetaDataPages = metaDataSpace.reservedPages();
       return;
@@ -172,16 +182,16 @@ import org.vmmagic.unboxed.*;
   /**
    * This method controls the triggering of a GC. It is called periodically
    * during allocation. Returns true to trigger a collection.
-   * 
+   *
    * @param spaceFull Space request failed, must recover pages within 'space'.
    * @return True if a collection is requested by the plan.
    */
   public boolean collectionRequired(boolean spaceFull) {
     int newMetaDataPages = metaDataSpace.committedPages() - previousMetaDataPages;
-    
-    return super.collectionRequired(spaceFull) || (newMetaDataPages > Options.metaDataLimit.getPages()); 
+
+    return super.collectionRequired(spaceFull) || (newMetaDataPages > Options.metaDataLimit.getPages());
   }
-  
+
   /*****************************************************************************
    *
    * Accounting
@@ -202,7 +212,7 @@ import org.vmmagic.unboxed.*;
   /**
    * Calculate the number of pages a collection is required to free to satisfy
    * outstanding allocation requests.
-   * 
+   *
    * @return the number of pages a collection is required to free to satisfy
    * outstanding allocation requests.
    */
@@ -232,7 +242,7 @@ import org.vmmagic.unboxed.*;
    */
   public static void free(ObjectReference object) {
     if (VM.VERIFY_ASSERTIONS) {
-    	VM.assertions._assert(isRCObject(object));
+      VM.assertions._assert(isRCObject(object));
     }
 
     if (Space.isInSpace(REF_COUNT, object)) {

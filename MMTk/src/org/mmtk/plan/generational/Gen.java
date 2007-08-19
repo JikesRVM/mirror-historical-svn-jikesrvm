@@ -21,8 +21,6 @@ import org.mmtk.utility.Log;
 import org.mmtk.utility.options.Options;
 import org.mmtk.utility.statistics.*;
 
-import org.mmtk.vm.VM;
-
 import org.vmmagic.pragma.*;
 import org.vmmagic.unboxed.*;
 
@@ -114,7 +112,7 @@ import org.vmmagic.unboxed.*;
    *
    * Collection
    */
-  
+
   /**
    * Force the next collection to be full heap.
    */
@@ -128,7 +126,7 @@ import org.vmmagic.unboxed.*;
    * @param phaseId Collection phase to execute.
    */
   @NoInline
-  public void collectionPhase(int phaseId) {
+  public void collectionPhase(short phaseId) {
     if (phaseId == SET_COLLECTION_KIND) {
       super.collectionPhase(phaseId);
       gcFullHeap = requiresFullHeapCollection();
@@ -182,13 +180,13 @@ import org.vmmagic.unboxed.*;
    */
   public final boolean collectionRequired(boolean spaceFull) {
     boolean nurseryFull = nurserySpace.reservedPages() > Options.nurserySize.getMaxNursery();
-    
-    return super.collectionRequired(spaceFull) || nurseryFull; 
+
+    return super.collectionRequired(spaceFull) || nurseryFull;
   }
-  
+
   /**
    * Determine if this GC should be a full heap collection.
-   * 
+   *
    * @return True is this GC should be a full heap collection.
    */
   protected boolean requiresFullHeapCollection() {
@@ -235,7 +233,7 @@ import org.vmmagic.unboxed.*;
 
     return false;
   }
-  
+
 
   /*****************************************************************************
    *
@@ -279,11 +277,11 @@ import org.vmmagic.unboxed.*;
   public int getPagesAvail() {
     return super.getPagesAvail() >> 1;
   }
-  
+
   /**
    * Calculate the number of pages a collection is required to free to satisfy
    * outstanding allocation requests.
-   * 
+   *
    * @return the number of pages a collection is required to free to satisfy
    * outstanding allocation requests.
    */

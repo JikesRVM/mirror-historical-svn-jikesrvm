@@ -71,8 +71,9 @@ import static org.jikesrvm.compilers.opt.ir.OPT_Operators.SHORT_STORE;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.SYSCALL;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.UBYTE_LOAD;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.USHORT_LOAD;
-import org.jikesrvm.runtime.VM_MagicNames;
 import org.jikesrvm.runtime.VM_ArchEntrypoints;
+import org.jikesrvm.runtime.VM_MagicNames;
+import org.jikesrvm.scheduler.VM_Scheduler;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
@@ -419,7 +420,11 @@ public class OPT_GenerateMagic {
       bc2ir.appendInstruction(Move.create(REF_MOVE, reg, bc2ir.popRef()));
       bc2ir.push(reg.copyD2U());
     } else if (methodName == VM_MagicNames.objectAsProcessor) {
-      OPT_RegisterOperand reg = gc.temps.makeTemp(VM_TypeReference.VM_Processor);
+      OPT_RegisterOperand reg = gc.temps.makeTemp(VM_Scheduler.getProcessorType());
+      bc2ir.appendInstruction(Move.create(REF_MOVE, reg, bc2ir.popRef()));
+      bc2ir.push(reg.copyD2U());
+    } else if (methodName == VM_MagicNames.objectAsThread) {
+      OPT_RegisterOperand reg = gc.temps.makeTemp(VM_Scheduler.getThreadType());
       bc2ir.appendInstruction(Move.create(REF_MOVE, reg, bc2ir.popRef()));
       bc2ir.push(reg.copyD2U());
     } else if (methodName == VM_MagicNames.objectAsAddress) {
@@ -636,7 +641,7 @@ public class OPT_GenerateMagic {
   } // generateMagic
 
   // Generate magic where the untype operational semantics is identified by name.
-  // The operands' types are determnied from the method signature.
+  // The operands' types are determined from the method signature.
   //
   static boolean generatePolymorphicMagic(OPT_BC2IR bc2ir, OPT_GenerationContext gc, VM_MethodReference meth,
                                           VM_Atom methodName) {

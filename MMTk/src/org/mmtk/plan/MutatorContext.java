@@ -71,12 +71,10 @@ import org.vmmagic.unboxed.*;
  * empty stubs for write barriers (to be overridden by sub-classes as
  * needed).
  *
- * @see SimplePhase#delegatePhase
  * @see CollectorContext
  * @see org.mmtk.vm.ActivePlan
  * @see Plan
  */
-
 @Uninterruptible  public abstract class MutatorContext implements Constants {
   /****************************************************************************
    * Instance fields
@@ -109,7 +107,7 @@ import org.vmmagic.unboxed.*;
    * @param primary Should this thread be used to execute any single-threaded
    * local operations?
    */
-  public abstract void collectionPhase(int phaseId, boolean primary);
+  public abstract void collectionPhase(short phaseId, boolean primary);
 
   /****************************************************************************
    *
@@ -223,7 +221,7 @@ import org.vmmagic.unboxed.*;
   public final Allocator getOwnAllocator(Allocator a) {
     Space space = Plan.getSpaceFromAllocatorAnyLocal(a);
     if (space == null)
-      VM.assertions.fail("PlanLocal.getOwnAllocator could not obtain space");
+      VM.assertions.fail("MutatorContext.getOwnAllocator could not obtain space");
     return getAllocatorFromSpace(space);
   }
 
@@ -352,6 +350,19 @@ import org.vmmagic.unboxed.*;
     // write barriers are not used and this is never called
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(false);
     return false;
+  }
+
+  /**
+   * Read a reference type. In a concurrent collector this may
+   * involve adding the referent to the marking queue.
+   *
+   * @param referent The referent being read.
+   * @return The new referent.
+   */
+  @Inline
+  public ObjectReference referenceTypeReadBarrier(ObjectReference referent) {
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(false);
+    return ObjectReference.nullReference();
   }
 
   /**

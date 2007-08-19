@@ -65,11 +65,16 @@ import org.vmmagic.unboxed.*;
       return true;
     }
 
-    if (phaseId == StopTheWorld.SANITY_CHECK) {
+    if (phaseId == StopTheWorld.SANITY_BUILD_TABLE) {
       if (primary) {
         // Trace, checking for dangling pointers
         sanityTrace.startTrace();
+      }
+      return true;
+    }
 
+    if (phaseId == StopTheWorld.SANITY_CHECK_TABLE) {
+      if (primary) {
         // Iterate over the reachable objects.
         Address curr = global().getSanityTable().getFirst();
         while (!curr.isZero()) {
@@ -162,9 +167,7 @@ import org.vmmagic.unboxed.*;
       return SanityChecker.UNSURE;
 
     Space space = Space.getSpaceForObject(object);
-    return space.isReachable(object)
-      ? SanityChecker.ALIVE
-      : SanityChecker.DEAD;
+    return space.isReachable(object) ? SanityChecker.ALIVE : SanityChecker.DEAD;
   }
 
   /** @return The global trace as a SanityChecker instance. */

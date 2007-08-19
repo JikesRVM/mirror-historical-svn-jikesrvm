@@ -22,10 +22,10 @@ import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.runtime.VM_Memory;
 import org.jikesrvm.runtime.VM_Runtime;
 import org.jikesrvm.runtime.VM_Statics;
+import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
-import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.unboxed.Offset;
 
 /**
@@ -107,30 +107,6 @@ public final class VM_Array extends VM_Type implements VM_Constants, VM_ClassLoa
    * Is this array type in the bootimage?
    */
   private boolean inBootImage;
-
-  /**
-   * The memory manager's notion of this type created after the
-   * resolving
-   */
-  private Object mmType;
-
-  /**
-   * Record the type information the memory manager holds about this
-   * type
-   * @param mmt the type to record
-   */
-  public void setMMType(Object mmt) {
-    mmType = mmt;
-  }
-
-  /**
-   * @return the type information the memory manager previously
-   * recorded about this type
-   */
-  @Uninterruptible
-  public Object getMMType() {
-    return mmType;
-  }
 
   /**
    * Name - something like "[I" or "[Ljava.lang.String;"
@@ -458,7 +434,7 @@ public final class VM_Array extends VM_Type implements VM_Constants, VM_ClassLoa
 
     // Using the type information block for java.lang.Object as a template,
     // build a type information block for this new array type by copying the
-    // virtual method fields and substuting an appropriate type field.
+    // virtual method fields and substituting an appropriate type field.
     //
     Object[] javaLangObjectTIB = VM_Type.JavaLangObjectType.getTypeInformationBlock();
     typeInformationBlock = MM_Interface.newTIB(javaLangObjectTIB.length);
@@ -490,6 +466,11 @@ public final class VM_Array extends VM_Type implements VM_Constants, VM_ClassLoa
 
     // Initialize TIB slots for virtual methods (copy from superclass == Object)
     VM_Type objectType = VM_Type.JavaLangObjectType;
+    while(!objectType.isInstantiated()) {
+      try {
+        Thread.sleep(10);
+      } catch (InterruptedException e) {}
+    }
     if (VM.VerifyAssertions) VM._assert(objectType.isInstantiated());
     Object[] javaLangObjectTIB = objectType.getTypeInformationBlock();
     for (int i = TIB_FIRST_VIRTUAL_METHOD_INDEX; i < javaLangObjectTIB.length; i++) {

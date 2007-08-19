@@ -42,7 +42,6 @@ import org.vmmagic.unboxed.*;
  * @see MSCollector
  * @see StopTheWorldMutator
  * @see MutatorContext
- * @see SimplePhase#delegatePhase
  */
 @Uninterruptible public abstract class MSMutator extends StopTheWorldMutator {
 
@@ -149,14 +148,14 @@ import org.vmmagic.unboxed.*;
    * @param primary Perform any single-threaded activities using this thread.
    */
   @Inline
-  public final void collectionPhase(int phaseId, boolean primary) {
-    if (phaseId == MS.PREPARE_MUTATOR) {
+  public final void collectionPhase(short phaseId, boolean primary) {
+    if (phaseId == MS.PREPARE) {
       super.collectionPhase(phaseId, primary);
       ms.prepare();
       return;
     }
 
-    if (phaseId == MS.RELEASE_MUTATOR) {
+    if (phaseId == MS.RELEASE) {
       ms.releaseCollector();
       ms.releaseMutator(); // FIXME see block comment at top of this class
       super.collectionPhase(phaseId, primary);

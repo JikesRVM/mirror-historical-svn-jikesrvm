@@ -16,9 +16,9 @@ import org.jikesrvm.VM;
 import org.jikesrvm.VM_Constants;
 import org.jikesrvm.memorymanagers.mminterface.MM_Constants;
 import org.jikesrvm.runtime.VM_Magic;
+import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.Uninterruptible;
-import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.ObjectReference;
 import org.vmmagic.unboxed.Offset;
@@ -207,7 +207,7 @@ public final class VM_MiscHeader implements VM_Constants, VM_MiscHeaderConstants
   public static void dumpHeader(Object ref) {
     // by default nothing to do, unless the misc header is required
     if (MM_Constants.GENERATE_GC_TRACE) {
-      VM.sysWrite(" OID=", getOID(VM_Magic.objectAsAddress(ref)));
+      VM.sysWrite(" OID=", getOID(ref));
       VM.sysWrite(" LINK=", getLink(ref));
       VM.sysWrite(" DEATH=", getDeathTime(ref));
     }

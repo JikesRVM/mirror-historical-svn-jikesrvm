@@ -18,8 +18,9 @@ import org.jikesrvm.VM_SizeConstants;
 import org.jikesrvm.objectmodel.VM_TIBLayoutConstants;
 import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.runtime.VM_Statics;
-import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Entrypoint;
+import org.vmmagic.pragma.Inline;
+import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Offset;
 
 /**
@@ -740,16 +741,33 @@ public abstract class VM_Type extends VM_AnnotatedElement
   public abstract boolean isTIBSlotCode(int slot);
 
   /**
-   * Record the type information the memory manager holds about this
-   * type
-   * @param mmt the type to record
+   * The memory manager's notion of this type created after the
+   * resolving
    */
-  public abstract void setMMType(Object mmt);
+  private Object mmType;
 
   /**
+   * Record the type information the memory manager holds about this
+   * type.
+   * @param mmType the type to record
+   */
+  public final void setMMType(Object mmType) {
+    this.mmType = mmType;
+  }
+
+  /**
+   * This returns the type information as supplied by the memory manager.
+   * The method is located here as this is the only common superclass of VM_Array
+   * and VM_Class, and due to performance reasons this needs to be a non-abstract
+   * method. For VM_Primitive instances the mmType will always be null.
+   *
    * @return the type information the memory manager previously
    * recorded about this type
    */
   @Uninterruptible
-  public abstract Object getMMType();
+  @Inline
+  public final Object getMMType() {
+    if (VM.VerifyAssertions) VM._assert(mmType != null);
+    return mmType;
+  }
 }

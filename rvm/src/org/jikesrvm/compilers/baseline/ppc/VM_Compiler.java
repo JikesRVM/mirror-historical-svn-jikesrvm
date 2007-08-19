@@ -14,8 +14,8 @@ package org.jikesrvm.compilers.baseline.ppc;
 
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.VM;
-import org.jikesrvm.adaptive.recompilation.VM_InvocationCounts;
 import org.jikesrvm.adaptive.VM_AosEntrypoints;
+import org.jikesrvm.adaptive.recompilation.VM_InvocationCounts;
 import org.jikesrvm.classloader.VM_Array;
 import org.jikesrvm.classloader.VM_Atom;
 import org.jikesrvm.classloader.VM_Class;
@@ -43,11 +43,11 @@ import org.jikesrvm.memorymanagers.mminterface.MM_Constants;
 import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.objectmodel.VM_ObjectModel;
 import org.jikesrvm.ppc.VM_BaselineConstants;
+import org.jikesrvm.runtime.VM_ArchEntrypoints;
 import org.jikesrvm.runtime.VM_Entrypoints;
 import org.jikesrvm.runtime.VM_MagicNames;
 import org.jikesrvm.runtime.VM_Memory;
 import org.jikesrvm.runtime.VM_Statics;
-import org.jikesrvm.runtime.VM_ArchEntrypoints;
 import org.jikesrvm.scheduler.VM_Thread;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Uninterruptible;
@@ -3697,7 +3697,7 @@ public abstract class VM_Compiler extends VM_BaselineCompiler
   protected final void emit_loadretaddrconst(int bcIndex) {
     asm.emitBL(1, 0);
     asm.emitMFLR(T1);                   // LR +  0
-    asm.registerLoadRetAddrConst(bcIndex);
+    asm.registerLoadReturnAddress(bcIndex);
     asm.emitADDI(T1, bcIndex << LOG_BYTES_IN_INT, T1);
     pushAddr(T1);   // LR +  8
   }
@@ -4463,6 +4463,7 @@ public abstract class VM_Compiler extends VM_BaselineCompiler
                methodName == VM_MagicNames.objectAsShortArray ||
                methodName == VM_MagicNames.objectAsIntArray ||
                methodName == VM_MagicNames.objectAsProcessor ||
+               methodName == VM_MagicNames.objectAsThread ||
                methodName == VM_MagicNames.threadAsCollectorThread ||
                methodName == VM_MagicNames.floatAsIntBits ||
                methodName == VM_MagicNames.intBitsAsFloat ||

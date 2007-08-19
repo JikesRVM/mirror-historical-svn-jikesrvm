@@ -88,7 +88,7 @@ public abstract class VM_CompilerFramework
 
   /**
    * The height of the expression stack at the start of each bytecode.
-   * Only saved for some architecutres, on others this field will be null.
+   * Only saved for some architectures, on others this field will be null.
    * See the VM_Compiler constructor.
    */
   protected int[] stackHeights;
@@ -218,7 +218,6 @@ public abstract class VM_CompilerFramework
       biStart = bcodes.index();
       bytecodeMap[biStart] = asm.getMachineCodeIndex();
       asm.resolveForwardReferences(biStart);
-      asm.patchLoadRetAddrConst(biStart);
       starting_bytecode();
       int code = bcodes.nextInstruction();
       switch (code) {

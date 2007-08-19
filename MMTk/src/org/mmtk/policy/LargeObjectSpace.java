@@ -186,8 +186,8 @@ import org.vmmagic.unboxed.*;
         VM.assertions._assert(treadmill.fromSpaceEmpty());
       }
       markState = MARK_BIT.minus(markState);
-      treadmill.flip();
     }
+    treadmill.flip(fullHeap);
     inNurseryGC = !fullHeap;
   }
 
@@ -208,16 +208,11 @@ import org.vmmagic.unboxed.*;
    */
   private void sweepLargePages(boolean sweepNursery) {
     while (true) {
-      Address cell = treadmill.pop(sweepNursery);
+      Address cell = sweepNursery ? treadmill.popNursery() : treadmill.pop();
       if (cell.isZero()) break;
       release(LargeObjectAllocator.getSuperPage(cell));
     }
-    if (VM.VERIFY_ASSERTIONS) {
-      if (sweepNursery)
-        VM.assertions._assert(treadmill.nurseryEmpty());
-      else
-        VM.assertions._assert(treadmill.fromSpaceEmpty());
-    }
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(sweepNursery ? treadmill.nurseryEmpty() : treadmill.fromSpaceEmpty());
   }
 
   /**
@@ -321,7 +316,7 @@ import org.vmmagic.unboxed.*;
       markBit = oldValue.and(LOS_BIT_MASK);
       if (markBit.EQ(value)) return false;
     } while (!VM.objectModel.attemptAvailableBits(object, oldValue,
-						  oldValue.and(LOS_BIT_MASK.not()).or(value)));
+                                                  oldValue.and(LOS_BIT_MASK.not()).or(value)));
     return true;
   }
 

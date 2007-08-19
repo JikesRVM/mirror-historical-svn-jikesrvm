@@ -120,7 +120,7 @@ public final class VM_Atom implements VM_ClassLoaderConstants {
   /**
    * Find an atom.
    * @param utf8 atom value, as utf8 encoded bytes
-   * @return atom or null it it doesn't already exisit
+   * @return atom or null it it doesn't already exist
    */
   public static VM_Atom findUtf8Atom(byte[] utf8) {
     return findOrCreate(utf8, false);
@@ -553,7 +553,11 @@ public final class VM_Atom implements VM_ClassLoaderConstants {
     return findOrCreate(val, 1, val.length - 1);
   }
 
-  private static final byte[][] bootstrapClassPrefixes =
+  /**
+   * The set of class prefixes that MUST be loaded by bootstrap classloader.
+   * @see #isBootstrapClassDescriptor()
+   */
+  private static final byte[][] BOOTSTRAP_CLASS_PREFIX_SET =
       {"Ljava/".getBytes(),
        "Lorg/jikesrvm/".getBytes(),
        "Lgnu/java/".getBytes(),
@@ -570,7 +574,20 @@ public final class VM_Atom implements VM_ClassLoaderConstants {
        "Lorg/vmmagic/".getBytes(),
        "Lorg/mmtk/".getBytes()};
 
-  private static final byte[][] rvmClassPrefixes =
+  /**
+   * The set of class prefixes that MUST NOT be loaded by bootstrap classloader.
+   * @see #isBootstrapClassDescriptor()
+   */
+  private static final byte[][] NON_BOOTSTRAP_CLASS_PREFIX_SET =
+      {"Lorg/jikesrvm/tools/ant/".getBytes(),
+       "Lorg/jikesrvm/tools/apt/".getBytes(),
+       "Lorg/jikesrvm/tools/template/".getBytes()};
+
+  /**
+   * The set of class prefixes for core RVM classes.
+   * @see #isRVMDescriptor()
+   */
+  private static final byte[][] RVM_CLASS_PREFIXES =
       {"Lorg/jikesrvm/".getBytes(), "Lorg/vmmagic/".getBytes(), "Lorg/mmtk/".getBytes()};
 
   /**
@@ -578,14 +595,22 @@ public final class VM_Atom implements VM_ClassLoaderConstants {
    * (ie a class that must be loaded by the bootstrap class loader)
    */
   public boolean isBootstrapClassDescriptor() {
-    if (new String(val).contains("ant/"))
-      return false;
-    outer:
-    for (byte[] test : bootstrapClassPrefixes) {
+    non_bootstrap_outer:
+    for (final byte[] test : NON_BOOTSTRAP_CLASS_PREFIX_SET) {
       if (test.length > val.length) continue;
       for (int j = 0; j < test.length; j++) {
         if (val[j] != test[j]) {
-          continue outer;
+          continue non_bootstrap_outer;
+        }
+      }
+      return false;
+    }
+    bootstrap_outer:
+    for (final byte[] test : BOOTSTRAP_CLASS_PREFIX_SET) {
+      if (test.length > val.length) continue;
+      for (int j = 0; j < test.length; j++) {
+        if (val[j] != test[j]) {
+          continue bootstrap_outer;
         }
       }
       return true;
@@ -600,7 +625,7 @@ public final class VM_Atom implements VM_ClassLoaderConstants {
    */
   public boolean isRVMDescriptor() {
     outer:
-    for (byte[] test : rvmClassPrefixes) {
+    for (final byte[] test : RVM_CLASS_PREFIXES) {
       if (test.length > val.length) continue;
       for (int j = 0; j < test.length; j++) {
         if (val[j] != test[j]) {

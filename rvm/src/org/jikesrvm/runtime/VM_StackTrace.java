@@ -93,10 +93,10 @@ public class VM_StackTrace {
   private int walkFrames(boolean record) {
     int stackFrameCount = 0;
     VM.disableGC(); // so fp & ip don't change under our feet
-    VM_Thread stackTraceThread = VM_Thread.getCurrentThread().getThreadForStackTrace();
+    VM_Thread stackTraceThread = VM_Scheduler.getCurrentThread().getThreadForStackTrace();
     Address fp;
     Address ip;
-    if (stackTraceThread != VM_Thread.getCurrentThread()) {
+    if (stackTraceThread != VM_Scheduler.getCurrentThread()) {
       /* Stack trace for a sleeping thread */
       fp = stackTraceThread.contextRegisters.getInnermostFramePointer();
       ip = stackTraceThread.contextRegisters.getInnermostInstructionAddress();
@@ -433,7 +433,7 @@ public class VM_StackTrace {
           // looks like we've gone too low
           return max;
         }
-        Class frameClass = compiledMethods[i].method.getDeclaringClass().getClassForType();
+        Class<?> frameClass = compiledMethods[i].method.getDeclaringClass().getClassForType();
         if ((frameClass != org.jikesrvm.scheduler.VM_MainThread.class) &&
             (frameClass != org.jikesrvm.scheduler.VM_Thread.class) &&
             (frameClass != org.jikesrvm.runtime.VM_Reflection.class)){

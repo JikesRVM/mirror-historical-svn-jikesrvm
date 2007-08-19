@@ -14,7 +14,7 @@ package gnu.java.lang.management;
 
 import org.jikesrvm.VM_CommandLineArgs;
 import org.jikesrvm.VM_Configuration;
-import org.jikesrvm.runtime.VM_Process;
+
 import org.jikesrvm.runtime.VM_Time;
 
 /**
@@ -23,6 +23,12 @@ import org.jikesrvm.runtime.VM_Time;
  * @author Andrew John Hughes (gnu_andrew@member.fsf.org)
  */
 final class VMRuntimeMXBeanImpl {
+
+  private static final long bootTime;
+
+  static {
+    bootTime = VM_Time.currentTimeMillis();
+  }
 
   static String[] getInputArguments() {
     return VM_CommandLineArgs.getInputArgs();
@@ -34,7 +40,7 @@ final class VMRuntimeMXBeanImpl {
   }
 
   static long getStartTime() {
-    return VM_Time.bootTime() / 1000;
+    return bootTime;
   }
 
 }

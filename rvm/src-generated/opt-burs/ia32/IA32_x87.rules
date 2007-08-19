@@ -560,6 +560,14 @@ EMIT_INSTRUCTION
 FPR_2INT(P(p), Unary.getResult(P(p)), consumeMO());
 
 #####
+# FLOAT_2LONG
+#####
+r: FLOAT_2LONG(r)
+20
+EMIT_INSTRUCTION
+EMIT(P(p)); /* leave for complex operators */
+
+#####
 # FLOAT_2DOUBLE
 #####
 r:	FLOAT_2DOUBLE(r)
@@ -638,16 +646,3 @@ r:	LONG_BITS_AS_DOUBLE(rlv)
 60
 EMIT_INSTRUCTION
 GPR2FPR_64(P(p));
-
-###########
-# Rules for special registers
-###########
-stm:      ROUND_TO_ZERO
-21
-EMIT_INSTRUCTION
-ROUND_TO_ZERO(P(p));
-
-stm:      CLEAR_FLOATING_POINT_STATE
-1
-EMIT_INSTRUCTION
-EMIT(MIR_Empty.mutate(P(p), IA32_FNINIT));

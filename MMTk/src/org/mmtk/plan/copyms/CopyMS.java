@@ -72,14 +72,6 @@ import org.vmmagic.pragma.*;
     trace = new Trace(metaDataSpace);
   }
 
-  /**
-   * Boot-time initialization
-   */
-  @Interruptible
-  public void boot() {
-    super.boot();
-  }
-
   /*****************************************************************************
    *
    * Collection
@@ -92,7 +84,7 @@ import org.vmmagic.pragma.*;
    * @param phaseId Collection phase to execute.
    */
   @Inline
-  public final void collectionPhase(int phaseId) {
+  public final void collectionPhase(short phaseId) {
     if (phaseId == PREPARE) {
       super.collectionPhase(phaseId);
       trace.prepare();
@@ -110,7 +102,7 @@ import org.vmmagic.pragma.*;
 
     super.collectionPhase(phaseId);
   }
-  
+
   /**
    * This method controls the triggering of a GC. It is called periodically
    * during allocation. Returns true to trigger a collection.
@@ -120,8 +112,8 @@ import org.vmmagic.pragma.*;
    */
   public final boolean collectionRequired(boolean spaceFull) {
     boolean nurseryFull = nurserySpace.reservedPages() > Options.nurserySize.getMaxNursery();
-    
-    return super.collectionRequired(spaceFull) || nurseryFull; 
+
+    return super.collectionRequired(spaceFull) || nurseryFull;
   }
 
   /*****************************************************************************
@@ -164,12 +156,12 @@ import org.vmmagic.pragma.*;
   /**
    * Calculate the number of pages a collection is required to free to satisfy
    * outstanding allocation requests.
-   * 
+   *
    * @return the number of pages a collection is required to free to satisfy
    * outstanding allocation requests.
    */
   public int getPagesRequired() {
-    return super.getPagesRequired() + msSpace.requiredPages() + 
+    return super.getPagesRequired() + msSpace.requiredPages() +
       (nurserySpace.requiredPages() << 1);
   }
 }
