@@ -329,7 +329,6 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 
 			for (OPT_Register reg = ir.regpool.getFirstSymbolicRegister(); reg != null; reg = reg.getNext()) {
 				initial.add(mapRegToId(reg));
-//				reg.clearCoalesced();
 			}
 
 			if(false) System.out.println("Compiling method: " + ir.method.getName().toString());

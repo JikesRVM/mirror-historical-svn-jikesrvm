@@ -32,3 +32,8 @@ More detailed tracing then -verbose:class
 ErrorsFatal false errorsFatal
 Exit when non-fatal errors are detected; used for regression testing
 
+SPILL_ALL_REGS false spill_all
+Spill all registers
+
+ALLOCATOR_TYPE false alloc_type
+Allocator type
