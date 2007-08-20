@@ -869,4 +869,23 @@ public abstract class VM_Scheduler {
   public static VM_TypeReference getProcessorType() {
     return getScheduler().getProcessorTypeInternal();
   }
+
+  /**
+   * Returns the number of daemon threads.
+   *
+   * @return the number of daemons.
+   */
+  public static int getNumDaemons() {
+    return numDaemons;
+  }
+
+  /**
+   * Returns the number of active threads.
+   *
+   * @return the number of active threads.
+   */
+  public static int getNumActiveThreads() {
+    return numActiveThreads;
+  }
+
 }
