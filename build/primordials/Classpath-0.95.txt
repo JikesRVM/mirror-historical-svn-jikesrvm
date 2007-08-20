@@ -479,6 +479,7 @@ Lgnu/classpath/jdwp/event/EventManager;
 Lgnu/classpath/jdwp/Jdwp;
 Lgnu/classpath/jdwp/processor/EventRequestCommandSet;
 Lgnu/classpath/jdwp/VMVirtualMachine;
+Lgnu/classpath/jdwp/VMIdManager;
 
 
 

@@ -99,8 +99,8 @@ public class VM_CommandLineArgs {
   public static final int CPUAFFINITY_ARG = 28;
   public static final int PROCESSORS_ARG = 29;
   public static final int JDWP_ARG = 30;
-
-
+  public static final int SOCKET_IMPL_ARG = 31;
+  
   /**
    * A catch-all prefix to find application name.
    */
@@ -160,6 +160,7 @@ public class VM_CommandLineArgs {
                                             new Prefix("-X:vm$", VM_HELP_ARG),
                                             new Prefix("-X:vm:", VM_ARG),
                                             new Prefix("-X:runjdwp:", JDWP_ARG),
+                                            new Prefix("-X:use:rvm:socketimpl", SOCKET_IMPL_ARG ),
 
                                             /* Silently ignored */
                                             new Prefix("-Xverify", VERIFY_ARG),
@@ -584,6 +585,9 @@ public class VM_CommandLineArgs {
 		case JDWP_ARG:
 		  VM.jdwpArgs = arg;
 		  break;
+		case SOCKET_IMPL_ARG:
+		 VM.useRVMSocket = arg; 
+		 break;	
       }
     }
   }

@@ -344,6 +344,7 @@ public class Thread implements Runnable {
   public final void suspend () {
     checkAccess();
     synchronized (vmdata) {
+      vmdata.incSuspendCount();
       vmdata.suspend();
     }
   }
@@ -352,6 +353,7 @@ public class Thread implements Runnable {
     checkAccess();
     synchronized (vmdata) {
       vmdata.resume();
+      vmdata.decSuspendCount();
     }
   }
 

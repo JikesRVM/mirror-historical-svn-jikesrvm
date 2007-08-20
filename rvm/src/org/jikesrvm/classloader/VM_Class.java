@@ -2324,7 +2324,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
    */
   @Uninterruptible
   public boolean isInitialized() {
-    return state == CLASS_INITIALIZED;
+    return state >= CLASS_INITIALIZED;
   }
   
   /**
@@ -2332,7 +2332,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
    */
   @Uninterruptible
   public boolean isLoaded() {
-    return state == CLASS_LOADED;
+    return state >= CLASS_LOADED;
   }
 
   /**

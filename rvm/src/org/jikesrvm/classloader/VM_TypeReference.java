@@ -12,9 +12,14 @@
  */
 package org.jikesrvm.classloader;
 
+import java.util.Iterator;
+
+import javax.naming.spi.DirStateFactory.Result;
+
 import org.jikesrvm.VM;
 import static org.jikesrvm.VM_SizeConstants.BYTES_IN_ADDRESS;
 import org.jikesrvm.util.VM_HashSet;
+import org.jikesrvm.util.VM_LinkedList;
 import org.vmmagic.pragma.Uninterruptible;
 
 /**
@@ -785,5 +790,22 @@ public final class VM_TypeReference {
 
   public String toString() {
     return "< " + classloader + ", " + name + " >";
+  }
+
+  public static Class<?>[] getAllClasses() {
+	  VM_LinkedList<Class<?>> classList = new VM_LinkedList<Class<?>>();
+	  for(VM_TypeReference type : types)
+		  if (null != type)
+				if (type.isClassType())
+					if (null != type.peekType())
+						classList.add(type.peekType().asClass()
+								.getClassForType());
+	  Class<?>[] result = new Class<?>[classList.size()];
+	  Iterator iter = classList.iterator();
+	  int idx = 0;
+	  while (iter.hasNext()) {
+		  result[ idx++ ] = (Class<?>) iter.next();
+	  }
+	  return result;
   }
 }

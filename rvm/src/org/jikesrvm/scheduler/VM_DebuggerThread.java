@@ -12,6 +12,8 @@
  */
 package org.jikesrvm.scheduler;
 
+import gnu.classpath.jdwp.JdwpConstants;
+
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import org.jikesrvm.VM;
@@ -227,6 +229,46 @@ public class VM_DebuggerThread extends VM_Thread {
     }
     return "unknown";
   }
+  
+  public static int getEnumThreadState(VM_Thread vmThread) {
+		
+	    for (int i = 0; i < VM_Scheduler.processors.length; ++i) {
+	        VM_Processor p = VM_Scheduler.processors[i];
+	        if (p == null) continue;
+	        if (p.transferQueue.contains(vmThread)) return JdwpConstants.ThreadStatus.RUNNING;
+	        if (p.readyQueue.contains(vmThread)) return JdwpConstants.ThreadStatus.RUNNING;
+	        if (p.ioQueue.contains(vmThread)) return JdwpConstants.ThreadStatus.WAIT;
+	        if (p.processWaitQueue.contains(vmThread)) return JdwpConstants.ThreadStatus.WAIT;
+	        if (p.idleQueue.contains(vmThread)) return JdwpConstants.ThreadStatus.WAIT;
+	    }
+
+	      // scan global queues
+	      //
+	      if (VM_Scheduler.wakeupQueue.contains(vmThread)) return JdwpConstants.ThreadStatus.SLEEPING;
+	      if (VM_Scheduler.debuggerQueue.contains(vmThread)) return JdwpConstants.ThreadStatus.WAIT;
+	      if (VM_Scheduler.collectorQueue.contains(vmThread)) return JdwpConstants.ThreadStatus.WAIT;
+
+	      // scan lock queues
+	      //
+	      for (int i = 0; i < VM_Scheduler.locks.length; ++i) {
+	        VM_Lock l = VM_Scheduler.locks[i];
+	        if (l == null || !l.active) continue;
+	        //TODO Revise
+	        if (l.entering.contains(vmThread)) return JdwpConstants.ThreadStatus.MONITOR;
+	        if (l.waiting.contains(vmThread))  return JdwpConstants.ThreadStatus.MONITOR;
+	      }
+
+	      // not in any queue
+	      //
+	      for (int i = 0; i < VM_Scheduler.processors.length; ++i) {
+	        VM_Processor p = VM_Scheduler.processors[i];
+	        if (p == null) continue;
+	        if (p.activeThread == vmThread) {
+	        	 return JdwpConstants.ThreadStatus.RUNNING;
+	        }
+	      }
+	      return -1;
+}
 
   private static final int STDIN = 0;
 

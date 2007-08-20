@@ -630,7 +630,7 @@ public class VM_Thread implements ArchitectureSpecific.VM_StackframeLayoutConsta
     suspendPending = true;
     suspendLock.unlock();
     if (this == getCurrentThread()) yield();
-    suspendCount ++;
+    
   }
 
   /**
@@ -649,7 +649,7 @@ public class VM_Thread implements ArchitectureSpecific.VM_StackframeLayoutConsta
     } else {         // this thread is queued somewhere
       suspendLock.unlock();
     }
-    suspendCount --;
+    ;
   }
 
   /**
@@ -2080,7 +2080,18 @@ public class VM_Thread implements ArchitectureSpecific.VM_StackframeLayoutConsta
   }
   
   /** Returns suspend count as specified by JDWP **/
+  @Uninterruptible
   public int getSuspendCount() {
 	  return suspendCount;
   }
+  
+  @Uninterruptible
+  public void decSuspendCount() {
+	--suspendCount;
+  }
+  
+  @Uninterruptible
+  public void incSuspendCount() {
+	  ++suspendCount;
+}
 }

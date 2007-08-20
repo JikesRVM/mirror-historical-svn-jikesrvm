@@ -43,14 +43,17 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import org.jikesrvm.classloader.VM_Class;
+import org.jikesrvm.VM;
+import org.jikesrvm.classloader.VM_Atom;
+import org.jikesrvm.classloader.VM_MemberReference;
 import org.jikesrvm.classloader.VM_Method;
 import org.jikesrvm.classloader.VM_MethodReference;
 import org.jikesrvm.classloader.VM_NormalMethod;
-import org.jikesrvm.classloader.VM_Type;
 
+import gnu.classpath.jdwp.exception.InvalidMethodException;
 import gnu.classpath.jdwp.exception.JdwpException;
 import gnu.classpath.jdwp.exception.NativeMethodException;
+import gnu.classpath.jdwp.exception.NotImplementedException;
 import gnu.classpath.jdwp.util.LineTable;
 import gnu.classpath.jdwp.util.VariableTable;
 
@@ -85,17 +88,29 @@ public final class VMMethod
    *
    * @param klass the method's containing class
    * @param id    method identifier, e.g., jmethodID
+ * @throws InvalidMethodException 
    * @see gnu.classpath.jdwp.VMVirtualMachine#getAllClassMethods
    * @see gnu.classpath.jdwp.VMVirtualMachine#getClassMethod
    */
-  protected VMMethod(final Class klass, final long id)
+  protected VMMethod(final Class klass, final long id) 
+  		throws InvalidMethodException
   {
     _class = klass;
     _methodId = id;
-    VM_Type vmType = java.lang.JikesRVMSupport.getTypeForClass(klass);
-	VM_Class vmClass = (VM_Class) vmType;
-	_vmMethRef= vmClass.getMethodRef((int) id).asMethodReference();
-	_vmMethRef.resolve();
+    //VM_Type vmType = java.lang.JikesRVMSupport.getTypeForClass(klass);
+	//VM_Class vmClass = (VM_Class) vmType;
+	//_vmMethRef= vmClass.getMethodRef((int) id).asMethodReference();
+    try {
+		if (null ==  VM_MemberReference.getMemberRef((int)id)) {
+			VM.sysWriteln("getClassMethod...Invalid method");
+			throw new InvalidMethodException(id);
+		}
+	}catch (Exception e) {
+		VM.sysWriteln("VMMethod...Invalid method id");
+		throw new InvalidMethodException(id);
+	}
+	_vmMethRef = (VM_MethodReference) VM_MemberReference.getMemberRef((int)id);
+	_vmMethRef.resolve(); //Safe
   }
 
   /**
@@ -111,12 +126,15 @@ public final class VMMethod
    */
   public final Class getDeclaringClass()
   {
-    return _class;
+	  VM.sysWriteln("getDeclaringClass:..", _class.getName());
+	  return _class;
   }
+  
   /**
    * Returns the corresponding RVM method representation.
    */
   protected final VM_Method  getVMMethod() {
+	  VM.sysWrite("getVMMethod:..");
 	  return _vmMethRef.getResolvedMember();
   }
 
@@ -124,21 +142,36 @@ public final class VMMethod
    * Returns the name of this method
    */
   public final String getName() {
-	  return _vmMethRef.getName().toString();
+	  VM.sysWrite("getName():..");
+	  final VM_Atom  atomName = _vmMethRef.getName();
+	  final String name = (null == atomName) ? "" : atomName.toString(); 
+	  VM.sysWriteln( name);
+	  return name.toString();
   }
 
   /**
    * Returns the signature of this method
    */
   public final String getSignature() {
-	  return _vmMethRef.getResolvedMember().getSignature().toString();
+	  VM.sysWrite("getSignature");
+	  final VM_Atom atomSignature = _vmMethRef.getResolvedMember().getSignature();
+	  VM.sysWrite ( _vmMethRef.getDescriptor());
+	  VM.sysWriteln ( "getDescriptor");
+	  
+	  final String signature 
+	  		  =  (null == atomSignature) ? "" : atomSignature.toString();
+	  VM.sysWriteln(signature);
+	  return signature;
   };
 
   /**
    * Returns the method's modifier flags
    */
   public final int getModifiers(){
-	  return _vmMethRef.getResolvedMember().getModifiers();
+	  VM.sysWrite("getModifiers...");
+	  final int modifiers = _vmMethRef.getResolvedMember().getModifiers();
+	  VM.sysWriteln(modifiers);
+	  return modifiers;
   }
 
   /**
@@ -147,11 +180,13 @@ public final class VMMethod
    * The line table is ordered by code index (from lowest to highest). The
    * line number information is constant unless a new class definition is
    * installed using RedefineClasses."
+   * @TODO support RedefineClasses
    *
    * @return the line table
    * @throws JdwpException
    */
   public final LineTable getLineTable() throws JdwpException{
+	  VM.sysWriteln("getLineTable");
 	  if (!(_vmMethRef.getResolvedMember() instanceof VM_NormalMethod))
 			throw new NativeMethodException(_methodId);
 
@@ -164,11 +199,11 @@ public final class VMMethod
 		for (long bci : byteCodeIndecies) {
 			byteCodeIndecies[idx++] = bci & 0xffff;
 		}
-
+		idx = 0;
 		for (int line : lineNums) {
-			line = line >>> 16;
+			lineNums[idx++] = line >>> 16;
 		}
-		return new LineTable(0, 0, lineNums, byteCodeIndecies);
+		return new LineTable(0, byteCodeIndecies.length, lineNums, byteCodeIndecies);
 	}
 
   /**
@@ -182,7 +217,9 @@ public final class VMMethod
 	 */
   public final VariableTable getVariableTable() throws JdwpException {
 	//  if (!(_vmMethRef.getResolvedMember() instanceof VM_NormalMethod))
-			throw new NativeMethodException(_methodId);
+	  VM.sysWriteln("getVariableTable..");
+	  throw new NotImplementedException ("getVariableTable");
+	 // throw new NativeMethodException(_methodId);
 	  
 //	  int argCnt,
 //	  int slots, 
@@ -199,7 +236,10 @@ public final class VMMethod
    */
   public final String toString()
   {
-    return getDeclaringClass().getName() + "." + getName();
+	VM.sysWrite("toString()");
+	final String string = getDeclaringClass().getName() + "." + getName();
+	VM.sysWriteln(string);
+    return string;
   }
 
   /**
@@ -211,7 +251,8 @@ public final class VMMethod
    */
   public final void writeId(DataOutputStream ostream)
     throws IOException
-  {
+  { 
+	VM.sysWriteln("writeId");
     ostream.writeLong(getId());
   }
 
@@ -226,6 +267,7 @@ public final class VMMethod
   public final static VMMethod readId(Class klass, ByteBuffer bb)
     throws JdwpException, IOException
   {
-    return VMVirtualMachine.getClassMethod(klass, bb.getLong());
+	  VM.sysWriteln("readId()");
+	  return VMVirtualMachine.getClassMethod(klass, bb.getLong());
   }
 }

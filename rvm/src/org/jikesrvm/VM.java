@@ -76,7 +76,12 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
    * Arguments for JDWP
    */
   public static String jdwpArgs;
-	
+  
+  /**
+   * Argument for which socket implementation to use.
+   */	
+  public static String useRVMSocket;
+  
   //----------------------------------------------------------------------//
   //                          Initialization.                             //
   //----------------------------------------------------------------------//
@@ -363,11 +368,11 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
 
     if (VM.verboseClassLoading || verboseBoot >= 1) VM.sysWrite("[VM booted]\n");
 
-    // set up JikesRVM socket I/O
-    if(jdwpArgs == null) { // use the default socket factory if using jdwp
+     // set up JikesRVM socket I/O
+     if ( (null == useRVMSocket) || (null != useRVMSocket && useRVMSocket.contains("y"))) { 
       if (verboseBoot >= 1) VM.sysWriteln("Initializing socket factories");
       JikesRVMSocketImpl.boot();
-    }
+     }
 
 
     if (VM.BuildForAdaptiveSystem) {
@@ -411,22 +416,28 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
    
     if (jdwpArgs != null) {
 			// Run necessary class initializsers
+    		runClassInitializer("gnu.classpath.jdwp.VMVirtualMachine");
+			runClassInitializer("gnu.classpath.jdwp.VMIdManager");
 			runClassInitializer("gnu.classpath.jdwp.transport.JdwpConnection");
 			runClassInitializer("gnu.classpath.jdwp.event.EventManager");
 			runClassInitializer("gnu.classpath.jdwp.Jdwp");
-			// Create a daemon Jdwp thread and wait for it to be initialized
-			Jdwp jdwp = new Jdwp();
-			jdwp.setDaemon(true);
-			
-			jdwp.configure(jdwpArgs);
-			jdwp.start();
+
 			try {
+				// Create a daemon Jdwp thread and wait for it to be initialized
+				Jdwp jdwp = new Jdwp();
+				jdwp.setDaemon(true);
+
+				jdwp.configure(jdwpArgs);
+				jdwp.start();
 				// wait for intialization.. not related for starting suspeneded.
 				jdwp.join();
-			} catch (InterruptedException e) {
-				throw new Error(e);
 			}
-			VM.sysWriteln("Wheter JDWP Intilaization done:  ", Jdwp.isDebugging);
+			catch (Exception e) {
+				VM.sysWriteln("Jdwp initialization failed");
+				e.printStackTrace();
+				sysExit(EXIT_STATUS_JDWP_INITIALIZATION_FAILED);
+			}
+			VM.sysWriteln("Wheter JDWP Intilaized:  ", Jdwp.isDebugging);
 		}
 
     // Schedule "main" thread for execution.

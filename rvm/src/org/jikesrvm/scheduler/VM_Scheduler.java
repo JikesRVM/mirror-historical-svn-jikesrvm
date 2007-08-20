@@ -12,11 +12,16 @@
  */
 package org.jikesrvm.scheduler;
 
+import java.util.Arrays;
+import java.util.Iterator;
+
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.VM;
+import org.jikesrvm.ArchitectureSpecific.VM_Compiler;
 import org.jikesrvm.classloader.VM_MemberReference;
 import org.jikesrvm.classloader.VM_Method;
 import org.jikesrvm.classloader.VM_NormalMethod;
+import org.jikesrvm.compilers.baseline.VM_BaselineCompiledMethod;
 import org.jikesrvm.compilers.common.VM_CompiledMethod;
 import org.jikesrvm.compilers.common.VM_CompiledMethods;
 import org.jikesrvm.compilers.opt.VM_OptCompiledMethod;
@@ -28,7 +33,11 @@ import org.jikesrvm.osr.OSR_ObjectHolder;
 import org.jikesrvm.runtime.VM_BootRecord;
 import org.jikesrvm.runtime.VM_Entrypoints;
 import org.jikesrvm.runtime.VM_Magic;
+import org.jikesrvm.util.VM_LinkedList;
+
 import static org.jikesrvm.runtime.VM_SysCall.sysCall;
+
+import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.Uninterruptible;
@@ -88,6 +97,14 @@ public class VM_Scheduler {
   public static boolean allProcessorsInitialized;
   /** VM is terminated, clean up and exit */
   public static boolean terminated;
+  
+  //Frame dump enum
+  //
+  //
+  static final int NATIVE_FRAME = -1;
+  static final int INVISIBLE_FRAME = -2;
+  static final int HARDWARE_TRAP_FRAME = -3;
+  static final int UNPRINTABLE_NORMAL_JAVA_FRAME = -4;
 
   // Thread creation and deletion.
   //
@@ -584,7 +601,21 @@ public class VM_Scheduler {
     Address ip = VM_Magic.getReturnAddress(fp);
     fp = VM_Magic.getCallerFramePointer(fp);
     dumpStack(ip, fp);
+  }
+  /**
+   * Dump state of a (stopped) thread's stack.
+   * @param fp address of starting frame. first frame output
+   *           is the calling frame of passed frame
+   * @return Array of frames starting at fp
+   */
+  public static FrameRecord[] dumpStackToArray(Address fp) {
+    if (VM.VerifyAssertions) {
+      VM._assert(VM.runningVM);
+    }
 
+    Address ip = VM_Magic.getReturnAddress(fp);
+    fp = VM_Magic.getCallerFramePointer(fp);
+    return dumpStacktoArray(ip, fp);
   }
 
   /**
@@ -592,80 +623,225 @@ public class VM_Scheduler {
    * @param ip instruction pointer for first frame to dump
    * @param fp frame pointer for first frame to dump
    */
-  public static void dumpStack(Address ip, Address fp) {
-    ++inDumpStack;
-    if (inDumpStack > 1 &&
-        inDumpStack <= VM.maxSystemTroubleRecursionDepth + VM.maxSystemTroubleRecursionDepthBeforeWeStopVMSysWrite) {
-      VM.sysWrite("VM_Scheduler.dumpStack(): in a recursive call, ");
-      VM.sysWrite(inDumpStack);
-      VM.sysWriteln(" deep.");
-    }
-    if (inDumpStack > VM.maxSystemTroubleRecursionDepth) {
-      VM.dieAbruptlyRecursiveSystemTrouble();
-      if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
-    }
-
-    VM.sysWrite("-- Stack --\n");
-    while (VM_Magic.getCallerFramePointer(fp).NE(ArchitectureSpecific.VM_StackframeLayoutConstants.STACKFRAME_SENTINEL_FP)) {
-
-      // if code is outside of RVM heap, assume it to be native code,
-      // skip to next frame
-      if (!MM_Interface.addressInVM(ip)) {
-        showMethod("native frame", fp);
-        ip = VM_Magic.getReturnAddress(fp);
-        fp = VM_Magic.getCallerFramePointer(fp);
-        continue; // done printing this stack frame
-      }
-
-      int compiledMethodId = VM_Magic.getCompiledMethodID(fp);
-      if (compiledMethodId == ArchitectureSpecific.VM_StackframeLayoutConstants.INVISIBLE_METHOD_ID) {
-        showMethod("invisible method", fp);
-      } else {
-        // normal java frame(s)
-        VM_CompiledMethod compiledMethod = VM_CompiledMethods.getCompiledMethod(compiledMethodId);
-        if (compiledMethod == null) {
-          showMethod(compiledMethodId, fp);
-        } else if (compiledMethod.getCompilerType() == VM_CompiledMethod.TRAP) {
-          showMethod("hardware trap", fp);
-        } else {
-          VM_Method method = compiledMethod.getMethod();
-          Offset instructionOffset = compiledMethod.getInstructionOffset(ip);
-          int lineNumber = compiledMethod.findLineNumberForInstruction(instructionOffset);
-
-          if (VM.BuildForOptCompiler && compiledMethod.getCompilerType() == VM_CompiledMethod.OPT) {
-            VM_OptCompiledMethod optInfo = (VM_OptCompiledMethod) compiledMethod;
-            // Opt stack frames may contain multiple inlined methods.
-            VM_OptMachineCodeMap map = optInfo.getMCMap();
-            int iei = map.getInlineEncodingForMCOffset(instructionOffset);
-            if (iei >= 0) {
-              int[] inlineEncoding = map.inlineEncoding;
-              int bci = map.getBytecodeIndexForMCOffset(instructionOffset);
-              for (; iei >= 0; iei = VM_OptEncodedCallSiteTree.getParent(iei, inlineEncoding)) {
-                int mid = VM_OptEncodedCallSiteTree.getMethodID(iei, inlineEncoding);
-                method = VM_MemberReference.getMemberRef(mid).asMethodReference().getResolvedMember();
-                lineNumber = ((VM_NormalMethod)method).getLineNumberForBCIndex(bci);
-                showMethod(method, lineNumber, fp);
-                if (iei > 0) {
-                  bci = VM_OptEncodedCallSiteTree.getByteCodeOffset(iei, inlineEncoding);
-                }
-              }
-            } else {
-              showMethod(method, lineNumber, fp);
-            }
-            ip = VM_Magic.getReturnAddress(fp);
-            fp = VM_Magic.getCallerFramePointer(fp);
-            continue; // done printing this stack frame
-          }
-
-          showMethod(method, lineNumber, fp);
-        }
-      }
-      ip = VM_Magic.getReturnAddress(fp);
-      fp = VM_Magic.getCallerFramePointer(fp);
-    }
-    --inDumpStack;
+  public static void dumpStack( Address ip, Address fp) {
+    FrameRecord[] frames = dumpStacktoArray(ip, fp);
+    VM.sysWrite("Got frames...count ",frames.length);
+		for (FrameRecord frame : frames) {
+			VM.sysWriteln("--->Frame",frame.toString());
+			switch (frame.getLine()) {
+				case NATIVE_FRAME: {
+					showMethod("native frame", fp);
+					break;
+				}
+				case HARDWARE_TRAP_FRAME: {
+					showMethod("hardware trap", fp);
+					break;
+				}
+				case INVISIBLE_FRAME: {
+					showMethod("invisible method", fp);
+					break;
+				}
+				case UNPRINTABLE_NORMAL_JAVA_FRAME: {
+					showMethod(frame.getBci(), fp);
+				}
+				default: {
+					showMethod(frame.getMethod(), frame.getLine(), frame
+							.getAddress());
+					break;
+				}
+			}
+		}
   }
+  
+  /**
+   * Dump state of a (stopped) thread's stack into frame array.
+   * @param ip instruction pointer for first frame to dump
+   * @param fp frame pointer for first frame to dump
+   */
+  public static FrameRecord[] dumpStacktoArray(Address ip, Address fp) {
+	  ++inDumpStack;
+	    if (inDumpStack > 1 &&
+	        inDumpStack <= VM.maxSystemTroubleRecursionDepth + VM.maxSystemTroubleRecursionDepthBeforeWeStopVMSysWrite) {
+	      VM.sysWrite("VM_Scheduler.dumpStack(): in a recursive call, ");
+	      VM.sysWrite(inDumpStack);
+	      VM.sysWriteln(" deep.");
+	    }
+	    if (inDumpStack > VM.maxSystemTroubleRecursionDepth) {
+	      VM.dieAbruptlyRecursiveSystemTrouble();
+	      if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
+	    }
 
+	    VM.sysWrite("-- Stack --\n");	  
+	  VM_LinkedList<FrameRecord> frames = new VM_LinkedList<FrameRecord>();
+	  while (VM_Magic.getCallerFramePointer(fp).NE(ArchitectureSpecific.VM_StackframeLayoutConstants.STACKFRAME_SENTINEL_FP)) {
+		  
+	      // if code is outside of RVM heap, assume it to be native code,
+	      // skip to next frame
+	      if (!MM_Interface.addressInVM(ip)) {
+	    	frames.add(new FrameRecord(null, NATIVE_FRAME, fp, -1, null));
+	        ip = VM_Magic.getReturnAddress(fp);
+	        fp = VM_Magic.getCallerFramePointer(fp);
+	        
+	        continue; // done printing this stack frame
+	      }
+
+	      int compiledMethodId = VM_Magic.getCompiledMethodID(fp);
+	      if (compiledMethodId == ArchitectureSpecific.VM_StackframeLayoutConstants.INVISIBLE_METHOD_ID) {
+	          frames.add(new FrameRecord(null, INVISIBLE_FRAME, fp, -1, null ));
+	      } else {
+	        // normal java frame(s)
+	        VM_CompiledMethod compiledMethod = VM_CompiledMethods.getCompiledMethod(compiledMethodId);
+	        if (compiledMethod == null) {
+	        	 frames.add(new FrameRecord(null, UNPRINTABLE_NORMAL_JAVA_FRAME, fp, compiledMethodId, null));
+	        	 ip = VM_Magic.getReturnAddress(fp);
+	   	      	 fp = VM_Magic.getCallerFramePointer(fp);
+	   	      	 continue;
+	        	 
+	        }
+	        //TODO account for OptCompiler
+	        
+	        //Retreive this Object (if Any)
+	        Object instance = null; 
+	        if(!compiledMethod.getMethod().isStatic() 
+	          && !compiledMethod.getMethod().isNative() 
+	          && (compiledMethod.getMethod() instanceof VM_NormalMethod)
+	          &&  compiledMethod.getCompilerType() == VM_CompiledMethod.BASELINE) {
+//	        	TODO account for OptCompiler
+	        	int thisOffset = VM_Compiler.getFirstLocalOffset((VM_NormalMethod)compiledMethod.getMethod());
+	        	VM.sysWriteln("found instance this offset = ", thisOffset);
+	        	Address instanceAddr = Address.fromIntSignExtend(thisOffset);
+	        	instance = VM_Magic.addressAsObject(instanceAddr);
+	        	VM.sysWriteln("found instance", (null == instance)?"null":instance.getClass().getName());
+	        }else {
+	        	VM.sysWriteln("no instance available");
+	        }
+	        
+	        if (compiledMethod.getCompilerType() == VM_CompiledMethod.TRAP) {
+	        	 frames.add(new FrameRecord(null, HARDWARE_TRAP_FRAME, fp, -1, instance));
+	        } else {
+	          VM_Method method = compiledMethod.getMethod();
+	          Offset instructionOffset = compiledMethod.getInstructionOffset(ip);
+	          int lineNumber = compiledMethod.findLineNumberForInstruction(instructionOffset);
+	          
+	          //OPT Compiled Method
+	          if (VM.BuildForOptCompiler && compiledMethod.getCompilerType() == VM_CompiledMethod.OPT) {
+	            VM_OptCompiledMethod optInfo = (VM_OptCompiledMethod) compiledMethod;
+	            // Opt stack frames may contain multiple inlined methods.
+	            VM_OptMachineCodeMap map = optInfo.getMCMap();
+	            int iei = map.getInlineEncodingForMCOffset(instructionOffset);
+	            int bci = map.getBytecodeIndexForMCOffset(instructionOffset);
+	            if (iei >= 0) {
+	              int[] inlineEncoding = map.inlineEncoding;
+	              for (; iei >= 0; iei = VM_OptEncodedCallSiteTree.getParent(iei, inlineEncoding)) {
+	                int mid = VM_OptEncodedCallSiteTree.getMethodID(iei, inlineEncoding);
+	                method = VM_MemberReference.getMemberRef(mid).asMethodReference().getResolvedMember();
+	                frames.add(new FrameRecord(method, lineNumber, fp, bci, instance));
+	                if (iei > 0) {
+	                  bci = VM_OptEncodedCallSiteTree.getByteCodeOffset(iei, inlineEncoding);
+	                }
+	              }
+	            }else {//No inlined methods in an Opt-compiled method
+	            	frames.add(new FrameRecord(method, lineNumber, fp, bci, instance));
+	            }
+	            ip = VM_Magic.getReturnAddress(fp);
+	            fp = VM_Magic.getCallerFramePointer(fp);
+	            continue; // done printing this stack frame
+	          }
+	          //BaseLineCompiled
+	          else if (compiledMethod.getCompilerType() == VM_CompiledMethod.BASELINE) {
+	        	    VM_BaselineCompiledMethod baseLineCompiled =  ((VM_BaselineCompiledMethod) compiledMethod);
+	            	int bci = baseLineCompiled.findBytecodeIndexForInstruction(instructionOffset);
+	            	frames.add(new FrameRecord(method, lineNumber, fp, bci, instance));
+	          //JNI	            	
+	          } else {
+	            	// TODO Line number method of call site?
+	            	frames.add(new FrameRecord(method, lineNumber, fp, -1, instance));
+	           }
+	        }
+	      }
+	      ip = VM_Magic.getReturnAddress(fp);
+	      fp = VM_Magic.getCallerFramePointer(fp);
+	    }
+	  --inDumpStack;	 
+	  FrameRecord[] rValue = new FrameRecord[frames.size()];
+	  int idx = 0;
+	  Iterator<FrameRecord> iter = frames.iterator();
+	  while (iter.hasNext()) 
+		  rValue[idx++] = iter.next();
+	  return rValue;
+  }
+ 
+//  /**
+//   * Get Frame Record for the supplied framePointer
+//   * 
+//   * @param ip instruction pointer for first frame to dump
+//   * @param fp frame pointer for first frame to dump
+//   * @return Array of Found Frames( of size > 1 if having inlined methods) 
+//   */
+//  public static FrameRecord[] getFrameRecord(Address ip, Address fp) {
+//	  if (!MM_Interface.addressInVM(ip)) {
+//	    	return new FrameRecord[]{new FrameRecord(null, NATIVE_FRAME, fp, -1)};
+//	      }
+//
+//	      int compiledMethodId = VM_Magic.getCompiledMethodID(fp);
+//	      if (compiledMethodId == ArchitectureSpecific.VM_StackframeLayoutConstants.INVISIBLE_METHOD_ID) {
+//	          return new FrameRecord[]{new FrameRecord(null, INVISIBLE_FRAME, fp, -1 )};
+//	      } else {
+//	        //Normal Java frame(s)
+//	        VM_CompiledMethod compiledMethod = VM_CompiledMethods.getCompiledMethod(compiledMethodId);
+//	        if (compiledMethod == null) {
+//	        	 return new FrameRecord[]{ new FrameRecord(null, UNPRINTABLE_NORMAL_JAVA_FRAME, fp, compiledMethodId)};
+//	        } else if (compiledMethod.getCompilerType() == VM_CompiledMethod.TRAP) {
+//	        	 return new FrameRecord[]{ new FrameRecord(null, HARDWARE_TRAP_FRAME, fp, -1)};
+//	        } else {
+//	          VM_Method method = compiledMethod.getMethod();
+//	          Offset instructionOffset = compiledMethod.getInstructionOffset(ip);
+//	          int lineNumber = compiledMethod.findLineNumberForInstruction(instructionOffset);
+//	          //OPt Compiled	
+//	          if (VM.BuildForOptCompiler && compiledMethod.getCompilerType() == VM_CompiledMethod.OPT) {
+//	            VM_OptCompiledMethod optInfo = (VM_OptCompiledMethod) compiledMethod;
+//	            // Opt stack frames may contain multiple inlined methods.
+//	            VM_OptMachineCodeMap map = optInfo.getMCMap();
+//	            int iei = map.getInlineEncodingForMCOffset(instructionOffset);
+//	            int bci = map.getBytecodeIndexForMCOffset(instructionOffset);
+//	            
+//	            if (iei >= 0) {
+//	              VM_LinkedList<FrameRecord> frames = new VM_LinkedList<FrameRecord>();
+//	              int[] inlineEncoding = map.inlineEncoding;
+//	              for (; iei >= 0; iei = VM_OptEncodedCallSiteTree.getParent(iei, inlineEncoding)) {
+//	                int mid = VM_OptEncodedCallSiteTree.getMethodID(iei, inlineEncoding);
+//	                method = VM_MemberReference.getMemberRef(mid).asMethodReference().getResolvedMember();
+//	                frames.add(new FrameRecord(method, lineNumber, fp, bci));
+//	                if (iei > 0) {
+//	                  bci = VM_OptEncodedCallSiteTree.getByteCodeOffset(iei, inlineEncoding);
+//	                }
+//	                
+//	              }
+//	              FrameRecord[] rValue = new FrameRecord[frames.size()];
+//	        	  int idx = 0;
+//	        	  Iterator<FrameRecord> iter = frames.iterator();
+//	        	  while (iter.hasNext()) 
+//	        		  rValue[idx++] = iter.next();
+//	        	  return rValue;
+//	            }else {//No inlined methods in an Opt-compiled method
+//	            	return new FrameRecord[]{ new FrameRecord(method, lineNumber, fp, bci)};
+//	            }
+//	          }
+//	          //BaseLine Compiled
+//	          else if (compiledMethod.getCompilerType() == VM_CompiledMethod.BASELINE) {
+//	        	    VM_BaselineCompiledMethod baseLineCompiled =  ((VM_BaselineCompiledMethod) compiledMethod);
+//	            	int bci = baseLineCompiled.findBytecodeIndexForInstruction(instructionOffset);
+//	            	return new FrameRecord[]{ new FrameRecord(method, lineNumber, fp, bci)};
+//	          //JNI	            	
+//	          } else {
+//	            	// TODO Line number method of call site?
+//	            	return new FrameRecord[]{ new FrameRecord(method, lineNumber, fp, -1)};
+//	           }
+//	        }
+//	      }
+//  }
+//  
+  
   private static void showPrologue(Address fp) {
     VM.sysWrite("   at ");
     if (SHOW_FP_IN_STACK_DUMP) {
@@ -856,4 +1032,54 @@ public class VM_Scheduler {
     }
     VM_Processor.getCurrentProcessor().enableThreadSwitching();
   }
+  
+  public static final class FrameRecord {
+		
+	    private final VM_Method method;
+		private final int line;
+		private final Address address;
+		private final int bci;
+		private final Object instance;
+		
+
+		FrameRecord(final VM_Method method, final int line,
+				final Address address, final int bci, final Object instance) {
+			this.method = method;
+			this.line = line;
+			this.address = address;
+			this.bci = bci;
+			this.instance = instance;
+			VM.sysWriteln("method ", (null == method)?"null": method.toString());
+			VM.sysWriteln("line ", line);
+			VM.sysWriteln("address ",address );
+			VM.sysWriteln("bci ", bci);
+		}
+
+		@Inline
+		public Address getAddress() {
+			return address;
+		}
+
+		@Inline
+		public int getLine() {
+			return line;
+		}
+
+		@Inline
+		public VM_Method getMethod() {
+			return method;
+		}
+		
+		@Inline
+		public int getBci() {
+			return bci;
+		}
+		
+		@Inline
+		public Object getInstance() {
+			return instance;
+		}
+		
+
+	}
 }

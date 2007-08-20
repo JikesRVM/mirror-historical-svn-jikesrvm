@@ -40,20 +40,27 @@
 
 package gnu.classpath.jdwp;
 
+import gnu.classpath.jdwp.event.ClassPrepareEvent;
 import gnu.classpath.jdwp.event.Event;
 import gnu.classpath.jdwp.event.EventRequest;
-import gnu.classpath.jdwp.event.ClassPrepareEvent;
+import gnu.classpath.jdwp.event.ExceptionEvent;
 import gnu.classpath.jdwp.event.ThreadStartEvent;
 import gnu.classpath.jdwp.event.VmDeathEvent;
 import gnu.classpath.jdwp.event.VmInitEvent;
+import gnu.classpath.jdwp.exception.InvalidFrameException;
 import gnu.classpath.jdwp.exception.InvalidMethodException;
+import gnu.classpath.jdwp.exception.InvalidThreadException;
 import gnu.classpath.jdwp.exception.JdwpException;
+import gnu.classpath.jdwp.exception.NativeMethodException;
+import gnu.classpath.jdwp.exception.NotImplementedException;
+import gnu.classpath.jdwp.util.Location;
 import gnu.classpath.jdwp.util.MethodResult;
 import gnu.classpath.jdwp.util.MonitorInfo;
 import gnu.classpath.jdwp.value.Value;
+import gnu.java.lang.InstrumentationImpl;
 
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 
@@ -63,7 +70,10 @@ import org.jikesrvm.classloader.VM_Class;
 import org.jikesrvm.classloader.VM_Method;
 import org.jikesrvm.classloader.VM_NormalMethod;
 import org.jikesrvm.classloader.VM_Type;
+import org.jikesrvm.scheduler.VM_DebuggerThread;
+import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.scheduler.VM_Thread;
+import org.jikesrvm.scheduler.VM_Scheduler.FrameRecord;
 import org.jikesrvm.util.VM_LinkedList;
 
 /**
@@ -82,7 +92,9 @@ public final class VMVirtualMachine {
 	public static final boolean canGetOwnedMonitorInfo = false;
 	public static final boolean canGetCurrentContendedMonitor = false;
 	public static final boolean canGetMonitorInfo = false;
-	public static final boolean canRedefineClasses = false;
+	public static final boolean canRedefineClasses =
+			gnu.java.lang.JikesRVMSupport.createInstrumentation()
+					.isRedefineClassesSupported();
 	public static final boolean canAddMethod = false;
 	public static final boolean canUnrestrictedlyRedefineClasses = false;
 	public static final boolean canPopFrames = false;
@@ -91,35 +103,30 @@ public final class VMVirtualMachine {
 	public static final boolean canRequestVMDeathEvent = true;
 	public static final boolean canSetDefaultStratum = false;
 	
+	
 	private static boolean startedResolutionNotification = false;
-	private static VM_LinkedList<VM_Class> deferredResolutionNotifications
-		= new  VM_LinkedList<VM_Class>() ; 
 	private static boolean vmInitialized = false;
-	private static VM_LinkedList<Event> deferredEvents
+	private static boolean classResolutionEventRegistered = false;
+	
+	private static final VM_LinkedList<VM_Class> deferredResolutionNotifications
+		= new  VM_LinkedList<VM_Class>() ;
+	private static final VM_LinkedList<Event> deferredEvents
 		= new  VM_LinkedList<Event>() ; 
-	private static boolean  classResolutionEventRegistered = false;
-	
-	//private static Thread mainThread;
 
-	//public static final void setMainThread(Thread mainThreadParam) {
-		//mainThread = mainThreadParam;
-	//}
-	
 	static {
 		initialize();
 	}
 	
-	public static final   void initialize () {
-		//registerEvent(new EventRequest(0,EventRequest.EVENT_CLASS_PREPARE,0))
+	public static void initialize () {
 	}
 	
    /**
-	 * Returns all threads that the jdwp backend should be aware of. 
+	 * Returns all threads that the jdwp front-end should be aware of. 
 	 */
-	 public static final Thread[] getAllThreads() {
+	 public static Thread[] getAllThreads() {
 		 VM.sysWriteln("    getAllThreads()");
 		// Our JDWP thread group 
-		ThreadGroup jdwpGroup = Jdwp.getDefault().getJdwpThreadGroup();
+		final ThreadGroup jdwpGroup = Jdwp.getDefault().getJdwpThreadGroup();
 
 		// Find the root ThreadGroup
 		ThreadGroup group = jdwpGroup;
@@ -130,21 +137,21 @@ public final class VMVirtualMachine {
 		}
 
 		// Get all the threads in the system
-		int num = group.activeCount();
-		Thread[] threads = new Thread[num];
+		final int num = group.activeCount();
+		final Thread[] threads = new Thread[num];
 		group.enumerate(threads);
 		
-		// Count those that shouldn't be reported to jdwp backend.
-		Thread[] nonSysThreads;
+		// Count those that shouldn't be reported to jdwp front-end.
+		final Thread[] nonSysThreads;
 		int nonSysThreadsCount = 0;
-		for (Thread thread : threads) {
+		for (final Thread thread : threads) {
 			if (isNonSystemThread(thread)) 
 				nonSysThreadsCount++;
 			 else 
 				continue;
 		}
 		
-		// Execlude those that shouldn't be reported to jdwp backend.
+		// Execlude those that shouldn't be reported to jdwp fron-tend.
 		nonSysThreads = new Thread[nonSysThreadsCount];
 		int nonSysThreadsIndex = 0;
 		for (Thread thread : threads) 
@@ -157,28 +164,38 @@ public final class VMVirtualMachine {
 	 * Suspend a thread
 	 * 
 	 * @param thread the thread to suspend
-	 * TODO check need to skip other system threads 
+	 * @throws JdwpException 
 	 */
-	public static final void suspendThread(Thread thread) {
+	public static void suspendThread(final Thread thread) throws JdwpException {
 		VM.sysWriteln("suspendThread: ThreadName ", thread.getName());
 		if (VM.VerifyAssertions) 
 			VM._assert(isNonSystemThread(thread));
-		if (isNonSystemThread(thread)) {
-			VM.sysWriteln("suspendThread: skip..system thread",
-						  thread.getName()); 
+
+		if (isSystemThread(thread)){
+			VM.sysWriteln("suspendThread: skip..system thread ",
+					      thread.getName()); 
 			return;
 		}
+		
+		final int suspendCount = getSuspendCount(thread);
+		VM.sysWrite("resumeThread: skip..suspendcount = ", suspendCount) ;
+		VM.sysWriteln(" thread-> ",	thread.getName());
 		thread.suspend();
 	}
 
 	/**
 	 * Suspend all non system threads
 	 */
-	public static final void suspendAllThreads() throws JdwpException {
+	public static void suspendAllThreads() throws JdwpException {
 		VM.sysWriteln("    suspendAll");
 		// Our JDWP thread group -- don't suspend any of those threads
-		Thread current = Thread.currentThread();
 		ThreadGroup jdwpGroup = Jdwp.getDefault().getJdwpThreadGroup();
+		
+		// current thread should always be a system thread.
+		if (VM.VerifyAssertions) {	
+			Thread current = Thread.currentThread();
+			VM._assert(isSystemThread(current));
+		}
 
 		// Find the root ThreadGroup
 		ThreadGroup group = jdwpGroup;
@@ -189,25 +206,24 @@ public final class VMVirtualMachine {
 		}
 
 		// Get all the threads in the system
-		int num = group.activeCount();
-		Thread[] threads = new Thread[num];
+		//TODO better way exist in the debuggerthread
+		
+		final int num = group.activeCount();
+		final Thread[] threads = new Thread[num];
 		group.enumerate(threads);
 
-		for (Thread thread : threads ){
+		for (final Thread thread : threads ){
 			if (thread != null) {
-				if (thread == current || !isNonSystemThread(thread)) {
-					// Don't suspend the current thread or any System thread
+				if (isSystemThread(thread)) {
+					// Don't suspend any System thread
 					continue;
 				} else {
 					VM.sysWriteln("    suspendAll: ThreadName ",
-							      thread.getName());
+					    thread.getName());
 					suspendThread(thread);
 				}
 			}
 		}
-		// Now suspend the current thread
-		if (isNonSystemThread(current))
-			suspendThread(current);
 	}
 
 	/**
@@ -216,15 +232,24 @@ public final class VMVirtualMachine {
 	 * 
 	 * @param thread the thread to resume
 	 */
-	public static final void resumeThread(Thread thread) {
+	public static void resumeThread(final Thread thread) throws JdwpException {
 		VM.sysWriteln("resumeThread: ThreadName ", thread.getName());
 		if (VM.VerifyAssertions) 
 			VM._assert(isNonSystemThread(thread));
-		if (isNonSystemThread(thread)) {
+
+		if (isSystemThread(thread)){
 			VM.sysWriteln("resumeThread: skip..system thread ",
-						  thread.getName()); 
+					      thread.getName()); 
 			return;
 		}
+		// should we wait?
+//		final int suspendCount = getSuspendCount(thread);
+//		if ( suspendCount <=  0){
+//			VM.sysWrite("resumeThread: skip..suspendcount = ", suspendCount) ;
+//			VM.sysWriteln(" thread-> ",	thread.getName()); 
+//			return;
+//		}
+		VM.sysWriteln(getThreadStatus(thread));
 		thread.resume();
 	}
 
@@ -232,11 +257,17 @@ public final class VMVirtualMachine {
 	 * Resume all threads. This simply decrements the thread's suspend
 	 * count. It can not be used to force the application to run.
 	 */
-	public static final void resumeAllThreads() throws JdwpException {
+	public static void resumeAllThreads() throws JdwpException {
 		VM.sysWriteln("resumeAllThreads");
+		
 		// Our JDWP thread group -- don't resume
-		Thread current = Thread.currentThread();
-		ThreadGroup jdwpGroup = current.getThreadGroup();
+		final Thread current = Thread.currentThread();
+		final ThreadGroup jdwpGroup = current.getThreadGroup();
+		
+		// current thread should always be a system thread.
+		if (VM.VerifyAssertions) {	
+			VM._assert(isSystemThread(current));
+		}
 
 		// Find the root ThreadGroup
 		ThreadGroup group = jdwpGroup;
@@ -247,14 +278,14 @@ public final class VMVirtualMachine {
 		}
 
 		// Get all the threads in the system
-		int num = group.activeCount();
+		final int num = group. activeCount();
 		Thread[] threads = new Thread[num];
 		group.enumerate(threads);
 
-		for (Thread thread : threads) {
+		for (final Thread thread : threads) {
 			if (thread != null) {
-				if (thread == current || !isNonSystemThread(thread)) {
-					// Don't resume the current thread or any system thread
+				if (isSystemThread(thread)) {
+					// Don't resume system thread
 					continue;
 				} else {
 					VM.sysWriteln("resumeAll: ThreadName ", thread.getName());
@@ -270,7 +301,8 @@ public final class VMVirtualMachine {
 	 * @param thread the thread whose suspend count is desired
 	 * @return the number of times the thread has been suspended
 	 */
-	public static final int getSuspendCount(Thread thread) throws JdwpException {
+	public static int getSuspendCount(final Thread thread) 
+		throws JdwpException {
 		VM.sysWriteln("    getSuspendCount for ", thread.getName());
 		if (VM.VerifyAssertions)
 			VM._assert(isNonSystemThread(thread));
@@ -284,44 +316,86 @@ public final class VMVirtualMachine {
 	 * @param thread
 	 *            the thread for which to get status
 	 * @return integer status of the thread
-	 * @see JdwpConstants.ThreadStatus TODO:fix per new thread model and TODO:
-	 *      more accurate state monitor waiting sleeping
+	 * @see JdwpConstants.ThreadStatus 
+	 * TODO:fix per new thread model and 
 	 */
-	public static final int getThreadStatus(Thread thread) throws JdwpException {
+	public static int getThreadStatus(final Thread thread) throws JdwpException {
 		VM.sysWriteln("    getThreadStatus for ", thread.getName());
+		
+		getSuspendCount(thread);
+		
 		if (VM.VerifyAssertions)
 			VM._assert(isNonSystemThread(thread));
 		int status = JdwpConstants.ThreadStatus.RUNNING;
-		
 		VM_Thread vmThread = java.lang.JikesRVMSupport.getThread(thread);
-		if (!vmThread.isAlive())
-			status = JdwpConstants.ThreadStatus.ZOMBIE;
-			//So it's Alive
-		else if ( !thread.isInterrupted() )
-			status = JdwpConstants.ThreadStatus.RUNNING;
-			//So it's Alive and interrupted
-		
-		if ( vmThread.isWaitingForOsr )
-			status = JdwpConstants.ThreadStatus.WAIT;
-		
+		status = VM_DebuggerThread.getEnumThreadState(vmThread);
+		if (-1 == status) {
+			if (!vmThread.isAlive())
+				status = JdwpConstants.ThreadStatus.ZOMBIE;
+			// So it's Alive
+			else if (!thread.isInterrupted())
+				status = JdwpConstants.ThreadStatus.RUNNING;
+			// So it's Alive and not interrupted
+
+			if (vmThread.isWaitingForOsr)
+				status = JdwpConstants.ThreadStatus.WAIT;
+		}
+		VM.sysWriteln("thread status...", status);
 		return status;
 	}
 
 	/**
 	 * Returns a count of the number of loaded classes in the VM
 	 */
-	public static final int getAllLoadedClassesCount() throws JdwpException{
+	public static int getAllLoadedClassesCount() throws JdwpException{
 		VM.sysWriteln("    getAllLoadedClassesCount" );
-		return java.lang.JikesRVMSupport.getAllLoadedClasses().length;
+		return getAllLoadedClasses().size();
 	};
 
 	/**
 	 * Returns an iterator over all the loaded classes in the VM
+	 * execlude duplicates
 	 */
-	public static final Collection getAllLoadedClasses() throws JdwpException{
-		 VM.sysWriteln("    getAllLoadedClasses" );
-		 Class<?>[] classes = java.lang.JikesRVMSupport.getAllLoadedClasses();
+	public static Collection<Class<?>> getAllLoadedClasses()
+			throws JdwpException {
+		VM.sysWriteln("    getAllLoadedClasses");
+		final int len1 =
+				java.lang.JikesRVMSupport
+                          .getAllLoadedClasses().length
+                          +
+                          2
+                          ;
+		 final Class<?>[] classes = new Class<?> [len1];
+		 int idx = 0;
+		 for(Class<?> clazz : java.lang.JikesRVMSupport.getAllLoadedClasses())
+			 classes[ idx++ ] = clazz;
+		 classes[idx++] = java.lang.Error.class;
+		 classes[idx++] = java.lang.Throwable.class;
 		 return Arrays.asList(classes);
+		 
+		
+//		 final Class<?>[] classes2 =  VM_TypeReference.getAllClasses();
+//		 Class<?>[] rValue 
+//		 	=  classes2;
+//		 for ( Class<?> clazz : classes2 ) {
+//			 if ( clazz.getName().contains("org.jikesrvm")
+//					 ||  clazz.getName().contains("gnu.classpath")
+//					 ||  clazz.getName().contains("org.vmmagic")
+//					 ||  clazz.getName().contains("org.mmtk")
+//					// ||  clazz.getName().contains("gnu.classpath.jdwp")
+//					 ||  clazz.getName().contains("JikesRVMSupport")
+//					 ||  clazz.getName().contains("VM")
+//					// ||  clazz.getName().contains("gnu.classpath.debug")
+//)
+//				 continue;
+//			 //VM.sysWriteln("wewewew", clazz.getName());
+//			 rValue[ idx++ ] = clazz;
+//		 }
+//		 
+//		 //After filtering
+//		 rValue = Arrays.copyOf(rValue, idx);
+//		 VM.sysWriteln("####getAllLoadedClasses...count =", rValue.length );
+//		 return Arrays.asList(rValue);
 	};
 
 	/**
@@ -332,21 +406,27 @@ public final class VMVirtualMachine {
 	 * @see JdwpConstants.ClassStatus
 	 * TODO distinguish linkingg phases Verification,preparation,resolution
 	 */
-	public static final int getClassStatus(Class clazz) throws JdwpException{
-		VM.sysWriteln("    getClassStatus for class : ",clazz.getName());
+	public static int getClassStatus(final Class clazz) throws JdwpException{
+		//VM.sysWrite("    getClassStatus for class : ",clazz.getName());
 		VM_Type vmType = java.lang.JikesRVMSupport.getTypeForClass(clazz);
-		
+		int rValue = 0;
+
 		if(((VM_Class) vmType).isLoaded())
-			return JdwpConstants.ClassStatus.VERIFIED; //not necessarily;
+			rValue |= JdwpConstants.ClassStatus.VERIFIED; //not necessarily;
 		
 		if (vmType.isResolved())
-			return JdwpConstants.ClassStatus.PREPARED;
+			rValue |= JdwpConstants.ClassStatus.PREPARED;
 		
 		if( vmType.isInstantiated())
-			return JdwpConstants.ClassStatus.INITIALIZED;
-			
-		return JdwpConstants.ClassStatus.ERROR;
-	};
+			rValue |= JdwpConstants.ClassStatus.INITIALIZED;
+		
+		rValue = (0 == rValue) ?  JdwpConstants.ClassStatus.ERROR: rValue;
+		
+		//VM.sysWriteln("...", rvalue); 
+		return rValue;
+	}
+	
+	
 
 	/**
 	 * Returns all of the methods defined in the given class. This includes
@@ -355,7 +435,7 @@ public final class VMVirtualMachine {
 	 * @param klass the class whose methods are desired
 	 * @return an array of virtual machine methods
 	 */
-	public static final VMMethod[] getAllClassMethods(Class clazz)
+	public static VMMethod[] getAllClassMethods(final Class clazz)
 			throws JdwpException{
 		VM.sysWriteln("    getAllClassMethods for class : ",clazz.getName());
 		VM_Type vmType = java.lang.JikesRVMSupport.getTypeForClass(clazz);
@@ -363,26 +443,26 @@ public final class VMVirtualMachine {
 		
 		// Calculate length.
 		int len = 0;
-		len += ( null == vmClass.getClassInitializerMethod() ) ? 0 : 1;
-		len += vmClass.getConstructorMethods().length;
-		len += vmClass.getStaticMethods().length;
+		//len += ( null == vmClass.getClassInitializerMethod() ) ? 0 : 1;
+		//len += vmClass.getConstructorMethods().length;
+		//len += vmClass.getStaticMethods().length;
 		len += vmClass.getDeclaredMethods().length;
 		
 		VMMethod[] vmMethods = new VMMethod[len];
 		
 		int index = 0;
-		if ( null == vmClass.getClassInitializerMethod()) {
-			VM_Method rvmMethod =  vmClass.getClassInitializerMethod();
-			vmMethods[index++] = new VMMethod (clazz, rvmMethod.getId());
-		}
+//		if ( null == vmClass.getClassInitializerMethod()) {
+//			VM_Method rvmMethod =  vmClass.getClassInitializerMethod();
+//			vmMethods[index++] = new VMMethod (clazz, rvmMethod.getId());
+//		}
 		
-		for (VM_Method rvmMethod : vmClass.getConstructorMethods()) {
-			vmMethods[index++] = new VMMethod(clazz, rvmMethod.getId());
-		}
-		
-		for (VM_Method rvmMethod : vmClass.getStaticMethods() ) {
-			vmMethods[index++] = new VMMethod(clazz, rvmMethod.getId());
-		}
+//		for (VM_Method rvmMethod : vmClass.getConstructorMethods()) {
+//			vmMethods[index++] = new VMMethod(clazz, rvmMethod.getId());
+//		}
+//		
+//		for (VM_Method rvmMethod : vmClass.getStaticMethods() ) {
+//			vmMethods[index++] = new VMMethod(clazz, rvmMethod.getId());
+//		}
 		
 		for (VM_Method rvmMethod : vmClass.getDeclaredMethods()) {
 			vmMethods[index++] = new VMMethod(clazz, rvmMethod.getId());
@@ -404,13 +484,9 @@ public final class VMVirtualMachine {
 	 *             for any other error
 	 *  TODO
 	 */
-	public static final VMMethod getClassMethod(final Class clazz, final long id)
+	public static VMMethod getClassMethod(final Class clazz, final long id)
 			throws JdwpException{
 		VM.sysWriteln("getClassMethod for ", clazz.getName());
-		VM_Type vmType = java.lang.JikesRVMSupport.getTypeForClass(clazz);
-		VM_Class vmClass = (VM_Class) vmType;
-		if (null == vmClass.getMethodRef((int) id))
-			throw new InvalidMethodException(id);
 		return new VMMethod(clazz, id);
 	};
 
@@ -422,21 +498,58 @@ public final class VMVirtualMachine {
 	 * @param   length number of frames to return (-1 for all frames)
 	 * @return a list of frames
 	 */
-	public static native ArrayList getFrames(final Thread thread, final int start,
-			final int length) throws JdwpException;
+	public static ArrayList getFrames(final Thread thread,
+			final int start, final int length) throws JdwpException{
+		VM.sysWriteln("getFrames");
+		if (start < 0 || null == thread || isSystemThread(thread)) {
+			VM.sysWriteln("getFrames: INVALID THREAD");
+			throw new InvalidThreadException(-1);
+		}
+			
+		VM_Thread vmThread = java.lang.JikesRVMSupport.getThread(thread);
+		
+		if (vmThread == null || vmThread == VM_Thread.getCurrentThread()
+				|| vmThread.isAlive())
+			throw new InvalidThreadException(-1);
+		
+		ArrayList<VMFrame> vmFrames  = new ArrayList<VMFrame>();
+        FrameRecord[] frames
+        		= VM_Scheduler.dumpStackToArray(vmThread.contextRegisters
+						.getInnermostFramePointer());
+		int  end = (0 > length)? frames.length : length;
+		//TODO Filter traps ,invisible
+		for(int idx = start; idx <= end; idx++ ) {
+			FrameRecord frame = frames[idx];
+			Class clazz 
+					= JikesRVMSupport.createClass(frame.getMethod()
+							.getDeclaringClass());
+			VMMethod vMethod 
+					= new VMMethod(clazz, (long) frame.getMethod().getId());
+			Location loc = new Location(vMethod, frame.getBci());
+			//TODO calling object (this)
+			vmFrames.add(new VMFrame(thread, idx, loc,frame.getInstance() ));
+		}
+		return vmFrames;
+	}
 
 	/**
-	 * Returns the frame for a given thread with the frame ID in
-	 * the buffer
-	 *
-	 * TODO I don't like this.
-	 *
-	 * @param  thread  the frame's thread
-	 * @param  bb buffer containing the frame's ID
+	 * Returns the frame for a given thread with the frame ID in the buffer
+	 * 
+	 * @param thread the frame's thread
+	 * @param bb buffer containing the frame's ID
 	 * @return the desired frame
 	 */
-	public static native VMFrame getFrame (Thread thread, long frameID)
-	  throws JdwpException;
+	public static VMFrame getFrame (final Thread thread, long frameID)
+	  throws JdwpException{
+		VM.sysWriteln("getFrame");
+		ArrayList<VMFrame> frames = getFrames(thread, 0, -1);
+		if (frames.size() < frameID )
+		{
+			VM.sysWriteln("getFrame..InvalidFrameException");
+			throw new InvalidFrameException(frameID);
+		}
+		return frames.get((int) frameID);
+	  }
 
 	/**
 	 * Returns the number of frames in the thread's stack
@@ -444,9 +557,13 @@ public final class VMVirtualMachine {
 	 * @param thread the thread for which to get a frame count
 	 * @return the number of frames in the thread's stack
 	 */
-	public static native int getFrameCount(Thread thread) throws JdwpException;
-
-
+	public static int getFrameCount(final Thread thread) 
+		throws JdwpException{
+		VM.sysWrite("getFrameCount.." );
+		int rvalue = getFrames(thread, 0, -1).size();
+		VM.sysWriteln(rvalue);
+		return rvalue;
+	}
 
 	/**
 	 * Returns a list of all classes which this class loader has been
@@ -456,7 +573,7 @@ public final class VMVirtualMachine {
 	 * @return a list of all visible classes 
 	 * TODO fix
 	 */
-	public static final ArrayList getLoadRequests(ClassLoader cl)
+	public static ArrayList getLoadRequests(final ClassLoader cl)
 			throws JdwpException {
 		VM.sysWriteln("    getLoadRequests");
 		Class<?>[] classes = java.lang.JikesRVMSupport.getInitiatedClasses(cl);
@@ -477,19 +594,21 @@ public final class VMVirtualMachine {
 	   * @param  options  invocation options
 	   * @return a result object containing the results of the invocation
 	   */
-	  public static native MethodResult executeMethod(Object obj, Thread thread,
+	  public static MethodResult executeMethod(Object obj, Thread thread,
 			Class clazz, VMMethod method, Value[] values, int options)
-			throws JdwpException;
+			throws JdwpException{
+		  throw new NotImplementedException("executeMethod");
+	  }
 
 	/**
 	 * "Returns the name of source file in which a reference type was declared"
 	 * 
 	 * @param clazz the class for which to return a source file
 	 * @return a string containing the source file name; "no path information
-	 *         for the file is included" TODO validate name format TODO suspect
-	 *         probles during boot bec of toString
+	 *         for the file is included" 
+	 *  TODO validate name format 
 	 */
-	public static final String getSourceFile(Class clazz) throws JdwpException {
+	public static String getSourceFile(Class clazz) throws JdwpException {
 		VM.sysWriteln("    getSourceFile for ", clazz.getName());
 		VM_Type vmType = java.lang.JikesRVMSupport.getTypeForClass(clazz);
 		VM_Class vmClass = (VM_Class) vmType;
@@ -508,7 +627,8 @@ public final class VMVirtualMachine {
 	 * @throws JdwpException 
 	 * 
 	 */
-	public static final void registerEvent(final EventRequest request) throws JdwpException {
+	public static void registerEvent(final EventRequest request)
+			throws JdwpException {
 		VM.sysWriteln("");
 		VM.sysWriteln("register Event From Debugger");
 		VM.sysWriteln("Packet ID: ", request.getId());
@@ -523,13 +643,14 @@ public final class VMVirtualMachine {
 		switch (request.getEventKind()) {
 		case JdwpConstants.EventKind.VM_INIT: {
 			VM.sysWriteln("VM_INIT requested.");
-			class StartupCallback implements VM_Callbacks.StartupMonitor {
+			final class StartupCallback implements VM_Callbacks.StartupMonitor {
 				public void notifyStartup() {
 					VM.sysWriteln("VM_INIT fired");
 					// check wheter initialized or not.
+					vmInitialized = true;
 					if (Jdwp.isDebugging) {
-						vmInitialized = true;
-						Jdwp.notify(new VmInitEvent(Thread.currentThread()));
+						deferredEvents.add(new VmInitEvent(Thread.currentThread()));
+						//Jdwp.notify(new VmInitEvent(Thread.currentThread()));
 						// Now notify about deffered Events.
 						notifyAboutDefferedEvents();
 					}
@@ -540,7 +661,7 @@ public final class VMVirtualMachine {
 		}
 		case JdwpConstants.EventKind.VM_DEATH: {
 			VM.sysWriteln("VM_VM_DEATH requested.");
-			class ExitCallback implements VM_Callbacks.ExitMonitor {
+			final class ExitCallback implements VM_Callbacks.ExitMonitor {
 				public void notifyExit(int value) {
 					VM.sysWriteln("VM_DEATH fired");
 					if (Jdwp.isDebugging && vmInitialized) {
@@ -556,138 +677,208 @@ public final class VMVirtualMachine {
 		 * it's OK to notify about any loaded classes.
 		 * matching filters are applied by the packet processor. 
 		 */
-		case JdwpConstants.EventKind.CLASS_LOAD:{
-			class LoadedCallback implements VM_Callbacks.ClassLoadedMonitor {
-				public void notifyClassLoaded(VM_Class vmClass) {
-					Class<?> clazz = JikesRVMSupport.createClass(vmClass);
-					VM.sysWriteln("CLASS_LOAD fired...class ",clazz.getName());
-					
-					if (Jdwp.isDebugging) {
-						VM.sysWriteln("    ",clazz.getName());
-						Event event 
-							= new ClassPrepareEvent(Thread.currentThread(),
-									clazz, JdwpConstants.ClassStatus.VERIFIED);
-						if (vmInitialized)
-							Jdwp.notify(event);
-						else
-							deferredEvents.add(event);
-					}
-				}
-			}
-			//TODO Add filters to the request
-			// Lorg/jikesrvm/
-			
-			VM.sysWriteln("CLASS_LOAD requested.");
-			//Notify about already loaded classes.
-			try {
-				Iterator iter = getAllLoadedClasses().iterator();
-				while (iter.hasNext()) {
-					Class<?> clazz = (Class<?>) iter.next();
-					if (Jdwp.isDebugging ) {
-						Event event 
-							= new ClassPrepareEvent(Thread.currentThread(),
-										clazz, getClassStatus(clazz));
-						VM.sysWriteln("    ", clazz.getName());
-						if ( vmInitialized )
-							Jdwp.notify(event);
-						else
-							deferredEvents.add(event);
-					}
-				}
-			} catch (JdwpException e) {
-				e.printStackTrace();
-			}
-			VM_Callbacks.addClassLoadedMonitor(new LoadedCallback());
-			break;
-		}
+		case JdwpConstants.EventKind.CLASS_LOAD:
+//		{
+//			final class ClassLoadedCakllback implements
+//											VM_Callbacks.ClassLoadedMonitor {
+//				public void notifyClassLoaded(VM_Class vmClass) {
+//					Class<?> clazz = JikesRVMSupport.createClass(vmClass);
+//					VM.sysWriteln("CLASS_LOAD fired...class ",clazz.getName());
+//					
+//					if (Jdwp.isDebugging) {
+//						VM.sysWriteln("    ",clazz.getName());
+//						Event event 
+//							= new ClassPrepareEvent(Thread.currentThread(),
+//									clazz, JdwpConstants.ClassStatus.VERIFIED);
+//						if (vmInitialized)
+//							Jdwp.notify(event);
+//						else
+//							deferredEvents.add(event);
+//					}
+//				}
+//			}
+//			//TODO Add filters to the request
+//			// Lorg/jikesrvm/
+//			
+//			VM.sysWriteln("CLASS_LOAD requested.");
+//			//Notify about already loaded classes.
+//			try {
+//				Iterator iter = getAllLoadedClasses().iterator();
+//				while (iter.hasNext()) {
+//					Class<?> clazz = (Class<?>) iter.next();
+//					if (Jdwp.isDebugging ) {
+//						Event event 
+//							= new ClassPrepareEvent(Thread.currentThread(),
+//										clazz, getClassStatus(clazz));
+//						VM.sysWriteln("    ", clazz.getName());
+//						if ( vmInitialized )
+//							Jdwp.notify(event);
+//						else
+//							deferredEvents.add(event);
+//					}
+//				}
+//			} catch (JdwpException e) {
+//				e.printStackTrace();
+//			}
+//			VM_Callbacks.addClassLoadedMonitor(new ClassLoadedCakllback());
+//			break;
+//		}
 		
 		/*
 		 * it's OK to notify about any prepared classes.
 		 * matching filters are applied by the packet processor. 
 		 */
 		case JdwpConstants.EventKind.CLASS_PREPARE: {
-			final class ResolvedCallback implements VM_Callbacks.ClassResolvedMonitor {
+			/**
+			 * class loading usually implies conseecuti
+			 * @author emorshdy
+			 *
+			 */
+			final class ClassResolvedCallback 
+				implements VM_Callbacks.ClassResolvedMonitor {
 				public void notifyClassResolved(VM_Class vmClass) {
 					Class<?> clazz = JikesRVMSupport.createClass(vmClass);
 					VM.sysWriteln("CLASS_PREPARE fired...class ",
 								  clazz.getName());
-//					deffer notifications from current thread or other till
+					// deffer notifications from current thread or other till
 					// current notification finishes.
 					if ( startedResolutionNotification ) {
 						VM.sysWriteln("notification deferred");
 						deferredResolutionNotifications.add(vmClass);
 						return;
 					}
+					if (clazz.getName().contains("org.jikesrvm")
+							|| clazz.getName().contains("gnu.classpath")
+							|| clazz.getName().contains("org.vmmagic")
+							|| clazz.getName().contains("org.mmtk")
+							// || clazz.getName().contains("gnu.classpath.jdwp")
+							|| clazz.getName().contains("JikesRVMSupport")
+							|| clazz.getName().contains("VM")
+					// || clazz.getName().contains("gnu.classpath.debug")
+					) {
+						VM.sysWriteln("CLASS_PREPARE...skip");
+						return;
+					}
 					startedResolutionNotification = true;
 					if (Jdwp.isDebugging
-						&& !ResolvedCallback.class.getName().equals(clazz.getName())
-						&& !ClassPrepareEvent.class.getName().equals(clazz.getName())) {
-						Event event 
-							= new ClassPrepareEvent(Thread.currentThread(),
-										clazz,
-										JdwpConstants.ClassStatus.PREPARED);
-						if (vmInitialized)
-							Jdwp.notify( event );
-						else
-							deferredEvents.add(event);
+						&& !ClassResolvedCallback.class.getName()
+						.equals(clazz.getName())
+						&& !ClassPrepareEvent.class.getName()
+						.equals(clazz.getName())) {
+						// deliberate
+						Event event;
+						try {
+							event 
+								= new ClassPrepareEvent(Thread.currentThread(),
+							    clazz, getClassStatus(clazz));
+						} catch (JdwpException e) {
+							
+							VM.sysWriteln("Error occured notifying about " +
+									"class preparation");
+							return;
+						}
+						//synchronized (deferredEvents) {
+							if (vmInitialized)
+								deferredResolutionNotifications.add(vmClass);
+							else
+								deferredEvents.add(event);
+						//}
+						
 					}else {
 						VM.sysWriteln("CLASS_PREPARE  skip");
 					}
 					
-					// Now, notify deffered notifications.
+					// Now, notify about deffered events
+					Event[] allEvents
+							= new Event[deferredResolutionNotifications.size()];
+					int idx = 0;
 					Iterator<VM_Class> iter =
 							deferredResolutionNotifications.iterator();
 					while (iter.hasNext()) {
 						VM_Class vmClass1 = (VM_Class) iter.next();
 						clazz = JikesRVMSupport.createClass(vmClass1);
-						if (Jdwp.isDebugging
-								&& !ResolvedCallback.class.getName().equals(
-										clazz.getName())
-								&& !ClassPrepareEvent.class.getName().equals(
-										clazz.getName())) {
-							Event event
-								= new ClassPrepareEvent(Thread
+						allEvents[idx++] 
+						          = new ClassPrepareEvent(Thread
 											.currentThread(), clazz,
 											JdwpConstants.ClassStatus.PREPARED);
-							if (vmInitialized)
-								Jdwp.notify(event);
-							else
-								deferredEvents.add(event);
-
-						}
 					}
+					
+					if (vmInitialized && (0 < allEvents.length))
+						Jdwp.notify(allEvents);
+					else {
+						//synchronized (deferredEvents) {
+							for (Event event : allEvents )
+								deferredEvents.add(event);
+						//}
+					}
+
 					deferredResolutionNotifications.clear();
 					startedResolutionNotification = false;
 				}
 			}
 			//TODO add filters to the request
+//		request.addFilter( new ClassExcludeFilter("org.jikesrvm.*"));
+//		request.addFilter( new ClassExcludeFilter("org.vmmagic.*"));
+//		request.addFilter( new ClassExcludeFilter("gnu.classpath.jdwp.*"));
+//		request.addFilter( new ClassExcludeFilter("gnu.classpath.debug.*"));
+//		request.addFilter( new ClassExcludeFilter("org.mmtk.*"));
+//		request.addFilter( new ClassExcludeFilter("java.lang.JikesRVMSupport"));
+//		request.addFilter( new ClassExcludeFilter("java.lang.VM*"));			
+			
+			new ClassPrepareEvent(null,null,0);
 			
 			if (classResolutionEventRegistered)
 				break;
-			ResolvedCallback resolvedCallBack = new ResolvedCallback();
+			ClassResolvedCallback resolvedCallBack 
+				= new ClassResolvedCallback();
 			VM_Callbacks.addClassResolvedMonitor(resolvedCallBack);
 			
 			classResolutionEventRegistered = true;
-			
+			//Always?
 //			Notify about already loaded classes.
-			VM.sysWriteln("Iterating over already loaded classes ..count ",
-						  getAllLoadedClassesCount());
-			Iterator iter = getAllLoadedClasses().iterator();
-			while ( iter.hasNext() ) {
-				Class<?> clazz = (Class<?>) iter.next();
-				VM_Class vmClass 
-					= (VM_Class) JikesRVMSupport.getTypeForClass(clazz);
-				resolvedCallBack.notifyClassResolved(vmClass);				
+			Collection<Class<?>> loadedClasses = getAllLoadedClasses();
+			VM.sysWrite("Iterating over already loaded classes ..count ",
+						  loadedClasses.size());
+			int idx = 0;
+			Event[] allEvents = new Event[loadedClasses.size()];
+			Iterator<Class<?>> iter = loadedClasses.iterator();
+			while (iter.hasNext()) {
+				Class<?> clazz = iter.next();
+				allEvents[idx++] 
+				          = new ClassPrepareEvent(Thread
+				        		  .currentThread(), clazz,
+				        		  JdwpConstants.ClassStatus.PREPARED);
 			}
+			if (idx > 0)
+				//synchronized (deferredEvents) {
+					if (vmInitialized) {
+						Jdwp.notify(allEvents);
+					}
+					else {
+						VM.sysWriteln("...deffered till intialization");
+						for (Event event : allEvents)
+							deferredEvents.add(event);
+					}
+				//}
 			break;
 		}
 
 		case JdwpConstants.EventKind.FRAME_POP:
 			VM.sysWriteln("FRAME_POP requested.");
+			
 			break;
 
 		case JdwpConstants.EventKind.EXCEPTION:
 			VM.sysWriteln("EXCEPTION requested.");
+			final class ExceptionThrownCallback
+					implements VM_Callbacks.ExceptionThrowMonitor{
+
+				public void notifyExceptionthrown() {
+					Class<?> clazz = JikesRVMSupport.createClass(null);
+					Jdwp.notify(new ExceptionEvent((Throwable)(null),(Thread)null, (Location)null, (Location)null,(Class)null,(Object)null));
+				}
+				
+			}
 			break;
 
 		case JdwpConstants.EventKind.USER_DEFINED:
@@ -698,23 +889,27 @@ public final class VMVirtualMachine {
 		 */
 		case JdwpConstants.EventKind.THREAD_START:
 			VM.sysWriteln("THREAD_START requested.");
-			class ThreadStartMonitor implements VM_Callbacks.ThreadStartMonitor {
+			final class ThreadStartCallback 
+				implements VM_Callbacks.ThreadStartMonitor {
 				public void notifyThreadStart(VM_Thread vmThread) {
 					Thread thread = vmThread.getJavaLangThread();
 					VM.sysWriteln("THREAD_START fired: ",thread.getName());
 					if (Jdwp.isDebugging
 					    && isNonSystemThread(thread)) {
 						Event event = new ThreadStartEvent(thread);
-						if (vmInitialized)
-							Jdwp.notify(event);
-						else
-							deferredEvents.add(event);
+						//synchronized (deferredEvents) {
+							if (vmInitialized)
+								Jdwp.notify(event);
+							else
+								deferredEvents.add(event);
+						//}
 					} else {
 						VM.sysWriteln("THREAD_START skipping");
 					}
 				}
 			}
-			VM_Callbacks.addThreadStartedMonitor(new ThreadStartMonitor());
+			//AddFilterering
+			VM_Callbacks.addThreadStartedMonitor(new ThreadStartCallback());
 			break;
 			
 		/*
@@ -722,43 +917,51 @@ public final class VMVirtualMachine {
 		 */
 		case JdwpConstants.EventKind.THREAD_END:
 			VM.sysWriteln("THREAD_END requested.");
-			class ThreadEndMonitor implements VM_Callbacks.ThreadEndMonitor {
+			final class ThreadEndCallback 
+				implements VM_Callbacks.ThreadEndMonitor {
 				public void notifyThreadEnd(VM_Thread vmThread) {
 					Thread thread = vmThread.getJavaLangThread();
 					VM.sysWriteln("THREAD_END fired : ", thread.getName());
 					if (Jdwp.isDebugging 
 					    && isNonSystemThread(thread)) {
 						Event event = new ThreadStartEvent(thread);
-						if(vmInitialized)
-							Jdwp.notify(event);
-						else
-							deferredEvents.add(event);
+						//synchronized (deferredEvents) {
+							if(vmInitialized)
+								Jdwp.notify(event);
+							else
+								deferredEvents.add(event);
+						//}
 					} else {
 						VM.sysWriteln("THREAD_START skipping");
 					}
 				}
 			}
-			VM_Callbacks.addThreadendMonitor(new ThreadEndMonitor());
+			VM_Callbacks.addThreadendMonitor(new ThreadEndCallback());
 			break;
 		case JdwpConstants.EventKind.CLASS_UNLOAD:
 			VM.sysWriteln("CLASS_UNLOAD requested.");
 			break;
 		case JdwpConstants.EventKind.FIELD_ACCESS:
 			VM.sysWriteln("FIELD_ACCESS requested.");
+			//throw new NotImplementedException("FIELD_ACCESS");
 			break;
 		case JdwpConstants.EventKind.FIELD_MODIFICATION:
 			VM.sysWriteln("FIELD_MODIFICATION requested.");
+			//throw new NotImplementedException("FIELD_MODIFICATION");
 			break;
 		case JdwpConstants.EventKind.METHOD_ENTRY:
 			VM.sysWriteln("METHOD_ENTRY requested.");
+			//throw new NotImplementedException("METHOD_ENTRY");
 			break;
 		case JdwpConstants.EventKind.METHOD_EXIT:
 			VM.sysWriteln("METHOD_EXIT requested.");
+			//throw new NotImplementedException("METHOD_EXIT");
 			break;
 		default:
 			VM.sysWriteln("Unhandled request to register JDWP event.");
-			throw new RuntimeException(
-					"Unhandled request to register JDWP event.");
+			break;
+			//throw new RuntimeException(
+					//"Unhandled request to register JDWP event.");
 		}
 		VM.sysWriteln();
 	}
@@ -766,18 +969,73 @@ public final class VMVirtualMachine {
 	/**
 	 * Unregisters the given request
 	 * 
-	 * @param request
-	 *            the request to unregister
+	 * @param request the request to unregister
 	 */
-	public static native void unregisterEvent(EventRequest request)
-			throws JdwpException;
+	public static void unregisterEvent(EventRequest request)
+			throws JdwpException {
+		VM.sysWriteln("");
+		VM.sysWriteln("Unregister Event From Debugger");
+		VM.sysWriteln("Packet ID: ", request.getId());
+		VM.sysWriteln("Event kind: ", request.getEventKind());
+		VM.sysWriteln("Suspend Policy: ", request.getSuspendPolicy());
+		switch (request.getEventKind()) {
+		case JdwpConstants.EventKind.VM_INIT:
+			VM.sysWriteln("unregisterEvent VM_INIT requested.");
+			break;
+		case JdwpConstants.EventKind.VM_DEATH:
+			VM.sysWriteln("unregisterEvent VM_VM_DEATH requested.");
+			break;
+		case JdwpConstants.EventKind.CLASS_LOAD:
+			VM.sysWriteln("unregisterEvent CLASS_LOAD requested.");
+			break;
+		case JdwpConstants.EventKind.CLASS_PREPARE:
+			VM.sysWriteln("unregisterEvent CLASS_PREPARE requested.");
+			break;
+		case JdwpConstants.EventKind.FRAME_POP:
+			VM.sysWriteln("unregisterEvent FRAME_POP requested.");
+			break;
+		case JdwpConstants.EventKind.EXCEPTION:
+			VM.sysWriteln("unregisterEvent EXCEPTION requested.");
+			break;
+		case JdwpConstants.EventKind.USER_DEFINED:
+			VM.sysWriteln("unregisterEvent USER_DEFINED requested.");
+			break;
+		case JdwpConstants.EventKind.THREAD_START:
+			break;
+		case JdwpConstants.EventKind.THREAD_END:
+			break;
+		case JdwpConstants.EventKind.CLASS_UNLOAD:
+			VM.sysWriteln("unregisterEvent CLASS_UNLOAD requested.");
+			break;
+		case JdwpConstants.EventKind.FIELD_ACCESS:
+			VM.sysWriteln("unregisterEvent FIELD_ACCESS requested.");
+			break;
+		case JdwpConstants.EventKind.FIELD_MODIFICATION:
+			VM.sysWriteln("unregisterEvent FIELD_MODIFICATION requested.");
+			break;
+		case JdwpConstants.EventKind.METHOD_ENTRY:
+			VM.sysWriteln("unregisterEvent METHOD_ENTRY requested.");
+			break;
+		case JdwpConstants.EventKind.METHOD_EXIT:
+			VM.sysWriteln("unregisterEvent METHOD_EXIT requested.");
+			break;
+		default:
+			VM.sysWriteln("Unhandled request to register JDWP event.");
+			throw new RuntimeException(
+					"Unhandled request to register JDWP event.");
+		}
+		VM.sysWriteln();
+	};
 
 	/**
 	 * Clear all events of the given kind
 	 * 
-	 * @param kind  the type of events to clear
+	 * @param kind the type of events to clear
 	 */
-	public static native void clearEvents(byte kind) throws JdwpException;
+	public static void clearEvents(byte kind) throws JdwpException{
+		throw new RuntimeException("clearEvents");
+	};
+	
 	 /**
 	   * Redefines the given types. VM must support canRedefineClasses
 	   * capability (may also require canAddMethod and/or
@@ -786,8 +1044,10 @@ public final class VMVirtualMachine {
 	   * @param types the classes to redefine
 	   * @param bytecodes the new bytecode definitions for the classes
 	   */
-	  public static native void redefineClasses(Class[] types, byte[][] bytecodes)
-	    throws JdwpException;
+	  public static void redefineClasses(Class[] types, byte[][] bytecodes)
+			throws JdwpException {
+		  throw new RuntimeException("redefineClasses");
+	  };
 
 	  /**
 	   * Sets the default stratum. VM must support the
@@ -796,8 +1056,10 @@ public final class VMVirtualMachine {
 	   * @param stratum the new default stratum or empty string to
 	   *        use the reference default
 	   */
-	  public static native void setDefaultStratum(String stratum)
-	    throws JdwpException;
+	  public static void setDefaultStratum(String stratum)
+	    throws JdwpException{
+			  throw new RuntimeException("setDefaultStratum");
+		  };
 
 	  /**
 	   * Returns the source debug extension. VM must support the
@@ -806,8 +1068,10 @@ public final class VMVirtualMachine {
 	   * @param klass the class for which to return information
 	   * @returns the source debug extension
 	   */
-	  public static native String getSourceDebugExtension(Class klass)
-	    throws JdwpException;
+	  public static String getSourceDebugExtension(Class klass)
+	    throws JdwpException{
+		  throw new RuntimeException("getSourceDebugExtension");
+	  }
 
 	  /**
 	   * Returns the bytecode for the given method. VM must support the
@@ -819,10 +1083,10 @@ public final class VMVirtualMachine {
 	  public static final byte[] getBytecodes(VMMethod method)
 	    throws JdwpException{
 		  VM_Method vmmethod  =  method.getVMMethod();
-		  if( vmmethod instanceof VM_NormalMethod ) {
+		  if(!( vmmethod instanceof VM_NormalMethod )) {
 			  return ((VM_NormalMethod) vmmethod).getRawBytecodes();
 		  }
-		  else return new byte[0];
+		  throw new NativeMethodException(method.getId());
 	  }
 
 	  /**
@@ -832,8 +1096,10 @@ public final class VMVirtualMachine {
 	   * @param obj the object
 	   * @returns monitor information (owner, entry count, waiters)
 	   */
-	  public static native MonitorInfo getMonitorInfo(Object obj)
-	    throws JdwpException;
+	  public static MonitorInfo getMonitorInfo(Object obj)
+	    throws JdwpException{
+		  throw new RuntimeException("getMonitorInfo");
+	  }
 
 	  /**
 	   * Returns a list of owned monitors. VM must support the
@@ -842,8 +1108,10 @@ public final class VMVirtualMachine {
 	   * @param thread a thread
 	   * @returns the list of monitors owned by this thread
 	   */
-	  public static native Object[] getOwnedMonitors(Thread thread)
-	    throws JdwpException;
+	  public static Object[] getOwnedMonitors(Thread thread)
+	    throws JdwpException{
+		  throw new RuntimeException("getOwnedMonitors");
+	  }
 
 	  /**
 	   * Returns the current contended monitor for a thread. VM must
@@ -852,8 +1120,10 @@ public final class VMVirtualMachine {
 	   * @param thread the thread
 	   * @returns the contended monitor
 	   */
-	  public static native Object getCurrentContendedMonitor(Thread thread)
-	    throws JdwpException;
+	  public static Object getCurrentContendedMonitor(Thread thread)
+	    throws JdwpException{
+		  throw new RuntimeException("getCurrentContendedMonitor");
+	  };
 
 	  /**
 	   * Pop all frames up to and including the given frame. VM must
@@ -863,39 +1133,63 @@ public final class VMVirtualMachine {
 	   *
 	   * @param thread the thread
 	   * @param frame the frame ID
+	 * @throws JdwpException 
 	   */
-	  public static native void popFrames(Thread thread, long frameId);
+	  public static void popFrames(Thread thread, long frameId) 
+	  	throws JdwpException {
+		  if(0 != getSuspendCount(thread))
+			  //throw new ThreadNotSuspendedException()
+		  throw new RuntimeException("popFrames");
+	  }
 	  
 	  /**
-	   * Checks wheter the given thread is a rvm infrastrucure thread 
-	   * not an application thread.
+	   * Checks wether the given thread is rvm infrastrucure one and not an 
+	   * application thread.
+	   * 
 	   * @param thread thread to be checked.
 	   * @return true if the thread is normal non-jdwp,
-	   * 		 non-debug, and non-system.
+	   * 		 non-debug, non-system, and non-null.
 	   */
-	  private static final boolean isNonSystemThread(Thread thread) {
+	  private static boolean isNonSystemThread(Thread thread) {
 		if ( null == thread ){
-			VM.sysWriteln("isNonSystemThread   null");
+			//VM.sysWriteln("isNonSystemThread   null");
 			return false;
 		}
-		VM.sysWrite("isNonSystemThread...for ", thread.getName());
+		//VM.sysWrite("isNonSystemThread...for ", thread.getName());
 		VM_Thread vmThread = java.lang.JikesRVMSupport.getThread(thread);
-		boolean rValue = !(thread.getThreadGroup() == Jdwp.getDefault()
-				.getJdwpThreadGroup()
-				|| vmThread.isBootThread() || vmThread.isDebuggerThread()
-				|| vmThread.isGCThread() || vmThread.isSystemThread());
-		VM.sysWriteln("...", rValue);
+		final boolean rValue 
+					= !(thread.getThreadGroup() == Jdwp.getDefault()
+							.getJdwpThreadGroup()
+						|| vmThread.isBootThread()	
+						|| vmThread.isDebuggerThread()
+						|| vmThread.isGCThread()
+						|| vmThread.isSystemThread()
+						|| vmThread.isIdleThread());
+		//VM.sysWriteln("...", rValue);
 		return rValue;
 	};
 	
+	private static boolean isSystemThread(Thread thread) {
+		return !isNonSystemThread(thread);
+	}
+	
 	/**
 	 * Notifies Event Manager about events occured before VM_INIT is fired.
+	 * TODO should be a hash where buckets ar formed of packable events
 	 */
-	private static final void notifyAboutDefferedEvents() {
-		final Iterator<Event> iter = deferredEvents.iterator();
-		while (iter.hasNext()) {
-			final Event element = (Event) iter.next();
-			Jdwp.notify(element);
-		}
+	private static void notifyAboutDefferedEvents() {
+		final Event[] allEvents;
+		//synchronized (deferredEvents) {
+			final int len = deferredEvents.size();
+			VM.sysWriteln("notifyAboutDefferedEvents...count = ", len);
+			allEvents = new Event[len];
+		
+			for (int i = 0 ; i < len ; i++){
+				allEvents[i] = deferredEvents.get(i);
+			}
+			deferredEvents.clear();
+		//}
+			// bulk notification
+			Jdwp.notify(allEvents);
 	}
 }

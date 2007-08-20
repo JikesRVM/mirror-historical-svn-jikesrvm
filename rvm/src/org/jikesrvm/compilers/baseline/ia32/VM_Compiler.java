@@ -125,7 +125,7 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
    */
   @Uninterruptible
   @Inline
-  private static int getFirstLocalOffset(VM_NormalMethod method) {
+  public static int getFirstLocalOffset(VM_NormalMethod method) {
     if (method.getDeclaringClass().hasBridgeFromNativeAnnotation()) {
       return STACKFRAME_BODY_OFFSET - (VM_JNICompiler.SAVED_GPRS_FOR_JNI << LG_WORDSIZE);
     } else {

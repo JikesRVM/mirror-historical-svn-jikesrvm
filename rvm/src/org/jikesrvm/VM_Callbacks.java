@@ -40,6 +40,7 @@ import org.jikesrvm.util.VM_Synchronizer;
  * <li> ClassResolved     - called after a VM_Class is resolved
  * <li> ClassInstantiated - called after a VM_Class is instantiated
  * <li> ClassInitialized  - called after a VM_Class is initialized
+ * <li> Exception thrown  - called when an Exception is thrown
  * <li> MethodOverride    - called when a method in a newly loaded class
  *                          overrides a method in an existing class
  * <li> MethodCompile     - called before a method is compiled
@@ -314,6 +315,63 @@ public final class VM_Callbacks {
     classInitializedEnabled = true;
   }
 
+  /**
+   * Interface for monitoring exceptions.
+   */
+  public interface ExceptionThrowMonitor {
+    /**
+     * Notify the monitor that an Exception has been thrown.
+     */
+    void notifyExceptionthrown();
+  }
+
+  /**
+   * Thrown Exception callback list.
+   */
+  private static CallbackList exceptionThrowCallbacks = null;
+  private static final Object exceptionThrowLock = new Object();
+  private static boolean exceptionThrowEnabled = true;
+
+  /**
+   * Register a callback for throwning Excptions.
+   * @param cb the object to notify when event happens
+   */
+  public static void addExceptionMethodThrowMonitor(ExceptionThrowMonitor cb) {
+    synchronized (exceptionThrowLock) {
+      if (TRACE_ADDMONITOR || TRACE_EXCEPTIONTHROW) {
+        VM.sysWrite("adding method override monitor: ");
+        VM.sysWrite(getClass(cb));
+        VM.sysWrite("\n");
+      }
+      exceptionThrowCallbacks = new CallbackList(cb, exceptionThrowCallbacks);
+    }
+  }
+
+  /**
+   * Notify the callback manager that a method has been overridden.
+   */
+  public static void notifyExceptionThrow() {
+    // NOTE: will need synchronization if allowing unregistering
+    if (!exceptionThrowEnabled) return;
+    exceptionThrowEnabled = false;
+    if (TRACE_EXCEPTIONTHROW) {
+      //VM.sysWrite(getThread(), false);
+      //VM.sysWrite(": ");
+      VM.sysWrite("invoking exception throw monitors: ");
+      }
+      VM.sysWrite("\n");
+      //printStack("From: ");
+    for (CallbackList l = exceptionThrowCallbacks; l != null; l = l.next) {
+      if (TRACE_EXCEPTIONTHROW) {
+        VM.sysWrite("    ");
+        VM.sysWrite(getClass(l.callback));
+        VM.sysWrite("\n");
+      }
+      ((ExceptionThrowMonitor) l.callback).notifyExceptionthrown();
+    }
+    exceptionThrowEnabled = true;
+  }
+  
   /**
    * Interface for monitoring method override.
    */
@@ -1233,11 +1291,12 @@ public final class VM_Callbacks {
     public final CallbackList next;
   }
 
-  private static final boolean TRACE_ADDMONITOR = true;
+  private static final boolean TRACE_ADDMONITOR = false;
   private static final boolean TRACE_CLASSLOADED = false;
-  private static final boolean TRACE_CLASSRESOLVED = true;
-  private static final boolean TRACE_CLASSINITIALIZED = true;
-  private static final boolean TRACE_CLASSINSTANTIATED = true;
+  private static final boolean TRACE_CLASSRESOLVED = false;
+  private static final boolean TRACE_CLASSINITIALIZED = false;
+  private static final boolean TRACE_CLASSINSTANTIATED = false;
+  private static final boolean TRACE_EXCEPTIONTHROW = true;
   private static final boolean TRACE_METHODOVERRIDE = false;
   private static final boolean TRACE_METHODCOMPILE = false;
   private static final boolean TRACE_FORNAME = false;
