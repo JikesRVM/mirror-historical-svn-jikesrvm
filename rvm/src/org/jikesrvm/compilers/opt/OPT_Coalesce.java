@@ -89,7 +89,7 @@ class OPT_Coalesce {
    * <p> Note: this implementation is not efficient.  The liveness data
    * structures must be re-designed to support this efficiently.
    */
-  private static boolean isLiveAtDef(OPT_Register r1, OPT_Register r2, OPT_LiveAnalysis live) {
+  public static boolean isLiveAtDef(OPT_Register r1, OPT_Register r2, OPT_LiveAnalysis live) {
 
     for (Iterator<OPT_LiveIntervalElement> e = live.iterateLiveIntervals(r1); e.hasNext();) {
       OPT_LiveIntervalElement elem = e.next();
@@ -114,7 +114,7 @@ class OPT_Coalesce {
   /**
    * Is there an instruction r1 = split r2 or r2 = split r1??
    */
-  private static boolean split(OPT_Register r1, OPT_Register r2) {
+  public static boolean split(OPT_Register r1, OPT_Register r2) {
     for (OPT_RegisterOperandEnumeration e = OPT_DefUse.defs(r1); e.hasMoreElements();) {
       OPT_RegisterOperand def = e.nextElement();
       OPT_Instruction s = def.instruction;

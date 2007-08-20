@@ -219,7 +219,7 @@ public abstract class OPT_GenericRegisterRestrictions {
    * Record that it is illegal to assign a symbolic register symb to any
    * volatile physical registers
    */
-  final void forbidAllVolatiles(OPT_Register symb) {
+  public final void forbidAllVolatiles(OPT_Register symb) {
     RestrictedRegisterSet r = hash.get(symb);
     if (r == null) {
       r = new RestrictedRegisterSet(phys);
@@ -258,7 +258,7 @@ public abstract class OPT_GenericRegisterRestrictions {
    * Return the set of restricted physical register for a given symbolic
    * register. Return null if no restrictions.
    */
-  final RestrictedRegisterSet getRestrictions(OPT_Register symb) {
+  public final RestrictedRegisterSet getRestrictions(OPT_Register symb) {
     return hash.get(symb);
   }
 
@@ -301,11 +301,11 @@ public abstract class OPT_GenericRegisterRestrictions {
    * An instance of this class represents restrictions on physical register
    * assignment.
    */
-  private static final class RestrictedRegisterSet {
+  public static final class RestrictedRegisterSet {
     /**
      * The set of registers to which assignment is forbidden.
      */
-    private OPT_BitSet bitset;
+    public OPT_BitSet bitset;
 
     /**
      * additionally, are all volatile registers forbidden?

@@ -13,6 +13,7 @@
 package org.jikesrvm.compilers.opt;
 
 import org.jikesrvm.compilers.opt.ir.OPT_IR;
+import org.jikesrvm.VM_Options;
 
 /**
  * Driver routine for register allocation
@@ -22,9 +23,15 @@ public final class OPT_RegisterAllocator extends OPT_OptimizationPlanCompositeEl
   public OPT_RegisterAllocator() {
     super("Register Allocation", new OPT_OptimizationPlanElement[]{
         // 1. Prepare for the allocation
-        new OPT_OptimizationPlanAtomicElement(new RegisterAllocPreparation()),
+        new OPT_OptimizationPlanAtomicElement(new RegisterAllocPreparation())
+        
+        // ALEX 
+        ,((VM_Options.ALLOCATOR_TYPE)?new OPT_LinearScan():new OPT_GraphColor())
+        //,((ir.method.getName().)?new OPT_LinearScan():new OPT_GraphColor())
+        
         // 2. Perform the allocation, using the live information
-        new OPT_LinearScan()});
+        //,
+        });
   }
 
   public boolean shouldPerform(OPT_Options options) { return true; }
