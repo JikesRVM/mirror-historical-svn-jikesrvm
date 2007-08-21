@@ -363,6 +363,9 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 			}
 			//aBuild();
 			build();
+			//corBuild();
+			//igraph.DumpDot(ir.method.getName().toString());
+			
 			if(debug) {
 				igraph.DumpDot(ir.method.getName().toString());
 				dumpCFG(ir);
@@ -435,6 +438,23 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 				if(spilledNodes.size() > 0) {
 					main();
 				}
+			}
+		}
+		
+		public void corBuild() {
+			OPT_PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
+			
+			for (OPT_Register symbReg = ir.regpool.getFirstSymbolicRegister(); symbReg != null; symbReg = symbReg.getNext()) {
+				for (Enumeration<OPT_Register> e = phys.enumerateAll(); e.hasMoreElements();) {
+					OPT_Register physReg = e.nextElement();
+					if(physReg != null) {
+						if(restrictions.isForbidden(symbReg, physReg)) {
+							if(igraph.addEdge(getRegId(symbReg), getRegId(physReg))) {
+								System.out.println("*");
+							}
+						}
+					}
+				}				
 			}
 		}
 
@@ -1167,11 +1187,11 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 
 				int type = OPT_PhysicalRegisterSet.getPhysicalRegisterType(symbReg);
 
-				/*				if(!ir.stackManager.getRestrictions().allVolatilesForbidden(symbReg)) {
+				if(!ir.stackManager.getRestrictions().allVolatilesForbidden(symbReg)) {
 					for (Enumeration<OPT_Register> e = phys.enumerateVolatiles(type); e.hasMoreElements();) {
 						okColors.add(getRegId(e.nextElement()));
 					}
-				}*/
+				}
 
 				for (Enumeration<OPT_Register> e = phys.enumerateNonvolatilesBackwards(type); e.hasMoreElements();) {
 					okColors.add(getRegId(e.nextElement()));
@@ -1207,7 +1227,7 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 					symbReg.mapsToRegister = physReg;
 				}
 
-				/*				if(okColors.isEmpty()) {
+/*				if(okColors.isEmpty()) {
 					spilledNodes.add(n);
 					spillRegister(symbReg);
 					spilledSomething = true;
@@ -1285,7 +1305,6 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 				for (Enumeration<OPT_Register> e = phys.enumerateVolatiles(type); e.hasMoreElements();) {
 					OPT_Register p = e.nextElement();
 					if(regSet.contains(getRegId(p))) {
-
 						if (allocateNewSymbolicToPhysical(symb, p)) {
 							return p;
 						}
@@ -1477,9 +1496,10 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 			 * @param u
 			 * @param v
 			 */
-			public void addEdge(Integer u, Integer v) {
-
-				if(u == v) return;
+			public boolean addEdge(Integer u, Integer v) {
+				boolean ret = false;
+				
+				if(u == v) return ret;
 
 				addNode(u);
 				addNode(v);
@@ -1488,12 +1508,20 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 					// element was really added
 					nodeDegree.put(u, nodeDegree.get(u) + 1);
 					adjSet.add(new Edge(u,v));
+					ret = true;
+				} else {
+					ret = false;
 				}
 
 				if(adjList.get(v).add(u)) {
 					// element was really added
 					nodeDegree.put(v, nodeDegree.get(v) + 1);
+					ret = true;
+				} else {
+					ret = false;
 				}
+				
+				return ret;
 			}
 
 			/**
