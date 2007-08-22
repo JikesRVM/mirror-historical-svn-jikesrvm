@@ -306,6 +306,7 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 		 */
 		public HashMap<Integer, Integer> color = new HashMap<Integer, Integer>(); 
 
+		public HashSet<Integer> mustNotSpillList = new HashSet<Integer>();
 		/**
 		 * Interference graph
 		 */ 
@@ -337,17 +338,23 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 
 			initPrecoloredSet();
 
-			for (OPT_Register reg = ir.regpool.getFirstSymbolicRegister(); reg != null; reg = reg.getNext()) {
-				initial.add(mapRegToId(reg));
+			for (OPT_Register symbReg = ir.regpool.getFirstSymbolicRegister(); symbReg != null; symbReg = symbReg.getNext()) {
+				if(restrictions.mustNotSpill(symbReg)) {
+					// handle mustNotSpill registers
+					mustNotSpillList.add(mapRegToId(symbReg));
+				} else {
+					initial.add(mapRegToId(symbReg));
+				}
 			}
 
 			if(false) System.out.println("Compiling method: " + ir.method.getName().toString());
 
 
-/*			if(ir.method.getName().toString().contentEquals(new StringBuffer("hashCode"))) {
-				spillAllRegs = false;
+			/*			if(ir.method.getName().toString().contentEquals(new StringBuffer("calc"))) {
+				dumpCFG(ir);
+				//spillAllRegs = false;
 			} else {
-				spillAllRegs = true;
+				//spillAllRegs = true;
 			}*/
 
 			if(spillAllRegs) {
@@ -371,7 +378,7 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 			for (Enumeration<OPT_Register> physReg = physRegSet.enumerateAll(); physReg.hasMoreElements();) {
 				physReg.nextElement().clearAllocationFlags();
 			}
-			
+
 			for (Enumeration<OPT_Register> physReg = physRegSet.enumerateAll(); physReg.hasMoreElements();) {
 				physReg.nextElement().touchRegister();
 			}
@@ -384,6 +391,14 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 			if(debug) {
 				igraph.DumpDot(ir.method.getName().toString());
 				dumpCFG(ir);
+			}
+			
+			if(!mustNotSpillList.isEmpty()) {
+				for(Integer n : mustNotSpillList) {
+					selectStack.push(n);
+				}
+				
+				assignColors();
 			}
 
 			// number of symbolic registers
@@ -459,20 +474,20 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 			}
 
 			assignColors();
-			
+
 			return;
 
-/*			if(!debugSimple) {
+			/*			if(!debugSimple) {
 
 				if(spilledNodes.size() > 0) {
 
-					
+
 					coloredNodes.clear();
 					coalescedNodes.clear();
 
 					// STUB
 					initial.clear();
-					
+
 					initPrecoloredSet();
 
 					initial.clear();
@@ -857,6 +872,11 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 			}
 		}
 
+		/**
+		 * degree(reg) == K
+		 * @param n
+		 * @return
+		 */
 		public boolean heurE(Integer n) {
 			OPT_Register symbReg = mapIdToReg(n);
 
@@ -1157,8 +1177,13 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 			}
 		}
 
+		/**
+		 * Choose symbolic register for spilling
+		 *
+		 */
 		public void selectSpill() {
 
+			// modify to use heuristic
 			Integer m = spillWorkList.iterator().next();
 
 			spillWorkList.remove(m);
@@ -1252,6 +1277,10 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 				OPT_Register symbReg = mapIdToReg(n);
 				OPT_Register physReg;
 
+				if (VM.VerifyAssertions) {
+					VM._assert(symbReg.isSymbolic());
+				}
+
 				// okColors := {0,1,2,..,K-1}
 
 				okColors.clear();
@@ -1299,6 +1328,13 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 				}*/
 
 				if(okColors.isEmpty()) {
+
+					if(restrictions.mustNotSpill(symbReg)) {
+						System.out.println("mustNotSpill: " + symbReg + " method: " + ir.method.getName().toString());
+					}
+
+					VM._assert(!restrictions.mustNotSpill(symbReg));
+
 					spilledNodes.add(n);
 					spillRegister(symbReg);
 					spilledSomething = true;
@@ -1353,17 +1389,16 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 		 * Try to find a free physical register to allocate to a symbolic
 		 * register.
 		 */
-		OPT_Register findAvailableRegister(OPT_Register symb, HashSet<Integer> regSet) {
+		OPT_Register findAvailableRegister(OPT_Register symbReg, HashSet<Integer> regSet) {
 
-			OPT_PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
-			int type = OPT_PhysicalRegisterSet.getPhysicalRegisterType(symb);
+			int type = OPT_PhysicalRegisterSet.getPhysicalRegisterType(symbReg);
 
 			// next attempt to allocate to a volatile
-			if (!restrictions.allVolatilesForbidden(symb)) {
-				for (Enumeration<OPT_Register> e = phys.enumerateVolatiles(type); e.hasMoreElements();) {
+			if (!restrictions.allVolatilesForbidden(symbReg)) {
+				for (Enumeration<OPT_Register> e = physRegSet.enumerateVolatiles(type); e.hasMoreElements();) {
 					OPT_Register p = e.nextElement();
 					if(regSet.contains(getRegId(p))) {
-						if (allocateNewSymbolicToPhysical(symb, p)) {
+						if (allocateNewSymbolicToPhysical(symbReg, p)) {
 							return p;
 						}
 					} else {
@@ -1375,10 +1410,10 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 
 			// next attempt to allocate to a Nonvolatile.  we allocate the
 			// novolatiles backwards.
-			for (Enumeration<OPT_Register> e = phys.enumerateNonvolatilesBackwards(type); e.hasMoreElements();) {
+			for (Enumeration<OPT_Register> e = physRegSet.enumerateNonvolatilesBackwards(type); e.hasMoreElements();) {
 				OPT_Register p = e.nextElement();
 				if(regSet.contains(getRegId(p))) {
-					if (allocateNewSymbolicToPhysical(symb, p)) {
+					if (allocateNewSymbolicToPhysical(symbReg, p)) {
 						return p;
 					}
 				} else {
@@ -1397,16 +1432,22 @@ public class OPT_GraphColor extends OPT_OptimizationPlanCompositeElement {
 		 * NOTE: This routine assumes we're processing the first interval of
 		 * register symb; so p.isAvailable() is the key information needed.
 		 */
-		private boolean allocateNewSymbolicToPhysical(OPT_Register symb, OPT_Register p) {
-			OPT_PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
-			if (p != null && !phys.isAllocatable(p)) return false;
+		private boolean allocateNewSymbolicToPhysical(OPT_Register symbReg, OPT_Register physReg) {
 
-			if (true && p != null) {
-				if (!p.isAvailable()) System.out.println("unavailable " + symb + " " + p);
-				if (restrictions.isForbidden(symb, p)) System.out.println("forbidden " + symb + "(" + p + ")");
+			if (physReg != null && !physRegSet.isAllocatable(physReg)) 
+				return false;
+
+			if (true && physReg != null) {
+				if (!physReg.isAvailable()) {
+					System.out.println("unavailable " + symbReg + " " + physReg);
+				}
+
+				if (restrictions.isForbidden(symbReg, physReg)) { 
+					System.out.println("forbidden " + symbReg + "(" + physReg + ")");
+				}
 			}
 
-			return (p != null) && p.isAvailable() && !restrictions.isForbidden(symb, p);
+			return (physReg != null) && physReg.isAvailable() && !restrictions.isForbidden(symbReg, physReg);
 		}
 
 
