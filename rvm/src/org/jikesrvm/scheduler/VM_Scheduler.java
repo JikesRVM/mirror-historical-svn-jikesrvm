@@ -12,7 +12,6 @@
  */
 package org.jikesrvm.scheduler;
 
-import java.util.Arrays;
 import java.util.Iterator;
 
 import org.jikesrvm.ArchitectureSpecific;
@@ -625,26 +624,31 @@ public class VM_Scheduler {
    */
   public static void dumpStack( Address ip, Address fp) {
     FrameRecord[] frames = dumpStacktoArray(ip, fp);
-    VM.sysWrite("Got frames...count ",frames.length);
+    VM.sysWriteln("Got frames...count ",frames.length);
 		for (FrameRecord frame : frames) {
-			VM.sysWriteln("--->Frame",frame.toString());
+			//VM.sysWriteln("--->Frame ",frame.toString());
 			switch (frame.getLine()) {
 				case NATIVE_FRAME: {
+					 VM.sysWrite("[native frame]");
 					showMethod("native frame", fp);
 					break;
 				}
 				case HARDWARE_TRAP_FRAME: {
+					VM.sysWrite("[hardware trap]");
 					showMethod("hardware trap", fp);
 					break;
 				}
 				case INVISIBLE_FRAME: {
+					VM.sysWrite("[invisible method]");
 					showMethod("invisible method", fp);
 					break;
 				}
 				case UNPRINTABLE_NORMAL_JAVA_FRAME: {
+					VM.sysWrite("[Unprintable]");
 					showMethod(frame.getBci(), fp);
 				}
 				default: {
+					VM.sysWrite("[Normal java frame]");
 					showMethod(frame.getMethod(), frame.getLine(), frame
 							.getAddress());
 					break;
@@ -707,11 +711,16 @@ public class VM_Scheduler {
 	          && (compiledMethod.getMethod() instanceof VM_NormalMethod)
 	          &&  compiledMethod.getCompilerType() == VM_CompiledMethod.BASELINE) {
 //	        	TODO account for OptCompiler
-	        	int thisOffset = VM_Compiler.getFirstLocalOffset((VM_NormalMethod)compiledMethod.getMethod());
+	        	VM_NormalMethod normalMethod = (VM_NormalMethod)compiledMethod.getMethod();
+	        	int thisOffset = VM_Compiler.getStartLocalOffset(normalMethod);//getFirstLocalOffset(normal);
 	        	VM.sysWriteln("found instance this offset = ", thisOffset);
-	        	Address instanceAddr = Address.fromIntSignExtend(thisOffset);
-	        	instance = VM_Magic.addressAsObject(instanceAddr);
-	        	VM.sysWriteln("found instance", (null == instance)?"null":instance.getClass().getName());
+	        	try {
+					Address instanceAddr = Address.fromIntSignExtend(thisOffset);
+					instance = VM_Magic.addressAsObject(instanceAddr);
+					VM.sysWriteln("found instance", (null == instance)?"null":instance.getClass().getName());
+				} catch (Exception e) {
+					VM.sysWriteln("Exception Occured");
+				}
 	        }else {
 	        	VM.sysWriteln("no instance available");
 	        }
@@ -1049,10 +1058,11 @@ public class VM_Scheduler {
 			this.address = address;
 			this.bci = bci;
 			this.instance = instance;
-			VM.sysWriteln("method ", (null == method)?"null": method.toString());
-			VM.sysWriteln("line ", line);
-			VM.sysWriteln("address ",address );
-			VM.sysWriteln("bci ", bci);
+//			VM.sysWriteln("method ", (null == method)?"null" : method.toString());
+//			VM.sysWriteln("line ", line);
+//			VM.sysWriteln("address ", (null == address)? "null" : address.toString()  );
+//			VM.sysWriteln("bci ", bci);
+//			VM.sysWriteln("thisObject ", (null == instance)?"null" : instance.toString()  );
 		}
 
 		@Inline

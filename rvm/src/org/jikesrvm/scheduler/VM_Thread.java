@@ -2093,5 +2093,9 @@ public class VM_Thread implements ArchitectureSpecific.VM_StackframeLayoutConsta
   @Uninterruptible
   public void incSuspendCount() {
 	  ++suspendCount;
-}
+ }
+  @Uninterruptible
+  public int  getThreadType() {
+	  return threadType;  
+  }
 }

@@ -1303,8 +1303,8 @@ public final class VM_Callbacks {
   private static final boolean TRACE_DEFINECLASS = false;
   private static final boolean TRACE_LOADCLASS = false;
   private static final boolean TRACE_BOOTIMAGE = false;
-  private static final boolean TRACE_STARTUP = true;
-  private static final boolean TRACE_EXIT = true;
+  private static final boolean TRACE_STARTUP = false;
+  private static final boolean TRACE_EXIT = false;
   private static final boolean TRACE_THREADSTART = true;
   private static final boolean TRACE_THREADEND = true;
   private static final boolean TRACE_APP_RUN_START = false;

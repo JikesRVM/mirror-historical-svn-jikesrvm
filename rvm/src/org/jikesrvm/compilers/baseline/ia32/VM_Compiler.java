@@ -135,7 +135,7 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
 
   @Uninterruptible
   @Inline
-  private static int getStartLocalOffset(VM_NormalMethod method) {
+  public static int getStartLocalOffset(VM_NormalMethod method) {
     return getFirstLocalOffset(method) + WORDSIZE;
   }
 

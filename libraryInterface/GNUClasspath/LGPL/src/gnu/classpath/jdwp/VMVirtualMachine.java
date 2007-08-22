@@ -57,7 +57,6 @@ import gnu.classpath.jdwp.util.Location;
 import gnu.classpath.jdwp.util.MethodResult;
 import gnu.classpath.jdwp.util.MonitorInfo;
 import gnu.classpath.jdwp.value.Value;
-import gnu.java.lang.InstrumentationImpl;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -124,7 +123,7 @@ public final class VMVirtualMachine {
 	 * Returns all threads that the jdwp front-end should be aware of. 
 	 */
 	 public static Thread[] getAllThreads() {
-		 VM.sysWriteln("    getAllThreads()");
+		 VM.sysWrite("    getAllThreads()");
 		// Our JDWP thread group 
 		final ThreadGroup jdwpGroup = Jdwp.getDefault().getJdwpThreadGroup();
 
@@ -137,14 +136,15 @@ public final class VMVirtualMachine {
 		}
 
 		// Get all the threads in the system
-		final int num = group.activeCount();
+		int num = group.activeCount() * 2 ;// 2 is big safety factor 
 		final Thread[] threads = new Thread[num];
-		group.enumerate(threads);
+		num = group.enumerate(threads);// what we actually retreived
 		
 		// Count those that shouldn't be reported to jdwp front-end.
 		final Thread[] nonSysThreads;
 		int nonSysThreadsCount = 0;
-		for (final Thread thread : threads) {
+		for (int i = 0 ; i < num ; i ++ ) {
+			final Thread thread = threads[i];
 			if (isNonSystemThread(thread)) 
 				nonSysThreadsCount++;
 			 else 
@@ -157,6 +157,8 @@ public final class VMVirtualMachine {
 		for (Thread thread : threads) 
 			if (isNonSystemThread(thread))
 				nonSysThreads[nonSysThreadsIndex++] = thread;
+		
+		VM.sysWriteln("thread count", nonSysThreads.length);
 		return nonSysThreads;
 	};
 	
@@ -178,7 +180,7 @@ public final class VMVirtualMachine {
 		}
 		
 		final int suspendCount = getSuspendCount(thread);
-		VM.sysWrite("resumeThread: skip..suspendcount = ", suspendCount) ;
+		VM.sysWrite("suspendThread: ...suspendcount = ", suspendCount) ;
 		VM.sysWriteln(" thread-> ",	thread.getName());
 		thread.suspend();
 	}
@@ -205,14 +207,14 @@ public final class VMVirtualMachine {
 			parent = group.getParent();
 		}
 
-		// Get all the threads in the system
 		//TODO better way exist in the debuggerthread
-		
-		final int num = group.activeCount();
+		// Get all the threads in the system
+		int num = group.activeCount() * 2 ;// 2 is big safety factor 
 		final Thread[] threads = new Thread[num];
-		group.enumerate(threads);
-
-		for (final Thread thread : threads ){
+		num = group.enumerate(threads);// what we actually retreived
+		
+		for (int i = 0 ; i < num ; i ++ ) {
+			final Thread thread = threads[i];
 			if (thread != null) {
 				if (isSystemThread(thread)) {
 					// Don't suspend any System thread
@@ -233,7 +235,7 @@ public final class VMVirtualMachine {
 	 * @param thread the thread to resume
 	 */
 	public static void resumeThread(final Thread thread) throws JdwpException {
-		VM.sysWriteln("resumeThread: ThreadName ", thread.getName());
+		VM.sysWrite("resumeThread: ThreadName ", thread.getName());
 		if (VM.VerifyAssertions) 
 			VM._assert(isNonSystemThread(thread));
 
@@ -249,7 +251,7 @@ public final class VMVirtualMachine {
 //			VM.sysWriteln(" thread-> ",	thread.getName()); 
 //			return;
 //		}
-		VM.sysWriteln(getThreadStatus(thread));
+		VM.sysWriteln("...status", getThreadStatus(thread));
 		thread.resume();
 	}
 
@@ -277,12 +279,12 @@ public final class VMVirtualMachine {
 			parent = group.getParent();
 		}
 
-		// Get all the threads in the system
-		final int num = group. activeCount();
-		Thread[] threads = new Thread[num];
-		group.enumerate(threads);
-
-		for (final Thread thread : threads) {
+		int num = group.activeCount() * 2 ;// 2 is big safety factor 
+		final Thread[] threads = new Thread[num];
+		num = group.enumerate(threads);// what we actually retreived
+		
+		for (int i = 0 ; i < num ; i ++ ) {
+			final Thread thread = threads[i];
 			if (thread != null) {
 				if (isSystemThread(thread)) {
 					// Don't resume system thread
@@ -320,13 +322,13 @@ public final class VMVirtualMachine {
 	 * TODO:fix per new thread model and 
 	 */
 	public static int getThreadStatus(final Thread thread) throws JdwpException {
-		VM.sysWriteln("    getThreadStatus for ", thread.getName());
+		VM.sysWrite("    getThreadStatus for ", thread.getName());
 		
 		getSuspendCount(thread);
 		
 		if (VM.VerifyAssertions)
 			VM._assert(isNonSystemThread(thread));
-		int status = JdwpConstants.ThreadStatus.RUNNING;
+		int status = JdwpConstants.ThreadStatus.ZOMBIE;
 		VM_Thread vmThread = java.lang.JikesRVMSupport.getThread(thread);
 		status = VM_DebuggerThread.getEnumThreadState(vmThread);
 		if (-1 == status) {
@@ -340,7 +342,7 @@ public final class VMVirtualMachine {
 			if (vmThread.isWaitingForOsr)
 				status = JdwpConstants.ThreadStatus.WAIT;
 		}
-		VM.sysWriteln("thread status...", status);
+		VM.sysWriteln("....thread status", status);
 		return status;
 	}
 
@@ -348,8 +350,10 @@ public final class VMVirtualMachine {
 	 * Returns a count of the number of loaded classes in the VM
 	 */
 	public static int getAllLoadedClassesCount() throws JdwpException{
-		VM.sysWriteln("    getAllLoadedClassesCount" );
-		return getAllLoadedClasses().size();
+		VM.sysWrite("    getAllLoadedClassesCount" );
+		int rValue = getAllLoadedClasses().size();
+		VM.sysWrite("...", rValue);
+		return rValue;
 	};
 
 	/**
@@ -497,11 +501,13 @@ public final class VMVirtualMachine {
 	 * @param   start  index of first frame to return
 	 * @param   length number of frames to return (-1 for all frames)
 	 * @return a list of frames
+	 * @throws 
 	 */
 	public static ArrayList getFrames(final Thread thread,
 			final int start, final int length) throws JdwpException{
 		VM.sysWriteln("getFrames");
-		if (start < 0 || null == thread || isSystemThread(thread)) {
+		
+		if (start < 0 || null == thread || isSystemThread(thread) || (0 > getSuspendCount(thread)) ) {
 			VM.sysWriteln("getFrames: INVALID THREAD");
 			throw new InvalidThreadException(-1);
 		}
@@ -609,10 +615,12 @@ public final class VMVirtualMachine {
 	 *  TODO validate name format 
 	 */
 	public static String getSourceFile(Class clazz) throws JdwpException {
-		VM.sysWriteln("    getSourceFile for ", clazz.getName());
+		VM.sysWrite("    getSourceFile for ", clazz.getName());
 		VM_Type vmType = java.lang.JikesRVMSupport.getTypeForClass(clazz);
 		VM_Class vmClass = (VM_Class) vmType;
-		return vmClass.getSourceName().toString();
+		String rValue = vmClass.getSourceName().toString();
+		VM.sysWrite(" , Source file name = ", rValue);
+		return rValue;
 	};
 
 	/**
@@ -849,9 +857,11 @@ public final class VMVirtualMachine {
 				        		  .currentThread(), clazz,
 				        		  JdwpConstants.ClassStatus.PREPARED);
 			}
-			if (idx > 0)
+			if (idx > 0) {
 				//synchronized (deferredEvents) {
 					if (vmInitialized) {
+						VM.sysWriteln("Notify about prepare events...",
+									  allEvents.length);
 						Jdwp.notify(allEvents);
 					}
 					else {
@@ -860,11 +870,14 @@ public final class VMVirtualMachine {
 							deferredEvents.add(event);
 					}
 				//}
+			}else
+				VM.sysWriteln("register class prepare noting to report");
 			break;
 		}
 
 		case JdwpConstants.EventKind.FRAME_POP:
 			VM.sysWriteln("FRAME_POP requested.");
+			//TODO use stack unwind
 			
 			break;
 
@@ -877,7 +890,6 @@ public final class VMVirtualMachine {
 					Class<?> clazz = JikesRVMSupport.createClass(null);
 					Jdwp.notify(new ExceptionEvent((Throwable)(null),(Thread)null, (Location)null, (Location)null,(Class)null,(Object)null));
 				}
-				
 			}
 			break;
 
@@ -1164,7 +1176,8 @@ public final class VMVirtualMachine {
 						|| vmThread.isDebuggerThread()
 						|| vmThread.isGCThread()
 						|| vmThread.isSystemThread()
-						|| vmThread.isIdleThread());
+						|| vmThread.isIdleThread()
+						|| (0 == vmThread.getThreadType()));
 		//VM.sysWriteln("...", rValue);
 		return rValue;
 	};
