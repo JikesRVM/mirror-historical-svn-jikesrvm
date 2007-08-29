@@ -70,7 +70,6 @@ import org.jikesrvm.classloader.VM_Class;
 import org.jikesrvm.classloader.VM_Method;
 import org.jikesrvm.classloader.VM_NormalMethod;
 import org.jikesrvm.classloader.VM_Type;
-import org.jikesrvm.scheduler.VM_DebuggerThread;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.scheduler.VM_Thread;
 import org.jikesrvm.scheduler.VM_Scheduler.FrameRecord;
@@ -146,7 +145,7 @@ public final class VMVirtualMachine {
 		int nonSysThreadsCount = 0;
 		for (int i = 0 ; i < num ; i ++ ) {
 			final Thread thread = threads[i];
-			if (isNonSystemThread(thread)) 
+			if (null != thread && isNonSystemThread(thread)) 
 				nonSysThreadsCount++;
 			 else 
 				continue;
@@ -156,10 +155,12 @@ public final class VMVirtualMachine {
 		nonSysThreads = new Thread[nonSysThreadsCount];
 		int nonSysThreadsIndex = 0;
 		for (Thread thread : threads) 
-			if (isNonSystemThread(thread))
+			if (null != thread && isNonSystemThread(thread))
 				nonSysThreads[nonSysThreadsIndex++] = thread;
 		
 		VM.sysWriteln("thread count", nonSysThreads.length);
+		for(Thread thread:nonSysThreads)
+			VM.sysWrite(thread.getName());
 		return nonSysThreads;
 	};
 	
@@ -169,20 +170,20 @@ public final class VMVirtualMachine {
 	 * @param thread the thread to suspend
 	 * @throws JdwpException 
 	 */
+	@SuppressWarnings("deprecation")
 	public static void suspendThread(final Thread thread) throws JdwpException {
 		VM.sysWrite("suspendThread:");
-		if (VM.VerifyAssertions) VM._assert(isNonSystemThread(thread));
 		if (null == thread)
 			throw new InvalidThreadException(-1);
+		if (VM.VerifyAssertions) VM._assert(isNonSystemThread(thread));
 		VM.sysWriteln( thread.getName());
 		if (isSystemThread(thread)){
 			VM.sysWriteln("suspendThread: skip..system thread ",
 					      thread.getName()); 
 			return;
 		}
-		
-		thread.suspend();
 		VM.sysWrite("suspendThread: ...suspendcount = ", getSuspendCount(thread)) ;
+		thread.suspend();
 	}
 
 	/**
@@ -234,11 +235,12 @@ public final class VMVirtualMachine {
 	 * 
 	 * @param thread the thread to resume
 	 */
+	@SuppressWarnings("deprecation")
 	public static void resumeThread(final Thread thread) throws JdwpException {
 		VM.sysWrite("resumeThread:");
-		if (VM.VerifyAssertions) VM._assert(isNonSystemThread(thread));
 		if (null == thread)
 			throw new InvalidThreadException(-1);
+		if (VM.VerifyAssertions) VM._assert(isNonSystemThread(thread));
 		
 		VM.sysWriteln( thread.getName());
 
@@ -306,9 +308,9 @@ public final class VMVirtualMachine {
 	 */
 	public static int getSuspendCount(final Thread thread) 
 		throws JdwpException {
-		if (VM.VerifyAssertions) VM._assert(isNonSystemThread(thread));
 		if (null == thread)
 			throw new InvalidThreadException(-1);
+		if (VM.VerifyAssertions) VM._assert(isNonSystemThread(thread));
 		VM_Thread vmThread = java.lang.JikesRVMSupport.getThread(thread);
 		return vmThread.getSuspendCount();
 	};
@@ -322,9 +324,9 @@ public final class VMVirtualMachine {
 	 */
 	public static int getThreadStatus(final Thread thread) throws JdwpException {
 		VM.sysWrite("getThreadStatus:");
-		if (VM.VerifyAssertions) VM._assert(isNonSystemThread(thread));
 		if (null == thread)
 			throw new InvalidThreadException(-1);
+		if (VM.VerifyAssertions) VM._assert(isNonSystemThread(thread));
 		VM.sysWrite(thread.getName());
 		final VM_Thread vmThread = java.lang.JikesRVMSupport.getThread(thread);
 		final int status = vmThread.getJdwpState();
@@ -416,7 +418,7 @@ public final class VMVirtualMachine {
 		
 		rValue = (0 == rValue) ?  JdwpConstants.ClassStatus.ERROR: rValue;
 		
-		//VM.sysWriteln("...", rvalue); 
+		VM.sysWriteln("...", rValue); 
 		return rValue;
 	}
 	
@@ -797,10 +799,14 @@ public final class VMVirtualMachine {
 					while (iter.hasNext()) {
 						VM_Class vmClass1 = (VM_Class) iter.next();
 						clazz = JikesRVMSupport.createClass(vmClass1);
-						allEvents[idx++] 
-						          = new ClassPrepareEvent(Thread
-											.currentThread(), clazz,
-											JdwpConstants.ClassStatus.PREPARED);
+						try {
+							allEvents[idx++] 
+							          = new ClassPrepareEvent(Thread
+												.currentThread(), clazz,
+												getClassStatus(clazz));
+						} catch (JdwpException e) {
+							VM.sysWriteln("Error occured retreivieng class status ");
+						}
 					}
 					
 					if (vmInitialized && (0 < allEvents.length))
@@ -831,39 +837,21 @@ public final class VMVirtualMachine {
 				break;
 			ClassResolvedCallback resolvedCallBack 
 				= new ClassResolvedCallback();
-			VM_Callbacks.addClassResolvedMonitor(resolvedCallBack);
-			
 			classResolutionEventRegistered = true;
+			
 			//Always?
 //			Notify about already loaded classes.
 			Collection<Class<?>> loadedClasses = getAllLoadedClasses();
-			VM.sysWrite("Iterating over already loaded classes ..count ",
+			VM.sysWrite("Adding already loaded classes to event notification",
 						  loadedClasses.size());
-			int idx = 0;
-			Event[] allEvents = new Event[loadedClasses.size()];
+			
 			Iterator<Class<?>> iter = loadedClasses.iterator();
 			while (iter.hasNext()) {
 				Class<?> clazz = iter.next();
-				allEvents[idx++] 
-				          = new ClassPrepareEvent(Thread
-				        		  .currentThread(), clazz,
-				        		  JdwpConstants.ClassStatus.PREPARED);
+				VM_Class vmClass = (VM_Class)JikesRVMSupport.getTypeForClass(clazz);
+				deferredResolutionNotifications.add(vmClass);
 			}
-			if (idx > 0) {
-				//synchronized (deferredEvents) {
-					if (vmInitialized) {
-						VM.sysWriteln("Notify about prepare events...",
-									  allEvents.length);
-						Jdwp.notify(allEvents);
-					}
-					else {
-						VM.sysWriteln("...deffered till intialization");
-						for (Event event : allEvents)
-							deferredEvents.add(event);
-					}
-				//}
-			}else
-				VM.sysWriteln("register class prepare noting to report");
+			VM_Callbacks.addClassResolvedMonitor(resolvedCallBack);
 			break;
 		}
 
@@ -1157,7 +1145,7 @@ public final class VMVirtualMachine {
 	  private static boolean isNonSystemThread(Thread thread) {
 		if ( null == thread ){
 			//VM.sysWriteln("isNonSystemThread   null");
-			return false;
+			return true;
 		}
 		//VM.sysWrite("isNonSystemThread...for ", thread.getName());
 		VM_Thread vmThread = java.lang.JikesRVMSupport.getThread(thread);
@@ -1180,10 +1168,11 @@ public final class VMVirtualMachine {
 	/**
 	 * Notifies Event Manager about events occured before VM_INIT is fired.
 	 * TODO should be a hash where buckets ar formed of packable events
+	 * ONLY events of same types should be bulkly reported 
 	 */
 	private static void notifyAboutDefferedEvents() {
 		final Event[] allEvents;
-		//synchronized (deferredEvents) {
+		synchronized (deferredEvents) {
 			final int len = deferredEvents.size();
 			VM.sysWriteln("notifyAboutDefferedEvents...count = ", len);
 			allEvents = new Event[len];
@@ -1192,7 +1181,7 @@ public final class VMVirtualMachine {
 				allEvents[i] = deferredEvents.get(i);
 			}
 			deferredEvents.clear();
-		//}
+		}
 			// bulk notification
 			Jdwp.notify(allEvents);
 	}

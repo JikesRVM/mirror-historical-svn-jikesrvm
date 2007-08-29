@@ -748,38 +748,47 @@ public abstract class VM_Scheduler {
 	        if(!compiledMethod.getMethod().isStatic() 
 	          && !compiledMethod.getMethod().isNative() 
 	          && (compiledMethod.getMethod() instanceof VM_NormalMethod)
-	          &&  compiledMethod.getCompilerType() == VM_CompiledMethod.BASELINE) {
+	          &&  compiledMethod instanceof VM_BaselineCompiledMethod) {
 //	        	TODO account for OptCompiler
 	        	final VM_NormalMethod normalMethod = (VM_NormalMethod)(compiledMethod.getMethod());
-	        	final int thisRawOffset = VM_Compiler.getStartLocalOffset(normalMethod);//getFirstLocalOffset(normalMethod);//
-	        	final Offset thisOffset= Offset.fromIntSignExtend(thisRawOffset);
+	        	final VM_BaselineCompiledMethod baselineMethod = (VM_BaselineCompiledMethod) compiledMethod;
+	        	//TODO replace 8 with suitable const wordsize?
+	        	final int thisUnboxedOffset = VM_Compiler.getStartLocalOffset(normalMethod) + 8 ;//VM_Compiler.getFirstLocalOffset(normalMethod) //baselineMethod.getGeneralLocalLocation(0);//getFirstLocalOffset(normalMethod);//
+	        	final Offset thisOffset= Offset.fromIntSignExtend(thisUnboxedOffset);
 	        	
-	        	VM.sysWrite("found instance this offset = ", thisOffset)	;
-	        	VM.sysWriteln("...frame ptr = ", fp);
+	        	
+	        	VM.sysWrite("found instance this offset =", thisOffset)	;
+	        	VM.sysWrite(", found instance this unboxed offset =", thisUnboxedOffset)	;
+	        	VM.sysWrite(", frame ptr =", fp);
 	        	
 	        	try {
-					Address instanceAddr = fp.plus(thisOffset);
+					Address instanceAddr = fp.minus(thisOffset);
 					ObjectReference instanceRef = instanceAddr.toObjectReference();
 					VM.sysWriteln("Computed address: " , instanceAddr);
 					if (DebugUtil.validRef(instanceRef)) {
 						instance = instanceAddr.toObjectReference().toObject();
-						VM.sysWriteln("found instance", (null == instance)? "null": instance.getClass().getName());
+						//VM.sysWrite("found instance ", (null == instance)? "null": instance.getClass().getName());
+						//VM.sysWriteln(", difference", fp.diff(instanceAddr));
 					}else {
+//						VM.sysWriteln();
 //						VM.sysWriteln("invalid addr..looping to find one");
 //						while(!DebugUtil.validRef(instanceRef)) {
-//							instanceAddr = instanceAddr.minus(1);
+//							instanceAddr = instanceAddr.minus(2);
 //							instanceRef = instanceAddr.toObjectReference();
+//						
 //						}
+//						VM.sysWrite("difference", fp.diff(instanceAddr));
 //						instance = instanceAddr.toObjectReference().toObject();
 //						VM.sysWriteln("found instance ", (null == instance)? "null": instance.getClass().getName());
 //						
-//						instanceAddr = instanceAddr.plus(1);
+//						instanceAddr = instanceAddr.plus(2);
 //						instanceRef = instanceAddr.toObjectReference();
-//						VM.sysWriteln("Again..looping to find one");
+//						VM.sysWriteln("Again..looping to find one inthe other way");
 //						while(!DebugUtil.validRef(instanceRef)) {
 //							instanceAddr = instanceAddr.plus(1);
 //							instanceRef = instanceAddr.toObjectReference();
 //						}
+//						VM.sysWrite("difference", fp.diff(instanceAddr));
 //						instance = instanceAddr.toObjectReference().toObject();
 //						VM.sysWriteln("found instance", (null == instance)? "null": instance.getClass().getName());
 					}
