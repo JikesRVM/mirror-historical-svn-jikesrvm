@@ -484,6 +484,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
   /**
    * Get the hash code of an object.
    */
+  @Inline
   public static int getObjectHashCode(Object o) {
     if (ADDRESS_BASED_HASHING) {
       if (MM_Constants.MOVES_OBJECTS) {
@@ -613,7 +614,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
   /**
    * Non-atomic read of byte containing available bits
    */
-  public static byte readAvailableBitsByte(Object o) {
+  public static byte readAvailableByte(Object o) {
     return VM_Magic.getByteAtOffset(o, AVAILABLE_BITS_OFFSET);
   }
 
@@ -635,7 +636,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
   /**
    * Non-atomic write of byte containing available bits
    */
-  public static void writeAvailableBitsByte(Object o, byte val) {
+  public static void writeAvailableByte(Object o, byte val) {
     VM_Magic.setByteAtOffset(o, AVAILABLE_BITS_OFFSET, val);
   }
 

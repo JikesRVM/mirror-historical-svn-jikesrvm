@@ -29,7 +29,7 @@ import org.vmmagic.unboxed.*;
 
 /**
  * This class defines and manages spaces.  Each policy is an instance
- * of a space.  A space is a region of virtual memory (contigious or
+ * of a space.  A space is a region of virtual memory (contiguous or
  * discontigous) which is subject to the same memory management
  * regime.  Multiple spaces (instances of this class or its
  * descendants) may have the same policy (eg there could be numerous
@@ -41,7 +41,7 @@ import org.vmmagic.unboxed.*;
  * policy, spaces also manage memory consumption (<i>used</i> virtual
  * memory).<p>
  *
- * Discontigious spaces are currently unsupported.
+ * Discontiguous spaces are currently unsupported.
  */
 @Uninterruptible public abstract class Space implements Constants {
 
@@ -87,7 +87,7 @@ import org.vmmagic.unboxed.*;
   protected Extent extent;
   protected boolean immortal;
   protected boolean movable;
-  
+
   private boolean allocationFailed;
   protected PageResource pr;
 
@@ -97,8 +97,8 @@ import org.vmmagic.unboxed.*;
    */
 
   /**
-   * This is the base constructor for <i>contigious</i> spaces
-   * (i.e. those that occupy a single contigious range of virtual
+   * This is the base constructor for <i>contiguous</i> spaces
+   * (i.e. those that occupy a single contiguous range of virtual
    * memory which is identified at construction time).<p>
    *
    * The caller specifies the region of virtual memory to be used for
@@ -237,7 +237,7 @@ import org.vmmagic.unboxed.*;
   }
 
   /**
-   * This is a private constructor that creates a contigious space at
+   * This is a private constructor that creates a contiguous space at
    * the top or bottom of the available virtual memory, if
    * possible.<p>
    *
@@ -258,12 +258,12 @@ import org.vmmagic.unboxed.*;
     this(name, movable, immortal, (top) ? heapLimit.minus(bytes) : HEAP_START,
         bytes);
     if (top) { // request for the top of available memory
-      /*      if (heapLimit.NE(HEAP_END)) {
+      /* if (heapLimit.NE(HEAP_END)) {
         Log.write("Unable to satisfy virtual address space request \"");
         Log.write(name); Log.write("\" at ");
         Log.writeln(heapLimit);
         VM.assertions.fail("exiting");
-	} */
+      } */
       heapLimit = heapLimit.minus(extent);
     } else { // request for the bottom of available memory
       if (heapCursor.GT(HEAP_START)) {
@@ -305,10 +305,10 @@ import org.vmmagic.unboxed.*;
 
   /** Allocationfailed getter @return true if an allocation has failed since GC */
   public final boolean allocationFailed() { return allocationFailed; }
-  
+
   /** Clear Allocationfailed flag */
   public final void clearAllocationFailed() { allocationFailed = false; }
-  
+
   /** ReservedPages getter @return The number of reserved pages */
   public final int reservedPages() { return pr.reservedPages(); }
 
@@ -317,7 +317,7 @@ import org.vmmagic.unboxed.*;
 
   /** RequiredPages getter @return The number of required pages */
   public final int requiredPages() { return pr.requiredPages(); }
-  
+
   /** Cumulative committed pages getter @return Cumulative committed pages. */
   public static long cumulativeCommittedPages() {
     return PageResource.cumulativeCommittedPages();
@@ -390,18 +390,33 @@ import org.vmmagic.unboxed.*;
    */
   @Inline
   public static boolean isInSpace(int descriptor, ObjectReference object) {
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!object.isNull());
+    return isInSpace(descriptor, VM.objectModel.refToAddress(object));
+  }
+
+  /**
+   * Return true if the given address is the space associated with the
+   * given descriptor.
+   *
+   * @param descriptor The descriptor for a space
+   * @param address The address in question.
+   * @return True if the given address is in the space associated with
+   * the descriptor.
+   */
+  @Inline
+  public static boolean isInSpace(int descriptor, Address address) {
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!address.isZero());
     if (!SpaceDescriptor.isContiguous(descriptor)) {
-      return getDescriptorForObject(object) == descriptor;
+      return getDescriptorForAddress(address) == descriptor;
     } else {
-      Address addr = VM.objectModel.refToAddress(object);
       Address start = SpaceDescriptor.getStart(descriptor);
       if (!VM.VERIFY_ASSERTIONS &&
           SpaceDescriptor.isContiguousHi(descriptor))
-        return addr.GE(start);
+        return address.GE(start);
       else {
         Extent size = Word.fromIntSignExtend(SpaceDescriptor.getChunks(descriptor)).lsh(LOG_BYTES_IN_CHUNK).toExtent();
         Address end = start.plus(size);
-        return addr.GE(start) && addr.LT(end);
+        return address.GE(start) && address.LT(end);
       }
     }
   }
@@ -414,19 +429,20 @@ import org.vmmagic.unboxed.*;
    */
   @Inline
   public static Space getSpaceForObject(ObjectReference object) {
-    return Map.getSpaceForObject(object);
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!object.isNull());
+    return Map.getSpaceForAddress(VM.objectModel.refToAddress(object));
   }
 
   /**
-   * Return the descriptor for a given object
+   * Return the descriptor for a given address.
    *
-   * @param object The object in question
-   * @return The descriptor for the space containing the object
+   * @param address The address in question.
+   * @return The descriptor for the space containing the address.
    */
   @Inline
-  public static int getDescriptorForObject(ObjectReference object) {
-    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!object.isNull());
-    return Map.getDescriptorForObject(object);
+  public static int getDescriptorForAddress(Address address) {
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!address.isZero());
+    return Map.getDescriptorForAddress(address);
   }
 
 
@@ -456,8 +472,8 @@ import org.vmmagic.unboxed.*;
    * failure.
    */
   public final Address acquire(int pages) {
-    boolean allowPoll = !Plan.gcInProgress() && Plan.isInitialized() && !Plan.isEmergencyAllocation();
-    
+    boolean allowPoll = !Plan.gcInProgress() && Plan.isInitialized() && !VM.collection.isEmergencyAllocation();
+
     /* First check page budget and poll if necessary */
     if (!pr.reservePages(pages)) {
       /* Need to poll, either fixing budget or requiring GC */
@@ -471,7 +487,7 @@ import org.vmmagic.unboxed.*;
     Address rtn = pr.getNewPages(pages);
     if (rtn.isZero()) {
       /* Failed, so force a GC */
-      if (Plan.isEmergencyAllocation()) {
+      if (VM.collection.isEmergencyAllocation()) {
         pr.clearRequest(pages);
         VM.assertions.fail("Failed emergency allocation");
       }
@@ -482,7 +498,7 @@ import org.vmmagic.unboxed.*;
       pr.clearRequest(pages);
       return Address.zero();
     }
-    
+
     if (allowPoll) VM.collection.reportAllocationSuccess();
     return rtn;
   }
@@ -495,7 +511,7 @@ import org.vmmagic.unboxed.*;
   public abstract void release(Address start);
 
   /**
-   * Clear the allocation failed flag for all spaces. 
+   * Clear the allocation failed flag for all spaces.
    *
    */
   public static void clearAllAllocationFailed() {
@@ -670,7 +686,7 @@ import org.vmmagic.unboxed.*;
   /**
    * Initialize/create the descriptor for this space
    *
-   * @param shared True if this is a shared (discontigious) space
+   * @param shared True if this is a shared (discontiguous) space
    */
   private void createDescriptor(boolean shared) {
     if (shared)

@@ -34,7 +34,6 @@ import org.vmmagic.pragma.*;
  * @see GCTraceMutator
  * @see org.mmtk.plan.StopTheWorldCollector
  * @see org.mmtk.plan.CollectorContext
- * @see org.mmtk.plan.SimplePhase#delegatePhase
  */
 @Uninterruptible public class GCTraceCollector extends SSCollector {
   /****************************************************************************
@@ -65,7 +64,7 @@ import org.vmmagic.pragma.*;
    * @param phaseId The collection phase to perform
    * @param primary perform any single-threaded local activities.
    */
-  public void collectionPhase(int phaseId, boolean primary) {
+  public void collectionPhase(short phaseId, boolean primary) {
     if (phaseId == GCTrace.START_CLOSURE) {
       inducedTrace.startTrace();
       return;

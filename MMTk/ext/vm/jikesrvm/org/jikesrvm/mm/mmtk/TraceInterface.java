@@ -28,7 +28,6 @@ import org.jikesrvm.compilers.common.VM_CompiledMethods;
 
 import org.jikesrvm.objectmodel.VM_MiscHeader;
 import org.jikesrvm.objectmodel.VM_ObjectModel;
-import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.objectmodel.VM_TIBLayoutConstants;
@@ -76,9 +75,7 @@ import org.vmmagic.pragma.*;
    * @return True if the RVM is ready for GC, false otherwise.
    */
   public boolean gcEnabled() {
-    /* This test is based upon a review of the code and trial-and-error */
-    return VM_Processor.getCurrentProcessor().threadSwitchingEnabled() &&
-      VM_Scheduler.allProcessorsInitialized;
+    return VM_Scheduler.gcEnabled();
   }
 
   /**

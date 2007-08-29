@@ -133,7 +133,7 @@ import org.vmmagic.pragma.*;
    * @param phaseId Collection phase to process
    */
   @Inline
-  public void collectionPhase(int phaseId) {
+  public void collectionPhase(short phaseId) {
     if (traceFullHeap()) {
       if (phaseId == PREPARE) {
         super.collectionPhase(phaseId);
@@ -184,7 +184,7 @@ import org.vmmagic.pragma.*;
   /**
    * Calculate the number of pages a collection is required to free to satisfy
    * outstanding allocation requests.
-   * 
+   *
    * @return the number of pages a collection is required to free to satisfy
    * outstanding allocation requests.
    */

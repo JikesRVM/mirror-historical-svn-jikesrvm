@@ -45,7 +45,8 @@
   <!-- Set the properties for intermediate directory -->
   <property name="build.dir" location="target"/>
   <property name="build.base" location="${build.dir}/${build.name}"/>
-
+  <property name="build.profiles" location="${build.dir}/profiles"/>
+	
   <property name="build.vmmagic-stub.classes" location="${build.dir}/vmmagic-stub/classes"/>
   <property name="build.mmtk.jar" location="${build.dir}/mmtk/mmtk.jar"/>
   <property name="build.native" location="${build.base}/c"/>
@@ -129,16 +130,16 @@
     <fail unless="mmtk_properties_present">
       MMTk properties file ${mmtk.properties} not present. Please set mmtk.properties to the name of file in ${jikesrvm.dir}/build/mmtk directory without the .properties suffix.
     </fail>
-    
+
     <!-- Load the user-specified properties -->
     <loadproperties srcFile="${mmtk.properties}"/>
-    
-    <!-- 
-         Load the default properties - won't overwrite the user-specified 
+
+    <!--
+         Load the default properties - won't overwrite the user-specified
          because properties are immutable
       -->
     <loadproperties srcFile="${default.mmtk.properties}"/>
-    
+
     <!-- Now sanity check the properties we need later -->
     <test-property name="mmtk.headerMarkBit" location="${mmtk.properties}"/>
     <!-- <echoproperties prefix="mmtk."/> -->
@@ -177,6 +178,7 @@
     <mkdir dir="${components.dir}"/>
     <ant antfile="build/components/ecj.xml" target="ensure"/>
     <ant antfile="build/components/classpath.xml" target="ensure"/>
+    <ant antfile="build/components/checkstyle.xml" target="ensure"/>
     <if>
       <conditions>
         <isset property="include.gcspy-client"/>
@@ -243,6 +245,9 @@ Check to make sure all required properties are specified. This includes properti
     </condition>
     <condition property="include.opt" value="true">
       <equals arg1="${config.runtime.compiler}" arg2="opt"/>
+    </condition>
+    <condition property="include.ppc" value="true">
+      <equals arg1="${target.arch}" arg2="ppc"/>
     </condition>
     <condition property="include.aos" value="true">
       <and>
@@ -797,7 +802,7 @@ Check to make sure all required properties are specified. This includes properti
       const char *rvm_host_configuration = "${config.file}";
       const char *rvm_target_configuration = "${target.file}";
     </echo>
-    
+
   </target>
 
   <!-- Control targets for the source generation -->
@@ -863,7 +868,7 @@ Check to make sure all required properties are specified. This includes properti
     </if>
   </target>
 
-  <target name="compile" depends="compile-mmtk,prepare-source,prepare-config-source,choose-classlib">
+  <target name="compile" depends="compile-mmtk,prepare-source,prepare-config-source,choose-classlib,do-checkstyle">
 
     <condition property="exclude-arch" value="IA" else="PPC">
       <equals arg1="${target.arch}" arg2="ppc"/>
@@ -981,6 +986,8 @@ Check to make sure all required properties are specified. This includes properti
     <fileset id="primordials.main" dir="${build.classes}">
       <include name="**/VM*.class"/>
       <include name="org/**/*.class" if="include.all"/>
+      <exclude name="**/ppc/*.class" unless="include.ppc"/>
+      <exclude name="**/ia32/*.class" if="include.ppc"/>
       <include name="org/jikesrvm/adaptive/**/*.class" if="include.aos"/>
       <exclude name="org/jikesrvm/adaptive/**/*.class" unless="include.aos"/>
       <include name="org/jikesrvm/compilers/opt/**/*.class" if="include.opt"/>
@@ -1041,7 +1048,7 @@ Check to make sure all required properties are specified. This includes properti
   <target name="build-bootimage-writer" depends="package">
     <property name="build.bootimage-writer.dir" value="${build.base}/bootimage-writer"/>
     <mkdir dir="${build.bootimage-writer.dir}"/>
-    <javac srcdir="${basedir}/tools/bootImageWriter" destdir="${build.bootimage-writer.dir}" debug="true"
+    <javac srcdir="${basedir}/tools/bootImageWriter/src" destdir="${build.bootimage-writer.dir}" debug="true"
            debugLevel="lines,source" source="1.5" target="1.5">
       <classpath>
         <pathelement location="${build.vm.jar}"/>
@@ -1063,12 +1070,12 @@ Check to make sure all required properties are specified. This includes properti
 
     <echo message="Building bootimage. Output redirected to : ${build.base}/BootImageWriterOutput.txt"/>
     <echo message="MMTk properties = ${mmtk.properties}"/>
-    <java classname="BootImageWriter"
+    <java classname="org.jikesrvm.tools.bootImageWriter.BootImageWriter"
           fork="yes"
           maxmemory="500M"
           failonerror="false"
           resultproperty="bootimage-writer.result"
-          dir="${basedir}/tools/bootImageWriter"
+          dir="${basedir}/tools/bootImageWriter/src"
           output="${build.base}/BootImageWriterOutput.txt">
       <classpath>
         <pathelement location="${build.bootimage-writer.dir}"/>
@@ -1160,7 +1167,7 @@ Check to make sure all required properties are specified. This includes properti
     <mkdir dir="${build.native}"/>
     <javah destdir="${build.native}" classpath="${build.vm.jar}">
       <class name="org.jikesrvm.runtime.VM_DynamicLibrary"/>
-      <class name="org.jikesrvm.runtime.VM_Process"/>
+      <class name="org.jikesrvm.scheduler.greenthreads.VM_Process"/>
     </javah>
   </target>
 
@@ -1186,7 +1193,7 @@ Check to make sure all required properties are specified. This includes properti
     <condition property="gcspy.includes.dir" value="-I${gcspy.server.dir}/include" else="">
       <equals arg1="${config.include.gcspy}" arg2="true"/>
     </condition>
-    <condition property="gcspy.lib.dir" value="-L${build.native} -lgcspy">
+    <condition property="gcspy.lib.dir" value="-L${dist.base}/include -lgcspy">
       <isset property="include.gcspy-stub"/>
     </condition>
     <condition property="gcspy.lib.dir" value="-L${gcspy.server.dir} -lgcspy" else="">
@@ -1201,7 +1208,7 @@ Check to make sure all required properties are specified. This includes properti
     </condition>
 
     <property name="rvm.includes"
-              value="-I${bl.dir} -I${basedir}/include -I${build.native} -I${generated.config.native} ${gcspy.includes.dir} ${arch.includes}"/>
+              value="-I${bl.dir} -I${basedir}/include -I${dist.base}/include -I${generated.config.native} ${gcspy.includes.dir} ${arch.includes}"/>
 
     <property name="rvm.defines" value="-D_REENTRANT ${filter} "/>
 
@@ -1226,6 +1233,7 @@ Check to make sure all required properties are specified. This includes properti
 
   <target name="build-syswrap" depends="check-bootloader-properties" if="include.syswrap">
     <!-- create syswrap shared library -->
+    <mkdir dir="${build.base}"/>
     <property name="syswrap.dll" value="${target.dll-prefix}syswrap${target.dll-ext}"/>
     <exec executable="${c++.exe}" failonerror="true">
       <arg line="${rvm.c++.args}"/>
@@ -1256,10 +1264,20 @@ Check to make sure all required properties are specified. This includes properti
 
   <target name="build-bootloader" depends="build-gcspy-stub,build-syswrap,build-ppc-bootThread">
 
+    <!-- rdynamic flag used to control the exporting of symbols into an ELF -->
+    <condition property="c++.rdynamic" value="" else="-rdynamic">
+      <equals arg1="${target.os}" arg2="OSX"/>
+    </condition>
+
+    <!-- is the real-time library necessary? -->
+    <condition property="c++.librt" value="" else="-lrt">
+      <equals arg1="${target.os}" arg2="OSX"/>
+    </condition>
+  	
     <!-- create jvm shared library -->
     <property name="rvm.dll" value="${target.dll-prefix}rvm${target.dll-ext}"/>
     <exec executable="${c++.exe}" failonerror="true">
-      <arg line="${rvm.c++.args} -lpthread"/>
+      <arg line="${rvm.c++.args} -lpthread ${c++.librt}"/>
       <arg value="-o"/>
       <arg value="${build.base}/${rvm.dll}"/>
       <arg value="${bl.dir}/jvm.C"/>
@@ -1271,7 +1289,7 @@ Check to make sure all required properties are specified. This includes properti
       <arg line="${rvm.c++.args}"/>
       <arg value="-o"/>
       <arg value="${build.base}/${rvmexec.dll}"/>
-      <arg value="${bl.dir}/org_jikesrvm_runtime_VM_0005fProcess.c"/>
+      <arg value="${bl.dir}/org_jikesrvm_scheduler_greenthreads_VM_0005fProcess.c"/>
     </exec>
 
     <!-- create rvmdynlib shared library -->
@@ -1286,7 +1304,7 @@ Check to make sure all required properties are specified. This includes properti
     </exec>
 
     <exec executable="${c++.exe}" failonerror="true">
-      <arg line="${c++.args} ${rvm.common.args} ${gcspy.lib.dir} -lpthread ${rvm.src} -rdynamic -O2 -g"/>
+      <arg line="${c++.args} ${rvm.common.args} ${gcspy.lib.dir} -lpthread ${c++.librt} ${rvm.src} ${c++.rdynamic} -g"/>
       <arg value="-o"/>
       <arg value="${build.base}/JikesRVM"/>
       <arg value="-L${build.base}"/>
@@ -1336,6 +1354,12 @@ Check to make sure all required properties are specified. This includes properti
     <chmod file="${dist.base}/rvm" perm="ugo+rx"/>
     <copy file="${build.rt.jar}" todir="${dist.base}"/>
     <copy file="${build.vm.jar}" todir="${dist.base}"/>
+    <mkdir dir="${dist.base}/include"/>
+    <copy todir="${dist.base}/include">
+      <fileset dir="${build.native}">
+        <include name="*.h"/>
+      </fileset>
+    </copy>
     <echo file="${dist.base}/constants.properties"><![CDATA[# Build time constants used when building image.
 config.name=${config.name}
 config.runtime.compiler=${config.runtime.compiler}
@@ -1436,7 +1460,32 @@ target.jni-suffix=${target.jni-suffix}
   <target name="runtime" depends="cross-compile-host,cross-compile-target" description="Build the runtime."/>
 
   <target name="main" depends="runtime"/>
-
+	
+  <!-- Create an image using a profile (which requires first creating a profile) -->
+  <target name="profiled-image">
+	<ant inheritAll="false" target="create-bootimage-profile">
+	  <property name="config.variant" value="profile"/>
+	  <property name="config.bootimage.compiler" value="base"/>
+	  <property name="config.bootimage.compiler.args" value="-X:bc:edge_counters=true"/>
+	</ant>
+  	<ant inheritAll="false" target="runtime">
+	  <property name="config.bootimage.compiler.args" value="-X:bc:edge_count_input_file=${build.profiles}/profile.ec ${config.bootimage.compiler.args}"/>
+	</ant>
+  </target>
+	
+  <!-- Create an edge profile by creating a baseline-compiled sibling to this image and profiling it -->
+  <target name="create-bootimage-profile" depends="runtime">
+	<ant antfile="build/components/dacapo.xml" target="ensure" inheritall="false" inheritrefs="false"/>
+	<mkdir dir="${build.profiles}"/>
+	<exec executable="${dist.base}/rvm"
+    dir="${build.profiles}">
+    <arg value="-X:base:edge_counters=true"/>
+	  <arg value="-X:base:edge_counter_file=${build.profiles}/profile.ec"/>
+	  <arg value="-X:aos:final_report_level=2"/>
+	  <arg line="-jar ${dacapo.jar} -n 3 fop"/>
+	</exec>
+  </target>
+	
   <target name="clean" description="Delete all the intermediate and image files.">
     <delete dir="${build.dir}"/>
     <delete dir="${dist.base}"/>
@@ -1452,26 +1501,42 @@ target.jni-suffix=${target.jni-suffix}
       <fileset dir="." includes="**/*~" defaultexcludes="false"/>
     </delete>
   </target>
-
+	
   <!-- **************************************************************************** -->
   <!-- *                                                                          * -->
   <!-- *                                Doc                                       * -->
   <!-- *                                                                          * -->
   <!-- **************************************************************************** -->
 
+  <target name="do-checkstyle" if="require.checkstyle">
+    <antcall target="checkstyle"/>
+  </target>
+
   <target name="checkstyle" depends="prepare-source,prepare-config-source,choose-classlib">
-    <ant antfile="build/components/checkstyle.xml" target="ensure"/>
     <taskdef resource="checkstyletask.properties" classpath="${checkstyle.dir}/checkstyle-all-4.3.jar"/>
 
     <mkdir dir="${build.dir}/checkstyle"/>
-    <checkstyle config="build/checkstyle/rvm-checks.xml" failOnViolation="false">
+    <checkstyle config="build/checkstyle/rvm-checks.xml" failureProperty="checkstyle.failed" failOnViolation="false">
       <formatter type="xml" tofile="${build.dir}/checkstyle/report.xml"/>
       <fileset dir="rvm/src" includes="**/*.java"/>
+      <fileset dir="MMTk" includes="**/*.java"/>
+      <fileset dir="vmmagic" includes="**/*.java"/>
+      <fileset dir="libraryInterface/Common" includes="**/*.java"/>
+      <fileset dir="libraryInterface/GNUClasspath/CPL" includes="**/*.java"/>
+      <fileset dir="tools/ant-tasks" includes="**/*.java"/>
     </checkstyle>
 
     <style in="${build.dir}/checkstyle/report.xml"
            out="${build.dir}/checkstyle/report.html"
            style="${checkstyle.dir}/contrib/checkstyle-simple.xsl"/>
+    <style in="${build.dir}/checkstyle/report.xml"
+           out="${build.dir}/checkstyle/report.txt"
+           style="build/checkstyle/text-output.xsl"/>
+
+    <loadfile property="checkstyle.output" srcFile="${build.dir}/checkstyle/report.txt"/>
+    <echo message="${checkstyle.output}"/>
+ 
+    <fail if="checkstyle.failed" message="Checkstyle failures must be corrected!"/>
   </target>
 
   <!-- **************************************************************************** -->

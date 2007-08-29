@@ -208,12 +208,6 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
   /** Reference Count GC: is this type acyclic?  */
   private boolean acyclic;
 
-  /**
-   * The memory manager's notion of this type created after the
-   * resolving
-   */
-  private Object mmType;
-
   /** Cached set of inherited and declared annotations. */
   private Annotation[] annotations;
 
@@ -727,6 +721,16 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
   }
 
   /**
+   * Get contents of a "methodRef" constant pool entry.
+   */
+  @Uninterruptible
+  static VM_FieldReference getFieldRef(int[] constantPool, int constantPoolIndex) {
+    int cpValue = constantPool[constantPoolIndex];
+    if (VM.VerifyAssertions) VM._assert(unpackCPType(cpValue) == CP_MEMBER);
+    return (VM_FieldReference) VM_MemberReference.getMemberRef(unpackUnsignedCPValue(cpValue));
+  }
+
+  /**
    * Get contents of a "utf" constant pool entry.
    */
   @Uninterruptible
@@ -780,24 +784,6 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
    */
   public boolean hasSaveVolatileAnnotation() {
     return isAnnotationDeclared(VM_TypeReference.SaveVolatile);
-  }
-
-  /**
-   * Record the type information the memory manager holds about this
-   * type
-   * @param mmt the type to record
-   */
-  public void setMMType(Object mmt) {
-    mmType = mmt;
-  }
-
-  /**
-   * @return the type information the memory manager previously
-   * recorded about this type
-   */
-  @Uninterruptible
-  public Object getMMType() {
-    return mmType;
   }
 
   //--------------------------------------------------------------------//
@@ -1786,6 +1772,15 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
 
     if (VM.TraceClassLoading && VM.runningVM) VM.sysWriteln("VM_Class: (end)   resolve " + this);
   }
+
+  public void allBootImageTypesResolved() {
+    for (VM_Method method : declaredMethods) {
+      if (method instanceof VM_NormalMethod) {
+        ((VM_NormalMethod)method).recomputeSummary(constantPool);
+      }
+    }
+  }
+
 
   // RCGC: A reference to class is acyclic if the class is acyclic and
   // final (otherwise the reference could be to a subsequently loaded

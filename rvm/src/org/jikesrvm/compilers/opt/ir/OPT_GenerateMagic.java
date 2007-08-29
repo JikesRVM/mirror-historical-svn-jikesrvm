@@ -71,8 +71,9 @@ import static org.jikesrvm.compilers.opt.ir.OPT_Operators.SHORT_STORE;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.SYSCALL;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.UBYTE_LOAD;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.USHORT_LOAD;
-import org.jikesrvm.runtime.VM_Entrypoints;
+import org.jikesrvm.runtime.VM_ArchEntrypoints;
 import org.jikesrvm.runtime.VM_MagicNames;
+import org.jikesrvm.scheduler.VM_Scheduler;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
@@ -419,7 +420,11 @@ public class OPT_GenerateMagic {
       bc2ir.appendInstruction(Move.create(REF_MOVE, reg, bc2ir.popRef()));
       bc2ir.push(reg.copyD2U());
     } else if (methodName == VM_MagicNames.objectAsProcessor) {
-      OPT_RegisterOperand reg = gc.temps.makeTemp(VM_TypeReference.VM_Processor);
+      OPT_RegisterOperand reg = gc.temps.makeTemp(VM_Scheduler.getProcessorType());
+      bc2ir.appendInstruction(Move.create(REF_MOVE, reg, bc2ir.popRef()));
+      bc2ir.push(reg.copyD2U());
+    } else if (methodName == VM_MagicNames.objectAsThread) {
+      OPT_RegisterOperand reg = gc.temps.makeTemp(VM_Scheduler.getThreadType());
       bc2ir.appendInstruction(Move.create(REF_MOVE, reg, bc2ir.popRef()));
       bc2ir.push(reg.copyD2U());
     } else if (methodName == VM_MagicNames.objectAsAddress) {
@@ -468,30 +473,34 @@ public class OPT_GenerateMagic {
       bc2ir.pushDual(op0.copyD2U());
     } else if (methodName == VM_MagicNames.getObjectType) {
       OPT_Operand val = bc2ir.popRef();
-      OPT_Operand guard = OPT_BC2IR.getGuard(val);
-      if (guard == null) {
-        // it's magic, so assume that it's OK....
-        guard = new OPT_TrueGuardOperand();
-      }
-      OPT_RegisterOperand tibPtr = gc.temps.makeTemp(VM_TypeReference.JavaLangObjectArray);
-      bc2ir.appendInstruction(GuardedUnary.create(GET_OBJ_TIB, tibPtr, val, guard));
-      OPT_RegisterOperand op0;
-      VM_TypeReference argType = val.getType();
-      if (argType.isArrayType()) {
-        op0 = gc.temps.makeTemp(VM_TypeReference.VM_Array);
+      if(val.isObjectConstant()) {
+        bc2ir.push(new OPT_ObjectConstantOperand(val.getType().peekType(), Offset.zero()));
       } else {
-        if (argType == VM_TypeReference.JavaLangObject ||
-            argType == VM_TypeReference.JavaLangCloneable ||
-            argType == VM_TypeReference.JavaIoSerializable) {
-          // could be an array or a class, so make op0 be a VM_Type
-          op0 = gc.temps.makeTemp(VM_TypeReference.VM_Type);
-        } else {
-          op0 = gc.temps.makeTemp(VM_TypeReference.VM_Class);
+        OPT_Operand guard = OPT_BC2IR.getGuard(val);
+        if (guard == null) {
+          // it's magic, so assume that it's OK....
+          guard = new OPT_TrueGuardOperand();
         }
+        OPT_RegisterOperand tibPtr = gc.temps.makeTemp(VM_TypeReference.JavaLangObjectArray);
+        bc2ir.appendInstruction(GuardedUnary.create(GET_OBJ_TIB, tibPtr, val, guard));
+        OPT_RegisterOperand op0;
+        VM_TypeReference argType = val.getType();
+        if (argType.isArrayType()) {
+          op0 = gc.temps.makeTemp(VM_TypeReference.VM_Array);
+        } else {
+          if (argType == VM_TypeReference.JavaLangObject ||
+              argType == VM_TypeReference.JavaLangCloneable ||
+              argType == VM_TypeReference.JavaIoSerializable) {
+            // could be an array or a class, so make op0 be a VM_Type
+            op0 = gc.temps.makeTemp(VM_TypeReference.VM_Type);
+          } else {
+            op0 = gc.temps.makeTemp(VM_TypeReference.VM_Class);
+          }
+        }
+        bc2ir.markGuardlessNonNull(op0);
+        bc2ir.appendInstruction(Unary.create(GET_TYPE_FROM_TIB, op0, tibPtr.copyD2U()));
+        bc2ir.push(op0.copyD2U());
       }
-      bc2ir.markGuardlessNonNull(op0);
-      bc2ir.appendInstruction(Unary.create(GET_TYPE_FROM_TIB, op0, tibPtr.copyD2U()));
-      bc2ir.push(op0.copyD2U());
     } else if (methodName == VM_MagicNames.getArrayLength) {
       OPT_Operand val = bc2ir.popRef();
       OPT_RegisterOperand op0 = gc.temps.makeTempInt();
@@ -528,24 +537,24 @@ public class OPT_GenerateMagic {
         res = gc.temps.makeTempInt();
         bc2ir.push(res.copyD2U());
       }
-      VM_Field target = VM_Entrypoints.reflectiveMethodInvokerInstructionsField;
+      VM_Field target = VM_ArchEntrypoints.reflectiveMethodInvokerInstructionsField;
       OPT_MethodOperand met = OPT_MethodOperand.STATIC(target);
       OPT_Instruction s =
           Call.create5(CALL, res, new OPT_AddressConstantOperand(target.getOffset()), met, code, gprs, fprs, fprmeta, spills);
       bc2ir.appendInstruction(s);
     } else if (methodName == VM_MagicNames.saveThreadState) {
       OPT_Operand p1 = bc2ir.popRef();
-      VM_Field target = VM_Entrypoints.saveThreadStateInstructionsField;
+      VM_Field target = VM_ArchEntrypoints.saveThreadStateInstructionsField;
       OPT_MethodOperand mo = OPT_MethodOperand.STATIC(target);
       bc2ir.appendInstruction(Call.create1(CALL, null, new OPT_AddressConstantOperand(target.getOffset()), mo, p1));
     } else if (methodName == VM_MagicNames.threadSwitch) {
       OPT_Operand p2 = bc2ir.popRef();
       OPT_Operand p1 = bc2ir.popRef();
-      VM_Field target = VM_Entrypoints.threadSwitchInstructionsField;
+      VM_Field target = VM_ArchEntrypoints.threadSwitchInstructionsField;
       OPT_MethodOperand mo = OPT_MethodOperand.STATIC(target);
       bc2ir.appendInstruction(Call.create2(CALL, null, new OPT_AddressConstantOperand(target.getOffset()), mo, p1, p2));
     } else if (methodName == VM_MagicNames.restoreHardwareExceptionState) {
-      VM_Field target = VM_Entrypoints.restoreHardwareExceptionStateInstructionsField;
+      VM_Field target = VM_ArchEntrypoints.restoreHardwareExceptionStateInstructionsField;
       OPT_MethodOperand mo = OPT_MethodOperand.STATIC(target);
       bc2ir.appendInstruction(Call.create1(CALL,
                                            null,
@@ -636,7 +645,7 @@ public class OPT_GenerateMagic {
   } // generateMagic
 
   // Generate magic where the untype operational semantics is identified by name.
-  // The operands' types are determnied from the method signature.
+  // The operands' types are determined from the method signature.
   //
   static boolean generatePolymorphicMagic(OPT_BC2IR bc2ir, OPT_GenerationContext gc, VM_MethodReference meth,
                                           VM_Atom methodName) {

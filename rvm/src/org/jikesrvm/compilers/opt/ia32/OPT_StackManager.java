@@ -76,6 +76,7 @@ import org.jikesrvm.compilers.opt.ir.ia32.OPT_PhysicalDefUse;
 import org.jikesrvm.compilers.opt.ir.ia32.OPT_PhysicalRegisterSet;
 import org.jikesrvm.ia32.VM_ArchConstants;
 import static org.jikesrvm.ia32.VM_StackframeLayoutConstants.STACKFRAME_ALIGNMENT;
+import org.jikesrvm.runtime.VM_ArchEntrypoints;
 import org.jikesrvm.runtime.VM_Entrypoints;
 import org.vmmagic.unboxed.Offset;
 
@@ -384,10 +385,9 @@ public abstract class OPT_StackManager extends OPT_GenericStackManager {
     }
 
     OPT_PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
-    OPT_Register PR = phys.getPR();
     OPT_Register ESP = phys.getESP();
     OPT_MemoryOperand M =
-        OPT_MemoryOperand.BD(new OPT_RegisterOperand(PR, VM_TypeReference.Int),
+        OPT_MemoryOperand.BD(ir.regpool.makePROp(),
                              VM_Entrypoints.activeThreadStackLimitField.getOffset(),
                              (byte) WORDSIZE,
                              null,
@@ -422,13 +422,12 @@ public abstract class OPT_StackManager extends OPT_GenericStackManager {
     }
 
     OPT_PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
-    OPT_Register PR = phys.getPR();
     OPT_Register ESP = phys.getESP();
     OPT_Register ECX = phys.getECX();
 
     //    ECX := active Thread Stack Limit
     OPT_MemoryOperand M =
-        OPT_MemoryOperand.BD(new OPT_RegisterOperand(PR, VM_TypeReference.Int),
+        OPT_MemoryOperand.BD(ir.regpool.makePROp(),
                              VM_Entrypoints.activeThreadStackLimitField.getOffset(),
                              (byte) WORDSIZE,
                              null,
@@ -464,10 +463,9 @@ public abstract class OPT_StackManager extends OPT_GenericStackManager {
   public void insertNormalPrologue() {
     OPT_PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
     OPT_Register ESP = phys.getESP();
-    OPT_Register PR = phys.getPR();
     OPT_MemoryOperand fpHome =
-        OPT_MemoryOperand.BD(new OPT_RegisterOperand(PR, VM_TypeReference.Int),
-                             VM_Entrypoints.framePointerField.getOffset(),
+        OPT_MemoryOperand.BD(ir.regpool.makePROp(),
+                             VM_ArchEntrypoints.framePointerField.getOffset(),
                              (byte) WORDSIZE,
                              null,
                              null);
@@ -647,9 +645,6 @@ public abstract class OPT_StackManager extends OPT_GenericStackManager {
    * @param ret the return instruction.
    */
   private void insertEpilogue(OPT_Instruction ret) {
-    OPT_PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
-    OPT_Register PR = phys.getPR();
-
     // 1. Restore any saved registers
     if (ir.compiledMethod.isSaveVolatile()) {
       restoreVolatileRegisters(ret);
@@ -661,8 +656,8 @@ public abstract class OPT_StackManager extends OPT_GenericStackManager {
     int frameSize = getFrameFixedSize();
     ret.insertBefore(MIR_UnaryNoRes.create(REQUIRE_ESP, IC(frameSize)));
     OPT_MemoryOperand fpHome =
-        OPT_MemoryOperand.BD(new OPT_RegisterOperand(PR, VM_TypeReference.Int),
-                             VM_Entrypoints.framePointerField.getOffset(),
+        OPT_MemoryOperand.BD(ir.regpool.makePROp(),
+                             VM_ArchEntrypoints.framePointerField.getOffset(),
                              (byte) WORDSIZE,
                              null,
                              null);

@@ -489,6 +489,20 @@ public final class OPT_GenerationContext implements org.jikesrvm.compilers.opt.O
   }
 
   /**
+   * Should null checks be generated?
+   */
+  boolean noNullChecks() {
+    return options.NO_NULL_CHECK || method.hasNoNullCheckAnnotation();
+  }
+
+  /**
+   * Should bounds checks be generated?
+   */
+  boolean noBoundsChecks() {
+    return options.NO_BOUNDS_CHECK || method.hasNoBoundsCheckAnnotation();
+  }
+
+  /**
    * Make a register operand that refers to the given local variable number
    * and has the given type.
    *
@@ -709,7 +723,7 @@ public final class OPT_GenerationContext implements org.jikesrvm.compilers.opt.O
    */
   private OPT_Operand getLockObject() {
     if (method.isStatic()) {
-      Class klass = method.getDeclaringClass().getClassForType();
+      Class<?> klass = method.getDeclaringClass().getClassForType();
       Offset offs = Offset.fromIntSignExtend(VM_Statics.findOrCreateObjectLiteral(klass));
       return new OPT_ClassConstantOperand(klass, offs);
     } else {

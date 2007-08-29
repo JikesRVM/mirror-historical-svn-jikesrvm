@@ -26,6 +26,7 @@ import org.jikesrvm.classloader.VM_Atom;
 import org.jikesrvm.classloader.VM_Array;
 import org.jikesrvm.classloader.VM_Class;
 import org.jikesrvm.classloader.VM_Type;
+import org.jikesrvm.memorymanagers.mminterface.DebugUtil;
 import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.memorymanagers.mminterface.Selected;
 
@@ -315,6 +316,26 @@ import org.vmmagic.pragma.*;
   }
 
   /**
+   * Sets the byte available for memory manager use in an object.
+   *
+   * @param object the address of the object
+   * @param val the new value of the byte
+   */
+  public void writeAvailableByte(ObjectReference object, byte val) {
+    VM_ObjectModel.writeAvailableByte(object.toObject(), val);
+  }
+
+  /**
+   * Read the byte available for memory manager use in an object.
+   *
+   * @param object the address of the object
+   * @return the value of the byte
+   */
+  public byte readAvailableByte(ObjectReference object) {
+    return VM_ObjectModel.readAvailableByte(object.toObject());
+  }
+
+  /**
    * Sets the bits available for memory manager use in an object.
    *
    * @param object the address of the object
@@ -414,6 +435,15 @@ import org.vmmagic.pragma.*;
     }
     if (VM.VerifyAssertions) VM._assert(vmType.getMMType() != null);
     return (MMType) vmType.getMMType();
+  }
+
+  /**
+   * Dump debugging information for an object.
+   *
+   * @param object The object whose information is to be dumped
+   */
+  public void dumpObject(ObjectReference object) {
+    DebugUtil.dumpRef(object);
   }
 }
 

@@ -45,7 +45,6 @@ import org.vmmagic.unboxed.*;
  * @see GenRCMutator
  * @see org.mmtk.plan.StopTheWorldCollector
  * @see org.mmtk.plan.CollectorContext
- * @see org.mmtk.plan.SimplePhase#delegatePhase
  */
 @Uninterruptible public abstract class GenRCCollector extends RCBaseCollector
 implements Constants {
@@ -82,7 +81,7 @@ implements Constants {
    * @param primary Perform any single-threaded activities using this thread.
    */
   @Inline
-  public void collectionPhase(int phaseId, boolean primary) {
+  public void collectionPhase(short phaseId, boolean primary) {
     if (phaseId == GenRC.PREPARE) {
       super.collectionPhase(phaseId, primary);
       rc.prepare();

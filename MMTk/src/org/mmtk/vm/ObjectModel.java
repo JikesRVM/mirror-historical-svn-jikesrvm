@@ -150,6 +150,21 @@ import org.vmmagic.unboxed.*;
   public abstract Word prepareAvailableBits(ObjectReference object);
 
   /**
+   * Sets the byte available for memory manager use in an object.
+   *
+   * @param object the address of the object
+   * @param val the new value of the byte
+   */
+  public abstract void writeAvailableByte(ObjectReference object, byte val);
+  /**
+   * Read the byte available for memory manager use in an object.
+   *
+   * @param object the address of the object
+   * @return the value of the byte
+   */
+  public abstract byte readAvailableByte(ObjectReference object);
+
+  /**
    * Sets the bits available for memory manager use in an object.
    *
    * @param object the address of the object
@@ -207,6 +222,13 @@ import org.vmmagic.unboxed.*;
    * @return The type object for <code>object</code>
    */
   public abstract MMType getObjectType(ObjectReference object);
+
+  /**
+   * Dump debugging information for an object.
+   *
+   * @param object The object whose information is to be dumped
+   */
+  public abstract void dumpObject(ObjectReference object);
 
   /*
    * NOTE: The following methods must be implemented by subclasses of this

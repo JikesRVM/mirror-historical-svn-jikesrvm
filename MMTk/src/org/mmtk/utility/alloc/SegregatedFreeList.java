@@ -74,11 +74,11 @@ import org.vmmagic.unboxed.*;
   private static final int LOG_LIVE_WORD_STRIDE = LOG_LIVE_COVERAGE + LOG_BYTES_IN_WORD;
   private static final Extent LIVE_WORD_STRIDE = Extent.fromIntSignExtend(1<<LOG_LIVE_WORD_STRIDE);
   private static final Word LIVE_WORD_STRIDE_MASK = LIVE_WORD_STRIDE.minus(1).toWord().not();
-  private static final int NET_META_DATA_BYTES_PER_REGION = 
+  private static final int NET_META_DATA_BYTES_PER_REGION =
     BlockAllocator.META_DATA_BYTES_PER_REGION + LIVE_BYTES_PER_REGION;
-  protected static final int META_DATA_PAGES_PER_REGION_WITH_BITMAP = 
+  protected static final int META_DATA_PAGES_PER_REGION_WITH_BITMAP =
     Conversions.bytesToPages(Extent.fromIntSignExtend(NET_META_DATA_BYTES_PER_REGION));
-  protected static final int META_DATA_PAGES_PER_REGION_NO_BITMAP = 
+  protected static final int META_DATA_PAGES_PER_REGION_NO_BITMAP =
     Conversions.bytesToPages(Extent.fromIntSignExtend(BlockAllocator.META_DATA_BYTES_PER_REGION));
 
   private static final Extent META_DATA_OFFSET = BlockAllocator.META_DATA_EXTENT;
@@ -136,7 +136,7 @@ import org.vmmagic.unboxed.*;
    */
 
   /**
-   * Allocate <code>bytes</code> contigious bytes of zeroed memory.<p>
+   * Allocate <code>bytes</code> contiguous bytes of zeroed memory.<p>
    *
    * This code first tries the fast version and, if needed, the slow path.
    *
@@ -146,7 +146,7 @@ import org.vmmagic.unboxed.*;
    * @param inGC If true, this allocation is occuring with respect to
    * a space that is currently being collected.
    * @return The address of the first word of <code>bytes</code>
-   * contigious bytes of zeroed memory.
+   * contiguous bytes of zeroed memory.
    */
   @Inline
   public final Address alloc(int bytes, int align, int offset, boolean inGC) {
@@ -160,7 +160,7 @@ import org.vmmagic.unboxed.*;
   }
 
   /**
-   * Allocate <code>bytes</code> contigious bytes of zeroed memory.<p>
+   * Allocate <code>bytes</code> contiguous bytes of zeroed memory.<p>
    *
    * This code must be efficient and must compile easily.  Here we
    * minimize the number of calls to inlined functions, and force the
@@ -174,7 +174,7 @@ import org.vmmagic.unboxed.*;
    * @param inGC If true, this allocation is occuring with respect to
    * a space that is currently being collected.
    * @return The address of the first word of <code>bytes</code>
-   * contigious bytes of zeroed memory.
+   * contiguous bytes of zeroed memory.
    */
   @Inline
   public final Address allocFast(int bytes, int align, int offset,
@@ -196,7 +196,7 @@ import org.vmmagic.unboxed.*;
   }
 
   /**
-   * Allocate <code>bytes</code> contigious bytes of non-zeroed
+   * Allocate <code>bytes</code> contiguous bytes of non-zeroed
    * memory.  First check if the fast path works.  This is needed
    * since this method may be called in the context when the fast
    * version was NOT just called.  If this fails, it will try finding
@@ -220,7 +220,7 @@ import org.vmmagic.unboxed.*;
    * @param inGC If true, this allocation is occuring with respect to
    * a space that is currently being collected.
    * @return The address of the first word of the <code>bytes</code>
-   *         contigious bytes of zerod memory.
+   *         contiguous bytes of zerod memory.
    */
   @NoInline
   public final Address allocSlowOnce(int bytes, int align, int offset,
@@ -281,6 +281,7 @@ import org.vmmagic.unboxed.*;
     if (block.isZero())
       return Address.zero();
 
+    notifyNewBlock(block, sizeClass);
     installNewBlock(block, sizeClass);
 
     int cellExtent = cellSize[sizeClass];
@@ -289,7 +290,6 @@ import org.vmmagic.unboxed.*;
     int useableBlockSize = blockSize - blockHeaderSize[sizeClass];
     Address sentinel = block.plus(blockSize);
     Address lastCell = Address.zero();
-    int cellCount = 0;
 
     // pre-zero the block
     VM.memory.zero(cursor, Extent.fromIntZeroExtend(useableBlockSize));
@@ -299,7 +299,6 @@ import org.vmmagic.unboxed.*;
       setNextCell(cursor, lastCell);
       lastCell = cursor;
       cursor = cursor.plus(cellExtent);
-      cellCount++;
     }
 
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!lastCell.isZero());
@@ -519,6 +518,14 @@ import org.vmmagic.unboxed.*;
   protected abstract boolean maintainSideBitmap();
   protected abstract boolean preserveFreeList();
   protected abstract Address advanceToBlock(Address block, int sizeClass);
+
+  /**
+   * Notify that a new block has been installed.
+   *
+   * @param block The new block
+   * @param sizeClass The block's sizeclass.
+   */
+  protected void notifyNewBlock(Address block, int sizeClass) {}
 
   /**
    * Should the sweep reclaim the cell containing this object. Is this object
@@ -779,6 +786,16 @@ import org.vmmagic.unboxed.*;
   @Inline
   public static void liveBlock(ObjectReference object) {
     BlockAllocator.markBlockMeta(object);
+  }
+
+  /**
+   * Set the live bit for the given block.
+   *
+   * @param block The block whose liveness is to be set.
+   */
+  @Inline
+  public static void liveBlock(Address block) {
+    BlockAllocator.markBlockMeta(block);
   }
 
   /**

@@ -29,7 +29,7 @@ import org.vmmagic.pragma.*;
  * each header's object word, and a mark bitmap.  Sweeping is
  * performed lazily.<p>
  *
- * A free list block is a contigious region of memory containing cells
+ * A free list block is a contiguous region of memory containing cells
  * of a single size class, and is a construct of the
  * SegregatedFreeList.  This class extends the block to include a mark
  * bitmap.  During the mark phase, if an object is encountered with
@@ -62,9 +62,9 @@ import org.vmmagic.pragma.*;
    * mark bit per block.
    */
   public static final boolean HEADER_MARK_BITS = VM.config.HEADER_MARK_BITS;
-  public static final int META_DATA_PAGES_PER_REGION = HEADER_MARK_BITS
-    ? SegregatedFreeList.META_DATA_PAGES_PER_REGION_NO_BITMAP
-    : SegregatedFreeList.META_DATA_PAGES_PER_REGION_WITH_BITMAP;
+  public static final int META_DATA_PAGES_PER_REGION = HEADER_MARK_BITS ?
+    SegregatedFreeList.META_DATA_PAGES_PER_REGION_NO_BITMAP :
+    SegregatedFreeList.META_DATA_PAGES_PER_REGION_WITH_BITMAP;
 
 
   /****************************************************************************
@@ -158,12 +158,28 @@ import org.vmmagic.pragma.*;
    * for this block, or zero if there are no available cells.
    */
   protected Address advanceToBlock(Address block, int sizeClass) {
+    if (HEADER_MARK_BITS) {
+      MarkSweepLocal.liveBlock(block);
+    }
+
     if (LAZY_SWEEP)
       return makeFreeListFromLiveBits(block, sizeClass, msSpace.getMarkState());
     else
       return getFreeList(block);
   }
 
+  /**
+   * Notify that a new block has been installed. This is to ensure that
+   * appropriate collection state can be initialized for the block
+   *
+   * @param block The new block
+   * @param sizeClass The block's sizeclass.
+   */
+  protected void notifyNewBlock(Address block, int sizeClass) {
+    if (HEADER_MARK_BITS) {
+      MarkSweepLocal.liveBlock(block);
+    }
+  }
 
   /****************************************************************************
    *

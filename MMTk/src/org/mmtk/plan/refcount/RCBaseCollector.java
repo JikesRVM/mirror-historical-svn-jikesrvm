@@ -45,7 +45,6 @@ import org.vmmagic.unboxed.*;
  * @see RCBaseMutator
  * @see StopTheWorldCollector
  * @see CollectorContext
- * @see SimplePhase#delegatePhase
  */
 @Uninterruptible public abstract class RCBaseCollector extends StopTheWorldCollector {
 
@@ -99,7 +98,7 @@ import org.vmmagic.unboxed.*;
    * @param primary Perform any single-threaded activities using this thread.
    */
   @Inline
-  public void collectionPhase(int phaseId, boolean primary) {
+  public void collectionPhase(short phaseId, boolean primary) {
     if (phaseId == RCBase.PREPARE) {
       if (RCBase.WITH_COALESCING_RC) {
         processModBuffer();
@@ -153,6 +152,7 @@ import org.vmmagic.unboxed.*;
     while (!(current = oldRootSet.pop()).isNull()) {
       decBuffer.push(current);
     }
+    decBuffer.flushLocal();
   }
 
   /**

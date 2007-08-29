@@ -25,7 +25,7 @@ import org.jikesrvm.compilers.common.VM_CompiledMethod;
 import org.jikesrvm.compilers.opt.ir.OPT_CompilationState;
 import org.jikesrvm.compilers.opt.ir.OPT_InlineSequence;
 import org.jikesrvm.objectmodel.VM_ObjectModel;
-import org.jikesrvm.scheduler.VM_Thread;
+import org.jikesrvm.scheduler.VM_Scheduler;
 
 /**
  * The default inlining oracle used by the optimizing compiler.
@@ -345,13 +345,23 @@ public final class OPT_DefaultInlineOracle extends OPT_InlineTools implements OP
                 OPT_InlineDecision.guardedYES(target,
                                               chooseGuard(caller, target, staticCallee, state, true),
                                               "Guarded inline of single static target");
-            if (opts
-                .OSR_GUARDED_INLINING &&
-                                      OPT_Compiler.getAppStarted() &&
-                                      VM_Controller.options
-                                          .ENABLE_RECOMPILATION) {
-              // note that we will OSR the failed case.
-              d.setOSRTestFailed();
+            /*
+             * Determine if it is allowable to put an OSR point in the failed case of
+             * the guarded inline instead of generating a real call instruction.
+             * There are several conditions that must be met for this to be allowable:
+             *   (1) OSR guarded inlining and recompilation must both be enabled
+             *   (2) The current context must be an interruptible method
+             *   (3) The application must be started.  This is a rough proxy for the VM
+             *       being fully booted so we can actually get through the OSR process.
+             *       Note: One implication of this requirement is that we will
+             *       never put an OSR on an off-branch of a guarded inline in bootimage
+             *       code.
+             */
+            if (opts.OSR_GUARDED_INLINING && VM_Controller.options.ENABLE_RECOMPILATION &&
+                caller.isInterruptible() &&
+                OPT_Compiler.getAppStarted()) {
+                if (VM.VerifyAssertions) VM._assert(VM.runningVM);
+                d.setOSRTestFailed();
             }
             if (verbose) VM.sysWriteln("\tDecide: " + d);
             return d;
@@ -405,7 +415,7 @@ public final class OPT_DefaultInlineOracle extends OPT_InlineTools implements OP
     byte guard = state.getOptions().INLINING_GUARD;
     if (codePatchSupported) {
       if (VM.VerifyAssertions && VM.runningVM) {
-        VM._assert(VM_ObjectModel.holdsLock(VM_Class.classLoadListener, VM_Thread.getCurrentThread()));
+        VM._assert(VM_ObjectModel.holdsLock(VM_Class.classLoadListener, VM_Scheduler.getCurrentThread()));
       }
       if (guard == OPT_Options.IG_CODE_PATCH) {
         OPT_ClassLoadingDependencyManager cldm = (OPT_ClassLoadingDependencyManager) VM_Class.classLoadListener;

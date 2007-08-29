@@ -17,6 +17,7 @@ import org.jikesrvm.compilers.common.VM_CompiledMethods;
 import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.scheduler.VM_Thread;
+import org.jikesrvm.scheduler.greenthreads.VM_GreenThread;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.SaveVolatile;
 import org.vmmagic.pragma.Uninterruptible;
@@ -43,9 +44,16 @@ public class VM_OptSaveVolatile {
    * This method is identical to the yieldpointFromPrologue()
    * method used by the baseline compiler, except in the OPT compiler world,
    * we also save the volatile registers.
+   *
+   * NOTE: The ThreadSwitchSampling code in the adaptive system
+   * depends on (a) knowing how many stack frames there are between here and the
+   * code in which the yieldpoint is taken and (b) this number being identical for
+   * all possible paths (ie, all compilers) from a yieldpoint in compiled code to
+   * the entry of this method. Changing this portion of the call stack is delicate and
+   * requires changes in the various AOS listeners that do call stack sampling.
    */
   public static void OPT_yieldpointFromPrologue() {
-    VM_Thread.yieldpoint(VM_Thread.PROLOGUE);
+    VM_GreenThread.yieldpoint(VM_Thread.PROLOGUE);
   }
 
   /**
@@ -53,9 +61,16 @@ public class VM_OptSaveVolatile {
    * This method is identical to the yieldpointFromEpilogue()
    * method used by the baseline compiler, except in the OPT compiler world,
    * we also save the volatile registers.
-   */
+   *
+   * NOTE: The ThreadSwitchSampling code in the adaptive system
+   * depends on (a) knowing how many stack frames there are between here and the
+   * code in which the yieldpoint is taken and (b) this number being identical for
+   * all possible paths (ie, all compilers) from a yieldpoint in compiled code to
+   * the entry of this method. Changing this portion of the call stack is delicate and
+   * requires changes in the various AOS listeners that do call stack sampling.
+  */
   public static void OPT_yieldpointFromEpilogue() {
-    VM_Thread.yieldpoint(VM_Thread.EPILOGUE);
+    VM_GreenThread.yieldpoint(VM_Thread.EPILOGUE);
   }
 
   /**
@@ -63,13 +78,27 @@ public class VM_OptSaveVolatile {
    * This method is identical to the yieldpointFromBackedge() method used
    * method used by the baseline compiler, except in the OPT compiler world,
    * we also save the volatile registers.
+   *
+   * NOTE: The ThreadSwitchSampling code in the adaptive system
+   * depends on (a) knowing how many stack frames there are between here and the
+   * code in which the yieldpoint is taken and (b) this number being identical for
+   * all possible paths (ie, all compilers) from a yieldpoint in compiled code to
+   * the entry of this method. Changing this portion of the call stack is delicate and
+   * requires changes in the various AOS listeners that do call stack sampling.
    */
   public static void OPT_yieldpointFromBackedge() {
-    VM_Thread.yieldpoint(VM_Thread.BACKEDGE);
+    VM_GreenThread.yieldpoint(VM_Thread.BACKEDGE);
   }
 
   /**
    * Handle timer interrupt taken in the prologue of a native method.
+   *
+   * NOTE: The ThreadSwitchSampling code in the adaptive system
+   * depends on (a) knowing how many stack frames there are between here and the
+   * code in which the yieldpoint is taken and (b) this number being identical for
+   * all possible paths (ie, all compilers) from a yieldpoint in compiled code to
+   * the entry of this method. Changing this portion of the call stack is delicate and
+   * requires changes in the various AOS listeners that do call stack sampling.
    */
   public static void OPT_yieldpointFromNativePrologue() {
     // VM.sysWriteln(123);
@@ -82,6 +111,13 @@ public class VM_OptSaveVolatile {
 
   /**
    * Handle timer interrupt taken in the epilogue of a native method.
+   *
+   * NOTE: The ThreadSwitchSampling code in the adaptive system
+   * depends on (a) knowing how many stack frames there are between here and the
+   * code in which the yieldpoint is taken and (b) this number being identical for
+   * all possible paths (ie, all compilers) from a yieldpoint in compiled code to
+   * the entry of this method. Changing this portion of the call stack is delicate and
+   * requires changes in the various AOS listeners that do call stack sampling.
    */
   public static void OPT_yieldpointFromNativeEpilogue() {
     // VM.sysWriteln(321);
@@ -94,11 +130,18 @@ public class VM_OptSaveVolatile {
 
   /**
    * OSR invalidation being initiated.
+   *
+   * NOTE: The ThreadSwitchSampling code in the adaptive system
+   * depends on (a) knowing how many stack frames there are between here and the
+   * code in which the yieldpoint is taken and (b) this number being identical for
+   * all possible paths (ie, all compilers) from a yieldpoint in compiled code to
+   * the entry of this method. Changing this portion of the call stack is delicate and
+   * requires changes in the various AOS listeners that do call stack sampling.
    */
   @Uninterruptible
   public static void OPT_yieldpointFromOsrOpt() {
     VM_Processor.getCurrentProcessor().yieldToOSRRequested = true;
-    VM_Thread.yieldpoint(VM_Thread.OSROPT);
+    VM_GreenThread.yieldpoint(VM_Thread.OSROPT);
   }
 
   /**

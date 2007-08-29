@@ -95,9 +95,9 @@ import org.vmmagic.unboxed.*;
    * @param object The object to query.
    * @return True if the object will not move.
    */
-  public boolean willNotMove(ObjectReference object) {
-    return (SS.hi && !Space.isInSpace(SS.SS0, object))
-        || (!SS.hi && !Space.isInSpace(SS.SS1, object));
+  public boolean willNotMoveInCurrentCollection(ObjectReference object) {
+    return (SS.hi && !Space.isInSpace(SS.SS0, object)) ||
+           (!SS.hi && !Space.isInSpace(SS.SS1, object));
   }
 
   /**

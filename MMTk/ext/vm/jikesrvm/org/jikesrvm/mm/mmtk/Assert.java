@@ -14,7 +14,6 @@ package org.jikesrvm.mm.mmtk;
 
 import org.mmtk.policy.Space;
 
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.VM;
 import org.jikesrvm.scheduler.VM_Scheduler;
 
@@ -85,30 +84,6 @@ import org.vmmagic.pragma.*;
 
   public final void dumpStack() {
     VM_Scheduler.dumpStack();
-  }
-
-  /**
-   * Throw an out of memory exception.  If the context is one where
-   * we're already dealing with a problem, first request some
-   * emergency heap space.
-   */
-  @LogicallyUninterruptible
-  @NoInline
-  public final void failWithOutOfMemoryError() {
-    failWithOutOfMemoryErrorStatic();
-  }
-
-  /**
-   * Throw an out of memory exception.  If the context is one where
-   * we're already dealing with a problem, first request some
-   * emergency heap space.
-   */
-  @LogicallyUninterruptible
-  @NoInline
-  public static void failWithOutOfMemoryErrorStatic() {
-    if (VM.doEmergencyGrowHeap)
-      MM_Interface.emergencyGrowHeap(EMERGENCY_HEAP_REQ); // ask and pray
-    throw new OutOfMemoryError();
   }
 
   /**

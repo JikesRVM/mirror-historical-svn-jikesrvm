@@ -44,7 +44,6 @@ import org.vmmagic.unboxed.*;
  * @see RCBaseCollector
  * @see org.mmtk.plan.StopTheWorldMutator
  * @see org.mmtk.plan.MutatorContext
- * @see org.mmtk.plan.SimplePhase#delegatePhase
  */
 @Uninterruptible public class RCBaseMutator extends StopTheWorldMutator {
 
@@ -107,9 +106,13 @@ import org.vmmagic.unboxed.*;
       case RCBase.ALLOC_RC:
         return rc.alloc(bytes, align, offset, false);
       case RCBase.ALLOC_LOS:
-        return los.alloc(bytes, align, offset, false);
+      case RCBase.ALLOC_PRIMITIVE_LOS:
+          return los.alloc(bytes, align, offset, false);
+      case RCBase.ALLOC_IMMORTAL:
+        return immortal.alloc(bytes, align, offset, false);
       default:
-        return super.alloc(bytes, align, offset, allocator, site);
+        VM.assertions.fail("RC not aware of allocator");
+        return Address.zero();
     }
   }
 
@@ -132,11 +135,12 @@ import org.vmmagic.unboxed.*;
     case RCBase.ALLOC_LOS:
     case RCBase.ALLOC_IMMORTAL:
       if (RCBase.WITH_COALESCING_RC) modBuffer.push(ref);
+    case RCBase.ALLOC_PRIMITIVE_LOS:
       RCHeader.initializeHeader(ref, typeRef, true);
       decBuffer.push(ref);
       break;
   default:
-      if (RCBase.WITH_COALESCING_RC) modBuffer.push(ref);
+      VM.assertions.fail("RC not aware of allocator");
       break;
     }
   }
@@ -153,7 +157,7 @@ import org.vmmagic.unboxed.*;
    *         <code>a</code>.
    */
   public Space getSpaceFromAllocator(Allocator a) {
-    if (a == rc ) return RCBase.rcSpace;
+    if (a == rc)  return RCBase.rcSpace;
     if (a == los) return RCBase.loSpace;
     return super.getSpaceFromAllocator(a);
   }
@@ -185,9 +189,9 @@ import org.vmmagic.unboxed.*;
    * @param primary Perform any single-threaded activities using this thread.
    */
   @Inline
-  public void collectionPhase(int phaseId, boolean primary) {
+  public void collectionPhase(short phaseId, boolean primary) {
 
-    if (phaseId == RCBase.PREPARE_MUTATOR) {
+    if (phaseId == RCBase.PREPARE) {
       rc.prepare();
       los.prepare();
       decBuffer.flushLocal();
@@ -195,7 +199,7 @@ import org.vmmagic.unboxed.*;
       return;
     }
 
-    if (phaseId == RCBase.RELEASE_MUTATOR) {
+    if (phaseId == RCBase.RELEASE) {
       los.release();
       rc.releaseCollector();
       rc.releaseMutator(); // FIXME see block comment at top of this class

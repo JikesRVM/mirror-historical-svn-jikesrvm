@@ -28,6 +28,8 @@
   <import file="${jikesrvm.dir}/build/tasks.xml"/>
 
   <property name="rvm.exe" location="${test.rvm.dir}/rvm"/>
+  <property name="timedrun.exe" location="${jikesrvm.dir}/bin/timedrun"/>
+  <property name="extractmmtkstats.exe" location="${jikesrvm.dir}/bin/extractmmtkstats"/>
 
   <!-- Default values -->
   <property name="test.mode" value=""/>
@@ -194,6 +196,27 @@
   </macrodef>
 
   <!--
+      Macro to extract MMTk statistics from a log file. The statistics to extract is a space delimited string.
+  -->
+  <macrodef name="extractMMTkStatistics">
+    <attribute name="tag"/>
+    <attribute name="statistics"/>
+    <sequential>
+      <exec executable="${extractmmtkstats.exe}" failonerror="false" resultproperty="test.@{tag}.mmtkstats.exit.code">
+        <arg value="${test.@{tag}.sanitized.output.file}"/>
+        <arg value="${results.file}"/>
+        <arg line="@{statistics}"/>
+      </exec>
+      <condition property="test.@{tag}.result" value="FAILURE">
+        <not>
+          <equals arg1="${test.@{tag}.mmtkstats.exit.code}" arg2="0"/>
+        </not>
+      </condition>
+      <explainResult tag="@{tag}" message="Could not extract MMTk statistics."/>
+    </sequential>
+  </macrodef>
+
+  <!--
       Macro to look for pattern in file and fail if unable to find pattern.
   -->
   <macrodef name="findStatistic">
@@ -231,8 +254,8 @@
       <res><![CDATA[<result-explanation>${test.@{tag}.result.explanation}</result-explanation>]]></res>
       <res><![CDATA[<output><]]>![CDATA[</res>
       <toAscii src="${test.@{tag}.output.file}" dest="${build.tests.dir}/deleteme.txt"/>
-      <!-- truncate output to 400K -->
-      <truncate file="${build.tests.dir}/deleteme.txt" size="409600"/>
+      <!-- truncate output to 500K -->
+      <truncate file="${build.tests.dir}/deleteme.txt" size="502000"/>
       <replace file="${build.tests.dir}/deleteme.txt" token="]]&gt;" value="]]&gt;]]&lt;![CDATA[&gt;"/>
       <concat destfile="${results.file}" append="true">
         <path path="${build.tests.dir}/deleteme.txt"/>
@@ -409,12 +432,12 @@
         </conditions>
         <sequential>
           <property name="test.@{tag}.rvm-wrapper.exe" value="${display-wrapper.exe}"/>
-          <property name="test.@{tag}.rvm.wrapped-args" value="-a ${rvm.exe} ${test.@{tag}.rvm.args}"/>
+          <property name="test.@{tag}.rvm.wrapper-args" value="-a ${timedrun.exe}"/>
         </sequential>
       </if>
       <!-- Defaults -->
-      <property name="test.@{tag}.rvm-wrapper.exe" value="${rvm.exe}"/>
-      <property name="test.@{tag}.rvm.wrapped-args" value="${test.@{tag}.rvm.args}"/>
+      <property name="test.@{tag}.rvm-wrapper.exe" value="${timedrun.exe}"/>
+      <property name="test.@{tag}.rvm.wrapper-args" value=""/>
 
       <property name="test.@{tag}.command"
                 value='${rvm.exe} ${test.@{tag}.rvm.args} -classpath "${test.@{tag}.class.path}" ${test.@{tag}.class} ${test.@{tag}.args}'/>
@@ -437,18 +460,25 @@
           </not>
         </conditions>
         <sequential>
-          <texec executable="${test.@{tag}.rvm-wrapper.exe}"
+          <exec executable="${test.@{tag}.rvm-wrapper.exe}"
                  failonerror="false"
                  dir="@{dir}"
-                 timeout="${test.@{tag}.time.limit}000"
-                 timeoutProperty="test.@{tag}.timeout"
                  output="${test.@{tag}.output.file}"
                  resultproperty="test.@{tag}.exit.code">
-            <arg line="${test.@{tag}.rvm.wrapped-args}"/>
+
+            <!-- Possible arguments for the display wrapper -->
+            <arg line="${test.@{tag}.rvm.wrapper-args}"/>
+
+            <!-- Arguments for the timeout script -->
+            <arg line="-t ${test.@{tag}.time.limit}"/>
+            <arg line="-e 200"/>
+
+            <!-- The RVM invocation -->
+            <arg line="${rvm.exe} ${test.@{tag}.rvm.args}"/>
             <arg value="-classpath"/>
             <arg value="${test.@{tag}.class.path}"/>
             <arg line="${test.@{tag}.class} ${test.@{tag}.args}"/>
-          </texec>
+          </exec>
         </sequential>
       </if>
       <timer property="test.@{tag}.time" stop="true"/>
@@ -456,7 +486,7 @@
 
       <!-- If we run overtime then record result -->
       <condition property="test.@{tag}.result" value="OVERTIME">
-        <isset property="test.@{tag}.timeout"/>
+        <equals arg1="${test.@{tag}.exit.code}" arg2="200"/>
       </condition>
       <explainResult tag="@{tag}" message="Test exceeded time limit."/>
 

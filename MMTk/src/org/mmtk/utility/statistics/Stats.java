@@ -17,7 +17,6 @@ import org.mmtk.utility.Log;
 import org.mmtk.utility.options.Options;
 import org.mmtk.utility.options.PrintPhaseStats;
 import org.mmtk.utility.options.XmlStats;
-import org.mmtk.utility.scan.Scan;
 
 import org.mmtk.vm.VM;
 
@@ -168,7 +167,7 @@ import org.vmmagic.pragma.*;
   public static void printTotals() {
     Log.writeln("============================ MMTk Statistics Totals ============================");
     printColumnNames();
-    Log.write((phase/2)+1); Log.write("\t");
+    Log.write(phase/2); Log.write("\t");
     for (int c = 0; c < counters; c++) {
       if (counter[c].mergePhases()) {
         counter[c].printTotal(); Log.write("\t");
@@ -269,7 +268,7 @@ import org.vmmagic.pragma.*;
   @Interruptible
   public static void printTotalsXml() {
     Xml.openTag("mmtk-stats-totals");
-    Xml.singleValue("gc",(phase/2)+1);
+    Xml.singleValue("gc", phase/2);
     for (int c = 0; c < counters; c++) {
      if (!counter[c].isComplex())
       if (counter[c].mergePhases()) {

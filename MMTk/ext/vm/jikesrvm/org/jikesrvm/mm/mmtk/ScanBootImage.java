@@ -18,7 +18,7 @@ import org.mmtk.utility.Log;
 import org.jikesrvm.VM;
 import org.jikesrvm.runtime.VM_BootRecord;
 import org.jikesrvm.runtime.VM_Magic;
-import org.jikesrvm.scheduler.VM_Thread;
+import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.memorymanagers.mminterface.VM_CollectorThread;
 
 import org.vmmagic.unboxed.*;
@@ -66,7 +66,7 @@ public class ScanBootImage implements Constants {
 
     /* figure out striding */
     int stride = VM_CollectorThread.numCollectors()<<LOG_CHUNK_BYTES;
-    VM_CollectorThread collector = VM_Magic.threadAsCollectorThread(VM_Thread.getCurrentThread());
+    VM_CollectorThread collector = VM_Magic.threadAsCollectorThread(VM_Scheduler.getCurrentThread());
     int start = (collector.getGCOrdinal() - 1)<<LOG_CHUNK_BYTES;
     Address cursor = mapStart.plus(start);
 
@@ -276,8 +276,7 @@ public class ScanBootImage implements Constants {
       return lastOffset + BYTES_IN_WORD;
     } else {
       if (((index & (CHUNK_BYTES - 1)) == 0) ||
-          (((int) code[index] &LONG_MASK) == LONG_MASK))
-      {
+          (((int) code[index] &LONG_MASK) == LONG_MASK)) {
         return decodeWord(code, index);
       } else {
         return lastOffset + (((int) code[index]) & 0xff);

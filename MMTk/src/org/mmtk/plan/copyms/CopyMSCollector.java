@@ -33,7 +33,6 @@ import org.vmmagic.unboxed.*;
  * @see CopyMSMutator
  * @see StopTheWorldCollector
  * @see CollectorContext
- * @see SimplePhase#delegatePhase
  */
 @Uninterruptible public abstract class CopyMSCollector extends StopTheWorldCollector {
 
@@ -111,7 +110,7 @@ import org.vmmagic.unboxed.*;
    * @param primary Use this thread for single-threaded local activities.
    */
   @Inline
-  public final void collectionPhase(int phaseId, boolean primary) {
+  public final void collectionPhase(short phaseId, boolean primary) {
     if (phaseId == CopyMS.PREPARE) {
       super.collectionPhase(phaseId, primary);
       mature.prepare();

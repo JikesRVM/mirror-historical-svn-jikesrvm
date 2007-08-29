@@ -18,6 +18,7 @@ import java.util.HashSet;
 import java.util.NoSuchElementException;
 import org.jikesrvm.ArchitectureSpecific.OPT_RegisterPool;
 import org.jikesrvm.VM;
+import org.jikesrvm.adaptive.VM_AosEntrypoints;
 import org.jikesrvm.adaptive.controller.VM_Controller;
 import org.jikesrvm.classloader.VM_Array;
 import org.jikesrvm.classloader.VM_BytecodeConstants;
@@ -180,10 +181,25 @@ public final class OPT_BC2IR
    */
   private int runoff;
 
+  private OPT_Operand currentGuard;
+
   /**
    * Was something inlined?
    */
   private boolean inlinedSomething;
+
+  /**
+   * OSR: used for PSEUDO_InvokeStatic to recover the type info
+   */
+  private int param1, param2;
+
+  /**
+   * osr barrier needs type information of locals and stacks,
+   * it has to be created before a _callHelper.
+   * only when the call site is going to be inlined, the instruction
+   * is inserted before the call site.
+   */
+  private OPT_Instruction lastOsrBarrier = null;
 
   /**
    *  Debugging with method_to_print. Switch following 2
@@ -1381,7 +1397,7 @@ public final class OPT_BC2IR
           // Set branch probabilities
           VM_SwitchBranchProfile sp = gc.getSwitchProfile(instrIndex - bciAdjustment);
           if (sp == null) {
-            float approxProb = 1.0f / (float) (number + 1); // number targets + default
+            float approxProb = 1.0f / (number + 1); // number targets + default
             TableSwitch.setDefaultBranchProfile(s, new OPT_BranchProfileOperand(approxProb));
             for (int i = 0; i < number; ++i) {
               TableSwitch.setBranchProfile(s, i, new OPT_BranchProfileOperand(approxProb));
@@ -1508,28 +1524,23 @@ public final class OPT_BC2IR
             // initialized or we're writing the bootimage and in an
             // RVM bootimage class, then get the value at compile
             // time.
-            // TODO: applying this optimization to Floats or Doubles
-            //       See bug #1543866
-            if (!fieldType.isDoubleType() && !fieldType.isFloatType()) {
-              if (field.isFinal()) {
-                VM_Class declaringClass = field.getDeclaringClass();
-                if (declaringClass.isInitialized() || declaringClass.isInBootImage()) {
-                  try {
-                    OPT_ConstantOperand rhs = OPT_StaticFieldReader.getStaticFieldValue(field);
-                    // VM.sysWrite("Replaced getstatic of "+field+" with "+rhs+"\n");
-                    push(rhs, fieldType);
-                    break;
-                  } catch (NoSuchFieldException e) {
-                    if (VM.runningVM) { // this is unexpected
-                      throw new Error("Unexpected exception", e);
-                    } else {
-                      // Field not found during bootstrap due to chasing a field
-                      // only valid in the bootstrap JVM
-                    }
+            if (field.isFinal()) {
+              VM_Class declaringClass = field.getDeclaringClass();
+              if (declaringClass.isInitialized() || declaringClass.isInBootImage()) {
+                try {
+                  OPT_ConstantOperand rhs = OPT_StaticFieldReader.getStaticFieldValue(field);
+                  // VM.sysWrite("Replaced getstatic of "+field+" with "+rhs+"\n");
+                  push(rhs, fieldType);
+                  break;
+                } catch (NoSuchFieldException e) {
+                  if (VM.runningVM) { // this is unexpected
+                    throw new Error("Unexpected exception", e);
+                  } else {
+                    // Field not found during bootstrap due to chasing a field
+                    // only valid in the bootstrap JVM
                   }
                 }
-              }
-              else if (field.isRuntimeFinal()) {
+              } else if (field.isRuntimeFinal()) {
                 if (VM.VerifyAssertions) VM._assert(fieldType.isBooleanType());
                 boolean rhsBool = field.getRuntimeFinalValue();
                 push(new OPT_IntConstantOperand(rhsBool? 1 : 0));
@@ -2338,6 +2349,7 @@ public final class OPT_BC2IR
           break;
 
         case JBC_impdep1: {
+          if (VM.BuildForAdaptiveSystem) {
           int pseudo_opcode = bcodes.nextPseudoInstruction();
           switch (pseudo_opcode) {
             case PSEUDO_LoadIntConst: {
@@ -2420,10 +2432,10 @@ public final class OPT_BC2IR
               int targetidx = bcodes.readIntConst();
               switch (targetidx) {
                 case GETREFAT:
-                  meth = VM_Entrypoints.osrGetRefAtMethod;
+                  meth = VM_AosEntrypoints.osrGetRefAtMethod;
                   break;
                 case CLEANREFS:
-                  meth = VM_Entrypoints.osrCleanRefsMethod;
+                  meth = VM_AosEntrypoints.osrCleanRefsMethod;
                   break;
                 default:
                   if (VM.TraceOnStackReplacement) {
@@ -2495,9 +2507,11 @@ public final class OPT_BC2IR
               OPT_OptimizingCompilerException.UNREACHABLE();
               break;
           }
-          break;
+            break;
+          } else {
+            OPT_OptimizingCompilerException.UNREACHABLE();
+          }
         }
-
         default:
           OPT_OptimizingCompilerException.UNREACHABLE();
           break;
@@ -2537,9 +2551,6 @@ public final class OPT_BC2IR
       }
     }
   }
-
-  // OSR: TODO: What are these doing here???
-  int param1, param2;
 
   private OPT_Instruction _unaryHelper(OPT_Operator operator, OPT_Operand val, VM_TypeReference type) {
     OPT_RegisterOperand t = gc.temps.makeTemp(type);
@@ -3401,8 +3412,6 @@ public final class OPT_BC2IR
   }
 
   //// GENERATE CHECK INSTRUCTIONS.
-  private OPT_Operand currentGuard;
-
   public static boolean isNonNull(OPT_Operand op) {
     if (op instanceof OPT_RegisterOperand) {
       OPT_RegisterOperand rop = (OPT_RegisterOperand) op;
@@ -3505,7 +3514,7 @@ public final class OPT_BC2IR
    * @return true if an unconditional throw is generated, false otherwise
    */
   public boolean do_NullCheck(OPT_Operand ref) {
-    if (gc.options.NO_NULL_CHECK) {
+    if (gc.noNullChecks()) {
       return false;
     }
     if (ref.isDefinitelyNull()) {
@@ -3599,7 +3608,7 @@ public final class OPT_BC2IR
    */
   public boolean do_BoundsCheck(OPT_Operand ref, OPT_Operand index) {
     // Unsafely eliminate all bounds checks
-    if (gc.options.NO_BOUNDS_CHECK) {
+    if (gc.noBoundsChecks()) {
       return false;
     }
     OPT_RegisterOperand guard = gc.temps.makeTempValidation();
@@ -4459,13 +4468,6 @@ public final class OPT_BC2IR
     return d;
   }
 
-  /* osr barrier needs type information of locals and stacks,
-   * it has to be created before a _callHelper.
-   * only when the call site is going to be inlined, the instruction
-   * is inserted before the call site.
-   */
-  private OPT_Instruction lastOsrBarrier = null;
-
   /**
    * Attempt to inline a method. This may fail.
    *
@@ -4536,7 +4538,7 @@ public final class OPT_BC2IR
       // pass it as from to getOrCreateBlock.
       // This causes any compensation code inserted by getOrCreateBlock
       // into the epilogue of the inlined method (see inlineTest7)
-      BasicBlockLE epilogueBBLE = new BasicBlockLE();
+      BasicBlockLE epilogueBBLE = new BasicBlockLE(0);
       epilogueBBLE.block = inlinedContext.epilogue;
       if (inlinedContext.result != null) {
         // If the call has a result, _callHelper allocated a new
@@ -4562,10 +4564,9 @@ public final class OPT_BC2IR
       epilogueBBLE.copyIntoLocalState(_localState);
       BasicBlockLE afterBBLE = blocks.getOrCreateBlock(bcodes.index(), epilogueBBLE, stack, _localState);
       // Create the InliningBlockLE and initialize fallThrough links.
-      InliningBlockLE inlinedCallee = new InliningBlockLE(inlinedContext);
+      InliningBlockLE inlinedCallee = new InliningBlockLE(inlinedContext, epilogueBBLE);
       currentBBLE.fallThrough = inlinedCallee;
       currentBBLE.block.insertOut(inlinedCallee.gc.cfg.firstInCodeOrder());
-      inlinedCallee.epilogueBBLE = epilogueBBLE;
       epilogueBBLE.fallThrough = afterBBLE;
       epilogueBBLE.block.insertOut(epilogueBBLE.fallThrough.block);
     } else {
@@ -4573,7 +4574,7 @@ public final class OPT_BC2IR
       // Therefore the next basic block is unreachable (unless
       // there is a branch to it from somewhere else in the current method,
       // which will naturally be handled when we generate the branch).
-      InliningBlockLE inlinedCallee = new InliningBlockLE(inlinedContext);
+      InliningBlockLE inlinedCallee = new InliningBlockLE(inlinedContext, null);
       currentBBLE.fallThrough = inlinedCallee;
       currentBBLE.block.insertOut(inlinedCallee.gc.cfg.firstInCodeOrder());
     }
@@ -4853,13 +4854,13 @@ public final class OPT_BC2IR
     private boolean noJSR = true;
 
     /** entry block of the CFG */
-    private BasicBlockLE entry;
+    private final BasicBlockLE entry;
 
     /** associated generation context */
-    private OPT_GenerationContext gc;
+    private final OPT_GenerationContext gc;
 
     /** associated bytecodes */
-    private VM_BytecodeStream bcodes;
+    private final VM_BytecodeStream bcodes;
 
     // Fields to support generation/identification of catch blocks
     /** Start bytecode index for each exception handler ranges */
@@ -5994,8 +5995,8 @@ public final class OPT_BC2IR
    */
   private static final class OperandStack {
 
-    OPT_Operand[] stack;
-    int top;
+    private final OPT_Operand[] stack;
+    private int top;
 
     OperandStack(int size) {
       stack = new OPT_Operand[size];
@@ -6076,7 +6077,7 @@ public final class OPT_BC2IR
     BasicBlockLE parent, left, right;
 
     /** Start bytecode of this BBLE */
-    int low;
+    final int low;
 
     /** Current end bytecode of this BBLE */
     int high;
@@ -6225,7 +6226,7 @@ public final class OPT_BC2IR
     }
 
     // Only for use by subclasses to avoid above constructor.
-    protected BasicBlockLE() { }
+    protected BasicBlockLE(int loc) { low = loc;  }
 
     /**
      * Returns a string representation of this BBLE.
@@ -6263,7 +6264,7 @@ public final class OPT_BC2IR
      * It contains the instruction sequence to get the caught exception object
      * into a "normal" register operand (exceptionObject);
      */
-    OPT_ExceptionHandlerBasicBlock entryBlock;
+    final OPT_ExceptionHandlerBasicBlock entryBlock;
 
     /**
      * Create a new exception handler BBLE (and exception handler basic block)
@@ -6279,7 +6280,7 @@ public final class OPT_BC2IR
      */
     HandlerBlockLE(int loc, OPT_InlineSequence position, OPT_TypeOperand eType, OPT_RegisterPool temps,
                    int exprStackSize, OPT_ControlFlowGraph cfg) {
-      super();
+      super(loc);
       entryBlock = new OPT_ExceptionHandlerBasicBlock(SYNTH_CATCH_BCI, position, eType, cfg);
       block = new OPT_BasicBlock(loc, position, cfg);
       // NOTE: We intentionally use throwable rather than eType to avoid
@@ -6289,7 +6290,6 @@ public final class OPT_BC2IR
       // should be the right tradeoff.
       exceptionObject = temps.makeTemp(VM_TypeReference.JavaLangThrowable);
       setGuard(exceptionObject, new OPT_TrueGuardOperand());    // know not null
-      low = loc;
       high = loc;
       // Set up expression stack on entry to have the caught exception operand.
       stackState = new OperandStack(exprStackSize);
@@ -6320,12 +6320,13 @@ public final class OPT_BC2IR
    * Extend BasicBlockLE to support inlining during IR generation.
    */
   private static final class InliningBlockLE extends BasicBlockLE {
-    OPT_GenerationContext gc;
-    BasicBlockLE epilogueBBLE;
+    final OPT_GenerationContext gc;
+    final BasicBlockLE epilogueBBLE;
 
-    InliningBlockLE(OPT_GenerationContext c) {
-      super();
+    InliningBlockLE(OPT_GenerationContext c, BasicBlockLE bble) {
+      super(0);
       gc = c;
+      epilogueBBLE = bble;
     }
 
     public String toString() {
@@ -6370,7 +6371,7 @@ public final class OPT_BC2IR
    * the expression stack by a JSR instruction.
    */
   public static final class ReturnAddressOperand extends OPT_Operand {
-    int retIndex;
+    final int retIndex;
 
     ReturnAddressOperand(int ri) { retIndex = ri; }
 

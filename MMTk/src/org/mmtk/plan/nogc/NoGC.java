@@ -30,8 +30,7 @@ import org.vmmagic.pragma.*;
    *
    * Class fields
    */
-  public static final ImmortalSpace defSpace
-    = new ImmortalSpace("default", DEFAULT_POLL_FREQUENCY, (float) 0.6);
+  public static final ImmortalSpace defSpace = new ImmortalSpace("default", DEFAULT_POLL_FREQUENCY, (float) 0.6);
   public static final int DEF = defSpace.getDescriptor();
 
   /*****************************************************************************
@@ -57,7 +56,7 @@ import org.vmmagic.pragma.*;
    *
    * @param phaseId Collection phase
    */
-  public final void collectionPhase(int phaseId) {
+  public final void collectionPhase(short phaseId) {
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(false);
     // if (phaseId == PREPARE) {
     // }
@@ -75,7 +74,7 @@ import org.vmmagic.pragma.*;
    */
   public final boolean collectionRequired(boolean spaceFull) {
     // Never collect
-    return false; 
+    return false;
   }
 
   /*****************************************************************************

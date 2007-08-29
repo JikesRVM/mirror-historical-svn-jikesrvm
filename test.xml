@@ -36,17 +36,7 @@
 
   <property name="results.archive" location="${results.dir}/archive"/>
 
-  <!-- properties defining mailer properties-->
-  <property name="mail.from" value="jikesrvm-core@lists.sourceforge.net"/>
-  <property name="mail.to" value="jikesrvm-regression@lists.sourceforge.net"/>
-  <property name="mail.host" value="localhost"/>
-  <property name="mail.port" value="25"/>
-  <property name="reporting.host.name" value="Unknown"/>
-
   <!-- properties defining where to upload -->
-  <property name="upload.location" value=""/>
-  <property name="web.directory" value=""/>
-
   <property name="cattrack.upload.account" value="regression@jikesrvm.anu.edu.au"/>
   <property name="cattrack.upload.incoming.dir" value="/home/regression/incoming"/>
 
@@ -293,7 +283,7 @@
 
   <target name="archive" depends="gen-xml-report">
     <mkdir dir="${results.archive}"/>
-    <property name="archive.filename" value="${local.hostname}_${test-run.name}_${test-run.start.time-stamp}_r${svn.revision}_${target.name}_Report.xml"/>
+    <property name="archive.filename" value="${local.hostname}_${test-run.variant}_${test-run.start.time-stamp}_r${svn.revision}_${target.name}_Report.xml"/>
     <gzip src="${test.results.dir}/Report.xml" destfile="${results.archive}/${archive.filename}.gz"/>
   </target>
 
