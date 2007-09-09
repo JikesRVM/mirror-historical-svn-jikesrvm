@@ -779,5 +779,21 @@ public class VM_GreenThread extends VM_Thread {
   final boolean isQueueable() {
     return state != State.TERMINATED;
   }
+
+  /**
+   * Returns true if this thread is in native code.
+   *
+   * @return true if this thread is in native code.
+   */
+  public final boolean isInNative() {
+    for (int a = VM_GreenScheduler.PRIMORDIAL_PROCESSOR_ID;
+	 a <= VM_GreenScheduler.numProcessors; ++a) {
+      VM_Processor proc = VM_GreenScheduler.processors[a];
+      if (proc.activeThread == this && proc.vpStatus != VM_Processor.IN_JAVA)
+	return true;
+    }
+    return false;
+  }
+
 }
 

@@ -14,9 +14,17 @@ package gnu.java.lang.management;
 
 import java.lang.management.ThreadInfo;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+
+import java.util.HashMap;
+import java.util.Map;
+
 import org.jikesrvm.VM_UnimplementedError;
 
 import org.jikesrvm.scheduler.VM_Scheduler;
+import org.jikesrvm.scheduler.VM_Thread;
+import org.jikesrvm.scheduler.greenthreads.VM_GreenThread;
 
 /**
  * Implementation of the threading bean for JikesRVM.
@@ -24,6 +32,11 @@ import org.jikesrvm.scheduler.VM_Scheduler;
  * @author Andrew John Hughes (gnu_andrew@member.fsf.org)
  */
 final class VMThreadMXBeanImpl {
+
+  /**
+   * Map of thread ids to VM_Thread instances.
+   */
+  private static Map<Long,VM_Thread> idMap;
 
   /**
    * Returns the ids of deadlocked threads occurring due
@@ -48,16 +61,27 @@ final class VMThreadMXBeanImpl {
   }
 
   /**
-   * Returns the identifiers of all threads.
+   * Returns the identifiers of all threads.  This
+   * method also serves a dual purpose of updating
+   * the id map.
    *
    * @return an array of thread identifiers.
    */
   static long[] getAllThreadIds() {
-    int num = VM_Scheduler.threads.length;
-    long[] ids = new long[num];
-    for (int a = 0; a < num; ++a) 
-      ids[a] = VM_Scheduler.threads[a].getJavaLangThread().getId();
-    return ids;
+    idMap = new HashMap<Long,VM_Thread>();
+    for (int a = VM_Scheduler.PRIMORDIAL_THREAD_INDEX;
+	 a < VM_Scheduler.threads.length; ++a)    
+      {
+	VM_Thread thread = VM_Scheduler.threads[a];
+	if (thread != null)
+	  idMap.put(thread.getJavaLangThread().getId(), thread);
+      }
+    long[] lids = new long[idMap.size()];
+    int a = 0;
+    for (Long id : idMap.keySet())
+      lids[a++] = id;
+    System.out.println(java.util.Arrays.toString(lids));
+    return lids;
   }
 
   /**
@@ -151,7 +175,37 @@ final class VMThreadMXBeanImpl {
    * @return a {@link java.lang.management.ThreadInfo} instance.
    */
   static ThreadInfo getThreadInfoForId(long id, int maxDepth) {
-    throw new VM_UnimplementedError();
+    VM_Thread thread = getThreadForId(id);
+    Constructor<ThreadInfo> cons = null;
+    try {
+      cons = ThreadInfo.class.getDeclaredConstructor(Long.TYPE, String.class,
+						     Thread.State.class, Long.TYPE,
+						     Long.TYPE, String.class,
+						     Long.TYPE, String.class,
+						     Long.TYPE, Long.TYPE,
+						     Boolean.TYPE,Boolean.TYPE,
+						     StackTraceElement[].class);
+      cons.setAccessible(true);
+      return cons.newInstance(id, thread.getName(), thread.getState(),
+			      thread.getBlockedCount(), thread.getBlockedTime(),
+			      null, -1, null, thread.getWaitingCount(),
+			      thread.getWaitingTime(),
+			      (thread instanceof VM_GreenThread ?
+			       ((VM_GreenThread) thread).isInNative() : false),
+			      thread.isSuspended(), null);			       
+    }
+    catch (NoSuchMethodException e) {
+      throw (Error) new InternalError("Couldn't get ThreadInfo constructor").initCause(e);
+    }
+    catch (InstantiationException e) {
+      throw (Error) new InternalError("Couldn't create ThreadInfo").initCause(e);
+    }
+    catch (IllegalAccessException e) {
+      throw (Error) new InternalError("Couldn't access ThreadInfo").initCause(e);
+    }
+    catch (InvocationTargetException e) {
+      throw (Error) new InternalError("ThreadInfo's constructor threw an exception").initCause(e);
+    }
   }
     
   /**
@@ -179,6 +233,21 @@ final class VMThreadMXBeanImpl {
    */
   static void resetPeakThreadCount() {
     throw new VM_UnimplementedError();
+  }
+
+  /**
+   * Returns the VM_Thread instance for the given
+   * thread id.
+   *
+   * @param id the id of the thread to find.
+   * @return the VM_Thread.
+   */
+  private static VM_Thread getThreadForId(long id) {
+    getAllThreadIds(); // Update the map
+    VM_Thread thread = idMap.get(id);
+    if (thread == null)
+      throw new IllegalArgumentException("Invalid id: " + id);
+    return thread;
   }
 
 }

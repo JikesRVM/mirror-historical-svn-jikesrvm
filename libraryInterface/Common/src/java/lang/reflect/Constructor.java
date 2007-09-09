@@ -79,10 +79,11 @@ public final class Constructor<T> extends AccessibleObject
     return constructor.isSynthetic();
   }
 
-  public Object newInstance(Object[] args) throws InstantiationException,
-                                                  IllegalAccessException,
-                                                  IllegalArgumentException,
-                                                  InvocationTargetException {
+  @SuppressWarnings("unchecked")  
+  public T newInstance(Object... args) throws InstantiationException,
+					      IllegalAccessException,
+					      IllegalArgumentException,
+					      InvocationTargetException {
     // Check accessibility
     if (!constructor.isPublic() && !isAccessible()) {
       VM_Class accessingClass = VM_Class.getClassFromStackFrame(1);
@@ -129,7 +130,7 @@ public final class Constructor<T> extends AccessibleObject
     } catch (Throwable e) {
       throw new InvocationTargetException(e);
     }
-    return obj;
+    return (T) obj;
   }
 
   public String toString() {

@@ -75,6 +75,18 @@ public abstract class VM_Thread {
   static int notifyOperations;
   /** Number of notifyAll operations */
   static int notifyAllOperations;
+  /** Number of times blocked */
+  static long blockedCount;
+  /** Amount of time spent blocked */
+  static long blockedTime;
+  /** Time we entered the current blocked state */
+  static long blockedStart;
+  /** Number of times spent waiting */
+  static long waitingCount;
+  /** Amount of time spent waiting */
+  static long waitingTime;
+  /** Time we entered the current waiting state */
+  static long waitingStart;
 
   /**
    * The thread is modeled by a state machine the following constants describe
@@ -553,6 +565,22 @@ public abstract class VM_Thread {
     }
     if (state == oldState) {
       state = newState;
+      if (STATS) {
+	if (oldState == State.BLOCKED) 
+	  blockedTime += VM_Time.currentTimeMillis() - blockedStart;
+	else if (oldState != State.NEW && oldState != State.RUNNABLE &&
+		 oldState != State.TERMINATED)
+	  waitingTime += VM_Time.currentTimeMillis() - waitingStart;
+      }
+      if (state == State.BLOCKED) {
+	++blockedCount;
+	if (STATS) 
+	  blockedStart = VM_Time.currentTimeMillis();
+      } else if (state != State.NEW && state != State.RUNNABLE && state != State.TERMINATED) {
+	++waitingCount;
+	if (STATS)
+	  waitingStart = VM_Time.currentTimeMillis();
+      }
     } else {
       throw new IllegalThreadStateException("Illegal thread state change from " +
           oldState + " to " + newState + " when in state " + state + " in thread " + name);
@@ -1627,6 +1655,7 @@ public abstract class VM_Thread {
   public final void setPriority(int priority) {
     this.priority = priority;
   }
+
   /**
    * Get the state of the thread in a manner compatible with the Java API
    * @return thread state
@@ -1985,4 +2014,61 @@ public abstract class VM_Thread {
     VM.sysWrite("FatLocks: ");
     VM.sysWrite(notifyAllOperations);
   }
+
+  /**
+   * Returns true if the thread is suspended.
+   *
+   * @return true if the thread is suspended.
+   */
+  public final boolean isSuspended() {
+    return state == State.SUSPENDED ||
+      state == State.OSR_SUSPENDED;
+  }
+
+  /**
+   * Returns the number of times this thread has been blocked.
+   *
+   * @return the number of times the thread has been in the blocked state.
+   */
+  public final long getBlockedCount() {
+    return blockedCount;
+  }
+
+  /**
+   * Returns the amount of time the thread has spent in a blocked
+   * state, or -1 if this feature is disabled.
+   *
+   * @return the amount of time the thread has spent blocked, or
+   *         -1 if contention monitoring is disabled.
+   */
+  public final long getBlockedTime() {
+    if (STATS)
+      return blockedTime;
+    else
+      return -1;
+  }
+
+  /**
+   * Returns the number of times this thread has been waiting.
+   *
+   * @return the number of times the thread has been in the waiting state.
+   */
+  public final long getWaitingCount() {
+    return waitingCount;
+  }
+
+  /**
+   * Returns the amount of time the thread has spent in a waiting
+   * state, or -1 if this feature is disabled.
+   *
+   * @return the amount of time the thread has spent waiting, or
+   *         -1 if contention monitoring is disabled.
+   */
+  public final long getWaitingTime() {
+    if (STATS)
+      return waitingTime;
+    else
+      return -1;
+  }
+
 }

@@ -20,6 +20,8 @@ import org.jikesrvm.VM_Configuration;
 import org.jikesrvm.classloader.VM_ClassLoader;
 import org.jikesrvm.classloader.VM_BootstrapClassLoader;
 
+import org.jikesrvm.scheduler.VM_Lock;
+
 /**
  * Jikes RVM implementation of GNU Classpath's gnu.classpath.VMSystemProperties.
  * <P>
@@ -152,6 +154,8 @@ public class VMSystemProperties {
     p.put("gnu.java.compiler.name","JikesRVM");
     if (VM.MeasureCompilation)
       p.put("gnu.java.lang.management.CompilationTimeSupport","true");
+    if (VM_Lock.STATS)
+      p.put("gnu.java.lang.management.ThreadContentionSupport","true");
   }
 
   /** Set java.library.path.
