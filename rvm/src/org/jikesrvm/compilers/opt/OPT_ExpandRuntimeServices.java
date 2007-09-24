@@ -16,6 +16,7 @@ import java.lang.reflect.Constructor;
 import org.jikesrvm.VM;
 import org.jikesrvm.classloader.VM_Array;
 import org.jikesrvm.classloader.VM_Class;
+import org.jikesrvm.classloader.VM_Field;
 import org.jikesrvm.classloader.VM_FieldReference;
 import org.jikesrvm.classloader.VM_Method;
 import org.jikesrvm.classloader.VM_Type;
@@ -347,24 +348,27 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase {
         case PUTFIELD_opcode: {
           if (MM_Constants.NEEDS_WRITE_BARRIER) {
             OPT_LocationOperand loc = PutField.getLocation(inst);
-            VM_FieldReference field = loc.getFieldRef();
-            if (!field.getFieldContentsType().isPrimitiveType()) {
-              VM_Method target = VM_Entrypoints.putfieldWriteBarrierMethod;
-              OPT_Instruction wb =
-                  Call.create4(CALL,
-                               null,
-                               OPT_IRTools.AC(target.getOffset()),
-                               OPT_MethodOperand.STATIC(target),
-                               PutField.getRef(inst).copy(),
-                               PutField.getOffset(inst).copy(),
-                               PutField.getValue(inst).copy(),
-                               OPT_IRTools.IC(field.getId()));
-              wb.bcIndex = RUNTIME_SERVICES_BCI;
-              wb.position = inst.position;
-              inst.replace(wb);
-              next = wb.nextInstructionInCodeOrder();
-              if (ir.options.INLINE_WRITE_BARRIER) {
-                inline(wb, ir);
+            VM_FieldReference fieldRef = loc.getFieldRef();
+            if (!fieldRef.getFieldContentsType().isPrimitiveType()) {
+              VM_Field field = fieldRef.peekResolvedField();
+              if (field == null || !field.isUntraced()) {
+                VM_Method target = VM_Entrypoints.putfieldWriteBarrierMethod;
+                OPT_Instruction wb =
+                    Call.create4(CALL,
+                                 null,
+                                 OPT_IRTools.AC(target.getOffset()),
+                                 OPT_MethodOperand.STATIC(target),
+                                 PutField.getRef(inst).copy(),
+                                 PutField.getOffset(inst).copy(),
+                                 PutField.getValue(inst).copy(),
+                                 OPT_IRTools.IC(fieldRef.getId()));
+                wb.bcIndex = RUNTIME_SERVICES_BCI;
+                wb.position = inst.position;
+                inst.replace(wb);
+                next = wb.nextInstructionInCodeOrder();
+                if (ir.options.INLINE_WRITE_BARRIER) {
+                  inline(wb, ir);
+                }
               }
             }
           }

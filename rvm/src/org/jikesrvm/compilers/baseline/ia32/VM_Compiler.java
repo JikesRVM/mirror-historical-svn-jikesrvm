@@ -19,6 +19,7 @@ import org.jikesrvm.adaptive.recompilation.VM_InvocationCounts;
 import org.jikesrvm.classloader.VM_Array;
 import org.jikesrvm.classloader.VM_Atom;
 import org.jikesrvm.classloader.VM_Class;
+import org.jikesrvm.classloader.VM_Field;
 import org.jikesrvm.classloader.VM_FieldReference;
 import org.jikesrvm.classloader.VM_InterfaceInvocation;
 import org.jikesrvm.classloader.VM_InterfaceMethodSignature;
@@ -2589,11 +2590,12 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
   @Override
   protected final void emit_resolved_putfield(VM_FieldReference fieldRef) {
     VM_TypeReference fieldType = fieldRef.getFieldContentsType();
-    Offset fieldOffset = fieldRef.peekResolvedField().getOffset();
+    VM_Field field = fieldRef.peekResolvedField();
+    Offset fieldOffset = field.getOffset();
     VM_Barriers.compileModifyCheck(asm, 4);
     if (fieldType.isReferenceType()) {
       // 32bit reference store
-      if (MM_Constants.NEEDS_WRITE_BARRIER) {
+      if (MM_Constants.NEEDS_WRITE_BARRIER && !field.isUntraced()) {
         VM_Barriers.compilePutfieldBarrierImm(asm, fieldOffset, fieldRef.getId());
         asm.emitADD_Reg_Imm(SP, WORDSIZE * 2); // complete popping the value and reference
       } else {

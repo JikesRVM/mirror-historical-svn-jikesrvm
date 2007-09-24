@@ -47,6 +47,10 @@ public final class VM_Field extends VM_Member {
                    int constantValueIndex, VM_Annotation[] annotations) {
     super(declaringClass, memRef, modifiers, signature, annotations);
     this.constantValueIndex = constantValueIndex;
+
+    if (isUntraced() && !isPrivate()) {
+      VM.sysFail("Non-Private field " + toString() + " has Untraced annotation");
+    }
   }
 
   /**
@@ -172,6 +176,13 @@ public final class VM_Field extends VM_Member {
    */
   public boolean isRuntimeFinal() {
    return hasRuntimeFinalAnnotation();
+  }
+
+  /**
+   * Is this field invisible to the memory management system.
+   */
+  public boolean isUntraced() {
+    return hasUntracedAnnotation();
   }
 
   /**
@@ -333,7 +344,7 @@ public final class VM_Field extends VM_Member {
         VM_Statics.setSlotContents(getOffset(), ref);
       }
     } else {
-      if (MM_Constants.NEEDS_WRITE_BARRIER) {
+      if (MM_Constants.NEEDS_WRITE_BARRIER && !isUntraced()) {
         MM_Interface.putfieldWriteBarrier(obj, getOffset(), ref, getId());
       } else {
         VM_Magic.setObjectAtOffset(obj, getOffset(), ref);
