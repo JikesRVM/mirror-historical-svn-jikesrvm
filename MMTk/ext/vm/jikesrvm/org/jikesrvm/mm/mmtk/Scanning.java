@@ -17,6 +17,7 @@ import org.mmtk.plan.TransitiveClosure;
 import org.mmtk.utility.Constants;
 
 import org.jikesrvm.memorymanagers.mminterface.MM_Constants;
+import org.jikesrvm.memorymanagers.mminterface.Selected;
 import org.jikesrvm.memorymanagers.mminterface.VM_CollectorThread;
 import org.jikesrvm.memorymanagers.mminterface.VM_SpecializedScanMethod;
 import org.jikesrvm.VM;
@@ -177,10 +178,11 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
             VM.sysWriteln(ObjectReference.fromObject(thread).toAddress());
           }
           Address threadTableSlot = threadTable.toAddress().plus(threadIndex<<LOG_BYTES_IN_ADDRESS);
-          if (VM.VerifyAssertions)
-            VM._assert(ObjectReference.fromObject(thread).toAddress().EQ(
-                threadTableSlot.loadObjectReference().toAddress()),
-            "Thread table address arithmetic is wrong!");
+          if (VM.VerifyAssertions) {
+            Address a = ObjectReference.fromObject(thread).toAddress();
+            Address b = Selected.Collector.get().loadObjectReference(threadTableSlot).toAddress();
+            VM._assert(a.EQ(b), "Thread table address arithmetic is wrong!");
+          }
           trace.processPrecopyEdge(threadTableSlot);
           thread = VM_Scheduler.threads[threadIndex];  // reload  it - it just moved!
           if (TRACE_PRECOPY) {

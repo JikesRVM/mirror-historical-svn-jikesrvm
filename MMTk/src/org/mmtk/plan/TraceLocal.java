@@ -86,9 +86,9 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    */
   @Inline
   public final void processEdge(ObjectReference source, Address slot) {
-    ObjectReference object = slot.loadObjectReference();
+    ObjectReference object = VM.activePlan.collector().loadObjectReference(slot);
     ObjectReference newObject = traceObject(object, false);
-    slot.store(newObject);
+    VM.activePlan.collector().storeObjectReference(slot, newObject);
   }
 
   /**
@@ -116,9 +116,9 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    */
   @Inline
   public final void processRootEdge(Address slot) {
-    ObjectReference object = slot.loadObjectReference();
+    ObjectReference object = VM.activePlan.collector().loadObjectReference(slot);
     ObjectReference newObject = traceObject(object, true);
-    slot.store(newObject);
+    VM.activePlan.collector().storeObjectReference(slot, newObject);
   }
 
   /**
@@ -543,10 +543,10 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    */
   @Inline
   public final void processPrecopyEdge(Address slot) {
-    ObjectReference child = slot.loadObjectReference();
+    ObjectReference child = VM.activePlan.collector().loadObjectReference(slot);
     if (!child.isNull()) {
       child = precopyObject(child);
-      slot.store(child);
+      VM.activePlan.collector().storeObjectReference(slot, child);
     }
   }
 }

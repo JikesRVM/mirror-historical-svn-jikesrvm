@@ -17,6 +17,7 @@ import org.mmtk.utility.Log;
 
 import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.memorymanagers.mminterface.DebugUtil;
+import org.jikesrvm.memorymanagers.mminterface.Selected;
 import org.jikesrvm.memorymanagers.mminterface.VM_GCMapIterator;
 import org.jikesrvm.memorymanagers.mminterface.VM_GCMapIteratorGroup;
 
@@ -594,7 +595,7 @@ import org.vmmagic.pragma.*;
    * performing the scan.
    */
   private void dumpRef(Address refaddr, int verbosity) {
-    ObjectReference ref = refaddr.loadObjectReference();
+    ObjectReference ref = Selected.Collector.get().loadObjectReference(refaddr);
     VM.sysWrite(refaddr);
     if (verbosity >= 4) {
       VM.sysWrite(":"); MM_Interface.dumpRef(ref);
@@ -611,7 +612,7 @@ import org.vmmagic.pragma.*;
    * performing the scan.
    */
   private void checkReference(Address refaddr, int verbosity) {
-    ObjectReference ref = refaddr.loadObjectReference();
+    ObjectReference ref = Selected.Collector.get().loadObjectReference(refaddr);
     if (!MM_Interface.validRef(ref)) {
       Log.writeln();
       Log.writeln("Invalid ref reported while scanning stack");
@@ -695,7 +696,7 @@ import org.vmmagic.pragma.*;
       Log.write(loc); Log.write(" (");
       Log.write(loc.diff(start));
       Log.write("):   ");
-      ObjectReference value = loc.loadObjectReference();
+      ObjectReference value = Selected.Collector.get().loadObjectReference(loc);
       Log.write(value);
       Log.write(" ");
       Log.flush();
