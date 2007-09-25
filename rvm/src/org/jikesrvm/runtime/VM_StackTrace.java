@@ -98,8 +98,8 @@ public class VM_StackTrace {
     Address ip;
     if (stackTraceThread != VM_Scheduler.getCurrentThread()) {
       /* Stack trace for a sleeping thread */
-      fp = stackTraceThread.getContextRegisters().getInnermostFramePointer();
-      ip = stackTraceThread.getContextRegisters().getInnermostInstructionAddress();
+      fp = stackTraceThread.contextRegisters.getInnermostFramePointer();
+      ip = stackTraceThread.contextRegisters.getInnermostInstructionAddress();
     } else {
       /* Stack trace for the current thread */
       fp = VM_Magic.getFramePointer();

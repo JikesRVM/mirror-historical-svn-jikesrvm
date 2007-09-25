@@ -48,8 +48,8 @@ public final class VM_Field extends VM_Member {
     super(declaringClass, memRef, modifiers, signature, annotations);
     this.constantValueIndex = constantValueIndex;
 
-    if (isUntraced() && !isPrivate()) {
-      VM.sysFail("Non-Private field " + toString() + " has Untraced annotation");
+    if (isUntraced() && VM.runningVM) {
+      VM.sysFail("Untraced field " + toString() + " created at runtime!");
     }
   }
 

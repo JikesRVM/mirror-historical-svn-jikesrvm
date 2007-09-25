@@ -142,7 +142,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     // because it's accessed by compiler-generated stack overflow checks.
     //
     if (verboseBoot >= 1) VM.sysWriteln("Doing thread initialization");
-    VM_Thread currentThread = VM_Processor.getCurrentProcessor().getActiveThread();
+    VM_Thread currentThread = VM_Processor.getCurrentProcessor().activeThread;
     currentThread.stackLimit = VM_Magic.objectAsAddress(
         currentThread.getStack()).plus(ArchitectureSpecific.VM_StackframeLayoutConstants.STACK_SIZE_GUARD);
 

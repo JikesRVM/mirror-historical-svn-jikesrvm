@@ -227,7 +227,7 @@ public final class VM_GreenScheduler extends VM_Scheduler {
         trace("VM_Scheduler.boot", "starting processor id", i);
       }
 
-      processors[i].setActiveThread(target);
+      processors[i].activeThread = target;
       processors[i].activeThreadStackLimit = target.stackLimit;
       target.registerThread(); // let scheduler know that thread is active.
       if (VM.BuildForPowerPC) {
@@ -238,16 +238,16 @@ public final class VM_GreenScheduler extends VM_Scheduler {
         Address toc = VM_Magic.getTocPointer();
         sysCall.sysVirtualProcessorCreate(toc,
                                           VM_Magic.objectAsAddress(processors[i]),
-                                          target.getContextRegisters().ip,
-                                          target.getContextRegisters().getInnermostFramePointer());
+                                          target.contextRegisters.ip,
+                                          target.contextRegisters.getInnermostFramePointer());
         if (cpuAffinity != NO_CPU_AFFINITY) {
           sysCall.sysVirtualProcessorBind(cpuAffinity + i - 1); // bind it to a physical cpu
         }
       } else if (VM.BuildForIA32) {
         sysCall.sysVirtualProcessorCreate(VM_Magic.getTocPointer(),
                                           VM_Magic.objectAsAddress(processors[i]),
-                                          target.getContextRegisters().ip,
-                                          target.getContextRegisters().getInnermostFramePointer());
+                                          target.contextRegisters.ip,
+                                          target.contextRegisters.getInnermostFramePointer());
       } else if (VM.VerifyAssertions) {
         VM._assert(VM.NOT_REACHED);
       }
@@ -358,7 +358,7 @@ public final class VM_GreenScheduler extends VM_Scheduler {
    * Get the current executing thread on this VM_Processor
    */
   public static VM_GreenThread getCurrentThread() {
-    return (VM_GreenThread)VM_GreenProcessor.getCurrentProcessor().getActiveThread();
+    return (VM_GreenThread)VM_GreenProcessor.getCurrentProcessor().activeThread;
   }
 
   /**
@@ -490,8 +490,8 @@ public final class VM_GreenScheduler extends VM_Scheduler {
       VM_Thread thr = threads[i];
       if (thr != null && thr != VM_Scheduler.getCurrentThread() && thr.isAlive()) {
         thr.dump();
-        if (thr.getContextRegisters() != null)
-          dumpStack(thr.getContextRegisters().getInnermostFramePointer());
+        if (thr.contextRegisters != null)
+          dumpStack(thr.contextRegisters.getInnermostFramePointer());
       }
     }
     VM_GreenProcessor.getCurrentProcessor().enableThreadSwitching();
@@ -590,7 +590,7 @@ public final class VM_GreenScheduler extends VM_Scheduler {
     for (int i = 0; i < processors.length; ++i) {
       VM_GreenProcessor p = processors[i];
       if (p == null) continue;
-      if (p.getActiveThread() == t) {
+      if (p.activeThread == t) {
         return "running on processor " + i;
       }
     }
@@ -672,7 +672,7 @@ public final class VM_GreenScheduler extends VM_Scheduler {
     byte[] stack = new byte[ArchitectureSpecific.VM_ArchConstants.STACK_SIZE_BOOT];
     VM_GreenThread startupThread = new VM_Scheduler.ThreadModel(stack, "Jikes_RVM_Boot_Thread");
     numDaemons++;
-    processors[initProc].setActiveThread(startupThread);
+    processors[initProc].activeThread = startupThread;
     return startupThread;
   }
 

@@ -366,7 +366,7 @@ public abstract class VM_Scheduler {
    * Get the current executing thread on this VM_Processor
    */
   public static VM_Thread getCurrentThread() {
-    return VM_Magic.objectAsThread(VM_Processor.getCurrentProcessor().getActiveThread());
+    return VM_Magic.objectAsThread(VM_Processor.getCurrentProcessor().activeThread);
   }
 
   /*

@@ -169,7 +169,7 @@ import org.vmmagic.unboxed.*;
       if (Gen.GATHER_WRITE_BARRIER_STATS) Gen.wbSlow.inc();
       remset.insert(slot);
     }
-    VM.getBarriers().performWriteInBarrier(src, slot, tgt, metaDataA, metaDataB, mode);
+    VM.barriers.performWriteInBarrier(src, slot, tgt, metaDataA, metaDataB, mode);
   }
 
   /**
@@ -195,7 +195,7 @@ import org.vmmagic.unboxed.*;
   public boolean tryCompareAndSwapWriteBarrier(ObjectReference src, Address slot,
       ObjectReference old, ObjectReference tgt, Offset metaDataA,
       int metaDataB, int mode) {
-    boolean result = VM.getBarriers().tryCompareAndSwapWriteInBarrier(src, slot, old, tgt, metaDataA, metaDataB, mode);
+    boolean result = VM.barriers.tryCompareAndSwapWriteInBarrier(src, slot, old, tgt, metaDataA, metaDataB, mode);
     if (result) {
       if (Gen.GATHER_WRITE_BARRIER_STATS) Gen.wbFast.inc();
       if (slot.LT(Gen.NURSERY_START) && tgt.toAddress().GE(Gen.NURSERY_START)) {

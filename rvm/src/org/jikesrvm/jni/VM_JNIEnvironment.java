@@ -86,7 +86,7 @@ public class VM_JNIEnvironment implements VM_SizeConstants {
    */
   @Entrypoint
   @Untraced
-  private VM_Processor savedPRreg;
+  protected VM_Processor savedPRreg;
 
   /**
    * true if the bottom stack frame is native,
@@ -99,7 +99,7 @@ public class VM_JNIEnvironment implements VM_SizeConstants {
    */
   @Entrypoint
   @Untraced
-  private AddressArray JNIRefs;
+  public AddressArray JNIRefs;
 
   /**
    * address of current top ref in JNIRefs array
@@ -130,7 +130,7 @@ public class VM_JNIEnvironment implements VM_SizeConstants {
    */
   @Entrypoint
   @Untraced
-  private Throwable pendingException;
+  protected Throwable pendingException;
 
   /**
    * We allocate VM_JNIEnvironments in the immortal heap (so we

@@ -85,8 +85,8 @@ public abstract class VM_MachineSpecificIA extends VM_MachineSpecific implements
     VM_Magic.setCompiledMethodID(fp, INVISIBLE_METHOD_ID);
 
     sp = sp.minus(VM_SizeConstants.BYTES_IN_ADDRESS);                                 // allow for one local
-    contextRegisters.getGPRs().set(ESP, sp.toWord());
-    contextRegisters.getGPRs().set(VM_BaselineConstants.JTOC, VM_Magic.objectAsAddress(VM_Magic.getJTOC()).toWord());
+    contextRegisters.gprs.set(ESP, sp.toWord());
+    contextRegisters.gprs.set(VM_BaselineConstants.JTOC, VM_Magic.objectAsAddress(VM_Magic.getJTOC()).toWord());
     contextRegisters.fp = fp;
     contextRegisters.ip = ip;
   }
@@ -104,11 +104,11 @@ public abstract class VM_MachineSpecificIA extends VM_MachineSpecific implements
   @Uninterruptible
   @Override
   public final void adjustESP(ArchitectureSpecific.VM_Registers registers, Offset delta, boolean traceAdjustments) {
-    Word old = registers.getGPRs().get(ESP);
-    registers.getGPRs().set(ESP, old.plus(delta));
+    Word old = registers.gprs.get(ESP);
+    registers.gprs.set(ESP, old.plus(delta));
     if (traceAdjustments) {
       VM.sysWrite(" esp =");
-      VM.sysWrite(registers.getGPRs().get(ESP));
+      VM.sysWrite(registers.gprs.get(ESP));
     }
   }
 }

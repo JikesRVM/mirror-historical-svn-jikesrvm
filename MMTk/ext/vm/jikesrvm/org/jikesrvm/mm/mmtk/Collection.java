@@ -238,8 +238,8 @@ public class Collection extends org.mmtk.vm.Collection implements Constants, VM_
        frame, which has been saved in the running threads JNIEnv.  Put
        the saved frame pointer into the threads saved context regs,
        which is where the stack scan starts. */
-      VM_Thread t = vp.getActiveThread();
-      t.getContextRegisters().setInnermost(Address.zero(), t.getJNIEnv().topJavaFP());
+      VM_Thread t = vp.activeThread;
+      t.contextRegisters.setInnermost(Address.zero(), t.jniEnv.topJavaFP());
     }
   }
 
@@ -265,7 +265,7 @@ public class Collection extends org.mmtk.vm.Collection implements Constants, VM_
       VM_Atom cls = method.getDeclaringClass().getDescriptor();
       VM_Atom name = method.getName();
       if (name == runAtom && cls == collectorThreadAtom) {
-        t.getContextRegisters().setInnermost(caller_ip, caller_fp);
+        t.contextRegisters.setInnermost(caller_ip, caller_fp);
         break;
       }
       fp = caller_fp;

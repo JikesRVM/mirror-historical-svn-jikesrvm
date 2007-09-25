@@ -54,7 +54,7 @@ public abstract class VM_OptExceptionDeliverer extends VM_ExceptionDeliverer
 
     // reset sp to "empty params" state (ie same as it was after prologue)
     Address sp = fp.minus(optMethod.getFrameFixedSize());
-    registers.getGPRs().set(STACK_POINTER, sp.toWord());
+    registers.gprs.set(STACK_POINTER, sp.toWord());
 
     // store exception object for later retrieval by catch block
     int offset = optMethod.getUnsignedExceptionOffset();
@@ -81,7 +81,7 @@ public abstract class VM_OptExceptionDeliverer extends VM_ExceptionDeliverer
       for (int i = 0; i < NUM_GPRS; i++) {
         VM.sysWrite(GPR_NAMES[i]);
         VM.sysWrite(" = ");
-        VM.sysWrite(registers.getGPRs().get(i));
+        VM.sysWrite(registers.gprs.get(i));
         VM.sysWrite("\n");
       }
     }
@@ -129,7 +129,7 @@ public abstract class VM_OptExceptionDeliverer extends VM_ExceptionDeliverer
       for (int i = 0; i < NUM_GPRS; i++) {
         VM.sysWrite(GPR_NAMES[i]);
         VM.sysWrite(" = ");
-        VM.sysWrite(registers.getGPRs().get(i));
+        VM.sysWrite(registers.gprs.get(i));
         VM.sysWrite("\n");
       }
     }
@@ -137,7 +137,7 @@ public abstract class VM_OptExceptionDeliverer extends VM_ExceptionDeliverer
     // restore non-volatile registers
     int frameOffset = optMethod.getUnsignedNonVolatileOffset();
     for (int i = optMethod.getFirstNonVolatileGPR(); i < NUM_NONVOLATILE_GPRS; i++, frameOffset += 4) {
-      registers.getGPRs().set(NONVOLATILE_GPRS[i], fp.minus(frameOffset).loadWord());
+      registers.gprs.set(NONVOLATILE_GPRS[i], fp.minus(frameOffset).loadWord());
     }
     if (VM.VerifyAssertions) VM._assert(NUM_NONVOLATILE_FPRS == 0);
 
@@ -150,7 +150,7 @@ public abstract class VM_OptExceptionDeliverer extends VM_ExceptionDeliverer
       for (int i = 0; i < NUM_GPRS; i++) {
         VM.sysWrite(GPR_NAMES[i]);
         VM.sysWrite(" = ");
-        VM.sysWrite(registers.getGPRs().get(i));
+        VM.sysWrite(registers.gprs.get(i));
         VM.sysWrite("\n");
       }
     }

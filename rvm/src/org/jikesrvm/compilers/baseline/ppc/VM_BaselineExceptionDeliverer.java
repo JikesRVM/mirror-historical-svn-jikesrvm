@@ -81,7 +81,7 @@ public abstract class VM_BaselineExceptionDeliverer extends VM_ExceptionDelivere
           int location = bcm.getGeneralLocalLocation(0);
           Address addr;
           if (VM_Compiler.isRegister(location)) {
-            lock = VM_Magic.addressAsObject(registers.getGPRs().get(location).toAddress());
+            lock = VM_Magic.addressAsObject(registers.gprs.get(location).toAddress());
           } else {
             addr =
                 fp.plus(VM_Compiler.locationToOffset(location) -
@@ -101,12 +101,12 @@ public abstract class VM_BaselineExceptionDeliverer extends VM_ExceptionDelivere
     for (int i = bcm.getLastFloatStackRegister(); i >= FIRST_FLOAT_LOCAL_REGISTER; --i) {
       frameOffset = frameOffset.minus(BYTES_IN_DOUBLE);
       long temp = VM_Magic.getLongAtOffset(VM_Magic.addressAsObject(fp), frameOffset);
-      registers.getFPRs()[i] = VM_Magic.longBitsAsDouble(temp);
+      registers.fprs[i] = VM_Magic.longBitsAsDouble(temp);
     }
 
     for (int i = bcm.getLastFixedStackRegister(); i >= FIRST_FIXED_LOCAL_REGISTER; --i) {
       frameOffset = frameOffset.minus(BYTES_IN_ADDRESS);
-      registers.getGPRs().set(i, fp.loadWord(frameOffset));
+      registers.gprs.set(i, fp.loadWord(frameOffset));
     }
 
     registers.unwindStackFrame();

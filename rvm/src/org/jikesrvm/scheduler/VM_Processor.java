@@ -75,7 +75,7 @@ public abstract class VM_Processor extends MM_ProcessorContext implements VM_Con
    */
   @Entrypoint
   @Untraced
-  private VM_Thread activeThread;
+  public VM_Thread activeThread;
 
   /**
    * cached activeThread.stackLimit;
@@ -90,20 +90,6 @@ public abstract class VM_Processor extends MM_ProcessorContext implements VM_Con
    */
   @Entrypoint
   public int threadId;
-
-  /**
-   * Get the active thread for this processor.
-   */
-  public final VM_Thread getActiveThread() {
-    return activeThread;
-  }
-
-  /**
-   * Set the active thread for this processor.
-   */
-  public final void setActiveThread(VM_Thread thread) {
-    activeThread = thread;
-  }
 
   /* --------- BEGIN IA-specific fields. NOTE: NEED TO REFACTOR --------- */
   // On powerpc, these values are in dedicated registers,

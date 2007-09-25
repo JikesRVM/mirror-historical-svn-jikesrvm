@@ -253,7 +253,7 @@ public abstract class VM_Thread {
    */
   @Entrypoint
   @Untraced
-  private final VM_Registers contextRegisters;
+  public final VM_Registers contextRegisters;
 
   /**
    * Place to save register state when C signal handler traps
@@ -313,7 +313,7 @@ public abstract class VM_Thread {
    */
   @Entrypoint
   @Untraced
-  private VM_JNIEnvironment jniEnv;
+  public VM_JNIEnvironment jniEnv;
 
   /*
    * Timing fields

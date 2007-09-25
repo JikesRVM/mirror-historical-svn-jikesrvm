@@ -113,7 +113,7 @@ import org.vmmagic.pragma.*;
   /** constructor */
   public Log() {
     for (int i = 0; i < OVERFLOW_SIZE; i++)
-      VM.getBarriers().setArrayNoBarrier(buffer, MESSAGE_BUFFER_SIZE + i, OVERFLOW_MESSAGE.charAt(i));
+      VM.barriers.setArrayNoBarrier(buffer, MESSAGE_BUFFER_SIZE + i, OVERFLOW_MESSAGE.charAt(i));
   }
 
   /**
@@ -149,22 +149,22 @@ import org.vmmagic.pragma.*;
     char[] intBuffer = getIntBuffer();
 
     nextDigit = (int) (l % 10);
-    nextChar = VM.getBarriers().getArrayNoBarrier(hexDigitCharacter, negative ? - nextDigit : nextDigit);
-    VM.getBarriers().setArrayNoBarrier(intBuffer, index--, nextChar);
+    nextChar = VM.barriers.getArrayNoBarrier(hexDigitCharacter, negative ? - nextDigit : nextDigit);
+    VM.barriers.setArrayNoBarrier(intBuffer, index--, nextChar);
     l = l / 10;
 
     while (l != 0) {
       nextDigit = (int) (l % 10);
-      nextChar = VM.getBarriers().getArrayNoBarrier(hexDigitCharacter, negative ? - nextDigit : nextDigit);
-      VM.getBarriers().setArrayNoBarrier(intBuffer, index--, nextChar);
+      nextChar = VM.barriers.getArrayNoBarrier(hexDigitCharacter, negative ? - nextDigit : nextDigit);
+      VM.barriers.setArrayNoBarrier(intBuffer, index--, nextChar);
       l = l / 10;
     }
 
     if (negative)
-      VM.getBarriers().setArrayNoBarrier(intBuffer, index--, '-');
+      VM.barriers.setArrayNoBarrier(intBuffer, index--, '-');
 
     for (index++; index < TEMP_BUFFER_SIZE; index++)
-      add(VM.getBarriers().getArrayNoBarrier(intBuffer, index));
+      add(VM.barriers.getArrayNoBarrier(intBuffer, index));
   }
 
   /**
@@ -246,7 +246,7 @@ import org.vmmagic.pragma.*;
   public static void write(char[] c, int len) {
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(len <= c.length);
     for (int i = 0; i < len; i++)
-      add(VM.getBarriers().getArrayNoBarrier(c, i));
+      add(VM.barriers.getArrayNoBarrier(c, i));
   }
 
   /**
@@ -257,7 +257,7 @@ import org.vmmagic.pragma.*;
    */
   public static void write(byte[] b) {
     for (int i = 0; i < b.length; i++)
-      add((char)VM.getBarriers().getArrayNoBarrier(b, i));
+      add((char)VM.barriers.getArrayNoBarrier(b, i));
   }
 
   /**
@@ -730,7 +730,7 @@ import org.vmmagic.pragma.*;
 
     for (int digitNumber = hexDigits - 1; digitNumber >= 0; digitNumber--) {
       nextDigit = w.rshl(digitNumber << LOG_BITS_IN_HEX_DIGIT).toInt() & 0xf;
-      char nextChar = VM.getBarriers().getArrayNoBarrier(hexDigitCharacter, nextDigit);
+      char nextChar = VM.barriers.getArrayNoBarrier(hexDigitCharacter, nextDigit);
       add(nextChar);
     }
   }
@@ -767,7 +767,7 @@ import org.vmmagic.pragma.*;
    */
   private void addToBuffer(char c) {
     if (bufferIndex < MESSAGE_BUFFER_SIZE)
-      VM.getBarriers().setArrayNoBarrier(buffer, bufferIndex++, c);
+      VM.barriers.setArrayNoBarrier(buffer, bufferIndex++, c);
     else {
       overflow = true;
       overflowLastChar = c;
@@ -788,7 +788,7 @@ import org.vmmagic.pragma.*;
         // We don't bother setting OVERFLOW_LAST_CHAR, since we don't have an
         // MMTk method that lets us peek into a string. Anyway, it's just a
         // convenience to get the newline right.
-        VM.getBarriers().setArrayNoBarrier(buffer, MESSAGE_BUFFER_SIZE, OVERFLOW_MESSAGE_FIRST_CHAR);
+        VM.barriers.setArrayNoBarrier(buffer, MESSAGE_BUFFER_SIZE, OVERFLOW_MESSAGE_FIRST_CHAR);
         bufferIndex--;
       }
     } else

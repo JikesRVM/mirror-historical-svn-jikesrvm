@@ -79,7 +79,7 @@ public abstract class VM_MachineSpecificPowerPC extends VM_MachineSpecific imple
     fp.plus(STACKFRAME_NEXT_INSTRUCTION_OFFSET).store(ip); // need to fix
     fp.plus(STACKFRAME_METHOD_ID_OFFSET).store(INVISIBLE_METHOD_ID);
 
-    contextRegisters.getGPRs().set(FRAME_POINTER, fp.toWord());
+    contextRegisters.gprs.set(FRAME_POINTER, fp.toWord());
     contextRegisters.ip = ip;
   }
   /* unique to PowerPC */

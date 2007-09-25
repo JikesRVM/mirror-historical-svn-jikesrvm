@@ -177,7 +177,7 @@ import org.vmmagic.unboxed.*;
     if (GenRC.GATHER_WRITE_BARRIER_STATS) GenRC.wbFast.inc();
     if (RCHeader.logRequired(src))
       writeBarrierSlow(src);
-    VM.getBarriers().performWriteInBarrier(src, slot, tgt, metaDataA, metaDataB, mode);
+    VM.barriers.performWriteInBarrier(src, slot, tgt, metaDataA, metaDataB, mode);
   }
 
   /**
@@ -200,7 +200,7 @@ import org.vmmagic.unboxed.*;
       int metaDataB, int mode) {
     if (RCHeader.logRequired(src))
       writeBarrierSlow(src);
-    return VM.getBarriers().tryCompareAndSwapWriteInBarrier(src, slot, old, tgt, metaDataA, metaDataB, mode);
+    return VM.barriers.tryCompareAndSwapWriteInBarrier(src, slot, old, tgt, metaDataA, metaDataB, mode);
   }
 
   /**

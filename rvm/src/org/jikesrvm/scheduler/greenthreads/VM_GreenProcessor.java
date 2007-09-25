@@ -289,8 +289,8 @@ public final class VM_GreenProcessor extends VM_Processor {
       newThread = getRunnableThread();
     }
 
-    previousThread = (VM_GreenThread)getActiveThread();
-    setActiveThread((VM_GreenThread)newThread);
+    previousThread = (VM_GreenThread)activeThread;
+    activeThread = (VM_GreenThread)newThread;
 
     if (!previousThread.isDaemonThread() && idleProcessor != null && !readyQueue.isEmpty()) {
       // if we've got too much work, transfer some of it to another
@@ -316,7 +316,7 @@ public final class VM_GreenProcessor extends VM_Processor {
 
     threadId = newThread.getLockingId();
     activeThreadStackLimit = newThread.stackLimit; // Delay this to last possible moment so we can sysWrite
-    VM_Magic.threadSwitch(previousThread, newThread.getContextRegisters());
+    VM_Magic.threadSwitch(previousThread, newThread.contextRegisters);
   }
 
   /**
@@ -576,8 +576,8 @@ public final class VM_GreenProcessor extends VM_Processor {
     VM.sysWriteInt(id);
     if (this == VM_GreenProcessor.getCurrentProcessor()) VM.sysWrite(" (me)");
     VM.sysWrite(" running thread");
-    if (getActiveThread() != null) {
-      getActiveThread().dump();
+    if (activeThread != null) {
+      activeThread.dump();
     } else {
       VM.sysWrite(" NULL Active Thread");
     }

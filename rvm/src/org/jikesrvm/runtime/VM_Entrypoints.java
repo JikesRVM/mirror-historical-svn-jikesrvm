@@ -236,9 +236,13 @@ public class VM_Entrypoints {
   public static final VM_Field jniEnvField =
       getField(org.jikesrvm.scheduler.VM_Thread.class, "jniEnv", org.jikesrvm.jni.VM_JNIEnvironment.class);
   public static final VM_Field threadContextRegistersField =
-      getField(org.jikesrvm.scheduler.VM_Thread.class, "contextRegisters", org.jikesrvm.ArchitectureSpecific.VM_Registers.class);
+      getField(org.jikesrvm.scheduler.VM_Thread.class,
+               "contextRegisters",
+               org.jikesrvm.ArchitectureSpecific.VM_Registers.class);
   public static final VM_Field threadHardwareExceptionRegistersField =
-      getField(org.jikesrvm.scheduler.VM_Thread.class, "hardwareExceptionRegisters", org.jikesrvm.ArchitectureSpecific.VM_Registers.class);
+      getField(org.jikesrvm.scheduler.VM_Thread.class,
+               "hardwareExceptionRegisters",
+               org.jikesrvm.ArchitectureSpecific.VM_Registers.class);
 
   public static final VM_Field tracePrevAddressField =
       getField(org.jikesrvm.objectmodel.VM_MiscHeader.class, "prevAddress", org.vmmagic.unboxed.Word.class);

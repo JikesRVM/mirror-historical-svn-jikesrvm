@@ -89,7 +89,7 @@ public abstract class ConcurrentMutator extends SimpleMutator {
   @Inline
   public void writeBarrier(ObjectReference src, Address slot, ObjectReference tgt, Offset metaDataA, int metaDataB, int mode) {
     if (barrierActive) checkAndEnqueueReference(slot.loadObjectReference());
-    VM.getBarriers().performWriteInBarrier(src, slot, tgt, metaDataA, metaDataB, mode);
+    VM.barriers.performWriteInBarrier(src, slot, tgt, metaDataA, metaDataB, mode);
   }
 
   /**
@@ -112,7 +112,7 @@ public abstract class ConcurrentMutator extends SimpleMutator {
   @Inline
   public boolean tryCompareAndSwapWriteBarrier(ObjectReference src, Address slot, ObjectReference old,
                                                ObjectReference tgt, Offset metaDataA, int metaDataB, int mode) {
-    boolean result = VM.getBarriers().tryCompareAndSwapWriteInBarrier(src, slot, old, tgt, metaDataA, metaDataB, mode);
+    boolean result = VM.barriers.tryCompareAndSwapWriteInBarrier(src, slot, old, tgt, metaDataA, metaDataB, mode);
     if (barrierActive) checkAndEnqueueReference(old);
     return result;
   }
