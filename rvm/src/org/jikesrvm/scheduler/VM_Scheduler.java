@@ -351,10 +351,22 @@ public abstract class VM_Scheduler {
   }
 
   /**
+   * Get a VM_Processor
+   */
+  protected abstract VM_Processor getProcessorInternal(int index);
+
+  /**
+   * Get a VM_Processor
+   */
+  public static VM_Processor getProcessor(int index) {
+    return getScheduler().getProcessorInternal(index);
+  }
+
+  /**
    * Get the current executing thread on this VM_Processor
    */
   public static VM_Thread getCurrentThread() {
-    return VM_Magic.objectAsThread(VM_Processor.getCurrentProcessor().activeThread);
+    return VM_Magic.objectAsThread(VM_Processor.getCurrentProcessor().getActiveThread());
   }
 
   /*

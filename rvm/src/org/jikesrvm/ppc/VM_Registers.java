@@ -14,7 +14,9 @@ package org.jikesrvm.ppc;
 
 import org.jikesrvm.runtime.VM_ArchEntrypoints;
 import org.jikesrvm.runtime.VM_Magic;
+import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Untraced;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.WordArray;
@@ -27,8 +29,15 @@ public abstract class VM_Registers implements VM_ArchConstants {
   // The following are used both for thread context switching
   // and for hardware exception reporting/delivery.
   //
-  public WordArray gprs; // word size general purpose registers (either 32 or 64 bit)
-  public final double[] fprs; // 64-bit floating point registers
+  @Untraced
+  @Entrypoint
+  private final WordArray gprs; // word size general purpose registers (either 32 or 64 bit)
+
+  @Untraced
+  @Entrypoint
+  private final double[] fprs; // 64-bit floating point registers
+
+  @Entrypoint
   public Address ip; // instruction address register
 
   // The following are used by exception delivery.
@@ -36,7 +45,10 @@ public abstract class VM_Registers implements VM_ArchConstants {
   // handler and restored by "VM_Magic.restoreHardwareExceptionState".
   // They are not used for context switching.
   //
+  @Entrypoint
   public Address lr;     // link register
+
+  @Entrypoint
   public boolean inuse; // do exception registers currently contain live values?
 
   static Address invalidIP = Address.max();
@@ -91,4 +103,17 @@ public abstract class VM_Registers implements VM_ArchConstants {
     return VM_Magic.objectAsAddress(this).plus(ipOffset);
   }
 
+  /**
+   * Return the set of general purpose registers
+   */
+  public final WordArray getGPRs() {
+    return gprs;
+  }
+
+  /**
+   * Return the set of floating point registers
+   */
+  public final double[] getFPRs() {
+    return fprs;
+  }
 }

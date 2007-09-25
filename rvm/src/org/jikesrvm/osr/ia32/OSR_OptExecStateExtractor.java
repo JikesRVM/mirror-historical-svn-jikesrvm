@@ -65,7 +65,7 @@ public abstract class OSR_OptExecStateExtractor extends OSR_ExecStateExtractor
     byte[] stack = thread.getStack();
 
     // get registers for the caller ( real method )
-    OSR_TempRegisters registers = new OSR_TempRegisters(thread.contextRegisters);
+    OSR_TempRegisters registers = new OSR_TempRegisters(thread.getContextRegisters());
 
     if (VM.VerifyAssertions) {
       int foocmid = VM_Magic.getIntAtOffset(stack, methFPoff.plus(STACKFRAME_METHOD_ID_OFFSET));

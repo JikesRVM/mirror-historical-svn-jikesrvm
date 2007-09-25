@@ -1670,7 +1670,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
     int referenceFieldCount = 0;
     for (int i = 0, n = instanceFields.length; i < n; ++i) {
       VM_Field field = instanceFields[i];
-      if (field.getType().isReferenceType()) {
+      if (field.getType().isReferenceType() && !field.isUntraced()) {
         referenceFieldCount += 1;
       }
     }
@@ -1680,7 +1680,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
     referenceOffsets = MM_Interface.newReferenceOffsetArray(referenceFieldCount);
     for (int i = 0, j = 0, n = instanceFields.length; i < n; ++i) {
       VM_Field field = instanceFields[i];
-      if (field.getType().isReferenceType()) {
+      if (field.getType().isReferenceType() && !field.isUntraced()) {
         referenceOffsets[j++] = field.getOffset().toInt();
       }
     }

@@ -88,9 +88,9 @@ public abstract class VM_JNIGCMapIterator extends VM_GCMapIterator
     // the "primordial" thread, created by JDK in the bootimage, does not have
     // a JniEnv object, all threads created by the VM will.
     if (env != null) {
-      this.jniRefs = env.JNIRefs;
-      this.jniNextRef = env.JNIRefsTop;
-      this.jniFramePtr = env.JNIRefsSavedFP;
+      this.jniRefs = env.refsArray();
+      this.jniNextRef = env.refsTop();
+      this.jniFramePtr = env.savedRefsFP();
     }
   }
 

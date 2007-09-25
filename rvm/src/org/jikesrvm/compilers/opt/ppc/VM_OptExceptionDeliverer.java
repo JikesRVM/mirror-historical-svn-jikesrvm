@@ -75,7 +75,7 @@ public abstract class VM_OptExceptionDeliverer extends VM_ExceptionDeliverer
         frameOffset = frameOffset.plus(7).toWord().and(Word.fromIntSignExtend(~7)).toOffset();
       }
       for (int i = firstInteger; i < 32; i++) {
-        registers.gprs.set(i, fp.loadWord(frameOffset));
+        registers.getGPRs().set(i, fp.loadWord(frameOffset));
         frameOffset = frameOffset.plus(BYTES_IN_ADDRESS);
       }
     }
@@ -84,7 +84,7 @@ public abstract class VM_OptExceptionDeliverer extends VM_ExceptionDeliverer
       frameOffset = frameOffset.plus(7).toWord().and(Word.fromIntSignExtend(~7)).toOffset();
       for (int i = firstFloat; i < 32; i++) {
         long temp = VM_Magic.getLongAtOffset(VM_Magic.addressAsObject(fp), frameOffset);
-        registers.fprs[i] = VM_Magic.longBitsAsDouble(temp);
+        registers.getFPRs()[i] = VM_Magic.longBitsAsDouble(temp);
         frameOffset = frameOffset.plus(BYTES_IN_DOUBLE);
       }
     }

@@ -21,6 +21,7 @@ import org.jikesrvm.runtime.VM_Magic;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Untraced;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -73,7 +74,8 @@ public abstract class VM_Processor extends MM_ProcessorContext implements VM_Con
    * field could be final
    */
   @Entrypoint
-  public VM_Thread activeThread;
+  @Untraced
+  private VM_Thread activeThread;
 
   /**
    * cached activeThread.stackLimit;
@@ -88,6 +90,20 @@ public abstract class VM_Processor extends MM_ProcessorContext implements VM_Con
    */
   @Entrypoint
   public int threadId;
+
+  /**
+   * Get the active thread for this processor.
+   */
+  public final VM_Thread getActiveThread() {
+    return activeThread;
+  }
+
+  /**
+   * Set the active thread for this processor.
+   */
+  public final void setActiveThread(VM_Thread thread) {
+    activeThread = thread;
+  }
 
   /* --------- BEGIN IA-specific fields. NOTE: NEED TO REFACTOR --------- */
   // On powerpc, these values are in dedicated registers,

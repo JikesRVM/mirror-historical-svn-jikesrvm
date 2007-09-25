@@ -23,7 +23,10 @@ import org.jikesrvm.VM;
 import org.jikesrvm.classloader.VM_Class;
 import org.jikesrvm.classloader.VM_Type;
 import org.jikesrvm.objectmodel.VM_ObjectModel;
+import org.jikesrvm.runtime.VM_ArchEntrypoints;
+import org.jikesrvm.runtime.VM_Entrypoints;
 import org.jikesrvm.runtime.VM_Magic;
+import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.scheduler.VM_Thread;
 
@@ -185,13 +188,27 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
             VM.sysWriteln(ObjectReference.fromObject(thread).toAddress());
           }
           precopyChildren(trace, ObjectReference.fromObject(thread));
-          precopyChildren(trace, ObjectReference.fromObject(thread.contextRegisters));
+
+          /* Registers */
+          precopyChildren(trace, ObjectReference.fromObject(thread.getContextRegisters()));
+          trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread).plus(VM_Entrypoints.threadContextRegistersField.getOffset()));
+          trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getContextRegisters()).plus(VM_ArchEntrypoints.registersGPRsField.getOffset()));
+          trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getContextRegisters()).plus(VM_ArchEntrypoints.registersFPRsField.getOffset()));
+
           precopyChildren(trace, ObjectReference.fromObject(thread.getHardwareExceptionRegisters()));
-          if (thread.jniEnv != null) {
+          trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread).plus(VM_Entrypoints.threadHardwareExceptionRegistersField.getOffset()));
+          trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getHardwareExceptionRegisters()).plus(VM_ArchEntrypoints.registersGPRsField.getOffset()));
+          trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getHardwareExceptionRegisters()).plus(VM_ArchEntrypoints.registersFPRsField.getOffset()));
+
+          if (thread.getJNIEnv() != null) {
             // Right now, jniEnv are Java-visible objects (not C-visible)
             // if (VM.VerifyAssertions)
             //   VM._assert(Plan.willNotMove(VM_Magic.objectAsAddress(thread.jniEnv)));
-            precopyChildren(trace, ObjectReference.fromObject(thread.jniEnv));
+            precopyChildren(trace, ObjectReference.fromObject(thread.getJNIEnv()));
+            trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread).plus(VM_Entrypoints.jniEnvField.getOffset()));
+            trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getJNIEnv()).plus(VM_Entrypoints.JNIRefsField.getOffset()));
+            trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getJNIEnv()).plus(VM_Entrypoints.JNIEnvSavedPRField.getOffset()));
+            trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getJNIEnv()).plus(VM_Entrypoints.JNIPendingExceptionField.getOffset()));
           }
         }
       } // end of for loop
@@ -242,6 +259,16 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
 
     /* Set status flag */
     threadStacksScanned = true;
+
+    /* scan (small) set of processor roots */
+    VM_CollectorThread ct = VM_Magic.threadAsCollectorThread(VM_Scheduler.getCurrentThread());
+    if (ct.getGCOrdinal() == 1) {
+      for(int i=0; i < VM_Scheduler.getNumberOfProcessors(); i++) {
+        VM_Processor processorObject = VM_Scheduler.getProcessor(i);
+        Address processorAddress = VM_Magic.objectAsAddress(processorObject);
+        trace.reportDelayedRootEdge(processorAddress.plus(VM_Entrypoints.activeThreadField.getOffset()));
+      }
+    }
 
     /* scan all threads */
     while (true) {

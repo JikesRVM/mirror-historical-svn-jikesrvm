@@ -26,6 +26,7 @@ import static org.jikesrvm.runtime.VM_SysCall.sysCall;
 import org.jikesrvm.scheduler.VM_DebuggerThread;
 import org.jikesrvm.scheduler.VM_FinalizerThread;
 import org.jikesrvm.scheduler.VM_Lock;
+import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.scheduler.VM_ProcessorLock;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.scheduler.VM_Thread;
@@ -226,7 +227,7 @@ public final class VM_GreenScheduler extends VM_Scheduler {
         trace("VM_Scheduler.boot", "starting processor id", i);
       }
 
-      processors[i].activeThread = target;
+      processors[i].setActiveThread(target);
       processors[i].activeThreadStackLimit = target.stackLimit;
       target.registerThread(); // let scheduler know that thread is active.
       if (VM.BuildForPowerPC) {
@@ -237,16 +238,16 @@ public final class VM_GreenScheduler extends VM_Scheduler {
         Address toc = VM_Magic.getTocPointer();
         sysCall.sysVirtualProcessorCreate(toc,
                                           VM_Magic.objectAsAddress(processors[i]),
-                                          target.contextRegisters.ip,
-                                          target.contextRegisters.getInnermostFramePointer());
+                                          target.getContextRegisters().ip,
+                                          target.getContextRegisters().getInnermostFramePointer());
         if (cpuAffinity != NO_CPU_AFFINITY) {
           sysCall.sysVirtualProcessorBind(cpuAffinity + i - 1); // bind it to a physical cpu
         }
       } else if (VM.BuildForIA32) {
         sysCall.sysVirtualProcessorCreate(VM_Magic.getTocPointer(),
                                           VM_Magic.objectAsAddress(processors[i]),
-                                          target.contextRegisters.ip,
-                                          target.contextRegisters.getInnermostFramePointer());
+                                          target.getContextRegisters().ip,
+                                          target.getContextRegisters().getInnermostFramePointer());
       } else if (VM.VerifyAssertions) {
         VM._assert(VM.NOT_REACHED);
       }
@@ -357,7 +358,7 @@ public final class VM_GreenScheduler extends VM_Scheduler {
    * Get the current executing thread on this VM_Processor
    */
   public static VM_GreenThread getCurrentThread() {
-    return (VM_GreenThread)VM_GreenProcessor.getCurrentProcessor().activeThread;
+    return (VM_GreenThread)VM_GreenProcessor.getCurrentProcessor().getActiveThread();
   }
 
   /**
@@ -415,6 +416,14 @@ public final class VM_GreenScheduler extends VM_Scheduler {
   @Override
   protected int getNumberOfProcessorsInternal() {
     return numProcessors;
+  }
+
+  /**
+   * Get a VM_Processor
+   */
+  @Override
+  protected VM_Processor getProcessorInternal(int index) {
+    return processors[index + 1];
   }
 
   /**
@@ -481,8 +490,8 @@ public final class VM_GreenScheduler extends VM_Scheduler {
       VM_Thread thr = threads[i];
       if (thr != null && thr != VM_Scheduler.getCurrentThread() && thr.isAlive()) {
         thr.dump();
-        if (thr.contextRegisters != null)
-          dumpStack(thr.contextRegisters.getInnermostFramePointer());
+        if (thr.getContextRegisters() != null)
+          dumpStack(thr.getContextRegisters().getInnermostFramePointer());
       }
     }
     VM_GreenProcessor.getCurrentProcessor().enableThreadSwitching();
@@ -581,7 +590,7 @@ public final class VM_GreenScheduler extends VM_Scheduler {
     for (int i = 0; i < processors.length; ++i) {
       VM_GreenProcessor p = processors[i];
       if (p == null) continue;
-      if (p.activeThread == t) {
+      if (p.getActiveThread() == t) {
         return "running on processor " + i;
       }
     }
@@ -663,7 +672,7 @@ public final class VM_GreenScheduler extends VM_Scheduler {
     byte[] stack = new byte[ArchitectureSpecific.VM_ArchConstants.STACK_SIZE_BOOT];
     VM_GreenThread startupThread = new VM_Scheduler.ThreadModel(stack, "Jikes_RVM_Boot_Thread");
     numDaemons++;
-    processors[initProc].activeThread = startupThread;
+    processors[initProc].setActiveThread(startupThread);
     return startupThread;
   }
 

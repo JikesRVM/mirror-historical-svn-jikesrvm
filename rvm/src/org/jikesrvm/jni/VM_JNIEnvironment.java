@@ -20,6 +20,7 @@ import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.scheduler.VM_Processor;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Untraced;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.AddressArray;
 import org.vmmagic.unboxed.ObjectReference;
@@ -84,7 +85,8 @@ public class VM_JNIEnvironment implements VM_SizeConstants {
    * to be restored on JNI call from native
    */
   @Entrypoint
-  protected VM_Processor savedPRreg;
+  @Untraced
+  private VM_Processor savedPRreg;
 
   /**
    * true if the bottom stack frame is native,
@@ -96,7 +98,8 @@ public class VM_JNIEnvironment implements VM_SizeConstants {
    * references passed to native code
    */
   @Entrypoint
-  public AddressArray JNIRefs;
+  @Untraced
+  private AddressArray JNIRefs;
 
   /**
    * address of current top ref in JNIRefs array
@@ -126,7 +129,8 @@ public class VM_JNIEnvironment implements VM_SizeConstants {
    * Currently pending exception (null if none)
    */
   @Entrypoint
-  protected Throwable pendingException;
+  @Untraced
+  private Throwable pendingException;
 
   /**
    * We allocate VM_JNIEnvironments in the immortal heap (so we
