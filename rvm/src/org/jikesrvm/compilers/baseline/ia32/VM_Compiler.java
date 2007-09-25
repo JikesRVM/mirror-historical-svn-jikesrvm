@@ -471,10 +471,13 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
     // identical to iaload - code replicated for BaseBase compiler performance
     asm.emitMOV_Reg_RegInd(T0, SP);            // T0 is array index
     asm.emitMOV_Reg_RegDisp(S0, SP, ONE_SLOT); // S0 is array ref
-    asm.emitADD_Reg_Imm(SP, WORDSIZE * 2);     // complete popping the 2 args
     genBoundsCheck(asm, T0, S0); // T0 is index, S0 is address of array
-    // push [S0+T0<<2]
-    asm.emitPUSH_RegIdx(S0, T0, VM_Assembler.WORD, NO_SLOT);
+    if (MM_Constants.NEEDS_READ_BARRIER) {
+      VM_Barriers.compileArrayLoadBarrier(asm);
+    } else {
+      asm.emitADD_Reg_Imm(SP, WORDSIZE * 2);     // complete popping the 2 args
+      asm.emitPUSH_RegIdx(S0, T0, VM_Assembler.WORD, NO_SLOT); // push [S0+T0<<2]
+    }
   }
 
   /**
@@ -2350,6 +2353,10 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
   @Override
   protected final void emit_unresolved_getstatic(VM_FieldReference fieldRef) {
     emitDynamicLinkingSequence(T0, fieldRef, true);
+    if (MM_Constants.NEEDS_GETSTATIC_READ_BARRIER && !fieldRef.getFieldContentsType().isPrimitiveType()) {
+      VM_Barriers.compileGetstaticBarrier(asm, T0, fieldRef.getId());
+      return;
+    }
     if (fieldRef.getSize() <= BYTES_IN_INT) {
       asm.emitPUSH_RegIdx(JTOC, T0, VM_Assembler.BYTE, NO_SLOT);        // get static field
     } else { // field is two words (double or long)
@@ -2365,7 +2372,12 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
    */
   @Override
   protected final void emit_resolved_getstatic(VM_FieldReference fieldRef) {
-    Offset fieldOffset = fieldRef.peekResolvedField().getOffset();
+    VM_Field field = fieldRef.peekResolvedField();
+    Offset fieldOffset = field.getOffset();
+    if (MM_Constants.NEEDS_GETSTATIC_READ_BARRIER && !fieldRef.getFieldContentsType().isPrimitiveType() && !field.isUntraced()) {
+      VM_Barriers.compileGetstaticBarrierImm(asm, fieldOffset, fieldRef.getId());
+      return;
+    }
     if (fieldRef.getSize() <= BYTES_IN_INT) { // field is one word
       asm.emitPUSH_RegDisp(JTOC, fieldOffset);
     } else { // field is two words (double or long)
@@ -2384,7 +2396,6 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
     emitDynamicLinkingSequence(T0, fieldRef, true);
     if (MM_Constants.NEEDS_PUTSTATIC_WRITE_BARRIER && fieldRef.getFieldContentsType().isReferenceType()) {
       VM_Barriers.compilePutstaticBarrier(asm, T0, fieldRef.getId());
-      emitDynamicLinkingSequence(T0, fieldRef, false);
       asm.emitADD_Reg_Imm(SP, WORDSIZE);
     } else {
       if (fieldRef.getSize() <= BYTES_IN_INT) { // field is one word
@@ -2403,8 +2414,9 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
    */
   @Override
   protected final void emit_resolved_putstatic(VM_FieldReference fieldRef) {
-    Offset fieldOffset = fieldRef.peekResolvedField().getOffset();
-    if (MM_Constants.NEEDS_PUTSTATIC_WRITE_BARRIER && fieldRef.getFieldContentsType().isReferenceType()) {
+    VM_Field field = fieldRef.peekResolvedField();
+    Offset fieldOffset = field.getOffset();
+    if (MM_Constants.NEEDS_PUTSTATIC_WRITE_BARRIER && fieldRef.getFieldContentsType().isReferenceType() && !field.isUntraced()) {
       VM_Barriers.compilePutstaticBarrierImm(asm, fieldOffset, fieldRef.getId());
       asm.emitADD_Reg_Imm(SP, WORDSIZE);
     } else {
@@ -2428,9 +2440,13 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
     emitDynamicLinkingSequence(T0, fieldRef, true);
     if (fieldType.isReferenceType()) {
       // 32bit reference load
-      asm.emitMOV_Reg_RegDisp(S0, SP, NO_SLOT); // S0 is object reference
-      asm.emitMOV_Reg_RegIdx(T1, S0, T0, VM_Assembler.BYTE, NO_SLOT); // T1 is field value
-      asm.emitMOV_RegDisp_Reg(SP, NO_SLOT, T1); // replace reference with value on stack
+      if (MM_Constants.NEEDS_READ_BARRIER) {
+        VM_Barriers.compileGetfieldBarrier(asm, T0, fieldRef.getId());
+      } else {
+        asm.emitMOV_Reg_RegDisp(S0, SP, NO_SLOT); // S0 is object reference
+        asm.emitMOV_Reg_RegIdx(T1, S0, T0, VM_Assembler.BYTE, NO_SLOT); // T1 is field value
+        asm.emitMOV_RegDisp_Reg(SP, NO_SLOT, T1); // replace reference with value on stack
+      }
     } else if (fieldType.isBooleanType()) {
       // 8bit unsigned load
       asm.emitMOV_Reg_RegDisp(S0, SP, NO_SLOT); // S0 is object reference
@@ -2480,12 +2496,17 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
   @Override
   protected final void emit_resolved_getfield(VM_FieldReference fieldRef) {
     VM_TypeReference fieldType = fieldRef.getFieldContentsType();
-    Offset fieldOffset = fieldRef.peekResolvedField().getOffset();
+    VM_Field field = fieldRef.peekResolvedField();
+    Offset fieldOffset = field.getOffset();
     if (fieldType.isReferenceType()) {
       // 32bit reference load
-      asm.emitMOV_Reg_RegDisp(S0, SP, NO_SLOT); // S0 is object reference
-      asm.emitMOV_Reg_RegDisp(T0, S0, fieldOffset); // T0 is field value
-      asm.emitMOV_RegDisp_Reg(SP, NO_SLOT, T0); // replace reference with value on stack
+      if (MM_Constants.NEEDS_READ_BARRIER && !field.isUntraced()) {
+        VM_Barriers.compileGetfieldBarrierImm(asm, fieldOffset, fieldRef.getId());
+      } else {
+        asm.emitMOV_Reg_RegDisp(S0, SP, NO_SLOT); // S0 is object reference
+        asm.emitMOV_Reg_RegDisp(T0, S0, fieldOffset); // T0 is field value
+        asm.emitMOV_RegDisp_Reg(SP, NO_SLOT, T0); // replace reference with value on stack
+      }
     } else if (fieldType.isBooleanType()) {
       // 8bit unsigned load
       asm.emitMOV_Reg_RegDisp(S0, SP, NO_SLOT); // S0 is object reference
@@ -2540,7 +2561,6 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
       // 32bit reference store
       if (MM_Constants.NEEDS_WRITE_BARRIER) {
         VM_Barriers.compilePutfieldBarrier(asm, T0, fieldRef.getId());
-        emitDynamicLinkingSequence(T0, fieldRef, false);
         asm.emitADD_Reg_Imm(SP, WORDSIZE * 2); // complete popping the value and reference
       } else {
         asm.emitMOV_Reg_RegDisp(T1, SP, NO_SLOT);  // T1 is the value to be stored
@@ -4068,6 +4088,10 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
         methodName == VM_MagicNames.prepareObject ||
         methodName == VM_MagicNames.prepareAddress ||
         methodName == VM_MagicNames.prepareWord) {
+      if (m.getParameterTypes().length == 3) {
+        // discard locationMetadata parameter
+        asm.emitPOP_Reg(T0); // locationMetadata, not needed by baseline compiler.
+      }
       asm.emitPOP_Reg(T0);                  // object ref
       asm.emitPOP_Reg(S0);                  // offset
       asm.emitPUSH_RegIdx(T0, S0, VM_Assembler.BYTE, NO_SLOT); // pushes [T0+S0]

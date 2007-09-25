@@ -244,6 +244,16 @@ public final class VM_Magic {
   }
 
   /**
+   * Get Object at arbitrary (byte) offset from object.
+   * Use getObjectAtOffset(obj, ofs) instead of
+   * addressAsObject(getMemoryAddress(objectAsAddress(obj)+ofs))
+   */
+  public static Object getObjectAtOffset(Object object, Offset offset, int locationMetadata) {
+    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+    return null;
+  }
+
+  /**
    * Get Object[] at arbitrary (byte) offset from object.
    * Use getObjectArrayAtOffset(obj, ofs) instead of
    * (Object[])addressAsObject(getMemoryAddr(objectAsAddress(obj)+ofs))

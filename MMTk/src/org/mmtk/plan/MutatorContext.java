@@ -380,6 +380,8 @@ import org.vmmagic.unboxed.*;
    */
   @Inline
   public ObjectReference referenceTypeReadBarrier(ObjectReference referent) {
+    // Either: read barriers are used and this is overridden, or
+    // read barriers are not used and this is never called
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(false);
     return ObjectReference.nullReference();
   }
@@ -389,16 +391,19 @@ import org.vmmagic.unboxed.*;
    * return the value that was read.<p> This is a <b>substituting<b>
    * barrier.  The call to this barrier takes the place of a load.<p>
    *
-   * @param src The object reference being read.
-   * @param context The context in which the read arose (getfield, for example)
+   * @param src The object reference holding the field being read.
+   * @param slot The address of the slot being read.
+   * @param metaDataA An value that assists the host VM in creating a load
+   * @param metaDataB An value that assists the host VM in creating a load
+   * @param mode The context in which the load occurred
    * @return The reference that was read.
    */
   @Inline
-  public Address readBarrier(ObjectReference src, Address slot,
-      int context) {
-    // read barrier currently unimplemented
+  public ObjectReference readBarrier(ObjectReference src, Address slot, Offset metaDataA, int metaDataB, int mode) {
+    // Either: read barriers are used and this is overridden, or
+    // read barriers are not used and this is never called
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(false);
-    return Address.max();
+    return ObjectReference.nullReference();
   }
 
   /**

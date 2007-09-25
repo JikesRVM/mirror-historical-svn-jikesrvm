@@ -178,9 +178,9 @@ import org.vmmagic.unboxed.*;
       if (RCHeader.logRequired(src)) {
         coalescingWriteBarrierSlow(src);
       }
-      return VM.barriers.tryCompareAndSwapWriteInBarrier(src,slot,old,tgt,metaDataA,metaDataB,mode);
+      return VM.getBarriers().tryCompareAndSwapWriteInBarrier(src,slot,old,tgt,metaDataA,metaDataB,mode);
     } else {
-      boolean result = VM.barriers.tryCompareAndSwapWriteInBarrier(src,slot,old,tgt,metaDataA,metaDataB,mode);
+      boolean result = VM.getBarriers().tryCompareAndSwapWriteInBarrier(src,slot,old,tgt,metaDataA,metaDataB,mode);
 
       if (result && !Space.isInSpace(RCBase.VM_SPACE, src)) {
         if (RC.isRCObject(old)) decBuffer.pushOOL(old);
@@ -232,10 +232,9 @@ import org.vmmagic.unboxed.*;
       if (RCHeader.logRequired(src)) {
         coalescingWriteBarrierSlow(src);
       }
-      VM.barriers.performWriteInBarrier(src,slot,tgt,metaDataA,metaDataB,mode);
+      VM.getBarriers().performWriteInBarrier(src,slot,tgt,metaDataA,metaDataB,mode);
     } else {
-      ObjectReference old = VM.barriers.
-      performWriteInBarrierAtomic(src,slot,tgt,metaDataA,metaDataB,mode);
+      ObjectReference old = VM.getBarriers().performWriteInBarrierAtomic(src,slot,tgt,metaDataA,metaDataB,mode);
 
       if (Space.isInSpace(RCBase.VM_SPACE, src)) return;
       if (RC.isRCObject(old)) decBuffer.pushOOL(old);
@@ -265,10 +264,9 @@ import org.vmmagic.unboxed.*;
       if (RCHeader.logRequired(src)) {
         coalescingWriteBarrierSlow(src);
       }
-      VM.barriers.performWriteInBarrier(src,slot,tgt, metaDataA, metaDataB, mode);
+      VM.getBarriers().performWriteInBarrier(src,slot,tgt, metaDataA, metaDataB, mode);
     } else {
-      ObjectReference old = VM.barriers.
-      performWriteInBarrierAtomic(src,slot,tgt,metaDataA,metaDataB,mode);
+      ObjectReference old = VM.getBarriers().performWriteInBarrierAtomic(src,slot,tgt,metaDataA,metaDataB,mode);
 
       if (Space.isInSpace(RCBase.VM_SPACE, src)) return;
       if (RC.isRCObject(old)) decBuffer.push(old);

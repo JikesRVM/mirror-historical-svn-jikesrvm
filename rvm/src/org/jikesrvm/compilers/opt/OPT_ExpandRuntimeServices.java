@@ -22,9 +22,13 @@ import org.jikesrvm.classloader.VM_Method;
 import org.jikesrvm.classloader.VM_Type;
 import org.jikesrvm.classloader.VM_TypeReference;
 import static org.jikesrvm.compilers.opt.OPT_Constants.RUNTIME_SERVICES_BCI;
+
+import org.jikesrvm.compilers.opt.ir.ALoad;
 import org.jikesrvm.compilers.opt.ir.AStore;
 import org.jikesrvm.compilers.opt.ir.Athrow;
 import org.jikesrvm.compilers.opt.ir.Call;
+import org.jikesrvm.compilers.opt.ir.GetField;
+import org.jikesrvm.compilers.opt.ir.GetStatic;
 import org.jikesrvm.compilers.opt.ir.MonitorOp;
 import org.jikesrvm.compilers.opt.ir.Move;
 import org.jikesrvm.compilers.opt.ir.New;
@@ -41,6 +45,8 @@ import org.jikesrvm.compilers.opt.ir.PutStatic;
 
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.ATHROW_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.CALL;
+import static org.jikesrvm.compilers.opt.ir.OPT_Operators.GETFIELD_opcode;
+import static org.jikesrvm.compilers.opt.ir.OPT_Operators.GETSTATIC_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.MONITORENTER_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.MONITOREXIT_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.NEWARRAY_UNRESOLVED_opcode;
@@ -50,6 +56,7 @@ import static org.jikesrvm.compilers.opt.ir.OPT_Operators.NEW_UNRESOLVED_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.NEW_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.PUTFIELD_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.PUTSTATIC_opcode;
+import static org.jikesrvm.compilers.opt.ir.OPT_Operators.REF_ALOAD_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.REF_ASTORE_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.REF_MOVE;
 import org.jikesrvm.compilers.opt.ir.OPT_RegisterOperand;
@@ -345,6 +352,26 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase {
         }
         break;
 
+        case REF_ALOAD_opcode: {
+          if (MM_Constants.NEEDS_READ_BARRIER) {
+            VM_Method target = VM_Entrypoints.arrayLoadReadBarrierMethod;
+            OPT_Instruction rb =
+              Call.create2(CALL,
+                           ALoad.getClearResult(inst),
+                           OPT_IRTools.AC(target.getOffset()),
+                           OPT_MethodOperand.STATIC(target),
+                           ALoad.getClearGuard(inst),
+                           ALoad.getArray(inst).copy(),
+                           ALoad.getIndex(inst).copy());
+            rb.bcIndex = RUNTIME_SERVICES_BCI;
+            rb.position = inst.position;
+            inst.replace(rb);
+            next = rb.nextInstructionInCodeOrder();
+            inline(rb, ir, true);
+          }
+        }
+        break;
+
         case PUTFIELD_opcode: {
           if (MM_Constants.NEEDS_WRITE_BARRIER) {
             OPT_LocationOperand loc = PutField.getLocation(inst);
@@ -375,6 +402,33 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase {
         }
         break;
 
+        case GETFIELD_opcode: {
+          if (MM_Constants.NEEDS_READ_BARRIER) {
+            OPT_LocationOperand loc = GetField.getLocation(inst);
+            VM_FieldReference fieldRef = loc.getFieldRef();
+            if (GetField.getResult(inst).getType().isReferenceType()) {
+              VM_Field field = fieldRef.peekResolvedField();
+              if (field == null || !field.isUntraced()) {
+                VM_Method target = VM_Entrypoints.getfieldReadBarrierMethod;
+                OPT_Instruction rb =
+                  Call.create3(CALL,
+                               GetField.getClearResult(inst),
+                               OPT_IRTools.AC(target.getOffset()),
+                               OPT_MethodOperand.STATIC(target),
+                               GetField.getClearGuard(inst),
+                               GetField.getRef(inst).copy(),
+                               GetField.getOffset(inst).copy(),
+                               OPT_IRTools.IC(fieldRef.getId()));
+                rb.bcIndex = RUNTIME_SERVICES_BCI;
+                rb.position = inst.position;
+                inst.replace(rb);
+                next = rb.nextInstructionInCodeOrder();
+                inline(rb, ir);
+              }
+            }
+          }
+        }
+        break;
 
         case PUTSTATIC_opcode: {
           if (MM_Constants.NEEDS_PUTSTATIC_WRITE_BARRIER) {
@@ -389,6 +443,31 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase {
                                OPT_MethodOperand.STATIC(target),
                                PutStatic.getOffset(inst).copy(),
                                PutStatic.getValue(inst).copy(),
+                               OPT_IRTools.IC(field.getId()));
+              wb.bcIndex = RUNTIME_SERVICES_BCI;
+              wb.position = inst.position;
+              inst.replace(wb);
+              next = wb.nextInstructionInCodeOrder();
+              if (ir.options.INLINE_WRITE_BARRIER) {
+                inline(wb, ir);
+              }
+            }
+          }
+        }
+        break;
+
+        case GETSTATIC_opcode: {
+          if (MM_Constants.NEEDS_GETSTATIC_READ_BARRIER) {
+            OPT_LocationOperand loc = GetStatic.getLocation(inst);
+            VM_FieldReference field = loc.getFieldRef();
+            if (!field.getFieldContentsType().isPrimitiveType()) {
+              VM_Method target = VM_Entrypoints.getstaticReadBarrierMethod;
+              OPT_Instruction wb =
+                  Call.create2(CALL,
+                               GetStatic.getClearResult(inst),
+                               OPT_IRTools.AC(target.getOffset()),
+                               OPT_MethodOperand.STATIC(target),
+                               GetStatic.getOffset(inst).copy(),
                                OPT_IRTools.IC(field.getId()));
               wb.bcIndex = RUNTIME_SERVICES_BCI;
               wb.position = inst.position;

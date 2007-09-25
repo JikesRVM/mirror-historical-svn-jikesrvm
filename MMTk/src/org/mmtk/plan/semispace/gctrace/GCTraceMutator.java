@@ -94,7 +94,7 @@ import org.vmmagic.pragma.*;
       int metaDataB, int mode) {
     TraceGenerator.processPointerUpdate(mode == PUTFIELD_WRITE_BARRIER,
         src, slot, tgt);
-    VM.barriers.performWriteInBarrier(src, slot, tgt, metaDataA, metaDataB, mode);
+    VM.getBarriers().performWriteInBarrier(src, slot, tgt, metaDataA, metaDataB, mode);
   }
 
   /**
@@ -118,7 +118,7 @@ import org.vmmagic.pragma.*;
   public boolean tryCompareAndSwapWriteBarrier(ObjectReference src, Address slot,
       ObjectReference old, ObjectReference tgt, Offset metaDataA,
       int metaDataB, int mode) {
-    boolean result = VM.barriers.tryCompareAndSwapWriteInBarrier(src, slot, old, tgt, metaDataA, metaDataB, mode);
+    boolean result = VM.getBarriers().tryCompareAndSwapWriteInBarrier(src, slot, old, tgt, metaDataA, metaDataB, mode);
     if (result) {
       TraceGenerator.processPointerUpdate(mode == PUTFIELD_WRITE_BARRIER, src, slot, tgt);
     }

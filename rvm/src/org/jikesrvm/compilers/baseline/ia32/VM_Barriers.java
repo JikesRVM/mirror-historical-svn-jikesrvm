@@ -85,6 +85,48 @@ class VM_Barriers implements VM_BaselineConstants {
     asm.emitCALL_RegDisp(JTOC, VM_Entrypoints.putstaticWriteBarrierMethod.getOffset());
   }
 
+  static void compileArrayLoadBarrier(VM_Assembler asm) {
+    // on entry java stack contains ...|target_array_ref|array_index|
+    // SP -> index, SP+4 -> target_ref
+    genParameterRegisterLoad(asm, 2);
+    asm.emitCALL_RegDisp(JTOC, VM_Entrypoints.arrayLoadReadBarrierMethod.getOffset());
+    asm.emitPUSH_Reg(T0);
+  }
+
+  static void compileGetfieldBarrier(VM_Assembler asm, byte reg, int locationMetadata) {
+    //  on entry java stack contains ...|target_ref|
+    //  SP -> target_ref
+    asm.emitPUSH_Reg(reg);
+    asm.emitPUSH_Imm(locationMetadata);
+    genParameterRegisterLoad(asm, 3);
+    asm.emitCALL_RegDisp(JTOC, VM_Entrypoints.getfieldReadBarrierMethod.getOffset());
+    asm.emitPUSH_Reg(T0);
+  }
+
+  static void compileGetfieldBarrierImm(VM_Assembler asm, Offset fieldOffset, int locationMetadata) {
+    asm.emitPUSH_Imm(fieldOffset.toInt());
+    asm.emitPUSH_Imm(locationMetadata);
+    genParameterRegisterLoad(asm, 3);
+    asm.emitCALL_RegDisp(JTOC, VM_Entrypoints.getfieldReadBarrierMethod.getOffset());
+    asm.emitPUSH_Reg(T0);
+  }
+
+  static void compileGetstaticBarrier(VM_Assembler asm, byte reg, int locationMetadata) {
+    asm.emitPUSH_Reg(reg);
+    asm.emitPUSH_Imm(locationMetadata);
+    genParameterRegisterLoad(asm, 2);
+    asm.emitCALL_RegDisp(JTOC, VM_Entrypoints.getstaticReadBarrierMethod.getOffset());
+    asm.emitPUSH_Reg(T0);
+  }
+
+  static void compileGetstaticBarrierImm(VM_Assembler asm, Offset fieldOffset, int locationMetadata) {
+    asm.emitPUSH_Imm(fieldOffset.toInt());
+    asm.emitPUSH_Imm(locationMetadata);
+    genParameterRegisterLoad(asm, 2);
+    asm.emitCALL_RegDisp(JTOC, VM_Entrypoints.getstaticReadBarrierMethod.getOffset());
+    asm.emitPUSH_Reg(T0);
+  }
+
   static void compileModifyCheck(VM_Assembler asm, int offset) {
     if (!VM_Configuration.ExtremeAssertions) return;
     // on entry java stack contains ... [SP+offset] -> target_ref

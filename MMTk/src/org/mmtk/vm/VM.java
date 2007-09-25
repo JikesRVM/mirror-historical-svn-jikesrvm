@@ -20,6 +20,8 @@ import org.mmtk.vm.gcspy.ServerInterpreter;
 import org.mmtk.vm.gcspy.ServerSpace;
 import org.mmtk.vm.gcspy.ShortStream;
 import org.mmtk.vm.gcspy.Util;
+import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Untraced;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -82,7 +84,6 @@ public final class VM {
    */
   public static final ActivePlan activePlan;
   public static final Assert assertions;
-  public static final Barriers barriers;
   public static final Collection collection;
   public static final Config config;
   public static final Memory memory;
@@ -95,6 +96,20 @@ public final class VM {
   public static final Statistics statistics;
   public static final Strings strings;
   public static final TraceInterface traceInterface;
+
+  /*
+   * Special case to allow getstatic barriers without recursion
+   */
+  @Untraced
+  private static final Barriers barriers;
+
+  /**
+   * Return the barriers instance.
+   */
+  @Uninterruptible
+  public static Barriers getBarriers() {
+    return barriers;
+  }
 
   /*
    * The remainder is does the static initialization of the

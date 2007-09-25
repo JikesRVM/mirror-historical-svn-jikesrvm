@@ -269,6 +269,63 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
   */
 
   /**
+   * Read barrier for getfield operations.
+   *
+   * @param ref the object which is the subject of the getfield
+   * @param offset the offset of the field to be read
+   * @param locationMetadata an int that encodes the source location being read
+   * @return The value read from the field.
+   */
+  @Inline
+  @Entrypoint
+  public static Object getfieldReadBarrier(Object ref, Offset offset, int locationMetadata) {
+    ObjectReference src = ObjectReference.fromObject(ref);
+    return Selected.Mutator.get().readBarrier(src,
+                                              src.toAddress().plus(offset),
+                                              offset,
+                                              locationMetadata,
+                                              GETFIELD_READ_BARRIER).toObject();
+  }
+
+  /**
+   * Take appropriate read barrier actions for loading a reference
+   * from an array.
+   *
+   * @param ref the array containing the reference.
+   * @param index the index into the array were the reference resides.
+   * @return the value read from the array
+   */
+  @Inline
+  @Entrypoint
+  public static Object arrayLoadReadBarrier(Object ref, int index) {
+    ObjectReference array = ObjectReference.fromObject(ref);
+    Offset offset = Offset.fromIntZeroExtend(index << LOG_BYTES_IN_ADDRESS);
+    return Selected.Mutator.get().readBarrier(array,
+                                              array.toAddress().plus(offset),
+                                              offset,
+                                              0, // don't know metadata
+                                              AALOAD_READ_BARRIER).toObject();
+  }
+
+  /**
+   * Read barrier for getstatic operations.
+   *
+   * @param offset the offset of the field to be modified
+   * @param locationMetadata an int that encodes the source location being read
+   * @return the value read from the field
+   */
+  @Inline
+  @Entrypoint
+  public static Object getstaticReadBarrier(Offset offset, int locationMetadata) {
+    ObjectReference src = ObjectReference.fromObject(VM_Magic.getJTOC());
+    return Selected.Mutator.get().readBarrier(src,
+                                              src.toAddress().plus(offset),
+                                              offset,
+                                              locationMetadata,
+                                              GETSTATIC_READ_BARRIER).toObject();
+  }
+
+  /**
    * A reference type is being read.
    *
    * @param obj The non-null referent about to be released to the mutator.
