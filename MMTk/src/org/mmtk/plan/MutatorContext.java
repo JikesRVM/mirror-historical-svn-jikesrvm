@@ -393,8 +393,8 @@ import org.vmmagic.unboxed.*;
    *
    * @param src The object reference holding the field being read.
    * @param slot The address of the slot being read.
-   * @param metaDataA An value that assists the host VM in creating a load
-   * @param metaDataB An value that assists the host VM in creating a load
+   * @param metaDataA A value that assists the host VM in creating a load
+   * @param metaDataB A value that assists the host VM in creating a load
    * @param mode The context in which the load occurred
    * @return The reference that was read.
    */
