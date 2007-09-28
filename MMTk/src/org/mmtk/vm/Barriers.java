@@ -66,6 +66,19 @@ import org.vmmagic.unboxed.*;
                                                        Offset offset, int locationMetadata, int mode);
 
   /**
+   * Perform the actual read of the read barrier, returning the value as a raw Word.
+   *
+   * @param ref The object that has the reference field
+   * @param slot The slot that holds the reference
+   * @param offset The offset from the ref (metaDataA)
+   * @param locationMetadata An index of the FieldReference (metaDataB)
+   * @param mode The context in which the write is occuring
+   * @return the read value
+   */
+  public abstract Word performRawReadInBarrier(ObjectReference ref, Address slot,
+                                               Offset offset, int locationMetadata, int mode);
+
+  /**
    * Atomically write a reference field of an object or array and return
    * the old value of the reference field.
    *

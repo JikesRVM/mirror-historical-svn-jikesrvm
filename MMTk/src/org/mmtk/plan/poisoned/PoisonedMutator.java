@@ -19,6 +19,7 @@ import org.vmmagic.pragma.*;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.ObjectReference;
 import org.vmmagic.unboxed.Offset;
+import org.vmmagic.unboxed.Word;
 
 /**
  * This class implements a poisoned collector, that is essentially a test
@@ -117,6 +118,6 @@ public abstract class PoisonedMutator extends MSMutator {
   @Inline
   @Override
   public ObjectReference readBarrier(ObjectReference src, Address slot, Offset metaDataA, int metaDataB, int mode) {
-    return VM.barriers.performReadInBarrier(src, slot, metaDataA, metaDataB, mode);
+    return VM.barriers.performRawReadInBarrier(src, slot, metaDataA, metaDataB, mode).and(Word.one().not()).toAddress().toObjectReference();
   }
 }

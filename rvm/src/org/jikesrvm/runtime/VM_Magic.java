@@ -254,6 +254,14 @@ public final class VM_Magic {
   }
 
   /**
+   * Get Word at arbitrary (byte) offset from object.
+   */
+  public static Word getWordAtOffset(Object object, Offset offset, int locationMetadata) {
+    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+    return null;
+  }
+
+  /**
    * Get Object[] at arbitrary (byte) offset from object.
    * Use getObjectArrayAtOffset(obj, ofs) instead of
    * (Object[])addressAsObject(getMemoryAddr(objectAsAddress(obj)+ofs))

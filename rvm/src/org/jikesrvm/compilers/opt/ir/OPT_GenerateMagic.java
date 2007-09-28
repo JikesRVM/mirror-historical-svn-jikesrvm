@@ -278,10 +278,14 @@ public class OPT_GenerateMagic implements VM_TIBLayoutConstants  {
       OPT_Operand object = bc2ir.popRef();
       bc2ir.appendInstruction(Store.create(INT_STORE, val, object, offset, null));
     } else if (methodName == VM_MagicNames.getWordAtOffset) {
+      OPT_LocationOperand loc = null;
+      if (meth.getParameterTypes().length == 3) {
+        loc = mapToMetadata(bc2ir.popInt());
+      }
       OPT_Operand offset = bc2ir.popAddress();
       OPT_Operand object = bc2ir.popRef();
       OPT_RegisterOperand val = gc.temps.makeTemp(VM_TypeReference.Word);
-      bc2ir.appendInstruction(Load.create(REF_LOAD, val, object, offset, null));
+      bc2ir.appendInstruction(Load.create(REF_LOAD, val, object, offset, loc));
       bc2ir.push(val.copyD2U());
     } else if (methodName == VM_MagicNames.setWordAtOffset) {
       OPT_Operand val = bc2ir.popRef();

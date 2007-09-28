@@ -17,6 +17,7 @@ import org.mmtk.plan.marksweep.MSCollector;
 import org.vmmagic.pragma.*;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.ObjectReference;
+import org.vmmagic.unboxed.Word;
 
 /**
  * This class implements a poisoned collector, that is essentially a test
@@ -48,6 +49,6 @@ public abstract class PoisonedCollector extends MSCollector {
    */
   @Inline
   public ObjectReference loadObjectReference(Address slot) {
-    return slot.loadObjectReference();
+    return slot.loadWord().and(Word.one().not()).toAddress().toObjectReference();
   }
 }

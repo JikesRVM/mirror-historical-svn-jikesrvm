@@ -55,6 +55,24 @@ import org.vmmagic.pragma.*;
     return ObjectReference.fromObject(VM_Magic.getObjectAtOffset(obj, offset, locationMetadata));
   }
 
+
+  /**
+   * Perform the actual read of the read barrier, returning the value as a raw word.
+   *
+   * @param ref The object that has the reference field
+   * @param slot The slot that holds the reference
+   * @param offset The offset from the ref (metaDataA)
+   * @param locationMetadata An index of the FieldReference (metaDataB)
+   * @param mode The context in which the write is occuring
+   * @return the read value
+   */
+  @Inline
+  public final Word performRawReadInBarrier(ObjectReference ref, Address slot,
+                                            Offset offset, int locationMetadata, int mode) {
+    Object obj = ref.toObject();
+    return VM_Magic.getWordAtOffset(obj, offset, locationMetadata);
+  }
+
   /**
    * Atomically write a reference field of an object or array and return
    * the old value of the reference field.
