@@ -1713,7 +1713,7 @@ public class BootImageWriter extends BootImageWriterMessages
                 default:fail("unexpected field type: " + rvmFieldType); break;
                 }
               } else {
-                bootImage.setNullAddressWord(rvmFieldAddress, true, false);
+                bootImage.setNullAddressWord(rvmFieldAddress, !rvmField.isUntraced(), false);
               }
             }
             continue;
@@ -1776,12 +1776,12 @@ public class BootImageWriter extends BootImageWriterMessages
                 if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
                   // object not part of bootimage: install null reference
                   if (verbose >= 2) traceContext.traceObjectNotInBootImage();
-                  bootImage.setNullAddressWord(rvmFieldAddress, true, false);
+                  bootImage.setNullAddressWord(rvmFieldAddress, !rvmField.isUntraced(), false);
                 } else
-                  bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), !rvmField.isFinal());
+                  bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), !(rvmField.isFinal() || rvmField.isUntraced()));
                 if (verbose >= 2) traceContext.pop();
               } else {
-                bootImage.setNullAddressWord(rvmFieldAddress, true, true);
+                bootImage.setNullAddressWord(rvmFieldAddress, !rvmField.isUntraced(), true);
               }
             }
           }
@@ -2210,7 +2210,7 @@ public class BootImageWriter extends BootImageWriterMessages
         if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
           // object not part of bootimage: install null reference
           if (verbose >= 2) traceContext.traceObjectNotInBootImage();
-          bootImage.setNullAddressWord(rvmFieldAddress, true, false);
+          bootImage.setNullAddressWord(rvmFieldAddress, false, false);
         } else if (imageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
             imageAddress = copyToBootImage(constructor, false, Address.max(), jdkObject);
             if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();

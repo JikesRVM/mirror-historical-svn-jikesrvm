@@ -379,8 +379,10 @@ public class BootImage extends BootImageWriterMessages
    * to a static, or tib, or some other metadata)
    */
   public void setAddressWord(Address address, Word value, boolean objField) {
-    if (objField)
+    if (objField) {
+      value = MM_Interface.bootTimeWriteBarrier(value);
       markReferenceMap(address);
+    }
     if (VM.BuildFor32Addr)
       setFullWord(address, value.toInt());
     else

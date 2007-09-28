@@ -1080,6 +1080,14 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
     VM_JavaHeader.writeAvailableBitsWord(bootImage, ref, status);
   }
 
+  /**
+   * Install a reference into the boot image.
+   */
+  @Interruptible
+  public static Word bootTimeWriteBarrier(Word value) {
+    return Selected.Plan.get().bootTimeWriteBarrier(value);
+  }
+
   /***********************************************************************
    *
    * Deprecated and/or broken.  The following need to be expunged.

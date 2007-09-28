@@ -260,6 +260,17 @@ public abstract class Plan implements Constants {
     return status; // nothing to do (no bytes of GC header)
   }
 
+  /**
+   * Perform any required write barrier action when installing an object reference
+   * a boot time.
+   *
+   * @param reference the reference value that is to be stored
+   * @return The raw value to be
+   */
+  public Word bootTimeWriteBarrier(Word reference) {
+    return reference;
+  }
+
   /****************************************************************************
    * Allocation
    */
