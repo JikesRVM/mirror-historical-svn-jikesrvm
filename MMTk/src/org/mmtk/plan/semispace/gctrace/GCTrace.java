@@ -104,6 +104,8 @@ import org.vmmagic.pragma.*;
   public GCTrace() {
     SortTODSharedDeque workList = new SortTODSharedDeque("workList",traceSpace, 1);
     SortTODSharedDeque traceBuf = new SortTODSharedDeque("traceBuf",traceSpace, 1);
+    workList.prepareNonBlocking();
+    traceBuf.prepareNonBlocking();
     TraceGenerator.init(workList, traceBuf);
   }
 
@@ -120,6 +122,7 @@ import org.vmmagic.pragma.*;
    * The planExit method is called at RVM termination to allow the
    * trace process to finish.
    */
+  @Interruptible
   public final void notifyExit(int value) {
     super.notifyExit(value);
     finalDead = true;

@@ -392,6 +392,11 @@ public abstract class VM_Thread {
   public boolean requesting_osr = false;
 
   /**
+   * Is the system in the process of shutting down (has System.exit been called)
+   */
+  private static boolean systemShuttingDown = false;
+
+  /**
    * @param stack stack in which to execute the thread
    */
   protected VM_Thread(byte[] stack, Thread thread, String name, boolean daemon, boolean system, int priority) {
@@ -664,7 +669,6 @@ public abstract class VM_Thread {
       VM_Scheduler.dumpStack();
       VM.sysWriteln("END Verbosely dumping stack at time of creating thread termination ]");
       VM.enableGC();
-
     }
 
     if (VM.BuildForAdaptiveSystem) {
@@ -674,6 +678,12 @@ public abstract class VM_Thread {
     // allow java.lang.Thread.exit() to remove this thread from ThreadGroup
     java.lang.JikesRVMSupport.threadDied(thread);
 
+    if (VM.VerifyAssertions) {
+      if (VM_Lock.countLocksHeldByThread(getLockingId()) > 0) {
+        VM.sysWriteln("Error, thread terminating holding a lock");
+        VM_Scheduler.dumpVirtualMachine();
+      }
+    }
     // begin critical section
     //
     VM_Scheduler.threadCreationMutex.lock("thread termination");
@@ -695,13 +705,19 @@ public abstract class VM_Thread {
       // no non-daemon thread remains and the main thread was launched
       terminateSystem = true;
     }
+    if (terminateSystem) {
+      if (systemShuttingDown == false) {
+        systemShuttingDown = true;
+      } else {
+        terminateSystem = false;
+      }
+    }
     if (traceTermination) {
       VM.sysWriteln("VM_Thread.terminate: myThread.daemon = ", daemon);
       VM.sysWriteln("  VM_Scheduler.numActiveThreads = ", VM_Scheduler.numActiveThreads);
       VM.sysWriteln("  VM_Scheduler.numDaemons = ", VM_Scheduler.numDaemons);
       VM.sysWriteln("  terminateSystem = ", terminateSystem);
     }
-
     // end critical section
     //
     VM_Processor.getCurrentProcessor().enableThreadSwitching();
