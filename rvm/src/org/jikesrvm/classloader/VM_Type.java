@@ -786,4 +786,11 @@ public abstract class VM_Type extends VM_AnnotatedElement
   public final int getMMAllocator() {
     return mmAllocator;
   }
+
+  /**
+   * Is this field a type that must never move?
+   */
+  public boolean isNonMoving() {
+    return hasNonMovingAnnotation();
+  }
 }
