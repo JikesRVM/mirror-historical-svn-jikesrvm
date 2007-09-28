@@ -87,11 +87,12 @@ public abstract class Plan implements Constants {
   public static final int ALLOC_GCSPY = 5;
   public static final int ALLOC_CODE = 6;
   public static final int ALLOC_LARGE_CODE = 7;
+  public static final int ALLOC_NON_MOVING = 8;
   public static final int ALLOC_HOT_CODE = ALLOC_CODE;
   public static final int ALLOC_COLD_CODE = ALLOC_CODE;
   public static final int ALLOC_STACK = ALLOC_LOS;
   public static final int ALLOC_IMMORTAL_STACK = ALLOC_IMMORTAL;
-  public static final int ALLOCATORS = 8;
+  public static final int ALLOCATORS = 9;
   public static final int DEFAULT_SITE = -1;
 
   /* Miscellaneous Constants */
@@ -127,6 +128,9 @@ public abstract class Plan implements Constants {
   /** Space used by the sanity checker (used at runtime only if sanity checking enabled */
   public static final RawPageSpace sanitySpace = new RawPageSpace("sanity", Integer.MAX_VALUE, VMRequest.create());
 
+  /** Space used to allocate objects that cannot be moved. we do not need a large space as the LOS is non-moving. */
+  public static final MarkSweepSpace nonMovingSpace = new MarkSweepSpace("non-moving", DEFAULT_POLL_FREQUENCY, VMRequest.create());
+
   public static final MarkSweepSpace smallCodeSpace = new MarkSweepSpace("sm-code", DEFAULT_POLL_FREQUENCY, VMRequest.create());
   public static final LargeObjectSpace largeCodeSpace = new LargeObjectSpace("lg-code", DEFAULT_POLL_FREQUENCY, VMRequest.create());
 
@@ -139,6 +143,7 @@ public abstract class Plan implements Constants {
   public static final int SANITY = sanitySpace.getDescriptor();
   public static final int SMALL_CODE = smallCodeSpace.getDescriptor();
   public static final int LARGE_CODE = largeCodeSpace.getDescriptor();
+  public static final int NON_MOVING = nonMovingSpace.getDescriptor();
 
   /** Timer that counts total time */
   public static final Timer totalTime = new Timer("time");
@@ -763,7 +768,8 @@ public abstract class Plan implements Constants {
   public int getPagesUsed() {
     return loSpace.reservedPages() + ploSpace.reservedPages() +
            immortalSpace.reservedPages() + metaDataSpace.reservedPages() +
-           smallCodeSpace.reservedPages() + largeCodeSpace.reservedPages();
+           smallCodeSpace.reservedPages() + largeCodeSpace.reservedPages() +
+           nonMovingSpace.reservedPages();
   }
 
   /**
@@ -776,7 +782,8 @@ public abstract class Plan implements Constants {
   public int getPagesRequired() {
     return loSpace.requiredPages() + ploSpace.requiredPages() +
       metaDataSpace.requiredPages() + immortalSpace.requiredPages() +
-      smallCodeSpace.requiredPages() + largeCodeSpace.requiredPages();
+      smallCodeSpace.requiredPages() + largeCodeSpace.requiredPages() +
+      nonMovingSpace.requiredPages();
   }
 
   /**
@@ -955,6 +962,8 @@ public abstract class Plan implements Constants {
     if (Space.isInSpace(SMALL_CODE, object))
       return true;
     if (Space.isInSpace(LARGE_CODE, object))
+      return true;
+    if (Space.isInSpace(NON_MOVING, object))
       return true;
 
     /*
