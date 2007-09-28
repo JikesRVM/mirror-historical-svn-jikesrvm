@@ -31,6 +31,9 @@ import org.vmmagic.unboxed.Word;
 @Uninterruptible
 public class Map {
 
+  /* set the map base address so that we have an unused (null) chunk at the bottome of the space for 64 bit */
+  private static final Address MAP_BASE_ADDRESS = Space.BITS_IN_ADDRESS == 32 ? Address.zero() : Space.HEAP_START.minus(Space.BYTES_IN_CHUNK);
+
   /****************************************************************************
    *
    * Class variables
@@ -61,6 +64,9 @@ public class Map {
     regionMap = new GenericFreeList(Space.MAX_CHUNKS);
     globalPageMap = new GenericFreeList(1, 1, Space.MAX_SPACES);
     sharedFLMap = new FreeListPageResource[Space.MAX_SPACES];
+    if (VM.VERIFY_ASSERTIONS)
+        VM.assertions._assert(Space.BITS_IN_ADDRESS == Space.LOG_ADDRESS_SPACE ||
+            Space.HEAP_END.diff(MAP_BASE_ADDRESS).toWord().rshl(Space.LOG_ADDRESS_SPACE).isZero());
   }
 
   /****************************************************************************
@@ -299,10 +305,22 @@ public class Map {
    */
   @Inline
   private static int hashAddress(Address address) {
-    return address.toWord().rshl(Space.LOG_BYTES_IN_CHUNK).toInt();
+    if (Space.BYTES_IN_ADDRESS == 8) {
+      if (address.LT(Space.HEAP_START) || address.GE(Space.HEAP_END))
+        return 0;
+      else
+        return address.diff(MAP_BASE_ADDRESS).toWord().rshl(Space.LOG_BYTES_IN_CHUNK).toInt();
+    } else
+      return address.toWord().rshl(Space.LOG_BYTES_IN_CHUNK).toInt();
   }
   @Inline
   private static Address reverseHashChunk(int chunk) {
-    return Word.fromIntZeroExtend(chunk).lsh(Space.LOG_BYTES_IN_CHUNK).toAddress();
+    if (Space.BYTES_IN_ADDRESS == 8) {
+      if (chunk == 0)
+        return Address.zero();
+      else
+        return MAP_BASE_ADDRESS.plus(Word.fromIntZeroExtend(chunk).lsh(Space.LOG_BYTES_IN_CHUNK).toExtent());
+    } else
+      return Word.fromIntZeroExtend(chunk).lsh(Space.LOG_BYTES_IN_CHUNK).toAddress();
   }
 }
