@@ -25,6 +25,7 @@ import org.jikesrvm.runtime.VM_Statics;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
+import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Offset;
 
@@ -38,6 +39,7 @@ import org.vmmagic.unboxed.Offset;
  * @see VM_Class
  * @see VM_Primitive
  */
+@NonMoving
 public final class VM_Array extends VM_Type implements VM_Constants, VM_ClassLoaderConstants {
 
   /*

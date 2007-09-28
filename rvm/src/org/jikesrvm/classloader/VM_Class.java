@@ -30,6 +30,7 @@ import org.jikesrvm.runtime.VM_Runtime;
 import org.jikesrvm.runtime.VM_StackBrowser;
 import org.jikesrvm.runtime.VM_Statics;
 import org.jikesrvm.util.VM_Synchronizer;
+import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Offset;
 
@@ -43,6 +44,7 @@ import org.vmmagic.unboxed.Offset;
  * @see VM_Array
  * @see VM_Primitive
  */
+@NonMoving
 public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoaderConstants {
 
   /** Flag for for closed world testing */

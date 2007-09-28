@@ -21,6 +21,7 @@ import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.runtime.VM_Statics;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
+import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Offset;
 
@@ -56,6 +57,7 @@ import org.vmmagic.unboxed.Offset;
  * Their "resolution", "instantiation", and "initialization" phases
  * are no-ops.
  */
+@NonMoving
 public abstract class VM_Type extends VM_AnnotatedElement
     implements VM_ClassLoaderConstants, VM_SizeConstants, VM_Constants {
 

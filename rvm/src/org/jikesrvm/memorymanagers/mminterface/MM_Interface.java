@@ -583,7 +583,7 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
       allocator = Plan.ALLOC_NON_REFERENCE;
     }
     if(type.isNonMoving()) {
-      allocator = Plan.NON_MOVING;
+      allocator = Plan.ALLOC_NON_MOVING;
     }
     byte[] typeBA = type.getDescriptor().toByteArray();
     if (Selected.Constraints.get().withGCspy()) {

@@ -24,5 +24,5 @@ import java.lang.annotation.ElementType;
  * directly (such as Untraced fields).
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.FIELD)
+@Target(ElementType.TYPE)
 public @interface NonMoving { }

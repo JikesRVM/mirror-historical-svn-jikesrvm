@@ -14,6 +14,7 @@ package org.jikesrvm.classloader;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.VM_Constants;
+import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.SynchronizedObject;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Offset;
@@ -36,6 +37,7 @@ import org.vmmagic.unboxed.Offset;
  * @see VM_Class
  * @see VM_Array
  */
+@NonMoving
 @SynchronizedObject
 public final class VM_Primitive extends VM_Type implements VM_Constants, VM_ClassLoaderConstants {
   /**
