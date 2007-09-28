@@ -49,7 +49,6 @@ public abstract class PoisonedMutator extends MSMutator {
    */
   @Inline
   @Override
-  @Unpreemptible
   public void writeBarrier(ObjectReference src, Address slot, ObjectReference tgt, Offset metaDataA, int metaDataB, int mode) {
     VM.barriers.performWriteInBarrier(src, slot, tgt, metaDataA, metaDataB, mode);
   }
@@ -72,7 +71,6 @@ public abstract class PoisonedMutator extends MSMutator {
    * @return True if the swap was successful.
    */
   @Override
-  @Unpreemptible
   public boolean tryCompareAndSwapWriteBarrier(ObjectReference src, Address slot, ObjectReference old, ObjectReference tgt,
                                                Offset metaDataA, int metaDataB, int mode) {
     return VM.barriers.tryCompareAndSwapWriteInBarrier(src, slot, old, tgt, metaDataA, metaDataB, mode);
@@ -118,7 +116,6 @@ public abstract class PoisonedMutator extends MSMutator {
    */
   @Inline
   @Override
-  @Unpreemptible
   public ObjectReference readBarrier(ObjectReference src, Address slot, Offset metaDataA, int metaDataB, int mode) {
     return VM.barriers.performReadInBarrier(src, slot, metaDataA, metaDataB, mode);
   }

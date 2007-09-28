@@ -31,7 +31,6 @@ import org.vmmagic.pragma.*;
    * @param mode The context in which the write is occuring
    */
   @Inline
-  @Unpreemptible
   public final void performWriteInBarrier(ObjectReference ref, Address slot,
                                            ObjectReference target, Offset offset,
                                            int locationMetadata, int mode) {
@@ -50,7 +49,6 @@ import org.vmmagic.pragma.*;
    * @return the read value
    */
   @Inline
-  @Unpreemptible
   public final ObjectReference performReadInBarrier(ObjectReference ref, Address slot,
                                                     Offset offset, int locationMetadata, int mode) {
     Object obj = ref.toObject();
@@ -70,7 +68,6 @@ import org.vmmagic.pragma.*;
    * @return The value that was replaced by the write.
    */
   @Inline
-  @Unpreemptible
   public final ObjectReference performWriteInBarrierAtomic(
                                            ObjectReference ref, Address slot,
                                            ObjectReference target, Offset offset,
@@ -97,7 +94,6 @@ import org.vmmagic.pragma.*;
    * @return True if the compare and swap was successful
    */
   @Inline
-  @Unpreemptible
   public final boolean tryCompareAndSwapWriteInBarrier(ObjectReference ref, Address slot,
       ObjectReference old, ObjectReference target, Offset offset, int locationMetadata, int mode) {
     Object oldValue;
