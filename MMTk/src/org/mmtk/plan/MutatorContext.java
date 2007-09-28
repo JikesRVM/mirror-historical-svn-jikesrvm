@@ -94,10 +94,10 @@ import org.vmmagic.unboxed.*;
   protected LargeObjectLocal los = new LargeObjectLocal(Plan.loSpace);
 
   /** Per-mutator allocator into the small code space */
-  private  MarkSweepLocal smcode = Plan.USE_CODE_SPACE ? new MarkSweepLocal(Plan.smallCodeSpace) : null;
+  private  MarkSweepLocal smcode = new MarkSweepLocal(Plan.smallCodeSpace);
 
   /** Per-mutator allocator into the large code space */
-  private LargeObjectLocal lgcode = Plan.USE_CODE_SPACE ? new LargeObjectLocal(Plan.largeCodeSpace) : null;
+  private LargeObjectLocal lgcode = new LargeObjectLocal(Plan.largeCodeSpace);
 
   /** Per-mutator allocator into the primitive large object space */
   protected LargeObjectLocal plos = new LargeObjectLocal(Plan.ploSpace);
@@ -135,21 +135,20 @@ import org.vmmagic.unboxed.*;
    */
   @Inline
   public int checkAllocator(int bytes, int align, int allocator) {
-    if (allocator == Plan.ALLOC_DEFAULT &&
-        Allocator.getMaximumAlignedSize(bytes, align) > Plan.LOS_SIZE_THRESHOLD)
-      return Plan.ALLOC_LOS;
-    else if (Plan.USE_CODE_SPACE && allocator == Plan.ALLOC_CODE) {
-      if (Allocator.getMaximumAlignedSize(bytes, align) > Plan.LOS_SIZE_THRESHOLD)
-        return Plan.ALLOC_LARGE_CODE;
-      else
-        return allocator;
-    } else if (allocator == Plan.ALLOC_NON_REFERENCE) {
-        if (Allocator.getMaximumAlignedSize(bytes, align) > Plan.PLOS_SIZE_THRESHOLD)
-          return Plan.ALLOC_PRIMITIVE_LOS;
-    else
-          return Plan.ALLOC_DEFAULT;
-    } else
-      return allocator;
+    boolean large = Allocator.getMaximumAlignedSize(bytes, align) > Plan.LOS_SIZE_THRESHOLD;
+    if (allocator == Plan.ALLOC_DEFAULT) {
+      return large ? Plan.ALLOC_LOS : allocator;
+    }
+
+    if (allocator == Plan.ALLOC_CODE) {
+      return large ? Plan.ALLOC_LARGE_CODE : allocator;
+    }
+
+    if (allocator == Plan.ALLOC_NON_REFERENCE) {
+      return large ? Plan.ALLOC_PRIMITIVE_LOS : Plan.ALLOC_DEFAULT;
+    }
+
+    return allocator;
   }
 
   /**
@@ -255,8 +254,8 @@ import org.vmmagic.unboxed.*;
     if (a == immortal) return Plan.immortalSpace;
     if (a == los)      return Plan.loSpace;
     if (a == plos)     return Plan.ploSpace;
-    if (Plan.USE_CODE_SPACE && a == smcode)   return Plan.smallCodeSpace;
-    if (Plan.USE_CODE_SPACE && a == lgcode)   return Plan.largeCodeSpace;
+    if (a == smcode)   return Plan.smallCodeSpace;
+    if (a == lgcode)   return Plan.largeCodeSpace;
 
     // a does not belong to this plan instance
     return null;
@@ -275,8 +274,8 @@ import org.vmmagic.unboxed.*;
     if (space == Plan.immortalSpace) return immortal;
     if (space == Plan.loSpace)       return los;
     if (space == Plan.ploSpace)      return plos;
-    if (Plan.USE_CODE_SPACE && space == Plan.smallCodeSpace) return smcode;
-    if (Plan.USE_CODE_SPACE && space == Plan.largeCodeSpace) return lgcode;
+    if (space == Plan.smallCodeSpace) return smcode;
+    if (space == Plan.largeCodeSpace) return lgcode;
 
     // Invalid request has been made
     if (space == Plan.metaDataSpace) {

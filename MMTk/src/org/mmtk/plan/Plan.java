@@ -74,7 +74,6 @@ public abstract class Plan implements Constants {
   public static final int META_DATA_POLL_FREQUENCY = DEFAULT_POLL_FREQUENCY;
 
   /* Space Size Constants. */
-  public static final boolean USE_CODE_SPACE = false;
   public static final float PLOS_FRAC = 0.07f;
   public static final int HEAP_FULL_MINIMUM = (1 << 17) >> LOG_BYTES_IN_PAGE; // 128K
   public static final int HEAP_FULL_PERCENTAGE = 2;
@@ -88,8 +87,8 @@ public abstract class Plan implements Constants {
   public static final int ALLOC_GCSPY = 5;
   public static final int ALLOC_CODE = 6;
   public static final int ALLOC_LARGE_CODE = 7;
-  public static final int ALLOC_HOT_CODE = USE_CODE_SPACE ? ALLOC_CODE : ALLOC_DEFAULT;
-  public static final int ALLOC_COLD_CODE = USE_CODE_SPACE ? ALLOC_CODE : ALLOC_DEFAULT;
+  public static final int ALLOC_HOT_CODE = ALLOC_CODE;
+  public static final int ALLOC_COLD_CODE = ALLOC_CODE;
   public static final int ALLOC_STACK = ALLOC_LOS;
   public static final int ALLOC_IMMORTAL_STACK = ALLOC_IMMORTAL;
   public static final int ALLOCATORS = 8;
@@ -128,8 +127,8 @@ public abstract class Plan implements Constants {
   /** Space used by the sanity checker (used at runtime only if sanity checking enabled */
   public static final RawPageSpace sanitySpace = new RawPageSpace("sanity", Integer.MAX_VALUE, VMRequest.create());
 
-  public static final MarkSweepSpace smallCodeSpace = USE_CODE_SPACE ? new MarkSweepSpace("sm-code", DEFAULT_POLL_FREQUENCY, VMRequest.create()) : null;
-  public static final LargeObjectSpace largeCodeSpace = USE_CODE_SPACE ? new LargeObjectSpace("lg-code", DEFAULT_POLL_FREQUENCY, VMRequest.create()) : null;
+  public static final MarkSweepSpace smallCodeSpace = new MarkSweepSpace("sm-code", DEFAULT_POLL_FREQUENCY, VMRequest.create());
+  public static final LargeObjectSpace largeCodeSpace = new LargeObjectSpace("lg-code", DEFAULT_POLL_FREQUENCY, VMRequest.create());
 
   /* Space descriptors */
   public static final int IMMORTAL = immortalSpace.getDescriptor();
@@ -138,8 +137,8 @@ public abstract class Plan implements Constants {
   public static final int LOS = loSpace.getDescriptor();
   public static final int PLOS = ploSpace.getDescriptor();
   public static final int SANITY = sanitySpace.getDescriptor();
-  public static final int SMALL_CODE = USE_CODE_SPACE ? smallCodeSpace.getDescriptor() : 0;
-  public static final int LARGE_CODE = USE_CODE_SPACE ? largeCodeSpace.getDescriptor() : 0;
+  public static final int SMALL_CODE = smallCodeSpace.getDescriptor();
+  public static final int LARGE_CODE = largeCodeSpace.getDescriptor();
 
   /** Timer that counts total time */
   public static final Timer totalTime = new Timer("time");
@@ -753,7 +752,7 @@ public abstract class Plan implements Constants {
   public int getPagesUsed() {
     return loSpace.reservedPages() + ploSpace.reservedPages() +
            immortalSpace.reservedPages() + metaDataSpace.reservedPages() +
-           (USE_CODE_SPACE ? smallCodeSpace.reservedPages() + largeCodeSpace.reservedPages() : 0);
+           smallCodeSpace.reservedPages() + largeCodeSpace.reservedPages();
   }
 
   /**
@@ -766,7 +765,7 @@ public abstract class Plan implements Constants {
   public int getPagesRequired() {
     return loSpace.requiredPages() + ploSpace.requiredPages() +
       metaDataSpace.requiredPages() + immortalSpace.requiredPages() +
-      (USE_CODE_SPACE ? smallCodeSpace.requiredPages() + largeCodeSpace.requiredPages() : 0);
+      smallCodeSpace.requiredPages() + largeCodeSpace.requiredPages();
   }
 
   /**
@@ -942,9 +941,9 @@ public abstract class Plan implements Constants {
       return true;
     if (Space.isInSpace(VM_SPACE, object))
       return true;
-    if (USE_CODE_SPACE && Space.isInSpace(SMALL_CODE, object))
+    if (Space.isInSpace(SMALL_CODE, object))
       return true;
-    if (USE_CODE_SPACE && Space.isInSpace(LARGE_CODE, object))
+    if (Space.isInSpace(LARGE_CODE, object))
       return true;
 
     /*
