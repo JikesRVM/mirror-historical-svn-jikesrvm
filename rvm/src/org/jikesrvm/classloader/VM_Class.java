@@ -218,6 +218,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
   /**
    * Name - something like "java.lang.String".
    */
+  @Override
   public String toString() {
     return getDescriptor().classNameFromDescriptor();
   }
@@ -235,6 +236,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
   /**
    * Stack space requirement in words.
    */
+  @Override
   @Uninterruptible
   public int getStackWords() {
     return 1;
@@ -243,6 +245,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
   /**
    * Space required in memory in bytes.
    */
+  @Override
   @Uninterruptible
   public int getMemoryBytes() {
     return BYTES_IN_ADDRESS;
@@ -466,6 +469,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
     return classInitializerMethod;
   }
 
+  @Override
   Annotation[] getAnnotationsInternal() {
     final VM_Class parent = getSuperClass();
     if (parent == null) {
@@ -562,7 +566,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
 
   @Uninterruptible
   private static int packCPEntry(byte type, int value) {
-    return (((int) type) << 29) | (value & 0x1fffffff);
+    return (type << 29) | (value & 0x1fffffff);
   }
 
   @Uninterruptible
@@ -795,6 +799,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
   /**
    * Does this class override java.lang.Object.finalize()?
    */
+  @Override
   @Uninterruptible
   public boolean hasFinalizer() {
     if (VM.VerifyAssertions) VM._assert(isResolved());
@@ -815,6 +820,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
    * Static fields of this class.
    * Values in these fields are shared by all class instances.
    */
+  @Override
   public VM_Field[] getStaticFields() {
     if (VM.VerifyAssertions) VM._assert(isResolved());
     return staticFields;
@@ -824,6 +830,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
    * Non-static fields of this class (composed with supertypes, if any).
    * Values in these fields are distinct for each class instance.
    */
+  @Override
   public VM_Field[] getInstanceFields() {
     if (VM.VerifyAssertions) VM._assert(isResolved());
     return instanceFields;
@@ -832,6 +839,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
   /**
    * Statically dispatched methods of this class.
    */
+  @Override
   public VM_Method[] getStaticMethods() {
     if (VM.VerifyAssertions) VM._assert(isResolved());
     return staticMethods;
@@ -849,6 +857,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
    * Virtually dispatched methods of this class
    * (composed with supertypes, if any).
    */
+  @Override
   public VM_Method[] getVirtualMethods() {
     if (VM.VerifyAssertions) VM._assert(isResolved());
     return virtualMethods;
@@ -932,7 +941,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
   }
 
   /**
-   * Set int representing available holes in the field layout
+   * Set object representing available holes in the field layout
    */
   public void setFieldLayoutContext(VM_FieldLayoutContext newLayout) {
     fieldLayoutContext = isFinal() ? null : newLayout;
@@ -998,6 +1007,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
   /**
    * Runtime type information for this class type.
    */
+  @Override
   @Uninterruptible
   public Object[] getTypeInformationBlock() {
     if (VM.VerifyAssertions) VM._assert(isResolved());
@@ -1009,6 +1019,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
    * @param slot the TIB slot
    * @return false
    */
+  @Override
   public boolean isTIBSlotTIB(int slot) {
     if (VM.VerifyAssertions) checkTIBSlotIsAccessible(slot);
     return false;
@@ -1019,6 +1030,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
    * @param slot the TIB slot
    * @return true if slot is one that holds a code array reference
    */
+  @Override
   public boolean isTIBSlotCode(int slot) {
     if (VM.VerifyAssertions) checkTIBSlotIsAccessible(slot);
     return slot >= TIB_FIRST_VIRTUAL_METHOD_INDEX;
@@ -1467,6 +1479,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
    * method table.
    * Side effects: superclasses and superinterfaces are resolved.
    */
+  @Override
   public synchronized void resolve() {
     if (isResolved()) return;
 
@@ -1775,6 +1788,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
     if (VM.TraceClassLoading && VM.runningVM) VM.sysWriteln("VM_Class: (end)   resolve " + this);
   }
 
+  @Override
   public void allBootImageTypesResolved() {
     for (VM_Method method : declaredMethods) {
       if (method instanceof VM_NormalMethod) {
@@ -1788,6 +1802,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
   // final (otherwise the reference could be to a subsequently loaded
   // cyclic subclass).
   //
+  @Override
   @Uninterruptible
   public boolean isAcyclicReference() {
     return acyclic && isFinal();
@@ -1831,6 +1846,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
    * Compile this class's methods, build type information block, populate jtoc.
    * Side effects: superclasses are instantiated.
    */
+  @Override
   public synchronized void instantiate() {
     if (isInstantiated()) {
       return;
@@ -1907,6 +1923,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
    * Side effects: superclasses are initialized, static fields receive
    * initial values.
    */
+  @Override
   public synchronized void initialize()
     // Doesn't really need declaring.
       throws ExceptionInInitializerError {
@@ -2296,6 +2313,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
    * classes
    * @return 0
    */
+  @Override
   @Uninterruptible
   public int getDimensionality() {
     return 0;
@@ -2304,6 +2322,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
   /**
    * Resolution status.
    */
+  @Override
   @Uninterruptible
   public boolean isResolved() {
     return state >= CLASS_RESOLVED;
@@ -2312,6 +2331,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
   /**
    * Instantiation status.
    */
+  @Override
   @Uninterruptible
   public boolean isInstantiated() {
     return state >= CLASS_INSTANTIATED;
@@ -2320,6 +2340,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
   /**
    * Initialization status.
    */
+  @Override
   @Uninterruptible
   public boolean isInitialized() {
     return state == CLASS_INITIALIZED;
@@ -2328,6 +2349,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
   /**
    * Only intended to be used by the BootImageWriter
    */
+  @Override
   public void markAsBootImageClass() {
     inBootImage = true;
   }
@@ -2335,6 +2357,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
   /**
    * Is this class part of the virtual machine's boot image?
    */
+  @Override
   @Uninterruptible
   public boolean isInBootImage() {
     return inBootImage;
@@ -2345,6 +2368,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
    * Offset.max() if instances of this type do not have thin lock words.
    * Is only known after class has been resolved.
    */
+  @Override
   @Uninterruptible
   public Offset getThinLockOffset() {
     if (VM.VerifyAssertions) VM._assert(isResolved());
@@ -2365,6 +2389,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
   /**
    * get number of superclasses to Object
    */
+  @Override
   @Uninterruptible
   public int getTypeDepth() {
     return depth;
@@ -2374,6 +2399,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
    * Whether or not this is an instance of VM_Class?
    * @return false
    */
+  @Override
   @Uninterruptible
   public boolean isClassType() {
     return true;
@@ -2383,6 +2409,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
    * Whether or not this is an instance of VM_Array?
    * @return true
    */
+  @Override
   @Uninterruptible
   public boolean isArrayType() {
     return false;
@@ -2392,6 +2419,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
    * Whether or not this is a primitive type
    * @return false
    */
+  @Override
   @Uninterruptible
   public boolean isPrimitiveType() {
     return false;
@@ -2400,6 +2428,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
   /**
    * @return whether or not this is a reference (ie non-primitive) type.
    */
+  @Override
   @Uninterruptible
   public boolean isReferenceType() {
     return true;
