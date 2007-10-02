@@ -51,16 +51,22 @@ public interface VM_JavaHeaderConstants extends VM_SizeConstants {
   int OTHER_HEADER_BYTES = GC_HEADER_BYTES + MISC_HEADER_BYTES;
 
   /** Offset of array length from object reference */
+  @RelativeToObjectReference
   Offset ARRAY_LENGTH_OFFSET = Offset.fromIntSignExtend(-ARRAY_LENGTH_BYTES);
   /** Offset of the first field from object reference */
+  @RelativeToObjectReference
   Offset FIELD_ZERO_OFFSET = ARRAY_LENGTH_OFFSET;
   /** Offset of the Java header from the object reference */
+  @RelativeToObjectReference
   Offset JAVA_HEADER_OFFSET = ARRAY_LENGTH_OFFSET.minus(JAVA_HEADER_BYTES);
   /** Offset of the miscellaneous header from the object reference */
+  @RelativeToObjectReference
   Offset MISC_HEADER_OFFSET = JAVA_HEADER_OFFSET.minus(MISC_HEADER_BYTES);
   /** Offset of the garbage collection header from the object reference */
+  @RelativeToObjectReference
   Offset GC_HEADER_OFFSET = MISC_HEADER_OFFSET.minus(GC_HEADER_BYTES);
   /** Offset of first element of an array */
+  @RelativeToObjectReference
   Offset ARRAY_BASE_OFFSET = Offset.zero();
 
   /**
@@ -99,12 +105,12 @@ public interface VM_JavaHeaderConstants extends VM_SizeConstants {
 
   /*
    * Stuff for address based hashing
-   */ Word HASH_STATE_UNHASHED = Word.zero();
+   */
+  Word HASH_STATE_UNHASHED = Word.zero();
   Word HASH_STATE_HASHED = Word.one().lsh(8); //0x00000100
   Word HASH_STATE_HASHED_AND_MOVED = Word.fromIntZeroExtend(3).lsh(8); //0x0000300
   Word HASH_STATE_MASK = HASH_STATE_UNHASHED.or(HASH_STATE_HASHED).or(HASH_STATE_HASHED_AND_MOVED);
 
   int HASHCODE_BYTES = BYTES_IN_INT;
   Offset HASHCODE_OFFSET = GC_HEADER_OFFSET.minus(HASHCODE_BYTES);
-
 }

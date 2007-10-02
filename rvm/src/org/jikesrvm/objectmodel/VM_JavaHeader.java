@@ -74,9 +74,19 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
   protected static final int ARRAY_HEADER_SIZE = SCALAR_HEADER_SIZE + ARRAY_LENGTH_BYTES;
 
   /** offset of object reference from the lowest memory word */
-  protected static final int OBJECT_REF_OFFSET = ARRAY_HEADER_SIZE;  // from start to ref
+  @RelativeToStartOfObject
+  protected static final int OBJECT_REF_OFFSET = ARRAY_HEADER_SIZE;
+
+  /** Offset of the TIB from the object reference */
+  @RelativeToObjectReference
   protected static final Offset TIB_OFFSET = JAVA_HEADER_OFFSET;
+
+  /** Offset of the status word from the object reference */
+  @RelativeToObjectReference
   protected static final Offset STATUS_OFFSET = TIB_OFFSET.plus(STATUS_BYTES);
+
+  /** Offset of availability byte from the object reference */
+  @RelativeToObjectReference
   protected static final Offset AVAILABLE_BITS_OFFSET =
       VM.LittleEndian ? (STATUS_OFFSET) : (STATUS_OFFSET.plus(STATUS_BYTES - 1));
 
@@ -105,6 +115,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
   /**
    * Return the TIB offset.
    */
+  @RelativeToObjectReference
   public static Offset getTibOffset() {
     return TIB_OFFSET;
   }
@@ -113,6 +124,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
    * What is the offset of the first word after the class?
    * For use by VM_ObjectModel.layoutInstanceFields
    */
+  @RelativeToObjectReference
   public static Offset objectEndOffset(VM_Class klass) {
     return Offset.fromIntSignExtend(klass.getInstanceSizeInternal() - OBJECT_REF_OFFSET);
   }
@@ -150,6 +162,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
   /**
    * What is the offset of the first word of the class?
    */
+  @RelativeToObjectReference
   public static int objectStartOffset(VM_Class klass) {
     return -OBJECT_REF_OFFSET;
   }
@@ -157,6 +170,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
   /**
    * What is the last word of the header from an out-to-in perspective?
    */
+  @RelativeToObjectReference
   public static int getHeaderEndOffset() {
     return SCALAR_HEADER_SIZE - OBJECT_REF_OFFSET;
   }
@@ -554,6 +568,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
   /**
    * Get the offset of the thin lock word in this object
    */
+  @RelativeToObjectReference
   public static Offset getThinLockOffset(Object o) {
     return STATUS_OFFSET;
   }
@@ -561,6 +576,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
   /**
    * what is the default offset for a thin lock?
    */
+  @RelativeToObjectReference
   public static Offset defaultThinLockOffset() {
     return STATUS_OFFSET;
   }
@@ -722,7 +738,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
   }
 
   /**
-   * Return the desired aligment of the alignment point returned by
+   * Return the desired alignment of the alignment point returned by
    * getOffsetForAlignment in instances of the argument VM_Class.
    * @param t VM_Class instance being created
    */
@@ -731,7 +747,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
   }
 
   /**
-   * Return the desired aligment of the alignment point returned by
+   * Return the desired alignment of the alignment point returned by
    * getOffsetForAlignment in instances of the argument VM_Class.
    * @param t VM_Class instance being copied
    * @param obj the object being copied
@@ -741,7 +757,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
   }
 
   /**
-   * Return the desired aligment of the alignment point returned by
+   * Return the desired alignment of the alignment point returned by
    * getOffsetForAlignment in instances of the argument VM_Array.
    * @param t VM_Array instance being created
    */
@@ -764,6 +780,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
    * that must be aligned.
    * @param t VM_Class instance being created
    */
+  @RelativeToStartOfObject
   public static int getOffsetForAlignment(VM_Class t) {
     /* Align the first field - note that this is one word off from
        the reference. */
@@ -776,6 +793,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
    * @param t VM_Class instance being copied
    * @param obj the object being copied
    */
+  @RelativeToStartOfObject
   public static int getOffsetForAlignment(VM_Class t, ObjectReference obj) {
     if (ADDRESS_BASED_HASHING && !DYNAMIC_HASH_OFFSET) {
       Word hashState = obj.toAddress().loadWord(STATUS_OFFSET).and(HASH_STATE_MASK);
@@ -791,6 +809,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
    * be aligned.
    * @param t VM_Array instance being created
    */
+  @RelativeToStartOfObject
   public static int getOffsetForAlignment(VM_Array t) {
     /* although array_header_size == object_ref_offset we say this
        because the whole point is to align the object ref */
@@ -803,6 +822,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
    * @param t VM_Array instance being copied
    * @param obj the object being copied
    */
+  @RelativeToStartOfObject
   public static int getOffsetForAlignment(VM_Array t, ObjectReference obj) {
     /* although array_header_size == object_ref_offset we say this
        because the whole point is to align the object ref */
