@@ -24,7 +24,7 @@ import org.vmmagic.unboxed.Offset;
  *
  * The field layout object encapsulates layout state.
  */
-public abstract class VM_FieldLayout implements VM_SizeConstants {
+abstract class VM_FieldLayout implements VM_SizeConstants {
 
   /**
    * Enable debugging

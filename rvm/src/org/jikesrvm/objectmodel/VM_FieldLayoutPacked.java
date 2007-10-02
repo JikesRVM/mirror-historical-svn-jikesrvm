@@ -20,7 +20,7 @@ import org.jikesrvm.runtime.VM_Memory;
 /**
  * Layout fields in an object, packt like sardines in a crushd tin box.
  */
-public class VM_FieldLayoutPacked extends VM_FieldLayout implements VM_SizeConstants {
+final class VM_FieldLayoutPacked extends VM_FieldLayout implements VM_SizeConstants {
 
   /**
    * Lay out an object, maintaining offsets of free slots of size 1,2,4 and 8

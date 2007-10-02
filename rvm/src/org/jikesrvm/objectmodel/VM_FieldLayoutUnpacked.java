@@ -15,7 +15,7 @@ package org.jikesrvm.objectmodel;
 import org.jikesrvm.VM_SizeConstants;
 import org.jikesrvm.classloader.VM_Class;
 
-public class VM_FieldLayoutUnpacked extends VM_FieldLayout implements VM_SizeConstants {
+final class VM_FieldLayoutUnpacked extends VM_FieldLayout implements VM_SizeConstants {
 
   private static class LayoutContext extends VM_FieldLayoutContext {
     private static final int NO_HOLE = -1;
