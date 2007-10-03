@@ -28,6 +28,7 @@ import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Untraced;
 import org.vmmagic.unboxed.Offset;
 
 /**
@@ -82,6 +83,7 @@ public final class VM_Array extends VM_Type implements VM_Constants, VM_ClassLoa
    * The VM_Type object for the innermost element of this array type.
    */
   @Entrypoint
+  @Untraced
   private final VM_Type innermostElementType;
 
   /**
