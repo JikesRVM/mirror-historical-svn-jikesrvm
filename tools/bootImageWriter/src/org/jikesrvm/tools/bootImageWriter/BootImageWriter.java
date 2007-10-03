@@ -34,6 +34,10 @@ import org.jikesrvm.compilers.common.VM_CompiledMethod;
 import org.jikesrvm.compilers.common.VM_CompiledMethods;
 import org.jikesrvm.objectmodel.VM_ObjectModel;
 import org.jikesrvm.objectmodel.VM_MiscHeader;
+import org.jikesrvm.objectmodel.VM_TIB;
+import org.jikesrvm.objectmodel.VM_ITableArray;
+import org.jikesrvm.objectmodel.VM_ITable;
+import org.jikesrvm.objectmodel.VM_IMT;
 import org.jikesrvm.runtime.VM_Statics;
 import org.jikesrvm.runtime.VM_BootRecord;
 import org.jikesrvm.runtime.VM_Magic;
@@ -1615,17 +1619,44 @@ public class BootImageWriter extends BootImageWriterMessages
           }
         }
       } else {
+        if (rvmType == VM_Type.ObjectReferenceArrayType || rvmType.getTypeRef().isRuntimeTable()) {
+          if (verbose >= 2) depth--;
+          Object backing;
+          if (rvmType == VM_Type.ObjectReferenceArrayType) {
+            backing = ((ObjectReferenceArray)jdkObject).getBacking();
+          } else if (rvmType == VM_Type.TIBType) {
+            backing = ((VM_TIB)jdkObject).getBacking();
+          } else if (rvmType == VM_Type.IMTType) {
+            backing = ((VM_IMT)jdkObject).getBacking();
+          } else if (rvmType == VM_Type.ITableType) {
+            backing = ((VM_ITable)jdkObject).getBacking();
+          } else if (rvmType == VM_Type.ITableArrayType) {
+            backing = ((VM_ITableArray)jdkObject).getBacking();
+          } else {
+            fail("unexpected runtime table type: " + rvmType);
+            backing = null;
+          }
+
+          /* Copy the backing array, and then replace its TIB */
+          mapEntry.imageAddress = copyToBootImage(backing, allocOnly, overwriteAddress, parentObject);
+
+          if (!allocOnly) {
+            if (verbose >= 2) traceContext.push("", jdkObject.getClass().getName(), "tib");
+            Address tibImageAddress = copyToBootImage(rvmType.getTypeInformationBlock(), allocOnly, Address.max(), jdkObject);
+            if (verbose >= 2) traceContext.pop();
+            if (tibImageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
+              fail("can't copy tib for " + jdkObject);
+            }
+            VM_ObjectModel.setTIB(bootImage, mapEntry.imageAddress, tibImageAddress, rvmType);
+          }
+
+          return mapEntry.imageAddress;
+        }
+
         if (rvmType == VM_Type.AddressArrayType) {
           if (verbose >= 2) depth--;
           AddressArray addrArray = (AddressArray) jdkObject;
           Object backing = addrArray.getBacking();
-          return copyMagicArrayToBootImage(backing, rvmType.asArray(), allocOnly, overwriteAddress, parentObject);
-        }
-
-        if (rvmType == VM_Type.ObjectReferenceArrayType) {
-          if (verbose >= 2) depth--;
-          ObjectReferenceArray orArray = (ObjectReferenceArray) jdkObject;
-          Object backing = orArray.getBacking();
           return copyMagicArrayToBootImage(backing, rvmType.asArray(), allocOnly, overwriteAddress, parentObject);
         }
 
@@ -1910,6 +1941,15 @@ public class BootImageWriter extends BootImageWriterMessages
         Extent addr = values[i];
         bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS),
                                  getWordValue(addr, msg, false), false);
+      }
+    } else if (rvmArrayType.equals(VM_Type.TIBType) ||
+               rvmArrayType.equals(VM_Type.ITableType) ||
+               rvmArrayType.equals(VM_Type.ITableArrayType) ||
+               rvmArrayType.equals(VM_Type.IMTType)) {
+      Object[] values = (Object[]) jdkObject;
+      for (int i = 0; i < arrayCount; i++) {
+        Address objImageAddress = copyToBootImage(values[i], allocOnly, Address.max(), jdkObject);
+        bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), objImageAddress.toWord(), false);
       }
     } else {
       fail("unexpected magic array type: " + rvmArrayType);

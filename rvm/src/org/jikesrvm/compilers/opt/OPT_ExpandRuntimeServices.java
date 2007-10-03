@@ -136,7 +136,7 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase {
           OPT_Operand tib = OPT_ConvertToLowLevelIR.getTIB(inst, ir, Type);
           if (VM.BuildForIA32 && VM.runningVM) {
             // shield BC2IR from address constants
-            OPT_RegisterOperand tmp = ir.regpool.makeTemp(VM_TypeReference.JavaLangObjectArray);
+            OPT_RegisterOperand tmp = ir.regpool.makeTemp(VM_TypeReference.TIB);
             inst.insertBefore(Move.create(REF_MOVE, tmp, tib));
             tib = tmp.copyRO();
           }
@@ -192,7 +192,7 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase {
           OPT_Operand tib = OPT_ConvertToLowLevelIR.getTIB(inst, ir, Array);
           if (VM.BuildForIA32 && VM.runningVM) {
             // shield BC2IR from address constants
-            OPT_RegisterOperand tmp = ir.regpool.makeTemp(VM_TypeReference.JavaLangObjectArray);
+            OPT_RegisterOperand tmp = ir.regpool.makeTemp(VM_TypeReference.TIB);
             inst.insertBefore(Move.create(REF_MOVE, tmp, tib));
             tib = tmp.copyRO();
           }

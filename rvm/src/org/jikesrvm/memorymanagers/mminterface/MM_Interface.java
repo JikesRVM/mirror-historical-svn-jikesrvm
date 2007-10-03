@@ -30,8 +30,13 @@ import org.jikesrvm.mm.mmtk.Options;
 import org.jikesrvm.mm.mmtk.ReferenceProcessor;
 import org.jikesrvm.mm.mmtk.SynchronizedCounter;
 import org.jikesrvm.objectmodel.BootImageInterface;
+import org.jikesrvm.objectmodel.VM_IMT;
+import org.jikesrvm.objectmodel.VM_ITable;
+import org.jikesrvm.objectmodel.VM_ITableArray;
 import org.jikesrvm.objectmodel.VM_JavaHeader;
 import org.jikesrvm.objectmodel.VM_ObjectModel;
+import org.jikesrvm.objectmodel.VM_TIB;
+import org.jikesrvm.objectmodel.VM_TIBLayoutConstants;
 import org.jikesrvm.runtime.VM_BootRecord;
 import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.runtime.VM_Memory;
@@ -627,7 +632,7 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
    * @return the initialized Object
    */
   @Inline
-  public static Object allocateScalar(int size, Object[] tib, int allocator, int align, int offset, int site) {
+  public static Object allocateScalar(int size, VM_TIB tib, int allocator, int align, int offset, int site) {
     Selected.Mutator mutator = Selected.Mutator.get();
     allocator = mutator.checkAllocator(VM_Memory.alignUp(size, MIN_ALIGNMENT), align, allocator);
     Address region = allocateSpace(mutator, size, align, offset, allocator, site);
@@ -654,7 +659,7 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
    */
   @Inline
   @Interruptible
-  public static Object allocateArray(int numElements, int logElementSize, int headerSize, Object[] tib, int allocator,
+  public static Object allocateArray(int numElements, int logElementSize, int headerSize, VM_TIB tib, int allocator,
                                      int align, int offset, int site) {
     int elemBytes = numElements << logElementSize;
     if ((elemBytes >>> logElementSize) != numElements) {
@@ -692,7 +697,7 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
    * See also: bytecode 0xbc ("newarray") and 0xbd ("anewarray")
    */
   @Inline
-  private static Object allocateArrayInternal(int numElements, int size, Object[] tib, int allocator,
+  private static Object allocateArrayInternal(int numElements, int size, VM_TIB tib, int allocator,
                                               int align, int offset, int site) {
     Selected.Mutator mutator = Selected.Mutator.get();
     allocator = mutator.checkAllocator(VM_Memory.alignUp(size, MIN_ALIGNMENT), align, allocator);
@@ -790,7 +795,7 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
     int align = VM_ObjectModel.getAlignment(type);
     int offset = VM_ObjectModel.getOffsetForAlignment(type);
     int width = type.getLogElementSize();
-    Object[] tib = type.getTypeInformationBlock();
+    VM_TIB tib = type.getTypeInformationBlock();
     int allocator = isHot ? Plan.ALLOC_HOT_CODE : Plan.ALLOC_COLD_CODE;
 
     return (VM_CodeArray) allocateArray(numInstrs, width, headerSize, tib, allocator, align, offset, Plan.DEFAULT_SITE);
@@ -813,7 +818,7 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
       int align = VM_ObjectModel.getAlignment(stackType);
       int offset = VM_ObjectModel.getOffsetForAlignment(stackType);
       int width = stackType.getLogElementSize();
-      Object[] stackTib = stackType.getTypeInformationBlock();
+      VM_TIB stackTib = stackType.getTypeInformationBlock();
 
       return (byte[]) allocateArray(bytes,
                                     width,
@@ -843,7 +848,7 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
     int align = VM_ObjectModel.getAlignment(arrayType);
     int offset = VM_ObjectModel.getOffsetForAlignment(arrayType);
     int width = arrayType.getLogElementSize();
-    Object[] arrayTib = arrayType.getTypeInformationBlock();
+    VM_TIB arrayTib = arrayType.getTypeInformationBlock();
 
     return (int[]) allocateArray(size,
                                  width,
@@ -859,33 +864,99 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
   /**
    * Allocate a new type information block (TIB).
    *
-   * @param n the number of slots in the TIB to be allocated
+   * @param size the number of slots in the TIB to be allocated
    * @return the new TIB
    */
   @Inline
   @Interruptible
-  public static Object[] newTIB(int n) {
-
+  public static VM_TIB newTIB(int size) {
     if (!VM.runningVM) {
-      return new Object[n];
+      return VM_TIB.allocate(size);
     }
 
-    VM_Array objectArrayType = VM_Type.JavaLangObjectArrayType;
-    Object[] objectArrayTib = objectArrayType.getTypeInformationBlock();
-    int align = VM_ObjectModel.getAlignment(objectArrayType);
-    int offset = VM_ObjectModel.getOffsetForAlignment(objectArrayType);
-    Object result =
-        allocateArray(n,
-                      objectArrayType.getLogElementSize(),
-                      VM_ObjectModel.computeArrayHeaderSize(objectArrayType),
-                      objectArrayTib,
-                      Plan.ALLOC_IMMORTAL,
-                      align,
-                      offset,
-                      Plan.DEFAULT_SITE);
-    return (Object[]) result;
+    return (VM_TIB)newRuntimeTable(size, VM_Type.TIBType);
   }
 
+  /**
+   * Allocate a new interface method table (IMT).
+   *
+   * @return the new IMT
+   */
+  @Inline
+  @Interruptible
+  public static VM_IMT newIMT() {
+    if (!VM.runningVM) {
+      return VM_IMT.allocate();
+    }
+
+    return (VM_IMT)newRuntimeTable(VM_TIBLayoutConstants.IMT_METHOD_SLOTS, VM_Type.IMTType);
+  }
+
+  /**
+   * Allocate a new ITable
+   *
+   * @param size the number of slots in the ITable
+   * @return the new ITable
+   */
+  @Inline
+  @Interruptible
+  public static VM_ITable newITable(int size) {
+    if (!VM.runningVM) {
+      return VM_ITable.allocate(size);
+    }
+
+    return (VM_ITable)newRuntimeTable(size, VM_Type.ITableType);
+  }
+
+  /**
+   * Allocate a new ITableArray
+   *
+   * @param size the number of slots in the ITableArray
+   * @return the new ITableArray
+   */
+  @Inline
+  @Interruptible
+  public static VM_ITableArray newITableArray(int size) {
+    if (!VM.runningVM) {
+      return VM_ITableArray.allocate(size);
+    }
+
+    return (VM_ITableArray)newRuntimeTable(size, VM_Type.ITableArrayType);
+  }
+
+  /**
+   * Allocate a new runtime table (at runtime)
+   *
+   * @param size The size of the table.
+   * @return the newly allocated table
+   */
+  @Inline
+  @Interruptible
+  public static Object newRuntimeTable(int size, VM_Type type) {
+    if (VM.VerifyAssertions) VM._assert(VM.runningVM);
+
+    VM_TIB realTib = type.getTypeInformationBlock();
+    VM_Array fakeType = VM_Type.WordArrayType;
+    VM_TIB fakeTib = fakeType.getTypeInformationBlock();
+    int headerSize = VM_ObjectModel.computeArrayHeaderSize(fakeType);
+    int align = VM_ObjectModel.getAlignment(fakeType);
+    int offset = VM_ObjectModel.getOffsetForAlignment(fakeType);
+    int width = fakeType.getLogElementSize();
+
+    /* Allocate a word array */
+    Object array = allocateArray(size,
+                                 width,
+                                 headerSize,
+                                 fakeTib,
+                                 type.getMMAllocator(),
+                                 align,
+                                 offset,
+                                 Plan.DEFAULT_SITE);
+
+    /* Now we replace the TIB */
+    VM_ObjectModel.setTIB(array, realTib);
+    return array;
+  }
   /**
    * Allocate a contiguous VM_CompiledMethod array
    * @param n The number of objects
@@ -1076,7 +1147,7 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
    * BootImageInterface type.
    */
   @Interruptible
-  public static void initializeHeader(BootImageInterface bootImage, Address ref, Object[] tib, int size,
+  public static void initializeHeader(BootImageInterface bootImage, Address ref, VM_TIB tib, int size,
                                       boolean isScalar) {
     //    int status = VM_JavaHeader.readAvailableBitsWord(bootImage, ref);
     Word status = Selected.Plan.get().setBootTimeGCBits(ref, ObjectReference.fromObject(tib), size, Word.zero());

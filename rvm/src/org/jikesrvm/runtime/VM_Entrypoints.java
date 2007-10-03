@@ -66,7 +66,7 @@ public class VM_Entrypoints {
   public static final VM_NormalMethod resolvedNewScalarMethod =
       getMethod(org.jikesrvm.runtime.VM_Runtime.class,
                 "resolvedNewScalar",
-                "(I[Ljava/lang/Object;ZIIII)Ljava/lang/Object;");
+                "(ILorg/jikesrvm/objectmodel/VM_TIB;ZIIII)Ljava/lang/Object;");
   public static final VM_NormalMethod unresolvedNewScalarMethod =
       getMethod(org.jikesrvm.runtime.VM_Runtime.class, "unresolvedNewScalar", "(II)Ljava/lang/Object;");
   public static final VM_NormalMethod unresolvedNewArrayMethod =
@@ -74,7 +74,7 @@ public class VM_Entrypoints {
   public static final VM_NormalMethod resolvedNewArrayMethod =
       getMethod(org.jikesrvm.runtime.VM_Runtime.class,
                 "resolvedNewArray",
-                "(III[Ljava/lang/Object;IIII)Ljava/lang/Object;");
+                "(IIILorg/jikesrvm/objectmodel/VM_TIB;IIII)Ljava/lang/Object;");
   public static final VM_Field gcLockField = getField(java.lang.VMRuntime.class, "gcLock", int.class);
 
   public static final VM_Field sysWriteLockField = getField(org.jikesrvm.VM.class, "sysWriteLock", int.class);
@@ -107,15 +107,15 @@ public class VM_Entrypoints {
   public static final VM_NormalMethod findItableMethod =
       getMethod(org.jikesrvm.classloader.VM_InterfaceInvocation.class,
                 "findITable",
-                "([Ljava/lang/Object;I)[Ljava/lang/Object;");
+                "(Lorg/jikesrvm/objectmodel/VM_TIB;I)Lorg/jikesrvm/objectmodel/VM_ITable;");
   public static final VM_NormalMethod invokeinterfaceImplementsTestMethod =
       getMethod(org.jikesrvm.classloader.VM_InterfaceInvocation.class,
                 "invokeinterfaceImplementsTest",
-                "(Lorg/jikesrvm/classloader/VM_Class;[Ljava/lang/Object;)V");
+                "(Lorg/jikesrvm/classloader/VM_Class;Lorg/jikesrvm/objectmodel/VM_TIB;)V");
   public static final VM_NormalMethod unresolvedInvokeinterfaceImplementsTestMethod =
       getMethod(org.jikesrvm.classloader.VM_InterfaceInvocation.class,
                 "unresolvedInvokeinterfaceImplementsTest",
-                "(I[Ljava/lang/Object;)V");
+                "(ILorg/jikesrvm/objectmodel/VM_TIB;)V");
 
   public static final VM_NormalMethod lockMethod =
       getMethod(org.jikesrvm.objectmodel.VM_ObjectModel.class, "genericLock", "(Ljava/lang/Object;)V");

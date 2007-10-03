@@ -4650,7 +4650,8 @@ public abstract class VM_Compiler extends VM_BaselineCompiler
                methodName == VM_MagicNames.wordToObjectReference ||
                methodName == VM_MagicNames.wordToExtent ||
                methodName == VM_MagicNames.wordToWord ||
-               methodName == VM_MagicNames.codeArrayAsObject) {
+               methodName == VM_MagicNames.codeArrayAsObject ||
+               methodName == VM_MagicNames.tibAsObject) {
       // no-op
     } else if (methodName == VM_MagicNames.wordToLong) {
       asm.emitLVAL(T0, 0);

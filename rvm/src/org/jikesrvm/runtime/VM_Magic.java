@@ -17,6 +17,7 @@ import org.jikesrvm.ArchitectureSpecific.VM_Registers;
 import org.jikesrvm.VM;
 import org.jikesrvm.classloader.VM_Type;
 import org.jikesrvm.memorymanagers.mminterface.VM_CollectorThread;
+import org.jikesrvm.objectmodel.VM_TIB;
 import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.scheduler.VM_Thread;
 import org.vmmagic.Intrinsic;
@@ -262,11 +263,11 @@ public final class VM_Magic {
   }
 
   /**
-   * Get Object[] at arbitrary (byte) offset from object.
-   * Use getObjectArrayAtOffset(obj, ofs) instead of
-   * (Object[])addressAsObject(getMemoryAddr(objectAsAddress(obj)+ofs))
+   * Get VM_TIB at arbitrary (byte) offset from object.
+   * Use getTIBAtOffset(obj, ofs) instead of
+   * (VM_TIB])addressAsObject(getMemoryAddr(objectAsAddress(obj)+ofs))
    */
-  public static Object[] getObjectArrayAtOffset(Object object, Offset offset) {
+  public static VM_TIB getTIBAtOffset(Object object, Offset offset) {
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
     return null;
   }
@@ -518,11 +519,25 @@ public final class VM_Magic {
   }
 
   /**
+   * Cast bits of tib into an object
+   * Note: for use by VM_Statics when assigning slots
+   * @param tib the tib to convert
+   * @return object reference
+   */
+  public static Object tibAsObject(VM_TIB tib) {
+    if (VM.runningVM && VM.VerifyAssertions) {
+      VM._assert(VM.NOT_REACHED); // call site should have been hijacked by magic in compiler
+    }
+
+    return tib;
+  }
+
+  /**
    * Cast bits.
    * @param address object array reference as bits
    * @return object array reference
    */
-  public static Object[] addressAsObjectArray(Address address) {
+  public static VM_TIB addressAsTIB(Address address) {
     if (VM.runningVM && VM.VerifyAssertions) {
       VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
     }
@@ -535,8 +550,9 @@ public final class VM_Magic {
    * @return object reference as type (no checking on cast)
    */
   public static VM_Type objectAsType(Object object) {
-    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
-    return null;
+    if (VM.runningVM && VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+
+    return (VM_Type)object;
   }
 
   /**

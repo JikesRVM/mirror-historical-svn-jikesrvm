@@ -18,6 +18,7 @@ import org.jikesrvm.VM_Constants;
 import org.jikesrvm.memorymanagers.mminterface.MM_Constants;
 import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.objectmodel.VM_ObjectModel;
+import org.jikesrvm.objectmodel.VM_TIB;
 import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.runtime.VM_Memory;
 import org.jikesrvm.runtime.VM_Runtime;
@@ -98,7 +99,7 @@ public final class VM_Array extends VM_Type implements VM_Constants, VM_ClassLoa
   /**
    * The TIB for this type, created when the array is resolved.
    */
-  private Object[] typeInformationBlock;
+  private VM_TIB typeInformationBlock;
 
   /**
    * current class-loading stage (loaded, resolved or initialized)
@@ -251,29 +252,9 @@ public final class VM_Array extends VM_Type implements VM_Constants, VM_ClassLoa
    * Runtime type information for this array type.
    */
   @Uninterruptible
-  public Object[] getTypeInformationBlock() {
+  public VM_TIB getTypeInformationBlock() {
     if (VM.VerifyAssertions) VM._assert(isResolved());
     return typeInformationBlock;
-  }
-
-  /**
-   * Does this slot in the TIB hold a TIB entry?
-   * @param slot the TIB slot
-   * @return true if this the array element TIB
-   */
-  public boolean isTIBSlotTIB(int slot) {
-    if (VM.VerifyAssertions) checkTIBSlotIsAccessible(slot);
-    return slot == TIB_ARRAY_ELEMENT_TIB_INDEX;
-  }
-
-  /**
-   * Does this slot in the TIB hold code?
-   * @param slot the TIB slot
-   * @return true if slot is one that holds a code array reference
-   */
-  public boolean isTIBSlotCode(int slot) {
-    if (VM.VerifyAssertions) checkTIBSlotIsAccessible(slot);
-    return slot >= TIB_FIRST_VIRTUAL_METHOD_INDEX;
   }
 
   /**
@@ -440,20 +421,34 @@ public final class VM_Array extends VM_Type implements VM_Constants, VM_ClassLoa
     // build a type information block for this new array type by copying the
     // virtual method fields and substituting an appropriate type field.
     //
-    Object[] javaLangObjectTIB = VM_Type.JavaLangObjectType.getTypeInformationBlock();
-    typeInformationBlock = MM_Interface.newTIB(javaLangObjectTIB.length);
-    VM_Statics.setSlotContents(getTibOffset(), typeInformationBlock);
-    // Initialize dynamic type checking data structures
-    typeInformationBlock[TIB_TYPE_INDEX] = this;
-    typeInformationBlock[TIB_SUPERCLASS_IDS_INDEX] = VM_DynamicTypeCheck.buildSuperclassIds(this);
-    typeInformationBlock[TIB_DOES_IMPLEMENT_INDEX] = VM_DynamicTypeCheck.buildDoesImplement(this);
-    if (!elementType.isPrimitiveType()) {
-      typeInformationBlock[TIB_ARRAY_ELEMENT_TIB_INDEX] = elementType.getTypeInformationBlock();
-    }
-
-    state = CLASS_RESOLVED;
+    VM_TIB javaLangObjectTIB = VM_Type.JavaLangObjectType.getTypeInformationBlock();
+    VM_TIB allocatedTib = MM_Interface.newTIB(javaLangObjectTIB.length());
+    short[] superclassIds = VM_DynamicTypeCheck.buildSuperclassIds(this);
+    int[] doesImplement = VM_DynamicTypeCheck.buildDoesImplement(this);
+    publishResolved(allocatedTib, superclassIds, doesImplement);
 
     MM_Interface.notifyClassResolved(this);
+  }
+
+  /**
+   * Atomically initialize the important parts of the TIB and let the world know this type is
+   * resolved.
+   *
+   * @param allocatedTib The TIB that has been allocated for this type
+   * @param superclassIds The calculated superclass ids array
+   * @param doesImplement The calculated does implement array
+   */
+  @Uninterruptible
+  private void publishResolved(VM_TIB allocatedTib, short[] superclassIds, int[] doesImplement) {
+    VM_Statics.setSlotContents(getTibOffset(), allocatedTib);
+    allocatedTib.setType(this);
+    allocatedTib.setSuperclassIds(superclassIds);
+    allocatedTib.setDoesImplement(doesImplement);
+    if (!elementType.isPrimitiveType()) {
+      allocatedTib.setArrayElementTib(elementType.getTypeInformationBlock());
+    }
+    typeInformationBlock = allocatedTib;
+    state = CLASS_RESOLVED;
   }
 
   public void allBootImageTypesResolved() {
@@ -480,9 +475,10 @@ public final class VM_Array extends VM_Type implements VM_Constants, VM_ClassLoa
       } catch (InterruptedException e) {}
     }
     if (VM.VerifyAssertions) VM._assert(objectType.isInstantiated());
-    Object[] javaLangObjectTIB = objectType.getTypeInformationBlock();
-    for (int i = TIB_FIRST_VIRTUAL_METHOD_INDEX; i < javaLangObjectTIB.length; i++) {
-      typeInformationBlock[i] = javaLangObjectTIB[i];
+    VM_TIB javaLangObjectTIB = objectType.getTypeInformationBlock();
+
+    for(int i=0; i < javaLangObjectTIB.numVirtualMethods(); i++) {
+      typeInformationBlock.setVirtualMethod(i, javaLangObjectTIB.getVirtualMethod(i));
     }
 
     VM_SpecializedMethodManager.notifyTypeInstantiated(this);

@@ -180,14 +180,14 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
   /**
    * Get the TIB for an object.
    */
-  public static Object[] getTIB(Object o) {
-    return VM_Magic.getObjectArrayAtOffset(o, TIB_OFFSET);
+  public static VM_TIB getTIB(Object o) {
+    return VM_Magic.getTIBAtOffset(o, TIB_OFFSET);
   }
 
   /**
    * Set the TIB for an object.
    */
-  public static void setTIB(Object ref, Object[] tib) {
+  public static void setTIB(Object ref, VM_TIB tib) {
     VM_Magic.setObjectAtOffset(ref, TIB_OFFSET, tib);
   }
 
@@ -821,7 +821,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
    * @param tib the TIB of the instance being created
    * @param size the number of bytes allocated by the GC system for this object.
    */
-  public static Object initializeScalarHeader(Address ptr, Object[] tib, int size) {
+  public static Object initializeScalarHeader(Address ptr, VM_TIB tib, int size) {
     // (TIB set by VM_ObjectModel)
     Object ref = VM_Magic.addressAsObject(ptr.plus(OBJECT_REF_OFFSET));
     return ref;
@@ -835,7 +835,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
    * @param size The number of bytes allocated by the GC system for this object.
    */
   @Interruptible
-  public static Address initializeScalarHeader(BootImageInterface bootImage, Address ptr, Object[] tib, int size) {
+  public static Address initializeScalarHeader(BootImageInterface bootImage, Address ptr, VM_TIB tib, int size) {
     Address ref = ptr.plus(OBJECT_REF_OFFSET);
     return ref;
   }
@@ -846,7 +846,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
    * @param tib the TIB of the instance being created
    * @param size the number of bytes allocated by the GC system for this object.
    */
-  public static Object initializeArrayHeader(Address ptr, Object[] tib, int size) {
+  public static Object initializeArrayHeader(Address ptr, VM_TIB tib, int size) {
     Object ref = VM_Magic.addressAsObject(ptr.plus(OBJECT_REF_OFFSET));
     // (TIB and array length set by VM_ObjectModel)
     return ref;
@@ -863,7 +863,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
    * @return Document ME TODO XXX
    */
   @Interruptible
-  public static Address initializeArrayHeader(BootImageInterface bootImage, Address ptr, Object[] tib, int size) {
+  public static Address initializeArrayHeader(BootImageInterface bootImage, Address ptr, VM_TIB tib, int size) {
     Address ref = ptr.plus(OBJECT_REF_OFFSET);
     // (TIB set by BootImageWriter; array length set by VM_ObjectModel)
     return ref;

@@ -4083,7 +4083,7 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
     if (methodName == VM_MagicNames.getIntAtOffset ||
         methodName == VM_MagicNames.getWordAtOffset ||
         methodName == VM_MagicNames.getObjectAtOffset ||
-        methodName == VM_MagicNames.getObjectArrayAtOffset ||
+        methodName == VM_MagicNames.getTIBAtOffset ||
         methodName == VM_MagicNames.prepareInt ||
         methodName == VM_MagicNames.prepareObject ||
         methodName == VM_MagicNames.prepareAddress ||
@@ -4243,7 +4243,7 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
     if (methodName == VM_MagicNames.objectAsAddress ||
         methodName == VM_MagicNames.addressAsByteArray ||
         methodName == VM_MagicNames.addressAsObject ||
-        methodName == VM_MagicNames.addressAsObjectArray ||
+        methodName == VM_MagicNames.addressAsTIB ||
         methodName == VM_MagicNames.objectAsType ||
         methodName == VM_MagicNames.objectAsShortArray ||
         methodName == VM_MagicNames.objectAsIntArray ||
@@ -4426,7 +4426,8 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
         methodName == VM_MagicNames.wordToObjectReference ||
         methodName == VM_MagicNames.wordToExtent ||
         methodName == VM_MagicNames.wordToWord ||
-        methodName == VM_MagicNames.codeArrayAsObject) {
+        methodName == VM_MagicNames.codeArrayAsObject ||
+        methodName == VM_MagicNames.tibAsObject) {
       if (VM.BuildFor32Addr) return true;     // no-op for 32-bit
       if (VM.VerifyAssertions) VM._assert(false);
     }
