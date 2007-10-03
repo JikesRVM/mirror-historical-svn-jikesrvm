@@ -112,6 +112,7 @@ public final class VM_TypeReference {
   public static final VM_TypeReference ITableArray = findOrCreate(org.jikesrvm.objectmodel.VM_ITableArray.class);
   public static final VM_TypeReference ITable = findOrCreate(org.jikesrvm.objectmodel.VM_ITable.class);
   public static final VM_TypeReference IMT = findOrCreate(org.jikesrvm.objectmodel.VM_IMT.class);
+  public static final VM_TypeReference ProcessorTable = findOrCreate(org.jikesrvm.scheduler.VM_ProcessorTable.class);
 
   public static final VM_TypeReference JavaLangObject = findOrCreate(java.lang.Object.class);
   public static final VM_TypeReference JavaLangClass = findOrCreate(java.lang.Class.class);
@@ -526,7 +527,7 @@ public final class VM_TypeReference {
    */
   @Uninterruptible
   public boolean isRuntimeTable() {
-    return this == IMT || this == TIB || this == ITable || this == ITableArray;
+    return this == IMT || this == TIB || this == ITable || this == ITableArray || this == ProcessorTable;
   }
 
   /**

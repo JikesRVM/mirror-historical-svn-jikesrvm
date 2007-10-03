@@ -527,7 +527,7 @@ public final class VM_GreenProcessor extends VM_Processor {
    */
   private VM_GreenProcessor chooseNextProcessor(VM_GreenThread t) {
     t.chosenProcessorId = (t.chosenProcessorId % VM_GreenScheduler.numProcessors) + 1;
-    return VM_GreenScheduler.processors[t.chosenProcessorId];
+    return VM_GreenScheduler.getProcessor(t.chosenProcessorId);
   }
 
   //---------------------//

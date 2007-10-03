@@ -286,7 +286,7 @@ public class VM_Entrypoints {
 
   // used in boot image writer
   public static final VM_Field greenProcessorsField =
-      getField(org.jikesrvm.scheduler.greenthreads.VM_GreenScheduler.class, "processors", org.jikesrvm.scheduler.greenthreads.VM_GreenProcessor[].class);
+      getField(org.jikesrvm.scheduler.greenthreads.VM_GreenScheduler.class, "processors", org.jikesrvm.scheduler.VM_ProcessorTable.class);
   public static final VM_Field debugRequestedField =
       getField(org.jikesrvm.scheduler.VM_Scheduler.class, "debugRequested", boolean.class);
   public static final VM_NormalMethod dumpStackAndDieMethod =

@@ -188,6 +188,9 @@ public class OPT_GenerateMagic implements VM_TIBLayoutConstants  {
       bc2ir.appendInstruction(s);
     } else if (methodName == VM_MagicNames.addressArrayGet) {
       VM_TypeReference elementType = meth.getReturnType();
+      if (meth.getType() == VM_TypeReference.ProcessorTable) {
+        elementType = VM_Scheduler.getProcessorType();
+      }
       OPT_Operand index = bc2ir.popInt();
       OPT_Operand ref = bc2ir.popRef();
       OPT_RegisterOperand offsetI = gc.temps.makeTempInt();

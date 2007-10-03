@@ -24,9 +24,7 @@ import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.UninterruptibleNoWarn;
 
 /**
- * This class represents an instance of a type information block.
- *
- * #see {@link VM_TIBLayoutConstants}
+ * This class represents an instance of an interface table.
  */
 @NonMoving
 public final class VM_ITable {

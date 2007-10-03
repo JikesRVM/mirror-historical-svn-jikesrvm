@@ -30,6 +30,7 @@ import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.scheduler.VM_Thread;
+import org.jikesrvm.scheduler.greenthreads.VM_GreenScheduler;
 
 import org.vmmagic.unboxed.*;
 import org.vmmagic.pragma.*;
@@ -284,7 +285,9 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
     /* scan (small) set of processor roots */
     VM_CollectorThread ct = VM_Magic.threadAsCollectorThread(VM_Scheduler.getCurrentThread());
     if (ct.getGCOrdinal() == 1) {
-      for(int i=0; i < VM_Scheduler.getNumberOfProcessors(); i++) {
+      Address processors = VM_Magic.objectAsAddress(VM_GreenScheduler.processors);
+      for(int i = VM_Scheduler.getFirstProcessorId(); i < VM_Scheduler.getLastProcessorId(); i++) {
+        trace.reportDelayedRootEdge(processors.plus(i << LOG_BYTES_IN_ADDRESS));
         VM_Processor processorObject = VM_Scheduler.getProcessor(i);
         Address processorAddress = VM_Magic.objectAsAddress(processorObject);
         trace.reportDelayedRootEdge(processorAddress.plus(VM_Entrypoints.activeThreadField.getOffset()));

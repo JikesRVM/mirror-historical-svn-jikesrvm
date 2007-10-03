@@ -109,6 +109,7 @@ public abstract class VM_Type extends VM_AnnotatedElement
   public static final VM_Class ITableType;
   public static final VM_Class ITableArrayType;
   public static final VM_Class IMTType;
+  public static final VM_Class ProcessorTableType;
 
   static {
     // Primitive types
@@ -137,11 +138,12 @@ public abstract class VM_Type extends VM_AnnotatedElement
     ObjectReferenceArrayType = VM_TypeReference.ObjectReferenceArray.resolve().asArray();
     OffsetArrayType = VM_TypeReference.OffsetArray.resolve().asArray();
     ExtentArrayType = VM_TypeReference.ExtentArray.resolve().asArray();
+    // Runtime Tables
     TIBType = VM_TypeReference.TIB.resolve().asClass();
     ITableType = VM_TypeReference.ITable.resolve().asClass();
     ITableArrayType = VM_TypeReference.ITableArray.resolve().asClass();
     IMTType = VM_TypeReference.IMT.resolve().asClass();
-
+    ProcessorTableType = VM_TypeReference.ProcessorTable.resolve().asClass();
     // Java clases
     JavaLangObjectType = VM_TypeReference.JavaLangObject.resolve().asClass();
     JavaLangObjectArrayType = VM_TypeReference.JavaLangObjectArray.resolve().asArray();

@@ -43,6 +43,7 @@ import org.jikesrvm.runtime.VM_BootRecord;
 import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.runtime.VM_Entrypoints;
 import org.jikesrvm.runtime.VM_ObjectAddressRemapper;
+import org.jikesrvm.scheduler.VM_ProcessorTable;
 import org.jikesrvm.scheduler.VM_Thread;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.ArchitectureSpecific.VM_CodeArray;
@@ -1632,6 +1633,8 @@ public class BootImageWriter extends BootImageWriterMessages
             backing = ((VM_ITable)jdkObject).getBacking();
           } else if (rvmType == VM_Type.ITableArrayType) {
             backing = ((VM_ITableArray)jdkObject).getBacking();
+          } else if (rvmType == VM_Type.ProcessorTableType) {
+            backing = ((VM_ProcessorTable)jdkObject).getBacking();
           } else {
             fail("unexpected runtime table type: " + rvmType);
             backing = null;
@@ -1941,15 +1944,6 @@ public class BootImageWriter extends BootImageWriterMessages
         Extent addr = values[i];
         bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS),
                                  getWordValue(addr, msg, false), false);
-      }
-    } else if (rvmArrayType.equals(VM_Type.TIBType) ||
-               rvmArrayType.equals(VM_Type.ITableType) ||
-               rvmArrayType.equals(VM_Type.ITableArrayType) ||
-               rvmArrayType.equals(VM_Type.IMTType)) {
-      Object[] values = (Object[]) jdkObject;
-      for (int i = 0; i < arrayCount; i++) {
-        Address objImageAddress = copyToBootImage(values[i], allocOnly, Address.max(), jdkObject);
-        bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), objImageAddress.toWord(), false);
       }
     } else {
       fail("unexpected magic array type: " + rvmArrayType);

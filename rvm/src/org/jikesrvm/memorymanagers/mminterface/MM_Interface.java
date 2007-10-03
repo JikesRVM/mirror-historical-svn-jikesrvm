@@ -40,6 +40,7 @@ import org.jikesrvm.objectmodel.VM_TIBLayoutConstants;
 import org.jikesrvm.runtime.VM_BootRecord;
 import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.runtime.VM_Memory;
+import org.jikesrvm.scheduler.VM_ProcessorTable;
 import org.mmtk.plan.Plan;
 import org.mmtk.policy.Space;
 import org.mmtk.utility.Constants;
@@ -875,6 +876,22 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
     }
 
     return (VM_TIB)newRuntimeTable(size, VM_Type.TIBType);
+  }
+
+  /**
+   * Allocate a new processors table
+   *
+   * @param size The size of the table.
+   * @return the new processors table
+   */
+  @Inline
+  @Interruptible
+  public static VM_ProcessorTable newProcessorTable(int size) {
+    if (!VM.runningVM) {
+      return VM_ProcessorTable.allocate(size);
+    }
+
+    return (VM_ProcessorTable)newRuntimeTable(size, VM_Type.ProcessorTableType);
   }
 
   /**

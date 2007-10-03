@@ -351,15 +351,39 @@ public abstract class VM_Scheduler {
   }
 
   /**
-   * Get a VM_Processor
+   *  First VM_Processor
    */
-  protected abstract VM_Processor getProcessorInternal(int index);
+  protected abstract int getFirstProcessorIdInternal();
+
+  /**
+   *  First VM_Processor
+   */
+  public static int getFirstProcessorId() {
+    return getScheduler().getFirstProcessorIdInternal();
+  }
+
+  /**
+   *  Last VM_Processor
+   */
+  protected abstract int getLastProcessorIdInternal();
+
+  /**
+   *  Last VM_Processor
+   */
+  public static int getLastProcessorId() {
+    return getScheduler().getLastProcessorIdInternal();
+  }
 
   /**
    * Get a VM_Processor
    */
-  public static VM_Processor getProcessor(int index) {
-    return getScheduler().getProcessorInternal(index);
+  protected abstract VM_Processor getProcessorInternal(int id);
+
+  /**
+   * Get a VM_Processor
+   */
+  public static VM_Processor getProcessor(int id) {
+    return getScheduler().getProcessorInternal(id);
   }
 
   /**
