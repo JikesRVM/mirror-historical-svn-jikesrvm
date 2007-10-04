@@ -15,6 +15,7 @@ package org.mmtk.plan.poisoned;
 import org.mmtk.plan.marksweep.MS;
 
 import org.vmmagic.pragma.*;
+import org.vmmagic.unboxed.Word;
 
 /**
  * This class implements a poisoned collector, that is essentially a test
@@ -22,4 +23,14 @@ import org.vmmagic.pragma.*;
  */
 @Uninterruptible
 public class Poisoned extends MS {
+  /**
+   * Perform any required write barrier action when installing an object reference
+   * a boot time.
+   *
+   * @param reference the reference value that is to be stored
+   * @return The raw value to be
+   */
+  public Word bootTimeWriteBarrier(Word reference) {
+    return reference.or(Word.one());
+  }
 }

@@ -38,7 +38,7 @@ public abstract class PoisonedCollector extends MSCollector {
    */
   @Inline
   public void storeObjectReference(Address slot, ObjectReference value) {
-    slot.store(value);
+    slot.store(value.toAddress().toWord().or(Word.one()));
   }
 
   /**

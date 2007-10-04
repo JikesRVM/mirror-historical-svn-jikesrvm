@@ -51,7 +51,9 @@ public abstract class PoisonedMutator extends MSMutator {
   @Inline
   @Override
   public void writeBarrier(ObjectReference src, Address slot, ObjectReference tgt, Offset metaDataA, int metaDataB, int mode) {
-    VM.barriers.performWriteInBarrier(src, slot, tgt, metaDataA, metaDataB, mode);
+    VM.assertions._assert(slot.toWord().and(Word.one()).isZero());
+    VM.barriers.performWriteInBarrier(src, slot, tgt.toAddress().toWord().or(Word.one()).toAddress().toObjectReference(), metaDataA, metaDataB, mode);
+    //VM.barriers.performWriteInBarrier(src, slot, tgt, metaDataA, metaDataB, mode);
   }
 
   /**
@@ -118,6 +120,7 @@ public abstract class PoisonedMutator extends MSMutator {
   @Inline
   @Override
   public ObjectReference readBarrier(ObjectReference src, Address slot, Offset metaDataA, int metaDataB, int mode) {
+    //VM.assertions._assert(slot.toWord().and(Word.one()).isZero());
     return VM.barriers.performRawReadInBarrier(src, slot, metaDataA, metaDataB, mode).and(Word.one().not()).toAddress().toObjectReference();
   }
 }

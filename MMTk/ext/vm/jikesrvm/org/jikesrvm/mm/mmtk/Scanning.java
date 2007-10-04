@@ -16,6 +16,7 @@ import org.mmtk.plan.TraceLocal;
 import org.mmtk.plan.TransitiveClosure;
 import org.mmtk.utility.Constants;
 
+import org.jikesrvm.jni.VM_JNIEnvironment;
 import org.jikesrvm.memorymanagers.mminterface.MM_Constants;
 import org.jikesrvm.memorymanagers.mminterface.Selected;
 import org.jikesrvm.memorymanagers.mminterface.VM_CollectorThread;
@@ -106,11 +107,11 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
       VM_Class klass = type.asClass();
       int[] offsets = klass.getReferenceOffsets();
       for(int i=0; i < offsets.length; i++) {
-        trace.processPrecopyEdge(object.toAddress().plus(offsets[i]));
+        trace.processPrecopyEdge(object.toAddress().plus(offsets[i]), false);
       }
     } else if (type.isArrayType() && type.asArray().getElementType().isReferenceType()) {
       for(int i=0; i < VM_ObjectModel.getArrayLength(object.toObject()); i++) {
-        trace.processPrecopyEdge(object.toAddress().plus(i << LOG_BYTES_IN_ADDRESS));
+        trace.processPrecopyEdge(object.toAddress().plus(i << LOG_BYTES_IN_ADDRESS), false);
       }
     }
   }
@@ -184,7 +185,7 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
             Address b = Selected.Collector.get().loadObjectReference(threadTableSlot).toAddress();
             VM._assert(a.EQ(b), "Thread table address arithmetic is wrong!");
           }
-          trace.processPrecopyEdge(threadTableSlot);
+          trace.processPrecopyEdge(threadTableSlot, false);
           thread = VM_Scheduler.threads[threadIndex];  // reload  it - it just moved!
           if (TRACE_PRECOPY) {
             VM.sysWrite(ct.getGCOrdinal()," New address ");
@@ -193,25 +194,22 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
           precopyChildren(trace, ObjectReference.fromObject(thread));
 
           /* Registers */
-          precopyChildren(trace, ObjectReference.fromObject(thread.getContextRegisters()));
-          trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread).plus(VM_Entrypoints.threadContextRegistersField.getOffset()));
-          trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getContextRegisters()).plus(VM_ArchEntrypoints.registersGPRsField.getOffset()));
-          trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getContextRegisters()).plus(VM_ArchEntrypoints.registersFPRsField.getOffset()));
+          trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread).plus(VM_Entrypoints.threadContextRegistersField.getOffset()), true);
+          trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getContextRegisters()).plus(VM_ArchEntrypoints.registersGPRsField.getOffset()), true);
+          trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getContextRegisters()).plus(VM_ArchEntrypoints.registersFPRsField.getOffset()), true);
 
-          precopyChildren(trace, ObjectReference.fromObject(thread.getHardwareExceptionRegisters()));
-          trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread).plus(VM_Entrypoints.threadHardwareExceptionRegistersField.getOffset()));
-          trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getHardwareExceptionRegisters()).plus(VM_ArchEntrypoints.registersGPRsField.getOffset()));
-          trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getHardwareExceptionRegisters()).plus(VM_ArchEntrypoints.registersFPRsField.getOffset()));
+          trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread).plus(VM_Entrypoints.threadHardwareExceptionRegistersField.getOffset()), true);
+          trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getHardwareExceptionRegisters()).plus(VM_ArchEntrypoints.registersGPRsField.getOffset()), true);
+          trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getHardwareExceptionRegisters()).plus(VM_ArchEntrypoints.registersFPRsField.getOffset()), true);
 
           if (thread.getJNIEnv() != null) {
             // Right now, jniEnv are Java-visible objects (not C-visible)
             // if (VM.VerifyAssertions)
             //   VM._assert(Plan.willNotMove(VM_Magic.objectAsAddress(thread.jniEnv)));
-            precopyChildren(trace, ObjectReference.fromObject(thread.getJNIEnv()));
-            trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread).plus(VM_Entrypoints.jniEnvField.getOffset()));
-            trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getJNIEnv()).plus(VM_Entrypoints.JNIRefsField.getOffset()));
-            trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getJNIEnv()).plus(VM_Entrypoints.JNIEnvSavedPRField.getOffset()));
-            trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getJNIEnv()).plus(VM_Entrypoints.JNIPendingExceptionField.getOffset()));
+            trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread).plus(VM_Entrypoints.jniEnvField.getOffset()), true);
+            trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getJNIEnv()).plus(VM_Entrypoints.JNIRefsField.getOffset()), true);
+            trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getJNIEnv()).plus(VM_Entrypoints.JNIEnvSavedPRField.getOffset()), true);
+            trace.processPrecopyEdge(VM_Magic.objectAsAddress(thread.getJNIEnv()).plus(VM_Entrypoints.JNIPendingExceptionField.getOffset()), true);
           }
         }
       } // end of for loop
@@ -255,7 +253,20 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
    * @param trace The trace to use for computing roots.
    */
   public void computeGlobalRoots(TraceLocal trace) {
-    /* scan statics */
+    /* scan jni functions */
+    VM_CollectorThread ct = VM_Magic.threadAsCollectorThread(VM_Scheduler.getCurrentThread());
+    Address jniFunctions = VM_Magic.objectAsAddress(VM_JNIEnvironment.JNIFunctions);
+    int threads = VM_CollectorThread.numCollectors();
+    int size = VM_JNIEnvironment.JNIFunctions.length();
+    int chunkSize = size / threads;
+    int start = (ct.getGCOrdinal() - 1) * chunkSize;
+    int end = (ct.getGCOrdinal() == threads) ? size : ct.getGCOrdinal() * chunkSize;
+
+    for(int i=start; i < end; i++) {
+      trace.processRootEdge(jniFunctions.plus(i << LOG_BYTES_IN_ADDRESS), true);
+    }
+
+    /* scan types*/
     ScanTypes.scanTypes(trace);
   }
   /**
@@ -306,7 +317,7 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
       ScanThread.scanThread(thread, trace, processCodeLocations);
 
       /* identify this thread as a root */
-      trace.processRootEdge(VM_Magic.objectAsAddress(VM_Scheduler.threads).plus(threadIndex<<LOG_BYTES_IN_ADDRESS));
+      trace.processRootEdge(VM_Magic.objectAsAddress(VM_Scheduler.threads).plus(threadIndex<<LOG_BYTES_IN_ADDRESS), false);
     }
     /* flush out any remset entries generated during the above activities */
     ActivePlan.flushRememberedSets();

@@ -396,7 +396,7 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase {
                 inst.replace(wb);
                 next = wb.nextInstructionInCodeOrder();
                 if (ir.options.INLINE_WRITE_BARRIER) {
-                  inline(wb, ir);
+                  inline(wb, ir, true);
                 }
               }
             }
@@ -425,7 +425,7 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase {
                 rb.position = inst.position;
                 inst.replace(rb);
                 next = rb.nextInstructionInCodeOrder();
-                inline(rb, ir);
+                inline(rb, ir, true);
               }
             }
           }
@@ -451,7 +451,7 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase {
               inst.replace(wb);
               next = wb.nextInstructionInCodeOrder();
               if (ir.options.INLINE_WRITE_BARRIER) {
-                inline(wb, ir);
+                inline(wb, ir, true);
               }
             }
           }
@@ -464,20 +464,18 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase {
             VM_FieldReference field = loc.getFieldRef();
             if (!field.getFieldContentsType().isPrimitiveType()) {
               VM_Method target = VM_Entrypoints.getstaticReadBarrierMethod;
-              OPT_Instruction wb =
+              OPT_Instruction rb =
                   Call.create2(CALL,
                                GetStatic.getClearResult(inst),
                                OPT_IRTools.AC(target.getOffset()),
                                OPT_MethodOperand.STATIC(target),
                                GetStatic.getOffset(inst).copy(),
                                OPT_IRTools.IC(field.getId()));
-              wb.bcIndex = RUNTIME_SERVICES_BCI;
-              wb.position = inst.position;
-              inst.replace(wb);
-              next = wb.nextInstructionInCodeOrder();
-              if (ir.options.INLINE_WRITE_BARRIER) {
-                inline(wb, ir);
-              }
+              rb.bcIndex = RUNTIME_SERVICES_BCI;
+              rb.position = inst.position;
+              inst.replace(rb);
+              next = rb.nextInstructionInCodeOrder();
+              inline(rb, ir, true);
             }
           }
         }

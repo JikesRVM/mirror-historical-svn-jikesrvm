@@ -55,34 +55,34 @@ public final class ScanTypes implements Constants, VM_TIBLayoutConstants {
     for(int i = start; i < end; i++) {
       VM_Type type = VM_Type.getType(i);
       if (type != null) {
-        trace.processRootEdge(VM_Magic.objectAsAddress(type).plus(VM_Entrypoints.classForTypeField.getOffset()));
+        trace.processRootEdge(VM_Magic.objectAsAddress(type).plus(VM_Entrypoints.classForTypeField.getOffset()), true);
 
         if (type.isArrayType()) {
-          trace.processRootEdge(VM_Magic.objectAsAddress(type).plus(VM_Entrypoints.innermostElementTypeField.getOffset()));
+          trace.processRootEdge(VM_Magic.objectAsAddress(type).plus(VM_Entrypoints.innermostElementTypeField.getOffset()), true);
         }
 
         if (type.isReferenceType() && type.isResolved()) {
           VM_TIB tib = type.getTypeInformationBlock();
           Address tibAddress = VM_Magic.objectAsAddress(tib);
 
-          trace.processRootEdge(tibAddress.plus(TIB_TYPE_INDEX << LOG_BYTES_IN_ADDRESS));
-          trace.processRootEdge(tibAddress.plus(TIB_SUPERCLASS_IDS_INDEX << LOG_BYTES_IN_ADDRESS));
-          trace.processRootEdge(tibAddress.plus(TIB_DOES_IMPLEMENT_INDEX << LOG_BYTES_IN_ADDRESS));
+          trace.processRootEdge(tibAddress.plus(TIB_TYPE_INDEX << LOG_BYTES_IN_ADDRESS), true);
+          trace.processRootEdge(tibAddress.plus(TIB_SUPERCLASS_IDS_INDEX << LOG_BYTES_IN_ADDRESS), true);
+          trace.processRootEdge(tibAddress.plus(TIB_DOES_IMPLEMENT_INDEX << LOG_BYTES_IN_ADDRESS), true);
 
           if (type.isArrayType()) {
-            trace.processRootEdge(tibAddress.plus(TIB_ARRAY_ELEMENT_TIB_INDEX << LOG_BYTES_IN_ADDRESS));
+            trace.processRootEdge(tibAddress.plus(TIB_ARRAY_ELEMENT_TIB_INDEX << LOG_BYTES_IN_ADDRESS), true);
           } else if (type.isClassType()) {
             if (VM.BuildForITableInterfaceInvocation) {
               Address itablesSlot = tibAddress.plus(TIB_ITABLES_TIB_INDEX << LOG_BYTES_IN_ADDRESS);
-              trace.processRootEdge(itablesSlot);
+              trace.processRootEdge(itablesSlot, true);
 
               Address itables = itablesSlot.loadAddress();
               for(int j=0; j < VM_ObjectModel.getArrayLength(VM_Magic.addressAsObject(itables)); j++) {
                 Address itableSlot = itables.plus(j << LOG_BYTES_IN_ADDRESS);
-                trace.processRootEdge(itableSlot);
+                trace.processRootEdge(itableSlot, true);
                 Address itable = itableSlot.loadAddress();
                 for(int k=0; k < VM_ObjectModel.getArrayLength(VM_Magic.addressAsObject(itable)); k++) {
-                  trace.processRootEdge(itable.plus(k << LOG_BYTES_IN_ADDRESS));
+                  trace.processRootEdge(itable.plus(k << LOG_BYTES_IN_ADDRESS), true);
                 }
               }
             }
@@ -94,7 +94,7 @@ public final class ScanTypes implements Constants, VM_TIBLayoutConstants {
               if (VM.BuildForIndirectIMT) {
                 if (TIB_IMT_TIB_INDEX < tib.length()) {
                   Address imtSlot = tibAddress.plus(TIB_IMT_TIB_INDEX << LOG_BYTES_IN_ADDRESS);
-                  trace.processRootEdge(imtSlot);
+                  trace.processRootEdge(imtSlot, true);
                   /* Load the (possibly null) IMT */
                   imtAddress = imtSlot.loadAddress();
                 }
@@ -107,14 +107,14 @@ public final class ScanTypes implements Constants, VM_TIBLayoutConstants {
 
               if (!imtAddress.isZero()) {
                 for(int j=0; j < IMT_METHOD_SLOTS; j++) {
-                  trace.processRootEdge(imtAddress.plus(j << LOG_BYTES_IN_ADDRESS));
+                  trace.processRootEdge(imtAddress.plus(j << LOG_BYTES_IN_ADDRESS), true);
                 }
               }
             }
           }
 
           for(int j=0; j < tib.numVirtualMethods(); j++) {
-            trace.processRootEdge(tibAddress.plus(VM_TIB.getVirtualMethodOffset(j)));
+            trace.processRootEdge(tibAddress.plus(VM_TIB.getVirtualMethodOffset(j)), true);
           }
         }
       }

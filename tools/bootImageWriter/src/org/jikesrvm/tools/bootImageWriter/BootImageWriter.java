@@ -662,7 +662,7 @@ public class BootImageWriter extends BootImageWriterMessages
     Address bootRecordImageAddress = Address.zero();
     try {
       // copy just the boot record
-      bootRecordImageAddress = copyToBootImage(bootRecord, true, Address.max(), null);
+      bootRecordImageAddress = copyToBootImage(bootRecord, true, Address.max(), null, false);
       if (bootRecordImageAddress.EQ(OBJECT_NOT_PRESENT)) {
         fail("can't copy boot record");
       }
@@ -677,7 +677,7 @@ public class BootImageWriter extends BootImageWriterMessages
     // Pointer to middle of JTOC
     Address jtocImageAddress = Address.zero();
     try {
-      jtocImageAddress = copyToBootImage(VM_Statics.getSlotsAsIntArray(), false, Address.max(), null);
+      jtocImageAddress = copyToBootImage(VM_Statics.getSlotsAsIntArray(), false, Address.max(), null, false);
       if (jtocImageAddress.EQ(OBJECT_NOT_PRESENT)) {
         fail("can't copy jtoc");
       }
@@ -718,7 +718,7 @@ public class BootImageWriter extends BootImageWriterMessages
 
         if (verbose >= 2) traceContext.push(jdkObject.getClass().getName(),
                                             getRvmStaticField(jtocOff) + "");
-        Address imageAddress = copyToBootImage(jdkObject, false, Address.max(), VM_Statics.getSlotsAsIntArray());
+        Address imageAddress = copyToBootImage(jdkObject, false, Address.max(), VM_Statics.getSlotsAsIntArray(), false);
         if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
           // object not part of bootimage: install null reference
           if (verbose >= 2) traceContext.traceObjectNotInBootImage();
@@ -763,7 +763,7 @@ public class BootImageWriter extends BootImageWriterMessages
     //
     if (verbose >= 1) say("re-copying boot record (and its TIB)");
     try {
-      Address newBootRecordImageAddress = copyToBootImage(bootRecord, false, bootRecordImageAddress, null);
+      Address newBootRecordImageAddress = copyToBootImage(bootRecord, false, bootRecordImageAddress, null, false);
       if (!newBootRecordImageAddress.EQ(bootRecordImageAddress)) {
         VM.sysWriteln("bootRecordImageOffset = ", bootRecordImageAddress);
         VM.sysWriteln("newBootRecordImageOffset = ", newBootRecordImageAddress);
@@ -1141,7 +1141,7 @@ public class BootImageWriter extends BootImageWriterMessages
 
       // Do the portion of JNIEnvironment initialization that can be done
       // at bootimage writing time.
-      VM_CodeArray[] functionTable = BuildJNIFunctionTable.buildTable();
+      VM_FunctionTable functionTable = BuildJNIFunctionTable.buildTable();
       VM_JNIEnvironment.initFunctionTable(functionTable);
 
       //
@@ -1482,12 +1482,13 @@ public class BootImageWriter extends BootImageWriterMessages
    * @param allocOnly if allocOnly is true, the TIB and other reference fields are not recursively copied
    * @param overwriteAddress if !overwriteAddress.isMax(), then copy object to given address
    * @param parentObject
+   * @param untraced Do not report any fields of this object as references 
    * @return offset of copied object within image, in bytes
    *         (OBJECT_NOT_PRESENT --> object not copied:
    *            it's not part of bootimage)
    */
   private static Address copyToBootImage(Object jdkObject, boolean allocOnly,
-      Address overwriteAddress, Object parentObject) throws IllegalAccessException
+      Address overwriteAddress, Object parentObject, boolean untraced) throws IllegalAccessException
   {
     try {
       //
@@ -1603,18 +1604,17 @@ public class BootImageWriter extends BootImageWriterMessages
               if (values[i] != null) {
                 if (verbose >= 2) traceContext.push(values[i].getClass().getName(),
                     jdkClass.getName(), i);
-                Address imageAddress = copyToBootImage(values[i], allocOnly, Address.max(), jdkObject);
+                Address imageAddress = copyToBootImage(values[i], allocOnly, Address.max(), jdkObject, false);
                 if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
                   // object not part of bootimage: install null reference
                   if (verbose >= 2) traceContext.traceObjectNotInBootImage();
-                  bootImage.setNullAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), true, false);
+                  bootImage.setNullAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), !untraced, false);
                 } else {
-                  bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS),
-                      imageAddress.toWord(), true);
+                  bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), imageAddress.toWord(), !untraced);
                 }
                 if (verbose >= 2) traceContext.pop();
               } else {
-                bootImage.setNullAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), true, true);
+                bootImage.setNullAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), !untraced, true);
               }
             }
           }
@@ -1635,17 +1635,19 @@ public class BootImageWriter extends BootImageWriterMessages
             backing = ((VM_ITableArray)jdkObject).getBacking();
           } else if (rvmType == VM_Type.ProcessorTableType) {
             backing = ((VM_ProcessorTable)jdkObject).getBacking();
+          } else if (rvmType == VM_Type.FunctionTableType) {
+            backing = ((VM_FunctionTable)jdkObject).getBacking();
           } else {
             fail("unexpected runtime table type: " + rvmType);
             backing = null;
           }
 
           /* Copy the backing array, and then replace its TIB */
-          mapEntry.imageAddress = copyToBootImage(backing, allocOnly, overwriteAddress, parentObject);
+          mapEntry.imageAddress = copyToBootImage(backing, allocOnly, overwriteAddress, parentObject, rvmType.getTypeRef().isRuntimeTable());
 
           if (!allocOnly) {
             if (verbose >= 2) traceContext.push("", jdkObject.getClass().getName(), "tib");
-            Address tibImageAddress = copyToBootImage(rvmType.getTypeInformationBlock(), allocOnly, Address.max(), jdkObject);
+            Address tibImageAddress = copyToBootImage(rvmType.getTypeInformationBlock(), allocOnly, Address.max(), jdkObject, false);
             if (verbose >= 2) traceContext.pop();
             if (tibImageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
               fail("can't copy tib for " + jdkObject);
@@ -1747,7 +1749,7 @@ public class BootImageWriter extends BootImageWriterMessages
                 default:fail("unexpected field type: " + rvmFieldType); break;
                 }
               } else {
-                bootImage.setNullAddressWord(rvmFieldAddress, !rvmField.isUntraced(), false);
+                bootImage.setNullAddressWord(rvmFieldAddress, !(rvmField.isUntraced() || untraced), false);
               }
             }
             continue;
@@ -1806,16 +1808,16 @@ public class BootImageWriter extends BootImageWriterMessages
                 if (verbose >= 2) traceContext.push(value.getClass().getName(),
                     jdkClass.getName(),
                     jdkFieldAcc.getName());
-                Address imageAddress = copyToBootImage(value, allocOnly, Address.max(), jdkObject);
+                Address imageAddress = copyToBootImage(value, allocOnly, Address.max(), jdkObject, false);
                 if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
                   // object not part of bootimage: install null reference
                   if (verbose >= 2) traceContext.traceObjectNotInBootImage();
-                  bootImage.setNullAddressWord(rvmFieldAddress, !rvmField.isUntraced(), false);
+                  bootImage.setNullAddressWord(rvmFieldAddress, !(rvmField.isUntraced() || untraced), false);
                 } else
-                  bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), !(rvmField.isFinal() || rvmField.isUntraced()));
+                  bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), !(rvmField.isFinal() || rvmField.isUntraced() || untraced));
                 if (verbose >= 2) traceContext.pop();
               } else {
-                bootImage.setNullAddressWord(rvmFieldAddress, !rvmField.isUntraced(), true);
+                bootImage.setNullAddressWord(rvmFieldAddress, !(rvmField.isUntraced() || untraced), true);
               }
             }
           }
@@ -1829,7 +1831,7 @@ public class BootImageWriter extends BootImageWriterMessages
       if (!allocOnly) {
 
         if (verbose >= 2) traceContext.push("", jdkObject.getClass().getName(), "tib");
-        Address tibImageAddress = copyToBootImage(rvmType.getTypeInformationBlock(), allocOnly, Address.max(), jdkObject);
+        Address tibImageAddress = copyToBootImage(rvmType.getTypeInformationBlock(), allocOnly, Address.max(), jdkObject, false);
         if (verbose >= 2) traceContext.pop();
         if (tibImageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
           fail("can't copy tib for " + jdkObject);
@@ -1952,7 +1954,7 @@ public class BootImageWriter extends BootImageWriterMessages
     // copy object's TIB into image, if it's not there already
     if (!allocOnly) {
       if (verbose >= 2) traceContext.push("", jdkObject.getClass().getName(), "tib");
-      Address tibImageAddress = copyToBootImage(rvmArrayType.getTypeInformationBlock(), allocOnly, Address.max(), jdkObject);
+      Address tibImageAddress = copyToBootImage(rvmArrayType.getTypeInformationBlock(), allocOnly, Address.max(), jdkObject, false);
       if (verbose >= 2) traceContext.pop();
       if (tibImageAddress.EQ(OBJECT_NOT_ALLOCATED))
         fail("can't copy tib for " + jdkObject);
@@ -2196,7 +2198,7 @@ public class BootImageWriter extends BootImageWriterMessages
             if (verbose >= 2) traceContext.traceObjectNotInBootImage();
             bootImage.setNullAddressWord(rvmFieldAddress, true, false);
         } else if (imageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
-            imageAddress = copyToBootImage(value, false, Address.max(), jdkObject);
+            imageAddress = copyToBootImage(value, false, Address.max(), jdkObject, false);
             if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
             bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), !fieldIsFinal);
         } else {
@@ -2246,7 +2248,7 @@ public class BootImageWriter extends BootImageWriterMessages
           if (verbose >= 2) traceContext.traceObjectNotInBootImage();
           bootImage.setNullAddressWord(rvmFieldAddress, false, false);
         } else if (imageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
-            imageAddress = copyToBootImage(constructor, false, Address.max(), jdkObject);
+            imageAddress = copyToBootImage(constructor, false, Address.max(), jdkObject, false);
             if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
             bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), false);
         } else {
