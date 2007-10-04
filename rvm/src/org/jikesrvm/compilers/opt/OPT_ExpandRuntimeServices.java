@@ -154,6 +154,7 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase {
                        align,
                        offset,
                        site);
+          next = inst.prevInstructionInCodeOrder();
           if (ir.options.INLINE_NEW) {
             if (inst.getBasicBlock().getInfrequent()) container.counter1++;
             container.counter2++;
@@ -211,6 +212,7 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase {
                        align,
                        offset,
                        site);
+          next = inst.prevInstructionInCodeOrder();
           if (inline && ir.options.INLINE_NEW) {
             if (inst.getBasicBlock().getInfrequent()) container.counter1++;
             container.counter2++;
@@ -345,7 +347,7 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase {
             wb.bcIndex = RUNTIME_SERVICES_BCI;
             wb.position = inst.position;
             inst.replace(wb);
-            next = wb.nextInstructionInCodeOrder();
+            next = wb.prevInstructionInCodeOrder();
             if (ir.options.INLINE_WRITE_BARRIER) {
               inline(wb, ir, true);
             }
@@ -367,7 +369,7 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase {
             rb.bcIndex = RUNTIME_SERVICES_BCI;
             rb.position = inst.position;
             inst.replace(rb);
-            next = rb.nextInstructionInCodeOrder();
+            next = rb.prevInstructionInCodeOrder();
             inline(rb, ir, true);
           }
         }
@@ -394,7 +396,7 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase {
                 wb.bcIndex = RUNTIME_SERVICES_BCI;
                 wb.position = inst.position;
                 inst.replace(wb);
-                next = wb.nextInstructionInCodeOrder();
+                next = wb.prevInstructionInCodeOrder();
                 if (ir.options.INLINE_WRITE_BARRIER) {
                   inline(wb, ir, true);
                 }
@@ -424,7 +426,7 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase {
                 rb.bcIndex = RUNTIME_SERVICES_BCI;
                 rb.position = inst.position;
                 inst.replace(rb);
-                next = rb.nextInstructionInCodeOrder();
+                next = rb.prevInstructionInCodeOrder();
                 inline(rb, ir, true);
               }
             }
@@ -449,7 +451,7 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase {
               wb.bcIndex = RUNTIME_SERVICES_BCI;
               wb.position = inst.position;
               inst.replace(wb);
-              next = wb.nextInstructionInCodeOrder();
+              next = wb.prevInstructionInCodeOrder();
               if (ir.options.INLINE_WRITE_BARRIER) {
                 inline(wb, ir, true);
               }
@@ -474,7 +476,7 @@ public final class OPT_ExpandRuntimeServices extends OPT_CompilerPhase {
               rb.bcIndex = RUNTIME_SERVICES_BCI;
               rb.position = inst.position;
               inst.replace(rb);
-              next = rb.nextInstructionInCodeOrder();
+              next = rb.prevInstructionInCodeOrder();
               inline(rb, ir, true);
             }
           }
