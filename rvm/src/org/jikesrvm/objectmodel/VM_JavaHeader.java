@@ -196,7 +196,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
    */
   @Interruptible
   public static void setTIB(BootImageInterface bootImage, Address refOffset, Address tibAddr, VM_Type type) {
-    bootImage.setAddressWord(refOffset.plus(TIB_OFFSET), tibAddr.toWord(), false);
+    bootImage.setAddressWord(refOffset.plus(TIB_OFFSET), tibAddr.toWord(), false, false);
   }
 
   /**
@@ -636,7 +636,7 @@ public class VM_JavaHeader implements VM_JavaHeaderConstants {
    */
   @Interruptible
   public static void writeAvailableBitsWord(BootImageInterface bootImage, Address ref, Word val) {
-    bootImage.setAddressWord(ref.plus(STATUS_OFFSET), val, false);
+    bootImage.setAddressWord(ref.plus(STATUS_OFFSET), val, false, false);
   }
 
   /**

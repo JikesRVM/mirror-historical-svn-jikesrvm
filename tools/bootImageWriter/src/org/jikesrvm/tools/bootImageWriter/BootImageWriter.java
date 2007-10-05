@@ -722,10 +722,9 @@ public class BootImageWriter extends BootImageWriterMessages
         if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
           // object not part of bootimage: install null reference
           if (verbose >= 2) traceContext.traceObjectNotInBootImage();
-          bootImage.setNullAddressWord(jtocPtr.plus(jtocOff), false, false);
+          bootImage.setNullAddressWord(jtocPtr.plus(jtocOff), false, false, false);
         } else {
-          bootImage.setAddressWord(jtocPtr.plus(jtocOff),
-                                   imageAddress.toWord(), false);
+          bootImage.setAddressWord(jtocPtr.plus(jtocOff), imageAddress.toWord(), false, false);
         }
         if (verbose >= 2) traceContext.pop();
       }
@@ -777,10 +776,9 @@ public class BootImageWriter extends BootImageWriterMessages
       /* Set the values in fields updated during the build process */
       Offset prevAddrOffset = VM_Entrypoints.tracePrevAddressField.getOffset();
       bootImage.setAddressWord(jtocPtr.plus(prevAddrOffset),
-                               VM_MiscHeader.getBootImageLink().toWord(), false);
+                               VM_MiscHeader.getBootImageLink().toWord(), false, false);
       Offset oIDOffset = VM_Entrypoints.traceOIDField.getOffset();
-      bootImage.setAddressWord(jtocPtr.plus(oIDOffset),
-                               VM_MiscHeader.getOID(), false);
+      bootImage.setAddressWord(jtocPtr.plus(oIDOffset), VM_MiscHeader.getOID(), false, false);
     }
 
     //
@@ -1608,13 +1606,13 @@ public class BootImageWriter extends BootImageWriterMessages
                 if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
                   // object not part of bootimage: install null reference
                   if (verbose >= 2) traceContext.traceObjectNotInBootImage();
-                  bootImage.setNullAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), !untraced, false);
+                  bootImage.setNullAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), !untraced, !untraced, false);
                 } else {
-                  bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), imageAddress.toWord(), !untraced);
+                  bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), imageAddress.toWord(), !untraced, !untraced);
                 }
                 if (verbose >= 2) traceContext.pop();
               } else {
-                bootImage.setNullAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), !untraced, true);
+                bootImage.setNullAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), !untraced, !untraced, true);
               }
             }
           }
@@ -1732,6 +1730,8 @@ public class BootImageWriter extends BootImageWriterMessages
           String  rvmFieldName    = rvmField.getName().toString();
           Field   jdkFieldAcc     = getJdkFieldAccessor(jdkType, i, INSTANCE_FIELD);
 
+          boolean untracedField = rvmField.isUntraced() || untraced;
+
           if (jdkFieldAcc == null) {
             // Field not found via reflection
             if (!copyKnownClasspathInstanceField(jdkObject, rvmFieldName, rvmFieldType, rvmFieldAddress)) {
@@ -1749,7 +1749,7 @@ public class BootImageWriter extends BootImageWriterMessages
                 default:fail("unexpected field type: " + rvmFieldType); break;
                 }
               } else {
-                bootImage.setNullAddressWord(rvmFieldAddress, !(rvmField.isUntraced() || untraced), false);
+                bootImage.setNullAddressWord(rvmFieldAddress, !untracedField, !untracedField, false);
               }
             }
             continue;
@@ -1795,7 +1795,7 @@ public class BootImageWriter extends BootImageWriterMessages
               Object o = jdkFieldAcc.get(jdkObject);
               String msg = " instance field " + rvmField.toString();
               boolean warn = rvmFieldType.equals(VM_TypeReference.Address);
-              bootImage.setAddressWord(rvmFieldAddress, getWordValue(o, msg, warn), false);
+              bootImage.setAddressWord(rvmFieldAddress, getWordValue(o, msg, warn), false, false);
             } else {
               fail("unexpected primitive field type: " + rvmFieldType);
             }
@@ -1812,12 +1812,12 @@ public class BootImageWriter extends BootImageWriterMessages
                 if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
                   // object not part of bootimage: install null reference
                   if (verbose >= 2) traceContext.traceObjectNotInBootImage();
-                  bootImage.setNullAddressWord(rvmFieldAddress, !(rvmField.isUntraced() || untraced), false);
+                  bootImage.setNullAddressWord(rvmFieldAddress, !untracedField, !untracedField, false);
                 } else
-                  bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), !(rvmField.isFinal() || rvmField.isUntraced() || untraced));
+                  bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), !untracedField, !(untracedField || rvmField.isFinal()));
                 if (verbose >= 2) traceContext.pop();
               } else {
-                bootImage.setNullAddressWord(rvmFieldAddress, !(rvmField.isUntraced() || untraced), true);
+                bootImage.setNullAddressWord(rvmFieldAddress, !untracedField, !untracedField, true);
               }
             }
           }
@@ -1913,15 +1913,7 @@ public class BootImageWriter extends BootImageWriterMessages
         Address addr = values[i];
         String msg = "Address array element";
         bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS),
-                                 getWordValue(addr, msg, true), false);
-      }
-    } else if (rvmElementType.equals(VM_Type.ObjectReferenceType)) {
-      ObjectReference[] values = (ObjectReference[]) jdkObject;
-      for (int i=0; i<arrayCount; i++) {
-        ObjectReference or = values[i];
-        String msg = "ObjectReference array element";
-        bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS),
-                                 getWordValue(or, msg, true), true);
+                                 getWordValue(addr, msg, true), false, false);
       }
     } else if (rvmElementType.equals(VM_Type.WordType)) {
       Word[] values = (Word[]) jdkObject;
@@ -1929,7 +1921,7 @@ public class BootImageWriter extends BootImageWriterMessages
         String msg = "Word array element ";
         Word addr = values[i];
         bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS),
-                                 getWordValue(addr, msg, false), false);
+                                 getWordValue(addr, msg, false), false, false);
       }
     } else if (rvmElementType.equals(VM_Type.OffsetType)) {
       Offset[] values = (Offset[]) jdkObject;
@@ -1937,7 +1929,7 @@ public class BootImageWriter extends BootImageWriterMessages
         String msg = "Offset array element " + i;
         Offset addr = values[i];
         bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS),
-                                 getWordValue(addr, msg, false), false);
+                                 getWordValue(addr, msg, false), false, false);
       }
     } else if (rvmElementType.equals(VM_Type.ExtentType)) {
       Extent[] values = (Extent[]) jdkObject;
@@ -1945,7 +1937,7 @@ public class BootImageWriter extends BootImageWriterMessages
         String msg = "Extent array element ";
         Extent addr = values[i];
         bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS),
-                                 getWordValue(addr, msg, false), false);
+                                 getWordValue(addr, msg, false), false, false);
       }
     } else {
       fail("unexpected magic array type: " + rvmArrayType);
@@ -2196,14 +2188,14 @@ public class BootImageWriter extends BootImageWriterMessages
         if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
             // object not part of bootimage: install null reference
             if (verbose >= 2) traceContext.traceObjectNotInBootImage();
-            bootImage.setNullAddressWord(rvmFieldAddress, true, false);
+            bootImage.setNullAddressWord(rvmFieldAddress, true, true, false);
         } else if (imageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
             imageAddress = copyToBootImage(value, false, Address.max(), jdkObject, false);
             if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
-            bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), !fieldIsFinal);
+            bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, !fieldIsFinal);
         } else {
           if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
-          bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), !fieldIsFinal);
+          bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, !fieldIsFinal);
         }
         if (verbose >= 2) traceContext.pop();
         return true;
@@ -2246,14 +2238,14 @@ public class BootImageWriter extends BootImageWriterMessages
         if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
           // object not part of bootimage: install null reference
           if (verbose >= 2) traceContext.traceObjectNotInBootImage();
-          bootImage.setNullAddressWord(rvmFieldAddress, false, false);
+          bootImage.setNullAddressWord(rvmFieldAddress, false, false, false);
         } else if (imageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
             imageAddress = copyToBootImage(constructor, false, Address.max(), jdkObject, false);
             if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
-            bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), false);
+            bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), false, false);
         } else {
           if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
-          bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), false);
+          bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), false, false);
         }
         if (verbose >= 2) traceContext.pop();
         return true;

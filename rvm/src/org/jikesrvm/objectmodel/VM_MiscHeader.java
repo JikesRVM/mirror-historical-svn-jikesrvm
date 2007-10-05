@@ -109,9 +109,9 @@ public final class VM_MiscHeader implements VM_Constants, VM_MiscHeaderConstants
                                       boolean isScalar) {
     /* Only perform initialization when it is required */
     if (MM_Constants.GENERATE_GC_TRACE) {
-      bootImage.setAddressWord(ref.plus(OBJECT_OID_OFFSET), oid, false);
-      bootImage.setAddressWord(ref.plus(OBJECT_DEATH_OFFSET), time, false);
-      bootImage.setAddressWord(ref.plus(OBJECT_LINK_OFFSET), prevAddress, false);
+      bootImage.setAddressWord(ref.plus(OBJECT_OID_OFFSET), oid, false, false);
+      bootImage.setAddressWord(ref.plus(OBJECT_DEATH_OFFSET), time, false, false);
+      bootImage.setAddressWord(ref.plus(OBJECT_LINK_OFFSET), prevAddress, false, false);
       prevAddress = ref.toWord();
       oid = oid.plus(Word.fromIntSignExtend((size - GC_TRACING_HEADER_BYTES) >> LOG_BYTES_IN_ADDRESS));
     }
