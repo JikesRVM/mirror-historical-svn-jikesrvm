@@ -23,7 +23,7 @@ import org.jikesrvm.memorymanagers.mminterface.MM_Constants;
  *
  * @see VM_ObjectModel
  */
-public interface VM_MiscHeaderConstants extends VM_Constants {
+interface VM_MiscHeaderConstants extends VM_Constants {
 
   /*********************
    * Support for GC Tracing; uses either 0 or 3 words of MISC HEADER
