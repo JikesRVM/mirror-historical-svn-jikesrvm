@@ -262,9 +262,23 @@ public class JavaHeader {
       return lockWord.and(inverseLockStatusMask);
     }
 
+    /**
+     * Is the lock a thin lock with the given shifted thread ID and no recursion count?
+     *
+     * @param lockWord to read from
+     * @param threadId shifted thread ID
+     * @return whether the status word is all zero
+     */
     public abstract boolean isShiftedThreadIdOwnerWithoutRecursion(Word lockWord, int threadId);
 
 
+    /**
+     * Is the lock a thin lock with the given shifted thread ID?
+     *
+     * @param lockWord to read from
+     * @param threadId shifted thread ID
+     * @return whether the status word is all zero
+     */
     public abstract boolean isShiftedThreadIdOwner(Word lockWord, int threadId);
   }
 
@@ -419,6 +433,13 @@ public class JavaHeader {
       return threadId >>> threadIdShift;
     }
 
+    /**
+     * Set the thread ID in the lock word
+     *
+     * @param lockWord to read from
+     * @param threadId the threadId shifted to be in the correct position
+     * @return the updated lockWord
+     */
     @Override
     public Word setShiftedThreadID(Word lockWord, int threadId) {
       return lockWord.or(Word.fromIntZeroExtend(threadId));
@@ -435,6 +456,13 @@ public class JavaHeader {
       return lockWord.and(threadIdMask);
     }
 
+    /**
+     * Is the lock a thin lock with the given shifted thread ID and no recursion count?
+     *
+     * @param lockWord to read from
+     * @param threadId shifted thread ID
+     * @return whether the status word is all zero
+     */
     @Override
     public boolean isShiftedThreadIdOwnerWithoutRecursion(Word lockWord, int threadId) {
       // implies that fatbit == 0 && count == 0 && lockid == me
@@ -442,6 +470,13 @@ public class JavaHeader {
       return lockWord.and(lockStatusMask).EQ(Word.fromIntZeroExtend(threadId));
     }
 
+    /**
+     * Is the lock a thin lock with the given shifted thread ID?
+     *
+     * @param lockWord to read from
+     * @param threadId shifted thread ID
+     * @return whether the status word is all zero
+     */
     @Override
     public boolean isShiftedThreadIdOwner(Word lockWord, int threadId) {
       // implies that fatbit == 0 && lockid == me
@@ -449,5 +484,6 @@ public class JavaHeader {
     }
   }
 
+  /** Object to allow the querying of the lock status of a word for the chosen locking scheme */
   public static final LockStatus lockStatus = new ThinLockStatus();
 }
