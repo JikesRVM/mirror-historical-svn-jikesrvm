@@ -274,7 +274,7 @@ public abstract class VM_Processor extends MM_ProcessorContext implements VM_Con
    */
   /** last lock in VM_Lock available for this processor */
   public int lastLockIndex;
-  /** next lock in VM_Lock available for this processor */
+  /** next lock in VM_Lock available for this processor (value always >= 1) */
   public int nextLockIndex;
   /** a free lock */
   public VM_Lock freeLock;
