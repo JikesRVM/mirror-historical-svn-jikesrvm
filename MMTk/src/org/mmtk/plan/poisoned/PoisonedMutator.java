@@ -119,13 +119,15 @@ public abstract class PoisonedMutator extends MSMutator {
   @Override
   public ObjectReference readBarrier(ObjectReference src, Address slot, Offset metaDataA, int metaDataB, int mode) {
     Word value = VM.barriers.performRawReadInBarrier(src, slot, metaDataA, metaDataB, mode);
-    if (!innit && !(value.isZero() || value.and(Word.one()).EQ(Word.one()))) {
-      innit = true;
-      VM.assertions.dumpStack();
-      innit = false;
+    if (!(value.isZero() || value.and(Word.one()).EQ(Word.one()))) {
+      if (!failing) {
+        failing = true;
+        VM.assertions.fail("Unpoisoned reference read from heap");
+      }
     }
     return value.and(Word.one().not()).toAddress().toObjectReference();
   }
 
-  private boolean innit;
+  /** Flag used to allow stack dumping in dire circumstances */
+  private static boolean failing;
 }

@@ -29,14 +29,14 @@ import org.vmmagic.unboxed.*;
   public abstract void setArrayNoBarrier(char [] dst, int index, char value);
 
   /**
-   * Sets an element of an object array without invoking any write
-   * barrier.
+   * Sets an element of an object array without it being possible to lose
+   * control.
    *
    * @param dst the destination array
    * @param index the index of the element to set
    * @param value the new value for the element
    */
-  public abstract void setArrayNoBarrier(Object [] dst, int index, Object value);
+  public abstract void setArrayUninterruptible(Object [] dst, int index, Object value);
 
   /**
    * Perform the actual write of the write barrier.

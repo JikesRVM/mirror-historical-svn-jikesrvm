@@ -2238,14 +2238,14 @@ public class BootImageWriter extends BootImageWriterMessages
         if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
           // object not part of bootimage: install null reference
           if (verbose >= 2) traceContext.traceObjectNotInBootImage();
-          bootImage.setNullAddressWord(rvmFieldAddress, false, false, false);
+          bootImage.setNullAddressWord(rvmFieldAddress, true, false, false);
         } else if (imageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
             imageAddress = copyToBootImage(constructor, false, Address.max(), jdkObject, false);
             if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
-            bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), false, false);
+            bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, false);
         } else {
           if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
-          bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), false, false);
+          bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, false);
         }
         if (verbose >= 2) traceContext.pop();
         return true;

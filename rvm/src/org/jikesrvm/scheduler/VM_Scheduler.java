@@ -181,9 +181,10 @@ public abstract class VM_Scheduler {
           if (MM_Constants.NEEDS_WRITE_BARRIER) {
             MM_Interface.arrayStoreWriteBarrier(VM_Scheduler.threads,
                 index, thread);
-          }
-          VM_Magic.setObjectAtOffset(threads,
+          } else {
+            VM_Magic.setObjectAtOffset(threads,
               Offset.fromIntZeroExtend(index << VM_SizeConstants.LOG_BYTES_IN_ADDRESS), thread);
+          }
           VM_Scheduler.threadCreationMutex.unlock();
           return index;
         }

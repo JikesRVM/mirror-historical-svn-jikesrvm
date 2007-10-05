@@ -131,8 +131,8 @@ import org.vmmagic.pragma.*;
    * @param value the new value for the element
    */
   @Override
-  public final void setArrayNoBarrier(Object [] dst, int index, Object value) {
-    VM_Services.setArrayNoBarrier(dst, index, value);
+  public final void setArrayUninterruptible(Object [] dst, int index, Object value) {
+    VM_Services.setArrayUninterruptible(dst, index, value);
   }
 
   /**
