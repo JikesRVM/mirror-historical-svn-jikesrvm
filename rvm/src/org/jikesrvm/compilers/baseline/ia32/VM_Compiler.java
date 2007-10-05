@@ -473,7 +473,7 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
     asm.emitMOV_Reg_RegDisp(S0, SP, ONE_SLOT); // S0 is array ref
     genBoundsCheck(asm, T0, S0); // T0 is index, S0 is address of array
     if (MM_Constants.NEEDS_READ_BARRIER) {
-      VM_Barriers.compileArrayLoadBarrier(asm);
+      VM_Barriers.compileArrayLoadBarrier(asm, true);
     } else {
       asm.emitADD_Reg_Imm(SP, WORDSIZE * 2);     // complete popping the 2 args
       asm.emitPUSH_RegIdx(S0, T0, VM_Assembler.WORD, NO_SLOT); // push [S0+T0<<2]
@@ -3158,12 +3158,6 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
       // establish the JTOC register
       VM_ProcessorLocalState.emitMoveFieldToReg(asm, JTOC, VM_ArchEntrypoints.jtocField.getOffset());
 
-      if (!VM.runningTool && ((VM_BaselineCompiledMethod) compiledMethod).hasCounterArray()) {
-        // use (nonvolatile) EBX to hold base of this methods counter array
-        asm.emitMOV_Reg_RegDisp(EBX, JTOC, VM_Entrypoints.edgeCountersField.getOffset());
-        asm.emitMOV_Reg_RegDisp(EBX, EBX, getEdgeCounterOffset());
-      }
-
       int savedRegistersSize = SAVED_GPRS << LG_WORDSIZE;       // default
       /* handle "dynamic brige" methods:
        * save all registers except FP, SP, PR, S0 (scratch), and
@@ -3217,6 +3211,19 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
         fr.resolve(asm);
       } else {
         // TODO!! make sure stackframe of uninterruptible method doesn't overflow guard page
+      }
+
+      if (!VM.runningTool && ((VM_BaselineCompiledMethod) compiledMethod).hasCounterArray()) {
+        // use (nonvolatile) EBX to hold base of this method's counter array
+        if (MM_Constants.NEEDS_READ_BARRIER) {
+          asm.emitPUSH_RegDisp(JTOC, VM_Entrypoints.edgeCountersField.getOffset());
+          asm.emitPUSH_Imm(getEdgeCounterIndex());
+          VM_Barriers.compileArrayLoadBarrier(asm, false);
+          asm.emitMOV_Reg_Reg(EBX, T0);
+        } else {
+          asm.emitMOV_Reg_RegDisp(EBX, JTOC, VM_Entrypoints.edgeCountersField.getOffset());
+          asm.emitMOV_Reg_RegDisp(EBX, EBX, getEdgeCounterOffset());
+        }
       }
 
       if (method.isSynchronized()) genMonitorEnter();

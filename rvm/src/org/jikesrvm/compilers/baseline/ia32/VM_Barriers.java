@@ -87,12 +87,12 @@ class VM_Barriers implements VM_BaselineConstants {
     asm.emitCALL_RegDisp(JTOC, VM_Entrypoints.putstaticWriteBarrierMethod.getOffset());
   }
 
-  static void compileArrayLoadBarrier(VM_Assembler asm) {
+  static void compileArrayLoadBarrier(VM_Assembler asm, boolean pushResult) {
     // on entry java stack contains ...|target_array_ref|array_index|
     // SP -> index, SP+4 -> target_ref
     genParameterRegisterLoad(asm, 2);
     asm.emitCALL_RegDisp(JTOC, VM_Entrypoints.arrayLoadReadBarrierMethod.getOffset());
-    asm.emitPUSH_Reg(T0);
+    if (pushResult) asm.emitPUSH_Reg(T0);
   }
 
   static void compileGetfieldBarrier(VM_Assembler asm, byte reg, int locationMetadata) {
