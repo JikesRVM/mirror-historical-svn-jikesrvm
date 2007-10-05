@@ -2601,11 +2601,19 @@ public class BootImageWriter extends BootImageWriterMessages
             long lval= VM_Statics.getSlotContentsAsLong(jtocOff);
             contents = Double.toString(Double.longBitsToDouble(lval)) + pad;
             jtocSlot++;
+          } else if (type.isMagicType()) {
+            if (VM.BuildFor32Addr) {
+              int ival = VM_Statics.getSlotContentsAsInt(jtocOff);
+              contents = VM.intAsHexString(ival) + pad;
+            } else {
+              long lval= VM_Statics.getSlotContentsAsLong(jtocOff);
+              contents = VM.intAsHexString((int) (lval >> 32)) +
+                VM.intAsHexString((int) (lval & 0xffffffffL)).substring(2);
+              jtocSlot++;              
+            }
           } else {
             // Unknown?
             int ival = VM_Statics.getSlotContentsAsInt(jtocOff);
-            category = "<?>    ";
-            details  = "<?>";
             contents = VM.intAsHexString(ival) + pad;
           }
         } else {
@@ -2639,7 +2647,7 @@ public class BootImageWriter extends BootImageWriterMessages
         } else if (obj instanceof String) {
           details = "\""+ obj + "\"";
         } else if (obj instanceof Class) {
-          details = "class "+ obj;
+          details = obj.toString();
         } else {
           details = "object "+ obj.getClass();
         }
