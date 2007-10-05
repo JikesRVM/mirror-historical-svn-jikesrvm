@@ -17,12 +17,11 @@ import org.jikesrvm.VM_Callbacks;
 import org.jikesrvm.VM_Constants;
 import org.jikesrvm.VM_Services;
 import org.jikesrvm.objectmodel.VM_ObjectModel;
-import org.jikesrvm.objectmodel.VM_ThinLockConstants;
 import org.jikesrvm.runtime.VM_Magic;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.Uninterruptible;
-import org.vmmagic.unboxed.Word;
+import org.jikesrvm.objectmodel.JavaHeader;
 
 /**
  VM_Lock provides RVM support for monitors and Java level
@@ -212,9 +211,7 @@ public abstract class VM_Lock implements VM_Constants {
     locks = new VM_Lock[INIT_LOCKS + 1]; // don't use slot 0
     if (VM.VerifyAssertions) {
       // check that each potential lock is addressable
-      VM._assert((locks.length - 1 <=
-                  VM_ThinLockConstants.TL_LOCK_ID_MASK.rshl(VM_ThinLockConstants.TL_LOCK_ID_SHIFT).toInt())||
-                  VM_ThinLockConstants.TL_LOCK_ID_MASK.EQ(Word.fromIntSignExtend(-1)));
+      VM._assert(locks.length - 1 <= JavaHeader.lockStatus.maxHeavyLockID());
     }
   }
 
@@ -263,8 +260,10 @@ public abstract class VM_Lock implements VM_Constants {
       mine = VM_Processor.getCurrentProcessor();
       if (mine.lastLockIndex < mine.nextLockIndex) {
         lockAllocationMutex.lock("lock allocation mutex");
-        mine.nextLockIndex = 1 + (LOCK_ALLOCATION_UNIT_SIZE * lockUnitsAllocated++);
+        int availableLockUnit = lockUnitsAllocated;
+        lockUnitsAllocated++;
         lockAllocationMutex.unlock();
+        mine.nextLockIndex = 1 + (LOCK_ALLOCATION_UNIT_SIZE * availableLockUnit);
         mine.lastLockIndex = mine.nextLockIndex + LOCK_ALLOCATION_UNIT_SIZE - 1;
         if (MAX_LOCKS <= mine.lastLockIndex) {
           VM.sysWriteln("Too many fat locks on processor ", mine.id); // make MAX_LOCKS bigger? we can keep going??
@@ -422,7 +421,7 @@ public abstract class VM_Lock implements VM_Constants {
     VM.sysWrite(" ownerId: ");
     VM.sysWriteInt(ownerId);
     VM.sysWrite(" (");
-    VM.sysWriteInt(ownerId >>> VM_ThinLockConstants.TL_THREAD_ID_SHIFT);
+    VM.sysWriteInt(JavaHeader.lockStatus.unshiftThreadID(ownerId));
     VM.sysWrite(") recursionCount: ");
     VM.sysWriteInt(recursionCount);
     VM.sysWriteln();

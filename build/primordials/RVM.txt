@@ -69,3 +69,10 @@
 [Lorg/mmtk/utility/options/Option;
 
 Lsun/misc/Unsafe;
+
+Lorg/jikesrvm/objectmodel/JavaHeader;
+Lorg/jikesrvm/objectmodel/JavaHeader$LockStatus;
+Lorg/jikesrvm/objectmodel/JavaHeader$ThinLockStatus;
+Lorg/jikesrvm/objectmodel/JavaHeader$StatusWordLayout;
+Lorg/jikesrvm/objectmodel/JavaHeader$DefaultStatusWordLayout;
+Lorg/jikesrvm/objectmodel/JavaHeader$AddressBasedHashingStatusWordLayout;
