@@ -86,7 +86,6 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    */
   @Inline
   public final void processEdge(ObjectReference source, Address slot) {
-    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(slot.loadWord().isZero() || !slot.loadWord().and(Word.one()).isZero());
     ObjectReference object = VM.activePlan.collector().loadObjectReference(slot);
     ObjectReference newObject = traceObject(object, false);
     VM.activePlan.collector().storeObjectReference(slot, newObject);
@@ -104,12 +103,6 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    */
   @Inline
   public final void reportDelayedRootEdge(Address slot) {
-    if (VM.VERIFY_ASSERTIONS) {
-      if (!slot.loadWord().and(Word.one()).isZero()) {
-        VM.objectModel.dumpObject(slot.loadWord().and(Word.one().not()).toAddress().toObjectReference());
-      }
-      VM.assertions._assert(slot.loadWord().and(Word.one()).isZero());
-    }
     rootLocations.push(slot);
   }
 
@@ -124,7 +117,6 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    */
   @Inline
   public final void processRootEdge(Address slot, boolean raw) {
-    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert((!raw && (slot.loadWord().isZero() || !slot.loadWord().and(Word.one()).isZero())) || (raw && slot.loadWord().and(Word.one()).isZero()));
     ObjectReference object;
     if (raw) object = slot.loadObjectReference();
     else     object = VM.activePlan.collector().loadObjectReference(slot);
