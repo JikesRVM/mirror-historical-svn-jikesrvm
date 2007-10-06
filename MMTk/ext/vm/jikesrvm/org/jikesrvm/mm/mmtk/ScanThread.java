@@ -595,7 +595,7 @@ import org.vmmagic.pragma.*;
    * performing the scan.
    */
   private void dumpRef(Address refaddr, int verbosity) {
-    ObjectReference ref = Selected.Collector.get().loadObjectReference(refaddr);
+    ObjectReference ref = refaddr.loadObjectReference();
     VM.sysWrite(refaddr);
     if (verbosity >= 4) {
       VM.sysWrite(":"); MM_Interface.dumpRef(ref);
@@ -612,7 +612,7 @@ import org.vmmagic.pragma.*;
    * performing the scan.
    */
   private void checkReference(Address refaddr, int verbosity) {
-    ObjectReference ref = Selected.Collector.get().loadObjectReference(refaddr);
+    ObjectReference ref = refaddr.loadObjectReference();
     if (!MM_Interface.validRef(ref)) {
       Log.writeln();
       Log.writeln("Invalid ref reported while scanning stack");
