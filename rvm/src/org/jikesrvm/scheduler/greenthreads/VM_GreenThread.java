@@ -33,6 +33,7 @@ import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
 /**
@@ -183,17 +184,10 @@ public class VM_GreenThread extends VM_Thread {
    * Process a taken yieldpoint.
    * May result in threadswitch, depending on state of various control
    * flags on the processor object.
-   *
-   * NOTE: The ThreadSwitchSampling code in the adaptive system
-   * depends on (a) knowing how many stack frames there are between here and the
-   * code in which the yieldpoint is taken and (b) this number being identical for
-   * all possible paths (ie, all compilers) from a yieldpoint in compiled code to
-   * the entry of this method. Changing this portion of the call stack is delicate and
-   * requires changes in the various AOS listeners that do call stack sampling.
    */
-  @NoInline
-  public static void yieldpoint(int whereFrom) {
+  public static void yieldpoint(int whereFrom, Address yieldpointServiceMethodFP) {
     boolean threadSwitch = false;
+    boolean cbsOverrun = false;
     VM_GreenProcessor p = VM_GreenProcessor.getCurrentProcessor();
     int takeYieldpointVal = p.takeYieldpoint;
     p.takeYieldpoint = 0;
@@ -219,22 +213,30 @@ public class VM_GreenThread extends VM_Thread {
     if (p.timeSliceExpired != 0) {
       p.timeSliceExpired = 0;
 
-      if (VM.CBSCallSamplesPerTick > 0) {
-        p.yieldForCBSCall = true;
-        p.takeYieldpoint = -1;
-        p.firstCBSCallSample++;
-        p.firstCBSCallSample = p.firstCBSCallSample % VM.CBSCallSampleStride;
-        p.countdownCBSCall = p.firstCBSCallSample;
-        p.numCBSCallSamples = VM.CBSCallSamplesPerTick;
-      }
+      if (p.yieldForCBSCall || p.yieldForCBSMethod) {
+        /*
+         * CBS Sampling is still active from previous quantum.
+         * Note that fact, but leave all the other CBS parameters alone.
+         */
+        cbsOverrun = true;
+      } else {
+        if (VM.CBSCallSamplesPerTick > 0) {
+          p.yieldForCBSCall = true;
+          p.takeYieldpoint = -1;
+          p.firstCBSCallSample++;
+          p.firstCBSCallSample = p.firstCBSCallSample % VM.CBSCallSampleStride;
+          p.countdownCBSCall = p.firstCBSCallSample;
+          p.numCBSCallSamples = VM.CBSCallSamplesPerTick;
+        }
 
-      if (VM.CBSMethodSamplesPerTick > 0) {
-        p.yieldForCBSMethod = true;
-        p.takeYieldpoint = -1;
-        p.firstCBSMethodSample++;
-        p.firstCBSMethodSample = p.firstCBSMethodSample % VM.CBSMethodSampleStride;
-        p.countdownCBSMethod = p.firstCBSMethodSample;
-        p.numCBSMethodSamples = VM.CBSMethodSamplesPerTick;
+        if (VM.CBSMethodSamplesPerTick > 0) {
+          p.yieldForCBSMethod = true;
+          p.takeYieldpoint = -1;
+          p.firstCBSMethodSample++;
+          p.firstCBSMethodSample = p.firstCBSMethodSample % VM.CBSMethodSampleStride;
+          p.countdownCBSMethod = p.firstCBSMethodSample;
+          p.numCBSMethodSamples = VM.CBSMethodSamplesPerTick;
+        }
       }
 
       if (++p.interruptQuantumCounter >= VM.schedulingMultiplier) {
@@ -265,10 +267,10 @@ public class VM_GreenThread extends VM_Thread {
       }
 
       if (VM.BuildForAdaptiveSystem) {
-        VM_RuntimeMeasurements.takeTimerSample(whereFrom);
+        VM_RuntimeMeasurements.takeTimerSample(whereFrom, yieldpointServiceMethodFP);
       }
 
-      if (threadSwitch && (p.yieldForCBSMethod || p.yieldForCBSCall)) {
+      if (threadSwitch && !cbsOverrun && (p.yieldForCBSMethod || p.yieldForCBSCall)) {
         // want to sample the current thread, not the next one to be scheduled
         // So, defer actual threadswitch until we take all of our samples
         p.threadSwitchWhenCBSComplete = true;
@@ -276,7 +278,7 @@ public class VM_GreenThread extends VM_Thread {
       }
 
       if (VM.BuildForAdaptiveSystem) {
-        threadSwitch |= OSR_Listener.checkForOSRPromotion(whereFrom);
+        threadSwitch |= OSR_Listener.checkForOSRPromotion(whereFrom, yieldpointServiceMethodFP);
       }
       if (threadSwitch) {
         p.yieldForCBSMethod = false;
@@ -290,7 +292,7 @@ public class VM_GreenThread extends VM_Thread {
         if (--p.countdownCBSCall <= 0) {
           if (VM.BuildForAdaptiveSystem) {
             // take CBS sample
-            VM_RuntimeMeasurements.takeCBSCallSample(whereFrom);
+            VM_RuntimeMeasurements.takeCBSCallSample(whereFrom, yieldpointServiceMethodFP);
           }
           p.countdownCBSCall = VM.CBSCallSampleStride;
           p.numCBSCallSamples--;
@@ -312,7 +314,7 @@ public class VM_GreenThread extends VM_Thread {
       if (--p.countdownCBSMethod <= 0) {
         if (VM.BuildForAdaptiveSystem) {
           // take CBS sample
-          VM_RuntimeMeasurements.takeCBSMethodSample(whereFrom);
+          VM_RuntimeMeasurements.takeCBSMethodSample(whereFrom, yieldpointServiceMethodFP);
         }
         p.countdownCBSMethod = VM.CBSMethodSampleStride;
         p.numCBSMethodSamples--;
@@ -341,7 +343,7 @@ public class VM_GreenThread extends VM_Thread {
 
     if (VM.BuildForAdaptiveSystem && p.yieldToOSRRequested) {
       p.yieldToOSRRequested = false;
-      OSR_Listener.handleOSRFromOpt();
+      OSR_Listener.handleOSRFromOpt(yieldpointServiceMethodFP);
       threadSwitch = true;
     }
 

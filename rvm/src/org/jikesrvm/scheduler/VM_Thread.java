@@ -788,13 +788,6 @@ public abstract class VM_Thread {
 
   /**
    * Yieldpoint taken in prologue.
-   *
-   * NOTE: The ThreadSwitchSampling code in the adaptive system
-   * depends on (a) knowing how many stack frames there are between here and the
-   * code in which the yieldpoint is taken and (b) this number being identical for
-   * all possible paths (ie, all compilers) from a yieldpoint in compiled code to
-   * the entry of this method. Changing this portion of the call stack is delicate and
-   * requires changes in the various AOS listeners that do call stack sampling.
    */
   @BaselineSaveLSRegisters
   //Save all non-volatile registers in prologue
@@ -804,18 +797,12 @@ public abstract class VM_Thread {
   //todo fix this -- related to SaveVolatile
   @Entrypoint
   public static void yieldpointFromPrologue() {
-    org.jikesrvm.scheduler.greenthreads.VM_GreenThread.yieldpoint(PROLOGUE);
+    Address fp = VM_Magic.getFramePointer();
+    org.jikesrvm.scheduler.greenthreads.VM_GreenThread.yieldpoint(PROLOGUE, fp);
   }
 
   /**
    * Yieldpoint taken on backedge.
-   *
-   * NOTE: The ThreadSwitchSampling code in the adaptive system
-   * depends on (a) knowing how many stack frames there are between here and the
-   * code in which the yieldpoint is taken and (b) this number being identical for
-   * all possible paths (ie, all compilers) from a yieldpoint in compiled code to
-   * the entry of this method. Changing this portion of the call stack is delicate and
-   * requires changes in the various AOS listeners that do call stack sampling.
    */
   @BaselineSaveLSRegisters
   //Save all non-volatile registers in prologue
@@ -825,18 +812,12 @@ public abstract class VM_Thread {
   // TODO fix this -- related to SaveVolatile
   @Entrypoint
   public static void yieldpointFromBackedge() {
-    org.jikesrvm.scheduler.greenthreads.VM_GreenThread.yieldpoint(BACKEDGE);
+    Address fp = VM_Magic.getFramePointer();
+    org.jikesrvm.scheduler.greenthreads.VM_GreenThread.yieldpoint(BACKEDGE, fp);
   }
 
   /**
    * Yieldpoint taken in epilogue.
-   *
-   * NOTE: The ThreadSwitchSampling code in the adaptive system
-   * depends on (a) knowing how many stack frames there are between here and the
-   * code in which the yieldpoint is taken and (b) this number being identical for
-   * all possible paths (ie, all compilers) from a yieldpoint in compiled code to
-   * the entry of this method. Changing this portion of the call stack is delicate and
-   * requires changes in the various AOS listeners that do call stack sampling.
    */
   @BaselineSaveLSRegisters
   //Save all non-volatile registers in prologue
@@ -846,7 +827,8 @@ public abstract class VM_Thread {
   // TODO fix this -- related to SaveVolatile
   @Entrypoint
   public static void yieldpointFromEpilogue() {
-    org.jikesrvm.scheduler.greenthreads.VM_GreenThread.yieldpoint(EPILOGUE);
+    Address fp = VM_Magic.getFramePointer();
+    org.jikesrvm.scheduler.greenthreads.VM_GreenThread.yieldpoint(EPILOGUE, fp);
   }
 
   /*

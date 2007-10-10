@@ -29,7 +29,13 @@ $usage = $shortusage."Building:
   buildit <Option(s)> build-host [-c target-host] <Config(s)>
 
 Testing:
-  buildit <Option(s)> -t test-set build-host [-c target-host] [<Config(s)>]
+  buildit <Option(s)> -t test build-host [-c target-host] [<Config(s)>]
+    for example:
+  buildit -t dacapo host production
+  
+  buildit <Option(s)> --test-run test-run build-host
+    for example:
+  buildit --test-run pre-commit host
 
 Configuration is specified as either:
  - a specific configuration, such as
@@ -672,7 +678,8 @@ if ($ok) {
         $build .= "&& rsync -azvLe ssh --delete $localCompCache/ $sshTarget:$targetCompCache/ ";
       }
       $build .= "&& ".
-                "ssh -t $sshTarget mkdir -p $targetRoot/dist && ";
+                "ssh -t $sshTarget 'mkdir -p $targetRoot/dist && ".
+                "mkdir -p $targetRoot/target' &&";
       if ($hostConfig eq $targetConfig) {
         #
         # Same architecture: just copy the dist directory
