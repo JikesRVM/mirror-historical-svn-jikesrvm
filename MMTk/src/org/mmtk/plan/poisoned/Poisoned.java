@@ -15,6 +15,7 @@ package org.mmtk.plan.poisoned;
 import org.mmtk.plan.marksweep.MS;
 
 import org.vmmagic.pragma.*;
+import org.vmmagic.unboxed.ObjectReference;
 import org.vmmagic.unboxed.Word;
 
 /**
@@ -32,5 +33,21 @@ public class Poisoned extends MS {
    */
   public Word bootTimeWriteBarrier(Word reference) {
     return reference.or(Word.one());
+  }
+
+  /**
+   * Poison a reference value.
+   */
+  @Inline
+  public static Word poison(ObjectReference reference) {
+    return reference.toAddress().toWord().or(Word.one());
+  }
+
+  /**
+   * Poison a reference value.
+   */
+  @Inline
+  public static ObjectReference depoison(Word value) {
+    return value.and(Word.one().not()).toAddress().toObjectReference();
   }
 }

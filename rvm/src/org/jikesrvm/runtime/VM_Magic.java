@@ -321,6 +321,14 @@ public final class VM_Magic {
   }
 
   /**
+   * Set word at arbitrary (byte) offset from object.
+   * Use setWordAtOffset(obj, ofs, new) instead of setMemoryWord(objectAsAddress(obj)+ofs, new)
+   */
+  public static void setWordAtOffset(Object object, Offset offset, Word newvalue, int locationMetadata) {
+    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+  }
+
+  /**
    * Set Object at arbitrary (byte) offset from object.
    * Use setObjectAtOffset(obj, ofs, new) instead of setMemoryWord(objectAsAddress(obj)+ofs, objectAsAddress(new))
    */

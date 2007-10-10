@@ -99,6 +99,7 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
    */
   @Interruptible
   public static void init() {
+    if (VM.VerifyAssertions) VM._assert(!Selected.Constraints.get().needsStaticReadBarrier());
     VM_CollectorThread.init();
     VM_ConcurrentCollectorThread.init();
     org.jikesrvm.mm.mmtk.Collection.init();

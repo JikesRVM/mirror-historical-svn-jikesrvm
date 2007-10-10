@@ -19,7 +19,6 @@ import org.vmmagic.pragma.*;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.ObjectReference;
 import org.vmmagic.unboxed.Offset;
-import org.vmmagic.unboxed.Word;
 
 /**
  * This class implements a poisoned collector, that is essentially a test
@@ -51,7 +50,7 @@ public abstract class PoisonedMutator extends MSMutator {
   @Inline
   @Override
   public void writeBarrier(ObjectReference src, Address slot, ObjectReference tgt, Offset metaDataA, int metaDataB, int mode) {
-    VM.barriers.performWriteInBarrier(src, slot, tgt.toAddress().toWord().or(Word.one()).toAddress().toObjectReference(), metaDataA, metaDataB, mode);
+    VM.barriers.performRawWriteInBarrier(src, slot, Poisoned.poison(tgt), metaDataA, metaDataB, mode);
   }
 
   /**
@@ -74,7 +73,7 @@ public abstract class PoisonedMutator extends MSMutator {
   @Override
   public boolean tryCompareAndSwapWriteBarrier(ObjectReference src, Address slot, ObjectReference old, ObjectReference tgt,
                                                Offset metaDataA, int metaDataB, int mode) {
-    return VM.barriers.tryCompareAndSwapWriteInBarrier(src, slot, old, tgt, metaDataA, metaDataB, mode);
+    return VM.barriers.tryRawCompareAndSwapWriteInBarrier(src, slot, Poisoned.poison(old), Poisoned.poison(tgt), metaDataA, metaDataB, mode);
   }
 
   /**
@@ -118,16 +117,6 @@ public abstract class PoisonedMutator extends MSMutator {
   @Inline
   @Override
   public ObjectReference readBarrier(ObjectReference src, Address slot, Offset metaDataA, int metaDataB, int mode) {
-    Word value = VM.barriers.performRawReadInBarrier(src, slot, metaDataA, metaDataB, mode);
-    if (!(value.isZero() || value.and(Word.one()).EQ(Word.one()))) {
-      if (!failing) {
-        failing = true;
-        VM.assertions.fail("Unpoisoned reference read from heap");
-      }
-    }
-    return value.and(Word.one().not()).toAddress().toObjectReference();
+    return Poisoned.depoison(VM.barriers.performRawReadInBarrier(src, slot, metaDataA, metaDataB, mode));
   }
-
-  /** Flag used to allow stack dumping in dire circumstances */
-  private static boolean failing;
 }

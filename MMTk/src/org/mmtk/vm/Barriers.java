@@ -49,8 +49,22 @@ import org.vmmagic.unboxed.*;
    * @param mode The context in which the write is occuring
    */
   public abstract void performWriteInBarrier(ObjectReference ref, Address slot,
-                                           ObjectReference target, Offset offset,
-                                           int locationMetadata, int mode);
+                                             ObjectReference target, Offset offset,
+                                             int locationMetadata, int mode);
+
+  /**
+   * Perform the actual write of the write barrier, writing the value as a raw Word.
+   *
+   * @param ref The object that has the reference field
+   * @param slot The slot that holds the reference
+   * @param rawTarget The value that the slot will be updated to
+   * @param offset The offset from the ref (metaDataA)
+   * @param locationMetadata An index of the FieldReference (metaDataB)
+   * @param mode The context in which the write is occuring
+   */
+  public abstract void performRawWriteInBarrier(ObjectReference ref, Address slot,
+                                                Word rawTarget, Offset offset,
+                                                int locationMetadata, int mode);
 
   /**
    * Perform the actual read of the read barrier.
@@ -90,10 +104,25 @@ import org.vmmagic.unboxed.*;
    * @param mode The context in which the write is occuring
    * @return The value that was replaced by the write.
    */
-  public abstract ObjectReference performWriteInBarrierAtomic(
-                                           ObjectReference ref, Address slot,
-                                           ObjectReference target, Offset offset,
-      int locationMetadata, int mode);
+  public abstract ObjectReference performWriteInBarrierAtomic(ObjectReference ref, Address slot,
+                                                              ObjectReference target, Offset offset,
+                                                              int locationMetadata, int mode);
+
+  /**
+   * Atomically write a reference field of an object or array and return
+   * the old value of the reference field.
+   *
+   * @param ref The object that has the reference field
+   * @param slot The slot that holds the reference
+   * @param rawTarget The raw value that the slot will be updated to
+   * @param offset The offset from the ref (metaDataA)
+   * @param locationMetadata An index of the FieldReference (metaDataB)
+   * @param mode The context in which the write is occuring
+   * @return The raw value that was replaced by the write.
+   */
+  public abstract Word performRawWriteInBarrierAtomic(ObjectReference ref, Address slot,
+                                                      Word rawTarget, Offset offset,
+                                                      int locationMetadata, int mode);
 
   /**
    * Attempt an atomic compare and exchange in a write barrier sequence.
@@ -108,8 +137,24 @@ import org.vmmagic.unboxed.*;
    * @return True if the compare and swap was successful
    */
   public abstract boolean tryCompareAndSwapWriteInBarrier(ObjectReference ref, Address slot,
-      ObjectReference old, ObjectReference target, Offset offset, int locationMetadata, int mode);
+                                                          ObjectReference old, ObjectReference target,
+                                                          Offset offset, int locationMetadata, int mode);
 
+  /**
+   * Attempt an atomic compare and exchange in a write barrier sequence.
+   *
+   * @param ref The object that has the reference field
+   * @param slot The slot that holds the reference
+   * @param rawOld The old reference to be swapped out
+   * @param rawTarget The value that the slot will be updated to
+   * @param offset The offset from the ref (metaDataA)
+   * @param locationMetadata An index of the FieldReference (metaDataB)
+   * @param mode The context in which the write is occuring
+   * @return True if the compare and swap was successful
+   */
+  public abstract boolean tryRawCompareAndSwapWriteInBarrier(ObjectReference ref, Address slot,
+                                                             Word rawOld, Word rawTarget,
+                                                             Offset offset, int locationMetadata, int mode);
 
   /**
    * Gets an element of a char array without invoking any read barrier
