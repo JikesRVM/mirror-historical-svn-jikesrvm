@@ -222,8 +222,7 @@ public abstract class Gen extends StopTheWorld {
 
     if (loSpace.allocationFailed() ||
         largeCodeSpace.allocationFailed() ||
-        smallCodeSpace.allocationFailed() ||
-        nonMovingSpace.allocationFailed()) {
+        smallCodeSpace.allocationFailed()) {
       // We need space from the nursery
       return true;
     }

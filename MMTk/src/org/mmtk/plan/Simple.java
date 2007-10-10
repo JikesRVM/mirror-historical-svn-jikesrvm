@@ -231,7 +231,6 @@ public abstract class Simple extends Plan implements Constants {
       smallCodeSpace.prepare();
       largeCodeSpace.prepare(true);
       immortalSpace.prepare();
-      nonMovingSpace.prepare();
       VM.memory.globalPrepareVMSpace();
       return;
     }
@@ -248,7 +247,6 @@ public abstract class Simple extends Plan implements Constants {
       smallCodeSpace.release();
       largeCodeSpace.release(true);
       immortalSpace.release();
-      nonMovingSpace.release();
       VM.memory.globalReleaseVMSpace();
       return;
     }

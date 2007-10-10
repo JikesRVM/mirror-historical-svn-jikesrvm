@@ -99,9 +99,6 @@ import org.vmmagic.unboxed.*;
   /** Per-mutator allocator into the large code space */
   private LargeObjectLocal lgcode = new LargeObjectLocal(Plan.largeCodeSpace);
 
-  /** Per-mutator allocator into the non moving space */
-  private  MarkSweepLocal nonmove = new MarkSweepLocal(Plan.nonMovingSpace);
-
   /** Per-mutator allocator into the primitive large object space */
   protected LargeObjectLocal plos = new LargeObjectLocal(Plan.ploSpace);
 
@@ -147,10 +144,6 @@ import org.vmmagic.unboxed.*;
       return large ? Plan.ALLOC_LARGE_CODE : allocator;
     }
 
-    if (allocator == Plan.ALLOC_NON_MOVING) {
-      return large ? Plan.ALLOC_LOS : allocator;
-    }
-
     if (allocator == Plan.ALLOC_NON_REFERENCE) {
       return large ? Plan.ALLOC_PRIMITIVE_LOS : Plan.ALLOC_DEFAULT;
     }
@@ -176,7 +169,6 @@ import org.vmmagic.unboxed.*;
     case      Plan.ALLOC_IMMORTAL: return immortal.alloc(bytes, align, offset);
     case      Plan.ALLOC_CODE: return smcode.alloc(bytes, align, offset);
     case      Plan.ALLOC_LARGE_CODE: return lgcode.alloc(bytes, align, offset);
-    case      Plan.ALLOC_NON_MOVING: return nonmove.alloc(bytes, align, offset);
     default:
       VM.assertions.fail("No such allocator");
       return Address.zero();
@@ -201,7 +193,6 @@ import org.vmmagic.unboxed.*;
     case      Plan.ALLOC_IMMORTAL: Plan.immortalSpace.initializeHeader(ref);  return;
     case          Plan.ALLOC_CODE: Plan.smallCodeSpace.initializeHeader(ref, true); return;
     case    Plan.ALLOC_LARGE_CODE: Plan.largeCodeSpace.initializeHeader(ref, true); return;
-    case    Plan.ALLOC_NON_MOVING: Plan.nonMovingSpace.initializeHeader(ref, true); return;
     default:
       VM.assertions.fail("No such allocator");
     }
@@ -265,7 +256,6 @@ import org.vmmagic.unboxed.*;
     if (a == plos)     return Plan.ploSpace;
     if (a == smcode)   return Plan.smallCodeSpace;
     if (a == lgcode)   return Plan.largeCodeSpace;
-    if (a == nonmove)  return Plan.nonMovingSpace;
 
     // a does not belong to this plan instance
     return null;
@@ -286,7 +276,6 @@ import org.vmmagic.unboxed.*;
     if (space == Plan.ploSpace)      return plos;
     if (space == Plan.smallCodeSpace) return smcode;
     if (space == Plan.largeCodeSpace) return lgcode;
-    if (space == Plan.nonMovingSpace) return nonmove;
 
     // Invalid request has been made
     if (space == Plan.metaDataSpace) {

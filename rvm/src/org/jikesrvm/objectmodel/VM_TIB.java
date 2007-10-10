@@ -20,7 +20,6 @@ import org.jikesrvm.runtime.VM_Magic;
 import org.vmmagic.Intrinsic;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
-import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.UninterruptibleNoWarn;
 import org.vmmagic.unboxed.Offset;
@@ -31,7 +30,6 @@ import org.vmmagic.unboxed.Offset;
  * #see {@link VM_TIBLayoutConstants}
  */
 @Uninterruptible
-@NonMoving
 public final class VM_TIB implements VM_TIBLayoutConstants, VM_SizeConstants {
   /**
    * Calculate the virtual method offset for the given index.

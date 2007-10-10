@@ -15,14 +15,12 @@ package org.jikesrvm.jni;
 import org.jikesrvm.VM;
 import org.jikesrvm.ArchitectureSpecific.VM_CodeArray;
 import org.vmmagic.Intrinsic;
-import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.UninterruptibleNoWarn;
 
 /**
  * This class holds a JNI function table
  */
-@NonMoving
 public final class VM_FunctionTable {
 
   /**

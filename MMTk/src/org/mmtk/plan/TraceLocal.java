@@ -113,15 +113,15 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    *
    * @param slot The location containing the object reference to be
    * traced.  The object reference is <i>NOT</i> an interior pointer.
-   * @param raw True if <code>objLoc</code> is a 'raw' root.
+   * @param untraced True if <code>objLoc</code> is an untraced root.
    */
   @Inline
-  public final void processRootEdge(Address slot, boolean raw) {
+  public final void processRootEdge(Address slot, boolean untraced) {
     ObjectReference object;
-    if (raw) object = slot.loadObjectReference();
+    if (untraced) object = slot.loadObjectReference();
     else     object = VM.activePlan.collector().loadObjectReference(slot);
     ObjectReference newObject = traceObject(object, true);
-    if (raw) slot.store(newObject);
+    if (untraced) slot.store(newObject);
     else     VM.activePlan.collector().storeObjectReference(slot, newObject);
   }
 
@@ -213,8 +213,6 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
       return Plan.smallCodeSpace.isLive(object);
     else if (space == Plan.largeCodeSpace)
       return Plan.largeCodeSpace.isLive(object);
-    else if (space == Plan.nonMovingSpace)
-      return Plan.nonMovingSpace.isLive(object);
     else if (space == null) {
       if (VM.VERIFY_ASSERTIONS) {
         Log.write("space failure: "); Log.writeln(object);
@@ -270,8 +268,6 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
       return Plan.smallCodeSpace.traceObject(this, object);
     if (Space.isInSpace(Plan.LARGE_CODE, object))
       return Plan.largeCodeSpace.traceObject(this, object);
-    if (Space.isInSpace(Plan.NON_MOVING, object))
-      return Plan.nonMovingSpace.traceObject(this, object);
     if (VM.VERIFY_ASSERTIONS)
       VM.assertions._assert(false, "No special case for space in traceObject");
     return ObjectReference.nullReference();
@@ -325,8 +321,6 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
     if (Space.isInSpace(Plan.SMALL_CODE, object))
       return true;
     if (Space.isInSpace(Plan.LARGE_CODE, object))
-      return true;
-    if (Space.isInSpace(Plan.NON_MOVING, object))
       return true;
     if (VM.VERIFY_ASSERTIONS)
       VM.assertions._assert(false, "willNotMove not defined properly in subclass");
