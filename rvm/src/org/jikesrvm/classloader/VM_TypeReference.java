@@ -386,10 +386,6 @@ public final class VM_TypeReference {
         return Extent;
       } else if (this == CodeArray) {
         return Code;
-      } else if (this == ITableArray) {
-        return ITable;
-      } else if (this == ITable) {
-        return JavaLangObject;
       } else {
         if (VM.VerifyAssertions) VM._assert(false, "Unexpected case of Magic arrays!");
         return null;

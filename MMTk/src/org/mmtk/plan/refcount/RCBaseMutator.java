@@ -55,8 +55,8 @@ import org.vmmagic.unboxed.*;
 
   public ExplicitFreeListLocal rc;
   public ExplicitLargeObjectLocal los;
-  private ExplicitFreeListLocal smcode = new ExplicitFreeListLocal(RCBase.smallCodeSpace);
-  private ExplicitLargeObjectLocal lgcode = new ExplicitLargeObjectLocal(Plan.largeCodeSpace);
+  private ExplicitFreeListLocal smcode = Plan.USE_CODE_SPACE ? new ExplicitFreeListLocal(RCBase.smallCodeSpace) : null;
+  private ExplicitLargeObjectLocal lgcode = Plan.USE_CODE_SPACE ? new ExplicitLargeObjectLocal(Plan.largeCodeSpace) : null;
 
   public ObjectReferenceDeque modBuffer;
   public DecBuffer decBuffer;

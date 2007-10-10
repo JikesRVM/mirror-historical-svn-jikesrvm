@@ -310,9 +310,8 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     VM_Scheduler.getCurrentThread().initializeJNIEnv();
 
     // Run class intializers that require JNI
-    if (verboseBoot >= 1) VM.sysWriteln("Loading javaio Library");
-    System.loadLibrary("javaio");
     if (verboseBoot >= 1) VM.sysWriteln("Running late class initializers");
+    System.loadLibrary("javaio");
     runClassInitializer("java.lang.Math");
     runClassInitializer("gnu.java.nio.VMChannel");
     runClassInitializer("gnu.java.nio.FileChannelImpl");

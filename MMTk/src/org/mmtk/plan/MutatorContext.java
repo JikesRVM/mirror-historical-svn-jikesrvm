@@ -94,10 +94,10 @@ import org.vmmagic.unboxed.*;
   protected LargeObjectLocal los = new LargeObjectLocal(Plan.loSpace);
 
   /** Per-mutator allocator into the small code space */
-  private  MarkSweepLocal smcode = new MarkSweepLocal(Plan.smallCodeSpace);
+  private MarkSweepLocal smcode = Plan.USE_CODE_SPACE ? new MarkSweepLocal(Plan.smallCodeSpace) : null;
 
   /** Per-mutator allocator into the large code space */
-  private LargeObjectLocal lgcode = new LargeObjectLocal(Plan.largeCodeSpace);
+  private LargeObjectLocal lgcode = Plan.USE_CODE_SPACE ? new LargeObjectLocal(Plan.largeCodeSpace) : null;
 
   /** Per-mutator allocator into the primitive large object space */
   protected LargeObjectLocal plos = new LargeObjectLocal(Plan.ploSpace);
@@ -140,7 +140,7 @@ import org.vmmagic.unboxed.*;
       return large ? Plan.ALLOC_LOS : allocator;
     }
 
-    if (allocator == Plan.ALLOC_CODE) {
+    if (Plan.USE_CODE_SPACE && allocator == Plan.ALLOC_CODE) {
       return large ? Plan.ALLOC_LARGE_CODE : allocator;
     }
 
@@ -254,8 +254,8 @@ import org.vmmagic.unboxed.*;
     if (a == immortal) return Plan.immortalSpace;
     if (a == los)      return Plan.loSpace;
     if (a == plos)     return Plan.ploSpace;
-    if (a == smcode)   return Plan.smallCodeSpace;
-    if (a == lgcode)   return Plan.largeCodeSpace;
+    if (Plan.USE_CODE_SPACE && a == smcode)   return Plan.smallCodeSpace;
+    if (Plan.USE_CODE_SPACE && a == lgcode)   return Plan.largeCodeSpace;
 
     // a does not belong to this plan instance
     return null;
@@ -274,8 +274,8 @@ import org.vmmagic.unboxed.*;
     if (space == Plan.immortalSpace) return immortal;
     if (space == Plan.loSpace)       return los;
     if (space == Plan.ploSpace)      return plos;
-    if (space == Plan.smallCodeSpace) return smcode;
-    if (space == Plan.largeCodeSpace) return lgcode;
+    if (Plan.USE_CODE_SPACE && space == Plan.smallCodeSpace) return smcode;
+    if (Plan.USE_CODE_SPACE && space == Plan.largeCodeSpace) return lgcode;
 
     // Invalid request has been made
     if (space == Plan.metaDataSpace) {
