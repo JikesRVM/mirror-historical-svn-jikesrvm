@@ -21,6 +21,7 @@ import org.jikesrvm.objectmodel.VM_TIB;
 import org.jikesrvm.runtime.VM_Statics;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
+import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Untraced;
 import org.vmmagic.unboxed.Offset;
@@ -57,6 +58,7 @@ import org.vmmagic.unboxed.Offset;
  * Their "resolution", "instantiation", and "initialization" phases
  * are no-ops.
  */
+@NonMoving
 public abstract class VM_Type extends VM_AnnotatedElement
     implements VM_ClassLoaderConstants, VM_SizeConstants, VM_Constants {
 
@@ -763,5 +765,12 @@ public abstract class VM_Type extends VM_AnnotatedElement
   @Inline
   public final int getMMAllocator() {
     return mmAllocator;
+  }
+
+  /**
+   * Is this field a type that must never move?
+   */
+  public boolean isNonMoving() {
+    return hasNonMovingAnnotation();
   }
 }

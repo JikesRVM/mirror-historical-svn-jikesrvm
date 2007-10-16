@@ -166,6 +166,7 @@ public final class VM_TypeReference {
   public static final VM_TypeReference NoBoundsCheck = findOrCreate(org.vmmagic.pragma.NoBoundsCheck.class);
   public static final VM_TypeReference SpecializedMethodInvoke = findOrCreate(org.vmmagic.pragma.SpecializedMethodInvoke.class);
   public static final VM_TypeReference Untraced = findOrCreate(org.vmmagic.pragma.Untraced.class);
+  public static final VM_TypeReference NonMoving = findOrCreate(org.vmmagic.pragma.NonMoving.class);
 
   public static final VM_TypeReference VM_BaseAnnotation =
       findOrCreate(org.jikesrvm.classloader.VM_Annotation.BaseAnnotation.class);

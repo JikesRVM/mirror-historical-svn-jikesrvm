@@ -249,8 +249,8 @@ public class VM_InterfaceInvocation implements VM_TIBLayoutConstants, VM_SizeCon
   private static void populateIndirectIMT(VM_Class klass, IMTDict d) {
     VM_TIB tib = klass.getTypeInformationBlock();
     VM_IMT IMT = MM_Interface.newIMT();
-    tib.setImt(IMT);
     d.populateIMT(tib, IMT);
+    tib.setImt(IMT);
   }
 
   /**

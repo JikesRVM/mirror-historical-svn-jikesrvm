@@ -589,16 +589,14 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
     if (type.isArrayType() && type.asArray().getElementType().isPrimitiveType()) {
       allocator = Plan.ALLOC_NON_REFERENCE;
     }
+    if(type.isNonMoving()) {
+      allocator = Plan.ALLOC_NON_MOVING;
+    }
     byte[] typeBA = type.getDescriptor().toByteArray();
     if (Selected.Constraints.get().withGCspy()) {
       if (isPrefix("Lorg/mmtk/vm/gcspy/", typeBA) || isPrefix("[Lorg/mmtk/vm/gcspy/", typeBA)) {
         allocator = Plan.ALLOC_GCSPY;
       }
-    }
-    if (type == VM_Type.TIBType ||
-        type == VM_Type.ProcessorTableType ||
-        type == VM_Type.IMTType) {
-      allocator = Plan.ALLOC_IMMORTAL;
     }
     if (isPrefix("Lorg/mmtk/", typeBA) ||
         isPrefix("Lorg/jikesrvm/mm/", typeBA) ||

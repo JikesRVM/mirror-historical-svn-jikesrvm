@@ -14,12 +14,14 @@ package org.jikesrvm.objectmodel;
 
 import org.jikesrvm.VM;
 import org.vmmagic.Intrinsic;
+import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.UninterruptibleNoWarn;
 
 /**
  * This class represents an instance of an array of interface tables.
  */
+@NonMoving
 public final class VM_ITableArray {
 
   /**

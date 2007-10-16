@@ -99,6 +99,9 @@ import org.vmmagic.unboxed.*;
   /** Per-mutator allocator into the large code space */
   private LargeObjectLocal lgcode = Plan.USE_CODE_SPACE ? new LargeObjectLocal(Plan.largeCodeSpace) : null;
 
+  /** Per-mutator allocator into the non moving space */
+  private MarkSweepLocal nonmove = new MarkSweepLocal(Plan.nonMovingSpace);
+
   /** Per-mutator allocator into the primitive large object space */
   protected LargeObjectLocal plos = new LargeObjectLocal(Plan.ploSpace);
 
@@ -148,6 +151,10 @@ import org.vmmagic.unboxed.*;
       return large ? Plan.ALLOC_PRIMITIVE_LOS : Plan.ALLOC_DEFAULT;
     }
 
+    if (allocator == Plan.ALLOC_NON_MOVING) {
+      return large ? Plan.ALLOC_LOS : allocator;
+    }
+
     return allocator;
   }
 
@@ -169,6 +176,7 @@ import org.vmmagic.unboxed.*;
     case      Plan.ALLOC_IMMORTAL: return immortal.alloc(bytes, align, offset);
     case      Plan.ALLOC_CODE: return smcode.alloc(bytes, align, offset);
     case      Plan.ALLOC_LARGE_CODE: return lgcode.alloc(bytes, align, offset);
+    case      Plan.ALLOC_NON_MOVING: return nonmove.alloc(bytes, align, offset);
     default:
       VM.assertions.fail("No such allocator");
       return Address.zero();
@@ -193,6 +201,7 @@ import org.vmmagic.unboxed.*;
     case      Plan.ALLOC_IMMORTAL: Plan.immortalSpace.initializeHeader(ref);  return;
     case          Plan.ALLOC_CODE: Plan.smallCodeSpace.initializeHeader(ref, true); return;
     case    Plan.ALLOC_LARGE_CODE: Plan.largeCodeSpace.initializeHeader(ref, true); return;
+    case    Plan.ALLOC_NON_MOVING: Plan.nonMovingSpace.initializeHeader(ref, true); return;
     default:
       VM.assertions.fail("No such allocator");
     }
@@ -254,6 +263,7 @@ import org.vmmagic.unboxed.*;
     if (a == immortal) return Plan.immortalSpace;
     if (a == los)      return Plan.loSpace;
     if (a == plos)     return Plan.ploSpace;
+    if (a == nonmove)  return Plan.nonMovingSpace;
     if (Plan.USE_CODE_SPACE && a == smcode)   return Plan.smallCodeSpace;
     if (Plan.USE_CODE_SPACE && a == lgcode)   return Plan.largeCodeSpace;
 
@@ -271,9 +281,10 @@ import org.vmmagic.unboxed.*;
    * if no appropriate allocator can be established.
    */
   public Allocator getAllocatorFromSpace(Space space) {
-    if (space == Plan.immortalSpace) return immortal;
-    if (space == Plan.loSpace)       return los;
-    if (space == Plan.ploSpace)      return plos;
+    if (space == Plan.immortalSpace)  return immortal;
+    if (space == Plan.loSpace)        return los;
+    if (space == Plan.ploSpace)       return plos;
+    if (space == Plan.nonMovingSpace) return nonmove;
     if (Plan.USE_CODE_SPACE && space == Plan.smallCodeSpace) return smcode;
     if (Plan.USE_CODE_SPACE && space == Plan.largeCodeSpace) return lgcode;
 
