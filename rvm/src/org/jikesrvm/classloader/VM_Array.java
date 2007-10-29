@@ -424,7 +424,7 @@ public final class VM_Array extends VM_Type implements VM_Constants, VM_ClassLoa
     // virtual method fields and substituting an appropriate type field.
     //
     VM_TIB javaLangObjectTIB = VM_Type.JavaLangObjectType.getTypeInformationBlock();
-    VM_TIB allocatedTib = MM_Interface.newTIB(javaLangObjectTIB.length());
+    VM_TIB allocatedTib = MM_Interface.newTIB(javaLangObjectTIB.numVirtualMethods(), VM_TIB.Type.COMPLETE);
     short[] superclassIds = VM_DynamicTypeCheck.buildSuperclassIds(this);
     int[] doesImplement = VM_DynamicTypeCheck.buildDoesImplement(this);
     publishResolved(allocatedTib, superclassIds, doesImplement);

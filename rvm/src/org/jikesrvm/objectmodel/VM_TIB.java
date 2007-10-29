@@ -33,6 +33,27 @@ import org.vmmagic.unboxed.Offset;
 @Uninterruptible
 @NonMoving
 public final class VM_TIB implements VM_TIBLayoutConstants, VM_SizeConstants {
+
+  /**
+   * Enumeration of the types of TIBs.
+   */
+  public enum Type {
+    TYPE_ONLY,
+    NO_DISPATCH,
+    COMPLETE;
+
+    /**
+     * The number of entries in a tib of this type.
+     */
+    public int size(int numVirtualMethods) {
+      switch (this) {
+        case TYPE_ONLY:   return 1;
+        case NO_DISPATCH: return TIB_FIRST_INTERFACE_METHOD_INDEX;
+        default:          return TIB_FIRST_VIRTUAL_METHOD_INDEX + numVirtualMethods;
+      }
+    }
+  }
+
   /**
    * Calculate the virtual method offset for the given index.
    * @param virtualMethodIndex The index to calculate the offset for
