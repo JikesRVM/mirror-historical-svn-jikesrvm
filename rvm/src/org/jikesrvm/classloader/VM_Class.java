@@ -192,7 +192,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
    */
   private VM_Class annotationClass;
 
-  // --- Memory manager supprt --- //
+  // --- Memory manager support --- //
 
   /**
    * Is this class type in the bootimage? Types in the boot image can
@@ -213,6 +213,12 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
 
   /** Cached set of inherited and declared annotations. */
   private Annotation[] annotations;
+
+  // --- Assertion support --- //
+  /**
+   * Are assertions enabled on this class?
+   */
+  private final boolean desiredAssertionStatus;
 
   // --- General purpose functions --- //
 
@@ -1057,6 +1063,14 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
     return browser.getCurrentClass();
   }
 
+  /**
+   * Should assertions be enabled on this type?
+   */
+  @Override
+  public boolean getDesiredAssertionStatus() {
+    return desiredAssertionStatus;
+  }
+
   //--------------------------------------------------------------------//
   //      Load, Resolve, Instantiate, and Initialize                    //
   //--------------------------------------------------------------------//
@@ -1116,6 +1130,8 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
       // by traversing the subclasses of our superclass!
       superClass.addSubClass(this);
     }
+
+    this.desiredAssertionStatus = VM_ClassLoader.getDesiredAssertionStatus(this);
 
     VM_Callbacks.notifyClassLoaded(this);
 
