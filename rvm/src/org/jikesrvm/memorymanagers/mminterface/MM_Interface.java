@@ -867,13 +867,12 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
    * Allocate a new type information block (TIB).
    *
    * @param numVirtualMethods the number of virtual method slots in the TIB
-   * @param type The type of tib. Is this a stub, so we dont have to support interface dispatch (implies numvirtualMethods is 0)
    * @return the new TIB
    */
   @Inline
   @Interruptible
-  public static VM_TIB newTIB(int numVirtualMethods, VM_TIB.Type type) {
-    int size = type.size(numVirtualMethods);
+  public static VM_TIB newTIB(int numVirtualMethods) {
+    int size = VM_TIB.computeSize(numVirtualMethods);
 
     if (!VM.runningVM) {
       return VM_TIB.allocate(size);

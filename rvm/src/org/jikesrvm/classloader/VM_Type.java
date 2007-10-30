@@ -217,7 +217,7 @@ public abstract class VM_Type extends VM_AnnotatedElement
     this.dimension = dimension;
 
     /* install partial type information block (no method dispatch table) for use in type checking. */
-    VM_TIB tib = MM_Interface.newTIB(0, VM_TIB.Type.TYPE_ONLY);
+    VM_TIB tib = MM_Interface.newTIB(0);
     tib.setType(this);
     VM_Statics.setSlotContents(getTibOffset(), tib);
   }
@@ -237,7 +237,7 @@ public abstract class VM_Type extends VM_AnnotatedElement
     this.dimension = dimension;
 
     /* install partial type information block (no method dispatch table) for use in type checking. */
-    VM_TIB tib = MM_Interface.newTIB(0, VM_TIB.Type.TYPE_ONLY);
+    VM_TIB tib = MM_Interface.newTIB(0);
     tib.setType(this);
     VM_Statics.setSlotContents(getTibOffset(), tib);
   }

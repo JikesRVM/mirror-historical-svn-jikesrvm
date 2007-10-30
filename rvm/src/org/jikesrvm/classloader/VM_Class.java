@@ -1747,9 +1747,9 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
     // allocate "type information block"
     VM_TIB allocatedTib;
     if (isInterface()) {
-      allocatedTib = MM_Interface.newTIB(0, VM_TIB.Type.NO_DISPATCH);
+      allocatedTib = MM_Interface.newTIB(0);
     } else {
-      allocatedTib = MM_Interface.newTIB(virtualMethods.length, VM_TIB.Type.COMPLETE);
+      allocatedTib = MM_Interface.newTIB(virtualMethods.length);
     }
 
     short[] superclassIds = VM_DynamicTypeCheck.buildSuperclassIds(this);
