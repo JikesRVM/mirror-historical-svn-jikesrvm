@@ -24,12 +24,14 @@ import org.jikesrvm.compilers.common.VM_CompiledMethod;
 import org.jikesrvm.compilers.opt.OPT_ClassLoadingDependencyManager;
 import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.objectmodel.VM_FieldLayoutContext;
+import org.jikesrvm.objectmodel.VM_IMT;
 import org.jikesrvm.objectmodel.VM_ObjectModel;
 import org.jikesrvm.objectmodel.VM_TIB;
 import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.runtime.VM_Runtime;
 import org.jikesrvm.runtime.VM_StackBrowser;
 import org.jikesrvm.runtime.VM_Statics;
+import org.jikesrvm.util.VM_LinkedList;
 import org.jikesrvm.util.VM_Synchronizer;
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
@@ -213,6 +215,12 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
 
   /** Cached set of inherited and declared annotations. */
   private Annotation[] annotations;
+
+  /** Set of objects that are cached here to ensure they are not collected by GC **/
+  private final VM_LinkedList<Object> objectCache;
+
+  /** The imt for this class **/
+  private VM_IMT imt;
 
   // --- Assertion support --- //
   /**
@@ -561,6 +569,20 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
       return null;
     }
     return mainMethod;
+  }
+
+  /**
+   * Add the given cached object.
+   */
+  public synchronized void addCachedObject(Object o) {
+    objectCache.add(o);
+  }
+
+  /**
+   * Set the imt object.
+   */
+  public void setIMT(VM_IMT imt) {
+    this.imt = imt;
   }
 
   //
@@ -1115,6 +1137,7 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
     this.sourceName = sourceName;
     this.classInitializerMethod = classInitializerMethod;
     this.signature = signature;
+    this.objectCache = new VM_LinkedList<Object>();
 
     // non-final fields
     this.subClasses = emptyVMClass;
@@ -1692,9 +1715,9 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
     // record offsets of those instance fields that contain references
     //
     if (typeRef.isRuntimeTable()) {
-      referenceOffsets = MM_Interface.newReferenceOffsetArray(0);
+      referenceOffsets = MM_Interface.newNonMovingIntArray(0);
     } else {
-      referenceOffsets = MM_Interface.newReferenceOffsetArray(referenceFieldCount);
+      referenceOffsets = MM_Interface.newNonMovingIntArray(referenceFieldCount);
       for (int i = 0, j = 0, n = instanceFields.length; i < n; ++i) {
         VM_Field field = instanceFields[i];
         if (field.getType().isReferenceType() && !field.isUntraced()) {
@@ -1752,8 +1775,8 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
       allocatedTib = MM_Interface.newTIB(virtualMethods.length);
     }
 
-    short[] superclassIds = VM_DynamicTypeCheck.buildSuperclassIds(this);
-    int[] doesImplement = VM_DynamicTypeCheck.buildDoesImplement(this);
+    superclassIds = VM_DynamicTypeCheck.buildSuperclassIds(this);
+    doesImplement = VM_DynamicTypeCheck.buildDoesImplement(this);
 
     // can't move this beyond "finalize" code block
     publishResolved(allocatedTib, superclassIds, doesImplement);

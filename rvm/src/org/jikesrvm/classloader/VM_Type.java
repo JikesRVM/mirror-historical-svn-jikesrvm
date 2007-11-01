@@ -199,6 +199,16 @@ public abstract class VM_Type extends VM_AnnotatedElement
   private VM_Array cachedElementType;
 
   /**
+   * The superclass ids for this type.
+   */
+  protected short[] superclassIds;
+
+  /**
+   * The interface implementation array for this type.
+   */
+  protected int[] doesImplement;
+
+  /**
    * Create an instance of a {@link VM_Type}
    * @param typeRef The canonical type reference for this type.
    * @param classForType The java.lang.Class representation
@@ -459,7 +469,7 @@ public abstract class VM_Type extends VM_AnnotatedElement
    */
   @Uninterruptible
   public final short[] getSuperclassIds() {
-    return getTypeInformationBlock().getSuperclassIds();
+    return superclassIds;
   }
 
   /**
@@ -467,7 +477,7 @@ public abstract class VM_Type extends VM_AnnotatedElement
    */
   @Uninterruptible
   public final int[] getDoesImplement() {
-    return getTypeInformationBlock().getDoesImplement();
+    return doesImplement;
   }
 
   /**

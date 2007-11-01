@@ -430,8 +430,8 @@ public final class VM_Array extends VM_Type implements VM_Constants, VM_ClassLoa
     //
     VM_TIB javaLangObjectTIB = VM_Type.JavaLangObjectType.getTypeInformationBlock();
     VM_TIB allocatedTib = MM_Interface.newTIB(javaLangObjectTIB.numVirtualMethods());
-    short[] superclassIds = VM_DynamicTypeCheck.buildSuperclassIds(this);
-    int[] doesImplement = VM_DynamicTypeCheck.buildDoesImplement(this);
+    superclassIds = VM_DynamicTypeCheck.buildSuperclassIds(this);
+    doesImplement = VM_DynamicTypeCheck.buildDoesImplement(this);
     publishResolved(allocatedTib, superclassIds, doesImplement);
 
     MM_Interface.notifyClassResolved(this);

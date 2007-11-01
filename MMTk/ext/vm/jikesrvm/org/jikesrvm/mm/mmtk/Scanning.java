@@ -265,10 +265,8 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
     for(int i=start; i < end; i++) {
       trace.processRootEdge(jniFunctions.plus(i << LOG_BYTES_IN_ADDRESS), true);
     }
-
-    /* scan types*/
-    ScanTypes.scanTypes(trace);
   }
+
   /**
    * Computes roots pointed to by threads, their associated registers
    * and stacks.  This method places these roots in the root values,

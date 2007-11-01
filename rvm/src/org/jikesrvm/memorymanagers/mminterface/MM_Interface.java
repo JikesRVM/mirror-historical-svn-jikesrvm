@@ -609,11 +609,6 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
         isPrefix("Lorg/jikesrvm/jni/VM_JNIEnvironment;", typeBA)) {
       allocator = Plan.ALLOC_IMMORTAL;
     }
-    if (Selected.Constraints.get().needsImmortalTypeInfo() &&
-        (isPrefix("Lorg/jikesrvm/classloader/VM_Class", typeBA) ||
-         isPrefix("Lorg/jikesrvm/classloader/VM_Array", typeBA))) {
-      allocator = Plan.ALLOC_IMMORTAL;
-    }
     return allocator;
   }
 
@@ -837,13 +832,13 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
   }
 
   /**
-   * Allocate a reference offset array
+   * Allocate a non moving int array
    *
    * @param size The size of the array
    */
   @Inline
   @Interruptible
-  public static int[] newReferenceOffsetArray(int size) {
+  public static int[] newNonMovingIntArray(int size) {
     if (!VM.runningVM) {
       return new int[size];
     }
@@ -859,7 +854,37 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
                                  width,
                                  headerSize,
                                  arrayTib,
-                                 (Selected.Constraints.get().needsImmortalTypeInfo() ? Plan.ALLOC_IMMORTAL : Plan.ALLOC_DEFAULT),
+                                 Plan.ALLOC_NON_MOVING,
+                                 align,
+                                 offset,
+                                 Plan.DEFAULT_SITE);
+
+  }
+
+  /**
+   * Allocate a non moving int array
+   *
+   * @param size The size of the array
+   */
+  @Inline
+  @Interruptible
+  public static short[] newNonMovingShortArray(int size) {
+    if (!VM.runningVM) {
+      return new short[size];
+    }
+
+    VM_Array arrayType = VM_Array.ShortArray;
+    int headerSize = VM_ObjectModel.computeArrayHeaderSize(arrayType);
+    int align = VM_ObjectModel.getAlignment(arrayType);
+    int offset = VM_ObjectModel.getOffsetForAlignment(arrayType);
+    int width = arrayType.getLogElementSize();
+    VM_TIB arrayTib = arrayType.getTypeInformationBlock();
+
+    return (short[]) allocateArray(size,
+                                 width,
+                                 headerSize,
+                                 arrayTib,
+                                 Plan.ALLOC_NON_MOVING,
                                  align,
                                  offset,
                                  Plan.DEFAULT_SITE);

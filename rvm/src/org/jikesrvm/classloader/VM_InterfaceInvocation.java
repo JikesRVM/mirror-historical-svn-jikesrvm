@@ -240,7 +240,7 @@ public class VM_InterfaceInvocation implements VM_TIBLayoutConstants, VM_SizeCon
    */
   private static void populateEmbeddedIMT(VM_Class klass, IMTDict d) {
     VM_TIB tib = klass.getTypeInformationBlock();
-    d.populateIMT(tib, null);
+    d.populateIMT(klass, tib, null);
   }
 
   /**
@@ -249,7 +249,8 @@ public class VM_InterfaceInvocation implements VM_TIBLayoutConstants, VM_SizeCon
   private static void populateIndirectIMT(VM_Class klass, IMTDict d) {
     VM_TIB tib = klass.getTypeInformationBlock();
     VM_IMT IMT = MM_Interface.newIMT();
-    d.populateIMT(tib, IMT);
+    klass.setIMT(IMT);
+    d.populateIMT(klass, tib, IMT);
     tib.setImt(IMT);
   }
 
@@ -453,7 +454,7 @@ public class VM_InterfaceInvocation implements VM_TIBLayoutConstants, VM_SizeCon
     }
 
     // populate the
-    public void populateIMT(VM_TIB tib, VM_IMT imt) {
+    public void populateIMT(VM_Class klass, VM_TIB tib, VM_IMT imt) {
       for (int slot = 0; slot < links.length; slot++) {
         int count = populationCount(slot);
         if (count == 0) {
@@ -479,7 +480,9 @@ public class VM_InterfaceInvocation implements VM_TIBLayoutConstants, VM_SizeCon
             targets[idx] = p.method;
             sigIds[idx] = p.signature.getId();
           }
-          set(tib, imt, slot, VM_InterfaceMethodConflictResolver.createStub(sigIds, targets));
+          VM_CodeArray conflictResolutionStub = VM_InterfaceMethodConflictResolver.createStub(sigIds, targets);
+          klass.addCachedObject(VM_Magic.codeArrayAsObject(conflictResolutionStub));
+          set(tib, imt, slot, conflictResolutionStub);
         }
       }
     }
