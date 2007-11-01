@@ -788,11 +788,4 @@ public abstract class VM_Type extends VM_AnnotatedElement
   public boolean isNonMoving() {
     return hasNonMovingAnnotation();
   }
-
-  /**
-   * Is this field invisible to the memory management system.
-   */
-  public boolean isUntraced() {
-    return hasUntracedAnnotation();
-  }
 }

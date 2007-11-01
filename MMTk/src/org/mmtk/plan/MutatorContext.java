@@ -12,8 +12,6 @@
  */
 package org.mmtk.plan;
 
-import org.mmtk.policy.ExplicitFreeListLocal;
-import org.mmtk.policy.ExplicitLargeObjectLocal;
 import org.mmtk.policy.MarkSweepLocal;
 import org.mmtk.policy.Space;
 import org.mmtk.policy.ImmortalLocal;
@@ -104,12 +102,6 @@ import org.vmmagic.unboxed.*;
   /** Per-mutator allocator into the non moving space */
   private MarkSweepLocal nonmove = new MarkSweepLocal(Plan.nonMovingSpace);
 
-  /** Per-mutator allocator into the untraced space */
-  private ExplicitFreeListLocal untraced = new ExplicitFreeListLocal(Plan.untracedSpace);
-
-  /** Per-mutator allocator into the untraced los space */
-  private ExplicitLargeObjectLocal untracedlos = new ExplicitLargeObjectLocal(Plan.untracedloSpace);
-
   /** Per-mutator allocator into the primitive large object space */
   protected LargeObjectLocal plos = new LargeObjectLocal(Plan.ploSpace);
 
@@ -163,10 +155,6 @@ import org.vmmagic.unboxed.*;
       return large ? Plan.ALLOC_LOS : allocator;
     }
 
-    if (allocator == Plan.ALLOC_UNTRACED) {
-      return large ? Plan.ALLOC_UNTRACED_LOS : allocator;
-    }
-
     return allocator;
   }
 
@@ -189,8 +177,6 @@ import org.vmmagic.unboxed.*;
     case      Plan.ALLOC_CODE: return smcode.alloc(bytes, align, offset);
     case      Plan.ALLOC_LARGE_CODE: return lgcode.alloc(bytes, align, offset);
     case      Plan.ALLOC_NON_MOVING: return nonmove.alloc(bytes, align, offset);
-    case      Plan.ALLOC_UNTRACED: return untraced.alloc(bytes, align, offset);
-    case      Plan.ALLOC_UNTRACED_LOS: return untracedlos.alloc(bytes, align, offset);
     default:
       VM.assertions.fail("No such allocator");
       return Address.zero();
@@ -216,8 +202,6 @@ import org.vmmagic.unboxed.*;
     case          Plan.ALLOC_CODE: Plan.smallCodeSpace.initializeHeader(ref, true); return;
     case    Plan.ALLOC_LARGE_CODE: Plan.largeCodeSpace.initializeHeader(ref, true); return;
     case    Plan.ALLOC_NON_MOVING: Plan.nonMovingSpace.initializeHeader(ref, true); return;
-    case  Plan.ALLOC_UNTRACED_LOS: return;
-    case      Plan.ALLOC_UNTRACED: return;
     default:
       VM.assertions.fail("No such allocator");
     }
@@ -276,12 +260,10 @@ import org.vmmagic.unboxed.*;
    *         <code>a</code>.
    */
   public Space getSpaceFromAllocator(Allocator a) {
-    if (a == immortal)    return Plan.immortalSpace;
-    if (a == los)         return Plan.loSpace;
-    if (a == plos)        return Plan.ploSpace;
-    if (a == nonmove)     return Plan.nonMovingSpace;
-    if (a == untraced)    return Plan.untracedSpace;
-    if (a == untracedlos) return Plan.untracedloSpace;
+    if (a == immortal) return Plan.immortalSpace;
+    if (a == los)      return Plan.loSpace;
+    if (a == plos)     return Plan.ploSpace;
+    if (a == nonmove)  return Plan.nonMovingSpace;
     if (Plan.USE_CODE_SPACE && a == smcode)   return Plan.smallCodeSpace;
     if (Plan.USE_CODE_SPACE && a == lgcode)   return Plan.largeCodeSpace;
 
@@ -299,12 +281,10 @@ import org.vmmagic.unboxed.*;
    * if no appropriate allocator can be established.
    */
   public Allocator getAllocatorFromSpace(Space space) {
-    if (space == Plan.immortalSpace)   return immortal;
-    if (space == Plan.loSpace)         return los;
-    if (space == Plan.ploSpace)        return plos;
-    if (space == Plan.nonMovingSpace)  return nonmove;
-    if (space == Plan.untracedSpace)   return untraced;
-    if (space == Plan.untracedloSpace) return untracedlos;
+    if (space == Plan.immortalSpace)  return immortal;
+    if (space == Plan.loSpace)        return los;
+    if (space == Plan.ploSpace)       return plos;
+    if (space == Plan.nonMovingSpace) return nonmove;
     if (Plan.USE_CODE_SPACE && space == Plan.smallCodeSpace) return smcode;
     if (Plan.USE_CODE_SPACE && space == Plan.largeCodeSpace) return lgcode;
 
