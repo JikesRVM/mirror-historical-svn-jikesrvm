@@ -84,7 +84,7 @@ public final class VM_Array extends VM_Type implements VM_Constants, VM_ClassLoa
   private final VM_Type innermostElementType;
 
   /**
-   * The VM_Type object for the innermost element of this array type.
+   * The dimension of the innermost element of this array type.
    */
   @Entrypoint
   @SuppressWarnings({"unused"})
