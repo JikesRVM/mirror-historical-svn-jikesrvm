@@ -114,7 +114,9 @@ public final class ScanTypes implements Constants, VM_TIBLayoutConstants {
           }
 
           for(int j=0; j < tib.numVirtualMethods(); j++) {
-            trace.processRootEdge(tibAddress.plus(VM_TIB.getVirtualMethodOffset(j)), true);
+            if (!tib.isInternalLazyCompilationTrampoline(j)) {
+              trace.processRootEdge(tibAddress.plus(VM_TIB.getVirtualMethodOffset(j)), true);
+            }
           }
         }
       }

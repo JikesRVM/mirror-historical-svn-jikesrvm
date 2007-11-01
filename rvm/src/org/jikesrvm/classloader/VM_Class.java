@@ -1890,6 +1890,9 @@ public final class VM_Class extends VM_Type implements VM_Constants, VM_ClassLoa
     }
 
     if (!isInterface()) {
+      // Create the internal lazy method invoker trampoline
+      typeInformationBlock.initializeInternalLazyCompilationTrampoline();
+
       // Initialize slots in the TIB for virtual methods
       for(int i=0; i < virtualMethods.length; i++) {
         VM_Method method = virtualMethods[i];

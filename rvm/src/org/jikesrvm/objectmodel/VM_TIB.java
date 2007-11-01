@@ -15,15 +15,20 @@ package org.jikesrvm.objectmodel;
 import org.jikesrvm.VM;
 import org.jikesrvm.VM_SizeConstants;
 import org.jikesrvm.classloader.VM_Type;
+import org.jikesrvm.ArchitectureSpecific.VM_ArchConstants;
 import org.jikesrvm.ArchitectureSpecific.VM_CodeArray;
+import org.jikesrvm.ArchitectureSpecific.VM_LazyCompilationTrampoline;
 import org.jikesrvm.runtime.VM_Magic;
 import org.vmmagic.Intrinsic;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
+import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.UninterruptibleNoWarn;
+import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
+import org.vmmagic.unboxed.Word;
 
 /**
  * This class represents an instance of a type information block.
@@ -34,10 +39,24 @@ import org.vmmagic.unboxed.Offset;
 @NonMoving
 public final class VM_TIB implements VM_TIBLayoutConstants, VM_SizeConstants {
   /**
+   * Calculate the number of words required to hold the lazy method invoker trampoline.
+   * @return
+   */
+  public static int lazyMethodInvokerTrampolineWords() {
+    int codeWords = 3;
+    if (VM.runningVM && VM.VerifyAssertions) {
+      int codeBytes = VM_LazyCompilationTrampoline.instructions.length() << VM_ArchConstants.LG_INSTRUCTION_WIDTH;
+      VM._assert(codeWords == ((codeBytes + BYTES_IN_ADDRESS - 1) >>> LOG_BYTES_IN_ADDRESS));
+    }
+    return codeWords;
+  }
+
+  /**
    * Calculate the size of a TIB
    */
+  @NoInline
   public static int computeSize(int numVirtualMethods) {
-    return TIB_FIRST_INTERFACE_METHOD_INDEX + numVirtualMethods;
+    return TIB_FIRST_INTERFACE_METHOD_INDEX + numVirtualMethods + lazyMethodInvokerTrampolineWords();
   }
 
   /**
@@ -95,6 +114,7 @@ public final class VM_TIB implements VM_TIBLayoutConstants, VM_SizeConstants {
    * @param size The size of the TIB
    * @return The created TIB instance.
    */
+  @NoInline
   @Interruptible
   public static VM_TIB allocate(int size) {
     if (VM.VerifyAssertions && VM.runningVM) VM._assert(VM.NOT_REACHED);
@@ -131,7 +151,6 @@ public final class VM_TIB implements VM_TIBLayoutConstants, VM_SizeConstants {
    */
   @Intrinsic
   public int length() {
-    if (VM.runningVM || VM.writingImage) VM._assert(false);  // should be hijacked
     return data.length;
   }
 
@@ -225,10 +244,30 @@ public final class VM_TIB implements VM_TIBLayoutConstants, VM_SizeConstants {
 
   /**
    * Get a virtual method from this TIB.
+   *
+   * When running the VM, we must translate requests to return the internal
+   * lazy compilation trampoline marker.
    */
+  @NoInline
   @Interruptible
   public VM_CodeArray getVirtualMethod(int virtualMethodIndex) {
-    return (VM_CodeArray) get(TIB_FIRST_VIRTUAL_METHOD_INDEX + virtualMethodIndex);
+    int index = TIB_FIRST_VIRTUAL_METHOD_INDEX + virtualMethodIndex;
+    if (VM.runningVM && isInternalLazyCompilationTrampoline(virtualMethodIndex)) {
+      return VM_LazyCompilationTrampoline.instructions;
+    }
+    return (VM_CodeArray) get(index);
+  }
+
+  /**
+   * Determine if a virtual method is the internal lazy compilation trampoline.
+   */
+  @NoInline
+  public boolean isInternalLazyCompilationTrampoline(int virtualMethodIndex) {
+    int index = TIB_FIRST_VIRTUAL_METHOD_INDEX + virtualMethodIndex;
+    Address tibAddress = VM_Magic.objectAsAddress(this);
+    Address callAddress = tibAddress.loadAddress(Offset.fromIntZeroExtend(index << LOG_BYTES_IN_ADDRESS));
+    Address maxAddress = tibAddress.plus(Offset.fromIntZeroExtend(length() << LOG_BYTES_IN_ADDRESS));
+    return callAddress.GE(tibAddress) && callAddress.LT(maxAddress);
   }
 
   /**
@@ -236,25 +275,64 @@ public final class VM_TIB implements VM_TIBLayoutConstants, VM_SizeConstants {
    */
   @Interruptible
   public VM_CodeArray getVirtualMethod(Offset virtualMethodOffset) {
-    return (VM_CodeArray) get(TIB_FIRST_VIRTUAL_METHOD_INDEX + getVirtualMethodIndex(virtualMethodOffset));
+    return getVirtualMethod(getVirtualMethodIndex(virtualMethodOffset));
   }
 
   /**
    * Set a virtual method in this TIB.
+   *
+   * When running the VM, we must translate requests to use the internal
+   * lazy compilation trampoline.
    */
+  @NoInline
   public void setVirtualMethod(int virtualMethodIndex, VM_CodeArray code) {
     if (VM.VerifyAssertions) VM._assert(virtualMethodIndex >= 0);
-    set(TIB_FIRST_VIRTUAL_METHOD_INDEX + virtualMethodIndex, code);
+
+    if (VM.runningVM && code == VM_LazyCompilationTrampoline.instructions) {
+      Address tibAddress = VM_Magic.objectAsAddress(this);
+      Address callAddress = tibAddress.plus(Offset.fromIntZeroExtend(lazyMethodInvokerTrampolineIndex() << LOG_BYTES_IN_ADDRESS));
+      set(TIB_FIRST_VIRTUAL_METHOD_INDEX + virtualMethodIndex, callAddress);
+    } else {
+      set(TIB_FIRST_VIRTUAL_METHOD_INDEX + virtualMethodIndex, code);
+    }
   }
 
   /**
    * Set a virtual method in this TIB by offset.
    */
   public void setVirtualMethod(Offset virtualMethodOffset, VM_CodeArray code) {
-    int virtualMethodIndex = getVirtualMethodIndex(virtualMethodOffset);
-    if (VM.VerifyAssertions) VM._assert(virtualMethodIndex >= 0);
-    set(TIB_FIRST_VIRTUAL_METHOD_INDEX + virtualMethodIndex, code);
+    setVirtualMethod(getVirtualMethodIndex(virtualMethodOffset), code);
   }
+
+  /**
+   * Calculate the address that is the call target for the lazy method invoker trampoline.
+   * @return
+   */
+  public int lazyMethodInvokerTrampolineIndex() {
+    return length() - lazyMethodInvokerTrampolineWords();
+  }
+
+  /**
+   * Initialize the lazy method invoker trampoline for this tib.
+   */
+  @NoInline
+  public void initializeInternalLazyCompilationTrampoline() {
+    VM_CodeArray source = VM_LazyCompilationTrampoline.instructions;
+    int targetSlot = lazyMethodInvokerTrampolineIndex();
+    int logIPW = LOG_BYTES_IN_ADDRESS - VM_ArchConstants.LG_INSTRUCTION_WIDTH;
+
+    for(int i = 0; i < lazyMethodInvokerTrampolineWords(); i++) {
+      Word currentWord = Word.zero();
+      int base = i << LOG_BYTES_IN_WORD;
+      for(int j=0; j < (1 << logIPW) && (base + j) < source.length(); j++) {
+        Word currentEntry = Word.fromIntZeroExtend(source.get(base + j) & 0x0FF);
+        currentEntry = currentEntry.lsh(((VM.LittleEndian ? j : (1 << logIPW) - j) << VM_ArchConstants.LG_INSTRUCTION_WIDTH) << LOG_BITS_IN_BYTE);
+        currentWord = currentWord.or(currentEntry);
+      }
+      set(targetSlot + i, currentWord);
+    }
+  }
+
 
   /**
    * Set a specialized method in this TIB.
@@ -275,7 +353,7 @@ public final class VM_TIB implements VM_TIBLayoutConstants, VM_SizeConstants {
    * The number of virtual methods in this TIB.
    */
   public int numVirtualMethods() {
-    return length() - TIB_FIRST_VIRTUAL_METHOD_INDEX;
+    return length() - TIB_FIRST_VIRTUAL_METHOD_INDEX - lazyMethodInvokerTrampolineWords();
   }
 
   /**

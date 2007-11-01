@@ -48,6 +48,7 @@ import org.jikesrvm.scheduler.VM_ProcessorTable;
 import org.jikesrvm.scheduler.VM_Thread;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.ArchitectureSpecific.VM_CodeArray;
+import org.jikesrvm.ArchitectureSpecific.VM_LazyCompilationTrampoline;
 import org.jikesrvm.jni.*;
 import org.jikesrvm.classloader.*;
 
@@ -1596,20 +1597,27 @@ public class BootImageWriter extends BootImageWriterMessages
           }
         } else {
           // array element is reference type
+          boolean isTIB = parentObject instanceof VM_TIB;
           Object[] values = (Object []) jdkObject;
           Class jdkClass = jdkObject.getClass();
           if (!allocOnly) {
             for (int i = 0; i<arrayCount; ++i) {
               if (values[i] != null) {
-                if (verbose >= 2) traceContext.push(values[i].getClass().getName(),
-                    jdkClass.getName(), i);
-                Address imageAddress = copyToBootImage(values[i], allocOnly, Address.max(), jdkObject, false);
-                if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
-                  // object not part of bootimage: install null reference
-                  if (verbose >= 2) traceContext.traceObjectNotInBootImage();
-                  bootImage.setNullAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), !untraced, !untraced, false);
+                if (verbose >= 2) traceContext.push(values[i].getClass().getName(), jdkClass.getName(), i);
+                if (isTIB && values[i] instanceof Word) {
+                  bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), (Word)values[i], false, false);
+                } else if (isTIB && values[i] == VM_LazyCompilationTrampoline.instructions) {
+                  Address codeAddress = arrayImageAddress.plus(((VM_TIB)parentObject).lazyMethodInvokerTrampolineIndex() << LOG_BYTES_IN_ADDRESS);
+                  bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), codeAddress.toWord(), false, false);
                 } else {
-                  bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), imageAddress.toWord(), !untraced, !untraced);
+                  Address imageAddress = copyToBootImage(values[i], allocOnly, Address.max(), jdkObject, false);
+                  if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
+                    // object not part of bootimage: install null reference
+                    if (verbose >= 2) traceContext.traceObjectNotInBootImage();
+                    bootImage.setNullAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), !untraced, !untraced, false);
+                  } else {
+                    bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), imageAddress.toWord(), !untraced, !untraced);
+                  }
                 }
                 if (verbose >= 2) traceContext.pop();
               } else {
@@ -1642,7 +1650,7 @@ public class BootImageWriter extends BootImageWriterMessages
           }
 
           /* Copy the backing array, and then replace its TIB */
-          mapEntry.imageAddress = copyToBootImage(backing, allocOnly, overwriteAddress, parentObject, rvmType.getTypeRef().isRuntimeTable());
+          mapEntry.imageAddress = copyToBootImage(backing, allocOnly, overwriteAddress, jdkObject, rvmType.getTypeRef().isRuntimeTable());
 
           if (!allocOnly) {
             if (verbose >= 2) traceContext.push("", jdkObject.getClass().getName(), "tib");
