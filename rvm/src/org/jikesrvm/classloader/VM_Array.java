@@ -28,7 +28,6 @@ import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
-import org.vmmagic.pragma.Untraced;
 import org.vmmagic.unboxed.Offset;
 
 /**
@@ -82,9 +81,14 @@ public final class VM_Array extends VM_Type implements VM_Constants, VM_ClassLoa
   /**
    * The VM_Type object for the innermost element of this array type.
    */
-  @Entrypoint
-  @Untraced
   private final VM_Type innermostElementType;
+
+  /**
+   * The VM_Type object for the innermost element of this array type.
+   */
+  @Entrypoint
+  @SuppressWarnings({"unused"})
+  private final int innermostElementTypeDimension;
 
   /**
    * The desired alignment for instances of this type.
@@ -386,6 +390,7 @@ public final class VM_Array extends VM_Type implements VM_Constants, VM_ClassLoa
     } else {
       innermostElementType = elementType;
     }
+    innermostElementTypeDimension = elementType.dimension;
     if (VM.BuildForIA32 && this == VM_Array.CodeArrayType) {
       this.alignment = 16;
     } else if (BYTES_IN_DOUBLE != BYTES_IN_ADDRESS) {

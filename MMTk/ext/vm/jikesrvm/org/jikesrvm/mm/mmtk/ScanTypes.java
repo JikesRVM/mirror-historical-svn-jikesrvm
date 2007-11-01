@@ -15,7 +15,6 @@ package org.jikesrvm.mm.mmtk;
 import org.mmtk.plan.TraceLocal;
 import org.mmtk.utility.Constants;
 import org.jikesrvm.VM;
-import org.jikesrvm.runtime.VM_Entrypoints;
 import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.classloader.VM_Type;
@@ -55,10 +54,6 @@ public final class ScanTypes implements Constants, VM_TIBLayoutConstants {
     for(int i = start; i < end; i++) {
       VM_Type type = VM_Type.getType(i);
       if (type != null) {
-        if (type.isArrayType()) {
-          trace.processRootEdge(VM_Magic.objectAsAddress(type).plus(VM_Entrypoints.innermostElementTypeField.getOffset()), true);
-        }
-
         if (type.isReferenceType() && type.isResolved()) {
           VM_TIB tib = type.getTypeInformationBlock();
           Address tibAddress = VM_Magic.objectAsAddress(tib);

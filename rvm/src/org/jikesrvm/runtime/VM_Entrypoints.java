@@ -299,8 +299,8 @@ public class VM_Entrypoints {
   public static final VM_Field idField = getField(org.jikesrvm.classloader.VM_Type.class, "id", int.class);
   public static final VM_Field dimensionField = getField(org.jikesrvm.classloader.VM_Type.class, "dimension", int.class);
 
-  public static final VM_Field innermostElementTypeField =
-      getField(org.jikesrvm.classloader.VM_Array.class, "innermostElementType", org.jikesrvm.classloader.VM_Type.class);
+  public static final VM_Field innermostElementTypeDimensionField =
+      getField(org.jikesrvm.classloader.VM_Array.class, "innermostElementTypeDimension", int.class);
 
   public static final VM_Field JNIEnvSavedPRField =
       getField(org.jikesrvm.jni.VM_JNIEnvironment.class, "savedPRreg", org.jikesrvm.scheduler.VM_Processor.class);
