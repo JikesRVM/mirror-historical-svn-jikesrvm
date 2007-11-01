@@ -295,8 +295,6 @@ public class VM_Entrypoints {
   public static final VM_Field latestContenderField =
       getField(org.jikesrvm.scheduler.VM_ProcessorLock.class, "latestContender", org.jikesrvm.scheduler.VM_Processor.class);
 
-  public static final VM_Field classForTypeField =
-      getField(org.jikesrvm.classloader.VM_Type.class, "classForType", java.lang.Class.class);
   public static final VM_Field depthField = getField(org.jikesrvm.classloader.VM_Type.class, "depth", int.class);
   public static final VM_Field idField = getField(org.jikesrvm.classloader.VM_Type.class, "id", int.class);
   public static final VM_Field dimensionField = getField(org.jikesrvm.classloader.VM_Type.class, "dimension", int.class);

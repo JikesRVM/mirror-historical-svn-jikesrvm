@@ -23,7 +23,6 @@ import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
-import org.vmmagic.pragma.Untraced;
 import org.vmmagic.unboxed.Offset;
 
 /**
@@ -176,8 +175,6 @@ public abstract class VM_Type extends VM_AnnotatedElement
   /**
    * instance of java.lang.Class corresponding to this type
    */
-  @Entrypoint
-  @Untraced
   private final Class<?> classForType;
 
   /**

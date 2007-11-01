@@ -77,10 +77,8 @@ import static org.jikesrvm.compilers.opt.ir.OPT_Operators.FLOAT_LOAD;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.FLOAT_STORE;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.GETFIELD_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.GETSTATIC_opcode;
-import static org.jikesrvm.compilers.opt.ir.OPT_Operators.GET_CLASS_OBJECT_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.GET_CLASS_TIB;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.GET_OBJ_TIB;
-import static org.jikesrvm.compilers.opt.ir.OPT_Operators.GET_TYPE_FROM_TIB;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.GOTO;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IG_CLASS_TEST_opcode;
 import static org.jikesrvm.compilers.opt.ir.OPT_Operators.IG_METHOD_TEST_opcode;
@@ -407,21 +405,6 @@ public abstract class OPT_ConvertToLowLevelIR extends OPT_IRTools {
                         BoundsCheck.getClearIndex(s),
                         OPT_ConditionOperand.LOWER_EQUAL(),
                         OPT_TrapCodeOperand.ArrayBounds());
-        }
-        break;
-
-        case GET_CLASS_OBJECT_opcode: {
-          OPT_Operand TIB = getTIB(s, ir, (OPT_TypeOperand) Unary.getClearVal(s));
-          OPT_RegisterOperand type = ir.regpool.makeTemp(VM_TypeReference.VM_Type);
-          s.insertBefore(Unary.create(GET_TYPE_FROM_TIB, type, TIB));
-          // Get the java.lang.Class object from the VM_Type object
-          // TODO: Valid location operand?
-          Load.mutate(s,
-                      REF_LOAD,
-                      Unary.getClearResult(s),
-                      type.copyD2U(),
-                      AC(VM_Entrypoints.classForTypeField.getOffset()),
-                      null);
         }
         break;
 

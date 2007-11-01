@@ -3317,9 +3317,9 @@ public abstract class VM_Compiler extends VM_BaselineCompiler implements VM_Base
 
   private void genMonitorExit() {
     if (method.isStatic()) {
-      asm.emitMOV_Reg_RegDisp(T0, JTOC, klass.getTibOffset());                   // T0 = tib for klass
-      asm.emitMOV_Reg_RegInd(T0, T0);                             // T0 = VM_Class for klass
-      asm.emitPUSH_RegDisp(T0, VM_Entrypoints.classForTypeField.getOffset()); // push java.lang.Class object for klass
+      Offset klassOffset = Offset.fromIntSignExtend(VM_Statics.findOrCreateObjectLiteral(klass.getClassForType()));
+      // push java.lang.Class object for klass
+      asm.emitPUSH_RegDisp(JTOC, klassOffset);
     } else {
       asm.emitPUSH_RegDisp(ESP, localOffset(0));                    // push "this" object
     }

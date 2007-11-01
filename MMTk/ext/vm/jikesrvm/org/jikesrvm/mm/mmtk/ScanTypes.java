@@ -55,8 +55,6 @@ public final class ScanTypes implements Constants, VM_TIBLayoutConstants {
     for(int i = start; i < end; i++) {
       VM_Type type = VM_Type.getType(i);
       if (type != null) {
-        trace.processRootEdge(VM_Magic.objectAsAddress(type).plus(VM_Entrypoints.classForTypeField.getOffset()), true);
-
         if (type.isArrayType()) {
           trace.processRootEdge(VM_Magic.objectAsAddress(type).plus(VM_Entrypoints.innermostElementTypeField.getOffset()), true);
         }
