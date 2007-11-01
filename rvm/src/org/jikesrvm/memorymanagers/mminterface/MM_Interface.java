@@ -592,6 +592,9 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
     if(type.isNonMoving()) {
       allocator = Plan.ALLOC_NON_MOVING;
     }
+    if(type.isUntraced()) {
+      allocator = Plan.ALLOC_UNTRACED;
+    }
     byte[] typeBA = type.getDescriptor().toByteArray();
     if (Selected.Constraints.get().withGCspy()) {
       if (isPrefix("Lorg/mmtk/vm/gcspy/", typeBA) || isPrefix("[Lorg/mmtk/vm/gcspy/", typeBA)) {

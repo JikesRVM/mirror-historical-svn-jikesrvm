@@ -12,6 +12,7 @@
  */
 package org.mmtk.plan;
 
+import org.mmtk.policy.ExplicitFreeListSpace;
 import org.mmtk.policy.MarkSweepSpace;
 import org.mmtk.policy.SegregatedFreeListSpace;
 import org.mmtk.policy.Space;
@@ -84,16 +85,18 @@ public abstract class Plan implements Constants {
   public static final int ALLOC_NON_REFERENCE = 1;
   public static final int ALLOC_NON_MOVING = 2;
   public static final int ALLOC_IMMORTAL = 3;
-  public static final int ALLOC_LOS = 4;
-  public static final int ALLOC_PRIMITIVE_LOS = 5;
-  public static final int ALLOC_GCSPY = 6;
-  public static final int ALLOC_CODE = 7;
-  public static final int ALLOC_LARGE_CODE = 8;
+  public static final int ALLOC_UNTRACED = 4;
+  public static final int ALLOC_LOS = 5;
+  public static final int ALLOC_UNTRACED_LOS = 6;
+  public static final int ALLOC_PRIMITIVE_LOS = 7;
+  public static final int ALLOC_GCSPY = 8;
+  public static final int ALLOC_CODE = 9;
+  public static final int ALLOC_LARGE_CODE = 10;
   public static final int ALLOC_HOT_CODE = USE_CODE_SPACE ? ALLOC_CODE : ALLOC_DEFAULT;
   public static final int ALLOC_COLD_CODE = USE_CODE_SPACE ? ALLOC_CODE : ALLOC_DEFAULT;
   public static final int ALLOC_STACK = ALLOC_LOS;
   public static final int ALLOC_IMMORTAL_STACK = ALLOC_IMMORTAL;
-  public static final int ALLOCATORS = 9;
+  public static final int ALLOCATORS = 11;
   public static final int DEFAULT_SITE = -1;
 
   /* Miscellaneous Constants */
@@ -132,6 +135,12 @@ public abstract class Plan implements Constants {
   /** Space used to allocate objects that cannot be moved. we do not need a large space as the LOS is non-moving. */
   public static final MarkSweepSpace nonMovingSpace = new MarkSweepSpace("non-moving", DEFAULT_POLL_FREQUENCY, VMRequest.create());
 
+  /** Space used to allocate objects that are explicitly managed. */
+  public static final ExplicitFreeListSpace untracedSpace = new ExplicitFreeListSpace("untraced", Integer.MAX_VALUE, VMRequest.create());
+
+  /** Space used to allocate large objects that are explicitly managed. */
+  public static final LargeObjectSpace untracedloSpace = new LargeObjectSpace("untracedlos", Integer.MAX_VALUE, VMRequest.create());
+
   public static final MarkSweepSpace smallCodeSpace = USE_CODE_SPACE ? new MarkSweepSpace("sm-code", DEFAULT_POLL_FREQUENCY, VMRequest.create()) : null;
   public static final LargeObjectSpace largeCodeSpace = USE_CODE_SPACE ? new LargeObjectSpace("lg-code", DEFAULT_POLL_FREQUENCY, VMRequest.create()) : null;
 
@@ -143,6 +152,8 @@ public abstract class Plan implements Constants {
   public static final int PLOS = ploSpace.getDescriptor();
   public static final int SANITY = sanitySpace.getDescriptor();
   public static final int NON_MOVING = nonMovingSpace.getDescriptor();
+  public static final int UNTRACED = untracedSpace.getDescriptor();
+  public static final int UNTRACED_LOS = untracedloSpace.getDescriptor();
   public static final int SMALL_CODE = USE_CODE_SPACE ? smallCodeSpace.getDescriptor() : 0;
   public static final int LARGE_CODE = USE_CODE_SPACE ? largeCodeSpace.getDescriptor() : 0;
 
@@ -769,7 +780,8 @@ public abstract class Plan implements Constants {
   public int getPagesUsed() {
     return loSpace.reservedPages() + ploSpace.reservedPages() +
            immortalSpace.reservedPages() + metaDataSpace.reservedPages() +
-           nonMovingSpace.reservedPages();
+           nonMovingSpace.reservedPages() + untracedSpace.reservedPages() +
+           untracedloSpace.reservedPages();
   }
 
   /**
@@ -782,7 +794,8 @@ public abstract class Plan implements Constants {
   public int getPagesRequired() {
     return loSpace.requiredPages() + ploSpace.requiredPages() +
       metaDataSpace.requiredPages() + immortalSpace.requiredPages() +
-      nonMovingSpace.requiredPages();
+      nonMovingSpace.requiredPages() + untracedSpace.requiredPages() +
+      untracedloSpace.requiredPages();
   }
 
   /**
@@ -963,6 +976,10 @@ public abstract class Plan implements Constants {
     if (USE_CODE_SPACE && Space.isInSpace(SMALL_CODE, object))
       return true;
     if (USE_CODE_SPACE && Space.isInSpace(LARGE_CODE, object))
+      return true;
+    if (Space.isInSpace(UNTRACED, object))
+      return true;
+    if (Space.isInSpace(UNTRACED_LOS, object))
       return true;
     /*
      * Default to false- this preserves correctness over efficiency.
