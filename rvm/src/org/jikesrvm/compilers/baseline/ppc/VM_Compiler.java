@@ -3490,10 +3490,8 @@ public abstract class VM_Compiler extends VM_BaselineCompiler
   //
   private void genSynchronizedMethodEpilogue() {
     if (method.isStatic()) { // put java.lang.Class for VM_Type into T0
-      Offset tibOffset = klass.getTibOffset();
-      asm.emitLAddrToc(T0, tibOffset);
-      asm.emitLAddr(T0, 0, T0);
-      asm.emitLAddrOffset(T0, T0, VM_Entrypoints.classForTypeField.getOffset());
+      Offset klassOffset = Offset.fromIntSignExtend(VM_Statics.findOrCreateObjectLiteral(klass.getClassForType()));
+      asm.emitLAddrToc(T0, klassOffset);
     } else { // first local is "this" pointer
       copyByLocation(ADDRESS_TYPE, getGeneralLocalLocation(0), ADDRESS_TYPE, T0);
     }
