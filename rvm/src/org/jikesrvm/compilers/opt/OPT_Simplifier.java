@@ -893,6 +893,8 @@ public abstract class OPT_Simplifier extends OPT_IRTools {
           op = BOOLEAN_CMP_FLOAT;
         } else if (val1.isDouble()) {
           op = BOOLEAN_CMP_DOUBLE;
+        } else if (val1.isRef()) {
+          op = BOOLEAN_CMP_ADDR;
         } else {
           op = BOOLEAN_CMP_INT;
         }
