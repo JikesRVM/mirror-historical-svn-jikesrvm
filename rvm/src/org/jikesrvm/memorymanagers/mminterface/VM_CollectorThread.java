@@ -34,6 +34,7 @@ import org.vmmagic.pragma.BaselineSaveLSRegisters;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.NoOptCompile;
+import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
@@ -67,6 +68,7 @@ import org.vmmagic.unboxed.Offset;
  *
  * @see VM_Handshake
  */
+@NonMoving
 public final class VM_CollectorThread extends VM_GreenThread {
 
   /***********************************************************************
