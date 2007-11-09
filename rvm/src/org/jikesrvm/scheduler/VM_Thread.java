@@ -41,6 +41,7 @@ import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.NoOptCompile;
+import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Untraced;
 import org.vmmagic.unboxed.Address;
@@ -56,6 +57,7 @@ import org.vmmagic.unboxed.Offset;
  * @see org.jikesrvm.adaptive.measurements.organizers.VM_Organizer
  */
 @Uninterruptible
+@NonMoving
 public abstract class VM_Thread {
   /*
    *  debug and statistics
