@@ -25,6 +25,7 @@ import org.jikesrvm.scheduler.VM_ProcessorLock;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.LogicallyUninterruptible;
+import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Offset;
 
@@ -33,6 +34,7 @@ import org.vmmagic.unboxed.Offset;
  * number of o/s kernel threads.
  */
 @Uninterruptible
+@NonMoving
 public final class VM_GreenProcessor extends VM_Processor {
   /**
    * thread previously running on this processor
