@@ -60,6 +60,7 @@ import org.vmmagic.unboxed.Extent;
 import org.vmmagic.unboxed.ObjectReference;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
+import org.vmmagic.unboxed.WordArray;
 
 /**
  * The interface that the JMTk memory manager presents to the Jikes
@@ -826,6 +827,66 @@ public final class MM_Interface implements VM_HeapLayoutConstants, Constants {
                                     offset,
                                     Plan.DEFAULT_SITE);
     }
+  }
+
+  /**
+   * Allocate a non moving word array
+   *
+   * @param size The size of the array
+   */
+  @Inline
+  @Interruptible
+  public static WordArray newNonMovingWordArray(int size) {
+    if (!VM.runningVM) {
+      return WordArray.create(size);
+    }
+
+    VM_Array arrayType = VM_Type.WordArrayType;
+    int headerSize = VM_ObjectModel.computeArrayHeaderSize(arrayType);
+    int align = VM_ObjectModel.getAlignment(arrayType);
+    int offset = VM_ObjectModel.getOffsetForAlignment(arrayType);
+    int width = arrayType.getLogElementSize();
+    VM_TIB arrayTib = arrayType.getTypeInformationBlock();
+
+    return (WordArray) allocateArray(size,
+                                 width,
+                                 headerSize,
+                                 arrayTib,
+                                 Plan.ALLOC_NON_MOVING,
+                                 align,
+                                 offset,
+                                 Plan.DEFAULT_SITE);
+
+  }
+
+  /**
+   * Allocate a non moving double array
+   *
+   * @param size The size of the array
+   */
+  @Inline
+  @Interruptible
+  public static double[] newNonMovingDoubleArray(int size) {
+    if (!VM.runningVM) {
+      return new double[size];
+    }
+
+    VM_Array arrayType = VM_Array.DoubleArray;
+    int headerSize = VM_ObjectModel.computeArrayHeaderSize(arrayType);
+    int align = VM_ObjectModel.getAlignment(arrayType);
+    int offset = VM_ObjectModel.getOffsetForAlignment(arrayType);
+    int width = arrayType.getLogElementSize();
+    VM_TIB arrayTib = arrayType.getTypeInformationBlock();
+
+    return (double[]) allocateArray(size,
+                                 width,
+                                 headerSize,
+                                 arrayTib,
+                                 Plan.ALLOC_NON_MOVING,
+                                 align,
+                                 offset,
+                                 Plan.DEFAULT_SITE);
+
   }
 
   /**

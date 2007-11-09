@@ -23,7 +23,6 @@ import org.jikesrvm.memorymanagers.mminterface.VM_GCMapIteratorGroup;
 
 import org.jikesrvm.classloader.*;
 import org.jikesrvm.VM;
-import org.jikesrvm.runtime.VM_ArchEntrypoints;
 import org.jikesrvm.runtime.VM_Entrypoints;
 import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.VM_Constants;
@@ -160,10 +159,6 @@ import org.vmmagic.pragma.*;
     /* Registers */
     trace.reportDelayedRootEdge(VM_Magic.objectAsAddress(thread).plus(VM_Entrypoints.threadContextRegistersField.getOffset()));
     trace.reportDelayedRootEdge(VM_Magic.objectAsAddress(thread).plus(VM_Entrypoints.threadHardwareExceptionRegistersField.getOffset()));
-    trace.reportDelayedRootEdge(VM_Magic.objectAsAddress(thread.getContextRegisters()).plus(VM_ArchEntrypoints.registersGPRsField.getOffset()));
-    trace.reportDelayedRootEdge(VM_Magic.objectAsAddress(thread.getContextRegisters()).plus(VM_ArchEntrypoints.registersFPRsField.getOffset()));
-    trace.reportDelayedRootEdge(VM_Magic.objectAsAddress(thread.getHardwareExceptionRegisters()).plus(VM_ArchEntrypoints.registersGPRsField.getOffset()));
-    trace.reportDelayedRootEdge(VM_Magic.objectAsAddress(thread.getHardwareExceptionRegisters()).plus(VM_ArchEntrypoints.registersFPRsField.getOffset()));
 
     /* Scan the JNI Env field */
     if (thread.getJNIEnv() != null) {

@@ -32,6 +32,8 @@ public abstract class VM_Registers implements VM_ArchConstants {
   public final WordArray gprs; // word size general purpose registers (either 32 or 64 bit)
   @Untraced
   public final double[] fprs; // 64-bit floating point registers
+  public final WordArray gprsShadow;
+  public final double[] fprsShadow;
   public Address ip; // instruction address register
 
   // The following are used by exception delivery.
@@ -45,8 +47,8 @@ public abstract class VM_Registers implements VM_ArchConstants {
   static Address invalidIP = Address.max();
 
   public VM_Registers() {
-    gprs = WordArray.create(NUM_GPRS);
-    fprs = new double[NUM_FPRS];
+    gprs = gprsShadow = MM_Interface.newNonMovingWordArray(NUM_GPRS);
+    fprs = fprsShadow = MM_Interface.newNonMovingDoubleArray(NUM_FPRS);
     ip = invalidIP;
   }
 

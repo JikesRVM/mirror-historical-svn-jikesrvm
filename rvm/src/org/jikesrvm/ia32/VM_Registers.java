@@ -14,6 +14,8 @@ package org.jikesrvm.ia32;
 
 import org.jikesrvm.runtime.VM_ArchEntrypoints;
 import org.jikesrvm.runtime.VM_Magic;
+import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
+import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Untraced;
 import org.vmmagic.unboxed.Address;
@@ -24,6 +26,7 @@ import org.vmmagic.unboxed.WordArray;
  * The machine state comprising a thread's execution context.
  */
 @Uninterruptible
+@NonMoving
 public abstract class VM_Registers implements VM_RegisterConstants {
 
   // The following are used both for thread context switching
@@ -33,6 +36,8 @@ public abstract class VM_Registers implements VM_RegisterConstants {
   public final WordArray gprs; // general purpose registers
   @Untraced
   public final double[] fprs; // floating point registers
+  public final WordArray gprsShadow;
+  public final double[] fprsShadow;
   public Address ip;     // instruction address register
   public Address fp;     // frame pointer
 
@@ -42,8 +47,8 @@ public abstract class VM_Registers implements VM_RegisterConstants {
   public boolean inuse; // do exception registers currently contain live values?
 
   public VM_Registers() {
-    gprs = WordArray.create(NUM_GPRS);
-    fprs = new double[NUM_FPRS];
+    gprs = gprsShadow = MM_Interface.newNonMovingWordArray(NUM_GPRS);
+    fprs = fprsShadow = MM_Interface.newNonMovingDoubleArray(NUM_FPRS);
   }
 
   /**
