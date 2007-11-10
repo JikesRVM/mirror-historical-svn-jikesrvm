@@ -139,20 +139,21 @@ import org.vmmagic.unboxed.*;
   public void postAlloc(ObjectReference ref, ObjectReference typeRef,
       int bytes, int allocator) {
     switch(allocator) {
-    case RCBase.ALLOC_RC:
-    case RCBase.ALLOC_CODE:
-      ExplicitFreeListSpace.unsyncSetLiveBit(ref);
-    case RCBase.ALLOC_LOS:
-    case RCBase.ALLOC_LARGE_CODE:
-    case RCBase.ALLOC_IMMORTAL:
-      if (RCBase.WITH_COALESCING_RC) modBuffer.push(ref);
-    case RCBase.ALLOC_PRIMITIVE_LOS:
-      RCHeader.initializeHeader(ref, typeRef, true);
-      decBuffer.push(ref);
-      break;
-  default:
-      VM.assertions.fail("RC not aware of allocator");
-      break;
+      case RCBase.ALLOC_NON_MOVING:
+      case RCBase.ALLOC_RC:
+      case RCBase.ALLOC_CODE:
+        ExplicitFreeListSpace.unsyncSetLiveBit(ref);
+      case RCBase.ALLOC_LOS:
+      case RCBase.ALLOC_LARGE_CODE:
+      case RCBase.ALLOC_IMMORTAL:
+        if (RCBase.WITH_COALESCING_RC) modBuffer.push(ref);
+      case RCBase.ALLOC_PRIMITIVE_LOS:
+        RCHeader.initializeHeader(ref, typeRef, true);
+        decBuffer.push(ref);
+        break;
+      default:
+        VM.assertions.fail("RC not aware of allocator");
+        break;
     }
   }
 
