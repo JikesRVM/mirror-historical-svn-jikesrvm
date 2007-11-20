@@ -50,7 +50,8 @@ import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Word;
 
 /**
- * This class simplifies expressions in SSA form.
+ * This class simplifies expressions globally, if in SSA form, or locally within
+ * a basic block if not.
  */
 class OPT_ExpressionFolding extends OPT_IRTools {
   /**
@@ -61,13 +62,17 @@ class OPT_ExpressionFolding extends OPT_IRTools {
   private static final boolean RESTRICT_TO_DEAD_EXPRESSIONS = true;
 
   /**
+   * Fold across uninterruptible regions
+   */
+  private static final boolean FOLD_OVER_UNINTERRUPTIBLE = false;
+  /**
    * Fold operations on ints
    */
   private static final boolean FOLD_INTS = true;
   /**
    * Fold operations on word like things
    */
-  private static final boolean FOLD_REFS = false;
+  private static final boolean FOLD_REFS = true;
   /**
    * Fold operations on longs
    */
@@ -151,12 +156,12 @@ class OPT_ExpressionFolding extends OPT_IRTools {
   /**
    * Fold IFCMP operations
    */
-  private static final boolean FOLD_IFCMPS = false;
+  private static final boolean FOLD_IFCMPS = true;
 
   /**
    * Fold COND_MOVE operations
    */
-  private static final boolean FOLD_CONDMOVES = false;
+  private static final boolean FOLD_CONDMOVES = true;
 
   /**
    * Fold xxx_2xxx where the precision is increased then decreased achieving a
@@ -175,13 +180,21 @@ class OPT_ExpressionFolding extends OPT_IRTools {
   public static boolean performLocal(OPT_IR ir) {
     OPT_Instruction outer = ir.cfg.entry().firstRealInstruction();
     boolean didSomething = false;
-    loop_over_outer_instructions:
+    // Outer loop: walk over every instruction of basic block looking for candidates
     while (outer != null) {
       OPT_Register outerDef = isCandidateExpression(outer, false);
       if (outerDef != null) {
         OPT_Instruction inner = outer.nextInstructionInCodeOrder();
+        // Inner loop: walk over instructions in block, after outer instruction,
+        // checking whether inner and outer could be folded together.
+        // if not check for a dependency that means there are potential hazards
+        // to stop the search
         loop_over_inner_instructions:
-        while ((inner != null) && (inner.operator() != BBEND)) {
+        while ((inner != null) && (inner.operator() != BBEND) && !inner.isGCPoint()) {
+          if (!FOLD_OVER_UNINTERRUPTIBLE &&
+              ((inner.operator() != UNINT_BEGIN) || (inner.operator() != UNINT_END))) {
+            break loop_over_inner_instructions;
+          }
           OPT_Register innerDef = isCandidateExpression(inner, false);
           // 1. check for true dependence (does inner use outer's def?)
           if (innerDef != null) {
@@ -190,8 +203,21 @@ class OPT_ExpressionFolding extends OPT_IRTools {
             while(uses.hasMoreElements()) {
               OPT_Operand use = uses.nextElement();
               if (use.isRegister() && (use.asRegister().getRegister() == outerDef)) {
+                if (CondMove.conforms(inner)) {
+                  // ensure use isn't parameter of condmove
+                  if(CondMove.getVal1(inner) != use) {
+                    continue loop_over_inner_uses;
+                  }
+                }
                 // Optimization case
-                OPT_Instruction newInner = transform(inner, outer);
+                OPT_Instruction newInner;
+                try {
+                  newInner = transform(inner, outer);
+                } catch (OPT_OptimizingCompilerException e) {
+                  OPT_OptimizingCompilerException newE = new OPT_OptimizingCompilerException("Error transforming " + outer + " ; " + inner);
+                  newE.initCause(e);
+                  throw newE;
+                }
                 if (newInner != null) {
                   OPT_DefUse.replaceInstructionAndUpdateDU(inner, CPOS(inner,newInner));
                   inner = newInner;
@@ -220,7 +246,6 @@ class OPT_ExpressionFolding extends OPT_IRTools {
           // 3. check for anti dependence (do we define something that outer uses?)
           if (innerDef != null) {
             OPT_OperandEnumeration uses = outer.getUses();
-            loop_over_outer_uses:
             while(uses.hasMoreElements()) {
               OPT_Operand use = uses.nextElement();
               if (use.isRegister() && (use.asRegister().getRegister() == innerDef)) {
@@ -233,7 +258,6 @@ class OPT_ExpressionFolding extends OPT_IRTools {
               OPT_Operand def = defs.nextElement();
               if (def.isRegister()) {
                 OPT_OperandEnumeration uses = outer.getUses();
-                loop_over_outer_uses:
                 while(uses.hasMoreElements()) {
                   OPT_Operand use = uses.nextElement();
                   if (use.similar(def)) {
@@ -859,14 +883,14 @@ class OPT_ExpressionFolding extends OPT_IRTools {
             }
           } else if (def.operator == REF_AND) {
             Address c1 = getAddressValue(Binary.getVal2(def));
-            // x = a & c1; y = << c2
+            // x = a & c1; y = x << c2
             if (c1.toWord().lsh(c2).EQ(Word.fromIntSignExtend(-1).lsh(c2))) {
               // the first mask is redundant
               return Binary.create(REF_SHL, y.copyRO(), a.copyRO(), IC(c2));
             }
           } else if ((def.operator == REF_OR)||(def.operator == REF_XOR)) {
             Address c1 = getAddressValue(Binary.getVal2(def));
-            // x = a | c1; y = << c2
+            // x = a | c1; y = x << c2
             if (c1.toWord().lsh(c2).EQ(Word.zero())) {
               // the first mask is redundant
               return Binary.create(REF_SHL, y.copyRO(), a.copyRO(), IC(c2));
@@ -951,14 +975,14 @@ class OPT_ExpressionFolding extends OPT_IRTools {
             return Binary.create(REF_SHR, y.copyRO(), a.copyRO(), IC(c1 + c2));
           } else if (def.operator == REF_AND) {
             Address c1 = getAddressValue(Binary.getVal2(def));
-            // x = a & c1; y = >> c2
+            // x = a & c1; y = x >> c2
             if (c1.toWord().rsha(c2).EQ(Word.zero().minus(Word.one()))) {
               // the first mask is redundant
               return Binary.create(REF_SHR, y.copyRO(), a.copyRO(), IC(c2));
             }
           } else if ((def.operator == REF_OR)||(def.operator == REF_XOR)) {
             Address c1 = getAddressValue(Binary.getVal2(def));
-            // x = a | c1; y = >> c2
+            // x = a | c1; y = x >> c2
             if (c1.toWord().rshl(c2).EQ(Word.zero())) {
               // the first mask is redundant
               return Binary.create(REF_SHR, y.copyRO(), a.copyRO(), IC(c2));
@@ -1039,16 +1063,16 @@ class OPT_ExpressionFolding extends OPT_IRTools {
                                    a.copyRO(),
                                    AC(Word.zero().minus(Word.one()).rshl(c1).toAddress()));
             }
-          } else if (def.operator == REF_AND) {
+          } else if (def.operator == REF_AND) { //IAN!!!
             Address c1 = getAddressValue(Binary.getVal2(def));
-            // x = a & c1; y = >>> c2
+            // x = a & c1; y = x >>> c2
             if (c1.toWord().rsha(c2).EQ(Word.zero().minus(Word.one()))) {
               // the first mask is redundant
               return Binary.create(REF_USHR, y.copyRO(), a.copyRO(), IC(c2));
             }
-          } else if ((def.operator == REF_OR)||(def.operator == REF_XOR)) {
+          } else if (false) { //(def.operator == REF_OR)||(def.operator == REF_XOR)) {
             Address c1 = getAddressValue(Binary.getVal2(def));
-            // x = a | c1; y = >>> c2
+            // x = a | c1; y = x >>> c2
             if (c1.toWord().rshl(c2).EQ(Word.zero())) {
               // the first mask is redundant
               return Binary.create(REF_USHR, y.copyRO(), a.copyRO(), IC(c2));
@@ -1337,15 +1361,7 @@ class OPT_ExpressionFolding extends OPT_IRTools {
       case LONG_CMP_opcode: {
         if (FOLD_LONGS && FOLD_CMPS) {
           long c2 = getLongValue(Binary.getVal2(s));
-          if (def.operator == LONG_ADD) {
-            long c1 = getLongValue(Binary.getVal2(def));
-            // x = a + c1; y = x cmp c2
-            return Binary.create(LONG_CMP, y.copyRO(), a.copyRO(), LC(c2 - c1));
-          } else if (def.operator == LONG_SUB) {
-            long c1 = getLongValue(Binary.getVal2(def));
-            // x = a - c1; y = x cmp c2
-            return Binary.create(LONG_CMP, y.copyRO(), a.copyRO(), LC(c1 + c2));
-          } else if (def.operator == LONG_NEG) {
+          if (def.operator == LONG_NEG) {
             // x = -a; y = x cmp c2
             return Binary.create(LONG_CMP, y.copyRO(), LC(-c2), a.copyRO());
           }
@@ -1395,103 +1411,105 @@ class OPT_ExpressionFolding extends OPT_IRTools {
           int c2 = getIntValue(BooleanCmp.getVal2(s));
           OPT_ConditionOperand cond = (OPT_ConditionOperand) BooleanCmp.getCond(s).copy();
           OPT_BranchProfileOperand prof = (OPT_BranchProfileOperand) BooleanCmp.getBranchProfile(s).copy();
-          if (def.operator == INT_ADD) {
-            int c1 = getIntValue(Binary.getVal2(def));
-            // x = a + c1; y = x cmp c2
-            return BooleanCmp.create(BOOLEAN_CMP_INT, y.copyRO(), a.copyRO(), IC(c2 - c1), cond, prof);
-          } else if (def.operator == INT_SUB) {
-            int c1 = getIntValue(Binary.getVal2(def));
-            // x = a - c1; y = x cmp c2
-            return BooleanCmp.create(BOOLEAN_CMP_INT, y.copyRO(), a.copyRO(), IC(c1 + c2), cond, prof);
-          } else if (def.operator == INT_NEG) {
-            // x = -a; y = x cmp c2
-            return BooleanCmp.create(BOOLEAN_CMP_INT, y.copyRO(), a.copyRO(), IC(-c2), cond.flipOperands(), prof);
-          } else if (def.operator == BOOLEAN_CMP_INT) {
-            int c1 = getIntValue(BooleanCmp.getVal2(def));
-            OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
-            // x = a cmp c1 ? true : false; y = x cmp c2 ? true : false
-            if ((cond.isEQUAL() && c2 == 1)||
-                (cond.isNOT_EQUAL() && c2 == 0)) {
-              // Fold away redundancy boolean_cmp
-              return BooleanCmp.create(BOOLEAN_CMP_INT, y.copyRO(), a.copyRO(), IC(c1), cond2, prof);
-            } else if ((cond.isEQUAL() && c2 == 0)||
-                (cond.isNOT_EQUAL() && c2 == 1)) {
-              // Fold away redundancy boolean_cmp
-              return BooleanCmp.create(BOOLEAN_CMP_INT, y.copyRO(), a.copyRO(), IC(c1), cond2.flipCode(), prof);
-            }
-          } else if (def.operator == BOOLEAN_CMP_LONG) {
-            long c1 = getLongValue(BooleanCmp.getVal2(def));
-            OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
-            // x = a cmp c1 ? true : false; y = x cmp c2 ? true : false
-            if ((cond.isEQUAL() && c2 == 1)||
-                (cond.isNOT_EQUAL() && c2 == 0)) {
-              // Fold away redundancy boolean_cmp
-              return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c1), cond2, prof);
-            } else if ((cond.isEQUAL() && c2 == 0)||
-                (cond.isNOT_EQUAL() && c2 == 1)) {
-              // Fold away redundancy boolean_cmp
-              return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c1), cond2.flipCode(), prof);
-            }
-          } else if (def.operator == BOOLEAN_CMP_ADDR) {
-            Address c1 = getAddressValue(BooleanCmp.getVal2(def));
-            OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
-            // x = a cmp c1 ? true : false; y = x cmp c2 ? true : false
-            if ((cond.isEQUAL() && c2 == 1)||
-                (cond.isNOT_EQUAL() && c2 == 0)) {
-              // Fold away redundancy boolean_cmp
-              return BooleanCmp.create(BOOLEAN_CMP_ADDR, y.copyRO(), a.copyRO(), AC(c1), cond2, prof);
-            } else if ((cond.isEQUAL() && c2 == 0)||
-                (cond.isNOT_EQUAL() && c2 == 1)) {
-              // Fold away redundancy boolean_cmp
-              return BooleanCmp.create(BOOLEAN_CMP_ADDR, y.copyRO(), a.copyRO(), AC(c1), cond2.flipCode(), prof);
-            }
-          } else if (def.operator == BOOLEAN_CMP_FLOAT) {
-            float c1 = getFloatValue(BooleanCmp.getVal2(def));
-            OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
-            // x = a cmp c1 ? true : false; y = x cmp c2 ? true : false
-            if ((cond.isEQUAL() && c2 == 1)||
-                (cond.isNOT_EQUAL() && c2 == 0)) {
-              // Fold away redundancy boolean_cmp
-              return BooleanCmp.create(BOOLEAN_CMP_FLOAT, y.copyRO(), a.copyRO(), FC(c1), cond2, prof);
-            } else if ((cond.isEQUAL() && c2 == 0)||
-                (cond.isNOT_EQUAL() && c2 == 1)) {
-              // Fold away redundancy boolean_cmp
-              return BooleanCmp.create(BOOLEAN_CMP_FLOAT, y.copyRO(), a.copyRO(), FC(c1), cond2.flipCode(), prof);
-            }
-          } else if (def.operator == BOOLEAN_CMP_DOUBLE) {
-            double c1 = getDoubleValue(BooleanCmp.getVal2(def));
-            OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
-            // x = a cmp c1 ? true : false; y = x cmp c2 ? true : false
-            if ((cond.isEQUAL() && c2 == 1)||
-                (cond.isNOT_EQUAL() && c2 == 0)) {
-              // Fold away redundancy boolean_cmp
-              return BooleanCmp.create(BOOLEAN_CMP_DOUBLE, y.copyRO(), a.copyRO(), DC(c1), cond2, prof);
-            } else if ((cond.isEQUAL() && c2 == 0)||
-                (cond.isNOT_EQUAL() && c2 == 1)) {
-              // Fold away redundancy boolean_cmp
-              return BooleanCmp.create(BOOLEAN_CMP_DOUBLE, y.copyRO(), a.copyRO(), DC(c1), cond2.flipCode(), prof);
-            }
-          } else if (def.operator == LONG_CMP) {
-            long c1 = getLongValue(Binary.getVal2(def));
-            // x = a lcmp c1; y = y = x cmp c2 ? true : false
-            if (cond.isEQUAL() && c2 == 0) {
-              return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c1),
-                  OPT_ConditionOperand.EQUAL(), prof);
-            } else if (cond.isNOT_EQUAL() && c2 == 0) {
+          if (cond.isEQUAL() || cond.isNOT_EQUAL()) {
+            if (def.operator == INT_ADD) {
+              int c1 = getIntValue(Binary.getVal2(def));
+              // x = a + c1; y = x cmp c2
+              return BooleanCmp.create(BOOLEAN_CMP_INT, y.copyRO(), a.copyRO(), IC(c2 - c1), cond, prof);
+            } else if (def.operator == INT_SUB) {
+              int c1 = getIntValue(Binary.getVal2(def));
+              // x = a - c1; y = x cmp c2
+              return BooleanCmp.create(BOOLEAN_CMP_INT, y.copyRO(), a.copyRO(), IC(c1 + c2), cond, prof);
+            } else if (def.operator == INT_NEG) {
+                // x = -a; y = x cmp c2
+                return BooleanCmp.create(BOOLEAN_CMP_INT, y.copyRO(), a.copyRO(), IC(-c2), cond.flipOperands(), prof);
+            } else if (def.operator == BOOLEAN_CMP_INT) {
+              int c1 = getIntValue(BooleanCmp.getVal2(def));
+              OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
+              // x = a cmp c1 ? true : false; y = x cmp c2 ? true : false
+              if ((cond.isEQUAL() && c2 == 1)||
+                  (cond.isNOT_EQUAL() && c2 == 0)) {
+                // Fold away redundancy boolean_cmp
+                return BooleanCmp.create(BOOLEAN_CMP_INT, y.copyRO(), a.copyRO(), IC(c1), cond2, prof);
+              } else if ((cond.isEQUAL() && c2 == 0)||
+                  (cond.isNOT_EQUAL() && c2 == 1)) {
+                // Fold away redundancy boolean_cmp
+                return BooleanCmp.create(BOOLEAN_CMP_INT, y.copyRO(), a.copyRO(), IC(c1), cond2.flipCode(), prof);
+              }
+            } else if (def.operator == BOOLEAN_CMP_LONG) {
+              long c1 = getLongValue(BooleanCmp.getVal2(def));
+              OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
+              // x = a cmp c1 ? true : false; y = x cmp c2 ? true : false
+              if ((cond.isEQUAL() && c2 == 1)||
+                  (cond.isNOT_EQUAL() && c2 == 0)) {
+                // Fold away redundancy boolean_cmp
+                return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c1), cond2, prof);
+              } else if ((cond.isEQUAL() && c2 == 0)||
+                  (cond.isNOT_EQUAL() && c2 == 1)) {
+                // Fold away redundancy boolean_cmp
+                return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c1), cond2.flipCode(), prof);
+              }
+            } else if (def.operator == BOOLEAN_CMP_ADDR) {
+              Address c1 = getAddressValue(BooleanCmp.getVal2(def));
+              OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
+              // x = a cmp c1 ? true : false; y = x cmp c2 ? true : false
+              if ((cond.isEQUAL() && c2 == 1)||
+                  (cond.isNOT_EQUAL() && c2 == 0)) {
+                // Fold away redundancy boolean_cmp
+                return BooleanCmp.create(BOOLEAN_CMP_ADDR, y.copyRO(), a.copyRO(), AC(c1), cond2, prof);
+              } else if ((cond.isEQUAL() && c2 == 0)||
+                  (cond.isNOT_EQUAL() && c2 == 1)) {
+                // Fold away redundancy boolean_cmp
+                return BooleanCmp.create(BOOLEAN_CMP_ADDR, y.copyRO(), a.copyRO(), AC(c1), cond2.flipCode(), prof);
+              }
+            } else if (def.operator == BOOLEAN_CMP_FLOAT) {
+              float c1 = getFloatValue(BooleanCmp.getVal2(def));
+              OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
+              // x = a cmp c1 ? true : false; y = x cmp c2 ? true : false
+              if ((cond.isEQUAL() && c2 == 1)||
+                  (cond.isNOT_EQUAL() && c2 == 0)) {
+                // Fold away redundancy boolean_cmp
+                return BooleanCmp.create(BOOLEAN_CMP_FLOAT, y.copyRO(), a.copyRO(), FC(c1), cond2, prof);
+              } else if ((cond.isEQUAL() && c2 == 0)||
+                  (cond.isNOT_EQUAL() && c2 == 1)) {
+                // Fold away redundancy boolean_cmp
+                return BooleanCmp.create(BOOLEAN_CMP_FLOAT, y.copyRO(), a.copyRO(), FC(c1), cond2.flipCode(), prof);
+              }
+            } else if (def.operator == BOOLEAN_CMP_DOUBLE) {
+              double c1 = getDoubleValue(BooleanCmp.getVal2(def));
+              OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
+              // x = a cmp c1 ? true : false; y = x cmp c2 ? true : false
+              if ((cond.isEQUAL() && c2 == 1)||
+                  (cond.isNOT_EQUAL() && c2 == 0)) {
+                // Fold away redundancy boolean_cmp
+                return BooleanCmp.create(BOOLEAN_CMP_DOUBLE, y.copyRO(), a.copyRO(), DC(c1), cond2, prof);
+              } else if ((cond.isEQUAL() && c2 == 0)||
+                  (cond.isNOT_EQUAL() && c2 == 1)) {
+                // Fold away redundancy boolean_cmp
+                return BooleanCmp.create(BOOLEAN_CMP_DOUBLE, y.copyRO(), a.copyRO(), DC(c1), cond2.flipCode(), prof);
+              }
+            } else if (def.operator == LONG_CMP) {
+              long c1 = getLongValue(Binary.getVal2(def));
+              // x = a lcmp c1; y = y = x cmp c2 ? true : false
+              if (cond.isEQUAL() && c2 == 0) {
+                return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c1),
+                    OPT_ConditionOperand.EQUAL(), prof);
+              } else if (cond.isNOT_EQUAL() && c2 == 0) {
                 return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c1),
                     OPT_ConditionOperand.NOT_EQUAL(), prof);
-            } else if ((cond.isEQUAL() && c2 == 1)||(cond.isGREATER() && c2 == 0)){
-              return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c1),
-                  OPT_ConditionOperand.GREATER(), prof);
-            } else if (cond.isGREATER_EQUAL() && c2 == 0){
-              return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c1),
-                  OPT_ConditionOperand.GREATER_EQUAL(), prof);
-            } else if ((cond.isEQUAL() && c2 == -1)||(cond.isLESS() && c2 == 0)) {
-              return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c1),
-                  OPT_ConditionOperand.LESS(), prof);
-            } else if (cond.isLESS_EQUAL() && c2 == 0) {
-              return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c1),
-                  OPT_ConditionOperand.LESS_EQUAL(), prof);
+              } else if ((cond.isEQUAL() && c2 == 1)||(cond.isGREATER() && c2 == 0)){
+                return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c1),
+                    OPT_ConditionOperand.GREATER(), prof);
+              } else if (cond.isGREATER_EQUAL() && c2 == 0){
+                return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c1),
+                    OPT_ConditionOperand.GREATER_EQUAL(), prof);
+              } else if ((cond.isEQUAL() && c2 == -1)||(cond.isLESS() && c2 == 0)) {
+                return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c1),
+                    OPT_ConditionOperand.LESS(), prof);
+              } else if (cond.isLESS_EQUAL() && c2 == 0) {
+                return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c1),
+                    OPT_ConditionOperand.LESS_EQUAL(), prof);
+              }
             }
           }
         }
@@ -1502,17 +1520,19 @@ class OPT_ExpressionFolding extends OPT_IRTools {
           long c2 = getLongValue(BooleanCmp.getVal2(s));
           OPT_ConditionOperand cond = (OPT_ConditionOperand) BooleanCmp.getCond(s).copy();
           OPT_BranchProfileOperand prof = (OPT_BranchProfileOperand) BooleanCmp.getBranchProfile(s).copy();
-          if (def.operator == LONG_ADD) {
-            long c1 = getLongValue(Binary.getVal2(def));
-            // x = a + c1; y = x cmp c2
-            return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c2 - c1), cond, prof);
-          } else if (def.operator == LONG_SUB) {
-            long c1 = getLongValue(Binary.getVal2(def));
-            // x = a - c1; y = x cmp c2
-            return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c1 + c2), cond, prof);
-          } else if (def.operator == LONG_NEG) {
-            // x = -a; y = x cmp c2
-            return BooleanCmp.create(BOOLEAN_CMP_INT, y.copyRO(), a.copyRO(), LC(-c2), cond.flipOperands(), prof);
+          if (cond.isEQUAL() || cond.isNOT_EQUAL()) {
+            if (def.operator == LONG_ADD) {
+              long c1 = getLongValue(Binary.getVal2(def));
+              // x = a + c1; y = x cmp c2
+              return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c2 - c1), cond, prof);
+            } else if (def.operator == LONG_SUB) {
+              long c1 = getLongValue(Binary.getVal2(def));
+              // x = a - c1; y = x cmp c2
+              return BooleanCmp.create(BOOLEAN_CMP_LONG, y.copyRO(), a.copyRO(), LC(c1 + c2), cond, prof);
+            } else if (def.operator == LONG_NEG) {
+              // x = -a; y = x cmp c2
+              return BooleanCmp.create(BOOLEAN_CMP_INT, y.copyRO(), a.copyRO(), LC(-c2), cond.flipOperands(), prof);
+            }
           }
         }
         return null;
@@ -1522,32 +1542,34 @@ class OPT_ExpressionFolding extends OPT_IRTools {
           Address c2 = getAddressValue(BooleanCmp.getVal2(s));
           OPT_ConditionOperand cond = (OPT_ConditionOperand) BooleanCmp.getCond(s).copy();
           OPT_BranchProfileOperand prof = (OPT_BranchProfileOperand) BooleanCmp.getBranchProfile(s).copy();
-          if (def.operator == REF_ADD) {
-            Address c1 = getAddressValue(Binary.getVal2(def));
-            // x = a + c1; y = x cmp c2
-            return BooleanCmp.create(BOOLEAN_CMP_ADDR,
-                                     y.copyRO(),
-                                     a.copyRO(),
-                                     AC(c2.toWord().minus(c1.toWord()).toAddress()),
-                                     cond,
-                                     prof);
-          } else if (def.operator == REF_SUB) {
-            Address c1 = getAddressValue(Binary.getVal2(def));
-            // x = a - c1; y = x cmp c2
-            return BooleanCmp.create(BOOLEAN_CMP_ADDR,
-                                     y.copyRO(),
-                                     a.copyRO(),
-                                     AC(c1.toWord().plus(c2.toWord()).toAddress()),
-                                     cond,
-                                     prof);
-          } else if (def.operator == REF_NEG) {
-            // x = -a; y = x cmp c2
-            return BooleanCmp.create(BOOLEAN_CMP_ADDR,
-                                     y.copyRO(),
-                                     a.copyRO(),
-                                     AC(Word.zero().minus(c2.toWord()).toAddress()),
-                                     cond.flipOperands(),
-                                     prof);
+          if (cond.isEQUAL() || cond.isNOT_EQUAL()) {
+            if (def.operator == REF_ADD) {
+              Address c1 = getAddressValue(Binary.getVal2(def));
+              // x = a + c1; y = x cmp c2
+              return BooleanCmp.create(BOOLEAN_CMP_ADDR,
+                  y.copyRO(),
+                  a.copyRO(),
+                  AC(c2.toWord().minus(c1.toWord()).toAddress()),
+                  cond,
+                  prof);
+            } else if (def.operator == REF_SUB) {
+              Address c1 = getAddressValue(Binary.getVal2(def));
+              // x = a - c1; y = x cmp c2
+              return BooleanCmp.create(BOOLEAN_CMP_ADDR,
+                  y.copyRO(),
+                  a.copyRO(),
+                  AC(c1.toWord().plus(c2.toWord()).toAddress()),
+                  cond,
+                  prof);
+            } else if (def.operator == REF_NEG) {
+              // x = -a; y = x cmp c2
+              return BooleanCmp.create(BOOLEAN_CMP_ADDR,
+                                       y.copyRO(),
+                                       a.copyRO(),
+                                       AC(Word.zero().minus(c2.toWord()).toAddress()),
+                                       cond.flipOperands(),
+                                       prof);
+            }
           }
         }
         return null;
@@ -1558,103 +1580,107 @@ class OPT_ExpressionFolding extends OPT_IRTools {
           OPT_ConditionOperand cond = (OPT_ConditionOperand) IfCmp.getCond(s).copy();
           OPT_BranchOperand target = (OPT_BranchOperand) IfCmp.getTarget(s).copy();
           OPT_BranchProfileOperand prof = (OPT_BranchProfileOperand) IfCmp.getBranchProfile(s).copy();
-          if (def.operator == INT_ADD) {
-            int c1 = getIntValue(Binary.getVal2(def));
-            // x = a + c1; y = x cmp c2
-            return IfCmp.create(INT_IFCMP, y.copyRO(), a.copyRO(), IC(c2 - c1), cond, target, prof);
-          } else if (def.operator == INT_SUB) {
-            int c1 = getIntValue(Binary.getVal2(def));
-            // x = a - c1; y = x cmp c2
-            return IfCmp.create(INT_IFCMP, y.copyRO(), a.copyRO(), IC(c1 + c2), cond, target, prof);
-          } else if (def.operator == INT_NEG) {
-            // x = -a; y = x cmp c2
-            return IfCmp.create(INT_IFCMP, y.copyRO(), a.copyRO(), IC(-c2), cond.flipOperands(), target, prof);
-          } else if (def.operator == BOOLEAN_CMP_INT) {
-            int c1 = getIntValue(BooleanCmp.getVal2(def));
-            OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
-            // x = a cmp c1 ? true : false; y = x cmp c2
-            if ((cond.isEQUAL() && c2 == 1)||
+          if (cond.isEQUAL() || cond.isNOT_EQUAL()) {
+            if (def.operator == INT_ADD) {
+              int c1 = getIntValue(Binary.getVal2(def));
+              // x = a + c1; y = x cmp c2
+              return IfCmp.create(INT_IFCMP, y.copyRO(), a.copyRO(), IC(c2 - c1), cond, target, prof);
+            } else if (def.operator == INT_SUB) {
+              int c1 = getIntValue(Binary.getVal2(def));
+              // x = a - c1; y = x cmp c2
+              return IfCmp.create(INT_IFCMP, y.copyRO(), a.copyRO(), IC(c1 + c2), cond, target, prof);
+            } else if (def.operator == INT_NEG) {
+                // x = -a; y = x cmp c2
+                return IfCmp.create(INT_IFCMP, y.copyRO(), a.copyRO(), IC(-c2), cond.flipOperands(), target, prof);
+            } else if (def.operator == BOOLEAN_CMP_INT) {
+              int c1 = getIntValue(BooleanCmp.getVal2(def));
+              OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
+              // x = a cmp<cond2> c1 ? true : false; y = x cmp<cond> c2
+              if ((cond.isEQUAL() && c2 == 1)||
+                  (cond.isNOT_EQUAL() && c2 == 0)) {
+                // Fold away redundant boolean_cmp
+                // x = a cmp<cond2> c1; y = x == 1  ==> y = a cmp<cond2> c1
+                return IfCmp.create(INT_IFCMP, y.copyRO(), a.copyRO(), IC(c1), cond2, target, prof);
+              } else if ((cond.isEQUAL() && c2 == 0)||
+                  (cond.isNOT_EQUAL() && c2 == 1)) {
+                // Fold away redundant boolean_cmp
+                // x = a cmp<cond2> c1; y = x == 0  ==> y = a cmp<!cond2> c1
+                return IfCmp.create(INT_IFCMP, y.copyRO(), a.copyRO(), IC(c1), cond2.flipCode(), target, prof);
+              }
+            } else if (def.operator == BOOLEAN_CMP_LONG) {
+              long c1 = getLongValue(BooleanCmp.getVal2(def));
+              OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
+              // x = a cmp c1 ? true : false; y = x cmp c2
+              if ((cond.isEQUAL() && c2 == 1)||
+                  (cond.isNOT_EQUAL() && c2 == 0)) {
+                // Fold away redundant boolean_cmp
+                return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c1), cond2, target, prof);
+              } else if ((cond.isEQUAL() && c2 == 0)||
+                  (cond.isNOT_EQUAL() && c2 == 1)) {
+                // Fold away redundant boolean_cmp
+                return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c1), cond2.flipCode(), target, prof);
+              }
+            } else if (def.operator == BOOLEAN_CMP_ADDR) {
+              Address c1 = getAddressValue(BooleanCmp.getVal2(def));
+              OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
+              // x = a cmp c1 ? true : false; y = x cmp c2
+              if ((cond.isEQUAL() && c2 == 1)||
                 (cond.isNOT_EQUAL() && c2 == 0)) {
-              // Fold away redundancy boolean_cmp
-              return IfCmp.create(INT_IFCMP, y.copyRO(), a.copyRO(), IC(c1), cond2, target, prof);
-            } else if ((cond.isEQUAL() && c2 == 0)||
+                // Fold away redundant boolean_cmp
+                return IfCmp.create(REF_IFCMP, y.copyRO(), a.copyRO(), AC(c1), cond2, target, prof);
+              } else if ((cond.isEQUAL() && c2 == 0)||
                 (cond.isNOT_EQUAL() && c2 == 1)) {
-              // Fold away redundancy boolean_cmp
-              return IfCmp.create(INT_IFCMP, y.copyRO(), a.copyRO(), IC(c1), cond2.flipCode(), target, prof);
-            }
-          } else if (def.operator == BOOLEAN_CMP_LONG) {
-            long c1 = getLongValue(BooleanCmp.getVal2(def));
-            OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
-            // x = a cmp c1 ? true : false; y = x cmp c2
-            if ((cond.isEQUAL() && c2 == 1)||
-                (cond.isNOT_EQUAL() && c2 == 0)) {
-              // Fold away redundancy boolean_cmp
-              return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c1), cond2, target, prof);
-            } else if ((cond.isEQUAL() && c2 == 0)||
-                (cond.isNOT_EQUAL() && c2 == 1)) {
-              // Fold away redundancy boolean_cmp
-              return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c1), cond2.flipCode(), target, prof);
-            }
-          } else if (def.operator == BOOLEAN_CMP_ADDR) {
-            Address c1 = getAddressValue(BooleanCmp.getVal2(def));
-            OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
-            // x = a cmp c1 ? true : false; y = x cmp c2
-            if ((cond.isEQUAL() && c2 == 1)||
-                (cond.isNOT_EQUAL() && c2 == 0)) {
-              // Fold away redundancy boolean_cmp
-              return IfCmp.create(REF_IFCMP, y.copyRO(), a.copyRO(), AC(c1), cond2, target, prof);
-            } else if ((cond.isEQUAL() && c2 == 0)||
-                (cond.isNOT_EQUAL() && c2 == 1)) {
-              // Fold away redundancy boolean_cmp
-              return IfCmp.create(REF_IFCMP, y.copyRO(), a.copyRO(), AC(c1), cond2.flipCode(), target, prof);
-            }
-          } else if (def.operator == BOOLEAN_CMP_FLOAT) {
-            float c1 = getFloatValue(BooleanCmp.getVal2(def));
-            OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
-            // x = a cmp c1 ? true : false; y = x cmp c2
-            if ((cond.isEQUAL() && c2 == 1)||
-                (cond.isNOT_EQUAL() && c2 == 0)) {
-              // Fold away redundancy boolean_cmp
-              return IfCmp.create(REF_IFCMP, y.copyRO(), a.copyRO(), FC(c1), cond2, target, prof);
-            } else if ((cond.isEQUAL() && c2 == 0)||
-                (cond.isNOT_EQUAL() && c2 == 1)) {
-              // Fold away redundancy boolean_cmp
-              return IfCmp.create(REF_IFCMP, y.copyRO(), a.copyRO(), FC(c1), cond2.flipCode(), target, prof);
-            }
-          } else if (def.operator == BOOLEAN_CMP_DOUBLE) {
-            double c1 = getDoubleValue(BooleanCmp.getVal2(def));
-            OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
-            // x = a cmp c1 ? true : false; y = x cmp c2
-            if ((cond.isEQUAL() && c2 == 1)||
-                (cond.isNOT_EQUAL() && c2 == 0)) {
-              // Fold away redundancy boolean_cmp
-              return IfCmp.create(REF_IFCMP, y.copyRO(), a.copyRO(), DC(c1), cond2, target, prof);
-            } else if ((cond.isEQUAL() && c2 == 0)||
-                (cond.isNOT_EQUAL() && c2 == 1)) {
-              // Fold away redundancy boolean_cmp
-              return IfCmp.create(REF_IFCMP, y.copyRO(), a.copyRO(), DC(c1), cond2.flipCode(), target, prof);
-            }
-          } else if (def.operator == LONG_CMP) {
-            long c1 = getLongValue(Binary.getVal2(def));
-            // x = a lcmp c1; y = y = x cmp c2
-            if (cond.isEQUAL() && c2 == 0) {
-              return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c1),
-                  OPT_ConditionOperand.EQUAL(), target, prof);
-            } else if (cond.isNOT_EQUAL() && c2 == 0) {
-              return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c1),
-                  OPT_ConditionOperand.NOT_EQUAL(), target, prof);
-            } else if ((cond.isEQUAL() && c2 == 1)||(cond.isGREATER() && c2 == 0)){
-              return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c1),
-                  OPT_ConditionOperand.GREATER(), target, prof);
-            } else if (cond.isGREATER_EQUAL() && c2 == 0){
-              return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c1),
-                  OPT_ConditionOperand.GREATER_EQUAL(), target, prof);
-            } else if ((cond.isEQUAL() && c2 == -1)||(cond.isLESS() && c2 == 0)) {
-              return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c1),
-                  OPT_ConditionOperand.LESS(), target, prof);
-            } else if (cond.isLESS_EQUAL() && c2 == 0) {
-              return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c1),
-                  OPT_ConditionOperand.LESS_EQUAL(), target, prof);
+                // Fold away redundant boolean_cmp
+                return IfCmp.create(REF_IFCMP, y.copyRO(), a.copyRO(), AC(c1), cond2.flipCode(), target, prof);
+              }
+            } else if (def.operator == BOOLEAN_CMP_FLOAT) {
+              float c1 = getFloatValue(BooleanCmp.getVal2(def));
+              OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
+              // x = a cmp c1 ? true : false; y = x cmp c2
+              if ((cond.isEQUAL() && c2 == 1)||
+                  (cond.isNOT_EQUAL() && c2 == 0)) {
+                // Fold away redundant boolean_cmp
+                return IfCmp.create(FLOAT_IFCMP, y.copyRO(), a.copyRO(), FC(c1), cond2, target, prof);
+              } else if ((cond.isEQUAL() && c2 == 0)||
+                  (cond.isNOT_EQUAL() && c2 == 1)) {
+                // Fold away redundant boolean_cmp
+                return IfCmp.create(FLOAT_IFCMP, y.copyRO(), a.copyRO(), FC(c1), cond2.flipCode(), target, prof);
+              }
+            } else if (def.operator == BOOLEAN_CMP_DOUBLE) {
+              double c1 = getDoubleValue(BooleanCmp.getVal2(def));
+              OPT_ConditionOperand cond2 = BooleanCmp.getCond(def).copy().asCondition();
+              // x = a cmp c1 ? true : false; y = x cmp c2
+              if ((cond.isEQUAL() && c2 == 1)||
+                  (cond.isNOT_EQUAL() && c2 == 0)) {
+                // Fold away redundant boolean_cmp
+                return IfCmp.create(DOUBLE_IFCMP, y.copyRO(), a.copyRO(), DC(c1), cond2, target, prof);
+              } else if ((cond.isEQUAL() && c2 == 0)||
+                  (cond.isNOT_EQUAL() && c2 == 1)) {
+                // Fold away redundant boolean_cmp
+                return IfCmp.create(DOUBLE_IFCMP, y.copyRO(), a.copyRO(), DC(c1), cond2.flipCode(), target, prof);
+              }
+            } else if (def.operator == LONG_CMP) {
+              long c1 = getLongValue(Binary.getVal2(def));
+              // x = a lcmp c1; y = y = x cmp c2
+              if (cond.isEQUAL() && c2 == 0) {
+                return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c1),
+                    OPT_ConditionOperand.EQUAL(), target, prof);
+              } else if (cond.isNOT_EQUAL() && c2 == 0) {
+                return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c1),
+                    OPT_ConditionOperand.NOT_EQUAL(), target, prof);
+              } else if ((cond.isEQUAL() && c2 == 1)||(cond.isGREATER() && c2 == 0)){
+                return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c1),
+                    OPT_ConditionOperand.GREATER(), target, prof);
+              } else if (cond.isGREATER_EQUAL() && c2 == 0){
+                return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c1),
+                    OPT_ConditionOperand.GREATER_EQUAL(), target, prof);
+              } else if ((cond.isEQUAL() && c2 == -1)||(cond.isLESS() && c2 == 0)) {
+                return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c1),
+                    OPT_ConditionOperand.LESS(), target, prof);
+              } else if (cond.isLESS_EQUAL() && c2 == 0) {
+                return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c1),
+                    OPT_ConditionOperand.LESS_EQUAL(), target, prof);
+              }
             }
           }
         }
@@ -1666,17 +1692,19 @@ class OPT_ExpressionFolding extends OPT_IRTools {
           OPT_ConditionOperand cond = (OPT_ConditionOperand) IfCmp.getCond(s).copy();
           OPT_BranchOperand target = (OPT_BranchOperand) IfCmp.getTarget(s).copy();
           OPT_BranchProfileOperand prof = (OPT_BranchProfileOperand) IfCmp.getBranchProfile(s).copy();
-          if (def.operator == LONG_ADD) {
-            long c1 = getLongValue(Binary.getVal2(def));
-            // x = a + c1; y = x cmp c2
-            return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c2 - c1), cond, target, prof);
-          } else if (def.operator == LONG_SUB) {
-            long c1 = getLongValue(Binary.getVal2(def));
-            // x = a - c1; y = x cmp c2
-            return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c1 + c2), cond, target, prof);
-          } else if (def.operator == LONG_NEG) {
-            // x = -a; y = x cmp c2
-            return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(-c2), cond.flipOperands(), target, prof);
+          if (cond.isEQUAL() || cond.isNOT_EQUAL()) {
+            if (def.operator == LONG_ADD) {
+              long c1 = getLongValue(Binary.getVal2(def));
+              // x = a + c1; y = x cmp c2
+              return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c2 - c1), cond, target, prof);
+            } else if (def.operator == LONG_SUB) {
+              long c1 = getLongValue(Binary.getVal2(def));
+              // x = a - c1; y = x cmp c2
+              return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(c1 + c2), cond, target, prof);
+            } else if (def.operator == LONG_NEG) {
+              // x = -a; y = x cmp c2
+              return IfCmp.create(LONG_IFCMP, y.copyRO(), a.copyRO(), LC(-c2), cond.flipOperands(), target, prof);
+            }
           }
         }
         return null;
@@ -1729,35 +1757,37 @@ class OPT_ExpressionFolding extends OPT_IRTools {
           OPT_ConditionOperand cond = (OPT_ConditionOperand) IfCmp.getCond(s).copy();
           OPT_BranchOperand target = (OPT_BranchOperand) IfCmp.getTarget(s).copy();
           OPT_BranchProfileOperand prof = (OPT_BranchProfileOperand) IfCmp.getBranchProfile(s).copy();
-          if (def.operator == REF_ADD) {
-            Address c1 = getAddressValue(Binary.getVal2(def));
-            // x = a + c1; y = x cmp c2
-            return IfCmp.create(REF_IFCMP,
-                                y.copyRO(),
-                                a.copyRO(),
-                                AC(c2.toWord().minus(c1.toWord()).toAddress()),
-                                cond,
-                                target,
-                                prof);
-          } else if (def.operator == REF_SUB) {
-            Address c1 = getAddressValue(Binary.getVal2(def));
-            // x = a - c1; y = x cmp c2
-            return IfCmp.create(REF_IFCMP,
-                                y.copyRO(),
-                                a.copyRO(),
-                                AC(c1.toWord().plus(c2.toWord()).toAddress()),
-                                cond,
-                                target,
-                                prof);
-          } else if (def.operator == REF_NEG) {
-            // x = -a; y = x cmp c2
-            return IfCmp.create(REF_IFCMP,
-                                y.copyRO(),
-                                a.copyRO(),
-                                AC(Word.zero().minus(c2.toWord()).toAddress()),
-                                cond.flipOperands(),
-                                target,
-                                prof);
+          if (cond.isEQUAL() || cond.isNOT_EQUAL()) {
+            if (def.operator == REF_ADD) {
+              Address c1 = getAddressValue(Binary.getVal2(def));
+              // x = a + c1; y = x cmp c2
+              return IfCmp.create(REF_IFCMP,
+                                  y.copyRO(),
+                                  a.copyRO(),
+                                  AC(c2.toWord().minus(c1.toWord()).toAddress()),
+                                  cond,
+                                  target,
+                                  prof);
+            } else if (def.operator == REF_SUB) {
+              Address c1 = getAddressValue(Binary.getVal2(def));
+              // x = a - c1; y = x cmp c2
+              return IfCmp.create(REF_IFCMP,
+                                  y.copyRO(),
+                                  a.copyRO(),
+                                  AC(c1.toWord().plus(c2.toWord()).toAddress()),
+                                  cond,
+                                  target,
+                                  prof);
+            } else if (def.operator == REF_NEG) {
+              // x = -a; y = x cmp c2
+              return IfCmp.create(REF_IFCMP,
+                                  y.copyRO(),
+                                  a.copyRO(),
+                                  AC(Word.zero().minus(c2.toWord()).toAddress()),
+                                  cond.flipOperands(),
+                                  target,
+                                  prof);
+            }
           }
         }
         return null;
@@ -1771,44 +1801,46 @@ class OPT_ExpressionFolding extends OPT_IRTools {
           OPT_BranchOperand target2 = (OPT_BranchOperand) IfCmp2.getTarget2(s).copy();
           OPT_BranchProfileOperand prof1 = (OPT_BranchProfileOperand) IfCmp2.getBranchProfile1(s).copy();
           OPT_BranchProfileOperand prof2 = (OPT_BranchProfileOperand) IfCmp2.getBranchProfile2(s).copy();
-          if (def.operator == INT_ADD) {
-            int c1 = getIntValue(Binary.getVal2(def));
-            // x = a + c1; y = x cmp c2
-            return IfCmp2.create(INT_IFCMP2,
-                                 y.copyRO(),
-                                 a.copyRO(),
-                                 IC(c2 - c1),
-                                 cond1,
-                                 target1,
-                                 prof1,
-                                 cond2,
-                                 target2,
-                                 prof2);
-          } else if (def.operator == INT_SUB) {
-            int c1 = getIntValue(Binary.getVal2(def));
-            // x = a - c1; y = x cmp c2
-            return IfCmp2.create(INT_IFCMP2,
-                                 y.copyRO(),
-                                 a.copyRO(),
-                                 IC(c1 + c2),
-                                 cond1,
-                                 target1,
-                                 prof1,
-                                 cond2,
-                                 target2,
-                                 prof2);
-          } else if (def.operator == INT_NEG) {
-            // x = -a; y = x cmp c2
-            return IfCmp2.create(INT_IFCMP2,
-                                 y.copyRO(),
-                                 a.copyRO(),
-                                 IC(-c2),
-                                 cond1.flipOperands(),
-                                 target1,
-                                 prof1,
-                                 cond2.flipOperands(),
-                                 target2,
-                                 prof2);
+          if ((cond1.isEQUAL() || cond1.isNOT_EQUAL())&&(cond2.isEQUAL() || cond2.isNOT_EQUAL())) {
+            if (def.operator == INT_ADD) {
+              int c1 = getIntValue(Binary.getVal2(def));
+              // x = a + c1; y = x cmp c2
+              return IfCmp2.create(INT_IFCMP2,
+                                   y.copyRO(),
+                                   a.copyRO(),
+                                   IC(c2 - c1),
+                                   cond1,
+                                   target1,
+                                   prof1,
+                                   cond2,
+                                   target2,
+                                   prof2);
+            } else if (def.operator == INT_SUB) {
+              int c1 = getIntValue(Binary.getVal2(def));
+              // x = a - c1; y = x cmp c2
+              return IfCmp2.create(INT_IFCMP2,
+                                   y.copyRO(),
+                                   a.copyRO(),
+                                   IC(c1 + c2),
+                                   cond1,
+                                   target1,
+                                   prof1,
+                                   cond2,
+                                   target2,
+                                   prof2);
+            } else if (def.operator == INT_NEG) {
+              // x = -a; y = x cmp c2
+              return IfCmp2.create(INT_IFCMP2,
+                                   y.copyRO(),
+                                   a.copyRO(),
+                                   IC(-c2),
+                                   cond1.flipOperands(),
+                                   target1,
+                                   prof1,
+                                   cond2.flipOperands(),
+                                   target2,
+                                   prof2);
+            }
           }
         }
         return null;
@@ -1824,31 +1856,38 @@ class OPT_ExpressionFolding extends OPT_IRTools {
           OPT_Operand trueValue = CondMove.getTrueValue(s);
           OPT_Operand falseValue = CondMove.getFalseValue(s);
           OPT_ConditionOperand cond = (OPT_ConditionOperand) CondMove.getCond(s).copy();
+          boolean isEqualityTest = cond.isEQUAL() || cond.isNOT_EQUAL();
           switch (def.operator.opcode) {
-            case INT_ADD_opcode: {
-              int c1 = getIntValue(Binary.getVal2(def));
-              int c2 = getIntValue(CondMove.getVal2(s));
-              // x = a + c1; y = x cmp c2 ? trueValue : falseValue
-              return CondMove.create(s.operator(), y.copyRO(), a.copyRO(), IC(c2 - c1), cond, trueValue, falseValue);
-            }
-            case LONG_ADD_opcode: {
-              long c1 = getLongValue(Binary.getVal2(def));
-              long c2 = getLongValue(CondMove.getVal2(s));
-              // x = a + c1; y = x cmp c2 ? trueValue : falseValue
-              return CondMove.create(s.operator(), y.copyRO(), a.copyRO(), LC(c2 - c1), cond, trueValue, falseValue);
-            }
-            case REF_ADD_opcode: {
-              Address c1 = getAddressValue(Binary.getVal2(def));
-              Address c2 = getAddressValue(CondMove.getVal2(s));
-              // x = a + c1; y = x cmp c2 ? trueValue : falseValue
-              return CondMove.create(s.operator(),
-                                     y.copyRO(),
-                                     a.copyRO(),
-                                     AC(c2.toWord().minus(c1.toWord()).toAddress()),
-                                     cond,
-                                     trueValue,
-                                     falseValue);
-            }
+            case INT_ADD_opcode:
+              if (isEqualityTest) {
+                int c1 = getIntValue(Binary.getVal2(def));
+                int c2 = getIntValue(CondMove.getVal2(s));
+                // x = a + c1; y = x cmp c2 ? trueValue : falseValue
+                return CondMove.create(s.operator(), y.copyRO(), a.copyRO(), IC(c2 - c1), cond, trueValue, falseValue);
+              }
+              break;
+            case LONG_ADD_opcode:
+              if (isEqualityTest) {
+                long c1 = getLongValue(Binary.getVal2(def));
+                long c2 = getLongValue(CondMove.getVal2(s));
+                // x = a + c1; y = x cmp c2 ? trueValue : falseValue
+                return CondMove.create(s.operator(), y.copyRO(), a.copyRO(), LC(c2 - c1), cond, trueValue, falseValue);
+              }
+              break;
+            case REF_ADD_opcode:
+              if (isEqualityTest) {
+                Address c1 = getAddressValue(Binary.getVal2(def));
+                Address c2 = getAddressValue(CondMove.getVal2(s));
+                // x = a + c1; y = x cmp c2 ? trueValue : falseValue
+                return CondMove.create(s.operator(),
+                    y.copyRO(),
+                    a.copyRO(),
+                    AC(c2.toWord().minus(c1.toWord()).toAddress()),
+                    cond,
+                    trueValue,
+                    falseValue);
+              }
+              break;
             case FLOAT_ADD_opcode: {
               float c1 = getFloatValue(Binary.getVal2(def));
               float c2 = getFloatValue(CondMove.getVal2(s));
@@ -1861,30 +1900,37 @@ class OPT_ExpressionFolding extends OPT_IRTools {
               // x = a + c1; y = x cmp c2 ? trueValue : falseValue
               return CondMove.create(s.operator(), y.copyRO(), a.copyRO(), DC(c2 - c1), cond, trueValue, falseValue);
             }
-            case INT_SUB_opcode: {
-              int c1 = getIntValue(Binary.getVal2(def));
-              int c2 = getIntValue(CondMove.getVal2(s));
-              // x = a - c1; y = x cmp c2 ? trueValue : falseValue
-              return CondMove.create(s.operator(), y.copyRO(), a.copyRO(), IC(c1 + c2), cond, trueValue, falseValue);
-            }
-            case LONG_SUB_opcode: {
-              long c1 = getLongValue(Binary.getVal2(def));
-              long c2 = getLongValue(CondMove.getVal2(s));
-              // x = a - c1; y = x cmp c2 ? trueValue : falseValue
-              return CondMove.create(s.operator(), y.copyRO(), a.copyRO(), LC(c1 + c2), cond, trueValue, falseValue);
-            }
-            case REF_SUB_opcode: {
-              Address c1 = getAddressValue(Binary.getVal2(def));
-              Address c2 = getAddressValue(CondMove.getVal2(s));
-              // x = a - c1; y = x cmp c2 ? trueValue : falseValue
-              return CondMove.create(s.operator(),
-                                     y.copyRO(),
-                                     a.copyRO(),
-                                     AC(c1.toWord().plus(c2.toWord()).toAddress()),
-                                     cond,
-                                     trueValue,
-                                     falseValue);
-            }
+            case INT_SUB_opcode:
+              if (isEqualityTest) {
+                int c1 = getIntValue(Binary.getVal2(def));
+                int c2 = getIntValue(CondMove.getVal2(s));
+                // x = a - c1; y = x cmp c2 ? trueValue : falseValue
+                return CondMove.create(s.operator(), y.copyRO(), a.copyRO(), IC(c1 + c2), cond, trueValue, falseValue);
+              }
+              break;
+            case LONG_SUB_opcode:
+              if (isEqualityTest) {
+
+                long c1 = getLongValue(Binary.getVal2(def));
+                long c2 = getLongValue(CondMove.getVal2(s));
+                // x = a - c1; y = x cmp c2 ? trueValue : falseValue
+                return CondMove.create(s.operator(), y.copyRO(), a.copyRO(), LC(c1 + c2), cond, trueValue, falseValue);
+              }
+              break;
+            case REF_SUB_opcode:
+              if (isEqualityTest) {
+                Address c1 = getAddressValue(Binary.getVal2(def));
+                Address c2 = getAddressValue(CondMove.getVal2(s));
+                // x = a - c1; y = x cmp c2 ? trueValue : falseValue
+                return CondMove.create(s.operator(),
+                    y.copyRO(),
+                    a.copyRO(),
+                    AC(c1.toWord().plus(c2.toWord()).toAddress()),
+                    cond,
+                    trueValue,
+                    falseValue);
+              }
+              break;
             case FLOAT_SUB_opcode: {
               float c1 = getFloatValue(Binary.getVal2(def));
               float c2 = getFloatValue(CondMove.getVal2(s));
@@ -1897,39 +1943,45 @@ class OPT_ExpressionFolding extends OPT_IRTools {
               // x = a - c1; y = x cmp c2 ? trueValue : falseValue
               return CondMove.create(s.operator(), y.copyRO(), a.copyRO(), DC(c1 + c2), cond, trueValue, falseValue);
             }
-            case INT_NEG_opcode: {
-              int c2 = getIntValue(CondMove.getVal2(s));
-              // x = -a; y = x cmp c2 ? trueValue : falseValue
-              return CondMove.create(s.operator(),
-                                     y.copyRO(),
-                                     a.copyRO(),
-                                     IC(-c2),
-                                     cond.flipOperands(),
-                                     trueValue,
-                                     falseValue);
-            }
-            case LONG_NEG_opcode: {
-              long c2 = getLongValue(CondMove.getVal2(s));
-              // x = -a; y = x cmp c2 ? trueValue : falseValue
-              return CondMove.create(s.operator(),
-                                     y.copyRO(),
-                                     a.copyRO(),
-                                     LC(-c2),
-                                     cond.flipOperands(),
-                                     trueValue,
-                                     falseValue);
-            }
-            case REF_NEG_opcode: {
-              Address c2 = getAddressValue(CondMove.getVal2(s));
-              // x = -a; y = x cmp c2 ? trueValue : falseValue
-              return CondMove.create(s.operator(),
-                                     y.copyRO(),
-                                     a.copyRO(),
-                                     AC(Word.zero().minus(c2.toWord()).toAddress()),
-                                     cond.flipOperands(),
-                                     trueValue,
-                                     falseValue);
-            }
+            case INT_NEG_opcode:
+              if (isEqualityTest) {
+                int c2 = getIntValue(CondMove.getVal2(s));
+                // x = -a; y = x cmp c2 ? trueValue : falseValue
+                return CondMove.create(s.operator(),
+                    y.copyRO(),
+                    a.copyRO(),
+                    IC(-c2),
+                    cond.flipOperands(),
+                    trueValue,
+                    falseValue);
+              }
+              break;
+            case LONG_NEG_opcode:
+              if (isEqualityTest) {
+                long c2 = getLongValue(CondMove.getVal2(s));
+                // x = -a; y = x cmp c2 ? trueValue : falseValue
+                return CondMove.create(s.operator(),
+                    y.copyRO(),
+                    a.copyRO(),
+                    LC(-c2),
+                    cond.flipOperands(),
+                    trueValue,
+                    falseValue);
+              }
+              break;
+            case REF_NEG_opcode:
+              if (isEqualityTest) {
+                Address c2 = getAddressValue(CondMove.getVal2(s));
+                // x = -a; y = x cmp c2 ? trueValue : falseValue
+                return CondMove.create(s.operator(),
+                    y.copyRO(),
+                    a.copyRO(),
+                    AC(Word.zero().minus(c2.toWord()).toAddress()),
+                    cond.flipOperands(),
+                    trueValue,
+                    falseValue);
+              }
+              break;
             case FLOAT_NEG_opcode: {
               float c2 = getFloatValue(CondMove.getVal2(s));
               // x = -a; y = x cmp c2 ? trueValue : falseValue
@@ -1974,9 +2026,8 @@ class OPT_ExpressionFolding extends OPT_IRTools {
                     BooleanCmp.getCond(def).copy().asCondition().flipCode(),
                     trueValue,
                     falseValue);
-              } else {
-                return null;
               }
+              break;
             }
             case BOOLEAN_CMP_ADDR_opcode: {
               Address c1 = getAddressValue(BooleanCmp.getVal2(def));
@@ -2000,9 +2051,8 @@ class OPT_ExpressionFolding extends OPT_IRTools {
                     BooleanCmp.getCond(def).flipCode(),
                     trueValue,
                     falseValue);
-              } else {
-                return null;
               }
+              break;
             }
             case BOOLEAN_CMP_LONG_opcode: {
               long c1 = getLongValue(BooleanCmp.getVal2(def));
@@ -2052,9 +2102,8 @@ class OPT_ExpressionFolding extends OPT_IRTools {
                     BooleanCmp.getCond(def).copy().asCondition().flipCode(),
                     trueValue,
                     falseValue);
-              } else {
-                return null;
               }
+              break;
             }
             case BOOLEAN_CMP_FLOAT_opcode: {
               float c1 = getFloatValue(BooleanCmp.getVal2(def));
@@ -2078,9 +2127,8 @@ class OPT_ExpressionFolding extends OPT_IRTools {
                     BooleanCmp.getCond(def).copy().asCondition().flipCode(),
                     trueValue,
                     falseValue);
-              } else {
-                return null;
               }
+              break;
             }
             case LONG_CMP_opcode: {
               long c1 = getLongValue(Binary.getVal2(def));
@@ -2134,9 +2182,8 @@ class OPT_ExpressionFolding extends OPT_IRTools {
                     OPT_ConditionOperand.LESS_EQUAL(),
                     trueValue,
                     falseValue);
-              } else {
-                return null;
               }
+              break;
             }
             default:
           }
@@ -2563,35 +2610,30 @@ class OPT_ExpressionFolding extends OPT_IRTools {
       case BOOLEAN_CMP_LONG_opcode:
       case BOOLEAN_CMP_ADDR_opcode: {
         OPT_Operand val2 = BooleanCmp.getVal2(s);
-        if (!val2.isObjectConstant() && !val2.isTIBConstant()) {
-          if (val2.isConstant()) {
-            OPT_Operand val1 = BooleanCmp.getVal1(s);
-            // if val1 is constant too, this should've been constant folded
-            // beforehand. Give up.
-            if (val1.isConstant()) {
-              return null;
-            }
+        if (val2.isConstant() && !val2.isMovableObjectConstant() && !val2.isTIBConstant()) {
+          OPT_Operand val1 = BooleanCmp.getVal1(s);
+          // if val1 is constant too, this should've been constant folded
+          // beforehand. Give up.
+          if (val1.isConstant()) {
+            return null;
+          }
+          OPT_Register result = BooleanCmp.getResult(s).asRegister().getRegister();
+          if (ssa) {
+            return result;
+          } else if (val1.asRegister().getRegister() != result) {
+            return result;
+          }
+        } else if (val2.isRegister()) {
+          OPT_Operand val1 = BooleanCmp.getVal1(s);
+          if (val1.isConstant() && !val1.isMovableObjectConstant() && !val1.isTIBConstant()) {
+            BooleanCmp.setVal1(s, BooleanCmp.getClearVal2(s));
+            BooleanCmp.setVal2(s, val1);
+            BooleanCmp.getCond(s).flipOperands();
             OPT_Register result = BooleanCmp.getResult(s).asRegister().getRegister();
             if (ssa) {
               return result;
-            } else if (val1.asRegister().getRegister() != result) {
+            } else if (val2.asRegister().getRegister() != result) {
               return result;
-            }
-          } else {
-            if (VM.VerifyAssertions) {
-              VM._assert(val2.isRegister());
-            }
-            OPT_Operand val1 = BooleanCmp.getVal1(s);
-            if (val1.isConstant() && !val1.isMovableObjectConstant() && !val1.isTIBConstant()) {
-              BooleanCmp.setVal1(s, BooleanCmp.getClearVal2(s));
-              BooleanCmp.setVal2(s, val1);
-              BooleanCmp.getCond(s).flipOperands();
-              OPT_Register result = BooleanCmp.getResult(s).asRegister().getRegister();
-              if (ssa) {
-                return result;
-              } else if (val2.asRegister().getRegister() != result) {
-                return result;
-              }
             }
           }
         }
@@ -2741,8 +2783,12 @@ class OPT_ExpressionFolding extends OPT_IRTools {
   }
 
   private static int getIntValue(OPT_Operand op) {
-    if (op instanceof OPT_IntConstantOperand)
+    if (op instanceof OPT_IntConstantOperand) {
       return op.asIntConstant().value;
+    }
+    if (VM.BuildFor32Addr) {
+      return getAddressValue(op).toInt();
+    }
     throw new OPT_OptimizingCompilerException(
         "Cannot getIntValue from this operand " + op +
         " of instruction " + op.instruction);
@@ -2751,6 +2797,9 @@ class OPT_ExpressionFolding extends OPT_IRTools {
   private static long getLongValue(OPT_Operand op) {
     if (op instanceof OPT_LongConstantOperand)
       return op.asLongConstant().value;
+    if (VM.BuildFor64Addr) {
+      return getAddressValue(op).toLong();
+    }
     throw new OPT_OptimizingCompilerException(
         "Cannot getLongValue from this operand " + op +
         " of instruction " + op.instruction);
