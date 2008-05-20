@@ -44,6 +44,7 @@ public class VM_Engine {
   public void earlyStageBooting() {
     pushChunk(new FeedHeaderChunk());
     pushChunk(new EventTypeSpaceChunk(new EventTypeSpaceVersion("org.jikesrvm", 1)));
+    pushChunk(new VM_SpaceDescriptorChunk());
 
     // TODO: make this conditional on command line argument.
     tracingEnabled = true;
