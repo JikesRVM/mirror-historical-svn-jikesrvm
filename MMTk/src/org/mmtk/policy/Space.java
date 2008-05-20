@@ -14,19 +14,22 @@ package org.mmtk.policy;
 
 import org.mmtk.plan.Plan;
 import org.mmtk.plan.TransitiveClosure;
+import org.mmtk.utility.Constants;
+import org.mmtk.utility.Log;
 import org.mmtk.utility.heap.Map;
 import org.mmtk.utility.heap.Mmapper;
 import org.mmtk.utility.heap.PageResource;
 import org.mmtk.utility.heap.SpaceDescriptor;
 import org.mmtk.utility.heap.VMRequest;
 import org.mmtk.utility.options.Options;
-import org.mmtk.utility.Log;
-import org.mmtk.utility.Constants;
-
 import org.mmtk.vm.VM;
-
-import org.vmmagic.pragma.*;
-import org.vmmagic.unboxed.*;
+import org.vmmagic.pragma.Inline;
+import org.vmmagic.pragma.Interruptible;
+import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.unboxed.Address;
+import org.vmmagic.unboxed.Extent;
+import org.vmmagic.unboxed.ObjectReference;
+import org.vmmagic.unboxed.Word;
 
 /**
  * This class defines and manages spaces.  Each policy is an instance
@@ -554,6 +557,17 @@ public abstract class Space implements Constants {
     }
     Log.write("  AVAILABLE_END "); Log.writeln(AVAILABLE_END);
     Log.write("       HEAP_END "); Log.writeln(HEAP_END);
+  }
+
+  public static interface SpaceVisitor {
+    public void visit(Space s);
+  }
+
+  @Interruptible
+  public static void visitSpaces(SpaceVisitor v) {
+    for (int i = 0; i < spaceCount; i++) {
+      v.visit(spaces[i]);
+    }
   }
 
   /**
