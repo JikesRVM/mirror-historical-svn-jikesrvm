@@ -24,6 +24,7 @@ public class FeedHeaderChunk extends RawChunk {
     private static final int DEFUNCT_FIELD = 0;
 
     public FeedHeaderChunk() {
+	super(5 * ENCODING_SPAGE_INT);
 	addInt(MAGIC_WORD_1);
 	addInt(MAGIC_WORD_2);
 	addInt(MAJOR_VERSION);

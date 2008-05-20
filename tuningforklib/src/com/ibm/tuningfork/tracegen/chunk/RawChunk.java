@@ -35,18 +35,16 @@ public abstract class RawChunk {
     public final static int ENCODING_SPACE_LONG = 8;
     public final static int ENCODING_SPACE_DOUBLE = 8;
 
-    private final static int DEFAULT_CHUNK_SIZE = 64 * 1024;
-
     private final byte[] data;
     private int cursor = 0;
     private boolean open = true;
 
-    public RawChunk() {
-	this(DEFAULT_CHUNK_SIZE);
+    protected RawChunk(byte[] buffer) {
+	data = buffer;
     }
 
-    public RawChunk(int capacity) {
-	data = new byte[capacity];
+    protected RawChunk(int capacity) {
+	this(new byte[capacity]);
     }
 
     public void close() {
@@ -61,7 +59,7 @@ public abstract class RawChunk {
 	outputStream.write(data, 0, cursor);
     }
 
-    protected final int encodingSpace(String str) {
+    protected static final int encodingSpace(String str) {
 	return str.length() + ENCODING_SPAGE_INT;
     }
 
@@ -80,7 +78,7 @@ public abstract class RawChunk {
 
     protected final boolean hasRoom(int bytes) {
 	int remaining = data.length - cursor;
-	return remaining > bytes;
+	return remaining >= bytes;
     }
 
     protected final boolean addLong(long l) {

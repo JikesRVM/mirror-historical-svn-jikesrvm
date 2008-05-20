@@ -21,7 +21,7 @@ public class EventTypeSpaceChunk extends Chunk {
     public static final int EVENT_TYPE_SPACE_ID = 3;
 
     public EventTypeSpaceChunk(EventTypeSpaceVersion eventTypeSpaceVersion) {
-	super(EVENT_TYPE_SPACE_ID);
+	super(EVENT_TYPE_SPACE_ID, DATA_OFFSET + encodingSpace(eventTypeSpaceVersion.name) + ENCODING_SPAGE_INT);
 	addString(eventTypeSpaceVersion.name);
 	addInt(eventTypeSpaceVersion.version);
 	close();

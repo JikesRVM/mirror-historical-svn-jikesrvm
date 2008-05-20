@@ -15,7 +15,7 @@
 package com.ibm.tuningfork.tracegen.chunk;
 
 
-public class Chunk extends RawChunk {
+public abstract class Chunk extends RawChunk {
 
     private static final int MAGIC_WORD_1 = 0xdeadbeef;
     private static final int MAGIC_WORD_2 = 0xcafebabe;
@@ -23,12 +23,23 @@ public class Chunk extends RawChunk {
     private static final int CHUNK_TYPE_OFFSET = 12;
     protected static final int DATA_OFFSET = 16;
 
-    public Chunk(int chunkType) {
+    protected final static int DEFAULT_CHUNK_SIZE = 16 * 1024;
+
+    protected Chunk(int chunkType, byte[] buffer) {
+	super(buffer);
 	addInt(MAGIC_WORD_1);
 	addInt(MAGIC_WORD_2);
 	seek(CHUNK_TYPE_OFFSET);
 	addInt(chunkType);
 	seek(DATA_OFFSET);
+    }
+
+    protected Chunk(int chunkType, int capacity) {
+	this(chunkType, new byte[capacity]);
+    }
+
+    protected Chunk(int chunkType) {
+	this(chunkType, new byte[DEFAULT_CHUNK_SIZE]);
     }
 
     public void close() {

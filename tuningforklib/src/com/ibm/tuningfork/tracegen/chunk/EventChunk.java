@@ -22,16 +22,16 @@ public class EventChunk extends Chunk {
     public static final int FEEDLET_ID_OFFSET = Chunk.DATA_OFFSET;
     public static final int SEQUENCE_NUMBER_OFFSET = Chunk.DATA_OFFSET + 4;
     public static final int EVENT_DATA_OFFSET = Chunk.DATA_OFFSET + 8;
+    protected final static int DEFAULT_EVENT_CHUNK_SIZE = 64 * 1024;
+   /* 1 second, assuming ticks are ns */
+    public static final long TIMESTAMP_FLUSH_DELTA = 1000000000;
+
+    protected final boolean autoFlush;
     private int numberOfEvents = 0;
     private long firstTimeStamp = 0;
-    public static final long TIMESTAMP_FLUSH_DELTA = 1000000000; // 1 second
-								    // assuming
-								    // ticks are
-								    // ns
-    protected final boolean autoFlush;
 
     public EventChunk(boolean autoFlush) {
-	super(EVENT_TYPE_ID);
+	super(EVENT_TYPE_ID, DEFAULT_EVENT_CHUNK_SIZE);
 	seek(EVENT_DATA_OFFSET);
 	this.autoFlush = autoFlush;
     }
