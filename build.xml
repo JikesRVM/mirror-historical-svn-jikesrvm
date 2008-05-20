@@ -40,6 +40,7 @@
   <property name="main.java" location="rvm/src"/>
   <property name="mmtk.java" location="MMTk/src"/>
   <property name="mmtk-rvm.java" location="MMTk/ext/vm/jikesrvm"/>
+  <property name="tuningfork.java" location="tuningforklib/src"/>
   <property name="vmmagic-stub.java" location="vmmagic/src"/>
   <property name="vmmagic.java" location="tools/bootImageWriter/vmmagic/src"/>
 
@@ -964,7 +965,16 @@ Check to make sure all required properties are specified. This includes properti
     </javac>
   </target>
 
-  <target name="package" depends="compile,compile-vmmagic">
+  <target name="compile-tuningforklib" depends="compile">
+    <javac srcdir="${tuningfork.java}" destdir="${build.classes}" debug="true" debugLevel="lines,source"
+           source="1.5" target="1.5">
+      <classpath>
+        <pathelement location="${build.vmmagic-stub.classes}"/>
+      </classpath>
+    </javac>
+  </target>
+
+  <target name="package" depends="compile,compile-vmmagic,compile-tuningforklib">
     <!-- create a rt.jar for the RVM -->
     <zip destfile="${build.rt.jar}" duplicate="preserve" basedir="${build.classes}" compress="false"> 
       <include name="java/**"/>

@@ -17,6 +17,7 @@
 	<classpathentry kind="src" path="libraryInterface/GNUClasspath/LGPL/src"/>
 	<classpathentry kind="src" path="MMTk/ext/vm/jikesrvm"/>
 	<classpathentry kind="src" path="MMTk/src"/>
+	<classpathentry kind="src" path="tuningforklib/src"/>
 	<classpathentry kind="src" path="vmmagic/src"/>
 	<classpathentry excluding="**/@OTHER_ARCH@/**|org/jikesrvm/tools/header_gen/GenArch_@OTHER_ARCH@.java" kind="src" path="rvm/src"/>
 
