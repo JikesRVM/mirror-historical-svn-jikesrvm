@@ -906,7 +906,7 @@ Check to make sure all required properties are specified. This includes properti
            source="1.5"
            target="1.5"
            srcdir="${main.java}:${classlib.library-interface.common.java}:${classlib.library-interface.cpl.java}:${classlib.library-interface.non-cpl.java}:${classlib.library-interface.non-cpl2.java}:${mmtk-rvm.java}"
-           sourcepath="${mmtk.java}:${generated.java}:${generated.config.java}:${generated.arch.java}:${main.java}:${mmtk-rvm.java}">
+           sourcepath="${mmtk.java}:${generated.java}:${generated.config.java}:${generated.arch.java}:${main.java}:${mmtk-rvm.java}:${tuningfork.java}">
       <bootclasspath>
         <pathelement location="${classpath.lib.dir}/classpath.jar"/>
       </bootclasspath>
@@ -1030,6 +1030,7 @@ Check to make sure all required properties are specified. This includes properti
 
     <fileset id="primordials.main" dir="${build.classes}">
       <include name="**/VM*.class"/>
+      <include name="com/ibm/tuningfork/**/*.class"/>
       <include name="org/**/*.class" if="include.all"/>
       <exclude name="**/ppc/*.class" unless="include.ppc"/>
       <exclude name="**/ia32/*.class" if="include.ppc"/>

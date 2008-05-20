@@ -12,6 +12,8 @@
  */
 package org.jikesrvm;
 
+import static org.jikesrvm.runtime.VM_SysCall.sysCall;
+
 import org.jikesrvm.ArchitectureSpecific.VM_OutOfLineMachineCode;
 import org.jikesrvm.ArchitectureSpecific.VM_ProcessorLocalState;
 import org.jikesrvm.adaptive.controller.VM_Controller;
@@ -37,8 +39,6 @@ import org.jikesrvm.runtime.VM_ExitStatus;
 import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.runtime.VM_Runtime;
 import org.jikesrvm.runtime.VM_SysCall;
-
-import static org.jikesrvm.runtime.VM_SysCall.sysCall;
 import org.jikesrvm.scheduler.VM_Lock;
 import org.jikesrvm.scheduler.VM_MainThread;
 import org.jikesrvm.scheduler.VM_Processor;
@@ -48,6 +48,7 @@ import org.jikesrvm.scheduler.VM_Thread;
 import org.jikesrvm.scheduler.greenthreads.JikesRVMSocketImpl;
 import org.jikesrvm.scheduler.greenthreads.VM_FileSystem;
 import org.jikesrvm.scheduler.greenthreads.VM_GreenScheduler;
+import org.jikesrvm.tuningfork.VM_Engine;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
@@ -202,6 +203,9 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     if (verboseBoot >= 1) VM.sysWriteln("Early stage processing of command line");
     VM_CommandLineArgs.earlyProcessCommandLineArguments();
 
+    // Early initialization of TuningFork tracing engine.
+    VM_Engine.engine.earlyStageBooting();
+
     // Allow Memory Manager to respond to its command line arguments
     //
     if (verboseBoot >= 1) VM.sysWriteln("Collector processing rest of boot options");
@@ -350,6 +354,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     VM.fullyBooted = true;
     MM_Interface.fullyBootedVM();
     VM_BaselineCompiler.fullyBootedVM();
+    VM_Engine.engine.fullyBootedVM();
 
     runClassInitializer("java.util.logging.Level");
     runClassInitializer("java.io.FilePermission");
