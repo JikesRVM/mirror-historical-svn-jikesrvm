@@ -34,12 +34,16 @@ import com.ibm.tuningfork.tracegen.types.EventTypeSpaceVersion;
  */
 public class VM_Engine {
 
-  public static final VM_Engine engine = new VM_Engine();
+  public enum State { STARTING_UP, RUNNING_FILE, SHUTTING_DOWN, SHUT_DOWN };
 
-  private boolean tracingEnabled = false;
+  public static final VM_Engine engine = new VM_Engine();
+  private static final int IO_INTERVAL_MS = 100;
+
   private RawChunk[] fullChunks = new RawChunk[100];
   private int fullChunkCursor = 0;
+  private int writtenChunkCursor = 0;
   private OutputStream outputStream;
+  private State state;
 
   public void earlyStageBooting() {
     pushChunk(new FeedHeaderChunk());
@@ -47,7 +51,7 @@ public class VM_Engine {
     pushChunk(new VM_SpaceDescriptorChunk());
 
     // TODO: make this conditional on command line argument.
-    tracingEnabled = true;
+    state = State.STARTING_UP;
   }
 
   public synchronized void pushChunk(RawChunk chunk) {
@@ -61,8 +65,32 @@ public class VM_Engine {
     } catch (FileNotFoundException e) {
       VM.sysWriteln("Unable to open trace file "+f.getAbsolutePath());
       VM.sysWriteln("continuing, but TuningFork trace generation is disabled.");
-      tracingEnabled = false;
+      state = State.SHUT_DOWN;
+      return;
     }
+
+    /* Create primary I/O thread */
+    Thread ioThread = new Thread(new Runnable() {
+      public void run() {
+        ioThreadMainLoop();
+      }}, "TuningFork Primary I/O thread");
+    ioThread.setDaemon(true);
+    ioThread.start();
+
+    /*
+     * Create shutdown hook to make sure the I/O thread has a chance
+     * to get all the data to disk before the VM exits.
+     */
+    Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+      public void run() {
+        state = State.SHUTTING_DOWN;
+        while (state != State.SHUTTING_DOWN) {
+          try {
+            Thread.sleep(1);
+          } catch (InterruptedException e) {
+          }
+        }
+      }}, "TuningFork Shutdown Hook"));
 
     // Complete hack.  For initial dumb prototype do all the IO on VM exit.
     VM_Callbacks.addExitMonitor(new VM_Callbacks.ExitMonitor() {
@@ -80,6 +108,31 @@ public class VM_Engine {
     });
    }
 
+  private void ioThreadMainLoop() {
+    state = State.RUNNING_FILE;
+    while (true) {
+      try {
+        Thread.sleep(IO_INTERVAL_MS);
+      } catch (InterruptedException e) {
+      }
+      boolean shouldShutDown = state == State.SHUTTING_DOWN;
+      writeChunks(shouldShutDown);
+      if (shouldShutDown) {
+        state = State.SHUT_DOWN;
+        return;
+      }
+    }
+  }
 
-
+  private void writeChunks(boolean b) {
+    while (writtenChunkCursor < fullChunkCursor) {
+      try {
+        fullChunks[writtenChunkCursor++].write(outputStream);
+      } catch (IOException e) {
+        VM.sysWriteln("Exception while outputing trace TuningFork trace file");
+        e.printStackTrace();
+        return;
+      }
+    }
+  }
 }
