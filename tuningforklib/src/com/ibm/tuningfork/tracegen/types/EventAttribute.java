@@ -14,10 +14,13 @@
 
 package com.ibm.tuningfork.tracegen.types;
 
+import org.vmmagic.pragma.Uninterruptible;
+
 
 /**
  * An attribute of an EventType.
  */
+@Uninterruptible
 public final class EventAttribute {
 
     private final String name;
@@ -26,7 +29,7 @@ public final class EventAttribute {
 
     /**
      * Create an EventAttribute with the specified name, description and type.
-     * 
+     *
      * @param name
      *                The name of the attribute.
      * @param description
@@ -43,7 +46,7 @@ public final class EventAttribute {
 
     /**
      * Return the name of the attribute.
-     * 
+     *
      * @return The name of the attribute.
      */
     public final String getName() {
@@ -52,7 +55,7 @@ public final class EventAttribute {
 
     /**
      * Return the description of the attribute.
-     * 
+     *
      * @return The description of the attribute.
      */
     public final String getDescription() {
@@ -61,7 +64,7 @@ public final class EventAttribute {
 
     /**
      * Return the type of the attribute.
-     * 
+     *
      * @return The type of the attribute.
      */
     public final ScalarType getType() {

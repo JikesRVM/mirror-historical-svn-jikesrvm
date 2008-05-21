@@ -14,7 +14,9 @@
 
 package com.ibm.tuningfork.tracegen.chunk;
 
+import org.vmmagic.pragma.Uninterruptible;
 
+@Uninterruptible
 public class StringTableChunk extends Chunk {
 
     public static final int STRING_TABLE_ID = 6;
@@ -28,7 +30,7 @@ public class StringTableChunk extends Chunk {
     }
 
     public boolean add(int index, String val) {
-	int guess = ENCODING_SPACE_INT + val.length();
+	int guess = ENCODING_SPACE_INT + JikesRVMSupport.getStringLength(val);
 	if (!hasRoom(guess)) {
 	    return false;
 	}

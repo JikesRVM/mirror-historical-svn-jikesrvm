@@ -17,6 +17,11 @@ package com.ibm.tuningfork.tracegen.chunk;
 import java.io.IOException;
 import java.io.OutputStream;
 
+import org.jikesrvm.VM;
+import org.jikesrvm.runtime.VM_Magic;
+import org.vmmagic.pragma.Interruptible;
+import org.vmmagic.pragma.Uninterruptible;
+
 /*
  * There are 3 basic operations: (1) Closing a chunk which involves fixing up
  * data that cannot be determined initially such as the length field. Subclasses
@@ -29,6 +34,7 @@ import java.io.OutputStream;
  * the buffer object to be reused. Subclasses that can actually be reset should
  * define a reset method and use the resetImpl method here.
  */
+@Uninterruptible
 public abstract class RawChunk {
 
     public final static int ENCODING_SPACE_INT = 4;
@@ -49,12 +55,13 @@ public abstract class RawChunk {
 
     public void close() {
 	if (!open) {
-	    System.err.println("RawChunk: Cannot close a closed chunk.");
+	    VM.sysWriteln("RawChunk: Cannot close a closed chunk.");
 	}
 	open = false;
     }
 
     /* Synchronous */
+    @Interruptible
     public final void write(OutputStream outputStream) throws IOException {
 	outputStream.write(data, 0, cursor);
     }
@@ -89,7 +96,7 @@ public abstract class RawChunk {
 	if (!hasRoom(ENCODING_SPACE_DOUBLE)) {
 	    return false;
 	}
-	putLong(Double.doubleToLongBits(d));
+	putLong(VM_Magic.doubleAsLongBits(d));
 	return true;
     }
 
@@ -122,7 +129,7 @@ public abstract class RawChunk {
      *    0001 0000-0010 FFFF | 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
      */
     protected final boolean addString(String str) {
-	int strLen = str.length();
+	int strLen = JikesRVMSupport.getStringLength(str);
 	int minimalSize = ENCODING_SPACE_INT + strLen;
 	if (!hasRoom(minimalSize)) {
 	    return false;
@@ -130,8 +137,9 @@ public abstract class RawChunk {
 	int startCursor = cursor;
 	cursor += ENCODING_SPACE_INT;
 
+	char[] backingChars = JikesRVMSupport.getBackingCharArray(str);
 	for (int i=0; i<strLen; i++) {
-	    char c = str.charAt(i);
+	    char c = backingChars[i];
 	    if (c > 0 && c <= 0x7f) {
 		data[cursor++] = (byte)(c);
 	    } else if (c <= 0x7ff) {

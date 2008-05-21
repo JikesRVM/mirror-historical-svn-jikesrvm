@@ -14,7 +14,9 @@
 
 package com.ibm.tuningfork.tracegen.chunk;
 
+import org.vmmagic.pragma.Uninterruptible;
 
+@Uninterruptible
 public abstract class Chunk extends RawChunk {
 
     private static final int MAGIC_WORD_1 = 0xdeadbeef;

@@ -14,10 +14,14 @@
 
 package com.ibm.tuningfork.tracegen.types;
 
+import org.vmmagic.pragma.Interruptible;
+import org.vmmagic.pragma.Uninterruptible;
+
 /**
  * An EventType describes the types and attributes of the data values associated
  * with a particular event index.
  */
+@Uninterruptible
 public final class EventType {
 
     private final int index;
@@ -77,6 +81,7 @@ public final class EventType {
 	this(name, description, new EventAttribute[] { attribute });
     }
 
+    @Interruptible
     private static synchronized int getNextIndex() {
 	return currentIndex++;
     }
@@ -131,6 +136,7 @@ public final class EventType {
      *                the sum of the attribute declarations that should come
      *                later but have already occurred
      */
+    @Interruptible
     private void checkOrder(int others) {
 	if (others > 0) {
 	    throw new IllegalArgumentException("EventType constructor: attributes not declared in the required order int/long/double/String");

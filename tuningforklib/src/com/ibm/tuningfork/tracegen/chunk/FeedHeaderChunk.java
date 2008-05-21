@@ -14,7 +14,9 @@
 
 package com.ibm.tuningfork.tracegen.chunk;
 
+import org.vmmagic.pragma.Uninterruptible;
 
+@Uninterruptible
 public class FeedHeaderChunk extends RawChunk {
 
     private static final int MAGIC_WORD_1 = 0xcafefeed;

@@ -14,9 +14,12 @@
 
 package com.ibm.tuningfork.tracegen.chunk;
 
+import org.vmmagic.pragma.Uninterruptible;
+
 import com.ibm.tuningfork.tracegen.types.EventAttribute;
 import com.ibm.tuningfork.tracegen.types.EventType;
 
+@Uninterruptible
 public class EventTypeChunk extends Chunk {
 
     public static final int EVENT_TYPE_ID = 4;
@@ -34,12 +37,12 @@ public class EventTypeChunk extends Chunk {
     }
 
     public boolean add(EventType et) {
-	int guess = ENCODING_SPACE_INT + et.getName().length()
-		+ et.getDescription().length() + ENCODING_SPACE_INT * 4;
+	int guess = ENCODING_SPACE_INT + JikesRVMSupport.getStringLength(et.getName())
+		+ JikesRVMSupport.getStringLength(et.getDescription()) + ENCODING_SPACE_INT * 4;
 	for (int i = 0; i < et.getNumberOfAttributes(); i++) {
 	    EventAttribute ea = et.getAttribute(i);
-	    guess += ea.getName().length();
-	    guess += ea.getDescription().length();
+	    guess += JikesRVMSupport.getStringLength(ea.getName());
+	    guess += JikesRVMSupport.getStringLength(ea.getDescription());
 	}
 	if (!hasRoom(guess)) {
 	    return false;

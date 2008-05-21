@@ -14,7 +14,9 @@
 
 package com.ibm.tuningfork.tracegen.chunk;
 
+import org.vmmagic.pragma.Uninterruptible;
 
+@Uninterruptible
 public class PropertyTableChunk extends Chunk {
 
     public static final int PROPERTY_TABLE_ID = 1;
@@ -28,7 +30,7 @@ public class PropertyTableChunk extends Chunk {
     }
 
     public boolean add(String prop, String val) {
-	int guess = prop.length() + val.length();
+	int guess = JikesRVMSupport.getStringLength(prop) + JikesRVMSupport.getStringLength(val);
 	if (!hasRoom(guess)) {
 	    return false;
 	}

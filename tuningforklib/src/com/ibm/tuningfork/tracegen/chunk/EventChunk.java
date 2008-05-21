@@ -14,8 +14,11 @@
 
 package com.ibm.tuningfork.tracegen.chunk;
 
+import org.vmmagic.pragma.Uninterruptible;
+
 import com.ibm.tuningfork.tracegen.types.EventType;
 
+@Uninterruptible
 public class EventChunk extends Chunk {
 
     public static final int EVENT_TYPE_ID = 5;
@@ -110,7 +113,7 @@ public class EventChunk extends Chunk {
     }
 
     public boolean addEvent(long timeStamp, EventType et, String v) {
-	int guess = ENCODING_SPACE_LONG + ENCODING_SPACE_INT + v.length();
+	int guess = ENCODING_SPACE_LONG + ENCODING_SPACE_INT + JikesRVMSupport.getStringLength(v);
 	if (!canAddEvent(timeStamp, guess)) {
 	    return false;
 	}
@@ -135,7 +138,7 @@ public class EventChunk extends Chunk {
 		* ENCODING_SPACE_INT + llen * ENCODING_SPACE_LONG + dlen
 		* ENCODING_SPACE_DOUBLE;
 	for (int i = 0; i < slen; i++) {
-	    guess += sdata[i].length();
+	    guess += JikesRVMSupport.getStringLength(sdata[i]);
 	}
 	if (!canAddEvent(timeStamp, guess)) {
 	    return false;
