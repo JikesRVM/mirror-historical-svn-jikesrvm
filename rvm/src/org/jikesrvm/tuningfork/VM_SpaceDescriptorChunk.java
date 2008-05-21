@@ -25,7 +25,7 @@ public class VM_SpaceDescriptorChunk extends Chunk {
   private static final int SPACE_DESCRIPTOR_CHUNK_ID = (64 * 1024) + 100;
 
   public static final int SPACE_DESCRIPTOR_COUNT_OFFSET = DATA_OFFSET;
-  public static final int SPACE_DESCRIPTOR_DATA_OFFSET = SPACE_DESCRIPTOR_COUNT_OFFSET + ENCODING_SPAGE_INT;
+  public static final int SPACE_DESCRIPTOR_DATA_OFFSET = SPACE_DESCRIPTOR_COUNT_OFFSET + ENCODING_SPACE_INT;
 
   private int numSpaces;
 
