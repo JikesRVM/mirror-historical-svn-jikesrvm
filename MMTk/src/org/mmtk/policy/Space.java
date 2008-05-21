@@ -560,7 +560,7 @@ public abstract class Space implements Constants {
   }
 
   public static interface SpaceVisitor {
-    public void visit(Space s);
+    void visit(Space s);
   }
 
   @Interruptible
