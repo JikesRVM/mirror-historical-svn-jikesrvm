@@ -28,12 +28,19 @@ public class PropertyTableChunk extends Chunk {
     }
 
     public boolean add(String prop, String val) {
-	int required = encodingSpace(prop) + encodingSpace(val);
-	if (!hasRoom(required)) {
+	int guess = prop.length() + val.length();
+	if (!hasRoom(guess)) {
 	    return false;
 	}
-	addString(prop);
-	addString(val);
+	int savedPosition = getPosition();
+	if (!addString(prop)) {
+	    seek(savedPosition);
+	    return false;
+	}
+	if (!addString(val)) {
+	    seek(savedPosition);
+	    return false;
+	}
 	numberOfProperties++;
 	return true;
     }

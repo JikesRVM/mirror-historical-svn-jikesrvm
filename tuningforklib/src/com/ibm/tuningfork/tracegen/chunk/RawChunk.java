@@ -31,7 +31,7 @@ import java.io.OutputStream;
  */
 public abstract class RawChunk {
 
-    public final static int ENCODING_SPAGE_INT = 4;
+    public final static int ENCODING_SPACE_INT = 4;
     public final static int ENCODING_SPACE_LONG = 8;
     public final static int ENCODING_SPACE_DOUBLE = 8;
 
@@ -57,10 +57,6 @@ public abstract class RawChunk {
     /* Synchronous */
     public final void write(OutputStream outputStream) throws IOException {
 	outputStream.write(data, 0, cursor);
-    }
-
-    protected static final int encodingSpace(String str) {
-	return str.length() + ENCODING_SPAGE_INT;
     }
 
     protected void resetImpl() {
@@ -98,7 +94,7 @@ public abstract class RawChunk {
     }
 
     protected final boolean addInt(int i) {
-	if (!hasRoom(ENCODING_SPAGE_INT)) {
+	if (!hasRoom(ENCODING_SPACE_INT)) {
 	    return false;
 	}
 	putInt(i);
@@ -113,15 +109,53 @@ public abstract class RawChunk {
 	return true;
     }
 
+    /*
+     * Write String's char[] encoded as UTF-8.
+     * Table from http://tools.ietf.org/html/rfc3629
+     *
+     *    Char. number range  |        UTF-8 octet sequence
+     *       (hexadecimal)    |              (binary)
+     *    --------------------+---------------------------------------------
+     *    0000 0000-0000 007F | 0xxxxxxx
+     *    0000 0080-0000 07FF | 110xxxxx 10xxxxxx
+     *    0000 0800-0000 FFFF | 1110xxxx 10xxxxxx 10xxxxxx
+     *    0001 0000-0010 FFFF | 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+     */
     protected final boolean addString(String str) {
-	byte[] bytes = str.getBytes();
-	int len = bytes.length;
-	if (!hasRoom(len + 4)) {
+	int strLen = str.length();
+	int minimalSize = ENCODING_SPACE_INT + strLen;
+	if (!hasRoom(minimalSize)) {
 	    return false;
 	}
-	putInt(len);
-	System.arraycopy(bytes, 0, data, cursor, len);
-	cursor += len;
+	int startCursor = cursor;
+	cursor += ENCODING_SPACE_INT;
+
+	for (int i=0; i<strLen; i++) {
+	    char c = str.charAt(i);
+	    if (c > 0 && c <= 0x7f) {
+		data[cursor++] = (byte)(c);
+	    } else if (c <= 0x7ff) {
+		if (!hasRoom(1 + (strLen-i))) {
+		    cursor = startCursor;
+		    return false;
+		}
+		data[cursor++] = (byte)(0xc0 | (c >> 6));
+		data[cursor++] = (byte)(0x80 | (c & 0x3f));
+	    } else {
+		if (!hasRoom(2 + (strLen-i))) {
+		    cursor = startCursor;
+		    return false;
+		}
+		data[cursor++] = (byte)(0xe0 | (c >> 12));
+		data[cursor++] = (byte)(0x80 | ((c & 0xfc0) >> 6));
+		data[cursor++] = (byte)(0x80 | (c & 0x3f));
+	    }
+	}
+	int endCursor = cursor;
+	int finalLen = endCursor-startCursor-ENCODING_SPACE_INT;
+	cursor = startCursor;
+	putInt(finalLen);
+	cursor = endCursor;
 	return true;
     }
 

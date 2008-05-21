@@ -60,7 +60,7 @@ public class EventChunk extends Chunk {
     }
 
     public boolean addEvent(long timeStamp, EventType et) {
-	int required = ENCODING_SPACE_LONG + ENCODING_SPAGE_INT;
+	int required = ENCODING_SPACE_LONG + ENCODING_SPACE_INT;
 	if (!canAddEvent(timeStamp, required)) {
 	    return false;
 	}
@@ -71,8 +71,8 @@ public class EventChunk extends Chunk {
     }
 
     public boolean addEvent(long timeStamp, EventType et, int v) {
-	int required = ENCODING_SPACE_LONG + ENCODING_SPAGE_INT
-		+ ENCODING_SPAGE_INT;
+	int required = ENCODING_SPACE_LONG + ENCODING_SPACE_INT
+		+ ENCODING_SPACE_INT;
 	if (!canAddEvent(timeStamp, required)) {
 	    return false;
 	}
@@ -84,7 +84,7 @@ public class EventChunk extends Chunk {
     }
 
     public boolean addEvent(long timeStamp, EventType et, long v) {
-	int required = ENCODING_SPACE_LONG + ENCODING_SPAGE_INT
+	int required = ENCODING_SPACE_LONG + ENCODING_SPACE_INT
 		+ ENCODING_SPACE_LONG;
 	if (!canAddEvent(timeStamp, required)) {
 	    return false;
@@ -97,7 +97,7 @@ public class EventChunk extends Chunk {
     }
 
     public boolean addEvent(long timeStamp, EventType et, double v) {
-	int required = ENCODING_SPACE_LONG + ENCODING_SPAGE_INT
+	int required = ENCODING_SPACE_LONG + ENCODING_SPACE_INT
 		+ ENCODING_SPACE_DOUBLE;
 	if (!canAddEvent(timeStamp, required)) {
 	    return false;
@@ -110,14 +110,17 @@ public class EventChunk extends Chunk {
     }
 
     public boolean addEvent(long timeStamp, EventType et, String v) {
-	int required = ENCODING_SPACE_LONG + ENCODING_SPAGE_INT
-		+ encodingSpace(v);
-	if (!canAddEvent(timeStamp, required)) {
+	int guess = ENCODING_SPACE_LONG + ENCODING_SPACE_INT + v.length();
+	if (!canAddEvent(timeStamp, guess)) {
 	    return false;
 	}
+	int savedCursor = getPosition();
 	addLong(timeStamp);
 	addInt(et.getIndex());
-	addString(v);
+	if (!addString(v)) {
+	    seek(savedCursor);
+	    return false;
+	}
 	numberOfEvents++;
 	return true;
     }
@@ -128,15 +131,16 @@ public class EventChunk extends Chunk {
 	int llen = (ldata == null) ? 0 : ldata.length;
 	int dlen = (ddata == null) ? 0 : ddata.length;
 	int slen = (sdata == null) ? 0 : sdata.length;
-	int required = ENCODING_SPACE_LONG + ENCODING_SPAGE_INT + ilen
-		* ENCODING_SPAGE_INT + llen * ENCODING_SPACE_LONG + dlen
+	int guess = ENCODING_SPACE_LONG + ENCODING_SPACE_INT + ilen
+		* ENCODING_SPACE_INT + llen * ENCODING_SPACE_LONG + dlen
 		* ENCODING_SPACE_DOUBLE;
 	for (int i = 0; i < slen; i++) {
-	    required += encodingSpace(sdata[i]);
+	    guess += sdata[i].length();
 	}
-	if (!canAddEvent(timeStamp, required)) {
+	if (!canAddEvent(timeStamp, guess)) {
 	    return false;
 	}
+	int savedPosition = getPosition();
 	addLong(timeStamp);
 	addInt(et.getIndex());
 	for (int i = 0; i < ilen; i++) {
@@ -149,7 +153,10 @@ public class EventChunk extends Chunk {
 	    addDouble(ddata[i]);
 	}
 	for (int i = 0; i < slen; i++) {
-	    addString(sdata[i]);
+	    if (!addString(sdata[i])) {
+		seek(savedPosition);
+		return false;
+	    }
 	}
 	numberOfEvents++;
 	return true;

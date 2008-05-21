@@ -28,12 +28,16 @@ public class StringTableChunk extends Chunk {
     }
 
     public boolean add(int index, String val) {
-	int required = ENCODING_SPAGE_INT + encodingSpace(val);
-	if (!hasRoom(required)) {
+	int guess = ENCODING_SPACE_INT + val.length();
+	if (!hasRoom(guess)) {
 	    return false;
 	}
+	int savedPosition = getPosition();
 	addInt(index);
-	addString(val);
+	if (!addString(val)) {
+	    seek(savedPosition);
+	    return false;
+	}
 	numberOfStrings++;
 	return true;
     }

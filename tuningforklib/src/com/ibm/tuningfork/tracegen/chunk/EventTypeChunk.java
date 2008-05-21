@@ -34,27 +34,40 @@ public class EventTypeChunk extends Chunk {
     }
 
     public boolean add(EventType et) {
-	int required = ENCODING_SPAGE_INT + encodingSpace(et.getName())
-		+ encodingSpace(et.getDescription()) + ENCODING_SPAGE_INT * 4;
+	int guess = ENCODING_SPACE_INT + et.getName().length()
+		+ et.getDescription().length() + ENCODING_SPACE_INT * 4;
 	for (int i = 0; i < et.getNumberOfAttributes(); i++) {
 	    EventAttribute ea = et.getAttribute(i);
-	    required += encodingSpace(ea.getName());
-	    required += encodingSpace(ea.getDescription());
+	    guess += ea.getName().length();
+	    guess += ea.getDescription().length();
 	}
-	if (!hasRoom(required)) {
+	if (!hasRoom(guess)) {
 	    return false;
 	}
+	int savedPosition = getPosition();
 	addInt(et.getIndex());
-	addString(et.getName());
-	addString(et.getDescription());
+	if (!addString(et.getName())) {
+	    seek(savedPosition);
+	    return false;
+	}
+	if (!addString(et.getDescription())) {
+	    seek(savedPosition);
+	    return false;
+	}
 	addInt(et.getNumberOfInts());
 	addInt(et.getNumberOfLongs());
 	addInt(et.getNumberOfDoubles());
 	addInt(et.getNumberOfStrings());
 	for (int i = 0; i < et.getNumberOfAttributes(); i++) {
 	    EventAttribute ea = et.getAttribute(i);
-	    addString(ea.getName());
-	    addString(ea.getDescription());
+	    if (!addString(ea.getName())) {
+		seek(savedPosition);
+		return false;
+	    }
+	    if (!addString(ea.getDescription())) {
+		seek(savedPosition);
+		return false;
+	    }
 	}
 	numberOfEventTypes++;
 	return true;

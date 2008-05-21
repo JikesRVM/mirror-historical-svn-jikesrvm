@@ -36,11 +36,11 @@ public class FeedletChunk extends Chunk {
 	return feedletOperations > 0;
     }
 
-    public synchronized void add(int feedletIndex, String name, String description) {
-	if (!hasRoom(ENCODING_SPAGE_INT * 6
-		+ encodingSpace(NAME_PROPERTY)
-		+ encodingSpace(DECSRIPTION_PROPERTY)
-		+ encodingSpace(name) + encodingSpace(description))) {
+    public void add(int feedletIndex, String name, String description) {
+	if (!hasRoom(ENCODING_SPACE_INT * 6
+		+ NAME_PROPERTY.length()
+		+ DECSRIPTION_PROPERTY.length()
+		+ name.length() + description.length())) {
 	    System.err.println("FeedletChunk.add ran out of room");
 	    return;
 	}
@@ -51,19 +51,26 @@ public class FeedletChunk extends Chunk {
 	addProperty(feedletIndex, DECSRIPTION_PROPERTY, description);
     }
 
-    public synchronized boolean addProperty(int feedletIndex, String key, String val) {
-	if (!hasRoom(ENCODING_SPAGE_INT * 2 + encodingSpace(key) + encodingSpace(val))) {
+    public boolean addProperty(int feedletIndex, String key, String val) {
+	if (!hasRoom(ENCODING_SPACE_INT * 2 + key.length() + val.length())) {
 	    return false;
 	}
+	int savedPostion = getPosition();
 	addInt(FEEDLET_DESCRIBE_OPERATION);
 	addInt(feedletIndex);
-	addString(key);
-	addString(val);
+	if (!addString(key)) {
+	    seek(savedPostion);
+	    return false;
+	}
+	if (!addString(val)) {
+	    seek(savedPostion);
+	    return false;
+	}
 	feedletOperations++;
 	return true;
     }
 
-    public synchronized void close() {
+    public void close() {
 	int pos = getPosition();
 	seek(FEEDLET_COUNT_OFFSET);
 	addInt(feedletOperations);
