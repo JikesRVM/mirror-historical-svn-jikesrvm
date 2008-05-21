@@ -21,6 +21,7 @@ import java.io.OutputStream;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.VM_Callbacks;
+import org.jikesrvm.VM_Callbacks.ExitMonitor;
 
 import com.ibm.tuningfork.tracegen.chunk.EventTypeSpaceChunk;
 import com.ibm.tuningfork.tracegen.chunk.FeedHeaderChunk;
@@ -39,6 +40,7 @@ public class VM_Engine {
   public static final VM_Engine engine = new VM_Engine();
   private static final int IO_INTERVAL_MS = 100;
 
+  //TODO: one of the next steps is to make this less bogus....need to write non-blocking chunk pool data structure
   private RawChunk[] fullChunks = new RawChunk[100];
   private int fullChunkCursor = 0;
   private int writtenChunkCursor = 0;
@@ -78,34 +80,19 @@ public class VM_Engine {
     ioThread.start();
 
     /*
-     * Create shutdown hook to make sure the I/O thread has a chance
+     * Create shutdown hook to ensure the I/O thread has a chance
      * to get all the data to disk before the VM exits.
      */
-    Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-      public void run() {
+    VM_Callbacks.addExitMonitor(new ExitMonitor(){
+      public void notifyExit(int value) {
         state = State.SHUTTING_DOWN;
-        while (state != State.SHUTTING_DOWN) {
+        while (state == State.SHUTTING_DOWN) {
           try {
             Thread.sleep(1);
           } catch (InterruptedException e) {
           }
         }
-      }}, "TuningFork Shutdown Hook"));
-
-    // Complete hack.  For initial dumb prototype do all the IO on VM exit.
-    VM_Callbacks.addExitMonitor(new VM_Callbacks.ExitMonitor() {
-      public void notifyExit(int value) {
-        for (int i = 0; i<fullChunkCursor; i++) {
-          try {
-            fullChunks[i].write(outputStream);
-          } catch (IOException e) {
-            VM.sysWriteln("Exception while outputing trace TuningFork trace file");
-            e.printStackTrace();
-            return;
-          }
-        }
-      }
-    });
+      }});
    }
 
   private void ioThreadMainLoop() {
