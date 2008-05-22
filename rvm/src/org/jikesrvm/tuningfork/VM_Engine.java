@@ -99,7 +99,7 @@ public class VM_Engine {
   private void writeInitialProperites() {
     addProperty("rvm version", VM_Configuration.RVM_VERSION_STRING);
     addProperty("rvm config", VM_Configuration.RVM_CONFIGURATION);
-    addProperty("Tick Frequency", "1000000000"); /* ticks are in ns */
+    addProperty("Tick Frequency", "1000000000"); /* ticks ia 1 nanosecond */
   }
 
 
@@ -112,213 +112,213 @@ public class VM_Engine {
    * @param name The name to give the event
    * @param description A human readable description of the event for display in the TuningFork UI.
    */
-   public EventType defineEvent(String name, String description) {
-     EventType result = new EventType(name, description);
-     internalDefineEvent(result);
-     return result;
-   }
+  public EventType defineEvent(String name, String description) {
+    EventType result = new EventType(name, description);
+    internalDefineEvent(result);
+    return result;
+  }
 
   /**
-    * Define an EventType
-    * @param name The name to give the event
-    * @param description A human readable description of the event for display in the TuningFork UI.
-    * @param attribute Description of the event's single data value
-    */
-    public EventType defineEvent(String name, String description, EventAttribute attribute) {
-      EventType result = new EventType(name, description, attribute);
-      internalDefineEvent(result);
-      return result;
+   * Define an EventType
+   * @param name The name to give the event
+   * @param description A human readable description of the event for display in the TuningFork UI.
+   * @param attribute Description of the event's single data value
+   */
+  public EventType defineEvent(String name, String description, EventAttribute attribute) {
+    EventType result = new EventType(name, description, attribute);
+    internalDefineEvent(result);
+    return result;
+  }
+
+  /**
+   * Define an EventType
+   * @param name The name to give the event
+   * @param description A human readable description of the event for display in the TuningFork UI.
+   * @param attributes Descriptions of the event's data values
+   */
+  public EventType defineEvent(String name, String description, EventAttribute[] attributes) {
+    EventType result = new EventType(name, description, attributes);
+    internalDefineEvent(result);
+    return result;
+  }
+
+  private synchronized void internalDefineEvent(EventType et) {
+    if (activeEventTypeChunk == null) {
+      activeEventTypeChunk = new EventTypeChunk();
     }
-
-    /**
-     * Define an EventType
-     * @param name The name to give the event
-     * @param description A human readable description of the event for display in the TuningFork UI.
-     * @param attributes Descriptions of the event's data values
-     */
-     public EventType defineEvent(String name, String description, EventAttribute[] attributes) {
-       EventType result = new EventType(name, description, attributes);
-       internalDefineEvent(result);
-       return result;
-     }
-
-     private synchronized void internalDefineEvent(EventType et) {
-       if (activeEventTypeChunk == null) {
-         activeEventTypeChunk = new EventTypeChunk();
-       }
-       if (!activeEventTypeChunk.add(et)) {
-         activeEventTypeChunk.close();
-         unwrittenMetaChunks.enqueue(activeEventTypeChunk);
-         activeEventTypeChunk = new EventTypeChunk();
-         if (!activeEventTypeChunk.add(et)) {
-           if (VM.VerifyAssertions) {
-             VM.sysFail("EventTypeChunk is too small to to add event type "+et);
-           }
-         }
-       }
-     }
-
-     /**
-      * Add a Property (key, value) pair to the Feed.
-      * @param key the key for the property
-      * @param value the value for the property
-      */
-     public synchronized void addProperty(String key, String value) {
-       if (activePropertyTableChunk == null) {
-         activePropertyTableChunk = new PropertyTableChunk();
-       }
-       if (!activePropertyTableChunk.add(key, value)) {
-         activePropertyTableChunk.close();
-         unwrittenMetaChunks.enqueue(activePropertyTableChunk);
-         activePropertyTableChunk = new PropertyTableChunk();
-         if (!activePropertyTableChunk.add(key, value)) {
-           if (VM.VerifyAssertions) {
-             VM.sysFail("PropertyTableChunk is too small to to add "+key+" = " +value);
-           }
-         }
-       }
-     }
-
-
-
-     /*
-      * Daemon Threads & I/O
-      */
-
-     private void createDaemonThreads() {
-       /* Create primary I/O thread */
-       Thread ioThread = new Thread(new Runnable() {
-         public void run() {
-           ioThreadMainLoop();
-         }}, "TuningFork Primary I/O thread");
-       ioThread.setDaemon(true);
-       ioThread.start();
-
-       /* Install shutdown hook that will delay VM exit until I/O completes. */
-       VM_Callbacks.addExitMonitor(new ExitMonitor(){
-         public void notifyExit(int value) {
-           state = State.SHUTTING_DOWN;
-           while (state == State.SHUTTING_DOWN) {
-             try {
-               Thread.sleep(1);
-             } catch (InterruptedException e) {
-             }
-           }
-         }});
-     }
-
-     private void ioThreadMainLoop() {
-       state = State.RUNNING_FILE;
-       while (true) {
-         try {
-           Thread.sleep(IO_INTERVAL_MS);
-         } catch (InterruptedException e) {
-           // Do nothing.
-         }
-         boolean shouldShutDown = state == State.SHUTTING_DOWN;
-         writeMetaChunks();
-         writeEventChunks(shouldShutDown);
-         if (shouldShutDown) {
-           state = State.SHUT_DOWN;
-           return;
-         }
-       }
-     }
-
-     private synchronized void writeMetaChunks() {
-       try {
-         while (!unwrittenMetaChunks.isEmpty()) {
-           RawChunk c = unwrittenMetaChunks.dequeue();
-           c.write(outputStream);
-         }
-         if (activeEventTypeChunk != null && activeEventTypeChunk.hasData()) {
-           activeEventTypeChunk.close();
-           activeEventTypeChunk.write(outputStream);
-           activeEventTypeChunk.reset();
-         }
-         if (activeFeedletChunk != null && activeFeedletChunk.hasData()) {
-           activeFeedletChunk.close();
-           activeFeedletChunk.write(outputStream);
-           activeFeedletChunk.reset();
-         }
-         if (activePropertyTableChunk != null && activePropertyTableChunk.hasData()) {
-           activePropertyTableChunk.close();
-           activePropertyTableChunk.write(outputStream);
-           activePropertyTableChunk.reset();
-         }
-       } catch (IOException e) {
-         VM.sysWriteln("Exception while outputing trace TuningFork trace file");
-         e.printStackTrace();
-       }
-     }
-
-     private synchronized void writeEventChunks(boolean shouldShutDown) {
-       // TODO: if shouldShutDown, we need to forcibly flush all of the EventChunks
-       //       that are currently attached to feedlets as well.
-       while (!unwrittenEventChunks.isEmpty()) {
-         RawChunk c = unwrittenEventChunks.dequeue();
-         try {
-           c.write(outputStream);
-         } catch (IOException e) {
-           VM.sysWriteln("Exception while outputing trace TuningFork trace file");
-           e.printStackTrace();
-         }
-         availableEventChunks.enqueue(c); /* reduce; reuse; recycle...*/
-       }
-       if (shouldShutDown) {
-         activeEventChunk.close();
-         try {
-           activeEventChunk.write(outputStream);
-         } catch (IOException e) {
-           VM.sysWriteln("Exception while outputing trace TuningFork trace file");
-           e.printStackTrace();
-         }
-       }
-
-     }
-
-
-     /*
-      * Temporary hack to get a few events generated;
-      * once we have feedlets implemented, these static entrypoints will go away.
-      */
-     EventType gcStart;
-     EventType gcStop;
-     EventChunk activeEventChunk;
-     int sequenceNumber = 0;
-    public void gcStart(int why) {
-      if (gcStart == null) {
-        gcStart = defineEvent("GC Start", "Start of a GC cycle",
-                              new EventAttribute("Reason","Encoded reason for GC",ScalarType.INT));
-        gcStop = defineEvent("GC Stop", "End of a GC Cycle");
-        activeFeedletChunk.add(1, "VM Engine", "Tracing Engine");
+    if (!activeEventTypeChunk.add(et)) {
+      activeEventTypeChunk.close();
+      unwrittenMetaChunks.enqueue(activeEventTypeChunk);
+      activeEventTypeChunk = new EventTypeChunk();
+      if (!activeEventTypeChunk.add(et)) {
+        if (VM.VerifyAssertions) {
+          VM.sysFail("EventTypeChunk is too small to to add event type "+et);
+        }
       }
+    }
+  }
 
-      if (activeEventChunk == null) {
-        activeEventChunk = (EventChunk)availableEventChunks.dequeue();
-        activeEventChunk.reset(1, sequenceNumber++);
+  /**
+   * Add a Property (key, value) pair to the Feed.
+   * @param key the key for the property
+   * @param value the value for the property
+   */
+  public synchronized void addProperty(String key, String value) {
+    if (activePropertyTableChunk == null) {
+      activePropertyTableChunk = new PropertyTableChunk();
+    }
+    if (!activePropertyTableChunk.add(key, value)) {
+      activePropertyTableChunk.close();
+      unwrittenMetaChunks.enqueue(activePropertyTableChunk);
+      activePropertyTableChunk = new PropertyTableChunk();
+      if (!activePropertyTableChunk.add(key, value)) {
+        if (VM.VerifyAssertions) {
+          VM.sysFail("PropertyTableChunk is too small to to add "+key+" = " +value);
+        }
       }
-      if (!activeEventChunk.addEvent(VM_Time.nanoTime(), gcStart, why)) {
-        activeEventChunk.close();
-        unwrittenEventChunks.enqueue(activeEventChunk);
-        activeEventChunk = (EventChunk)availableEventChunks.dequeue();
-        activeEventChunk.reset(1, sequenceNumber++);
-        activeEventChunk.addEvent(VM_Time.nanoTime(), gcStart, why);
+    }
+  }
+
+
+
+  /*
+   * Daemon Threads & I/O
+   */
+
+  private void createDaemonThreads() {
+    /* Create primary I/O thread */
+    Thread ioThread = new Thread(new Runnable() {
+      public void run() {
+        ioThreadMainLoop();
+      }}, "TuningFork Primary I/O thread");
+    ioThread.setDaemon(true);
+    ioThread.start();
+
+    /* Install shutdown hook that will delay VM exit until I/O completes. */
+    VM_Callbacks.addExitMonitor(new ExitMonitor(){
+      public void notifyExit(int value) {
+        state = State.SHUTTING_DOWN;
+        while (state == State.SHUTTING_DOWN) {
+          try {
+            Thread.sleep(1);
+          } catch (InterruptedException e) {
+          }
+        }
+      }});
+  }
+
+  private void ioThreadMainLoop() {
+    state = State.RUNNING_FILE;
+    while (true) {
+      try {
+        Thread.sleep(IO_INTERVAL_MS);
+      } catch (InterruptedException e) {
+        // Do nothing.
+      }
+      boolean shouldShutDown = state == State.SHUTTING_DOWN;
+      writeMetaChunks();
+      writeEventChunks(shouldShutDown);
+      if (shouldShutDown) {
+        state = State.SHUT_DOWN;
+        return;
+      }
+    }
+  }
+
+  private synchronized void writeMetaChunks() {
+    try {
+      while (!unwrittenMetaChunks.isEmpty()) {
+        RawChunk c = unwrittenMetaChunks.dequeue();
+        c.write(outputStream);
+      }
+      if (activeEventTypeChunk != null && activeEventTypeChunk.hasData()) {
+        activeEventTypeChunk.close();
+        activeEventTypeChunk.write(outputStream);
+        activeEventTypeChunk.reset();
+      }
+      if (activeFeedletChunk != null && activeFeedletChunk.hasData()) {
+        activeFeedletChunk.close();
+        activeFeedletChunk.write(outputStream);
+        activeFeedletChunk.reset();
+      }
+      if (activePropertyTableChunk != null && activePropertyTableChunk.hasData()) {
+        activePropertyTableChunk.close();
+        activePropertyTableChunk.write(outputStream);
+        activePropertyTableChunk.reset();
+      }
+    } catch (IOException e) {
+      VM.sysWriteln("Exception while outputing trace TuningFork trace file");
+      e.printStackTrace();
+    }
+  }
+
+  private synchronized void writeEventChunks(boolean shouldShutDown) {
+    // TODO: if shouldShutDown, we need to forcibly flush all of the EventChunks
+    //       that are currently attached to feedlets as well.
+    while (!unwrittenEventChunks.isEmpty()) {
+      RawChunk c = unwrittenEventChunks.dequeue();
+      try {
+        c.write(outputStream);
+      } catch (IOException e) {
+        VM.sysWriteln("Exception while outputing trace TuningFork trace file");
+        e.printStackTrace();
+      }
+      availableEventChunks.enqueue(c); /* reduce; reuse; recycle...*/
+    }
+    if (shouldShutDown) {
+      activeEventChunk.close();
+      try {
+        activeEventChunk.write(outputStream);
+      } catch (IOException e) {
+        VM.sysWriteln("Exception while outputing trace TuningFork trace file");
+        e.printStackTrace();
       }
     }
 
-    public void gcStop() {
-      if (activeEventChunk == null) {
-        activeEventChunk = (EventChunk)availableEventChunks.dequeue();
-        activeEventChunk.reset(1, sequenceNumber++);
-      }
-      if (!activeEventChunk.addEvent(VM_Time.nanoTime(), gcStop)) {
-        activeEventChunk.close();
-        unwrittenEventChunks.enqueue(activeEventChunk);
-        activeEventChunk = (EventChunk)availableEventChunks.dequeue();
-        activeEventChunk.reset(1, sequenceNumber++);
-       activeEventChunk.addEvent(VM_Time.nanoTime(), gcStop);
-      }
+  }
+
+
+  /*
+   * Temporary hack to get a few events generated;
+   * once we have feedlets implemented, these static entrypoints will go away.
+   */
+  EventType gcStart;
+  EventType gcStop;
+  EventChunk activeEventChunk;
+  int sequenceNumber = 0;
+  public void gcStart(int why) {
+    if (gcStart == null) {
+      gcStart = defineEvent("GC Start", "Start of a GC cycle",
+                            new EventAttribute("Reason","Encoded reason for GC",ScalarType.INT));
+      gcStop = defineEvent("GC Stop", "End of a GC Cycle");
+      activeFeedletChunk.add(1, "VM Engine", "Tracing Engine");
     }
+
+    if (activeEventChunk == null) {
+      activeEventChunk = (EventChunk)availableEventChunks.dequeue();
+      activeEventChunk.reset(1, sequenceNumber++);
+    }
+    if (!activeEventChunk.addEvent(VM_Time.nanoTime(), gcStart, why)) {
+      activeEventChunk.close();
+      unwrittenEventChunks.enqueue(activeEventChunk);
+      activeEventChunk = (EventChunk)availableEventChunks.dequeue();
+      activeEventChunk.reset(1, sequenceNumber++);
+      activeEventChunk.addEvent(VM_Time.nanoTime(), gcStart, why);
+    }
+  }
+
+  public void gcStop() {
+    if (activeEventChunk == null) {
+      activeEventChunk = (EventChunk)availableEventChunks.dequeue();
+      activeEventChunk.reset(1, sequenceNumber++);
+    }
+    if (!activeEventChunk.addEvent(VM_Time.nanoTime(), gcStop)) {
+      activeEventChunk.close();
+      unwrittenEventChunks.enqueue(activeEventChunk);
+      activeEventChunk = (EventChunk)availableEventChunks.dequeue();
+      activeEventChunk.reset(1, sequenceNumber++);
+      activeEventChunk.addEvent(VM_Time.nanoTime(), gcStop);
+    }
+  }
 
 }
