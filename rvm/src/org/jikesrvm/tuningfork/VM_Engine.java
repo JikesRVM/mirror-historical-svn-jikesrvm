@@ -21,6 +21,7 @@ import java.io.OutputStream;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.VM_Callbacks;
+import org.jikesrvm.VM_Configuration;
 import org.jikesrvm.VM_Callbacks.ExitMonitor;
 
 import com.ibm.tuningfork.tracegen.chunk.EventTypeChunk;
@@ -29,6 +30,8 @@ import com.ibm.tuningfork.tracegen.chunk.FeedHeaderChunk;
 import com.ibm.tuningfork.tracegen.chunk.FeedletChunk;
 import com.ibm.tuningfork.tracegen.chunk.PropertyTableChunk;
 import com.ibm.tuningfork.tracegen.chunk.RawChunk;
+import com.ibm.tuningfork.tracegen.types.EventAttribute;
+import com.ibm.tuningfork.tracegen.types.EventType;
 import com.ibm.tuningfork.tracegen.types.EventTypeSpaceVersion;
 
 /**
@@ -47,9 +50,9 @@ public class VM_Engine {
   private VM_ChunkQueue unwrittenEventChunks = new VM_ChunkQueue();
   private VM_ChunkQueue availableEventChunks = new VM_ChunkQueue();
 
-  private FeedletChunk activeFeedletChunk;
-  private EventTypeChunk activeEventTypeChunk;
-  private PropertyTableChunk activePropertyTableChunk;
+  private FeedletChunk activeFeedletChunk = new FeedletChunk();
+  private EventTypeChunk activeEventTypeChunk = new EventTypeChunk();
+  private PropertyTableChunk activePropertyTableChunk = new PropertyTableChunk();
 
   private OutputStream outputStream;
   private State state;
@@ -75,73 +78,154 @@ public class VM_Engine {
       return;
     }
 
-    /* Create primary I/O thread */
-    Thread ioThread = new Thread(new Runnable() {
-      public void run() {
-        ioThreadMainLoop();
-      }}, "TuningFork Primary I/O thread");
-    ioThread.setDaemon(true);
-    ioThread.start();
-
-    /*
-     * Create shutdown hook to ensure the I/O thread has a chance
-     * to get all the data to disk before the VM exits.
-     */
-    VM_Callbacks.addExitMonitor(new ExitMonitor(){
-      public void notifyExit(int value) {
-        state = State.SHUTTING_DOWN;
-        while (state == State.SHUTTING_DOWN) {
-          try {
-            Thread.sleep(1);
-          } catch (InterruptedException e) {
-          }
-        }
-      }});
+    createDaemonThreads();
+    writeInitialProperites();
    }
 
-  private void ioThreadMainLoop() {
-    state = State.RUNNING_FILE;
-    while (true) {
-      try {
-        Thread.sleep(IO_INTERVAL_MS);
-      } catch (InterruptedException e) {
-      }
-      boolean shouldShutDown = state == State.SHUTTING_DOWN;
-      writeMetaChunks();
-      writeEventChunks(shouldShutDown);
-      if (shouldShutDown) {
-        state = State.SHUT_DOWN;
-        return;
-      }
-    }
+
+  /**
+   * Put some basic properties about this jvm/execution into the feed.
+   */
+  private void writeInitialProperites() {
+    activePropertyTableChunk.add("rvm version", VM_Configuration.RVM_VERSION_STRING);
+    activePropertyTableChunk.add("rvm config", VM_Configuration.RVM_CONFIGURATION);
   }
 
-  private synchronized void writeMetaChunks() {
-    while (!unwrittenMetaChunks.isEmpty()) {
-      RawChunk c = unwrittenMetaChunks.dequeue();
-      try {
-        c.write(outputStream);
-      } catch (IOException e) {
-        VM.sysWriteln("Exception while outputing trace TuningFork trace file");
-        e.printStackTrace();
-        return;
-      }
-      availableEventChunks.enqueue(c); /* reduce; reuse; recycle...*/
-    }
-  }
 
-  private synchronized void writeEventChunks(boolean shouldShutDown) {
-    // TODO: if shouldShutDown, we need to forcible flush all of the EventChunks
-    //       that are currently attached to feedlets as well.
-    while (!unwrittenEventChunks.isEmpty()) {
-      RawChunk c = unwrittenEventChunks.dequeue();
-      try {
-        c.write(outputStream);
-      } catch (IOException e) {
-        VM.sysWriteln("Exception while outputing trace TuningFork trace file");
-        e.printStackTrace();
-        return;
-      }
+  /*
+   * Support for defining EventTypes
+   */
+
+
+  /**
+   * Define an EventType
+   * @param name The name to give the event
+   * @param description A human readable description of the event for display in the TuningFork UI.
+   */
+   public EventType defineEvent(String name, String description) {
+     EventType result = new EventType(name, description);
+     internalDefineEvent(result);
+     return result;
+   }
+
+  /**
+    * Define an EventType
+    * @param name The name to give the event
+    * @param description A human readable description of the event for display in the TuningFork UI.
+    * @param attribute Description of the event's single data value
+    */
+    public EventType defineEvent(String name, String description, EventAttribute attribute) {
+      EventType result = new EventType(name, description, attribute);
+      internalDefineEvent(result);
+      return result;
     }
-  }
+
+    /**
+     * Define an EventType
+     * @param name The name to give the event
+     * @param description A human readable description of the event for display in the TuningFork UI.
+     * @param attributes Descriptions of the event's data values
+     */
+     public EventType defineEvent(String name, String description, EventAttribute[] attributes) {
+       EventType result = new EventType(name, description, attributes);
+       internalDefineEvent(result);
+       return result;
+     }
+
+     private synchronized void internalDefineEvent(EventType et) {
+       if (activeEventTypeChunk == null) {
+         activeEventTypeChunk = new EventTypeChunk();
+       }
+       if (!activeEventTypeChunk.add(et)) {
+         activeEventTypeChunk.close();
+         unwrittenMetaChunks.enqueue(activeEventTypeChunk);
+         activeEventTypeChunk = null;
+       }
+     }
+
+     /*
+      * Daemon Threads & I/O
+      */
+
+     private void createDaemonThreads() {
+       /* Create primary I/O thread */
+       Thread ioThread = new Thread(new Runnable() {
+         public void run() {
+           ioThreadMainLoop();
+         }}, "TuningFork Primary I/O thread");
+       ioThread.setDaemon(true);
+       ioThread.start();
+
+       /* Install shutdown hook that will delay VM exit until I/O completes. */
+       VM_Callbacks.addExitMonitor(new ExitMonitor(){
+         public void notifyExit(int value) {
+           state = State.SHUTTING_DOWN;
+           while (state == State.SHUTTING_DOWN) {
+             try {
+               Thread.sleep(1);
+             } catch (InterruptedException e) {
+             }
+           }
+         }});
+     }
+
+     private void ioThreadMainLoop() {
+       state = State.RUNNING_FILE;
+       while (true) {
+         try {
+           Thread.sleep(IO_INTERVAL_MS);
+         } catch (InterruptedException e) {
+           // Do nothing.
+         }
+         boolean shouldShutDown = state == State.SHUTTING_DOWN;
+         writeMetaChunks();
+         writeEventChunks(shouldShutDown);
+         if (shouldShutDown) {
+           state = State.SHUT_DOWN;
+           return;
+         }
+       }
+     }
+
+     private synchronized void writeMetaChunks() {
+       try {
+         while (!unwrittenMetaChunks.isEmpty()) {
+           RawChunk c = unwrittenMetaChunks.dequeue();
+           c.write(outputStream);
+         }
+         if (activeEventTypeChunk != null && activeEventTypeChunk.hasData()) {
+           activeEventTypeChunk.close();
+           activeEventTypeChunk.write(outputStream);
+           activeEventTypeChunk.reset();
+         }
+         if (activeFeedletChunk != null && activeFeedletChunk.hasData()) {
+           activeFeedletChunk.close();
+           activeFeedletChunk.write(outputStream);
+           activeFeedletChunk.reset();
+         }
+         if (activePropertyTableChunk != null && activePropertyTableChunk.hasData()) {
+           activePropertyTableChunk.close();
+           activePropertyTableChunk.write(outputStream);
+           activePropertyTableChunk.reset();
+         }
+       } catch (IOException e) {
+         VM.sysWriteln("Exception while outputing trace TuningFork trace file");
+         e.printStackTrace();
+       }
+     }
+
+     private synchronized void writeEventChunks(boolean shouldShutDown) {
+       // TODO: if shouldShutDown, we need to forcibly flush all of the EventChunks
+       //       that are currently attached to feedlets as well.
+       while (!unwrittenEventChunks.isEmpty()) {
+         RawChunk c = unwrittenEventChunks.dequeue();
+         try {
+           c.write(outputStream);
+         } catch (IOException e) {
+           VM.sysWriteln("Exception while outputing trace TuningFork trace file");
+           e.printStackTrace();
+         }
+         availableEventChunks.enqueue(c); /* reduce; reuse; recycle...*/
+       }
+     }
 }
