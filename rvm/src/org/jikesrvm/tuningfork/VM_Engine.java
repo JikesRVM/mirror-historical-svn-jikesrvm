@@ -84,18 +84,17 @@ public class VM_Engine {
 
 
   /**
-   * Put some basic properties about this jvm/execution into the feed.
+   * Put some basic properties about this vm build & current execution into the feed.
    */
   private void writeInitialProperites() {
-    activePropertyTableChunk.add("rvm version", VM_Configuration.RVM_VERSION_STRING);
-    activePropertyTableChunk.add("rvm config", VM_Configuration.RVM_CONFIGURATION);
+    addProperty("rvm version", VM_Configuration.RVM_VERSION_STRING);
+    addProperty("rvm config", VM_Configuration.RVM_CONFIGURATION);
   }
 
 
   /*
    * Support for defining EventTypes
    */
-
 
   /**
    * Define an EventType
@@ -139,9 +138,37 @@ public class VM_Engine {
        if (!activeEventTypeChunk.add(et)) {
          activeEventTypeChunk.close();
          unwrittenMetaChunks.enqueue(activeEventTypeChunk);
-         activeEventTypeChunk = null;
+         activeEventTypeChunk = new EventTypeChunk();
+         if (!activeEventTypeChunk.add(et)) {
+           if (VM.VerifyAssertions) {
+             VM.sysFail("EventTypeChunk is too small to to add event type "+et);
+           }
+         }
        }
      }
+
+     /**
+      * Add a Property (key, value) pair to the Feed.
+      * @param key the key for the property
+      * @param value the value for the property
+      */
+     public synchronized void addProperty(String key, String value) {
+       if (activePropertyTableChunk == null) {
+         activePropertyTableChunk = new PropertyTableChunk();
+       }
+       if (!activePropertyTableChunk.add(key, value)) {
+         activePropertyTableChunk.close();
+         unwrittenMetaChunks.enqueue(activePropertyTableChunk);
+         activePropertyTableChunk = new PropertyTableChunk();
+         if (!activePropertyTableChunk.add(key, value)) {
+           if (VM.VerifyAssertions) {
+             VM.sysFail("PropertyTableChunk is too small to to add "+key+" = " +value);
+           }
+         }
+       }
+     }
+
+
 
      /*
       * Daemon Threads & I/O
