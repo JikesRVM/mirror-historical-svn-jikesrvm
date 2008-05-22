@@ -26,6 +26,7 @@ import org.jikesrvm.scheduler.VM_Thread;
 import org.jikesrvm.scheduler.greenthreads.VM_GreenProcessor;
 import org.jikesrvm.scheduler.greenthreads.VM_GreenScheduler;
 import org.jikesrvm.scheduler.greenthreads.VM_GreenThread;
+import org.jikesrvm.tuningfork.VM_Engine;
 import org.mmtk.plan.Plan;
 import org.mmtk.utility.heap.HeapGrowthManager;
 import org.mmtk.utility.options.Options;
@@ -269,7 +270,9 @@ public final class VM_CollectorThread extends VM_GreenThread {
   @LogicallyUninterruptible
   @Uninterruptible
   public static void collect(VM_Handshake handshake, int why) {
+    VM_Engine.engine.gcStart(why);
     handshake.requestAndAwaitCompletion(why);
+    VM_Engine.engine.gcStop();
   }
 
   /**

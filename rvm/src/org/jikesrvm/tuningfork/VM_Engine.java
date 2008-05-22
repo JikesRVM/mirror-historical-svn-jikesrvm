@@ -23,7 +23,9 @@ import org.jikesrvm.VM;
 import org.jikesrvm.VM_Callbacks;
 import org.jikesrvm.VM_Configuration;
 import org.jikesrvm.VM_Callbacks.ExitMonitor;
+import org.jikesrvm.runtime.VM_Time;
 
+import com.ibm.tuningfork.tracegen.chunk.EventChunk;
 import com.ibm.tuningfork.tracegen.chunk.EventTypeChunk;
 import com.ibm.tuningfork.tracegen.chunk.EventTypeSpaceChunk;
 import com.ibm.tuningfork.tracegen.chunk.FeedHeaderChunk;
@@ -33,6 +35,7 @@ import com.ibm.tuningfork.tracegen.chunk.RawChunk;
 import com.ibm.tuningfork.tracegen.types.EventAttribute;
 import com.ibm.tuningfork.tracegen.types.EventType;
 import com.ibm.tuningfork.tracegen.types.EventTypeSpaceVersion;
+import com.ibm.tuningfork.tracegen.types.ScalarType;
 
 /**
  * TuningFork Trace Engine (roughly functionally equivalent to the
@@ -56,6 +59,13 @@ public class VM_Engine {
 
   private OutputStream outputStream;
   private State state;
+
+  private VM_Engine() {
+    for (int i=0; i<32; i++) {
+      availableEventChunks.enqueue(new EventChunk(false));
+    }
+  }
+
 
   public void earlyStageBooting() {
     // TODO: make all of this conditional on command line argument.
@@ -89,6 +99,7 @@ public class VM_Engine {
   private void writeInitialProperites() {
     addProperty("rvm version", VM_Configuration.RVM_VERSION_STRING);
     addProperty("rvm config", VM_Configuration.RVM_CONFIGURATION);
+    addProperty("Tick Frequency", "1000000000"); /* ticks are in ns */
   }
 
 
@@ -254,5 +265,60 @@ public class VM_Engine {
          }
          availableEventChunks.enqueue(c); /* reduce; reuse; recycle...*/
        }
+       if (shouldShutDown) {
+         activeEventChunk.close();
+         try {
+           activeEventChunk.write(outputStream);
+         } catch (IOException e) {
+           VM.sysWriteln("Exception while outputing trace TuningFork trace file");
+           e.printStackTrace();
+         }
+       }
+
      }
+
+
+     /*
+      * Temporary hack to get a few events generated;
+      * once we have feedlets implemented, these static entrypoints will go away.
+      */
+     EventType gcStart;
+     EventType gcStop;
+     EventChunk activeEventChunk;
+     int sequenceNumber = 0;
+    public void gcStart(int why) {
+      if (gcStart == null) {
+        gcStart = defineEvent("GC Start", "Start of a GC cycle",
+                              new EventAttribute("Reason","Encoded reason for GC",ScalarType.INT));
+        gcStop = defineEvent("GC Stop", "End of a GC Cycle");
+        activeFeedletChunk.add(1, "VM Engine", "Tracing Engine");
+      }
+
+      if (activeEventChunk == null) {
+        activeEventChunk = (EventChunk)availableEventChunks.dequeue();
+        activeEventChunk.reset(1, sequenceNumber++);
+      }
+      if (!activeEventChunk.addEvent(VM_Time.nanoTime(), gcStart, why)) {
+        activeEventChunk.close();
+        unwrittenEventChunks.enqueue(activeEventChunk);
+        activeEventChunk = (EventChunk)availableEventChunks.dequeue();
+        activeEventChunk.reset(1, sequenceNumber++);
+        activeEventChunk.addEvent(VM_Time.nanoTime(), gcStart, why);
+      }
+    }
+
+    public void gcStop() {
+      if (activeEventChunk == null) {
+        activeEventChunk = (EventChunk)availableEventChunks.dequeue();
+        activeEventChunk.reset(1, sequenceNumber++);
+      }
+      if (!activeEventChunk.addEvent(VM_Time.nanoTime(), gcStop)) {
+        activeEventChunk.close();
+        unwrittenEventChunks.enqueue(activeEventChunk);
+        activeEventChunk = (EventChunk)availableEventChunks.dequeue();
+        activeEventChunk.reset(1, sequenceNumber++);
+       activeEventChunk.addEvent(VM_Time.nanoTime(), gcStop);
+      }
+    }
+
 }
