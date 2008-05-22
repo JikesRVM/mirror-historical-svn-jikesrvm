@@ -57,4 +57,7 @@ public class StringTableChunk extends Chunk {
 	return numberOfStrings > 0;
     }
 
+    public void reset() {
+	resetImpl();
+    }
 }

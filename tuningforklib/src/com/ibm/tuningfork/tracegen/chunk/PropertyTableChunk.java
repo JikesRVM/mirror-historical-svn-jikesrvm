@@ -59,4 +59,8 @@ public class PropertyTableChunk extends Chunk {
     public boolean hasData() {
 	return numberOfProperties > 0;
     }
+
+    public void reset() {
+	resetImpl();
+    }
 }

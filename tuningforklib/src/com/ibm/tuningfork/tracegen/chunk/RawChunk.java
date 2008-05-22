@@ -143,7 +143,7 @@ public abstract class RawChunk {
 	char[] backingChars = JikesRVMSupport.getBackingCharArray(str);
 	for (int i=0; i<strLen; i++) {
 	    char c = backingChars[i];
-	    if (c > 0 && c <= 0x7f) {
+	    if (c <= 0x7f) {
 		data[cursor++] = (byte)(c);
 	    } else if (c <= 0x7ff) {
 		if (!hasRoom(1 + (strLen-i))) {
