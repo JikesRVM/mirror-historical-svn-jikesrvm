@@ -45,6 +45,9 @@ public abstract class RawChunk {
     private int cursor = 0;
     private boolean open = true;
 
+    /* For use by ChunkQueue */
+    public RawChunk next = null;
+
     protected RawChunk(byte[] buffer) {
 	data = buffer;
     }

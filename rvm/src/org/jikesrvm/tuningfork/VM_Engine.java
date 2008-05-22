@@ -23,8 +23,11 @@ import org.jikesrvm.VM;
 import org.jikesrvm.VM_Callbacks;
 import org.jikesrvm.VM_Callbacks.ExitMonitor;
 
+import com.ibm.tuningfork.tracegen.chunk.EventTypeChunk;
 import com.ibm.tuningfork.tracegen.chunk.EventTypeSpaceChunk;
 import com.ibm.tuningfork.tracegen.chunk.FeedHeaderChunk;
+import com.ibm.tuningfork.tracegen.chunk.FeedletChunk;
+import com.ibm.tuningfork.tracegen.chunk.PropertyTableChunk;
 import com.ibm.tuningfork.tracegen.chunk.RawChunk;
 import com.ibm.tuningfork.tracegen.types.EventTypeSpaceVersion;
 
@@ -40,24 +43,25 @@ public class VM_Engine {
   public static final VM_Engine engine = new VM_Engine();
   private static final int IO_INTERVAL_MS = 100;
 
-  //TODO: one of the next steps is to make this less bogus....need to write non-blocking chunk pool data structure
-  private RawChunk[] fullChunks = new RawChunk[100];
-  private int fullChunkCursor = 0;
-  private int writtenChunkCursor = 0;
+  private VM_ChunkQueue unwrittenMetaChunks = new VM_ChunkQueue();
+  private VM_ChunkQueue unwrittenEventChunks = new VM_ChunkQueue();
+  private VM_ChunkQueue availableEventChunks = new VM_ChunkQueue();
+
+  private FeedletChunk activeFeedletChunk;
+  private EventTypeChunk activeEventTypeChunk;
+  private PropertyTableChunk activePropertyTableChunk;
+
   private OutputStream outputStream;
   private State state;
 
   public void earlyStageBooting() {
-    pushChunk(new FeedHeaderChunk());
-    pushChunk(new EventTypeSpaceChunk(new EventTypeSpaceVersion("org.jikesrvm", 1)));
-    pushChunk(new VM_SpaceDescriptorChunk());
+    // TODO: make all of this conditional on command line argument.
 
-    // TODO: make this conditional on command line argument.
+    unwrittenMetaChunks.enqueue(new FeedHeaderChunk());
+    unwrittenMetaChunks.enqueue(new EventTypeSpaceChunk(new EventTypeSpaceVersion("org.jikesrvm", 1)));
+    unwrittenMetaChunks.enqueue(new VM_SpaceDescriptorChunk());
+
     state = State.STARTING_UP;
-  }
-
-  public synchronized void pushChunk(RawChunk chunk) {
-    fullChunks[fullChunkCursor++] = chunk;
   }
 
   public void fullyBootedVM() {
@@ -103,7 +107,8 @@ public class VM_Engine {
       } catch (InterruptedException e) {
       }
       boolean shouldShutDown = state == State.SHUTTING_DOWN;
-      writeChunks(shouldShutDown);
+      writeMetaChunks();
+      writeEventChunks(shouldShutDown);
       if (shouldShutDown) {
         state = State.SHUT_DOWN;
         return;
@@ -111,10 +116,27 @@ public class VM_Engine {
     }
   }
 
-  private void writeChunks(boolean b) {
-    while (writtenChunkCursor < fullChunkCursor) {
+  private synchronized void writeMetaChunks() {
+    while (!unwrittenMetaChunks.isEmpty()) {
+      RawChunk c = unwrittenMetaChunks.dequeue();
       try {
-        fullChunks[writtenChunkCursor++].write(outputStream);
+        c.write(outputStream);
+      } catch (IOException e) {
+        VM.sysWriteln("Exception while outputing trace TuningFork trace file");
+        e.printStackTrace();
+        return;
+      }
+      availableEventChunks.enqueue(c); /* reduce; reuse; recycle...*/
+    }
+  }
+
+  private synchronized void writeEventChunks(boolean shouldShutDown) {
+    // TODO: if shouldShutDown, we need to forcible flush all of the EventChunks
+    //       that are currently attached to feedlets as well.
+    while (!unwrittenEventChunks.isEmpty()) {
+      RawChunk c = unwrittenEventChunks.dequeue();
+      try {
+        c.write(outputStream);
       } catch (IOException e) {
         VM.sysWriteln("Exception while outputing trace TuningFork trace file");
         e.printStackTrace();

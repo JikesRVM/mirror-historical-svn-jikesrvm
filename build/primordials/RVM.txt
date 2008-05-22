@@ -11,8 +11,6 @@
 #  regarding copyright ownership.
 #
 
-[Lcom/ibm/tuningfork/tracegen/chunk/RawChunk;
-
 [Lorg/vmmagic/unboxed/Address;
 [Lorg/vmmagic/unboxed/ObjectReference;
 [Lorg/vmmagic/unboxed/Word;
