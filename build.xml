@@ -790,6 +790,8 @@ Check to make sure all required properties are specified. This includes properti
         <filter token="_RVM_WITH_GCTRACE_" value="${pp_RVM_WITH_GCTRACE}"/>
         <filter token="_RVM_WITH_ALIGNMENT_CHECKING_" value ="${config.alignment-checking}"/>
         <filter token="_PORTABLE_NATIVE_SYNC_" value="${config.portable-native-sync}"/>
+      	<filter token="_RVM_VERSION_" value="Jikes RVM ${rvm.version} (r${svn.revision})"/>
+      	<filter token="_RVM_CONFIGURATION_" value="${config.name}" />
       </filterset>
     </copy>
 
