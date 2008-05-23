@@ -14,7 +14,6 @@
 
 package com.ibm.tuningfork.tracegen.chunk;
 
-import org.jikesrvm.VM;
 import org.vmmagic.pragma.Uninterruptible;
 
 @Uninterruptible
@@ -40,19 +39,26 @@ public class FeedletChunk extends Chunk {
 	return feedletOperations > 0;
     }
 
-    public void add(int feedletIndex, String name, String description) {
+    public boolean add(int feedletIndex, String name, String description) {
 	if (!hasRoom(ENCODING_SPACE_INT * 6
 		+ JikesRVMSupport.getStringLength(NAME_PROPERTY)
 		+ JikesRVMSupport.getStringLength(DECSRIPTION_PROPERTY)
 		+ JikesRVMSupport.getStringLength(name) + JikesRVMSupport.getStringLength(description))) {
-	    VM.sysWriteln("FeedletChunk.add ran out of room");
-	    return;
+	  return false;
 	}
+	int savedPosition = getPosition();
 	addInt(FEEDLET_ADD_OPERATION);
 	addInt(feedletIndex);
 	feedletOperations++;
-	addProperty(feedletIndex, NAME_PROPERTY, name);
-	addProperty(feedletIndex, DECSRIPTION_PROPERTY, description);
+	if (!addProperty(feedletIndex, NAME_PROPERTY, name)) {
+	  seek(savedPosition);
+	  return false;
+	}
+	if (!addProperty(feedletIndex, DECSRIPTION_PROPERTY, description)) {
+	  seek(savedPosition);
+	  return false;
+	}
+	return true;
     }
 
     public boolean addProperty(int feedletIndex, String key, String val) {

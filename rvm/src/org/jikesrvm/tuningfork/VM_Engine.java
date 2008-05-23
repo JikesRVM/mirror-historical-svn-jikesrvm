@@ -23,7 +23,7 @@ import org.jikesrvm.VM;
 import org.jikesrvm.VM_Callbacks;
 import org.jikesrvm.VM_Configuration;
 import org.jikesrvm.VM_Callbacks.ExitMonitor;
-import org.jikesrvm.runtime.VM_Time;
+import org.jikesrvm.util.VM_HashSet;
 
 import com.ibm.tuningfork.tracegen.chunk.EventChunk;
 import com.ibm.tuningfork.tracegen.chunk.EventTypeChunk;
@@ -56,6 +56,9 @@ public class VM_Engine {
   private FeedletChunk activeFeedletChunk = new FeedletChunk();
   private EventTypeChunk activeEventTypeChunk = new EventTypeChunk();
   private PropertyTableChunk activePropertyTableChunk = new PropertyTableChunk();
+
+  private int nextFeedletId = 0;
+  private VM_HashSet<VM_Feedlet> activeFeedlets = new VM_HashSet<VM_Feedlet>();
 
   private OutputStream outputStream;
   private State state;
@@ -143,9 +146,6 @@ public class VM_Engine {
   }
 
   private synchronized void internalDefineEvent(EventType et) {
-    if (activeEventTypeChunk == null) {
-      activeEventTypeChunk = new EventTypeChunk();
-    }
     if (!activeEventTypeChunk.add(et)) {
       activeEventTypeChunk.close();
       unwrittenMetaChunks.enqueue(activeEventTypeChunk);
@@ -158,15 +158,16 @@ public class VM_Engine {
     }
   }
 
+  /*
+   * Support for Properties
+   */
+
   /**
    * Add a Property (key, value) pair to the Feed.
    * @param key the key for the property
    * @param value the value for the property
    */
   public synchronized void addProperty(String key, String value) {
-    if (activePropertyTableChunk == null) {
-      activePropertyTableChunk = new PropertyTableChunk();
-    }
     if (!activePropertyTableChunk.add(key, value)) {
       activePropertyTableChunk.close();
       unwrittenMetaChunks.enqueue(activePropertyTableChunk);
@@ -179,6 +180,25 @@ public class VM_Engine {
     }
   }
 
+  /*
+   * Support for Feedlets
+   */
+  public synchronized VM_Feedlet makeFeedlet(String name, String description) {
+    VM_Feedlet f = new VM_Feedlet(this, nextFeedletId++);
+    if (!activeFeedletChunk.add(f.getFeedletIndex(), name, description)) {
+      activeFeedletChunk.close();
+      unwrittenMetaChunks.enqueue(activeFeedletChunk);
+      activeFeedletChunk = new FeedletChunk();
+      if (!activeFeedletChunk.addProperty(f.getFeedletIndex(), name, description)) {
+        if (VM.VerifyAssertions) {
+          VM.sysFail("FeedletChunk is too small to to add feedlet "+name+" (" +description+")");
+        }
+      }
+    }
+
+    activeFeedlets.add(f);
+    return f;
+  }
 
 
   /*
@@ -253,8 +273,6 @@ public class VM_Engine {
   }
 
   private synchronized void writeEventChunks(boolean shouldShutDown) {
-    // TODO: if shouldShutDown, we need to forcibly flush all of the EventChunks
-    //       that are currently attached to feedlets as well.
     while (!unwrittenEventChunks.isEmpty()) {
       RawChunk c = unwrittenEventChunks.dequeue();
       try {
@@ -266,15 +284,17 @@ public class VM_Engine {
       availableEventChunks.enqueue(c); /* reduce; reuse; recycle...*/
     }
     if (shouldShutDown) {
-      activeEventChunk.close();
-      try {
-        activeEventChunk.write(outputStream);
-      } catch (IOException e) {
-        VM.sysWriteln("Exception while outputing trace TuningFork trace file");
-        e.printStackTrace();
+      // TODO: This isn't really safe.  We should be snapshotting the feedlets
+      //       event's chunks and then closing/writing them.
+      for (VM_Feedlet f : activeFeedlets) {
+        try {
+          f.stealEvents().write(outputStream);
+        } catch (IOException e) {
+          VM.sysWriteln("Exception while outputing trace TuningFork trace file");
+          e.printStackTrace();
+        }
       }
     }
-
   }
 
 
@@ -284,41 +304,31 @@ public class VM_Engine {
    */
   EventType gcStart;
   EventType gcStop;
-  EventChunk activeEventChunk;
+  VM_Feedlet activeFeedlet;
   int sequenceNumber = 0;
   public void gcStart(int why) {
     if (gcStart == null) {
       gcStart = defineEvent("GC Start", "Start of a GC cycle",
                             new EventAttribute("Reason","Encoded reason for GC",ScalarType.INT));
       gcStop = defineEvent("GC Stop", "End of a GC Cycle");
-      activeFeedletChunk.add(1, "VM Engine", "Tracing Engine");
+      activeFeedlet = makeFeedlet("VM Engine", "Tracing Engine");
     }
 
-    if (activeEventChunk == null) {
-      activeEventChunk = (EventChunk)availableEventChunks.dequeue();
-      activeEventChunk.reset(1, sequenceNumber++);
-    }
-    if (!activeEventChunk.addEvent(VM_Time.nanoTime(), gcStart, why)) {
-      activeEventChunk.close();
-      unwrittenEventChunks.enqueue(activeEventChunk);
-      activeEventChunk = (EventChunk)availableEventChunks.dequeue();
-      activeEventChunk.reset(1, sequenceNumber++);
-      activeEventChunk.addEvent(VM_Time.nanoTime(), gcStart, why);
-    }
+    activeFeedlet.addEvent(gcStart, why);
   }
 
   public void gcStop() {
-    if (activeEventChunk == null) {
-      activeEventChunk = (EventChunk)availableEventChunks.dequeue();
-      activeEventChunk.reset(1, sequenceNumber++);
-    }
-    if (!activeEventChunk.addEvent(VM_Time.nanoTime(), gcStop)) {
-      activeEventChunk.close();
-      unwrittenEventChunks.enqueue(activeEventChunk);
-      activeEventChunk = (EventChunk)availableEventChunks.dequeue();
-      activeEventChunk.reset(1, sequenceNumber++);
-      activeEventChunk.addEvent(VM_Time.nanoTime(), gcStop);
-    }
+    activeFeedlet.addEvent(gcStop);
+  }
+
+
+  EventChunk getEventChunk() {
+    return (EventChunk)availableEventChunks.dequeue();
+  }
+
+
+  public void returnFullEventChunk(EventChunk events) {
+    unwrittenEventChunks.enqueue(events);
   }
 
 }
