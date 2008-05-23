@@ -15,6 +15,7 @@ package org.jikesrvm.tuningfork;
 
 import org.mmtk.policy.Space;
 import org.mmtk.policy.Space.SpaceVisitor;
+import org.mmtk.utility.Constants;
 
 import com.ibm.tuningfork.tracegen.chunk.Chunk;
 
@@ -31,6 +32,8 @@ public class VM_SpaceDescriptorChunk extends Chunk {
 
   VM_SpaceDescriptorChunk() {
     super(SPACE_DESCRIPTOR_CHUNK_ID);
+
+    /* Write mapping of space ids to logical space names */
     seek(SPACE_DESCRIPTOR_DATA_OFFSET);
     numSpaces = 0;
     Space.visitSpaces(new SpaceVisitor() {
@@ -44,6 +47,19 @@ public class VM_SpaceDescriptorChunk extends Chunk {
     seek(SPACE_DESCRIPTOR_COUNT_OFFSET);
     addInt(numSpaces);
     seek(pos);
+
+    /* Pages per byte */
+    addInt(Constants.BYTES_IN_PAGE);
+
+    /* Possible heap range */
+    /* TODO: Horrific 32 bit assumption.
+     *       Matches equally bogus assumption in event definitions that use
+     *       an int to pass addresses.
+     *       MUST FIX BEFORE MERGING TO TRUNK!
+     */
+    addInt(org.mmtk.vm.VM.HEAP_START.toInt());
+    addInt(org.mmtk.vm.VM.HEAP_END.toInt());
+
     close();
   }
 
