@@ -16,6 +16,7 @@ import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.VM;
 import org.jikesrvm.compilers.common.VM_CompiledMethods;
 import org.jikesrvm.mm.mmtk.Collection;
+import org.jikesrvm.mm.mmtk.MMTk_Events;
 import org.jikesrvm.mm.mmtk.ScanThread;
 import org.jikesrvm.mm.mmtk.Scanning;
 import org.jikesrvm.runtime.VM_Magic;
@@ -270,9 +271,9 @@ public final class VM_CollectorThread extends VM_GreenThread {
   @LogicallyUninterruptible
   @Uninterruptible
   public static void collect(VM_Handshake handshake, int why) {
-    VM_Engine.engine.gcStart(why);
+    VM_Engine.engine.activeFeedlet.addEvent(MMTk_Events.events.gcStart, why);
     handshake.requestAndAwaitCompletion(why);
-    VM_Engine.engine.gcStop();
+    VM_Engine.engine.activeFeedlet.addEvent(MMTk_Events.events.gcStop);
   }
 
   /**

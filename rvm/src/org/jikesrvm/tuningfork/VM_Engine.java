@@ -24,6 +24,7 @@ import org.jikesrvm.VM_Callbacks;
 import org.jikesrvm.VM_Configuration;
 import org.jikesrvm.VM_Callbacks.ExitMonitor;
 import org.jikesrvm.util.VM_HashSet;
+import org.vmmagic.pragma.Uninterruptible;
 
 import com.ibm.tuningfork.tracegen.chunk.EventChunk;
 import com.ibm.tuningfork.tracegen.chunk.EventTypeChunk;
@@ -35,7 +36,6 @@ import com.ibm.tuningfork.tracegen.chunk.RawChunk;
 import com.ibm.tuningfork.tracegen.types.EventAttribute;
 import com.ibm.tuningfork.tracegen.types.EventType;
 import com.ibm.tuningfork.tracegen.types.EventTypeSpaceVersion;
-import com.ibm.tuningfork.tracegen.types.ScalarType;
 
 /**
  * TuningFork Trace Engine (roughly functionally equivalent to the
@@ -63,6 +63,13 @@ public class VM_Engine {
   private OutputStream outputStream;
   private State state;
 
+  /*
+   * Temporary hack until I wire feedlets up to VM_Threads.
+   * We have one feedlet that everyone uses (can get away with
+   * this as long as we only run with 1 virtual processor.
+   */
+  public VM_Feedlet activeFeedlet;
+
   private VM_Engine() {
     for (int i=0; i<32; i++) {
       availableEventChunks.enqueue(new EventChunk(false));
@@ -76,6 +83,10 @@ public class VM_Engine {
     unwrittenMetaChunks.enqueue(new FeedHeaderChunk());
     unwrittenMetaChunks.enqueue(new EventTypeSpaceChunk(new EventTypeSpaceVersion("org.jikesrvm", 1)));
     unwrittenMetaChunks.enqueue(new VM_SpaceDescriptorChunk());
+
+    activeFeedlet = makeFeedlet("VM Engine", "Tracing Engine");
+
+    org.jikesrvm.mm.mmtk.MMTk_Events.events.initialize(this);
 
     state = State.STARTING_UP;
   }
@@ -102,7 +113,7 @@ public class VM_Engine {
   private void writeInitialProperites() {
     addProperty("rvm version", VM_Configuration.RVM_VERSION_STRING);
     addProperty("rvm config", VM_Configuration.RVM_CONFIGURATION);
-    addProperty("Tick Frequency", "1000000000"); /* ticks ia 1 nanosecond */
+    addProperty("Tick Frequency", "1000000000"); /* a tick is one nanosecond */
   }
 
 
@@ -297,36 +308,12 @@ public class VM_Engine {
     }
   }
 
-
-  /*
-   * Temporary hack to get a few events generated;
-   * once we have feedlets implemented, these static entrypoints will go away.
-   */
-  EventType gcStart;
-  EventType gcStop;
-  VM_Feedlet activeFeedlet;
-  int sequenceNumber = 0;
-  public void gcStart(int why) {
-    if (gcStart == null) {
-      gcStart = defineEvent("GC Start", "Start of a GC cycle",
-                            new EventAttribute("Reason","Encoded reason for GC",ScalarType.INT));
-      gcStop = defineEvent("GC Stop", "End of a GC Cycle");
-      activeFeedlet = makeFeedlet("VM Engine", "Tracing Engine");
-    }
-
-    activeFeedlet.addEvent(gcStart, why);
-  }
-
-  public void gcStop() {
-    activeFeedlet.addEvent(gcStop);
-  }
-
-
+  @Uninterruptible
   EventChunk getEventChunk() {
     return (EventChunk)availableEventChunks.dequeue();
   }
 
-
+  @Uninterruptible
   public void returnFullEventChunk(EventChunk events) {
     unwrittenEventChunks.enqueue(events);
   }

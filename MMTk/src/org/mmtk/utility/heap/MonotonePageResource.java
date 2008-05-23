@@ -12,16 +12,18 @@
  */
 package org.mmtk.utility.heap;
 
+import org.mmtk.policy.Space;
+import org.mmtk.utility.Constants;
+import org.mmtk.utility.Conversions;
 import org.mmtk.utility.alloc.EmbeddedMetaData;
 import org.mmtk.utility.options.Options;
-import org.mmtk.policy.Space;
-import org.mmtk.utility.Conversions;
-import org.mmtk.utility.Constants;
-
 import org.mmtk.vm.VM;
-
-import org.vmmagic.pragma.*;
-import org.vmmagic.unboxed.*;
+import org.vmmagic.pragma.Inline;
+import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.unboxed.Address;
+import org.vmmagic.unboxed.Extent;
+import org.vmmagic.unboxed.Offset;
+import org.vmmagic.unboxed.Word;
 
 /**
  * This class manages the allocation of pages for a space.  When a
@@ -174,6 +176,7 @@ public final class MonotonePageResource extends PageResource
       unlock();
       Mmapper.ensureMapped(old, pages);
       VM.memory.zero(old, bytes);
+      VM.events.tracePageAcquired(space, rtn, pages);
       return rtn;
     }
   }
@@ -301,5 +304,6 @@ public final class MonotonePageResource extends PageResource
       VM.memory.zero(first, bytes);
     if (Options.protectOnRelease.getValue())
       Mmapper.protect(first, pages);
+    VM.events.tracePageReleased(space, first, pages);
   }
 }

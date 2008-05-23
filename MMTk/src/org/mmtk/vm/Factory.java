@@ -167,6 +167,12 @@ public abstract class Factory {
   public abstract TraceInterface newTraceInterface();
 
 
+  /**
+   * Create a new MMTk_Events instance using the appropriate VM-specific
+   * concrete MMTk_Events sub-class.
+   */
+  public abstract MMTk_Events newEvents();
+
   /**********************************************************************
    * GCspy methods
    */

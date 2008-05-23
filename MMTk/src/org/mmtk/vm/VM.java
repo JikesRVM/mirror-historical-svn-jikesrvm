@@ -112,6 +112,8 @@ public final class VM {
   @Untraced
   public static final TraceInterface traceInterface;
 
+  public static final MMTk_Events events;
+
   /*
    * The remainder is does the static initialization of the
    * above, reflectively binding to the appropriate host jvm
@@ -154,6 +156,7 @@ public final class VM {
     statistics = factory.newStatistics();
     strings = factory.newStrings();
     traceInterface = factory.newTraceInterface();
+    events = factory.newEvents();
     config = new Config(factory.newBuildTimeConfig());
 
     /* Now initialize the constants using the vm-specific singletons */

@@ -12,11 +12,10 @@
  */
 package org.jikesrvm.mm.mmtk;
 
+import org.jikesrvm.VM;
 import org.mmtk.utility.gcspy.Color;
 import org.mmtk.utility.gcspy.drivers.AbstractDriver;
 import org.mmtk.vm.ReferenceProcessor.Semantics;
-
-import org.jikesrvm.VM;
 
 /**
  * This is a VM-specific class which defines factory methods for
@@ -268,6 +267,22 @@ public final class Factory extends org.mmtk.vm.Factory {
       return new TraceInterface();
     } catch (Exception e) {
       VM.sysFail("Failed to allocate new TraceInterface!");
+      return null; // never get here
+    }
+  }
+
+  /**
+   * Create a new MMTk_Events instance using the appropriate VM-specific
+   * concrete MMTk_Events sub-class.
+   *
+   * @see MMTk_Events
+   * @return A concrete VM-specific MMTk_Events instance.
+   */
+  public org.mmtk.vm.MMTk_Events newEvents() {
+    try {
+      return new MMTk_Events();
+    } catch (Exception e) {
+      VM.sysFail("Failed to allocate new MMTk_Events!");
       return null; // never get here
     }
   }

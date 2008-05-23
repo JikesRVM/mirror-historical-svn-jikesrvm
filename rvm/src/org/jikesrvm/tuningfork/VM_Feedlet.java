@@ -16,6 +16,7 @@ package org.jikesrvm.tuningfork;
 import org.jikesrvm.VM;
 import org.jikesrvm.runtime.VM_Time;
 import org.vmmagic.pragma.NoInline;
+import org.vmmagic.pragma.Uninterruptible;
 
 import com.ibm.tuningfork.tracegen.chunk.EventChunk;
 import com.ibm.tuningfork.tracegen.types.EventType;
@@ -33,6 +34,7 @@ import com.ibm.tuningfork.tracegen.types.EventType;
  * to something other than a VM_Thread, then this invariant must be
  * established via external synchronization.</p>
  */
+@Uninterruptible
 public class VM_Feedlet {
   private static final boolean CHECK_TYPES = VM.VerifyAssertions;
 
@@ -107,6 +109,48 @@ public class VM_Feedlet {
     }
   }
 
+  /**
+   * Add an event to the feedlet's generated event stream
+   * @param et The type of event to add
+   * @param ival1 The first int data value
+   * @param ival2 The second int data value
+   */
+  public void addEvent(EventType et, int ival1, int ival2) {
+    if (CHECK_TYPES && !checkTypes(et, 2, 0, 0, 0)) return;
+
+    long timeStamp = getTimeStamp();
+    while (true) {
+      if (events == null && !acquireEventChunk()) {
+        return; /* failure */
+      }
+      if (events.addEvent(timeStamp, et, ival1, ival2)) {
+        return; /* success */
+      }
+      flushEventChunk(); /* events is full or stale; flush and try again */
+    }
+  }
+
+  /**
+   * Add an event to the feedlet's generated event stream
+   * @param et The type of event to add
+   * @param ival1 The first int data value
+   * @param ival2 The second int data value
+   * @param ival3 The third int data value
+   */
+  public void addEvent(EventType et, int ival1, int ival2, int ival3) {
+    if (CHECK_TYPES && !checkTypes(et, 3, 0, 0, 0)) return;
+
+    long timeStamp = getTimeStamp();
+    while (true) {
+      if (events == null && !acquireEventChunk()) {
+        return; /* failure */
+      }
+      if (events.addEvent(timeStamp, et, ival1, ival2, ival3)) {
+        return; /* success */
+      }
+      flushEventChunk(); /* events is full or stale; flush and try again */
+    }
+  }
 
   @NoInline
   private boolean checkTypes(EventType et, int numInts, int numLongs, int numDoubles, int numStrings) {

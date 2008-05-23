@@ -12,17 +12,20 @@
  */
 package org.mmtk.utility.heap;
 
+import static org.mmtk.policy.Space.PAGES_IN_CHUNK;
+
 import org.mmtk.plan.Plan;
 import org.mmtk.policy.Space;
-import static org.mmtk.policy.Space.PAGES_IN_CHUNK;
-import org.mmtk.utility.alloc.EmbeddedMetaData;
+import org.mmtk.utility.Constants;
 import org.mmtk.utility.Conversions;
 import org.mmtk.utility.GenericFreeList;
+import org.mmtk.utility.alloc.EmbeddedMetaData;
 import org.mmtk.vm.VM;
-import org.mmtk.utility.Constants;
-
-import org.vmmagic.unboxed.*;
-import org.vmmagic.pragma.*;
+import org.vmmagic.pragma.Inline;
+import org.vmmagic.pragma.Interruptible;
+import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.unboxed.Address;
+import org.vmmagic.unboxed.Extent;
 
 /**
  * This class manages the allocation of pages for a space.  When a
@@ -172,6 +175,7 @@ public final class FreeListPageResource extends PageResource implements Constant
       unlock();
       Mmapper.ensureMapped(rtn, pages);
       VM.memory.zero(rtn, bytes);
+      VM.events.tracePageAcquired(space, rtn, pages);
       return rtn;
     }
   }
@@ -219,6 +223,7 @@ public final class FreeListPageResource extends PageResource implements Constant
     }
     if (completelyFreed)
       freeContiguousChunk(Space.chunkAlign(first, true));
+    VM.events.tracePageReleased(space, first, pages);
     unlock();
   }
 
