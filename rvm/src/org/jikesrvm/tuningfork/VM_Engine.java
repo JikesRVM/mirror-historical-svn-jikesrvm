@@ -42,23 +42,23 @@ import com.ibm.tuningfork.tracegen.types.EventTypeSpaceVersion;
  * Logger classes in the TuningFork JavaTraceGenerationLibrary).
  *
  */
-public class VM_Engine {
+public final class VM_Engine {
 
   public enum State { STARTING_UP, RUNNING_FILE, SHUTTING_DOWN, SHUT_DOWN };
 
   public static final VM_Engine engine = new VM_Engine();
   private static final int IO_INTERVAL_MS = 100;
 
-  private VM_ChunkQueue unwrittenMetaChunks = new VM_ChunkQueue();
-  private VM_ChunkQueue unwrittenEventChunks = new VM_ChunkQueue();
-  private VM_ChunkQueue availableEventChunks = new VM_ChunkQueue();
+  private final VM_ChunkQueue unwrittenMetaChunks = new VM_ChunkQueue();
+  private final VM_ChunkQueue unwrittenEventChunks = new VM_ChunkQueue();
+  private final VM_ChunkQueue availableEventChunks = new VM_ChunkQueue();
 
   private FeedletChunk activeFeedletChunk = new FeedletChunk();
   private EventTypeChunk activeEventTypeChunk = new EventTypeChunk();
   private PropertyTableChunk activePropertyTableChunk = new PropertyTableChunk();
 
   private int nextFeedletId = 0;
-  private VM_HashSet<VM_Feedlet> activeFeedlets = new VM_HashSet<VM_Feedlet>();
+  private final VM_HashSet<VM_Feedlet> activeFeedlets = new VM_HashSet<VM_Feedlet>();
 
   private OutputStream outputStream;
   private State state;
@@ -288,8 +288,8 @@ public class VM_Engine {
       availableEventChunks.enqueue(c); /* reduce; reuse; recycle...*/
     }
     if (shouldShutDown) {
-      // TODO: This isn't really safe.  We should be snapshotting the feedlets
-      //       event's chunks and then closing/writing them.
+      // TODO: This isn't really safe.  We should be snapshotting each feedlet's
+      //       event chunk and then closing/writing it.
       for (VM_Feedlet f : activeFeedlets) {
         try {
           EventChunk ec = f.stealEvents();
