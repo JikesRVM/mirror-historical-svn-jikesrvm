@@ -133,6 +133,7 @@ import org.vmmagic.unboxed.Word;
    */
   public static void overrideGrowHeapSize(Extent size) {
     currentHeapSize = currentHeapSize.plus(size);
+    VM.events.heapSizeChanged(currentHeapSize);
   }
 
   /**
