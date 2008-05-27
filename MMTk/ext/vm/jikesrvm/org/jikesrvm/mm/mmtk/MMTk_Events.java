@@ -14,6 +14,7 @@
 package org.jikesrvm.mm.mmtk;
 
 import org.jikesrvm.VM;
+import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.tuningfork.VM_Engine;
 import org.mmtk.policy.Space;
 import org.vmmagic.pragma.Interruptible;
@@ -71,7 +72,7 @@ public class MMTk_Events extends org.mmtk.vm.MMTk_Events {
       VM.sysWriteln("Ignoring page acquire event that occured before engine initialized");
       return;
     }
-    engine.activeFeedlet.addEvent(pageAcquire, space.getIndex(), startAddress.toInt(), numPages);
+    VM_Processor.getCurrentFeedlet().addEvent(pageAcquire, space.getIndex(), startAddress.toInt(), numPages);
   }
 
   public void tracePageReleased(Space space, Address startAddress, int numPages) {
@@ -79,6 +80,6 @@ public class MMTk_Events extends org.mmtk.vm.MMTk_Events {
       VM.sysWriteln("Ignoring page release event that occured before engine initialized");
       return;
     }
-    engine.activeFeedlet.addEvent(pageRelease, space.getIndex(), startAddress.toInt(), numPages);
+    VM_Processor.getCurrentFeedlet().addEvent(pageRelease, space.getIndex(), startAddress.toInt(), numPages);
   }
 }

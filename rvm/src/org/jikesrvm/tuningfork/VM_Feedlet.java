@@ -52,6 +52,8 @@ public class VM_Feedlet {
   VM_Feedlet(VM_Engine engine, int feedletIndex) {
     this.engine = engine;
     this.feedletIndex = feedletIndex;
+    this.sequenceNumber = 0;
+    this.events = null; /* defer actually acquiring an EventChunk until the feedlet emits its first event */
   }
 
   /**
@@ -66,8 +68,10 @@ public class VM_Feedlet {
    * @return
    */
   final EventChunk stealEvents() {
-    events.close();
-      return events;
+    if (events != null) {
+      events.close();
+    }
+    return events;
   }
 
   /**
@@ -151,6 +155,90 @@ public class VM_Feedlet {
       flushEventChunk(); /* events is full or stale; flush and try again */
     }
   }
+
+  /**
+   * Add an event to the feedlet's generated event stream
+   * @param et The type of event to add
+   * @param ival1 The first int data value
+   * @param ival2 The second int data value
+   * @param ival3 The third int data value
+   * @param ival4 The fourth int data value
+   */
+  public void addEvent(EventType et, int ival1, int ival2, int ival3, int ival4) {
+    if (CHECK_TYPES && !checkTypes(et, 4, 0, 0, 0)) return;
+
+    long timeStamp = getTimeStamp();
+    while (true) {
+      if (events == null && !acquireEventChunk()) {
+        return; /* failure */
+      }
+      if (events.addEvent(timeStamp, et, ival1, ival2, ival3, ival4)) {
+        return; /* success */
+      }
+      flushEventChunk(); /* events is full or stale; flush and try again */
+    }
+  }
+
+  /**
+   * Add an event to the feedlet's generated event stream
+   * @param et The type of event to add
+   * @param lval1 The first double data value
+   */
+  public void addEvent(EventType et, long lval1) {
+    if (CHECK_TYPES && !checkTypes(et, 0, 1, 0, 0)) return;
+
+    long timeStamp = getTimeStamp();
+    while (true) {
+      if (events == null && !acquireEventChunk()) {
+        return; /* failure */
+      }
+      if (events.addEvent(timeStamp, et, lval1)) {
+        return; /* success */
+      }
+      flushEventChunk(); /* events is full or stale; flush and try again */
+    }
+  }
+
+  /**
+   * Add an event to the feedlet's generated event stream
+   * @param et The type of event to add
+   * @param dval1 The first double data value
+   */
+  public void addEvent(EventType et, double dval1) {
+    if (CHECK_TYPES && !checkTypes(et, 0, 0, 1, 0)) return;
+
+    long timeStamp = getTimeStamp();
+    while (true) {
+      if (events == null && !acquireEventChunk()) {
+        return; /* failure */
+      }
+      if (events.addEvent(timeStamp, et, dval1)) {
+        return; /* success */
+      }
+      flushEventChunk(); /* events is full or stale; flush and try again */
+    }
+  }
+
+  /**
+   * Add an event to the feedlet's generated event stream
+   * @param et The type of event to add
+   * @param sval1 The first String data value
+   */
+  public void addEvent(EventType et, String sval1) {
+    if (CHECK_TYPES && !checkTypes(et, 0, 0, 0, 1)) return;
+
+    long timeStamp = getTimeStamp();
+    while (true) {
+      if (events == null && !acquireEventChunk()) {
+        return; /* failure */
+      }
+      if (events.addEvent(timeStamp, et, sval1)) {
+        return; /* success */
+      }
+      flushEventChunk(); /* events is full or stale; flush and try again */
+    }
+  }
+
 
   @NoInline
   private boolean checkTypes(EventType et, int numInts, int numLongs, int numDoubles, int numStrings) {

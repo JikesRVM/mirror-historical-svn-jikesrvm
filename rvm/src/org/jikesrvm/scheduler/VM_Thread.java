@@ -34,6 +34,8 @@ import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.runtime.VM_Memory;
 import org.jikesrvm.runtime.VM_Runtime;
 import org.jikesrvm.runtime.VM_Time;
+import org.jikesrvm.tuningfork.VM_Engine;
+import org.jikesrvm.tuningfork.VM_Feedlet;
 import org.vmmagic.pragma.BaselineNoRegisters;
 import org.vmmagic.pragma.BaselineSaveLSRegisters;
 import org.vmmagic.pragma.Entrypoint;
@@ -398,6 +400,15 @@ public abstract class VM_Thread {
    */
   private static boolean systemShuttingDown = false;
 
+  /*
+   * TuningFork instrumentation support
+   */
+
+  /**
+   * The VM_Feedlet instance for this thread to use to make addEvent calls.
+   */
+  public VM_Feedlet feedlet;
+
   /**
    * @param stack stack in which to execute the thread
    */
@@ -409,6 +420,9 @@ public abstract class VM_Thread {
 
     contextRegisters   = new VM_Registers();
     exceptionRegisters = new VM_Registers();
+    if (VM.runningVM) {
+      feedlet = VM_Engine.engine.makeFeedlet(name, name);
+    }
 
     if(VM.VerifyAssertions) VM._assert(stack != null);
     // put self in list of threads known to scheduler and garbage collector

@@ -115,6 +115,22 @@ public class EventChunk extends Chunk {
       return true;
   }
 
+    public boolean addEvent(long timeStamp, EventType et, int v1, int v2, int v3, int v4) {
+      int required = ENCODING_SPACE_LONG + ENCODING_SPACE_INT
+              + 4*ENCODING_SPACE_INT;
+      if (!canAddEvent(timeStamp, required)) {
+          return false;
+      }
+      addLong(timeStamp);
+      addInt(et.getIndex());
+      addInt(v1);
+      addInt(v2);
+      addInt(v3);
+      addInt(v4);
+      numberOfEvents++;
+      return true;
+  }
+
 
     public boolean addEvent(long timeStamp, EventType et, long v) {
 	int required = ENCODING_SPACE_LONG + ENCODING_SPACE_INT

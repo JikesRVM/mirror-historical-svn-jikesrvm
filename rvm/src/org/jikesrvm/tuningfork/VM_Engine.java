@@ -23,6 +23,7 @@ import org.jikesrvm.VM;
 import org.jikesrvm.VM_Callbacks;
 import org.jikesrvm.VM_Configuration;
 import org.jikesrvm.VM_Callbacks.ExitMonitor;
+import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.util.VM_HashSet;
 import org.vmmagic.pragma.Uninterruptible;
 
@@ -63,13 +64,6 @@ public class VM_Engine {
   private OutputStream outputStream;
   private State state;
 
-  /*
-   * Temporary hack until I wire feedlets up to VM_Threads.
-   * We have one feedlet that everyone uses (can get away with
-   * this as long as we only run with 1 virtual processor.
-   */
-  public VM_Feedlet activeFeedlet;
-
   private VM_Engine() {
     for (int i=0; i<32; i++) {
       availableEventChunks.enqueue(new EventChunk(false));
@@ -84,7 +78,7 @@ public class VM_Engine {
     unwrittenMetaChunks.enqueue(new EventTypeSpaceChunk(new EventTypeSpaceVersion("org.jikesrvm", 1)));
     unwrittenMetaChunks.enqueue(new VM_SpaceDescriptorChunk());
 
-    activeFeedlet = makeFeedlet("VM Engine", "Tracing Engine");
+    VM_Processor.getCurrentThread().feedlet = makeFeedlet("Boot thread", "Thread used to execute the initial boot sequence of Jikes RVM");
 
     org.jikesrvm.mm.mmtk.MMTk_Events.events.initialize(this);
 
@@ -299,7 +293,10 @@ public class VM_Engine {
       //       event's chunks and then closing/writing them.
       for (VM_Feedlet f : activeFeedlets) {
         try {
-          f.stealEvents().write(outputStream);
+          EventChunk ec = f.stealEvents();
+          if (ec != null) {
+            ec.write(outputStream);
+          }
         } catch (IOException e) {
           VM.sysWriteln("Exception while outputing trace TuningFork trace file");
           e.printStackTrace();

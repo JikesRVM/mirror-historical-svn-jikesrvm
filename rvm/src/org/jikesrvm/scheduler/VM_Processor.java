@@ -12,12 +12,13 @@
  */
 package org.jikesrvm.scheduler;
 
-import org.jikesrvm.ArchitectureSpecific.VM_ProcessorLocalState;
 import org.jikesrvm.VM;
 import org.jikesrvm.VM_Constants;
+import org.jikesrvm.ArchitectureSpecific.VM_ProcessorLocalState;
 import org.jikesrvm.memorymanagers.mminterface.MM_ProcessorContext;
 import org.jikesrvm.runtime.VM_Entrypoints;
 import org.jikesrvm.runtime.VM_Magic;
+import org.jikesrvm.tuningfork.VM_Feedlet;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NonMoving;
@@ -354,6 +355,13 @@ public abstract class VM_Processor extends MM_ProcessorContext implements VM_Con
   @Inline
   public static VM_Thread getCurrentThread() {
     return getCurrentProcessor().activeThread;
+  }
+
+  /**
+   * Get VM_Feedlet instance for the current java thread
+   */
+  public static VM_Feedlet getCurrentFeedlet() {
+    return getCurrentThread().feedlet;
   }
 
   /**

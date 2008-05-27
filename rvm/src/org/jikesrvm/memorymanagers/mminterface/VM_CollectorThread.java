@@ -21,13 +21,13 @@ import org.jikesrvm.mm.mmtk.ScanThread;
 import org.jikesrvm.mm.mmtk.Scanning;
 import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.runtime.VM_Time;
+import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.scheduler.VM_Synchronization;
 import org.jikesrvm.scheduler.VM_Thread;
 import org.jikesrvm.scheduler.greenthreads.VM_GreenProcessor;
 import org.jikesrvm.scheduler.greenthreads.VM_GreenScheduler;
 import org.jikesrvm.scheduler.greenthreads.VM_GreenThread;
-import org.jikesrvm.tuningfork.VM_Engine;
 import org.mmtk.plan.Plan;
 import org.mmtk.utility.heap.HeapGrowthManager;
 import org.mmtk.utility.options.Options;
@@ -271,9 +271,9 @@ public final class VM_CollectorThread extends VM_GreenThread {
   @LogicallyUninterruptible
   @Uninterruptible
   public static void collect(VM_Handshake handshake, int why) {
-    VM_Engine.engine.activeFeedlet.addEvent(MMTk_Events.events.gcStart, why);
+    VM_Processor.getCurrentFeedlet().addEvent(MMTk_Events.events.gcStart, why);
     handshake.requestAndAwaitCompletion(why);
-    VM_Engine.engine.activeFeedlet.addEvent(MMTk_Events.events.gcStop);
+    VM_Processor.getCurrentFeedlet().addEvent(MMTk_Events.events.gcStop);
   }
 
   /**
