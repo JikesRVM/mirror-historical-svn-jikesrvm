@@ -119,6 +119,16 @@ public abstract class RawChunk {
 	return true;
     }
 
+    protected final boolean addString(String str) {
+	int strLen = JikesRVMSupport.getStringLength(str);
+	int minimalSize = ENCODING_SPACE_INT + strLen;
+	if (!hasRoom(minimalSize)) {
+	    return false;
+	}
+        char[] backingChars = JikesRVMSupport.getBackingCharArray(str);
+	return addStringInternal(backingChars);
+    }
+
     /*
      * Write String's char[] encoded as UTF-8.
      * Table from http://tools.ietf.org/html/rfc3629
@@ -131,43 +141,38 @@ public abstract class RawChunk {
      *    0000 0800-0000 FFFF | 1110xxxx 10xxxxxx 10xxxxxx
      *    0001 0000-0010 FFFF | 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
      */
-    protected final boolean addString(String str) {
-	int strLen = JikesRVMSupport.getStringLength(str);
-	int minimalSize = ENCODING_SPACE_INT + strLen;
-	if (!hasRoom(minimalSize)) {
-	    return false;
-	}
-	int startCursor = cursor;
-	cursor += ENCODING_SPACE_INT;
+    protected boolean addStringInternal(char[] backingChars) {
+      int startCursor = cursor;
+      int strLen = backingChars.length;
+      cursor += ENCODING_SPACE_INT;
 
-	char[] backingChars = JikesRVMSupport.getBackingCharArray(str);
-	for (int i=0; i<strLen; i++) {
-	    char c = backingChars[i];
-	    if (c <= 0x7f) {
-		data[cursor++] = (byte)(c);
-	    } else if (c <= 0x7ff) {
-		if (!hasRoom(1 + (strLen-i))) {
-		    cursor = startCursor;
-		    return false;
-		}
-		data[cursor++] = (byte)(0xc0 | (c >> 6));
-		data[cursor++] = (byte)(0x80 | (c & 0x3f));
-	    } else {
-		if (!hasRoom(2 + (strLen-i))) {
-		    cursor = startCursor;
-		    return false;
-		}
-		data[cursor++] = (byte)(0xe0 | (c >> 12));
-		data[cursor++] = (byte)(0x80 | ((c & 0xfc0) >> 6));
-		data[cursor++] = (byte)(0x80 | (c & 0x3f));
-	    }
-	}
-	int endCursor = cursor;
-	int finalLen = endCursor-startCursor-ENCODING_SPACE_INT;
-	cursor = startCursor;
-	putInt(finalLen);
-	cursor = endCursor;
-	return true;
+      for (int i=0; i<strLen; i++) {
+          char c = backingChars[i];
+          if (c <= 0x7f) {
+      	data[cursor++] = (byte)(c);
+          } else if (c <= 0x7ff) {
+      	if (!hasRoom(1 + (strLen-i))) {
+      	    cursor = startCursor;
+      	    return false;
+      	}
+      	data[cursor++] = (byte)(0xc0 | (c >> 6));
+      	data[cursor++] = (byte)(0x80 | (c & 0x3f));
+          } else {
+      	if (!hasRoom(2 + (strLen-i))) {
+      	    cursor = startCursor;
+      	    return false;
+      	}
+      	data[cursor++] = (byte)(0xe0 | (c >> 12));
+      	data[cursor++] = (byte)(0x80 | ((c & 0xfc0) >> 6));
+      	data[cursor++] = (byte)(0x80 | (c & 0x3f));
+          }
+      }
+      int endCursor = cursor;
+      int finalLen = endCursor-startCursor-ENCODING_SPACE_INT;
+      cursor = startCursor;
+      putInt(finalLen);
+      cursor = endCursor;
+      return true;
     }
 
     private void putLong(long value) {

@@ -280,7 +280,7 @@ public final class Factory extends org.mmtk.vm.Factory {
    */
   public org.mmtk.vm.MMTk_Events newEvents() {
     try {
-      return new MMTk_Events();
+      return new MMTk_Events(org.jikesrvm.tuningfork.VM_Engine.engine);
     } catch (Exception e) {
       VM.sysFail("Failed to allocate new MMTk_Events!");
       return null; // never get here

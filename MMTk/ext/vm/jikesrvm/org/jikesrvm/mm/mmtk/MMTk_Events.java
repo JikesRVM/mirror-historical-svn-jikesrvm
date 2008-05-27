@@ -16,8 +16,8 @@ package org.jikesrvm.mm.mmtk;
 import org.jikesrvm.VM;
 import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.tuningfork.VM_Engine;
+import org.jikesrvm.tuningfork.VM_Feedlet;
 import org.mmtk.policy.Space;
-import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
 
@@ -32,21 +32,14 @@ import com.ibm.tuningfork.tracegen.types.ScalarType;
 public class MMTk_Events extends org.mmtk.vm.MMTk_Events {
   public static MMTk_Events events;
 
-  public EventType gcStart;
-  public EventType gcStop;
-  public EventType pageAcquire;
-  public EventType pageRelease;
-  private boolean initialized;
+  public final EventType gcStart;
+  public final EventType gcStop;
+  public final EventType pageAcquire;
+  public final EventType pageRelease;
 
-  private VM_Engine engine;
+  private final VM_Engine engine;
 
-  public MMTk_Events() {
-    events = this;
-    initialized = false;
-  }
-
-  @Interruptible
-  public void initialize(VM_Engine engine) {
+  public MMTk_Events(VM_Engine engine) {
     this.engine = engine;
 
     /* Define events used by the MMTk subsystem */
@@ -63,23 +56,24 @@ public class MMTk_Events extends org.mmtk.vm.MMTk_Events {
                                   new EventAttribute("Space", "Space ID", ScalarType.INT),
                                   new EventAttribute("Start Address", "Start address of range of released pages", ScalarType.INT),
                                   new EventAttribute("Num Pages", "Number of pages released", ScalarType.INT)});
-
-    initialized = true;
+    events = this;
   }
 
   public void tracePageAcquired(Space space, Address startAddress, int numPages) {
-    if (!initialized) {
-      VM.sysWriteln("Ignoring page acquire event that occured before engine initialized");
+    VM_Feedlet f = VM_Processor.getCurrentFeedlet();
+    if (f == null) {
+      VM.sysWriteln("Dropping tracePageAcquired event because currentFeedlet not initialized");
       return;
     }
-    VM_Processor.getCurrentFeedlet().addEvent(pageAcquire, space.getIndex(), startAddress.toInt(), numPages);
+    f.addEvent(pageAcquire, space.getIndex(), startAddress.toInt(), numPages);
   }
 
   public void tracePageReleased(Space space, Address startAddress, int numPages) {
-    if (!initialized) {
-      VM.sysWriteln("Ignoring page release event that occured before engine initialized");
+    VM_Feedlet f = VM_Processor.getCurrentFeedlet();
+    if (f == null) {
+      VM.sysWriteln("Dropping tracePageReleased event because currentFeedlet not initialized");
       return;
     }
-    VM_Processor.getCurrentFeedlet().addEvent(pageRelease, space.getIndex(), startAddress.toInt(), numPages);
+    f.addEvent(pageRelease, space.getIndex(), startAddress.toInt(), numPages);
   }
 }

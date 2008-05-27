@@ -24,8 +24,8 @@ public class EventTypeSpaceChunk extends Chunk {
     public static final int EVENT_TYPE_SPACE_ID = 3;
 
     public EventTypeSpaceChunk(EventTypeSpaceVersion eventTypeSpaceVersion) {
-	super(EVENT_TYPE_SPACE_ID, DATA_OFFSET + JikesRVMSupport.getStringLength(eventTypeSpaceVersion.name) * 3 + ENCODING_SPACE_INT);
-	addString(eventTypeSpaceVersion.name);  /* Cannot fail because we made conservative estimate of bytes required */
+	super(EVENT_TYPE_SPACE_ID, DATA_OFFSET + eventTypeSpaceVersion.name.length() * 3 + ENCODING_SPACE_INT);
+	addStringInternal(getChars(eventTypeSpaceVersion.name));  /* Cannot fail because we made conservative estimate of bytes required */
 	addInt(eventTypeSpaceVersion.version);
 	close();
     }

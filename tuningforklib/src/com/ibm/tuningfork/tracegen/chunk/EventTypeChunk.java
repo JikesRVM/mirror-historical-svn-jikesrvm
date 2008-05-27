@@ -14,6 +14,7 @@
 
 package com.ibm.tuningfork.tracegen.chunk;
 
+import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Uninterruptible;
 
 import com.ibm.tuningfork.tracegen.types.EventAttribute;
@@ -36,44 +37,31 @@ public class EventTypeChunk extends Chunk {
 	return numberOfEventTypes > 0;
     }
 
+    @Interruptible
     public boolean add(EventType et) {
-	int guess = ENCODING_SPACE_INT + JikesRVMSupport.getStringLength(et.getName())
-		+ JikesRVMSupport.getStringLength(et.getDescription()) + ENCODING_SPACE_INT * 4;
-	for (int i = 0; i < et.getNumberOfAttributes(); i++) {
-	    EventAttribute ea = et.getAttribute(i);
-	    guess += JikesRVMSupport.getStringLength(ea.getName());
-	    guess += JikesRVMSupport.getStringLength(ea.getDescription());
-	}
-	if (!hasRoom(guess)) {
-	    return false;
-	}
-	int savedPosition = getPosition();
-	addInt(et.getIndex());
-	if (!addString(et.getName())) {
-	    seek(savedPosition);
-	    return false;
-	}
-	if (!addString(et.getDescription())) {
-	    seek(savedPosition);
-	    return false;
-	}
-	addInt(et.getNumberOfInts());
-	addInt(et.getNumberOfLongs());
-	addInt(et.getNumberOfDoubles());
-	addInt(et.getNumberOfStrings());
-	for (int i = 0; i < et.getNumberOfAttributes(); i++) {
-	    EventAttribute ea = et.getAttribute(i);
-	    if (!addString(ea.getName())) {
-		seek(savedPosition);
-		return false;
-	    }
-	    if (!addString(ea.getDescription())) {
-		seek(savedPosition);
-		return false;
-	    }
-	}
-	numberOfEventTypes++;
-	return true;
+      boolean success = false;
+      int savedPosition = getPosition();
+      try {
+        if (!addInt(et.getIndex())) return false;
+        if (!addStringInternal(getChars(et.getName()))) return false;
+        if (!addStringInternal(getChars(et.getDescription()))) return false;
+        if (!addInt(et.getNumberOfInts())) return false;
+        if (!addInt(et.getNumberOfLongs())) return false;
+        if (!addInt(et.getNumberOfDoubles())) return false;
+        if (!addInt(et.getNumberOfStrings())) return false;
+        for (int i = 0; i < et.getNumberOfAttributes(); i++) {
+          EventAttribute ea = et.getAttribute(i);
+          if (!addStringInternal(getChars(ea.getName()))) return false;
+          if (!addStringInternal(getChars(ea.getDescription()))) return false;
+        }
+        success = true;
+        numberOfEventTypes++;
+        return true;
+      } finally {
+        if (!success) {
+          seek(savedPosition);
+        }
+      }
     }
 
     public void close() {

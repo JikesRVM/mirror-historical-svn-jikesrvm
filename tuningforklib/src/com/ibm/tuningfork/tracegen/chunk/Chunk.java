@@ -14,6 +14,8 @@
 
 package com.ibm.tuningfork.tracegen.chunk;
 
+import org.jikesrvm.VM;
+import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Uninterruptible;
 
 @Uninterruptible
@@ -53,4 +55,12 @@ public abstract class Chunk extends RawChunk {
 	super.close();
     }
 
+    @Interruptible
+    protected char[] getChars(String s) {
+      if (VM.runningVM) {
+        return JikesRVMSupport.getBackingCharArray(s);
+      } else {
+        return s.toCharArray();
+      }
+    }
 }

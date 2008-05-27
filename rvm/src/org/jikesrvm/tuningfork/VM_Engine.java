@@ -65,6 +65,8 @@ public class VM_Engine {
   private State state;
 
   private VM_Engine() {
+    unwrittenMetaChunks.enqueue(new FeedHeaderChunk());
+    unwrittenMetaChunks.enqueue(new EventTypeSpaceChunk(new EventTypeSpaceVersion("org.jikesrvm", 1)));
     for (int i=0; i<32; i++) {
       availableEventChunks.enqueue(new EventChunk(false));
     }
@@ -73,14 +75,9 @@ public class VM_Engine {
 
   public void earlyStageBooting() {
     // TODO: make all of this conditional on command line argument.
-
-    unwrittenMetaChunks.enqueue(new FeedHeaderChunk());
-    unwrittenMetaChunks.enqueue(new EventTypeSpaceChunk(new EventTypeSpaceVersion("org.jikesrvm", 1)));
     unwrittenMetaChunks.enqueue(new VM_SpaceDescriptorChunk());
 
-    VM_Processor.getCurrentThread().feedlet = makeFeedlet("Boot thread", "Thread used to execute the initial boot sequence of Jikes RVM");
-
-    org.jikesrvm.mm.mmtk.MMTk_Events.events.initialize(this);
+    VM_Processor.getCurrentThread().feedlet = makeFeedlet("Boot Thread", "Thread used to execute the initial boot sequence of Jikes RVM");
 
     state = State.STARTING_UP;
   }
