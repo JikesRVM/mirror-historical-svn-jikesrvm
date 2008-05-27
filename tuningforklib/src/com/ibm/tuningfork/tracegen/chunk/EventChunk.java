@@ -26,17 +26,10 @@ public class EventChunk extends Chunk {
     public static final int SEQUENCE_NUMBER_OFFSET = Chunk.DATA_OFFSET + 4;
     public static final int EVENT_DATA_OFFSET = Chunk.DATA_OFFSET + 8;
     protected final static int DEFAULT_EVENT_CHUNK_SIZE = 64 * 1024;
-   /* 1 second, assuming ticks are ns */
-    public static final long TIMESTAMP_FLUSH_DELTA = 1000000000;
 
-    protected final boolean autoFlush;
-    private int numberOfEvents = 0;
-    private long firstTimeStamp = 0;
-
-    public EventChunk(boolean autoFlush) {
+    public EventChunk() {
 	super(EVENT_TYPE_ID, DEFAULT_EVENT_CHUNK_SIZE);
 	seek(EVENT_DATA_OFFSET);
-	this.autoFlush = autoFlush;
     }
 
     public void reset(int feedletIndex, int sequenceNumber) {
@@ -45,89 +38,69 @@ public class EventChunk extends Chunk {
 	addInt(feedletIndex);
 	addInt(sequenceNumber);
 	seek(EVENT_DATA_OFFSET);
-	numberOfEvents = 0;
-	firstTimeStamp = 0;
-    }
-
-    protected final boolean canAddEvent(long timeStamp, int requiredSpace) {
-	if (!hasRoom(requiredSpace)) {
-	    return false;
-	}
-	if (!autoFlush) {
-	    return true;
-	}
-	if (firstTimeStamp == 0) {
-	    firstTimeStamp = timeStamp;
-	}
-	return ((timeStamp - firstTimeStamp) < TIMESTAMP_FLUSH_DELTA);
     }
 
     public boolean addEvent(long timeStamp, EventType et) {
 	int required = ENCODING_SPACE_LONG + ENCODING_SPACE_INT;
-	if (!canAddEvent(timeStamp, required)) {
+	if (!hasRoom(required)) {
 	    return false;
 	}
-	addLong(timeStamp);
-	addInt(et.getIndex());
-	numberOfEvents++;
+	addLongUnchecked(timeStamp);
+	addIntUnchecked(et.getIndex());
 	return true;
     }
 
     public boolean addEvent(long timeStamp, EventType et, int v) {
 	int required = ENCODING_SPACE_LONG + ENCODING_SPACE_INT
 		+ ENCODING_SPACE_INT;
-	if (!canAddEvent(timeStamp, required)) {
+	if (!hasRoom(required)) {
 	    return false;
 	}
-	addLong(timeStamp);
-	addInt(et.getIndex());
-	addInt(v);
-	numberOfEvents++;
+	addLongUnchecked(timeStamp);
+	addIntUnchecked(et.getIndex());
+	addIntUnchecked(v);
 	return true;
     }
 
     public boolean addEvent(long timeStamp, EventType et, int v1, int v2) {
       int required = ENCODING_SPACE_LONG + ENCODING_SPACE_INT
               + 2*ENCODING_SPACE_INT;
-      if (!canAddEvent(timeStamp, required)) {
+      if (!hasRoom(required)) {
           return false;
       }
-      addLong(timeStamp);
-      addInt(et.getIndex());
-      addInt(v1);
-      addInt(v2);
-      numberOfEvents++;
+      addLongUnchecked(timeStamp);
+      addIntUnchecked(et.getIndex());
+      addIntUnchecked(v1);
+      addIntUnchecked(v2);
       return true;
   }
 
     public boolean addEvent(long timeStamp, EventType et, int v1, int v2, int v3) {
       int required = ENCODING_SPACE_LONG + ENCODING_SPACE_INT
               + 3*ENCODING_SPACE_INT;
-      if (!canAddEvent(timeStamp, required)) {
+      if (!hasRoom(required)) {
           return false;
       }
-      addLong(timeStamp);
-      addInt(et.getIndex());
-      addInt(v1);
-      addInt(v2);
-      addInt(v3);
-      numberOfEvents++;
+      addLongUnchecked(timeStamp);
+      addIntUnchecked(et.getIndex());
+      addIntUnchecked(v1);
+      addIntUnchecked(v2);
+      addIntUnchecked(v3);
       return true;
   }
 
     public boolean addEvent(long timeStamp, EventType et, int v1, int v2, int v3, int v4) {
       int required = ENCODING_SPACE_LONG + ENCODING_SPACE_INT
               + 4*ENCODING_SPACE_INT;
-      if (!canAddEvent(timeStamp, required)) {
+      if (!hasRoom(required)) {
           return false;
       }
-      addLong(timeStamp);
-      addInt(et.getIndex());
-      addInt(v1);
-      addInt(v2);
-      addInt(v3);
-      addInt(v4);
-      numberOfEvents++;
+      addLongUnchecked(timeStamp);
+      addIntUnchecked(et.getIndex());
+      addIntUnchecked(v1);
+      addIntUnchecked(v2);
+      addIntUnchecked(v3);
+      addIntUnchecked(v4);
       return true;
   }
 
@@ -135,42 +108,39 @@ public class EventChunk extends Chunk {
     public boolean addEvent(long timeStamp, EventType et, long v) {
 	int required = ENCODING_SPACE_LONG + ENCODING_SPACE_INT
 		+ ENCODING_SPACE_LONG;
-	if (!canAddEvent(timeStamp, required)) {
+	if (!hasRoom(required)) {
 	    return false;
 	}
-	addLong(timeStamp);
-	addInt(et.getIndex());
-	addLong(v);
-	numberOfEvents++;
+	addLongUnchecked(timeStamp);
+	addIntUnchecked(et.getIndex());
+	addLongUnchecked(v);
 	return true;
     }
 
     public boolean addEvent(long timeStamp, EventType et, double v) {
 	int required = ENCODING_SPACE_LONG + ENCODING_SPACE_INT
 		+ ENCODING_SPACE_DOUBLE;
-	if (!canAddEvent(timeStamp, required)) {
+	if (!hasRoom(required)) {
 	    return false;
 	}
-	addLong(timeStamp);
-	addInt(et.getIndex());
-	addDouble(v);
-	numberOfEvents++;
+	addLongUnchecked(timeStamp);
+	addIntUnchecked(et.getIndex());
+	addDoubleUnchecked(v);
 	return true;
     }
 
     public boolean addEvent(long timeStamp, EventType et, String v) {
 	int guess = ENCODING_SPACE_LONG + ENCODING_SPACE_INT + JikesRVMSupport.getStringLength(v);
-	if (!canAddEvent(timeStamp, guess)) {
+	if (!hasRoom(guess)) {
 	    return false;
 	}
 	int savedCursor = getPosition();
-	addLong(timeStamp);
-	addInt(et.getIndex());
+	addLongUnchecked(timeStamp);
+	addIntUnchecked(et.getIndex());
 	if (!addString(v)) {
 	    seek(savedCursor);
 	    return false;
 	}
-	numberOfEvents++;
 	return true;
     }
 
@@ -186,7 +156,7 @@ public class EventChunk extends Chunk {
 	for (int i = 0; i < slen; i++) {
 	    guess += JikesRVMSupport.getStringLength(sdata[i]);
 	}
-	if (!canAddEvent(timeStamp, guess)) {
+	if (!hasRoom(guess)) {
 	    return false;
 	}
 	int savedPosition = getPosition();
@@ -207,7 +177,6 @@ public class EventChunk extends Chunk {
 		return false;
 	    }
 	}
-	numberOfEvents++;
 	return true;
     }
 

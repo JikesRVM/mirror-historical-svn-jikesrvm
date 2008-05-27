@@ -15,6 +15,7 @@ package org.jikesrvm.tuningfork;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.runtime.VM_Time;
+import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
 
@@ -42,6 +43,14 @@ public class VM_Feedlet {
   private final int feedletIndex;
   private int sequenceNumber;
   private EventChunk events;
+  /**
+   * Enabled is true when TF engine is enabled, false otherwise.
+   * This field is intentionally not made final to
+   *   (1) allow us to disable the boot thread's feedlet during VM booting
+   *   (2) allow us to dynamically enable/disable event generation (for eventual socket hookup)
+   *   (3) allow us to turn off event generation during VM shutdown
+   */
+  boolean enabled;
 
   /**
    * Create a new VM_Feedlet.
@@ -53,7 +62,8 @@ public class VM_Feedlet {
     this.engine = engine;
     this.feedletIndex = feedletIndex;
     this.sequenceNumber = 0;
-    this.events = null; /* defer actually acquiring an EventChunk until the feedlet emits its first event */
+    this.events = null;  /* defer actually acquiring an EventChunk until the feedlet emits its first event */
+    this.enabled = true; /* set to false to disable by VM_Engine */
   }
 
   /**
@@ -79,6 +89,7 @@ public class VM_Feedlet {
    * @param et The type of event to add
    */
   public void addEvent(EventType et) {
+    if (!enabled) return;
     if (CHECK_TYPES && !checkTypes(et, 0, 0, 0, 0)) return;
 
     long timeStamp = getTimeStamp();
@@ -99,6 +110,7 @@ public class VM_Feedlet {
    * @param ival1 The first int data value
    */
   public void addEvent(EventType et, int ival1) {
+    if (!enabled) return;
     if (CHECK_TYPES && !checkTypes(et, 1, 0, 0, 0)) return;
 
     long timeStamp = getTimeStamp();
@@ -120,6 +132,7 @@ public class VM_Feedlet {
    * @param ival2 The second int data value
    */
   public void addEvent(EventType et, int ival1, int ival2) {
+    if (!enabled) return;
     if (CHECK_TYPES && !checkTypes(et, 2, 0, 0, 0)) return;
 
     long timeStamp = getTimeStamp();
@@ -142,6 +155,7 @@ public class VM_Feedlet {
    * @param ival3 The third int data value
    */
   public void addEvent(EventType et, int ival1, int ival2, int ival3) {
+    if (!enabled) return;
     if (CHECK_TYPES && !checkTypes(et, 3, 0, 0, 0)) return;
 
     long timeStamp = getTimeStamp();
@@ -165,6 +179,7 @@ public class VM_Feedlet {
    * @param ival4 The fourth int data value
    */
   public void addEvent(EventType et, int ival1, int ival2, int ival3, int ival4) {
+    if (!enabled) return;
     if (CHECK_TYPES && !checkTypes(et, 4, 0, 0, 0)) return;
 
     long timeStamp = getTimeStamp();
@@ -185,6 +200,7 @@ public class VM_Feedlet {
    * @param lval1 The first double data value
    */
   public void addEvent(EventType et, long lval1) {
+    if (!enabled) return;
     if (CHECK_TYPES && !checkTypes(et, 0, 1, 0, 0)) return;
 
     long timeStamp = getTimeStamp();
@@ -205,6 +221,7 @@ public class VM_Feedlet {
    * @param dval1 The first double data value
    */
   public void addEvent(EventType et, double dval1) {
+    if (!enabled) return;
     if (CHECK_TYPES && !checkTypes(et, 0, 0, 1, 0)) return;
 
     long timeStamp = getTimeStamp();
@@ -225,6 +242,7 @@ public class VM_Feedlet {
    * @param sval1 The first String data value
    */
   public void addEvent(EventType et, String sval1) {
+    if (!enabled) return;
     if (CHECK_TYPES && !checkTypes(et, 0, 0, 0, 1)) return;
 
     long timeStamp = getTimeStamp();
@@ -253,6 +271,7 @@ public class VM_Feedlet {
     }
   }
 
+  @Inline
   private long getTimeStamp() {
     return VM_Time.nanoTime();
   }

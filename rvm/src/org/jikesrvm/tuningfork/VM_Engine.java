@@ -22,7 +22,9 @@ import java.io.OutputStream;
 import org.jikesrvm.VM;
 import org.jikesrvm.VM_Callbacks;
 import org.jikesrvm.VM_Configuration;
+import org.jikesrvm.VM_Options;
 import org.jikesrvm.VM_Callbacks.ExitMonitor;
+import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.util.VM_HashSet;
 import org.vmmagic.pragma.Uninterruptible;
 
@@ -61,7 +63,7 @@ public final class VM_Engine {
   private final VM_HashSet<VM_Feedlet> activeFeedlets = new VM_HashSet<VM_Feedlet>();
 
   private OutputStream outputStream;
-  private State state;
+  private State state = State.STARTING_UP;
 
   private VM_Engine() {
     /* Feed header and EventTypeSpaceChunk go first, so create & enqueue during bootimage writing */
@@ -69,35 +71,42 @@ public final class VM_Engine {
     unwrittenMetaChunks.enqueue(new EventTypeSpaceChunk(new EventTypeSpaceVersion("org.jikesrvm", 1)));
 
     for (int i=0; i<32; i++) {
-      availableEventChunks.enqueue(new EventChunk(false));
+      availableEventChunks.enqueue(new EventChunk());
     }
   }
 
 
   public void earlyStageBooting() {
-    // TODO: If command line args imply that we're not actually going to be tracing,
-    //       then we need to put the engine/feedlets in a state such that the various
-    //       operations are no-ops.
-    unwrittenMetaChunks.enqueue(new VM_SpaceDescriptorChunk());
-
-    state = State.STARTING_UP;
+    if (VM_Options.TuningForkTraceFile == null) {
+      /* tracing not enabled on this run, shut down engine to minimize overhead */
+      VM_Processor.getCurrentFeedlet().enabled = false;
+      state = State.SHUT_DOWN;
+    } else {
+      unwrittenMetaChunks.enqueue(new VM_SpaceDescriptorChunk());
+    }
   }
 
   public void fullyBootedVM() {
-    // TODO: get trace file name from command line arguments.
-    File f = new File("rvm.trace");
-    try {
-      outputStream = new FileOutputStream(f);
-    } catch (FileNotFoundException e) {
-      VM.sysWriteln("Unable to open trace file "+f.getAbsolutePath());
-      VM.sysWriteln("continuing, but TuningFork trace generation is disabled.");
-      state = State.SHUT_DOWN;
-      return;
-    }
+    if (state != State.SHUT_DOWN) {
+      String traceFile = VM_Options.TuningForkTraceFile;
+      if (!traceFile.endsWith(".trace")) {
+        traceFile = traceFile+".trace";
+      }
 
-    createDaemonThreads();
-    writeInitialProperites();
-   }
+      File f = new File(traceFile);
+      try {
+        outputStream = new FileOutputStream(f);
+      } catch (FileNotFoundException e) {
+        VM.sysWriteln("Unable to open trace file "+f.getAbsolutePath());
+        VM.sysWriteln("continuing, but TuningFork trace generation is disabled.");
+        state = State.SHUT_DOWN;
+        return;
+      }
+
+      createDaemonThreads();
+      writeInitialProperites();
+    }
+  }
 
 
   /**
@@ -120,6 +129,7 @@ public final class VM_Engine {
    * @param description A human readable description of the event for display in the TuningFork UI.
    */
   public EventType defineEvent(String name, String description) {
+    if (state == State.SHUT_DOWN) return null;
     EventType result = new EventType(name, description);
     internalDefineEvent(result);
     return result;
@@ -132,6 +142,7 @@ public final class VM_Engine {
    * @param attribute Description of the event's single data value
    */
   public EventType defineEvent(String name, String description, EventAttribute attribute) {
+    if (state == State.SHUT_DOWN) return null;
     EventType result = new EventType(name, description, attribute);
     internalDefineEvent(result);
     return result;
@@ -144,6 +155,7 @@ public final class VM_Engine {
    * @param attributes Descriptions of the event's data values
    */
   public EventType defineEvent(String name, String description, EventAttribute[] attributes) {
+    if (state == State.SHUT_DOWN) return null;
     EventType result = new EventType(name, description, attributes);
     internalDefineEvent(result);
     return result;
@@ -172,6 +184,7 @@ public final class VM_Engine {
    * @param value the value for the property
    */
   public synchronized void addProperty(String key, String value) {
+    if (state == State.SHUT_DOWN) return;
     if (!activePropertyTableChunk.add(key, value)) {
       activePropertyTableChunk.close();
       unwrittenMetaChunks.enqueue(activePropertyTableChunk);
@@ -189,6 +202,10 @@ public final class VM_Engine {
    */
   public synchronized VM_Feedlet makeFeedlet(String name, String description) {
     VM_Feedlet f = new VM_Feedlet(this, nextFeedletId++);
+    if (state == State.SHUT_DOWN) {
+      f.enabled = false;
+      return f;
+    }
     if (!activeFeedletChunk.add(f.getFeedletIndex(), name, description)) {
       activeFeedletChunk.close();
       unwrittenMetaChunks.enqueue(activeFeedletChunk);
@@ -288,8 +305,11 @@ public final class VM_Engine {
       availableEventChunks.enqueue(c); /* reduce; reuse; recycle...*/
     }
     if (shouldShutDown) {
-      // TODO: This isn't really safe.  We should be snapshotting each feedlet's
-      //       event chunk and then closing/writing it.
+      // TODO: This isn't bulletproof.
+      //       We should be snapshotting each feedlet's event chunk and then closing/writing it.
+      for (VM_Feedlet f : activeFeedlets) {
+        f.enabled = false; /* will stop new events from being added; in flight addEvents keep going */
+      }
       for (VM_Feedlet f : activeFeedlets) {
         try {
           EventChunk ec = f.stealEvents();

@@ -19,6 +19,7 @@ import java.io.OutputStream;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.runtime.VM_Magic;
+import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Uninterruptible;
 
@@ -95,6 +96,10 @@ public abstract class RawChunk {
 	return true;
     }
 
+    protected final void addLongUnchecked(long l) {
+      putLong(l);
+    }
+
     protected final boolean addDouble(double d) {
 	if (!hasRoom(ENCODING_SPACE_DOUBLE)) {
 	    return false;
@@ -103,12 +108,20 @@ public abstract class RawChunk {
 	return true;
     }
 
+    protected final void addDoubleUnchecked(double d) {
+      putLong(VM_Magic.doubleAsLongBits(d));
+    }
+
     protected final boolean addInt(int i) {
 	if (!hasRoom(ENCODING_SPACE_INT)) {
 	    return false;
 	}
 	putInt(i);
 	return true;
+    }
+
+    protected final void addIntUnchecked(int i) {
+      putInt(i);
     }
 
     protected final boolean addByte(byte b) {
@@ -175,6 +188,7 @@ public abstract class RawChunk {
       return true;
     }
 
+    @Inline(value=Inline.When.AllArgumentsAreConstant)
     private void putLong(long value) {
 	data[cursor + 0] = (byte) ((value >> 56) & 0xff);
 	data[cursor + 1] = (byte) ((value >> 48) & 0xff);
@@ -187,6 +201,7 @@ public abstract class RawChunk {
 	cursor += 8;
     }
 
+    @Inline(value=Inline.When.AllArgumentsAreConstant)
     private void putInt(int value) {
 	data[cursor + 0] = (byte) ((value >> 24) & 0xff);
 	data[cursor + 1] = (byte) ((value >> 16) & 0xff);
