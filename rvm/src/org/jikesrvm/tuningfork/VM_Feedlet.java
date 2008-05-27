@@ -15,7 +15,6 @@ package org.jikesrvm.tuningfork;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.runtime.VM_Time;
-import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
 
@@ -36,7 +35,7 @@ import com.ibm.tuningfork.tracegen.types.EventType;
  * established via external synchronization.</p>
  */
 @Uninterruptible
-public class VM_Feedlet {
+public final class VM_Feedlet {
   private static final boolean CHECK_TYPES = VM.VerifyAssertions;
 
   private final VM_Engine engine;
@@ -257,8 +256,6 @@ public class VM_Feedlet {
     }
   }
 
-
-  @NoInline
   private boolean checkTypes(EventType et, int numInts, int numLongs, int numDoubles, int numStrings) {
     if (et.getNumberOfInts() != numInts ||
         et.getNumberOfLongs() != numLongs ||
@@ -271,7 +268,6 @@ public class VM_Feedlet {
     }
   }
 
-  @Inline
   private long getTimeStamp() {
     return VM_Time.nanoTime();
   }
