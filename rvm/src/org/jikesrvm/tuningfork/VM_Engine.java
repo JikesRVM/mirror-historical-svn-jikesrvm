@@ -23,7 +23,6 @@ import org.jikesrvm.VM;
 import org.jikesrvm.VM_Callbacks;
 import org.jikesrvm.VM_Configuration;
 import org.jikesrvm.VM_Callbacks.ExitMonitor;
-import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.util.VM_HashSet;
 import org.vmmagic.pragma.Uninterruptible;
 
@@ -60,14 +59,15 @@ public class VM_Engine {
 
   private int nextFeedletId = 0;
   private VM_HashSet<VM_Feedlet> activeFeedlets = new VM_HashSet<VM_Feedlet>();
-  private VM_Feedlet primordialFeedlet = makeFeedlet("Jikes RVM boot thread", "Thread used to execute the initial boot sequence of Jikes RVM");
 
   private OutputStream outputStream;
   private State state;
 
   private VM_Engine() {
+    /* Feed header and EventTypeSpaceChunk go first, so create & enqueue during bootimage writing */
     unwrittenMetaChunks.enqueue(new FeedHeaderChunk());
     unwrittenMetaChunks.enqueue(new EventTypeSpaceChunk(new EventTypeSpaceVersion("org.jikesrvm", 1)));
+
     for (int i=0; i<32; i++) {
       availableEventChunks.enqueue(new EventChunk(false));
     }
@@ -75,15 +75,16 @@ public class VM_Engine {
 
 
   public void earlyStageBooting() {
-    // TODO: make all of this conditional on command line argument.
+    // TODO: If command line args imply that we're not actually going to be tracing,
+    //       then we need to put the engine/feedlets in a state such that the various
+    //       operations are no-ops.
     unwrittenMetaChunks.enqueue(new VM_SpaceDescriptorChunk());
-
-    VM_Processor.getCurrentThread().feedlet = primordialFeedlet;
 
     state = State.STARTING_UP;
   }
 
   public void fullyBootedVM() {
+    // TODO: get trace file name from command line arguments.
     File f = new File("rvm.trace");
     try {
       outputStream = new FileOutputStream(f);

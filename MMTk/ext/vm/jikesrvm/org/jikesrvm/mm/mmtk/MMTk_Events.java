@@ -13,10 +13,8 @@
 
 package org.jikesrvm.mm.mmtk;
 
-import org.jikesrvm.VM;
 import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.tuningfork.VM_Engine;
-import org.jikesrvm.tuningfork.VM_Feedlet;
 import org.mmtk.policy.Space;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
@@ -60,20 +58,10 @@ public class MMTk_Events extends org.mmtk.vm.MMTk_Events {
   }
 
   public void tracePageAcquired(Space space, Address startAddress, int numPages) {
-    VM_Feedlet f = VM_Processor.getCurrentFeedlet();
-    if (f == null) {
-      VM.sysWriteln("Dropping tracePageAcquired event because currentFeedlet not initialized");
-      return;
-    }
-    f.addEvent(pageAcquire, space.getIndex(), startAddress.toInt(), numPages);
+    VM_Processor.getCurrentFeedlet().addEvent(pageAcquire, space.getIndex(), startAddress.toInt(), numPages);
   }
 
   public void tracePageReleased(Space space, Address startAddress, int numPages) {
-    VM_Feedlet f = VM_Processor.getCurrentFeedlet();
-    if (f == null) {
-      VM.sysWriteln("Dropping tracePageReleased event because currentFeedlet not initialized");
-      return;
-    }
-    f.addEvent(pageRelease, space.getIndex(), startAddress.toInt(), numPages);
+    VM_Processor.getCurrentFeedlet().addEvent(pageRelease, space.getIndex(), startAddress.toInt(), numPages);
   }
 }

@@ -12,6 +12,8 @@
  */
 package org.jikesrvm.scheduler.greenthreads;
 
+import static org.jikesrvm.runtime.VM_SysCall.sysCall;
+
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.VM;
 import org.jikesrvm.classloader.VM_TypeReference;
@@ -23,7 +25,6 @@ import org.jikesrvm.osr.OSR_ObjectHolder;
 import org.jikesrvm.runtime.VM_BootRecord;
 import org.jikesrvm.runtime.VM_Entrypoints;
 import org.jikesrvm.runtime.VM_Magic;
-import static org.jikesrvm.runtime.VM_SysCall.sysCall;
 import org.jikesrvm.scheduler.VM_DebuggerThread;
 import org.jikesrvm.scheduler.VM_FinalizerThread;
 import org.jikesrvm.scheduler.VM_Lock;
@@ -32,6 +33,7 @@ import org.jikesrvm.scheduler.VM_ProcessorLock;
 import org.jikesrvm.scheduler.VM_ProcessorTable;
 import org.jikesrvm.scheduler.VM_Scheduler;
 import org.jikesrvm.scheduler.VM_Thread;
+import org.jikesrvm.tuningfork.VM_Engine;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Uninterruptible;
@@ -691,6 +693,7 @@ public final class VM_GreenScheduler extends VM_Scheduler {
     int initProc = PRIMORDIAL_PROCESSOR_ID;
     byte[] stack = new byte[ArchitectureSpecific.VM_ArchConstants.STACK_SIZE_BOOT];
     VM_GreenThread startupThread = new VM_Scheduler.ThreadModel(stack, "Jikes_RVM_Boot_Thread");
+    startupThread.feedlet = VM_Engine.engine.makeFeedlet("Jikes RVM boot thread", "Thread used to execute the initial boot sequence of Jikes RVM");
     numDaemons++;
     getProcessor(initProc).activeThread = startupThread;
     return startupThread;
