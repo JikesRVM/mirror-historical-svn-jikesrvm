@@ -60,6 +60,7 @@ public class VM_Engine {
 
   private int nextFeedletId = 0;
   private VM_HashSet<VM_Feedlet> activeFeedlets = new VM_HashSet<VM_Feedlet>();
+  private VM_Feedlet primordialFeedlet = makeFeedlet("Jikes RVM boot thread", "Thread used to execute the initial boot sequence of Jikes RVM");
 
   private OutputStream outputStream;
   private State state;
@@ -77,7 +78,7 @@ public class VM_Engine {
     // TODO: make all of this conditional on command line argument.
     unwrittenMetaChunks.enqueue(new VM_SpaceDescriptorChunk());
 
-    VM_Processor.getCurrentThread().feedlet = makeFeedlet("Boot Thread", "Thread used to execute the initial boot sequence of Jikes RVM");
+    VM_Processor.getCurrentThread().feedlet = primordialFeedlet;
 
     state = State.STARTING_UP;
   }

@@ -14,6 +14,7 @@
 
 package com.ibm.tuningfork.tracegen.chunk;
 
+import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Uninterruptible;
 
 @Uninterruptible
@@ -39,45 +40,46 @@ public class FeedletChunk extends Chunk {
 	return feedletOperations > 0;
     }
 
+    @Interruptible
     public boolean add(int feedletIndex, String name, String description) {
-	if (!hasRoom(ENCODING_SPACE_INT * 6
-		+ JikesRVMSupport.getStringLength(NAME_PROPERTY)
-		+ JikesRVMSupport.getStringLength(DECSRIPTION_PROPERTY)
-		+ JikesRVMSupport.getStringLength(name) + JikesRVMSupport.getStringLength(description))) {
-	  return false;
-	}
-	int savedPosition = getPosition();
-	addInt(FEEDLET_ADD_OPERATION);
-	addInt(feedletIndex);
+      int savedPosition = getPosition();
+      int savedOperationCount = feedletOperations;
+      boolean success = false;
+      try {
+	if (!addInt(FEEDLET_ADD_OPERATION)) return false;
+	if (!addInt(feedletIndex)) return false;
 	feedletOperations++;
-	if (!addProperty(feedletIndex, NAME_PROPERTY, name)) {
-	  seek(savedPosition);
-	  return false;
-	}
-	if (!addProperty(feedletIndex, DECSRIPTION_PROPERTY, description)) {
-	  seek(savedPosition);
-	  return false;
-	}
+	if (!addProperty(feedletIndex, NAME_PROPERTY, name)) return false;
+	if (!addProperty(feedletIndex, DECSRIPTION_PROPERTY, description)) return false;
+	success = true;
 	return true;
+      } finally {
+        if (!success) {
+          seek(savedPosition);
+          feedletOperations = savedOperationCount;
+        }
+      }
     }
 
+    @Interruptible
     public boolean addProperty(int feedletIndex, String key, String val) {
-	if (!hasRoom(ENCODING_SPACE_INT * 2 + JikesRVMSupport.getStringLength(key) + JikesRVMSupport.getStringLength(val))) {
-	    return false;
-	}
-	int savedPostion = getPosition();
-	addInt(FEEDLET_DESCRIBE_OPERATION);
-	addInt(feedletIndex);
-	if (!addString(key)) {
-	    seek(savedPostion);
-	    return false;
-	}
-	if (!addString(val)) {
-	    seek(savedPostion);
-	    return false;
-	}
+      int savedPosition = getPosition();
+      int savedOperationCount = feedletOperations;
+      boolean success = false;
+      try {
+	if (!addInt(FEEDLET_DESCRIBE_OPERATION)) return false;
+	if (!addInt(feedletIndex)) return false;
+	if (!addStringInternal(getChars(key))) return false;
+	if (!addStringInternal(getChars(val))) return false;
 	feedletOperations++;
+	success = true;
 	return true;
+      } finally {
+        if (!success) {
+          seek(savedPosition);
+          feedletOperations = savedOperationCount;
+        }
+      }
     }
 
     public void close() {
