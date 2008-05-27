@@ -18,6 +18,7 @@ import org.jikesrvm.tuningfork.VM_Engine;
 import org.mmtk.policy.Space;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
+import org.vmmagic.unboxed.Extent;
 
 import com.ibm.tuningfork.tracegen.types.EventAttribute;
 import com.ibm.tuningfork.tracegen.types.EventType;
@@ -34,6 +35,7 @@ public class MMTk_Events extends org.mmtk.vm.MMTk_Events {
   public final EventType gcStop;
   public final EventType pageAcquire;
   public final EventType pageRelease;
+  public final EventType heapSizeChanged;
 
   private final VM_Engine engine;
 
@@ -54,6 +56,8 @@ public class MMTk_Events extends org.mmtk.vm.MMTk_Events {
                                   new EventAttribute("Space", "Space ID", ScalarType.INT),
                                   new EventAttribute("Start Address", "Start address of range of released pages", ScalarType.INT),
                                   new EventAttribute("Num Pages", "Number of pages released", ScalarType.INT)});
+    heapSizeChanged = engine.defineEvent("Heapsize", "Current heapsize ceiling",
+                                         new EventAttribute("Heapsize", "Heapsize in bytes", ScalarType.INT));
     events = this;
   }
 
@@ -63,5 +67,9 @@ public class MMTk_Events extends org.mmtk.vm.MMTk_Events {
 
   public void tracePageReleased(Space space, Address startAddress, int numPages) {
     VM_Processor.getCurrentFeedlet().addEvent(pageRelease, space.getIndex(), startAddress.toInt(), numPages);
+  }
+
+  public void heapSizeChanged(Extent heapSize) {
+    VM_Processor.getCurrentFeedlet().addEvent(heapSizeChanged, heapSize.toInt());
   }
 }

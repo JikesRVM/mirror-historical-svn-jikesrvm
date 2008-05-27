@@ -13,13 +13,13 @@
 package org.mmtk.utility.heap;
 
 import org.mmtk.plan.Plan;
-import org.mmtk.utility.*;
+import org.mmtk.utility.Constants;
+import org.mmtk.utility.Log;
 import org.mmtk.utility.options.Options;
-
 import org.mmtk.vm.VM;
-
-import org.vmmagic.pragma.*;
-import org.vmmagic.unboxed.*;
+import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.unboxed.Extent;
+import org.vmmagic.unboxed.Word;
 
 /**
  * This class is responsible for growing and shrinking the
@@ -95,6 +95,7 @@ import org.vmmagic.unboxed.*;
     if (initialHeapSize.GT(maxHeapSize))
       maxHeapSize = initialHeapSize;
     currentHeapSize = initialHeapSize;
+    VM.events.heapSizeChanged(currentHeapSize);
     if (VM.VERIFY_ASSERTIONS) sanityCheck();
     endLastMajorGC = VM.statistics.nanoTime();
   }
@@ -173,6 +174,7 @@ import org.vmmagic.unboxed.*;
         Log.write("KB to "); Log.writeDec(newSize.toWord().rshl(LOG_BYTES_IN_KBYTE));
         Log.writeln("KB");
       }
+      VM.events.heapSizeChanged(newSize);
       return true;
     } else {
       return false;
