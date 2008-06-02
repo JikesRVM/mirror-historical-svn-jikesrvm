@@ -55,6 +55,11 @@ public abstract class Chunk extends RawChunk {
 	super.close();
     }
 
+    protected void resetImpl() {
+      super.resetImpl();
+      seek(DATA_OFFSET);
+    }
+
     @Interruptible
     protected char[] getChars(String s) {
       if (VM.runningVM) {

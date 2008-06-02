@@ -26,7 +26,7 @@ public final class EventChunk extends Chunk {
   public static final int FEEDLET_ID_OFFSET = Chunk.DATA_OFFSET;
   public static final int SEQUENCE_NUMBER_OFFSET = Chunk.DATA_OFFSET + 4;
   public static final int EVENT_DATA_OFFSET = Chunk.DATA_OFFSET + 8;
-  protected final static int DEFAULT_EVENT_CHUNK_SIZE = 64 * 1024;
+  protected final static int DEFAULT_EVENT_CHUNK_SIZE = 16 * 1024;
 
   public EventChunk() {
     super(EVENT_TYPE_ID, DEFAULT_EVENT_CHUNK_SIZE);

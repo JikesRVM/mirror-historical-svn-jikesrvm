@@ -50,6 +50,7 @@ public final class VM_Engine {
 
   public static final VM_Engine engine = new VM_Engine();
   private static final int IO_INTERVAL_MS = 100;
+  private static final int INITIAL_EVENT_CHUNKS = 64;
 
   private final VM_ChunkQueue unwrittenMetaChunks = new VM_ChunkQueue();
   private final VM_ChunkQueue unwrittenEventChunks = new VM_ChunkQueue();
@@ -70,7 +71,7 @@ public final class VM_Engine {
     unwrittenMetaChunks.enqueue(new FeedHeaderChunk());
     unwrittenMetaChunks.enqueue(new EventTypeSpaceChunk(new EventTypeSpaceVersion("org.jikesrvm", 1)));
 
-    for (int i=0; i<32; i++) {
+    for (int i=0; i<INITIAL_EVENT_CHUNKS; i++) {
       availableEventChunks.enqueue(new EventChunk());
     }
   }
@@ -218,8 +219,17 @@ public final class VM_Engine {
     }
 
     activeFeedlets.add(f);
+
+    /* TODO: if we have less than 2 event chunks per active feedlet, then we should
+     *       allocate more here!
+     */
     return f;
   }
+
+
+  /* TODO:
+   * Must wire up remove feedlet on VM_Thread exit & return it's event chunk.
+   */
 
 
   /*
