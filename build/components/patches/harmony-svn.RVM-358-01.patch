@@ -1,0 +1,13 @@
+Index: modules/pack200/build.xml
+===================================================================
+--- modules/pack200/build.xml	(revision 662785)
++++ modules/pack200/build.xml	(working copy)
+@@ -47,7 +47,7 @@
+ 
+     <property name="pack200.exclude.file" location="${hy.hdk}/build/pack200.exclude" />
+ 
+-    <target name="build" depends="compile-java, copy-resources, build-jar" />
++    <target name="build" /> <!-- depends="compile-java, copy-resources, build-jar" /> -->
+ 
+     <target name="test" depends="-test-module">
+         <fail message="Some tests failed">

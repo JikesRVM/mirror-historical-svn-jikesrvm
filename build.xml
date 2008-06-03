@@ -78,6 +78,10 @@
   <!-- Permit parallelisation of the bootimage build -->
   <property name="bootimage.threads" value="1"/>
 
+  <!-- Class library to use -->
+  <!-- <property name="classpath.classlib" value="true"/> -->
+  <property name="harmony.classlib" value="true"/>
+
   <!-- **************************************************************************** -->
   <!-- *                                                                          * -->
   <!-- *             Property initialization section of the build                 * -->
@@ -181,8 +185,23 @@
 
   <target name="check-components-properties" depends="include-gcspy-check,prepare-ant-tasks">
     <mkdir dir="${components.dir}"/>
-    <ant antfile="build/components/ecj.xml" target="ensure"/>
-    <ant antfile="build/components/classpath.xml" target="ensure"/>
+    <if>
+      <conditions>
+        <isset property="classpath.classlib"/>
+      </conditions>
+      <sequential>
+        <ant antfile="build/components/ecj.xml" target="ensure"/>
+        <ant antfile="build/components/classpath.xml" target="ensure"/>
+      </sequential>
+    </if>
+    <if>
+      <conditions>
+        <isset property="harmony.classlib"/>
+      </conditions>
+      <sequential>
+        <ant antfile="build/components/harmony.xml" target="ensure"/>
+      </sequential>
+    </if>
     <ant antfile="build/components/checkstyle.xml" target="ensure"/>
     <ant antfile="build/components/asm.xml" target="ensure"/>
     <if>
@@ -212,10 +231,16 @@
     <property file="${components.file}"/>
   </target>
 
-  <target name="check-classpath-properties" depends="check-components-properties">
+  <target name="check-classpath-properties" depends="check-components-properties" if="classpath.classlib">
     <propertycopy name="classpath.lib.dir" from="${target.name}.classpath.lib.dir"/>
     <test-file name="classpath.lib.dir" location="${components.file}"/>
     <property file="${classpath.lib.dir}/constants.properties"/>
+  </target>
+
+  <target name="check-harmony-properties" depends="check-components-properties" if="harmony.classlib">
+    <propertycopy name="harmony.lib.dir" from="${target.name}.harmony.lib.dir"/>
+    <test-file name="harmony.lib.dir" location="${components.file}"/>
+    <property file="${harmony.lib.dir}/constants.properties"/>
   </target>
 
   <target name="check-gcspy-client-properties" depends="check-config-properties" if="include.gcspy-client">
@@ -237,7 +262,7 @@ Check to make sure all required properties are specified. This includes properti
  * component properties for classpath, gcspy etc.
   -->
   <target name="check-properties"
-          depends="check-host-properties,check-config-properties,check-target-properties,check-classpath-properties,check-gcspy-properties,check-mmtk-properties"
+          depends="check-host-properties,check-config-properties,check-target-properties,check-classpath-properties,check-harmony-properties,check-gcspy-properties,check-mmtk-properties"
           description="Check that all require properties are specified.">
 
     <!-- setup properties for start of build. -->
