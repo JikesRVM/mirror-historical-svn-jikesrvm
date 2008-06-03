@@ -224,15 +224,6 @@ public class GenerateInterfaceDeclarations {
     pln("#endif /* NEED_BOOT_RECORD_INITIALIZATION */");
     pln();
 
-    pln("#ifdef NEED_GNU_CLASSPATH_VERSION");
-    // version of the classpath library from gnu.classpath.configuration
-    p("static const char*classpath_version                        = \"" +
-      gnu.classpath.Configuration
-          .CLASSPATH_VERSION +
-                             "\";\n");
-    pln("#endif /* NEED_GNU_CLASSPATH_VERSION */");
-    pln();
-
     pln("#ifdef NEED_VIRTUAL_MACHINE_DECLARATIONS");
     emitVirtualMachineDeclarations(bootImageDataAddress, bootImageCodeAddress, bootImageRMapAddress);
     pln("#endif /* NEED_VIRTUAL_MACHINE_DECLARATIONS */");

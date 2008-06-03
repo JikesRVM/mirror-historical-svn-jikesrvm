@@ -56,7 +56,7 @@ public final class VM_MainThread extends Thread {
 
   private void runAgents(ClassLoader cl) {
     if (agents.length > 0) {
-      Instrumentation instrumenter = gnu.java.lang.JikesRVMSupport.createInstrumentation();
+      Instrumentation instrumenter = null; // TODO: Fix after Harmony integration - gnu.java.lang.JikesRVMSupport.createInstrumentation();
       java.lang.JikesRVMSupport.initializeInstrumentation(instrumenter);
       for (String agent : agents) {
         /*

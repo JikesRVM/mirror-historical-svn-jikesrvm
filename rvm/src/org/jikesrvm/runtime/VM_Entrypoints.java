@@ -84,7 +84,6 @@ public class VM_Entrypoints {
       getMethod(org.jikesrvm.runtime.VM_Runtime.class,
                 "resolvedNewArray",
                 "(IIILorg/jikesrvm/objectmodel/VM_TIB;IIII)Ljava/lang/Object;");
-  public static final VM_Field gcLockField = getField(java.lang.VMRuntime.class, "gcLock", int.class);
 
   public static final VM_Field sysWriteLockField = getField(org.jikesrvm.VM.class, "sysWriteLock", int.class);
   public static final VM_Field intBufferLockField =
@@ -382,7 +381,7 @@ public class VM_Entrypoints {
   public static final VM_NormalMethod optResolveMethod;
   public static final VM_NormalMethod optNewArrayArrayMethod;
   public static final VM_NormalMethod optNew2DArrayMethod;
-  public static final VM_NormalMethod sysArrayCopy;
+  public static final VM_NormalMethod sysArrayCopy = null; // TODO: Fix after Harmony integration
 
   static {
     if (VM.BuildForOptCompiler) {
@@ -409,9 +408,6 @@ public class VM_Entrypoints {
           getMethod(org.jikesrvm.compilers.opt.runtimesupport.OptLinker.class, "newArrayArray", "(I[II)Ljava/lang/Object;");
       optNew2DArrayMethod =
           getMethod(org.jikesrvm.compilers.opt.runtimesupport.OptLinker.class, "new2DArray", "(IIII)Ljava/lang/Object;");
-
-      sysArrayCopy = getMethod(java.lang.VMSystem.class, "arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V");
-      sysArrayCopy.setRuntimeServiceMethod(false);
     } else {
       specializedMethodsField = null;
       osrOrganizerQueueLockField = null;
@@ -424,7 +420,6 @@ public class VM_Entrypoints {
       optResolveMethod = null;
       optNewArrayArrayMethod = null;
       optNew2DArrayMethod = null;
-      sysArrayCopy = null;
     }
   }
 
