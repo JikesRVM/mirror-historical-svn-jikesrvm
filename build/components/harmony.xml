@@ -89,11 +89,15 @@
       <equals arg1="${target.os}" arg2="Solaris"/>
     </condition>
     <copy todir="${harmony.package.dir}/${target.name}/lib" flatten="true">
+      <fileset dir="${harmony.dir}">
+        <include name="deploy/jdk/jre/lib/**/*.jar"/>
+      </fileset>
+    </copy>
+    <copy todir="${harmony.package.dir}/${target.name}/lib" flatten="true">
       <regexpmapper from="^(.*${file.separator})lib([^${file.separator}]+)${library.suffix}$$"
                     to="${target.dll-prefix}\2${target.jni-suffix}"/>
       <fileset dir="${harmony.dir}">
         <include name="deploy/jdk/jre/bin/*${library.suffix}"/>
-        <include name="deploy/jdk/jre/lib/**/*.jar"/>
       </fileset>
     </copy>
     <writeComponentConstants dir="${harmony.package.dir}/${target.name}/lib"/>
