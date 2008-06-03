@@ -155,7 +155,7 @@ public final class AnnotationAdder {
       for (Constructor c : Throwable.class.getConstructors()) {
         addToAdapt(NoEscapes.class, c);
       }
-
+      if (false) { // TODO: Tidy up for Harmony integration
       // java.nio.Buffer
       addToAdapt(Inline.class,
                  "java/nio/Buffer",
@@ -181,7 +181,7 @@ public final class AnnotationAdder {
                  "gnu/java/nio/charset/ByteDecodeLoopHelper",
                  "arrayDecodeLoop",
                  "(Ljava/nio/ByteBuffer;Ljava/nio/CharBuffer;)Ljava/nio/charset/CoderResult;");
-
+      }
       // BigDecimal
       addToAdapt(Pure.class, BigDecimal.class.getMethod("abs", new Class[0]));
       addToAdapt(Pure.class, BigDecimal.class.getMethod("abs", new Class[]{MathContext.class}));

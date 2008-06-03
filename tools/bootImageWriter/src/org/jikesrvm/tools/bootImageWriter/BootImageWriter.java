@@ -2231,7 +2231,7 @@ public class BootImageWriter extends BootImageWriterMessages
         if (verbose >= 2) traceContext.push("VMConstructor",
                                             "java.lang.Constructor",
                                             "cons");
-        Object vmcons = java.lang.reflect.JikesRVMSupport.createVMConstructor(constructor);
+        Object vmcons = null; // TODO: Harmony - java.lang.reflect.JikesRVMSupport.createVMConstructor(constructor);
         Address imageAddress = BootImageMap.findOrCreateEntry(vmcons).imageAddress;
         if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
           // object not part of bootimage: install null reference

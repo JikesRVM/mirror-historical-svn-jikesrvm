@@ -359,8 +359,8 @@ public class VM_Entrypoints {
   public static final VM_Field edgeCountersField =
       getField(org.jikesrvm.compilers.baseline.VM_EdgeCounts.class, "data", int[][].class);
 
-  public static final VM_Field inetAddressAddressField = getField(java.net.InetAddress.class, "address", int.class);
-  public static final VM_Field inetAddressFamilyField = getField(java.net.InetAddress.class, "family", int.class);
+  public static final VM_Field inetAddressAddressField = null; // TODO: Harmony - getField(java.net.InetAddress.class, "address", int.class);
+  public static final VM_Field inetAddressFamilyField = null; // TODO: Harmony - getField(java.net.InetAddress.class, "family", int.class);
 
   public static final VM_Field socketImplAddressField =
       getField(java.net.SocketImpl.class, "address", java.net.InetAddress.class);
@@ -424,5 +424,5 @@ public class VM_Entrypoints {
   }
 
   public static final VM_Field classLoaderDefinedPackages =
-      getField(java.lang.ClassLoader.class, "definedPackages", java.util.HashMap.class);
+      null; // TODO: Harmony - getField(java.lang.ClassLoader.class, "definedPackages", java.util.HashMap.class);
 }
