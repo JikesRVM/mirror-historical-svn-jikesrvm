@@ -827,7 +827,6 @@ Check to make sure all required properties are specified. This includes properti
         <filter token="_RVM_WITH_BASE_BOOTIMAGE_COMPILER_" value="${pp_RVM_WITH_BASE_BOOTIMAGE_COMPILER}"/>
         <filter token="_RVM_MMTK_PLAN_" value="${config.mmtk.plan}"/>
         <filter token="_RVM_WITH_GCSPY_" value="${config.include.gcspy}"/>
-        <filter token="_RVM_CLASSPATH_VERSION_" value="${classpath.version}"/>
         <filter token="_RVM_STRESSGC_INTERVAL_" value="${config.stress-gc-interval}"/>
         <filter token="_RVM_WITH_GCTRACE_" value="${pp_RVM_WITH_GCTRACE}"/>
         <filter token="_RVM_WITH_ALIGNMENT_CHECKING_" value ="${config.alignment-checking}"/>
@@ -940,32 +939,80 @@ Check to make sure all required properties are specified. This includes properti
     -->
     <delete dir="${build.classes}"/>
     <mkdir dir="${build.classes}"/>
-    <javac destdir="${build.classes}"
-           debug="true"
-           fork="true"
-           memoryMaximumSize="500M"
-           debugLevel="lines,source"
-           source="1.5"
-           target="1.5"
-           srcdir="${main.java}:${classlib.library-interface.common.java}:${classlib.library-interface.cpl.java}:${classlib.library-interface.non-cpl.java}:${classlib.library-interface.non-cpl2.java}:${mmtk-rvm.java}"
-           sourcepath="${mmtk.java}:${options.java}:${generated.java}:${generated.config.java}:${generated.arch.java}:${main.java}:${mmtk-rvm.java}">
-      <bootclasspath>
-        <pathelement location="${classpath.lib.dir}/classpath.jar"/>
-      </bootclasspath>
-      <classpath>
-        <pathelement location="${build.vmmagic-stub.classes}"/>
-      </classpath>
-      <include name="Dummy.java"/>
-      <include name="OptDummy.java"/>
-      <include name="gnu/**/*.java"/>
-      <include name="sun/**/*.java"/>
-      <include name="java/**/*.java"/>
-      <include name="${arch-helper-class}"/>
-      <include name="org/jikesrvm/mm/mmtk/**/*.java"/>
-      <include name="org/jikesrvm/tools/oth/OptTestHarness.java"/>
-      <include name="org/jikesrvm/tools/header_gen/GenArch_${target.arch}.java"/>
-      <exclude name="org/jikesrvm/tools/header_gen.GenerateInterfaceDeclarations.java"/>
-    </javac>
+    <if>
+      <conditions>
+        <isset property="classpath.classlib"/>
+      </conditions>
+      <sequential>       
+        <javac destdir="${build.classes}"
+               debug="true"
+               fork="true"
+               memoryMaximumSize="500M"
+               debugLevel="lines,source"
+               source="1.5"
+               target="1.5"
+               srcdir="${main.java}:${classlib.library-interface.common.java}:${classlib.library-interface.cpl.java}:${classlib.library-interface.non-cpl.java}:${classlib.library-interface.non-cpl2.java}:${mmtk-rvm.java}"
+               sourcepath="${mmtk.java}:${options.java}:${generated.java}:${generated.config.java}:${generated.arch.java}:${main.java}:${mmtk-rvm.java}">
+          <bootclasspath>
+            <pathelement location="${classpath.lib.dir}/classpath.jar"/>
+          </bootclasspath>
+          <classpath>
+            <pathelement location="${build.vmmagic-stub.classes}"/>
+          </classpath>
+          <include name="Dummy.java"/>
+          <include name="OptDummy.java"/>
+          <include name="gnu/**/*.java"/>
+          <include name="sun/**/*.java"/>
+          <include name="java/**/*.java"/>
+          <include name="${arch-helper-class}"/>
+          <include name="org/jikesrvm/mm/mmtk/**/*.java"/>
+          <include name="org/jikesrvm/tools/oth/OptTestHarness.java"/>
+          <include name="org/jikesrvm/tools/header_gen/GenArch_${target.arch}.java"/>
+          <exclude name="org/jikesrvm/tools/header_gen.GenerateInterfaceDeclarations.java"/>
+        </javac>
+      </sequential>
+    </if>
+    <if>
+      <conditions>
+        <isset property="harmony.classlib"/>
+      </conditions>
+      <sequential>       
+        <javac destdir="${build.classes}"
+               debug="true"
+               fork="true"
+               memoryMaximumSize="500M"
+               debugLevel="lines,source"
+               source="1.5"
+               target="1.5"
+               srcdir="${main.java}:${classlib.library-interface.common.java}:${mmtk-rvm.java}"
+               sourcepath="${mmtk.java}:${options.java}:${generated.java}:${generated.config.java}:${generated.arch.java}:${main.java}:${mmtk-rvm.java}">
+          <bootclasspath>
+            <pathelement location="${harmony.lib.dir}/luni-kernel-stubs.jar"/>
+            <pathelement location="${harmony.lib.dir}/luni.jar"/>
+            <pathelement location="${harmony.lib.dir}/annotation.jar"/>
+            <pathelement location="${harmony.lib.dir}/archive.jar"/>
+            <pathelement location="${harmony.lib.dir}/instrument.jar"/>
+            <pathelement location="${harmony.lib.dir}/nio.jar"/>
+            <pathelement location="${harmony.lib.dir}/nio_char.jar"/>
+            <pathelement location="${harmony.lib.dir}/security-kernel-stubs.jar"/>
+            <pathelement location="${harmony.lib.dir}/security.jar"/>
+          </bootclasspath>
+          <classpath>
+            <pathelement location="${build.vmmagic-stub.classes}"/>
+          </classpath>
+          <include name="Dummy.java"/>
+          <include name="OptDummy.java"/>
+          <include name="gnu/**/*.java"/>
+          <include name="sun/**/*.java"/>
+          <include name="java/**/*.java"/>
+          <include name="${arch-helper-class}"/>
+          <include name="org/jikesrvm/mm/mmtk/**/*.java"/>
+          <include name="org/jikesrvm/tools/oth/OptTestHarness.java"/>
+          <include name="org/jikesrvm/tools/header_gen/GenArch_${target.arch}.java"/>
+          <exclude name="org/jikesrvm/tools/header_gen.GenerateInterfaceDeclarations.java"/>
+        </javac>
+      </sequential>
+    </if>
 
     <mkdir dir="${build.base}/syscall/java"/>
     <exec executable="apt" failonerror="true">
