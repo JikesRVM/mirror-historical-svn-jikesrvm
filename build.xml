@@ -1185,11 +1185,32 @@ Check to make sure all required properties are specified. This includes properti
       <equals arg1="${target.arch}" arg2="ppc"/>
     </condition>
 
-    <concat destfile="${build.base}/Primordials.txt">
-      <filelist dir="${build.base}" files="ClassesForImage.txt"/>
-      <filelist dir="${primordials.dir}"
-                files="Classpath-0.${classpath.version}.txt,RVM.txt${primordials.opt}${primordials.aos}${primordials.arch}"/>
-    </concat>
+    <if>
+      <conditions>
+        <isset property="classpath.classlib"/>
+      </conditions>
+      <sequential>
+        <concat destfile="${build.base}/Primordials.txt">
+          <filelist dir="${build.base}" files="ClassesForImage.txt"/>
+          <filelist dir="${primordials.dir}"
+                    files="Classpath-0.${classpath.version}.txt,RVM.txt${primordials.opt}${primordials.aos}${primordials.arch}"/>
+        </concat>
+      </sequential>
+    </if>
+
+    <if>
+      <conditions>
+        <isset property="harmony.classlib"/>
+      </conditions>
+      <sequential>
+        <concat destfile="${build.base}/Primordials.txt">
+          <filelist dir="${build.base}" files="ClassesForImage.txt"/>
+          <filelist dir="${primordials.dir}"
+                    files="Harmony.txt,RVM.txt${primordials.opt}${primordials.aos}${primordials.arch}"/>
+        </concat>
+      </sequential>
+    </if>
+
     <replaceregexp file="${build.base}/Primordials.txt" match=".*#.*" replace="" byline="true"/>
   </target>
 
