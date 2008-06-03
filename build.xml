@@ -30,8 +30,12 @@
 
   <!-- default configuration values. May have already been set by above tasks -->
   <property file="${jikesrvm.dir}/build/configs/config.properties.defaults"/>
-  <property name="classlib.provider" value="GNU Classpath"/>
+
+  <!-- Class library to use -->
+  <property name="classlib.provider" value="Harmony"/>
   <property name="config.portable-native-sync" value="true"/>
+  <!-- <property name="classpath.classlib" value="true"/> -->
+  <property name="harmony.classlib" value="true"/>
   
   <setBuildName property="build.name" config="${config.name}"/>
 
@@ -77,10 +81,6 @@
 
   <!-- Permit parallelisation of the bootimage build -->
   <property name="bootimage.threads" value="1"/>
-
-  <!-- Class library to use -->
-  <!-- <property name="classpath.classlib" value="true"/> -->
-  <property name="harmony.classlib" value="true"/>
 
   <!-- **************************************************************************** -->
   <!-- *                                                                          * -->
@@ -918,6 +918,14 @@ Check to make sure all required properties are specified. This includes properti
         <property name="classlib.library-interface.non-cpl2.java" location="libraryInterface/GNUClasspath/PD/src"/>
       </sequential>
     </if>
+    <if>
+      <conditions>
+        <equals arg1="${classlib.provider}" arg2="Harmony"/>
+      </conditions>
+      <sequential>
+        <property name="classlib.library-interface.cpl.java" location="libraryInterface/Harmony/CPL/src"/>
+      </sequential>
+    </if>
   </target>
 
   <target name="compile" depends="compile-mmtk,compile-options,prepare-source,prepare-config-source,choose-classlib,do-checkstyle">
@@ -984,7 +992,7 @@ Check to make sure all required properties are specified. This includes properti
                debugLevel="lines,source"
                source="1.5"
                target="1.5"
-               srcdir="${main.java}:${classlib.library-interface.common.java}:${mmtk-rvm.java}"
+               srcdir="${main.java}:${classlib.library-interface.common.java}:${classlib.library-interface.cpl.java}:${mmtk-rvm.java}"
                sourcepath="${mmtk.java}:${options.java}:${generated.java}:${generated.config.java}:${generated.arch.java}:${main.java}:${mmtk-rvm.java}">
           <bootclasspath>
             <pathelement location="${harmony.lib.dir}/luni-kernel-stubs.jar"/>
