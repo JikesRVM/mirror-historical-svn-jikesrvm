@@ -1024,4 +1024,14 @@ public final class Class<T> implements Serializable, Type, AnnotatedElement, Gen
       throw new ClassCastException();
     return (Class<? extends U>) this;
   }
+
+  // TODO: Harmony
+  ClassLoader getClassLoaderImpl() {
+    return null;
+  }
+
+  // TODO: Harmony
+  static final Class[] getStackClasses(int maxDepth, boolean stopAtPrivileged) {
+    return null;
+  }
 }

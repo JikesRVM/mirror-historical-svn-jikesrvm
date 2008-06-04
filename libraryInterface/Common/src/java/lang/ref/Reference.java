@@ -120,4 +120,9 @@ public abstract class Reference<T> {
     }
     return false;
   }
+
+  // TODO: Harmony
+  void dequeue() {
+    return;
+  }
 }

@@ -86,6 +86,13 @@ public class BootImageWriter extends BootImageWriterMessages
  implements BootImageWriterConstants {
 
   /**
+   * The name of the class library, used when performing oracle operations of
+   * trying to fill in fields when they cannot be reflected upon. Always lower
+   * case.
+   */
+  private static String classLibrary;
+
+  /**
    * Number of threads we should use for compilation. Default to number of
    * available processors +1. This is the ideal thread pool size for something
    * compute bound, but should be larger if IO is an issue.
@@ -402,6 +409,13 @@ public class BootImageWriter extends BootImageWriterMessages
     // Process command line directives.
     //
     for (int i = 0; i < args.length; ++i) {
+      // name of class library
+      if (args[i].equals("-classlib")) {
+        if (++i >= args.length)
+          fail("argument syntax error: Got a -classlib flag without a following class library name");
+        classLibrary = args[i].toLowerCase();
+        continue;
+      }      
       // name of code image file
       if (args[i].equals("-oc")) {
         if (++i >= args.length)
@@ -1793,8 +1807,15 @@ public class BootImageWriter extends BootImageWriterMessages
                 bootImage.setFullWord(rvmFieldAddress,
                     jdkFieldAcc.getInt(jdkObject));
               } catch (IllegalArgumentException ex) {
-                System.out.println("type " + rvmScalarType + ", field " + rvmField);
-                throw ex;
+                // TODO: Harmony - clean this up
+                if (jdkObject instanceof java.util.WeakHashMap) {
+                  // the field load factor field in Sun/Classpath is a float but
+                  // in Harmony it has been "optimized" to an int
+                  bootImage.setFullWord(rvmFieldAddress, 7500);
+                } else {
+                  System.out.println("type " + rvmScalarType + ", field " + rvmField);
+                  throw ex;
+                }
               }
             } else if (rvmFieldType.isLongType()) {
               bootImage.setDoubleWord(rvmFieldAddress,
@@ -1989,6 +2010,8 @@ public class BootImageWriter extends BootImageWriterMessages
   private static boolean copyKnownClasspathStaticField(Class jdkType, String rvmFieldName,
                                                        VM_TypeReference rvmFieldType,
                                                        Offset rvmFieldOffset) {
+    if (classLibrary != "classpath") return false;
+
     if (jdkType.equals(java.lang.Number.class)) {
       if (rvmFieldName.equals("digits") && rvmFieldType.isArrayType()) {
         char[] java_lang_Number_digits = new char[]{
@@ -2136,6 +2159,8 @@ public class BootImageWriter extends BootImageWriterMessages
    */
   private static boolean copyKnownClasspathInstanceField(Object jdkObject, String rvmFieldName, VM_TypeReference rvmFieldType, Address rvmFieldAddress)
     throws IllegalAccessException {
+    if (classLibrary != "classpath") return false;
+    
     if ((jdkObject instanceof java.lang.String) &&
         (rvmFieldName.equals("cachedHashCode")) &&
         (rvmFieldType.isIntType())

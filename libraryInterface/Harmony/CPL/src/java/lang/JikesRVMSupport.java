@@ -16,6 +16,7 @@ import java.security.ProtectionDomain;
 import java.lang.instrument.Instrumentation;
 
 import org.jikesrvm.classloader.VM_Type;
+import org.jikesrvm.VM;
 
 import org.vmmagic.pragma.*;
 
@@ -61,17 +62,20 @@ public class JikesRVMSupport {
 
   @Uninterruptible
   public static char[] getBackingCharArray(String str) {
-    throw new Error("TODO");
+    VM._assert(false);
+    return null;
   }
 
   @Uninterruptible
   public static int getStringLength(String str) {
-    throw new Error("TODO");
+    VM._assert(false);
+    return 0;
   }
 
   @Uninterruptible
   public static int getStringOffset(String str) {
-    throw new Error("TODO");
+    VM._assert(false);
+    return 0;
   }
 
   public static String newStringWithoutCopy(char[] data, int offset, int count) {
@@ -103,10 +107,12 @@ public class JikesRVMSupport {
    */
   @Uninterruptible
   public static int getEnumOrdinal(Enum<?> e) {
-    throw new Error("TODO");
+    VM._assert(false);
+    return 0;
   }
   @Uninterruptible
   public static String getEnumName(Enum<?> e) {
-    throw new Error("TODO");
+    VM._assert(false);
+    return null;
   }
 }
