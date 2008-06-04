@@ -61,6 +61,14 @@ public class FeedletChunk extends Chunk {
       }
     }
 
+    public boolean remove(int feedletIndex) {
+      if (!hasRoom(ENCODING_SPACE_INT*2)) return false;
+      addIntUnchecked(FEEDLET_REMOVE_OPERATION);
+      addIntUnchecked(feedletIndex);
+      feedletOperations++;
+      return true;
+    }
+
     @Interruptible
     public boolean addProperty(int feedletIndex, String key, String val) {
       int savedPosition = getPosition();
@@ -83,10 +91,7 @@ public class FeedletChunk extends Chunk {
     }
 
     public void close() {
-	int pos = getPosition();
-	seek(FEEDLET_COUNT_OFFSET);
-	addInt(feedletOperations);
-	seek(pos);
+	putIntAt(FEEDLET_COUNT_OFFSET, feedletOperations);
 	feedletOperations = 0;
 	super.close();
     }

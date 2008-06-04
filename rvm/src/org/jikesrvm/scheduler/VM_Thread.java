@@ -694,6 +694,8 @@ public abstract class VM_Thread {
     // allow java.lang.Thread.exit() to remove this thread from ThreadGroup
     java.lang.JikesRVMSupport.threadDied(thread);
 
+    VM_Engine.engine.removeFeedlet(feedlet);
+
     if (VM.VerifyAssertions) {
       if (VM_Lock.countLocksHeldByThread(getLockingId()) > 0) {
         VM.sysWriteln("Error, thread terminating holding a lock");

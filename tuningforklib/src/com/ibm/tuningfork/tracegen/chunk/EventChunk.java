@@ -35,10 +35,9 @@ public final class EventChunk extends Chunk {
 
   public void reset(int feedletIndex, int sequenceNumber) {
     super.resetImpl();
-    seek(FEEDLET_ID_OFFSET);
-    addInt(feedletIndex);
-    addInt(sequenceNumber);
     seek(EVENT_DATA_OFFSET);
+    putIntAt(FEEDLET_ID_OFFSET, feedletIndex);
+    putIntAt(SEQUENCE_NUMBER_OFFSET, sequenceNumber);
   }
 
   @Inline

@@ -49,9 +49,7 @@ public abstract class Chunk extends RawChunk {
     public void close() {
 	int pos = getPosition();
 	int bodyLength = pos - DATA_OFFSET;
-	seek(LENGTH_OFFSET);
-	addInt(bodyLength);
-	seek(pos);
+	putIntAt(LENGTH_OFFSET, bodyLength);
 	super.close();
     }
 

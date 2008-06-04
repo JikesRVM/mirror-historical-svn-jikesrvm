@@ -226,11 +226,35 @@ public final class VM_Engine {
     return f;
   }
 
+  public synchronized void removeFeedlet(VM_Feedlet feedlet) {
+    if (activeFeedlets.contains(feedlet)) {
+      activeFeedlets.remove(feedlet);
+      shutdownFeedlet(feedlet);
+    }
+  }
 
-  /* TODO:
-   * Must wire up remove feedlet on VM_Thread exit & return it's event chunk.
-   */
+  private synchronized void shutdownAllFeedlets() {
+    for (VM_Feedlet f : activeFeedlets) {
+      shutdownFeedlet(f);
+    }
+    activeFeedlets.removeAll();
+  }
 
+
+  private void shutdownFeedlet(VM_Feedlet feedlet) {
+    feedlet.shutdown();
+    VM.sysWriteln("executing shutdownFeedlet for ",feedlet.getFeedletIndex());
+    if (!activeFeedletChunk.remove(feedlet.getFeedletIndex())) {
+      activeFeedletChunk.close();
+      unwrittenMetaChunks.enqueue(activeFeedletChunk);
+      activeFeedletChunk = new FeedletChunk();
+      if (!activeFeedletChunk.remove(feedlet.getFeedletIndex())) {
+        if (VM.VerifyAssertions) {
+          VM.sysFail("Unable to do single remove operation on a new feedlet chunk");
+        }
+      }
+    }
+  }
 
   /*
    * Daemon Threads & I/O
@@ -267,8 +291,13 @@ public final class VM_Engine {
         // Do nothing.
       }
       boolean shouldShutDown = state == State.SHUTTING_DOWN;
+      synchronized(this) {
+        if (shouldShutDown) {
+          shutdownAllFeedlets();
+        }
+      }
       writeMetaChunks();
-      writeEventChunks(shouldShutDown);
+      writeEventChunks();
       if (shouldShutDown) {
         state = State.SHUT_DOWN;
         return;
@@ -303,7 +332,7 @@ public final class VM_Engine {
     }
   }
 
-  private synchronized void writeEventChunks(boolean shouldShutDown) {
+  private synchronized void writeEventChunks() {
     while (!unwrittenEventChunks.isEmpty()) {
       RawChunk c = unwrittenEventChunks.dequeue();
       try {
@@ -313,24 +342,6 @@ public final class VM_Engine {
         e.printStackTrace();
       }
       availableEventChunks.enqueue(c); /* reduce; reuse; recycle...*/
-    }
-    if (shouldShutDown) {
-      // TODO: This isn't bulletproof.
-      //       We should be snapshotting each feedlet's event chunk and then closing/writing it.
-      for (VM_Feedlet f : activeFeedlets) {
-        f.enabled = false; /* will stop new events from being added; in flight addEvents keep going */
-      }
-      for (VM_Feedlet f : activeFeedlets) {
-        try {
-          EventChunk ec = f.stealEvents();
-          if (ec != null) {
-            ec.write(outputStream);
-          }
-        } catch (IOException e) {
-          VM.sysWriteln("Exception while outputing trace TuningFork trace file");
-          e.printStackTrace();
-        }
-      }
     }
   }
 

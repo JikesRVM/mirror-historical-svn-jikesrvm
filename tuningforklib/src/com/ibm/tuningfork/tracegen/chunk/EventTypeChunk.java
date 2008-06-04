@@ -65,10 +65,7 @@ public class EventTypeChunk extends Chunk {
     }
 
     public void close() {
-	int pos = getPosition();
-	seek(EVENT_TYPE_OFFSET);
-	addInt(numberOfEventTypes);
-	seek(pos);
+	putIntAt(EVENT_TYPE_OFFSET, numberOfEventTypes);
 	numberOfEventTypes = 0;
 	super.close();
     }

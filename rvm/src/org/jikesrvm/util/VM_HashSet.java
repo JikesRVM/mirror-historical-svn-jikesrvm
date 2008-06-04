@@ -85,6 +85,13 @@ public final class VM_HashSet<T> implements Iterable<T> {
     }
   }
 
+  public void removeAll() {
+    for (int i = 0; i<buckets.length; i++) {
+      buckets[i] = null;
+    }
+    numElems = 0;
+  }
+
   private void growMap() {
     Bucket<T>[] newBuckets = newBucketArray(buckets.length * 2 + 1);
     for (Bucket<T> cur : buckets) {

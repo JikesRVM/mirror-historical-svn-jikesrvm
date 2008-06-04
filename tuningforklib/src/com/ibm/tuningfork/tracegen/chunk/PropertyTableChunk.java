@@ -48,10 +48,7 @@ public class PropertyTableChunk extends Chunk {
     }
 
     public void close() {
-	int pos = getPosition();
-	seek(PROPERTY_COUNT_OFFSET);
-	addInt(numberOfProperties);
-	seek(pos);
+	putIntAt(PROPERTY_COUNT_OFFSET, numberOfProperties);
 	numberOfProperties = 0;
 	super.close();
     }

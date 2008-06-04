@@ -72,15 +72,9 @@ public final class VM_Feedlet {
     return feedletIndex;
   }
 
-  /**
-   * @deprecated This is not a safe API
-   * @return
-   */
-  final EventChunk stealEvents() {
-    if (events != null) {
-      events.close();
-    }
-    return events;
+  final void shutdown() {
+    enabled = false;
+    flushEventChunk();
   }
 
   /**
@@ -290,9 +284,11 @@ public final class VM_Feedlet {
 
   @NoInline
   private void flushEventChunk() {
-    events.close();
-    engine.returnFullEventChunk(events);
-    events = null;
+    if (events != null) {
+      events.close();
+      engine.returnFullEventChunk(events);
+      events = null;
+    }
   }
 
 }

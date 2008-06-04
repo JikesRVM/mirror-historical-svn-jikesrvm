@@ -209,4 +209,13 @@ public abstract class RawChunk {
 	data[cursor + 3] = (byte) ((value >> 0) & 0xff);
 	cursor += 4;
     }
+
+    @Inline(value=Inline.When.AllArgumentsAreConstant)
+    protected void putIntAt(int index, int value) {
+        data[index + 0] = (byte) ((value >> 24) & 0xff);
+        data[index + 1] = (byte) ((value >> 16) & 0xff);
+        data[index + 2] = (byte) ((value >> 8) & 0xff);
+        data[index + 3] = (byte) ((value >> 0) & 0xff);
+    }
+
 }

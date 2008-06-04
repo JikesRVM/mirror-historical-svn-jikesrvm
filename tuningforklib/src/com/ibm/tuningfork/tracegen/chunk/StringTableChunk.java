@@ -45,10 +45,7 @@ public class StringTableChunk extends Chunk {
     }
 
     public void close() {
-	int pos = getPosition();
-	seek(STRING_COUNT_OFFSET);
-	addInt(numberOfStrings);
-	seek(pos);
+	putIntAt(STRING_COUNT_OFFSET, numberOfStrings);
 	numberOfStrings = 0;
 	super.close();
     }
