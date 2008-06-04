@@ -232,7 +232,7 @@
     <mkdir dir="${components.dir}"/>
     <if>
       <conditions>
-        <isset property="classpath.classlib"/>
+        <equals arg1="${classlib.provider}" arg2="GNU Classpath"/>
       </conditions>
       <sequential>
         <ant antfile="build/components/ecj.xml" target="ensure"/>
@@ -241,7 +241,7 @@
     </if>
     <if>
       <conditions>
-        <isset property="harmony.classlib"/>
+        <equals arg1="${classlib.provider}" arg2="Harmony"/>
       </conditions>
       <sequential>
         <ant antfile="build/components/harmony.xml" target="ensure"/>
@@ -982,7 +982,7 @@ Check to make sure all required properties are specified. This includes properti
     <mkdir dir="${build.classes}"/>
     <if>
       <conditions>
-        <isset property="classpath.classlib"/>
+        <equals arg1="${classlib.provider}" arg2="GNU Classpath"/>
       </conditions>
       <sequential>       
         <javac destdir="${build.classes}"
@@ -1015,7 +1015,7 @@ Check to make sure all required properties are specified. This includes properti
     </if>
     <if>
       <conditions>
-        <isset property="harmony.classlib"/>
+        <equals arg1="${classlib.provider}" arg2="Harmony"/>
       </conditions>
       <sequential>       
         <javac destdir="${build.classes}"
@@ -1215,7 +1215,7 @@ Check to make sure all required properties are specified. This includes properti
 
     <if>
       <conditions>
-        <isset property="classpath.classlib"/>
+        <equals arg1="${classlib.provider}" arg2="GNU Classpath"/>
       </conditions>
       <sequential>
         <concat destfile="${build.base}/Primordials.txt">
@@ -1228,7 +1228,7 @@ Check to make sure all required properties are specified. This includes properti
 
     <if>
       <conditions>
-        <isset property="harmony.classlib"/>
+        <equals arg1="${classlib.provider}" arg2="Harmony"/>
       </conditions>
       <sequential>
         <concat destfile="${build.base}/Primordials.txt">
@@ -1570,7 +1570,9 @@ Check to make sure all required properties are specified. This includes properti
   <!-- **************************************************************************** -->
 
   <!-- Setup image directory on host side -->
-  <target name="init-image-dir-on-host" depends="build-bootimage">
+  <target name="init-image-dir-on-host" depends="init-image-dir-on-host-classpath,init-image-dir-on-host-harmony"/>
+
+  <target name="init-image-dir-on-host-classpath" depends="build-bootimage" if="classpath.classlib">
     <mkdir dir="${dist.base}"/>
     <copy todir="${dist.base}">
       <fileset dir="${build.base}">
@@ -1579,7 +1581,7 @@ Check to make sure all required properties are specified. This includes properti
         <include name="BootImageWriterOutput.txt"/>
       </fileset>
     </copy>
-    <copy file="${basedir}/tools/bootImageRunner/rvm" todir="${dist.base}">
+    <copy file="${basedir}/tools/bootImageRunner/rvm.classpath" tofile="${dist.base}/rvm">
       <filterset>
         <filter token="PRELOAD"
                 value="${target.dll-prefix}syswrap${target.dll-ext}"/>
@@ -1624,14 +1626,92 @@ target.jni-suffix=${target.jni-suffix}
 ]]></echo>
   </target>
 
+  <target name="init-image-dir-on-host-harmony" depends="build-bootimage" if="harmony.classlib">
+    <mkdir dir="${dist.base}"/>
+    <copy todir="${dist.base}">
+      <fileset dir="${build.base}">
+        <include name="RVM.*.image"/>
+        <include name="RVM.map"/>
+        <include name="BootImageWriterOutput.txt"/>
+      </fileset>
+    </copy>
+    <copy file="${basedir}/tools/bootImageRunner/rvm.harmony" tofile="${dist.base}/rvm">
+      <filterset>
+        <filter token="PRELOAD"
+                value="${target.dll-prefix}syswrap${target.dll-ext}"/>
+      </filterset>
+    </copy>
+    <chmod file="${dist.base}/rvm" perm="ugo+rx"/>
+    <copy file="${build.rt.jar}" todir="${dist.base}"/>
+    <copy file="${build.vm.jar}" todir="${dist.base}"/>
+    <copy todir="${dist.base}">
+      <fileset dir="${harmony.jars.dir}">
+        <include name="*.jar"/>
+      </fileset>
+    </copy>
+    <mkdir dir="${dist.base}/include"/>
+    <copy todir="${dist.base}/include">
+      <fileset dir="${build.native}">
+        <include name="*.h"/>
+      </fileset>
+    </copy>
+    <echo file="${dist.base}/constants.properties"><![CDATA[# Build time constants used when building image.
+config.name=${config.name}
+config.runtime.compiler=${config.runtime.compiler}
+config.bootimage.compiler=${config.bootimage.compiler}
+config.mmtk.plan=${config.mmtk.plan}
+config.include.aos=${config.include.aos}
+config.include.perfctr=${config.include.perfctr}
+config.include.gcspy=${config.include.gcspy}
+config.include.gcspy-client=${config.include.gcspy-client}
+config.assertions=${config.assertions}
+config.default-heapsize.initial=${config.default-heapsize.initial}
+config.default-heapsize.maximum=${config.default-heapsize.maximum}
+config.bootimage.compiler.args=${config.bootimage.compiler.args}
+config.stress-gc-interval=${config.stress-gc-interval}
+config.alignment-checking=${config.alignment-checking}
+target.name=${target.name}
+target.arch=${target.arch}
+target.os=${target.os}
+target.address.size=${target.address.size}
+target.bootimage.code.address=${target.bootimage.code.address}
+target.bootimage.data.address=${target.bootimage.data.address}
+target.bootimage.rmap.address=${target.bootimage.rmap.address}
+target.max-mappable.address=${target.max-mappable.address}
+target.arch.sse2=${target.arch.sse2}
+target.dll-ext=${target.dll-ext}
+target.dll-prefix=${target.dll-prefix}
+target.jni-suffix=${target.jni-suffix}
+]]></echo>
+  </target>
+
   <!-- Setup runtime directory and copy all the classpath libraries to it -->
   <target name="init-runtime-dir-on-target" depends="build-bootloader">
     <mkdir dir="${dist.base}"/>
-    <copy todir="${dist.base}">
-      <fileset dir="${classpath.lib.dir}">
-        <include name="*${target.jni-suffix}"/>
-      </fileset>
-    </copy>
+    <if>
+      <conditions>
+        <equals arg1="${classlib.provider}" arg2="GNU Classpath"/>
+      </conditions>
+      <sequential>
+        <copy todir="${dist.base}">
+          <fileset dir="${classpath.lib.dir}">
+            <include name="*${target.jni-suffix}"/>
+          </fileset>
+        </copy>
+      </sequential>
+    </if>
+    <if>
+      <conditions>
+        <equals arg1="${classlib.provider}" arg2="Harmony"/>
+      </conditions>
+      <sequential>
+        <copy todir="${dist.base}">
+          <fileset dir="${harmony.jars.dir}">
+            <include name="*${target.jni-suffix}"/>
+          </fileset>
+        </copy>
+      </sequential>
+    </if>
     <copy todir="${dist.base}">
       <fileset dir="${build.base}">
         <include name="*${target.dll-ext}"/>
