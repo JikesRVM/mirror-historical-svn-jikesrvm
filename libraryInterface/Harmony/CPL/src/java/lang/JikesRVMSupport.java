@@ -62,19 +62,17 @@ public class JikesRVMSupport {
 
   @Uninterruptible
   public static char[] getBackingCharArray(String str) {
-    VM._assert(false);
-    return null;
+    return str.getValue();
   }
 
   @Uninterruptible
   public static int getStringLength(String str) {
-    VM._assert(false);
-    return 0;
+    return str.length();
   }
 
   @Uninterruptible
   public static int getStringOffset(String str) {
-    VM._assert(false);
+    // TODO - Harmony
     return 0;
   }
 
