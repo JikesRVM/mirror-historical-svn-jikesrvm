@@ -45,6 +45,7 @@ import org.jikesrvm.classloader.VM_BootstrapClassLoader;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Pure;
 import org.vmmagic.pragma.NoEscapes;
+import org.vmmagic.pragma.Uninterruptible;
 
 /**
  * Add annotations to classes using the ASM framework.
@@ -94,6 +95,11 @@ public final class AnnotationAdder {
    */
   private static final Map<ElementTriple, Set<Class<? extends Annotation>>> thingsToAnnotate2 =
     new HashMap<ElementTriple, Set<Class<? extends Annotation>>>();
+
+  /**
+   * Name of class library
+   */
+  private static String classLibrary;
 
   /**
    * Destination directory for annotated classes
@@ -155,32 +161,32 @@ public final class AnnotationAdder {
       for (Constructor c : Throwable.class.getConstructors()) {
         addToAdapt(NoEscapes.class, c);
       }
-      if (false) { // TODO: Tidy up for Harmony integration
-      // java.nio.Buffer
-      addToAdapt(Inline.class,
-                 "java/nio/Buffer",
-                 "<init>",
-                 "(IIIILgnu/classpath/Pointer;)V");
+      if (classLibrary.toLowerCase().equals("gnu classpath")) {
+        // java.nio.Buffer
+        addToAdapt(Inline.class,
+                   "java/nio/Buffer",
+                   "<init>",
+                   "(IIIILgnu/classpath/Pointer;)V");
 
-      // gnu.java.nio.charset.ByteEncodeLoopHelper
-      addToAdapt(Inline.class,
-                 "gnu/java/nio/charset/ByteEncodeLoopHelper",
-                 "normalEncodeLoop",
-                 "(Ljava/nio/CharBuffer;Ljava/nio/ByteBuffer;)Ljava/nio/charset/CoderResult;");
-      addToAdapt(Inline.class,
-                 "gnu/java/nio/charset/ByteEncodeLoopHelper",
-                 "arrayEncodeLoop",
-                 "(Ljava/nio/CharBuffer;Ljava/nio/ByteBuffer;)Ljava/nio/charset/CoderResult;");
+        // gnu.java.nio.charset.ByteEncodeLoopHelper
+        addToAdapt(Inline.class,
+                   "gnu/java/nio/charset/ByteEncodeLoopHelper",
+                   "normalEncodeLoop",
+                   "(Ljava/nio/CharBuffer;Ljava/nio/ByteBuffer;)Ljava/nio/charset/CoderResult;");
+        addToAdapt(Inline.class,
+                   "gnu/java/nio/charset/ByteEncodeLoopHelper",
+                   "arrayEncodeLoop",
+                   "(Ljava/nio/CharBuffer;Ljava/nio/ByteBuffer;)Ljava/nio/charset/CoderResult;");
 
-      // gnu.java.nio.charset.ByteDecodeLoopHelper
-      addToAdapt(Inline.class,
-                 "gnu/java/nio/charset/ByteDecodeLoopHelper",
-                 "normalDecodeLoop",
-                 "(Ljava/nio/ByteBuffer;Ljava/nio/CharBuffer;)Ljava/nio/charset/CoderResult;");
-      addToAdapt(Inline.class,
-                 "gnu/java/nio/charset/ByteDecodeLoopHelper",
-                 "arrayDecodeLoop",
-                 "(Ljava/nio/ByteBuffer;Ljava/nio/CharBuffer;)Ljava/nio/charset/CoderResult;");
+        // gnu.java.nio.charset.ByteDecodeLoopHelper
+        addToAdapt(Inline.class,
+                   "gnu/java/nio/charset/ByteDecodeLoopHelper",
+                   "normalDecodeLoop",
+                   "(Ljava/nio/ByteBuffer;Ljava/nio/CharBuffer;)Ljava/nio/charset/CoderResult;");
+        addToAdapt(Inline.class,
+                   "gnu/java/nio/charset/ByteDecodeLoopHelper",
+                   "arrayDecodeLoop",
+                   "(Ljava/nio/ByteBuffer;Ljava/nio/CharBuffer;)Ljava/nio/charset/CoderResult;");
       }
       // BigDecimal
       addToAdapt(Pure.class, BigDecimal.class.getMethod("abs", new Class[0]));
@@ -387,6 +393,13 @@ public final class AnnotationAdder {
       addToAdapt(Pure.class, Long.class.getMethod("valueOf", new Class[]{String.class, int.class}));
 
       // String
+      if (classLibrary.toLowerCase().equals("harmony")) {
+        addToAdapt(Uninterruptible.class, String.class.getMethod("length", new Class[0]));
+        addToAdapt(Uninterruptible.class,
+                   "java/lang/String",
+                   "getValue",
+                   "()[C");
+      }
       addToAdapt(Pure.class, String.class.getMethod("charAt", new Class[]{int.class}));
       addToAdapt(Pure.class, String.class.getMethod("getBytes", new Class[]{String.class}));
       addToAdapt(Pure.class, String.class.getMethod("getBytes", new Class[0]));
@@ -431,6 +444,7 @@ public final class AnnotationAdder {
       addToAdapt(Pure.class, String.class.getMethod("intern", new Class[0]));
       addToAdapt(Pure.class, String.class.getMethod("codePointCount", new Class[]{int.class, int.class}));
       addToAdapt(Pure.class, String.class.getMethod("offsetByCodePoints", new Class[]{int.class, int.class}));
+      addToAdapt(Pure.class, String.class.getMethod("length", new Class[0]));
     } catch (Exception e) {
       System.out.println("Exception " + e);
       throw new Error(e);
@@ -479,8 +493,9 @@ public final class AnnotationAdder {
   public static void main(final String[] args) {
     Set<Class<?>> processedClasses = new HashSet<Class<?>>();
 
-    VM_ClassLoader.init(args[0]);
-    destinationDir = args[1] + "/";
+    classLibrary = args[0];
+    VM_ClassLoader.init(args[1]);
+    destinationDir = args[2] + "/";
 
     setup();
 

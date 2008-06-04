@@ -1153,7 +1153,8 @@ Check to make sure all required properties are specified. This includes properti
         <pathelement location="${build.vm.jar}"/>
         <pathelement location="${build.rt.jar}"/>
       </classpath>
-      <arg value="${build.rt.jar}:${build.vm.jar}${build.extra.rt.jars}"/>
+      <arg value="${classlib.provider}"/>
+      <arg value="${generated.asm}:${build.rt.jar}:${build.vm.jar}${build.extra.rt.jars}"/>
       <arg value="${generated.asm}"/>
     </java>
     <zip destfile="${build.rt.jar}" update="true" basedir="${generated.asm}" compress="false">
