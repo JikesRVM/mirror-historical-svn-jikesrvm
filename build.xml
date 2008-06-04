@@ -1266,6 +1266,14 @@ Check to make sure all required properties are specified. This includes properti
       <equals arg1="${target.arch}" arg2="ia32"/>
     </condition>
 
+    <condition property="bootimage.classlib" value="Harmony">
+      <equals arg1="${classlib.provider}" arg2="Harmony"/>
+    </condition>
+
+    <condition property="bootimage.classlib" value="Classpath">
+      <equals arg1="${classlib.provider}" arg2="GNU Classpath"/>
+    </condition>
+
     <echo message="Building bootimage. Output redirected to : ${build.base}/BootImageWriterOutput.txt"/>
     <echo message="MMTk properties = ${mmtk.properties}"/>
     <java classname="org.jikesrvm.tools.bootImageWriter.BootImageWriter"
@@ -1310,6 +1318,8 @@ Check to make sure all required properties are specified. This includes properti
       <arg value="-ra"/>
       <arg value="${target.bootimage.rmap.address}"/>
       <arg value="-numThreads=${bootimage.threads}"/>
+      <arg value="-classlib"/>
+      <arg value="${bootimage.classlib}"/>
     </java>
 
     <loadfile property="bootimage.warnings" srcFile="${build.base}/BootImageWriterOutput.txt">
