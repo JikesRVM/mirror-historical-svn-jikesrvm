@@ -413,7 +413,7 @@ public class BootImageWriter extends BootImageWriterMessages
       if (args[i].equals("-classlib")) {
         if (++i >= args.length)
           fail("argument syntax error: Got a -classlib flag without a following class library name");
-        classLibrary = args[i].toLowerCase();
+        classLibrary = args[i].toLowerCase().intern();
         continue;
       }      
       // name of code image file
@@ -2159,16 +2159,9 @@ public class BootImageWriter extends BootImageWriterMessages
    */
   private static boolean copyKnownClasspathInstanceField(Object jdkObject, String rvmFieldName, VM_TypeReference rvmFieldType, Address rvmFieldAddress)
     throws IllegalAccessException {
-    if (classLibrary != "classpath") return false;
-    
-    if ((jdkObject instanceof java.lang.String) &&
-        (rvmFieldName.equals("cachedHashCode")) &&
-        (rvmFieldType.isIntType())
-        ) {
-      // Populate String's cachedHashCode value
-      bootImage.setFullWord(rvmFieldAddress, jdkObject.hashCode());
-      return true;
-    } else if (jdkObject instanceof java.lang.Class)   {
+
+    // Class library independent objects
+    if (jdkObject instanceof java.lang.Class)   {
       Object value = null;
       String fieldName = null;
       boolean fieldIsFinal = false;
@@ -2196,7 +2189,7 @@ public class BootImageWriter extends BootImageWriterMessages
         } else {
           value = VM_TypeReference.findOrCreate((Class)jdkObject).peekType();
           if (value == null) {
-             throw new Error("Failed to populate Class.type for " + jdkObject);
+            throw new Error("Failed to populate Class.type for " + jdkObject);
           }
         }
         fieldName = "type";
@@ -2208,13 +2201,13 @@ public class BootImageWriter extends BootImageWriterMessages
                                             fieldName);
         Address imageAddress = BootImageMap.findOrCreateEntry(value).imageAddress;
         if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
-            // object not part of bootimage: install null reference
-            if (verbose >= 2) traceContext.traceObjectNotInBootImage();
-            bootImage.setNullAddressWord(rvmFieldAddress, true, true, false);
+          // object not part of bootimage: install null reference
+          if (verbose >= 2) traceContext.traceObjectNotInBootImage();
+          bootImage.setNullAddressWord(rvmFieldAddress, true, true, false);
         } else if (imageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
-            imageAddress = copyToBootImage(value, false, Address.max(), jdkObject, false);
-            if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
-            bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, !fieldIsFinal);
+          imageAddress = copyToBootImage(value, false, Address.max(), jdkObject, false);
+          if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
+          bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, !fieldIsFinal);
         } else {
           if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
           bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, !fieldIsFinal);
@@ -2225,112 +2218,137 @@ public class BootImageWriter extends BootImageWriterMessages
         // Unknown Class field or value for type
         return false;
       }
-    } else if (jdkObject instanceof java.lang.reflect.Constructor)   {
-      Constructor cons = (Constructor)jdkObject;
-      if(rvmFieldName.equals("cons")) {
-        // fill in this VM_Method field
-        String typeName = "L" + cons.getDeclaringClass().getName().replace('.','/') + ";";
-        VM_Type type = VM_TypeReference.findOrCreate(typeName).peekType();
-        if (type == null) {
-          throw new Error("Failed to find type for Constructor.constructor: " + cons + " " + typeName);
-        }
-        final VM_Class klass = type.asClass();
-        Class[] consParams = cons.getParameterTypes();
-        VM_Method constructor = null;
-        loop_over_all_constructors:
-        for (VM_Method vmCons : klass.getConstructorMethods()) {
-          VM_TypeReference[] vmConsParams = vmCons.getParameterTypes();
-          if (vmConsParams.length == consParams.length) {
-            for (int j = 0; j < vmConsParams.length; j++) {
-              if (!consParams[j].equals(vmConsParams[j].resolve().getClassForType())) {
-                continue loop_over_all_constructors;
-              }
-            }
-            constructor = vmCons;
-            break;
+    }
+    // Class library dependent fields
+    if (classLibrary == "harmony") {
+      if ((jdkObject instanceof java.lang.String) &&
+          (rvmFieldName.equals("hashCode")) &&
+          (rvmFieldType.isIntType())
+          ) {
+        // Populate String's hashCode value
+        bootImage.setFullWord(rvmFieldAddress, jdkObject.hashCode());
+        return true;
+      } else {
+        // unknown field
+        return false;
+      }
+    } else if (classLibrary == "classpath") {
+      if ((jdkObject instanceof java.lang.String) &&
+          (rvmFieldName.equals("cachedHashCode")) &&
+          (rvmFieldType.isIntType())
+          ) {
+        // Populate String's cachedHashCode value
+        bootImage.setFullWord(rvmFieldAddress, jdkObject.hashCode());
+        return true;
+      } else if (jdkObject instanceof java.lang.reflect.Constructor)   {
+        Constructor cons = (Constructor)jdkObject;
+        if(rvmFieldName.equals("cons")) {
+          // fill in this VM_Method field
+          String typeName = "L" + cons.getDeclaringClass().getName().replace('.','/') + ";";
+          VM_Type type = VM_TypeReference.findOrCreate(typeName).peekType();
+          if (type == null) {
+            throw new Error("Failed to find type for Constructor.constructor: " + cons + " " + typeName);
           }
-        }
-        if (constructor == null) {
-          throw new Error("Failed to populate Constructor.cons for " + cons);
-        }
-        if (verbose >= 2) traceContext.push("VMConstructor",
-                                            "java.lang.Constructor",
-                                            "cons");
-        Object vmcons = null; // TODO: Harmony - java.lang.reflect.JikesRVMSupport.createVMConstructor(constructor);
-        Address imageAddress = BootImageMap.findOrCreateEntry(vmcons).imageAddress;
-        if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
-          // object not part of bootimage: install null reference
-          if (verbose >= 2) traceContext.traceObjectNotInBootImage();
-          bootImage.setNullAddressWord(rvmFieldAddress, true, false, false);
-        } else if (imageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
-          imageAddress = copyToBootImage(vmcons, false, Address.max(), jdkObject, false);
-          if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
-          bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, false);
+          final VM_Class klass = type.asClass();
+          Class[] consParams = cons.getParameterTypes();
+          VM_Method constructor = null;
+          loop_over_all_constructors:
+          for (VM_Method vmCons : klass.getConstructorMethods()) {
+            VM_TypeReference[] vmConsParams = vmCons.getParameterTypes();
+            if (vmConsParams.length == consParams.length) {
+              for (int j = 0; j < vmConsParams.length; j++) {
+                if (!consParams[j].equals(vmConsParams[j].resolve().getClassForType())) {
+                  continue loop_over_all_constructors;
+                }
+              }
+              constructor = vmCons;
+              break;
+            }
+          }
+          if (constructor == null) {
+            throw new Error("Failed to populate Constructor.cons for " + cons);
+          }
+          if (verbose >= 2) traceContext.push("VMConstructor",
+                                              "java.lang.Constructor",
+                                              "cons");
+          Object vmcons = null; // TODO: Harmony - java.lang.reflect.JikesRVMSupport.createVMConstructor(constructor);
+          Address imageAddress = BootImageMap.findOrCreateEntry(vmcons).imageAddress;
+          if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
+            // object not part of bootimage: install null reference
+            if (verbose >= 2) traceContext.traceObjectNotInBootImage();
+            bootImage.setNullAddressWord(rvmFieldAddress, true, false, false);
+          } else if (imageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
+            imageAddress = copyToBootImage(vmcons, false, Address.max(), jdkObject, false);
+            if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
+            bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, false);
+          } else {
+            if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
+            bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, false);
+          }
+          if (verbose >= 2) traceContext.pop();
+          return true;
+        } else if(rvmFieldName.equals("flag")) {
+          // This field is inherited accesible flag is actually part of
+          // AccessibleObject
+          bootImage.setFullWord(rvmFieldAddress, cons.isAccessible() ? 1 : 0);
+          return true;
         } else {
-          if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
-          bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, false);
+          // Unknown Constructor field
+          return false;
         }
-        if (verbose >= 2) traceContext.pop();
-        return true;
-      } else if(rvmFieldName.equals("flag")) {
-        // This field is inherited accesible flag is actually part of
-        // AccessibleObject
-        bootImage.setFullWord(rvmFieldAddress, cons.isAccessible() ? 1 : 0);
-        return true;
-      } else {
-        // Unknown Constructor field
-        return false;
-      }
-    } else if (jdkObject instanceof java.lang.ref.ReferenceQueue) {
-       if(rvmFieldName.equals("lock")) {
-        // cause reference queues in the boot image to lock upon themselves
-        Address imageAddress = BootImageMap.findOrCreateEntry(jdkObject).imageAddress;
-        if (imageAddress.EQ(OBJECT_NOT_PRESENT) || imageAddress.EQ(OBJECT_NOT_ALLOCATED) || imageAddress.EQ(Address.zero())) {
-          throw new Error("Trying to copy known field into unavailable object!");
+      } else if (jdkObject instanceof java.lang.ref.ReferenceQueue) {
+        if(rvmFieldName.equals("lock")) {
+          // cause reference queues in the boot image to lock upon themselves
+          Address imageAddress = BootImageMap.findOrCreateEntry(jdkObject).imageAddress;
+          if (imageAddress.EQ(OBJECT_NOT_PRESENT) || imageAddress.EQ(OBJECT_NOT_ALLOCATED) || imageAddress.EQ(Address.zero())) {
+            throw new Error("Trying to copy known field into unavailable object!");
+          } else {
+            if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
+            bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, false);
+          }
+          return true;
+        } else if (rvmFieldName.equals("first")){
+          return false;
         } else {
-          if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
-          bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, false);
+          throw new Error("Unknown field "+rvmFieldName+" in java.lang.ref.ReferenceQueue");
         }
-        return true;
-      } else if (rvmFieldName.equals("first")){
-        return false;
-      } else {
-        throw new Error("Unknown field "+rvmFieldName+" in java.lang.ref.ReferenceQueue");
-      }
-    } else if (jdkObject instanceof java.util.BitSet) {
-      BitSet bs = (BitSet)jdkObject;
-      if(rvmFieldName.equals("bits")) {
-        int max = 0; // highest bit set in set
-        for(int i=bs.nextSetBit(0); i>=0; i=bs.nextSetBit(i+1)) {
-          max = i;
-        }
-        long[] bits = new long[(max+63)/64];
-        for(int i=bs.nextSetBit(0); i>=0; i=bs.nextSetBit(i+1)) {
-          bits[i/64] |= 1L << (i & 63);
-        }
-        if (verbose >= 2) traceContext.push("[J", "java.util.BitSet", "bits");
-        Address imageAddress = BootImageMap.findOrCreateEntry(bits).imageAddress;
-        if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
-          // object not part of bootimage: install null reference
-          if (verbose >= 2) traceContext.traceObjectNotInBootImage();
-          bootImage.setNullAddressWord(rvmFieldAddress, true, false);
-        } else if (imageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
-          imageAddress = copyToBootImage(bits, false, Address.max(), jdkObject, false);
-          if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
-          bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), false, false);
+      } else if (jdkObject instanceof java.util.BitSet) {
+        BitSet bs = (BitSet)jdkObject;
+        if(rvmFieldName.equals("bits")) {
+          int max = 0; // highest bit set in set
+          for(int i=bs.nextSetBit(0); i>=0; i=bs.nextSetBit(i+1)) {
+            max = i;
+          }
+          long[] bits = new long[(max+63)/64];
+          for(int i=bs.nextSetBit(0); i>=0; i=bs.nextSetBit(i+1)) {
+            bits[i/64] |= 1L << (i & 63);
+          }
+          if (verbose >= 2) traceContext.push("[J", "java.util.BitSet", "bits");
+          Address imageAddress = BootImageMap.findOrCreateEntry(bits).imageAddress;
+          if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
+            // object not part of bootimage: install null reference
+            if (verbose >= 2) traceContext.traceObjectNotInBootImage();
+            bootImage.setNullAddressWord(rvmFieldAddress, true, false);
+          } else if (imageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
+            imageAddress = copyToBootImage(bits, false, Address.max(), jdkObject, false);
+            if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
+            bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), false, false);
+          } else {
+            if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
+            bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), false, false);
+          }
+          if (verbose >= 2) traceContext.pop();
+          return true;
         } else {
-          if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
-          bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), false, false);
+          // Unknown BitSet field
+          return false;
         }
-        if (verbose >= 2) traceContext.pop();
-        return true;
       } else {
-        // Unknown BitSet field
+        // Unknown field
         return false;
       }
     } else {
-      // Unknown field
-      return false;
+      throw new Error("Unknown class library: \"" + classLibrary + "\"");
     }
   }
 
