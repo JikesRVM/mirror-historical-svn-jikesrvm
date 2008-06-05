@@ -67,10 +67,12 @@ extern uint64_t initialHeapSize;
 extern uint64_t maximumHeapSize;
 
 /* Defined in RunBootImage.C */
+#ifdef __cplusplus
 unsigned int parse_memory_size(
     const char *sizeName, const char *sizeFlag,
     const char *defaultFactor, unsigned roundTo,
     const char *token, const char *subtoken, bool *fastExit);
+#endif
 
 extern int verboseBoot;
 

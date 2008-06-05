@@ -16,8 +16,9 @@
  */
 
 #define LINUX
-#include "vmi.h"
+#define TRACE 1
 #include "bootImageRunner.h"
+#include "vmi.h"
 
 struct VMInterfaceFunctions_ vmi_impl = {
    &CheckVersion,
@@ -38,6 +39,18 @@ struct VMInterfaceFunctions_ vmi_impl = {
 
 VMInterface vmi = &vmi_impl;
 
+extern UDATA JNICALL HyVMLSAllocKeys (JNIEnv * env, UDATA * pInitCount, ...);
+extern void JNICALL HyVMLSFreeKeys (JNIEnv * env, UDATA * pInitCount, ...);
+extern void * JNICALL HyVMLSGet (JNIEnv * env, void *key);
+extern void * JNICALL HyVMLSSet (JNIEnv * env, void **pKey, void *value);
+
+HyVMLSFunctionTable vmls_impl = {
+    &HyVMLSAllocKeys,
+    &HyVMLSFreeKeys,
+    &HyVMLSGet,
+    &HyVMLSSet
+};
+
 vmiError JNICALL CheckVersion (VMInterface * vmi, vmiVersion * version)
 {
     return VMI_ERROR_UNIMPLEMENTED;
@@ -48,16 +61,33 @@ JavaVM * JNICALL GetJavaVM (VMInterface * vmi)
     return &sysJavaVM;
 }
 
+HyPortLibrary portLib;
+
 HyPortLibrary * JNICALL GetPortLibrary (VMInterface * vmi)
 {
-    fprintf(stderr, "UNIMPLEMENTED VMI call GetPortLibrary\n");
-    return NULL;
+    if (TRACE) fprintf(stderr, "VMI call GetPortLibrary\n");
+    static HyPortLibrary *portLibPointer;
+    
+    // First, try to get the portlib pointer from global env (must have been put there during args parse)
+    if (NULL != portLibPointer) {
+        return portLibPointer;
+    }
+    // If the above fails, initialize portlib here
+    int rc;
+    HyPortLibraryVersion portLibraryVersion;
+    HYPORT_SET_VERSION(&portLibraryVersion, HYPORT_CAPABILITY_MASK);
+    
+    rc = hyport_init_library(&portLib, &portLibraryVersion, 
+                             sizeof(HyPortLibrary));
+
+    if (0 != rc) return NULL;
+    else return portLibPointer;
 }
 
 HyVMLSFunctionTable * JNICALL GetVMLSFunctions (VMInterface * vmi)
 {
-    fprintf(stderr, "UNIMPLEMENTED VMI call GetVMLSFunctions\n");
-    return NULL;
+    if (TRACE) fprintf(stderr, "VMI call GetVMLSFunctions\n");
+    return &vmls_impl;
 }
 
 #ifndef HY_ZIP_API

@@ -1522,30 +1522,28 @@ Check to make sure all required properties are specified. This includes properti
 
     <!-- create jvm shared library -->
     <property name="rvm.dll" value="${target.dll-prefix}rvm${target.dll-ext}"/>
-    <if>
-      <conditions>
-        <equals arg1="${classlib.provider}" arg2="GNU Classpath"/>
-      </conditions>
-      <sequential>
-        <exec executable="${c++.exe}" failonerror="true">
-          <arg line="${rvm.c++.args} -lpthread ${c++.librt}"/>
-          <arg value="-o"/>
-          <arg value="${build.base}/${rvm.dll}"/>
-          <arg value="${bl.dir}/jvm.C"/>
-        </exec>
-      </sequential>
-    </if>
+    <exec executable="${c++.exe}" failonerror="true">
+      <arg line="${rvm.c++.args} -lpthread ${c++.librt}"/>
+      <arg value="-o"/>
+      <arg value="${build.base}/${rvm.dll}"/>
+      <arg value="${bl.dir}/jvm.C"/>
+    </exec>
+
+    <!-- create casslib shared library -->
+    <condition property="classlib.dll" value="${target.dll-prefix}classlib${target.dll-ext}" else="">
+        <equals arg1="${classlib.provider}" arg2="Harmony"/>
+    </condition>
     <if>
       <conditions>
         <equals arg1="${classlib.provider}" arg2="Harmony"/>
       </conditions>
       <sequential>
-        <exec executable="${c++.exe}" failonerror="true">
-          <arg line="${rvm.c++.args} -lpthread ${c++.librt}"/>
+        <exec executable="${c.exe}" failonerror="true">
+          <arg line="-DLINUX=1 ${rvm.c++.args} -lpthread ${c++.librt} -L${harmony.lib.dir} -lhyprt"/>
           <arg value="-o"/>
-          <arg value="${build.base}/${rvm.dll}"/>
-          <arg value="${bl.dir}/jvm.C"/>
+          <arg value="${build.base}/${classlib.dll}"/>
           <arg value="${bl.dir}/harmony.c"/>
+          <arg value="libraryInterface/Harmony/ASF/native/vmls.c"/>
         </exec>
       </sequential>
     </if>
@@ -1574,14 +1572,41 @@ Check to make sure all required properties are specified. This includes properti
       <equals arg1="${config.include.perfctr}" arg2="true"/>
     </condition>
 
-    <exec executable="${c++.exe}" failonerror="true">
-      <arg line="${c++.args} ${rvm.common.args} ${gcspy.lib.dir} -lpthread ${perfctr.lib} ${c++.librt} ${rvm.src} ${c++.rdynamic} -g"/>
-      <arg value="-o"/>
-      <arg value="${build.base}/JikesRVM"/>
-      <arg value="-L${build.base}"/>
-      <arg value="-ldl"/>
-      <arg value="-lrvm"/>
-    </exec>
+    <if>
+      <conditions>
+        <equals arg1="${classlib.provider}" arg2="GNU Classpath"/>
+      </conditions>
+      <sequential>
+        <exec executable="${c++.exe}" failonerror="true">
+          <arg line="${c++.args} ${rvm.common.args} ${gcspy.lib.dir} -lpthread ${perfctr.lib} ${c++.librt} ${rvm.src} ${c++.rdynamic} -g"/>
+          <arg value="-o"/>
+          <arg value="${build.base}/JikesRVM"/>
+          <arg value="-L${build.base}"/>
+          <arg value="-ldl"/>
+	  <arg value="-lrvm"/>
+	</exec>
+      </sequential>
+    </if>
+    <if>
+      <conditions>
+        <equals arg1="${classlib.provider}" arg2="Harmony"/>
+      </conditions>
+      <sequential>
+        <exec executable="${c++.exe}" failonerror="true">
+          <arg line="${c++.args} ${rvm.common.args} ${gcspy.lib.dir} -lpthread ${perfctr.lib} ${c++.librt} ${rvm.src} ${c++.rdynamic} -g"/>
+          <arg value="-o"/>
+          <arg value="${build.base}/JikesRVM"/>
+          <arg value="-L${build.base}"/>
+          <arg value="-ldl"/>
+	  <arg value="-lrvm"/>
+          <arg value="-lclasslib"/>
+	  <arg value="-L${harmony.lib.dir}"/>
+          <arg value="-lhyprt"/>
+          <arg value="-lhythr"/>
+          <arg value="-lhysig"/>
+	</exec>
+      </sequential>
+    </if>
 
     <antcall target="build-debug-symbols"/>
   </target>
