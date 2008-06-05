@@ -49,7 +49,7 @@ public class JikesRVMSupport {
   }
 
   public static VM_Type getTypeForClass(Class<?> c) {
-    throw new Error("TODO");
+    return c.type;
   }
 
   public static void setClassProtectionDomain(Class<?> c, ProtectionDomain pd) {
@@ -77,14 +77,15 @@ public class JikesRVMSupport {
   }
 
   public static String newStringWithoutCopy(char[] data, int offset, int count) {
-    throw new Error("TODO");
+    // TODO - Harmony doesn't have a backdoor for not making a copy
+    return new String(data, offset, count);
   }
 
   /***
    * Thread stuff
    * */
   public static Thread createThread(VM_Thread vmdata, String myName) {
-    throw new Error("TODO");
+      return new Thread(vmdata, myName);
   }
 
   public static VM_Thread getThread(Thread thread) {
@@ -92,7 +93,7 @@ public class JikesRVMSupport {
   }
 
   public static void threadDied(Thread thread) {
-    throw new Error("TODO");
+    // TODO - Harmony
   }
   public static Throwable getStillBorn(Thread thread) {
     throw new Error("TODO");
@@ -105,12 +106,12 @@ public class JikesRVMSupport {
    */
   @Uninterruptible
   public static int getEnumOrdinal(Enum<?> e) {
-    VM._assert(false);
-    return 0;
+    // TODO: make e.ordinal() non-uninterruptible
+    return e.ordinal();
   }
   @Uninterruptible
   public static String getEnumName(Enum<?> e) {
-    VM._assert(false);
-    return null;
+    // TODO: make Enum.name() non-uninterruptible
+    return e.name();
   }
 }
