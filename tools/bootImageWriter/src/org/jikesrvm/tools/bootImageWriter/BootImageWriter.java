@@ -1492,6 +1492,7 @@ public class BootImageWriter extends BootImageWriterMessages
       value = ((Offset)addr).toWord();
     } else {
       VM.sysWriteln("Unhandled supposed address value: " + addr);
+      VM.sysWriteln(msg);
       VM.sysFail("incomplete boot image support");
     }
     if (warn) check(value, msg);

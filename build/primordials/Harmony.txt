@@ -189,9 +189,56 @@ Ljava/util/MissingResourceException;
 Ljava/util/Properties;
 Ljava/util/ResourceBundle;
 Ljava/util/ResourceBundle$1;
+Ljava/util/ResourceBundle$MissingBundle;
 Ljava/util/Vector;
 Ljava/util/Vector$1;
 Ljava/util/AbstractCollection;
+Ljava/util/Collection;
+Ljava/util/Collections$1;
+Ljava/util/Collections$CheckedCollection;
+Ljava/util/Collections$CheckedList;
+Ljava/util/Collections$CheckedListIterator;
+Ljava/util/Collections$CheckedMap$CheckedEntry;
+Ljava/util/Collections$CheckedMap$CheckedEntrySet$CheckedEntryIterator;
+Ljava/util/Collections$CheckedMap$CheckedEntrySet;
+Ljava/util/Collections$CheckedMap;
+Ljava/util/Collections$CheckedRandomAccessList;
+Ljava/util/Collections$CheckedSet;
+Ljava/util/Collections$CheckedSortedMap;
+Ljava/util/Collections$CheckedSortedSet;
+Ljava/util/Collections$CopiesList;
+Ljava/util/Collections$EmptyList;
+Ljava/util/Collections$EmptyMap;
+Ljava/util/Collections$EmptySet$1;
+Ljava/util/Collections$EmptySet;
+Ljava/util/Collections$ReverseComparator;
+Ljava/util/Collections$ReverseComparatorWithComparator;
+Ljava/util/Collections$SingletonList;
+Ljava/util/Collections$SingletonMap$1$1$1;
+Ljava/util/Collections$SingletonMap$1$1;
+Ljava/util/Collections$SingletonMap$1;
+Ljava/util/Collections$SingletonMap;
+Ljava/util/Collections$SingletonSet$1;
+Ljava/util/Collections$SingletonSet;
+Ljava/util/Collections$SynchronizedCollection;
+Ljava/util/Collections$SynchronizedList;
+Ljava/util/Collections$SynchronizedMap;
+Ljava/util/Collections$SynchronizedRandomAccessList;
+Ljava/util/Collections$SynchronizedSet;
+Ljava/util/Collections$SynchronizedSortedMap;
+Ljava/util/Collections$SynchronizedSortedSet;
+Ljava/util/Collections$UnmodifiableCollection$1;
+Ljava/util/Collections$UnmodifiableCollection;
+Ljava/util/Collections$UnmodifiableList$1;
+Ljava/util/Collections$UnmodifiableList;
+Ljava/util/Collections$UnmodifiableMap$UnmodifiableEntrySet$1;
+Ljava/util/Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableMapEntry;
+Ljava/util/Collections$UnmodifiableMap$UnmodifiableEntrySet;
+Ljava/util/Collections$UnmodifiableMap;
+Ljava/util/Collections$UnmodifiableRandomAccessList;
+Ljava/util/Collections$UnmodifiableSet;
+Ljava/util/Collections$UnmodifiableSortedMap;
+Ljava/util/Collections$UnmodifiableSortedSet;
 Ljava/util/Collections;
 Ljava/util/Stack;
 Ljava/util/TreeMap;
@@ -222,7 +269,7 @@ Ljava/net/URLClassLoader;
 Ljava/net/URLClassLoader$1;
 Ljava/net/URL;
 Ljava/net/InetAddress;
-
+Ljava/net/NetPermission;
 Ljava/net/URLConnection;
 
 
@@ -315,6 +362,7 @@ Ljava/io/InputStreamReader;
 Ljava/lang/ref/Reference;
 [Ljava/lang/ref/Reference;
 Ljava/lang/ref/ReferenceQueue;
+Ljava/lang/ref/SoftReference;
 
 
 [Ljava/util/zip/ZipEntry;
@@ -351,9 +399,12 @@ Ljava/util/logging/Level;
 Ljava/beans/PropertyChangeSupport;
 Ljava/io/FilePermission;
 
+
+Lorg/apache/harmony/kernel/vm/VM;
+Lorg/apache/harmony/luni/platform/IFileSystem;
 Lorg/apache/harmony/luni/platform/Platform;
 Lorg/apache/harmony/luni/util/PriviAction;
-Lorg/apache/harmony/kernel/vm/VM;
+Lorg/apache/harmony/luni/util/Util;
 Lorg/apache/harmony/nio/FileChannelFactory;
 Lorg/apache/harmony/nio/internal/FileChannelImpl;
 Lorg/apache/harmony/nio/internal/FileChannelImpl$1;
@@ -364,4 +415,8 @@ Lorg/apache/harmony/nio/internal/ReadOnlyFileChannel;
 Lorg/apache/harmony/nio/internal/ReadWriteFileChannel;
 Lorg/apache/harmony/nio/internal/WriteOnlyFileChannel;
 Lorg/apache/harmony/nio/internal/nls/Messages;
-Lorg/apache/harmony/luni/platform/IFileSystem;
+
+# Picked up from icu4j
+Lcom/ibm/icu/util/ULocale;
+Lcom/ibm/icu/util/ULocale$IDParser;
+

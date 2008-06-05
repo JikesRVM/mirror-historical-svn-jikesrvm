@@ -43,6 +43,8 @@ public class Thread implements Runnable {
 
     private volatile transient VM_Thread vmThread;
 
+    private transient long stacksize;
+
     /**
      * A representation of a thread's state. A given thread may only be in one
      * state at a time.
@@ -104,6 +106,12 @@ public class Thread implements Runnable {
     Object slot3;
 
     private Runnable action;
+
+    private String name;
+
+    private int priority;
+
+    private boolean daemon;
 
     /**
      * Construct a wrapper for a given VM_Thread
@@ -205,7 +213,10 @@ public class Thread implements Runnable {
      * @see java.lang.SecurityManager
      */
     public Thread(ThreadGroup group, Runnable runnable, String threadName, long stack) {
-        super();
+        VM.sysWriteln("TODO");
+        VM_Scheduler.dumpStack();
+        stacksize = stack;
+        name = threadName;
     }
 
     /**
@@ -226,9 +237,7 @@ public class Thread implements Runnable {
      * @see java.lang.SecurityManager
      */
     public Thread(ThreadGroup group, Runnable runnable, String threadName) {
-        super();
-        VM.sysWriteln("TODO");
-        VM_Scheduler.dumpStack();
+	this(group, runnable, threadName, 0);
     }
 
     /**
@@ -410,7 +419,7 @@ public class Thread implements Runnable {
      * @return the receiver's name (a java.lang.String)
      */
     public final String getName() {
-        return null;
+        return name;
     }
 
     /**
@@ -420,7 +429,7 @@ public class Thread implements Runnable {
      * @see Thread#setPriority
      */
     public final int getPriority() {
-        return 0;
+        return priority;
     }
 
     /**
@@ -547,7 +556,7 @@ public class Thread implements Runnable {
      * @see Thread#setDaemon
      */
     public final boolean isDaemon() {
-        return false;
+        return daemon;
     }
 
     /**
@@ -654,7 +663,7 @@ public class Thread implements Runnable {
      * @see Thread#isDaemon
      */
     public final void setDaemon(boolean isDaemon) {
-        return;
+        daemon = isDaemon;
     }
 
     /**
@@ -684,7 +693,7 @@ public class Thread implements Runnable {
      * @see Thread#getName
      */
     public final void setName(String threadName) {
-        return;
+        name = threadName;
     }
 
     /**
@@ -701,7 +710,7 @@ public class Thread implements Runnable {
      * @see Thread#getPriority
      */
     public final void setPriority(int priority) {
-        return;
+        this.priority = priority;
     }
 
     /**
@@ -771,7 +780,8 @@ public class Thread implements Runnable {
      * @see Thread#run
      */
     public void start() {
-        return;
+      vmThread = new org.jikesrvm.scheduler.greenthreads.VM_GreenThread(this, stacksize,  name, daemon, priority);
+      vmThread.start();  
     }
 
     /**

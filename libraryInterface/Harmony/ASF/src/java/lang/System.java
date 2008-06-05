@@ -892,6 +892,6 @@ public final class System {
      *            the new value of the field
      */
     private static void setFieldImpl(String fieldName, Object stream) {
-	throw new Error("TODO");
+	org.jikesrvm.VM.sysWriteln("Harmony TODO - System.setFieldImpl " + fieldName);
     }
 }

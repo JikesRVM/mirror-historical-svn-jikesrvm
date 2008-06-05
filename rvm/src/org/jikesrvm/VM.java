@@ -311,6 +311,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     runClassInitializer("java.util.Locale");
     runClassInitializer("java.util.ResourceBundle");
     runClassInitializer("java.util.zip.CRC32");
+    System.loadLibrary("dist/prototype_x86_64-linux/libhyarchive.so");
     runClassInitializer("java.util.zip.Inflater");
     runClassInitializer("java.util.zip.DeflaterHuffman");
     runClassInitializer("java.util.zip.InflaterDynHeader");
@@ -367,8 +368,8 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     if (VM.verboseClassLoading || verboseBoot >= 1) VM.sysWrite("[VM booted]\n");
 
     // set up JikesRVM socket I/O
-    if (verboseBoot >= 1) VM.sysWriteln("Initializing socket factories");
-    JikesRVMSocketImpl.boot();
+    //if (verboseBoot >= 1) VM.sysWriteln("Initializing socket factories");
+    //JikesRVMSocketImpl.boot();
 
     if (VM.BuildForAdaptiveSystem) {
       if (verboseBoot >= 1) VM.sysWriteln("Initializing adaptive system");
