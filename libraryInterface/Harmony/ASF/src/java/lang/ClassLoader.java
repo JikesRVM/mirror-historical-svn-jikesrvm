@@ -23,6 +23,9 @@ import java.net.URL;
 import java.nio.ByteBuffer;
 import java.security.ProtectionDomain;
 import java.util.Enumeration;
+import java.util.HashMap;
+
+import org.jikesrvm.runtime.VM_DynamicLibrary;
 
 /**
  * <p>
@@ -40,6 +43,11 @@ import java.util.Enumeration;
  * @see Class
  */
 public abstract class ClassLoader {
+
+    /**
+     * Map containing all packages defined in the class loader
+     */
+    static HashMap<String, Package> definedPackages = new HashMap<String, Package>();
 
     /**
      * The 'System' ClassLoader; also known as the bootstrap ClassLoader.
@@ -598,7 +606,8 @@ public abstract class ClassLoader {
      *             if the library was not allowed to be loaded
      */
     static void loadLibraryWithClassLoader(String libName, ClassLoader loader) {
-        return;
+        // TODO: support loader argument
+	VM_DynamicLibrary.load(libName);
     }
 
     /**

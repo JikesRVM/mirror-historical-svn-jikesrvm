@@ -424,5 +424,5 @@ public class VM_Entrypoints {
   }
 
   public static final VM_Field classLoaderDefinedPackages =
-      null; // TODO: Harmony - getField(java.lang.ClassLoader.class, "definedPackages", java.util.HashMap.class);
+      getField(java.lang.ClassLoader.class, "definedPackages", java.util.HashMap.class);
 }
