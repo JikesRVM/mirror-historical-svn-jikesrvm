@@ -20,6 +20,10 @@ package java.lang;
 import java.util.Collections;
 import java.util.Map;
 
+import org.jikesrvm.VM;
+import org.jikesrvm.scheduler.VM_Scheduler;
+import org.jikesrvm.scheduler.VM_Thread;
+
 /**
  * This class must be implemented by the VM vendor. The documented methods must
  * be implemented to support other provided class implementations in this
@@ -36,6 +40,8 @@ import java.util.Map;
  * @see java.lang.ThreadGroup
  */
 public class Thread implements Runnable {
+
+    private volatile transient VM_Thread vmThread;
 
     /**
      * A representation of a thread's state. A given thread may only be in one
@@ -100,6 +106,14 @@ public class Thread implements Runnable {
     private Runnable action;
 
     /**
+     * Construct a wrapper for a given VM_Thread
+     */
+    Thread(VM_Thread vmt, String name) {
+	this(null, null, name, 0);
+        vmThread = vmt;
+    }
+
+    /**
      * Constructs a new Thread with no runnable object and a newly generated
      * name. The new Thread will belong to the same ThreadGroup as the Thread
      * calling this constructor.
@@ -107,7 +121,7 @@ public class Thread implements Runnable {
      * @see java.lang.ThreadGroup
      */
     public Thread() {
-        super();
+	this(null, null, "TODO", 0);
     }
 
     /**
@@ -121,7 +135,7 @@ public class Thread implements Runnable {
      * @see java.lang.Runnable
      */
     public Thread(Runnable runnable) {
-        super();
+	this(null, runnable, "TODO", 0);
     }
 
     /**
@@ -136,7 +150,7 @@ public class Thread implements Runnable {
      * @see java.lang.Runnable
      */
     public Thread(Runnable runnable, String threadName) {
-        super();
+	this(null, runnable, threadName, 0);
     }
 
     /**
@@ -149,7 +163,7 @@ public class Thread implements Runnable {
      * @see java.lang.Runnable
      */
     public Thread(String threadName) {
-        super();
+	this(null, null, threadName, 0);
     }
 
     /**
@@ -169,7 +183,7 @@ public class Thread implements Runnable {
      * @see java.lang.SecurityManager
      */
     public Thread(ThreadGroup group, Runnable runnable) {
-        super();
+	this(group, runnable, "TODO", 0);
     }
 
     /**
@@ -213,6 +227,8 @@ public class Thread implements Runnable {
      */
     public Thread(ThreadGroup group, Runnable runnable, String threadName) {
         super();
+        VM.sysWriteln("TODO");
+        VM_Scheduler.dumpStack();
     }
 
     /**

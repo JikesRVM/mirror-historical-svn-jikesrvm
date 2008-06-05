@@ -32,6 +32,9 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.PropertyPermission;
 
+import org.jikesrvm.objectmodel.VM_ObjectModel;
+import org.jikesrvm.runtime.VM_Time;
+
 /**
  * Class System provides a standard place for programs to find system related
  * information. All System API is static.
@@ -434,7 +437,9 @@ public final class System {
      * 
      * @return the time in milliseconds.
      */
-    public static native long currentTimeMillis();
+    public static long currentTimeMillis() {
+	return VM_Time.currentTimeMillis();
+    }
 
     /**
      * <p>
@@ -444,7 +449,9 @@ public final class System {
      * 
      * @return The current time in nanoseconds.
      */
-    public static native long nanoTime();
+    public static long nanoTime() {
+	return VM_Time.nanoTime();
+    }
 
     private static final int InitLocale = 0;
 
@@ -730,14 +737,18 @@ public final class System {
      * 
      * @return the default values for the system properties.
      */
-    private static native String[] getPropertyList();
+    private static String[] getPropertyList() {
+	return new String[0]; // TODO
+    }
 
     /**
      * Return the requested encoding. 0 - initialize locale 1 - detected
      * platform encoding 2 - command line defined file.encoding 3 - command line
      * defined os.encoding
      */
-    private static native String getEncoding(int type);
+    private static String getEncoding(int type) {
+	return ""; // TODO
+    }
 
     /**
      * Answers the active security manager.
@@ -759,7 +770,9 @@ public final class System {
      * 
      * @see java.lang.Object#hashCode
      */
-    public static native int identityHashCode(Object anObject);
+    public static int identityHashCode(Object anObject) {
+        return anObject == null ? 0 : VM_ObjectModel.getObjectHashCode(anObject);
+    }
 
     /**
      * Loads the specified file as a dynamic library.
@@ -865,7 +878,9 @@ public final class System {
      *            the name of the library to look up.
      * @return the platform specific filename for the library
      */
-    public static native String mapLibraryName(String userLibName);
+    public static String mapLibraryName(String userLibName) {
+	throw new Error("TODO");
+    }
 
     /**
      * Sets the value of the named static field in the receiver to the passed in
@@ -876,6 +891,7 @@ public final class System {
      * @param stream
      *            the new value of the field
      */
-    private static native void setFieldImpl(String fieldName, Object stream);
-
+    private static void setFieldImpl(String fieldName, Object stream) {
+	throw new Error("TODO");
+    }
 }

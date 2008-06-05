@@ -17,6 +17,10 @@
 
 package org.apache.harmony.kernel.vm;
 
+import org.jikesrvm.VM;
+import org.jikesrvm.classloader.VM_Atom;
+import org.jikesrvm.classloader.VM_Class;
+
 /**
  * This class must be implemented by the vm vendor. Represents the running
  * virtual machine. All VM specific API are implemented on this class.
@@ -55,7 +59,7 @@ public final class VM {
      * @see java.lang.ClassLoader#getStackClassLoader
      */
     static final ClassLoader getStackClassLoader(int depth) {
-        return null;
+        return VM_Class.getClassLoaderFromStackFrame(int depth);
     };
 
     /**
@@ -72,7 +76,7 @@ public final class VM {
      * @return the first non-bootstrap ClassLoader on the stack
      */
     static public final ClassLoader getNonBootstrapClassLoader() {
-        return null;
+        throw new Error("TODO");
     };
 
     /**
@@ -82,7 +86,7 @@ public final class VM {
      * @param bootLoader boolean true for the bootstrap class loader
      */
     public final static void initializeClassLoader(ClassLoader loader, boolean bootLoader) {
-        return;
+        throw new Error("TODO");
     };
 
     /**
@@ -98,7 +102,7 @@ public final class VM {
      * @return the interned string equal to the specified String
      */
     public static final String intern(String string) {
-        return null;
+	return VM_Atom.internString(str);
     }
 
     /**
@@ -124,7 +128,7 @@ public final class VM {
      * @throws SecurityException when called from a non-bootstrap Class
      */
     public static ClassLoader callerClassLoader() {
-        return null;
+        return getClassLoader(1);
     }
 
     /**
@@ -143,7 +147,7 @@ public final class VM {
      * @throws SecurityException when called from a non-bootstrap Class
      */
     public static ClassLoader bootCallerClassLoader() {
-        return null;
+        throw new Error("TODO");
     }
 
     /**
@@ -152,7 +156,7 @@ public final class VM {
      * @param str String the String to display
      */
     public static void dumpString(String str) {
-        return;
+        VM.sysWriteln(str);
     }
 
     /**
@@ -164,7 +168,7 @@ public final class VM {
      * @see java.lang.Class
      */
     static int getCPIndexImpl(Class<?> targetClass) {
-        return 0;
+	throw new Error("TODO");
     }
 
     /**
@@ -172,6 +176,7 @@ public final class VM {
      * 
      */
     static void initializeVM() {
+	throw new Error("TODO");
     }
 
     /**
@@ -181,7 +186,7 @@ public final class VM {
      * @param hook the hook (a Thread) to register
      */
     public static void addShutdownHook(Thread hook) {
-        return;
+	throw new Error("TODO");
     }
 
     /**
@@ -192,7 +197,7 @@ public final class VM {
      * @return true if the hook could be de-registered
      */
     public static boolean removeShutdownHook(Thread hook) {
-        return false;
+	throw new Error("TODO");
     }
 
     /**
@@ -202,7 +207,7 @@ public final class VM {
      * called on VM shutdown.
      */
     public static void closeJars() {
-        return;
+	throw new Error("TODO");
     }
 
     /**
@@ -211,7 +216,7 @@ public final class VM {
      * DeleteOnExit.deleteOnExit() should be called on VM shutdown.
      */
     public static void deleteOnExit() {
-        return;
+	throw new Error("TODO");
     }
 
     // Constants used by getClassPathEntryType to indicate the class path entry
@@ -237,7 +242,7 @@ public final class VM {
      * @return a int which specifies the class path entry type
      */
     static final int getClassPathEntryType(Object classLoader, int cpIndex) {
-        return 0;
+	throw new Error("TODO");
     }
 
     /**
@@ -250,7 +255,7 @@ public final class VM {
      *         arguments
      */
     public static String[] getVMArgs() {
-        return null;
+	throw new Error("TODO");
     }
 
     /**
@@ -259,7 +264,7 @@ public final class VM {
      * @return an int which is the number of entries on the bootclasspath
      */
     static int getClassPathCount() {
-        return 0;
+	throw new Error("TODO");
     }
 
     /**
@@ -271,7 +276,7 @@ public final class VM {
      * 			specified in the vm options
      */
     static byte[] getPathFromClassPath(int index) {
-        return null;
+	throw new Error("TODO");
     }
 
     /**

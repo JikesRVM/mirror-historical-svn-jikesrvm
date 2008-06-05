@@ -22,6 +22,12 @@ import java.io.ObjectOutputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 
+import org.jikesrvm.VM;
+import org.jikesrvm.runtime.VM_StackTrace;
+import org.jikesrvm.scheduler.VM_Scheduler;
+
+import org.vmmagic.pragma.NoEscapes;
+
 /**
  * This class must be implemented by the VM vendor, or the reference
  * implementation can be used if the documented natives are implemented.
@@ -41,6 +47,15 @@ import java.io.PrintWriter;
 public class Throwable implements java.io.Serializable {
     private static final long serialVersionUID = -3042686055658047285L;
 
+    /** The stack trace for this throwable */
+    private transient VM_StackTrace vmStackTrace;
+
+    /**
+     * Zero length array of stack trace elements, returned when handling an OOM or
+     * an unexpected error
+     */
+    private static final StackTraceElement[] zeroLengthStackTrace = new StackTraceElement[0];
+
     /**
      * The message provided when the exception was created.
      */
@@ -56,6 +71,7 @@ public class Throwable implements java.io.Serializable {
     /**
      * Constructs a new instance of this class with its walkback filled in.
      */
+    @NoEscapes
     public Throwable() {
         super();
         fillInStackTrace();
@@ -98,9 +114,6 @@ public class Throwable implements java.io.Serializable {
     }
 
     /**
-     * This native must be implemented to use the reference implementation of
-     * this class.
-     * 
      * Record in the receiver a walkback from the point where this message was
      * sent. The message is public so that code which catches a throwable and
      * then <em>re-throws</em> it can adjust the walkback to represent the
@@ -108,7 +121,26 @@ public class Throwable implements java.io.Serializable {
      * 
      * @return the receiver
      */
-    public native Throwable fillInStackTrace();
+    public Throwable fillInStackTrace() {
+      if (VM.fullyBooted) {
+        if (VM_Scheduler.getCurrentThread().getThreadForStackTrace().isGCThread()) {
+          VM.sysWriteln("Exception in GC thread");
+          VM_Scheduler.dumpVirtualMachine();
+        } else {
+          try {
+            vmStackTrace = new VM_StackTrace();
+          } catch (OutOfMemoryError oome) {
+            // ignore
+          } catch (Throwable t) {
+            VM.sysFail("VMThrowable.fillInStackTrace(): Cannot fill in a stack trace; got a weird Throwable when I tried to");
+          }
+        }
+      } else {
+        VM.sysWriteln("Request to fill in stack trace before VM booted");
+        VM_Scheduler.dumpStack();
+      }
+      return this;
+    }
 
     /**
      * Answers the extra information message which was provided when the
@@ -143,7 +175,76 @@ public class Throwable implements java.io.Serializable {
      * 
      * @return an array of StackTraceElement representing the stack
      */
-    private native StackTraceElement[] getStackTraceImpl();
+    private StackTraceElement[] getStackTraceImpl() {
+	if (vmStackTrace == null) {
+	    return zeroLengthStackTrace;
+	} else if (VM_Scheduler.getCurrentThread().getThreadForStackTrace().isGCThread()) {
+	    VM.sysWriteln("Throwable.getStackTrace called from GC thread: dumping stack using scheduler");
+	    VM_Scheduler.dumpStack();
+	    return zeroLengthStackTrace;
+	}
+
+	VM_StackTrace.Element[] vmElements;
+	try {
+	    vmElements = vmStackTrace.getStackTrace(this);
+	} catch (Throwable t) {
+	    VM.sysWriteln("Error calling VM_StackTrace.getStackTrace: dumping stack using scheduler");
+	    VM_Scheduler.dumpStack();
+	    return zeroLengthStackTrace;
+	}
+	if (vmElements == null) {
+	    VM.sysWriteln("Error calling VM_StackTrace.getStackTrace returned null");
+	    VM_Scheduler.dumpStack();
+	    return zeroLengthStackTrace;
+	}
+	if (VM.fullyBooted) {
+	    try {
+		StackTraceElement[] elements = new StackTraceElement[vmElements.length];
+		for (int i=0; i < vmElements.length; i++) {
+		    VM_StackTrace.Element vmElement = vmElements[i];
+		    String fileName = vmElement.getFileName();
+		    int lineNumber = vmElement.getLineNumber();
+		    String className = vmElement.getClassName();
+		    String methodName = vmElement.getMethodName();
+		    boolean isNative = vmElement.isNative();
+		    elements[i] = new StackTraceElement(fileName, className, methodName, lineNumber);
+		}
+		return elements;
+	    } catch (Throwable t) {
+		VM.sysWriteln("Error constructing StackTraceElements: dumping stack");
+	    }
+	} else {
+	    VM.sysWriteln("Dumping stack using sysWrite in not fullyBooted VM");
+	}
+	for (VM_StackTrace.Element vmElement : vmElements) {
+	    if (vmElement == null) {
+		VM.sysWriteln("Error stack trace with null entry");
+		VM_Scheduler.dumpStack();
+		return zeroLengthStackTrace;
+	    }
+	    String fileName = vmElement.getFileName();
+	    int lineNumber = vmElement.getLineNumber();
+	    String className = vmElement.getClassName();
+	    String methodName = vmElement.getMethodName();
+	    VM.sysWrite("   at ");
+	    if (className != "") {
+		VM.sysWrite(className);
+		VM.sysWrite(".");
+	    }
+	    VM.sysWrite(methodName);
+	    if (fileName != null) {
+		VM.sysWrite("(");
+		VM.sysWrite(fileName);
+		if (lineNumber > 0) {
+		    VM.sysWrite(":");
+		    VM.sysWrite(vmElement.getLineNumber());
+		}
+		VM.sysWrite(")");
+	    }
+	    VM.sysWriteln();
+	}
+	return zeroLengthStackTrace;
+    }
 
     /**
      * Answers an array of StackTraceElement. Each StackTraceElement represents
