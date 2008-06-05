@@ -35,6 +35,8 @@ Ljava/lang/Runtime;
 Ljava/lang/String;
 Ljava/lang/String$CaseInsensitiveComparator;
 [Ljava/lang/String;
+Ljava/lang/String$1;
+Ljava/lang/String$ConsolePrintStream;
 
 Ljava/lang/StringBuffer;
 Ljava/util/StringTokenizer;
@@ -156,12 +158,29 @@ Ljava/util/Arrays$ArrayList;
 Ljava/util/HashMap;
 Ljava/util/HashMap$1;
 Ljava/util/HashMap$2;
+Ljava/util/HashMap$AbstractMapIterator;
+Ljava/util/HashMap$Entry;
+[Ljava/util/HashMap$Entry;
+Ljava/util/HashMap$EntryIterator;
+Ljava/util/HashMap$HashMapEntrySet;
+Ljava/util/HashMap$KeyIterator;
+Ljava/util/HashMap$ValueIterator;
 Ljava/util/HashSet;
 [Ljava/util/HashSet;
 
 Ljava/util/Hashtable;
 Ljava/util/Hashtable$1;
 Ljava/util/Hashtable$2;
+Ljava/util/Hashtable$2$1;
+Ljava/util/Hashtable$2;
+Ljava/util/Hashtable$3$1;
+Ljava/util/Hashtable$3;
+Ljava/util/Hashtable$4$1;
+Ljava/util/Hashtable$4;
+Ljava/util/Hashtable$Entry;
+[Ljava/util/Hashtable$Entry;
+Ljava/util/Hashtable$HashEnumerator;
+Ljava/util/Hashtable$HashIterator;
 
 Ljava/util/List;
 Ljava/util/ListResourceBundle;
@@ -177,6 +196,16 @@ Ljava/util/Collections;
 Ljava/util/Stack;
 Ljava/util/TreeMap;
 Ljava/util/TreeSet;
+Ljava/util/WeakHashMap$1$1;
+Ljava/util/WeakHashMap$1;
+Ljava/util/WeakHashMap$2$1;
+Ljava/util/WeakHashMap$2;
+Ljava/util/WeakHashMap$3$1;
+Ljava/util/WeakHashMap$3;
+Ljava/util/WeakHashMap$Entry$Type;
+Ljava/util/WeakHashMap$Entry;
+[Ljava/util/WeakHashMap$Entry;
+Ljava/util/WeakHashMap$HashIterator;
 Ljava/util/WeakHashMap;
 
 # class loaders
@@ -204,6 +233,8 @@ Ljava/io/DataOutputStream;
 Ljava/io/FilterInputStream;
 Ljava/io/InputStream;
 Ljava/io/FileInputStream;
+Ljava/io/FileInputStream$1;
+Ljava/io/FileInputStream$RepositioningLock;
 Ljava/io/FileDescriptor;
 
 # Character conversion
@@ -282,6 +313,7 @@ Ljava/io/PrintWriter;
 Ljava/io/OutputStreamWriter;
 Ljava/io/InputStreamReader;
 Ljava/lang/ref/Reference;
+[Ljava/lang/ref/Reference;
 Ljava/lang/ref/ReferenceQueue;
 
 
@@ -318,3 +350,18 @@ Ljava/util/logging/Level;
 [Ljava/util/logging/Level;
 Ljava/beans/PropertyChangeSupport;
 Ljava/io/FilePermission;
+
+Lorg/apache/harmony/luni/platform/Platform;
+Lorg/apache/harmony/luni/util/PriviAction;
+Lorg/apache/harmony/kernel/vm/VM;
+Lorg/apache/harmony/nio/FileChannelFactory;
+Lorg/apache/harmony/nio/internal/FileChannelImpl;
+Lorg/apache/harmony/nio/internal/FileChannelImpl$1;
+Lorg/apache/harmony/nio/internal/FileChannelImpl$RepositioningLock;
+Lorg/apache/harmony/nio/internal/LockManager;
+Lorg/apache/harmony/nio/internal/LockManager$1;
+Lorg/apache/harmony/nio/internal/ReadOnlyFileChannel;
+Lorg/apache/harmony/nio/internal/ReadWriteFileChannel;
+Lorg/apache/harmony/nio/internal/WriteOnlyFileChannel;
+Lorg/apache/harmony/nio/internal/nls/Messages;
+Lorg/apache/harmony/luni/platform/IFileSystem;
