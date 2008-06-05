@@ -218,7 +218,7 @@ public class VM_Entrypoints {
   public static final VM_Field threadIdField = getField(org.jikesrvm.scheduler.VM_Processor.class, "threadId", int.class);
 
   public static final VM_Field referenceReferentField =
-      getField(java.lang.ref.Reference.class, "referent", org.vmmagic.unboxed.Address.class);
+      getField(java.lang.ref.Reference.class, "_referent", org.vmmagic.unboxed.Address.class);
 
   /** Used in deciding which stack frames we can elide when printing. */
   public static final VM_NormalMethod mainThreadRunMethod =
