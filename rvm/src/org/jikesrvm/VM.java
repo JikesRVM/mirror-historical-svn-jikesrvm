@@ -222,8 +222,11 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     // writer.
     //
     if (verboseBoot >= 1) VM.sysWriteln("Running various class initializers");
-    runClassInitializer("gnu.classpath.SystemProperties");
 
+    runClassInitializer("java.util.WeakHashMap"); // Need for ThreadLocal
+    runClassInitializer("org.jikesrvm.classloader.VM_Atom$InternedStrings");
+
+    runClassInitializer("gnu.classpath.SystemProperties");
     runClassInitializer("java.lang.Throwable$StaticData");
 
     runClassInitializer("java.lang.Runtime");
@@ -231,8 +234,6 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     runClassInitializer("sun.misc.Unsafe");
 
     runClassInitializer("java.lang.Character");
-    runClassInitializer("java.util.WeakHashMap"); // Need for ThreadLocal
-    runClassInitializer("org.jikesrvm.classloader.VM_Atom$InternedStrings");
     runClassInitializer("org.jikesrvm.classloader.VM_TypeReferenceVector");
     runClassInitializer("org.jikesrvm.classloader.VM_MethodVector");
     runClassInitializer("org.jikesrvm.classloader.VM_FieldVector");
@@ -261,6 +262,28 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     // Possibly fix VMAccessController's contexts and inGetContext fields
     runClassInitializer("java.security.VMAccessController");
 
+    if (verboseBoot >= 1) VM.sysWriteln("Booting VM_Lock");
+    VM_Lock.boot();
+
+    // Enable multiprocessing.
+    // Among other things, after this returns, GC and dynamic class loading are enabled.
+    //
+    if (verboseBoot >= 1) VM.sysWriteln("Booting scheduler");
+    VM_Scheduler.boot();
+    VM_DynamicLibrary.boot();
+
+    if (verboseBoot >= 1) VM.sysWriteln("Setting up boot thread");
+    VM_Scheduler.getCurrentThread().setupBootThread();
+
+    // Create JNI Environment for boot thread.
+    // After this point the boot thread can invoke native methods.
+    org.jikesrvm.jni.VM_JNIEnvironment.boot();
+    if (verboseBoot >= 1) VM.sysWriteln("Initializing JNI for boot thread");
+    VM_Scheduler.getCurrentThread().initializeJNIEnv();
+
+    // TODO - Harmony make this conditional and not explicit
+    System.loadLibrary("dist/prototype_x86_64-linux/libhyluni.so");
+    System.loadLibrary("dist/prototype_x86_64-linux/libhythr.so");
     runClassInitializer("java.io.File"); // needed for when we initialize the
     // system/application class loader.
     runClassInitializer("java.lang.String");
@@ -292,25 +315,6 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     runClassInitializer("java.util.zip.DeflaterHuffman");
     runClassInitializer("java.util.zip.InflaterDynHeader");
     runClassInitializer("java.util.zip.InflaterHuffmanTree");
-
-    if (verboseBoot >= 1) VM.sysWriteln("Booting VM_Lock");
-    VM_Lock.boot();
-
-    // Enable multiprocessing.
-    // Among other things, after this returns, GC and dynamic class loading are enabled.
-    //
-    if (verboseBoot >= 1) VM.sysWriteln("Booting scheduler");
-    VM_Scheduler.boot();
-    VM_DynamicLibrary.boot();
-
-    if (verboseBoot >= 1) VM.sysWriteln("Setting up boot thread");
-    VM_Scheduler.getCurrentThread().setupBootThread();
-
-    // Create JNI Environment for boot thread.
-    // After this point the boot thread can invoke native methods.
-    org.jikesrvm.jni.VM_JNIEnvironment.boot();
-    if (verboseBoot >= 1) VM.sysWriteln("Initializing JNI for boot thread");
-    VM_Scheduler.getCurrentThread().initializeJNIEnv();
 
     // Run class intializers that require JNI
     if (verboseBoot >= 1) VM.sysWriteln("Running late class initializers");
