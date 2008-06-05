@@ -79,7 +79,7 @@ HyPortLibrary * JNICALL GetPortLibrary (VMInterface * vmi)
     
     rc = hyport_init_library(&portLib, &portLibraryVersion, 
                              sizeof(HyPortLibrary));
-
+    portLibPointer = &portLib;
     if (0 != rc) return NULL;
     else return portLibPointer;
 }
@@ -146,6 +146,9 @@ VMI_GetVMIFromJavaVM(JavaVM* vm)
 {
     return &vmi;
 }	
+
+extern void initializeVMLocalStorage(JavaVM * vm);
+
 /**
  * Extract the VM Interface from a JNIEnv
  *
@@ -156,5 +159,11 @@ VMI_GetVMIFromJavaVM(JavaVM* vm)
 VMInterface* JNICALL 
 VMI_GetVMIFromJNIEnv(JNIEnv* env)
 {
+    static int initialized = 0;
+
+    if (!initialized) {
+      initialized=1;
+      initializeVMLocalStorage(&sysJavaVM);
+    }
     return &vmi;
 }	
