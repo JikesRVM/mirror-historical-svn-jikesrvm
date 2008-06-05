@@ -157,11 +157,12 @@ public final class AnnotationAdder {
   /** Set up things to adapt */
   private static void setup() {
     try {
-      // java.lang.Throwable
-      for (Constructor c : Throwable.class.getConstructors()) {
-        addToAdapt(NoEscapes.class, c);
-      }
       if (classLibrary.toLowerCase().equals("gnu classpath")) {
+        // java.lang.Throwable
+        for (Constructor c : Throwable.class.getConstructors()) {
+          addToAdapt(NoEscapes.class, c);
+        }
+
         // java.nio.Buffer
         addToAdapt(Inline.class,
                    "java/nio/Buffer",
@@ -391,6 +392,12 @@ public final class AnnotationAdder {
       addToAdapt(Pure.class, Long.class.getMethod("valueOf", new Class[]{long.class}));
       addToAdapt(Pure.class, Long.class.getMethod("valueOf", new Class[]{String.class}));
       addToAdapt(Pure.class, Long.class.getMethod("valueOf", new Class[]{String.class, int.class}));
+
+      // Enum
+      if (classLibrary.toLowerCase().equals("harmony")) {
+        addToAdapt(Uninterruptible.class, Enum.class.getMethod("ordinal", new Class[0]));
+        addToAdapt(Uninterruptible.class, Enum.class.getMethod("name", new Class[0]));
+      }
 
       // String
       if (classLibrary.toLowerCase().equals("harmony")) {
