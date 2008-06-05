@@ -103,6 +103,7 @@
     </copy>
     <writeComponentConstants dir="${harmony.package.dir}/${target.name}/lib"/>
     <setComponentsConfig key="${target.name}.harmony.lib.dir" value="${harmony.package.dir}/${target.name}/lib"/>
+    <setComponentsConfig key="harmony.include.dir" value="${harmony.dir}/deploy/include"/>
   </target>
 
   <!-- *************************************************************************** -->

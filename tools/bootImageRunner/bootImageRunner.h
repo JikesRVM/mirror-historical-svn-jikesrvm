@@ -109,6 +109,8 @@ extern void processTimerTick(void);
 extern mach_timebase_info_data_t timebaseInfo;
 #endif
 
+// Defined in jvm.C. Used in harmony.c
+extern struct JavaVM_ sysJavaVM;
 #ifdef __cplusplus
 }
 #endif

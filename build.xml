@@ -77,9 +77,6 @@
   <property name="classlib.provider" value="Harmony"/>
   <condition property="harmony.classlib" value="true"><equals arg1="${classlib.provider}" arg2="Harmony"/></condition>
   <condition property="classpath.classlib" value="true"><equals arg1="${classlib.provider}" arg2="GNU Classpath"/></condition>
-  <property name="harmony.jars.dir" location="components/harmony/5.0M5/x86_64-linux/lib"/>
-  <condition property="build.extra.rt.jars" value=":${harmony.jars.dir}/yoko-rmi-impl.jar:${harmony.jars.dir}/auth-src.jar:${harmony.jars.dir}/instrument.jar:${harmony.jars.dir}/beans.jar:${harmony.jars.dir}/xml-apis.jar:${harmony.jars.dir}/mx4j.jar:${harmony.jars.dir}/nio.jar:${harmony.jars.dir}/instrument-src.jar:${harmony.jars.dir}/xalan.jar:${harmony.jars.dir}/resolver.jar:${harmony.jars.dir}/applet-src.jar:${harmony.jars.dir}/logging.jar:${harmony.jars.dir}/bcprov.jar:${harmony.jars.dir}/concurrent-src.jar:${harmony.jars.dir}/security.jar:${harmony.jars.dir}/sql.jar:${harmony.jars.dir}/print.jar:${harmony.jars.dir}/mx4j-remote.jar:${harmony.jars.dir}/concurrent.jar:${harmony.jars.dir}/luni-kernel-stubs.jar:${harmony.jars.dir}/misc.jar:${harmony.jars.dir}/accessibility.jar:${harmony.jars.dir}/crypto.jar:${harmony.jars.dir}/yoko.jar:${harmony.jars.dir}/rmi.jar:${harmony.jars.dir}/beans-src.jar:${harmony.jars.dir}/security-kernel-stubs.jar:${harmony.jars.dir}/x-net.jar:${harmony.jars.dir}/print-src.jar:${harmony.jars.dir}/icu4j-charsets-3_8.jar:${harmony.jars.dir}/prefs-src.jar:${harmony.jars.dir}/math-src.jar:${harmony.jars.dir}/imageio.jar:${harmony.jars.dir}/nio_char.jar:${harmony.jars.dir}/logging-src.jar:${harmony.jars.dir}/security-src.jar:${harmony.jars.dir}/lang-management.jar:${harmony.jars.dir}/regex.jar:${harmony.jars.dir}/applet.jar:${harmony.jars.dir}/prefs.jar:${harmony.jars.dir}/swing-src.jar:${harmony.jars.dir}/annotation.jar:${harmony.jars.dir}/sql-src.jar:${harmony.jars.dir}/nio-src.jar:${harmony.jars.dir}/math.jar:${harmony.jars.dir}/annotation-src.jar:${harmony.jars.dir}/suncompat-src.jar:${harmony.jars.dir}/luni.jar:${harmony.jars.dir}/misc-src.jar:${harmony.jars.dir}/accessibility-src.jar:${harmony.jars.dir}/archive.jar:${harmony.jars.dir}/awt.jar:${harmony.jars.dir}/luni-src.jar:${harmony.jars.dir}/nio_char-src.jar:${harmony.jars.dir}/regex-src.jar:${harmony.jars.dir}/crypto-src.jar:${harmony.jars.dir}/xercesImpl.jar:${harmony.jars.dir}/jndi-src.jar:${harmony.jars.dir}/yoko-rmi-spec.jar:${harmony.jars.dir}/swing.jar:${harmony.jars.dir}/auth.jar:${harmony.jars.dir}/text-src.jar:${harmony.jars.dir}/archive-src.jar:${harmony.jars.dir}/yoko-core.jar:${harmony.jars.dir}/rmi-src.jar:${harmony.jars.dir}/imageio-src.jar:${harmony.jars.dir}/text.jar:${harmony.jars.dir}/jndi.jar:${harmony.jars.dir}/lang-management-src.jar:${harmony.jars.dir}/sound-src.jar:${harmony.jars.dir}/suncompat.jar:${harmony.jars.dir}/sound.jar:${harmony.jars.dir}/awt-src.jar:${harmony.jars.dir}/x-net-src.jar:${harmony.jars.dir}/icu4j-3_8.jar:${harmony.jars.dir}/bcel-5.2.jar" else=""><equals arg1="${classlib.provider}" arg2="Harmony"/></condition>
-  <condition property="config.portable-native-sync" value="true" else="false"><equals arg1="${classlib.provider}" arg2="GNU Classpath"/></condition>
 
   <!-- Permit parallelisation of the bootimage build -->
   <property name="bootimage.threads" value="1"/>
@@ -171,12 +168,16 @@
     <propertycopy name="classpath.lib.dir" from="${target.name}.classpath.lib.dir"/>
     <test-file name="classpath.lib.dir" location="${components.file}"/>
     <property file="${classpath.lib.dir}/constants.properties"/>
+    <property name="config.portable-native-sync" value="true"/>
+    <property name="build.extra.rt.jars" value=""/>
   </target>
 
   <target name="check-harmony-properties" depends="check-components-properties,check-classlibrary-properties" if="harmony.classlib">
     <propertycopy name="harmony.lib.dir" from="${target.name}.harmony.lib.dir"/>
     <test-file name="harmony.lib.dir" location="${components.file}"/>
     <property file="${harmony.lib.dir}/constants.properties"/>
+    <property name="config.portable-native-sync" value="false"/> <!-- has no meaning for Harmony -->
+    <property name="build.extra.rt.jars" value=":${harmony.lib.dir}/yoko-rmi-impl.jar:${harmony.lib.dir}/auth-src.jar:${harmony.lib.dir}/instrument.jar:${harmony.lib.dir}/beans.jar:${harmony.lib.dir}/xml-apis.jar:${harmony.lib.dir}/mx4j.jar:${harmony.lib.dir}/nio.jar:${harmony.lib.dir}/instrument-src.jar:${harmony.lib.dir}/xalan.jar:${harmony.lib.dir}/resolver.jar:${harmony.lib.dir}/applet-src.jar:${harmony.lib.dir}/logging.jar:${harmony.lib.dir}/bcprov.jar:${harmony.lib.dir}/concurrent-src.jar:${harmony.lib.dir}/security.jar:${harmony.lib.dir}/sql.jar:${harmony.lib.dir}/print.jar:${harmony.lib.dir}/mx4j-remote.jar:${harmony.lib.dir}/concurrent.jar:${harmony.lib.dir}/luni-kernel-stubs.jar:${harmony.lib.dir}/misc.jar:${harmony.lib.dir}/accessibility.jar:${harmony.lib.dir}/crypto.jar:${harmony.lib.dir}/yoko.jar:${harmony.lib.dir}/rmi.jar:${harmony.lib.dir}/beans-src.jar:${harmony.lib.dir}/security-kernel-stubs.jar:${harmony.lib.dir}/x-net.jar:${harmony.lib.dir}/print-src.jar:${harmony.lib.dir}/icu4j-charsets-3_8.jar:${harmony.lib.dir}/prefs-src.jar:${harmony.lib.dir}/math-src.jar:${harmony.lib.dir}/imageio.jar:${harmony.lib.dir}/nio_char.jar:${harmony.lib.dir}/logging-src.jar:${harmony.lib.dir}/security-src.jar:${harmony.lib.dir}/lang-management.jar:${harmony.lib.dir}/regex.jar:${harmony.lib.dir}/applet.jar:${harmony.lib.dir}/prefs.jar:${harmony.lib.dir}/swing-src.jar:${harmony.lib.dir}/annotation.jar:${harmony.lib.dir}/sql-src.jar:${harmony.lib.dir}/nio-src.jar:${harmony.lib.dir}/math.jar:${harmony.lib.dir}/annotation-src.jar:${harmony.lib.dir}/suncompat-src.jar:${harmony.lib.dir}/luni.jar:${harmony.lib.dir}/misc-src.jar:${harmony.lib.dir}/accessibility-src.jar:${harmony.lib.dir}/archive.jar:${harmony.lib.dir}/awt.jar:${harmony.lib.dir}/luni-src.jar:${harmony.lib.dir}/nio_char-src.jar:${harmony.lib.dir}/regex-src.jar:${harmony.lib.dir}/crypto-src.jar:${harmony.lib.dir}/xercesImpl.jar:${harmony.lib.dir}/jndi-src.jar:${harmony.lib.dir}/yoko-rmi-spec.jar:${harmony.lib.dir}/swing.jar:${harmony.lib.dir}/auth.jar:${harmony.lib.dir}/text-src.jar:${harmony.lib.dir}/archive-src.jar:${harmony.lib.dir}/yoko-core.jar:${harmony.lib.dir}/rmi-src.jar:${harmony.lib.dir}/imageio-src.jar:${harmony.lib.dir}/text.jar:${harmony.lib.dir}/jndi.jar:${harmony.lib.dir}/lang-management-src.jar:${harmony.lib.dir}/sound-src.jar:${harmony.lib.dir}/suncompat.jar:${harmony.lib.dir}/sound.jar:${harmony.lib.dir}/awt-src.jar:${harmony.lib.dir}/x-net-src.jar:${harmony.lib.dir}/icu4j-3_8.jar:${harmony.lib.dir}/bcel-5.2.jar"/>
   </target>
 
   <target name="check-mmtk-properties"  depends="check-host-name">
@@ -1434,6 +1435,10 @@ Check to make sure all required properties are specified. This includes properti
       <equals arg1="${config.include.gcspy}" arg2="true"/>
     </condition>
 
+    <condition property="classlib.includes" value="-I${harmony.include.dir}" else="">
+      <equals arg1="${classlib.provider}" arg2="Harmony"/>
+    </condition>
+
     <condition property="arch.includes" value="-I${bl.dir}/ia32">
       <equals arg1="${target.arch}" arg2="ia32"/>
     </condition>
@@ -1442,7 +1447,7 @@ Check to make sure all required properties are specified. This includes properti
     </condition>
 
     <property name="rvm.includes"
-              value="-I${bl.dir} -I${basedir}/include -I${dist.base}/include ${gcspy.includes.dir} ${arch.includes}"/>
+              value="-I${bl.dir} -I${basedir}/include -I${dist.base}/include ${gcspy.includes.dir} ${arch.includes} ${classlib.includes}"/>
 
     <property name="rvm.defines" value="-D_REENTRANT ${filter} "/>
 
@@ -1517,12 +1522,33 @@ Check to make sure all required properties are specified. This includes properti
 
     <!-- create jvm shared library -->
     <property name="rvm.dll" value="${target.dll-prefix}rvm${target.dll-ext}"/>
-    <exec executable="${c++.exe}" failonerror="true">
-      <arg line="${rvm.c++.args} -lpthread ${c++.librt}"/>
-      <arg value="-o"/>
-      <arg value="${build.base}/${rvm.dll}"/>
-      <arg value="${bl.dir}/jvm.C"/>
-    </exec>
+    <if>
+      <conditions>
+        <equals arg1="${classlib.provider}" arg2="GNU Classpath"/>
+      </conditions>
+      <sequential>
+        <exec executable="${c++.exe}" failonerror="true">
+          <arg line="${rvm.c++.args} -lpthread ${c++.librt}"/>
+          <arg value="-o"/>
+          <arg value="${build.base}/${rvm.dll}"/>
+          <arg value="${bl.dir}/jvm.C"/>
+        </exec>
+      </sequential>
+    </if>
+    <if>
+      <conditions>
+        <equals arg1="${classlib.provider}" arg2="Harmony"/>
+      </conditions>
+      <sequential>
+        <exec executable="${c++.exe}" failonerror="true">
+          <arg line="${rvm.c++.args} -lpthread ${c++.librt}"/>
+          <arg value="-o"/>
+          <arg value="${build.base}/${rvm.dll}"/>
+          <arg value="${bl.dir}/jvm.C"/>
+          <arg value="${bl.dir}/harmony.c"/>
+        </exec>
+      </sequential>
+    </if>
 
     <!-- create rvmexec shared library -->
     <property name="rvmexec.dll" value="${target.dll-prefix}rvmexec${target.jni-suffix}"/>
@@ -1657,7 +1683,7 @@ target.jni-suffix=${target.jni-suffix}
     <copy file="${build.rt.jar}" todir="${dist.base}"/>
     <copy file="${build.vm.jar}" todir="${dist.base}"/>
     <copy todir="${dist.base}">
-      <fileset dir="${harmony.jars.dir}">
+      <fileset dir="${harmony.lib.dir}">
         <include name="*.jar"/>
       </fileset>
     </copy>
@@ -1718,7 +1744,7 @@ target.jni-suffix=${target.jni-suffix}
       </conditions>
       <sequential>
         <copy todir="${dist.base}">
-          <fileset dir="${harmony.jars.dir}">
+          <fileset dir="${harmony.lib.dir}">
             <include name="*${target.jni-suffix}"/>
           </fileset>
         </copy>
