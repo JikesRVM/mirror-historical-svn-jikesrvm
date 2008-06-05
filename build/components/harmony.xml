@@ -35,7 +35,7 @@
   <target name="get-harmony-from-svn" depends="init-harmony-properties,check-svn-present" if="harmony.from-svn">
     <exec executable="${svn.exe}">
       <arg value="checkout"/>
-      <arg value="http://svn.apache.org/repos/asf/harmony/enhanced/classlib/trunk"/>
+      <arg value="http://svn.apache.org/repos/asf/harmony/enhanced/classlib/trunk@653525"/>
       <arg value="${harmony.dir}"/>
     </exec>
   </target>
@@ -98,6 +98,7 @@
                     to="${target.dll-prefix}\2${target.jni-suffix}"/>
       <fileset dir="${harmony.dir}">
         <include name="deploy/jdk/jre/bin/*${library.suffix}"/>
+        <include name="deploy/lib/*${library.suffix}"/>
       </fileset>
     </copy>
     <writeComponentConstants dir="${harmony.package.dir}/${target.name}/lib"/>
