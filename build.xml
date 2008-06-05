@@ -957,6 +957,7 @@ Check to make sure all required properties are specified. This includes properti
       </conditions>
       <sequential>
         <property name="classlib.library-interface.cpl.java" location="libraryInterface/Harmony/CPL/src"/>
+        <property name="classlib.library-interface.non-cpl.java" location="libraryInterface/Harmony/ASF/src"/>
       </sequential>
     </if>
   </target>
@@ -1025,7 +1026,7 @@ Check to make sure all required properties are specified. This includes properti
                debugLevel="lines,source"
                source="1.5"
                target="1.5"
-               srcdir="${main.java}:${classlib.library-interface.common.java}:${classlib.library-interface.cpl.java}:${mmtk-rvm.java}"
+               srcdir="${main.java}:${classlib.library-interface.common.java}:${classlib.library-interface.non-cpl.java}:${classlib.library-interface.cpl.java}:${mmtk-rvm.java}"
                sourcepath="${mmtk.java}:${options.java}:${generated.java}:${generated.config.java}:${generated.arch.java}:${main.java}:${mmtk-rvm.java}">
           <bootclasspath>
             <pathelement location="${harmony.lib.dir}/luni-kernel-stubs.jar"/>
