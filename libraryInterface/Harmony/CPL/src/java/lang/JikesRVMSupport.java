@@ -41,11 +41,13 @@ public class JikesRVMSupport {
   }
 
   public static Class<?> createClass(VM_Type type) {
-    throw new Error("TODO");
+    return Class.create(type);
   }
 
   public static Class<?> createClass(VM_Type type, ProtectionDomain pd) {
-    throw new Error("TODO");
+    Class<?> c = Class.create(type);
+    setClassProtectionDomain(c, pd);
+    return c;
   }
 
   public static VM_Type getTypeForClass(Class<?> c) {
@@ -53,7 +55,7 @@ public class JikesRVMSupport {
   }
 
   public static void setClassProtectionDomain(Class<?> c, ProtectionDomain pd) {
-    throw new Error("TODO");
+    c.pd = pd;
   }
 
   /***
@@ -96,7 +98,7 @@ public class JikesRVMSupport {
     // TODO - Harmony
   }
   public static Throwable getStillBorn(Thread thread) {
-    throw new Error("TODO");
+    return null;
   }
   public static void setStillBorn(Thread thread, Throwable stillborn) {
     throw new Error("TODO");

@@ -24,7 +24,10 @@ import java.nio.ByteBuffer;
 import java.security.ProtectionDomain;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Vector;
 
+import org.jikesrvm.classloader.VM_BootstrapClassLoader;
+import org.jikesrvm.classloader.VM_Type;
 import org.jikesrvm.runtime.VM_DynamicLibrary;
 
 /**
@@ -82,7 +85,7 @@ public abstract class ClassLoader {
      *             the system class loader.
      */
     public static ClassLoader getSystemClassLoader() {
-        return null;
+      return VM_BootstrapClassLoader.getBootstrapClassLoader();
     }
 
     /**
@@ -321,7 +324,7 @@ public abstract class ClassLoader {
      *             if an IO exception occurs
      */
     public Enumeration<URL> getResources(String resName) throws IOException {
-        return null;
+      return new Vector<URL>().elements();
     }
 
     /**
@@ -349,7 +352,7 @@ public abstract class ClassLoader {
      *             if the class could not be found.
      */
     public Class<?> loadClass(String className) throws ClassNotFoundException {
-        return null;
+      return VM_BootstrapClassLoader.getBootstrapClassLoader().loadClass(className, false);
     }
 
     /**
@@ -368,7 +371,7 @@ public abstract class ClassLoader {
      */
     protected Class<?> loadClass(String className, boolean resolveClass)
             throws ClassNotFoundException {
-        return null;
+      return VM_BootstrapClassLoader.getBootstrapClassLoader().loadClass(className, resolveClass);
     }
 
     /**
@@ -381,7 +384,10 @@ public abstract class ClassLoader {
      *             if clazz is null.
      */
     protected final void resolveClass(Class<?> clazz) {
-        return;
+      VM_Type cls = JikesRVMSupport.getTypeForClass(clazz);
+      cls.resolve();
+      cls.instantiate();
+      cls.initialize();
     }
 
     /**
@@ -450,7 +456,7 @@ public abstract class ClassLoader {
      *             when an error occurs
      */
     protected Enumeration<URL> findResources(String resName) throws IOException {
-        return null;
+      return new Vector<URL>().elements();
     }
 
     /**
