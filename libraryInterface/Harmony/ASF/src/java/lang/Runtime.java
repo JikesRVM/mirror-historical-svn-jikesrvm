@@ -21,6 +21,8 @@ import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+import org.jikesrvm.VM;
+
 /**
  * This class, with the exception of the exec() APIs, must be implemented by the
  * VM vendor. The exec() APIs must first do any required security checks, and
@@ -28,7 +30,9 @@ import java.io.OutputStream;
  * The Runtime interface.
  */
 public class Runtime {
-    
+
+  private static final Runtime singleton = new Runtime();
+
     /**
      * Prevent this class from being instantiated
      */
@@ -147,7 +151,7 @@ public class Runtime {
      * @see SecurityManager#checkExit
      */
     public void exit(int code) {
-        return;
+      VM.sysExit(code);
     }
 
     /**
@@ -173,7 +177,7 @@ public class Runtime {
      * 
      */
     public static Runtime getRuntime() {
-        return null;
+      return singleton;
     }
 
     /**
@@ -303,7 +307,7 @@ public class Runtime {
      * @see SecurityManager#checkExit
      */
     public void halt(int code) {
-        return;
+      VM.sysExit(code);
     }
 
     /**
