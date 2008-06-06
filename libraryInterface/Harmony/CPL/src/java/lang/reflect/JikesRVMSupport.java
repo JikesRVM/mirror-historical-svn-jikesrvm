@@ -129,16 +129,16 @@ public class JikesRVMSupport {
   }
 
   public static Field createField(VM_Field f) {
-    throw new Error("TODO");
+    return new Field(f);
   }
 
   public static Method createMethod(VM_Method m) {
-    throw new Error("TODO");
+    return new Method(m);
   }
 
   @SuppressWarnings("unchecked") // Can't type-check this without <T> type<T>, which breaks javac
   public static <T> Constructor<T> createConstructor(VM_Method m) {
-    throw new Error("TODO");
+    return new Constructor<T>(m);
   }
 
   public static VM_Field getFieldOf(Field f) {

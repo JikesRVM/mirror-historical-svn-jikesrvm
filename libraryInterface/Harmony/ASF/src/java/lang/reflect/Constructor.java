@@ -19,6 +19,8 @@ package java.lang.reflect;
 
 import java.lang.annotation.Annotation;
 
+import org.jikesrvm.classloader.VM_Method;
+
 /**
  * This class must be implemented by the VM vendor. This class models a
  * constructor. Information about the constructor can be accessed, and the
@@ -27,11 +29,21 @@ import java.lang.annotation.Annotation;
  */
 public final class Constructor<T> extends AccessibleObject implements GenericDeclaration,
         Member {
+    private final VM_Method vmConstructor;
+
+    /**
+     * Constructor
+     */
+    Constructor(VM_Method vmConstructor){
+      this.vmConstructor = vmConstructor;
+    }
+
     /**
      * Prevent this class from being instantiated
      */
     private Constructor(){
         //do nothing
+      this.vmConstructor = null;
     }
 
     public TypeVariable<Constructor<T>>[] getTypeParameters() {

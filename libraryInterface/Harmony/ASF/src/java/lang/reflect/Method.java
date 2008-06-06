@@ -19,6 +19,8 @@ package java.lang.reflect;
 
 import java.lang.annotation.Annotation;
 
+import org.jikesrvm.classloader.VM_Method;
+
 /**
  * This class must be implemented by the VM vendor. This class models a method.
  * Information about the method can be accessed, and the method can be invoked
@@ -26,12 +28,20 @@ import java.lang.annotation.Annotation;
  * 
  */
 public final class Method extends AccessibleObject implements GenericDeclaration, Member {
+    private final VM_Method vmMethod;
+
+    /**
+     * Constructor
+     */
+    Method(VM_Method vmMethod){
+      this.vmMethod = vmMethod;
+    }
     
     /**
      * Prevent this class from being instantiated
      */
     private Method(){
-        //do nothing
+      vmMethod = null;
     }
     
     public TypeVariable<Method>[] getTypeParameters() {

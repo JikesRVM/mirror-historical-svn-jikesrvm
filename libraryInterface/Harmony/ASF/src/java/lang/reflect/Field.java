@@ -17,6 +17,8 @@
 
 package java.lang.reflect;
 
+import org.jikesrvm.classloader.VM_Field;
+
 /**
  * This class must be implemented by the VM vendor. This class models a field.
  * Information about the field can be accessed, and the field's value can be
@@ -24,12 +26,20 @@ package java.lang.reflect;
  * 
  */
 public final class Field extends AccessibleObject implements Member {
-    
+  private final VM_Field vmField;
+
+    /**
+     * Constructor
+     */
+    Field(VM_Field vmField){
+      this.vmField = vmField;
+    }
+
     /**
      * Prevent this class from being instantiated
      */
     private Field(){
-        //do nothing
+      vmField = null;
     }
 
     /**
