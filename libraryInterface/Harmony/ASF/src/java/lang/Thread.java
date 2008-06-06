@@ -41,9 +41,9 @@ import org.jikesrvm.scheduler.VM_Thread;
  */
 public class Thread implements Runnable {
 
-    private volatile transient VM_Thread vmThread;
+    private final VM_Thread vmThread;
 
-    private transient long stacksize;
+    private long stacksize;
 
     /**
      * A representation of a thread's state. A given thread may only be in one
@@ -107,18 +107,13 @@ public class Thread implements Runnable {
 
     private Runnable action;
 
-    private String name;
-
-    private int priority;
-
-    private boolean daemon;
-
+  private Runnable runnable;
+  
     /**
      * Construct a wrapper for a given VM_Thread
      */
     Thread(VM_Thread vmt, String name) {
-	this(null, null, name, 0);
-        vmThread = vmt;
+      this(vmt, null, null, name, 0);
     }
 
     /**
@@ -129,7 +124,7 @@ public class Thread implements Runnable {
      * @see java.lang.ThreadGroup
      */
     public Thread() {
-	this(null, null, "TODO", 0);
+      this(null, null, null, "TODO", 0);
     }
 
     /**
@@ -158,7 +153,7 @@ public class Thread implements Runnable {
      * @see java.lang.Runnable
      */
     public Thread(Runnable runnable, String threadName) {
-	this(null, runnable, threadName, 0);
+      this(null, null, runnable, threadName, 0);
     }
 
     /**
@@ -171,7 +166,7 @@ public class Thread implements Runnable {
      * @see java.lang.Runnable
      */
     public Thread(String threadName) {
-	this(null, null, threadName, 0);
+      this(null, null, null, threadName, 0);
     }
 
     /**
@@ -191,7 +186,7 @@ public class Thread implements Runnable {
      * @see java.lang.SecurityManager
      */
     public Thread(ThreadGroup group, Runnable runnable) {
-	this(group, runnable, "TODO", 0);
+      this(null, group, runnable, "TODO", 0);
     }
 
     /**
@@ -213,11 +208,20 @@ public class Thread implements Runnable {
      * @see java.lang.SecurityManager
      */
     public Thread(ThreadGroup group, Runnable runnable, String threadName, long stack) {
-        VM.sysWriteln("TODO");
-        VM_Scheduler.dumpStack();
-        stacksize = stack;
-        name = threadName;
+      this(null, group, runnable, threadName, stack);
     }
+
+  private Thread(VM_Thread vmt, ThreadGroup group, Runnable runnable, String threadName, long stack){
+    if (vmt == null) {
+      vmThread = new org.jikesrvm.scheduler.greenthreads.VM_GreenThread(this, stacksize,  threadName, false, NORM_PRIORITY);
+    } else {
+      vmThread = vmt;
+    }
+    VM.sysWriteln("TODO");
+    VM_Scheduler.dumpStack();
+    stacksize = stack;
+    this.runnable = runnable;
+  }
 
     /**
      * Constructs a new Thread with a runnable object, the given name and
@@ -237,7 +241,7 @@ public class Thread implements Runnable {
      * @see java.lang.SecurityManager
      */
     public Thread(ThreadGroup group, Runnable runnable, String threadName) {
-	this(group, runnable, threadName, 0);
+      this(null, group, runnable, threadName, 0);
     }
 
     /**
@@ -255,7 +259,7 @@ public class Thread implements Runnable {
      * @see java.lang.SecurityManager
      */
     public Thread(ThreadGroup group, String threadName) {
-        super();
+      this(null, group, null, threadName, 0);
     }
 
     /**
@@ -304,7 +308,7 @@ public class Thread implements Runnable {
      */
     @Deprecated
     public int countStackFrames() {
-        return 0;
+      return vmThread.countStackFrames();
     }
 
     /**
@@ -315,7 +319,7 @@ public class Thread implements Runnable {
      *         <code>currentThread()</code>
      */
     public static Thread currentThread() {
-        return null;
+      return VM_Scheduler.getCurrentThread().getJavaLangThread();
     }
 
     /**
@@ -419,7 +423,7 @@ public class Thread implements Runnable {
      * @return the receiver's name (a java.lang.String)
      */
     public final String getName() {
-        return name;
+      return vmThread.getName();
     }
 
     /**
@@ -429,7 +433,7 @@ public class Thread implements Runnable {
      * @see Thread#setPriority
      */
     public final int getPriority() {
-        return priority;
+      return vmThread.getPriority();
     }
 
     /**
@@ -460,7 +464,7 @@ public class Thread implements Runnable {
      * @since 1.5
      */
     public State getState() {
-        return null;
+      return vmThread.getState();
     }
 
     /**
@@ -483,7 +487,7 @@ public class Thread implements Runnable {
      * @see #setThreadLocal
      */
     Object getThreadLocal(ThreadLocal<?> local) {
-        return null;
+      throw new Error("TODO");
     }
 
     /**
@@ -511,10 +515,10 @@ public class Thread implements Runnable {
      * @see Thread#isInterrupted
      */
     public void interrupt() {
-        if (action != null) {
-            action.run();
-        }
-        return;
+      if (action != null) {
+        action.run();
+      }
+      vmThread.interrupt();
     }
 
     /**
@@ -529,7 +533,12 @@ public class Thread implements Runnable {
      * @see Thread#isInterrupted
      */
     public static boolean interrupted() {
-        return false;
+      VM_Thread current = VM_Scheduler.getCurrentThread();
+      if (current.isInterrupted()) {
+        current.clearInterrupted();
+        return true;
+      }
+      return false;
     }
 
     /**
@@ -542,7 +551,7 @@ public class Thread implements Runnable {
      * @see Thread#start
      */
     public final boolean isAlive() {
-        return false;
+      return vmThread.isAlive();
     }
 
     /**
@@ -556,7 +565,7 @@ public class Thread implements Runnable {
      * @see Thread#setDaemon
      */
     public final boolean isDaemon() {
-        return daemon;
+      return vmThread.isDaemonThread();
     }
 
     /**
@@ -569,7 +578,7 @@ public class Thread implements Runnable {
      * @see Thread#interrupted
      */
     public boolean isInterrupted() {
-        return false;
+      return vmThread.isInterrupted();
     }
 
     /**
@@ -582,7 +591,7 @@ public class Thread implements Runnable {
      * @see java.lang.ThreadDeath
      */
     public final void join() throws InterruptedException {
-        return;
+      vmThread.join(0,0);
     }
 
     /**
@@ -597,7 +606,7 @@ public class Thread implements Runnable {
      * @see java.lang.ThreadDeath
      */
     public final void join(long timeoutInMilliseconds) throws InterruptedException {
-        return;
+      vmThread.join(timeoutInMilliseconds,0);
     }
 
     /**
@@ -613,7 +622,7 @@ public class Thread implements Runnable {
      * @see java.lang.ThreadDeath
      */
     public final void join(long timeoutInMilliseconds, int nanos) throws InterruptedException {
-        return;
+      vmThread.join(timeoutInMilliseconds,nanos);
     }
 
     /**
@@ -628,7 +637,7 @@ public class Thread implements Runnable {
      */
     @Deprecated
     public final void resume() {
-        return;
+      vmThread.resume();
     }
 
     /**
@@ -638,7 +647,9 @@ public class Thread implements Runnable {
      * @see Thread#start
      */
     public void run() {
-        return;
+      if (runnable != null) {
+        runnable.run();
+      }
     }
 
     /**
@@ -663,7 +674,7 @@ public class Thread implements Runnable {
      * @see Thread#isDaemon
      */
     public final void setDaemon(boolean isDaemon) {
-        daemon = isDaemon;
+      vmThread.makeDaemon(isDaemon);
     }
 
     /**
@@ -693,7 +704,7 @@ public class Thread implements Runnable {
      * @see Thread#getName
      */
     public final void setName(String threadName) {
-        name = threadName;
+      vmThread.setName(threadName);
     }
 
     /**
@@ -710,7 +721,7 @@ public class Thread implements Runnable {
      * @see Thread#getPriority
      */
     public final void setPriority(int priority) {
-        this.priority = priority;
+      vmThread.setPriority(priority);
     }
 
     /**
@@ -752,7 +763,7 @@ public class Thread implements Runnable {
      * @see Thread#interrupt()
      */
     public static void sleep(long time) throws InterruptedException {
-        return;
+      VM_Thread.sleep(time, 0);
     }
 
     /**
@@ -767,7 +778,7 @@ public class Thread implements Runnable {
      * @see Thread#interrupt()
      */
     public static void sleep(long time, int nanos) throws InterruptedException {
-        return;
+      VM_Thread.sleep(time, nanos);
     }
 
     /**
@@ -780,7 +791,7 @@ public class Thread implements Runnable {
      * @see Thread#run
      */
     public void start() {
-      vmThread = new org.jikesrvm.scheduler.greenthreads.VM_GreenThread(this, stacksize,  name, daemon, priority);
+      org.jikesrvm.VM.sysWriteln("Starting thread " + vmThread);
       vmThread.start();  
     }
 
@@ -795,7 +806,7 @@ public class Thread implements Runnable {
      */
     @Deprecated
     public final void stop() {
-        return;
+      vmThread.kill(new ThreadDeath(), true);
     }
 
     /**
@@ -813,7 +824,7 @@ public class Thread implements Runnable {
      */
     @Deprecated
     public final void stop(Throwable throwable) {
-        return;
+      vmThread.kill(throwable, true);
     }
 
     /**
@@ -830,7 +841,7 @@ public class Thread implements Runnable {
      */
     @Deprecated
     public final void suspend() {
-        return;
+      vmThread.suspend();
     }
 
     /**
@@ -841,7 +852,7 @@ public class Thread implements Runnable {
      */
     @Override
     public String toString() {
-        return null;
+      return vmThread.toString();
     }
 
     /**
@@ -851,7 +862,7 @@ public class Thread implements Runnable {
      * 
      */
     public static void yield() {
-        return;
+      VM_Scheduler.yield();
     }
 
     /**
@@ -863,7 +874,7 @@ public class Thread implements Runnable {
      *         object
      */
     public static boolean holdsLock(Object object) {
-        return false;
+      return VM_Scheduler.getCurrentThread().holdsLock(object);
     }
 
     /**
