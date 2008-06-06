@@ -303,6 +303,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
 
     runClassInitializer("java.lang.Class$StaticData");
 
+    runClassInitializer("java.nio.charset.Charset");
     runClassInitializer("java.nio.charset.CharsetEncoder");
     runClassInitializer("java.nio.charset.CoderResult");
 
