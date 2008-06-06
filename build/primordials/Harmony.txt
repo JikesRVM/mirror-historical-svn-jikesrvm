@@ -123,14 +123,24 @@ Ljava/security/NoSuchAlgorithmException;
 # primitive wrapper types
 Ljava/lang/Boolean;
 Ljava/lang/Byte;
+[Ljava/lang/Byte;
 Ljava/lang/Character;
-
+[Ljava/lang/Character;
+Ljava/lang/Character$Subset;
+Ljava/lang/Character$UnicodeBlock;
+Ljava/lang/Character$valueOfCache;
 Ljava/lang/Double;
 Ljava/lang/Float;
 Ljava/lang/Integer;
+[Ljava/lang/Integer;
+Ljava/lang/Integer$valueOfCache;
 Ljava/lang/Long;
+[Ljava/lang/Long;
+Ljava/lang/Long$valueOfCache;
 Ljava/lang/Number;
 Ljava/lang/Short;
+[Ljava/lang/Short;
+Ljava/lang/Short$valueOfCache;
 Ljava/lang/Void;
 
 # class loading errors
@@ -286,6 +296,11 @@ Ljava/io/FileDescriptor;
 
 # Character conversion
 Ljava/nio/charset/Charset;
+Ljava/nio/charset/Charset$1;
+Ljava/nio/charset/Charset$2;
+Ljava/nio/charset/Charset$3;
+Ljava/nio/charset/Charset$4;
+Ljava/nio/charset/Charset$IgnoreCaseComparator;
 Ljava/nio/charset/CharsetEncoder;
 Ljava/nio/charset/CharsetDecoder;
 Ljava/nio/charset/Charset;
@@ -373,11 +388,6 @@ Ljava/lang/Class$1;
 Ljava/lang/Class$Collector;
 Ljava/lang/Enum;
 
-[Ljava/lang/Byte;
-[Ljava/lang/Character;
-[Ljava/lang/Integer;
-[Ljava/lang/Long;
-[Ljava/lang/Short;
 [Ljava/lang/reflect/Field;
 [Ljava/lang/reflect/Method;
 [Ljava/lang/reflect/Member;
@@ -401,6 +411,10 @@ Ljava/io/FilePermission;
 
 
 Lorg/apache/harmony/kernel/vm/VM;
+Lorg/apache/harmony/luni/internal/net/www/protocol/file/Handler;
+Lorg/apache/harmony/luni/internal/net/www/protocol/file/FileURLConnection;
+Lorg/apache/harmony/luni/internal/net/www/protocol/jar/Handler;
+Lorg/apache/harmony/luni/internal/net/www/protocol/jar/JarURLConnection;
 Lorg/apache/harmony/luni/platform/IFileSystem;
 Lorg/apache/harmony/luni/platform/Platform;
 Lorg/apache/harmony/luni/util/PriviAction;
@@ -415,6 +429,20 @@ Lorg/apache/harmony/nio/internal/ReadOnlyFileChannel;
 Lorg/apache/harmony/nio/internal/ReadWriteFileChannel;
 Lorg/apache/harmony/nio/internal/WriteOnlyFileChannel;
 Lorg/apache/harmony/nio/internal/nls/Messages;
+Lorg/apache/harmony/niochar/CharsetProviderImpl;
+Lorg/apache/harmony/niochar/CharsetProviderImpl$1;
+Lorg/apache/harmony/niochar/charset/UTF_8$1;
+Lorg/apache/harmony/niochar/charset/UTF_8$Decoder;
+Lorg/apache/harmony/niochar/charset/UTF_8$Encoder;
+Lorg/apache/harmony/niochar/charset/UTF_8;
+Lorg/apache/harmony/niochar/charset/US_ASCII$1;
+Lorg/apache/harmony/niochar/charset/US_ASCII$Decoder;
+Lorg/apache/harmony/niochar/charset/US_ASCII$Encoder;
+Lorg/apache/harmony/niochar/charset/US_ASCII;
+Lorg/apache/harmony/niochar/charset/ISO_8859_1$1;
+Lorg/apache/harmony/niochar/charset/ISO_8859_1$Decoder;
+Lorg/apache/harmony/niochar/charset/ISO_8859_1$Encoder;
+Lorg/apache/harmony/niochar/charset/ISO_8859_1;
 
 # Picked up from icu4j
 Lcom/ibm/icu/util/ULocale;
