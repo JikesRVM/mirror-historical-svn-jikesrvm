@@ -30,7 +30,9 @@ public final class AccessController {
         initializeInternal();
     }
 
-    private static native void initializeInternal();
+  private static void initializeInternal() {
+    throw new Error("TODO");
+  }
 
     /**
      * Prevents this class from being instantiated.
@@ -72,7 +74,9 @@ public final class AccessController {
      *         the other elements are ProtectionsDomain.
      */
 
-    private static native Object[] getProtectionDomains(int depth);
+  private static Object[] getProtectionDomains(int depth) {
+    throw new Error("TODO");
+  }
 
     /**
      * Checks whether the running program is allowed to access the resource
@@ -86,7 +90,9 @@ public final class AccessController {
      */
     public static void checkPermission(Permission perm)
             throws AccessControlException {
-        if (perm == null)
+      // TODO: implement access permissions
+      if (true) return;
+      if (perm == null)
             throw new NullPointerException();
         Object[] domains = getProtectionDomains(1);
         AccessControlContext acc = (AccessControlContext) domains[0];
@@ -122,6 +128,8 @@ public final class AccessController {
      * @see AccessControlContext
      */
     public static AccessControlContext getContext() {
+      // TODO: implement access permissions
+      if (true) return null;
         Object[] domains = getProtectionDomains(1);
         AccessControlContext acc = (AccessControlContext) domains[0];
         ProtectionDomain[] pDomains = null;
