@@ -223,11 +223,15 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     //
     if (verboseBoot >= 1) VM.sysWriteln("Running various class initializers");
 
-    runClassInitializer("java.util.WeakHashMap"); // Need for ThreadLocal
+    if (VM.BuildForGnuClasspath) {
+      runClassInitializer("java.util.WeakHashMap"); // Need for ThreadLocal
+    }
     runClassInitializer("org.jikesrvm.classloader.VM_Atom$InternedStrings");
 
-    runClassInitializer("gnu.classpath.SystemProperties");
-    runClassInitializer("java.lang.Throwable$StaticData");
+    if (VM.BuildForGnuClasspath) {
+      runClassInitializer("gnu.classpath.SystemProperties");
+      runClassInitializer("java.lang.Throwable$StaticData");
+    }
 
     runClassInitializer("java.lang.Runtime");
     runClassInitializer("java.lang.System");
@@ -241,8 +245,9 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     // Commented out because we haven't incorporated this into the CVS head
     // yet.
     // java.security.JikesRVMSupport.turnOffChecks();
-    runClassInitializer("java.lang.ThreadGroup");
-
+    if (VM.BuildForGnuClasspath) {
+      runClassInitializer("java.lang.ThreadGroup");
+    }
     /* We can safely allocate a java.lang.Thread now.  The boot
        thread (running right now, as a VM_Thread) has to become a full-fledged
        Thread, since we're about to encounter a security check:
@@ -257,12 +262,17 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
         Thread.getCurrentThread() to return. */
     VM.safeToAllocateJavaThread = true;
 
-    runClassInitializer("java.lang.ThreadLocal");
-    runClassInitializer("java.lang.ThreadLocalMap");
+    if (VM.BuildForGnuClasspath) {
+      runClassInitializer("java.lang.ThreadLocal");
+      runClassInitializer("java.lang.ThreadLocalMap");
+    }
     // Possibly fix VMAccessController's contexts and inGetContext fields
-    runClassInitializer("java.security.VMAccessController");
-    runClassInitializer("java.security.AccessController");
-
+    if (VM.BuildForGnuClasspath) {
+      runClassInitializer("java.security.VMAccessController");
+    }
+    if (VM.BuildForHarmony) {
+      runClassInitializer("java.security.AccessController");
+    }
     if (verboseBoot >= 1) VM.sysWriteln("Booting VM_Lock");
     VM_Lock.boot();
 
@@ -288,24 +298,29 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     runClassInitializer("java.io.File"); // needed for when we initialize the
     // system/application class loader.
     runClassInitializer("java.lang.String");
-    runClassInitializer("gnu.java.security.provider.DefaultPolicy");
+    if (VM.BuildForGnuClasspath) {
+      runClassInitializer("gnu.java.security.provider.DefaultPolicy");
+    }
     runClassInitializer("java.net.URL"); // needed for URLClassLoader
     /* Needed for VM_ApplicationClassLoader, which in turn is needed by
        VMClassLoader.getSystemClassLoader()  */
-    runClassInitializer("java.net.URLClassLoader");
-
+    if (VM.BuildForGnuClasspath) {
+      runClassInitializer("java.net.URLClassLoader");
+    }
     /* Used if we start up Jikes RVM with the -jar argument; that argument
-* means that we need a working -jar before we can return an
-* Application Class Loader. */
+     * means that we need a working -jar before we can return an
+     * Application Class Loader. */
     runClassInitializer("java.net.URLConnection");
-    runClassInitializer("gnu.java.net.protocol.jar.Connection$JarFileCache");
-
-    runClassInitializer("java.lang.ClassLoader$StaticData");
-
+    if (VM.BuildForGnuClasspath) {
+      runClassInitializer("gnu.java.net.protocol.jar.Connection$JarFileCache");
+      runClassInitializer("java.lang.ClassLoader$StaticData");
+    }
     runClassInitializer("java.lang.Class$StaticData");
 
     runClassInitializer("java.nio.charset.Charset");
-    runClassInitializer("java.nio.charset.CharsetEncoder");
+    if (VM.BuildForGnuClasspath) {
+      runClassInitializer("java.nio.charset.CharsetEncoder");
+    }
     runClassInitializer("java.nio.charset.CoderResult");
     runClassInitializer("org.apache.harmony.niochar.CharsetProviderImpl");
 
@@ -317,37 +332,44 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     runClassInitializer("java.util.zip.CRC32");
     System.loadLibrary("hyarchive");
     runClassInitializer("java.util.zip.Inflater");
-    runClassInitializer("java.util.zip.DeflaterHuffman");
-    runClassInitializer("java.util.zip.InflaterDynHeader");
-    runClassInitializer("java.util.zip.InflaterHuffmanTree");
-
+    if (VM.BuildForGnuClasspath) {
+      runClassInitializer("java.util.zip.DeflaterHuffman");
+      runClassInitializer("java.util.zip.InflaterDynHeader");
+      runClassInitializer("java.util.zip.InflaterHuffmanTree");
+    }
     // Run class intializers that require JNI
     if (verboseBoot >= 1) VM.sysWriteln("Running late class initializers");
     //System.loadLibrary("javaio");
     runClassInitializer("java.lang.Math");
     runClassInitializer("java.util.TreeMap");
-    runClassInitializer("gnu.java.nio.VMChannel");
-    runClassInitializer("gnu.java.nio.FileChannelImpl");
-
+    if (VM.BuildForGnuClasspath) {
+      runClassInitializer("gnu.java.nio.VMChannel");
+      runClassInitializer("gnu.java.nio.FileChannelImpl");
+    }
     runClassInitializer("java.io.FileDescriptor");
     runClassInitializer("java.io.FilePermission");
     runClassInitializer("java.util.jar.JarFile");
-    runClassInitializer("java.util.zip.ZipFile$PartialInputStream");
+    if (VM.BuildForGnuClasspath) {
+      runClassInitializer("java.util.zip.ZipFile$PartialInputStream");
+    }
     runClassInitializer("java.util.zip.ZipFile");
     runClassInitializer("org.apache.harmony.luni.platform.OSMemory");
     runClassInitializer("org.apache.harmony.luni.platform.Platform");
     runClassInitializer("org.apache.harmony.luni.platform.AbstractMemorySpy");
     runClassInitializer("org.apache.harmony.luni.platform.PlatformAddress");
 
-    runClassInitializer("java.lang.VMDouble");
+    if (VM.BuildForGnuClasspath) {
+      runClassInitializer("java.lang.VMDouble");
+    }
     runClassInitializer("java.util.PropertyPermission");
     runClassInitializer("org.jikesrvm.scheduler.greenthreads.VM_Process");
     runClassInitializer("org.jikesrvm.classloader.VM_Annotation");
     runClassInitializer("java.lang.annotation.RetentionPolicy");
     runClassInitializer("java.lang.annotation.ElementType");
     runClassInitializer("java.lang.Thread$State");
-    runClassInitializer("java.lang.VMClassLoader");
-
+    if (VM.BuildForGnuClasspath) {
+      runClassInitializer("java.lang.VMClassLoader");
+    }
     // Initialize java.lang.System.out, java.lang.System.err, java.lang.System.in
     VM_FileSystem.initializeStandardStreams();
 
@@ -363,7 +385,9 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     VM_BaselineCompiler.fullyBootedVM();
 
     runClassInitializer("java.util.logging.Level");
-    runClassInitializer("gnu.java.nio.charset.EncodingHelper");
+    if (VM.BuildForGnuClasspath) {
+      runClassInitializer("gnu.java.nio.charset.EncodingHelper");
+    }
     runClassInitializer("java.util.logging.Logger");
 
     // Initialize compiler that compiles dynamically loaded classes.
@@ -410,7 +434,9 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     // tree yet.
     // java.security.JikesRVMSupport.fullyBootedVM();
 
-    runClassInitializer("java.lang.ClassLoader$StaticData");
+    if (VM.BuildForGnuClasspath) {
+      runClassInitializer("java.lang.ClassLoader$StaticData");
+    }
 
     VM_Entrypoints.luni1.setObjectValueUnchecked(null, null);
     VM_Entrypoints.luni2.setObjectValueUnchecked(null, null);

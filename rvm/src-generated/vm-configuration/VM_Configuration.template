@@ -37,6 +37,9 @@ public abstract class VM_Configuration {
   public static final boolean BuildForSolaris = @_RVM_FOR_SOLARIS_@; 
   public static final boolean BuildForOsx = !BuildForAix && !BuildForLinux && !BuildForSolaris;
 
+  public static final boolean BuildForGnuClasspath = @_RVM_WITH_GNU_CLASSPATH_@;
+  public static final boolean BuildForHarmony = @_RVM_WITH_HARMONY_@;
+
   public static final boolean LittleEndian = BuildForIA32;
 
   /* ABI selection.  Exactly one of these variables will be true in each build. */
