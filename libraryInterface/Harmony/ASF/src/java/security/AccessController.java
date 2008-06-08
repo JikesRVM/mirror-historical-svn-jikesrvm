@@ -30,9 +30,8 @@ public final class AccessController {
         initializeInternal();
     }
 
-  private static void initializeInternal() {
-    throw new Error("TODO");
-  }
+    private static void initializeInternal() {
+    }
 
     /**
      * Prevents this class from being instantiated.
