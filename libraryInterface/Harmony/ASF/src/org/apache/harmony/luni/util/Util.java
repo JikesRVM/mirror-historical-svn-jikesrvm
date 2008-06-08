@@ -23,6 +23,8 @@ import java.io.UTFDataFormatException;
 import java.util.Calendar;
 import java.util.TimeZone;
 
+import org.jikesrvm.classloader.VM_UTF8Convert;
+
 public final class Util {
 
 	private static String[] WEEKDAYS = new String[] { "", "Sunday", "Monday",
@@ -69,11 +71,7 @@ public final class Util {
      * @return byte array
      */
     public static byte[] getUTF8Bytes(String name) {
-        try {
-            return name.getBytes("UTF-8");
-        } catch (java.io.UnsupportedEncodingException e) {
-            return getBytes(name);
-        }
+	return VM_UTF8Convert.toUTF8(name);
     }
 
 	public static String toString(byte[] bytes) {
@@ -101,11 +99,21 @@ public final class Util {
 	}
 
     public static String toUTF8String(byte[] bytes, int offset, int length) {
+	if (offset != 0 || length != bytes.length) {
+	    byte[] newBytes = new byte[length];
+	    System.arraycopy(bytes, offset, newBytes, 0, length);
+	    bytes = newBytes;
+	}
+        try {
+	    return VM_UTF8Convert.fromUTF8(bytes);
+	} catch (java.io.UTFDataFormatException e) {
+	}
         try {
             return new String(bytes, offset, length, "UTF-8");
         } catch (java.io.UnsupportedEncodingException e) {
             return toString(bytes, offset, length);
         }
+
     }
     
 	/**
