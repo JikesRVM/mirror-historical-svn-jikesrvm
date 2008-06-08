@@ -310,10 +310,9 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     runClassInitializer("org.apache.harmony.niochar.CharsetProviderImpl");
 
     runClassInitializer("java.io.PrintWriter"); // Uses System.getProperty
+    System.setProperty("line.separator", "\n");
     runClassInitializer("java.io.PrintStream"); // Uses System.getProperty
-    VM.sysWriteln("Default locale ", java.util.Locale.getDefault().toString());
     runClassInitializer("java.util.Locale");
-    VM.sysWriteln("Default locale ", java.util.Locale.getDefault().toString());
     runClassInitializer("java.util.ResourceBundle");
     runClassInitializer("java.util.zip.CRC32");
     System.loadLibrary("hyarchive");
@@ -418,7 +417,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     VM_Entrypoints.luni3.setObjectValueUnchecked(null, null);
     VM_Entrypoints.luni4.setObjectValueUnchecked(null, null);
     VM_Entrypoints.luni5.setObjectValueUnchecked(null, null);
-    runClassInitializer("java.lang.String$ConsolePrintStream");
+    //runClassInitializer("java.lang.String$ConsolePrintStream");
     runClassInitializer("org.apache.harmony.luni.util.Msg");
     runClassInitializer("org.apache.harmony.archive.internal.nls.Messages");
     runClassInitializer("org.apache.harmony.luni.internal.nls.Messages");
@@ -508,8 +507,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
           throw e;
         } catch (Throwable t) {
           ExceptionInInitializerError eieio =
-              new ExceptionInInitializerError("Caught exception while invoking the class initializer for " + className);
-          eieio.initCause(t);
+              new ExceptionInInitializerError(t);
           throw eieio;
         }
         // <clinit> is no longer needed: reclaim space by removing references to it
