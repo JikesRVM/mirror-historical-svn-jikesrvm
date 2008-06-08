@@ -2020,6 +2020,14 @@ public class BootImageWriter extends BootImageWriterMessages
           rvmFieldType.isIntType()) {
         VM_Statics.setSlotContents(rvmFieldOffset, 128);
         return true;
+      } else if (jdkType.equals(java.lang.Byte.class) &&
+                 rvmFieldName.equals("CACHE") && rvmFieldType.isArrayType()) {
+        VM_Statics.setSlotContents(rvmFieldOffset, new Byte[256]);
+        return true;        
+      } else if (jdkType.equals(java.lang.Throwable.class) &&
+                 rvmFieldName.equals("zeroLengthStackTrace") && rvmFieldType.isArrayType()) {
+        VM_Statics.setSlotContents(rvmFieldOffset, new StackTraceElement[0]);
+        return true;        
       } else {
         // unknown static field
         return false;
@@ -2243,6 +2251,39 @@ public class BootImageWriter extends BootImageWriterMessages
           ) {
         // Populate String's hashCode value
         bootImage.setFullWord(rvmFieldAddress, jdkObject.hashCode());
+        return true;
+      } else if (jdkObject instanceof java.util.Locale) {
+        String fieldName;
+        Object value;
+        if (rvmFieldName.equals("countryCode")) {
+	  value = ((java.util.Locale)jdkObject).getCountry();
+	  fieldName = "countryCode";
+	} else if (rvmFieldName.equals("languageCode")) {
+	  value = ((java.util.Locale)jdkObject).getLanguage();
+	  fieldName = "languageCode";
+	} else if (rvmFieldName.equals("variantCode")) {
+	  value = ((java.util.Locale)jdkObject).getVariant();
+	  fieldName = "languageCode";
+	} else {
+          return false;
+	}
+        if (verbose >= 2) traceContext.push(value.getClass().getName(),
+                                            "java.util.Locale",
+                                            fieldName);
+        Address imageAddress = BootImageMap.findOrCreateEntry(value).imageAddress;
+        if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
+          // object not part of bootimage: install null reference
+          if (verbose >= 2) traceContext.traceObjectNotInBootImage();
+          throw new Error("Failed to populate " + fieldName + " in Locale");
+        } else if (imageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
+          imageAddress = copyToBootImage(value, false, Address.max(), jdkObject, false);
+          if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
+          bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, false);
+        } else {
+          if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
+          bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, false);
+        }
+        if (verbose >= 2) traceContext.pop();
         return true;
       } else if ((jdkObject instanceof java.util.WeakHashMap) &&
                  (rvmFieldName.equals("referenceQueue"))){
