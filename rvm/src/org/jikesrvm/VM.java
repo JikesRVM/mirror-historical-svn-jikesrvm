@@ -438,18 +438,19 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
       runClassInitializer("java.lang.ClassLoader$StaticData");
     }
 
-    VM_Entrypoints.luni1.setObjectValueUnchecked(null, null);
-    VM_Entrypoints.luni2.setObjectValueUnchecked(null, null);
-    VM_Entrypoints.luni3.setObjectValueUnchecked(null, null);
-    VM_Entrypoints.luni4.setObjectValueUnchecked(null, null);
-    VM_Entrypoints.luni5.setObjectValueUnchecked(null, null);
-    //runClassInitializer("java.lang.String$ConsolePrintStream");
-    runClassInitializer("org.apache.harmony.luni.util.Msg");
-    runClassInitializer("org.apache.harmony.archive.internal.nls.Messages");
-    runClassInitializer("org.apache.harmony.luni.internal.nls.Messages");
-    runClassInitializer("org.apache.harmony.nio.internal.nls.Messages");
-    runClassInitializer("org.apache.harmony.niochar.internal.nls.Messages");
-
+    if (VM.BuildForHarmony) {
+      VM_Entrypoints.luni1.setObjectValueUnchecked(null, null);
+      VM_Entrypoints.luni2.setObjectValueUnchecked(null, null);
+      VM_Entrypoints.luni3.setObjectValueUnchecked(null, null);
+      VM_Entrypoints.luni4.setObjectValueUnchecked(null, null);
+      VM_Entrypoints.luni5.setObjectValueUnchecked(null, null);
+      //runClassInitializer("java.lang.String$ConsolePrintStream");
+      runClassInitializer("org.apache.harmony.luni.util.Msg");
+      runClassInitializer("org.apache.harmony.archive.internal.nls.Messages");
+      runClassInitializer("org.apache.harmony.luni.internal.nls.Messages");
+      runClassInitializer("org.apache.harmony.nio.internal.nls.Messages");
+      runClassInitializer("org.apache.harmony.niochar.internal.nls.Messages");
+    }
     // Allow profile information to be read in from a file
     //
     VM_EdgeCounts.boot(EdgeCounterFile);

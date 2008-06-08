@@ -426,14 +426,28 @@ public class VM_Entrypoints {
   public static final VM_Field classLoaderDefinedPackages =
     getField(java.lang.ClassLoader.class, "definedPackages", java.util.HashMap.class);
 
-  public static final VM_Field luni1 =
-    getField(org.apache.harmony.luni.util.Msg.class, "bundle", java.util.ResourceBundle.class);
-  public static final VM_Field luni2 =
-    getField(org.apache.harmony.archive.internal.nls.Messages.class, "bundle", java.util.ResourceBundle.class);
-  public static final VM_Field luni3 =
-    getField(org.apache.harmony.luni.internal.nls.Messages.class, "bundle", java.util.ResourceBundle.class);
-  public static final VM_Field luni4 =
-    getField(org.apache.harmony.nio.internal.nls.Messages.class, "bundle", java.util.ResourceBundle.class);
-  public static final VM_Field luni5 =
-    getField(org.apache.harmony.niochar.internal.nls.Messages.class, "bundle", java.util.ResourceBundle.class);
+  public static final VM_Field luni1;
+  public static final VM_Field luni2;
+  public static final VM_Field luni3;
+  public static final VM_Field luni4;
+  public static final VM_Field luni5;
+  public static final VM_Field gcLockField;
+
+  static {
+    if (VM.BuildForHarmony) {
+      luni1 = getField("Lorg/apache/harmony/luni/util/Msg;", "bundle", java.util.ResourceBundle.class);
+      luni2 = getField("Lorg/apache/harmony/archive/internal/nls/Messages;", "bundle", java.util.ResourceBundle.class);
+      luni3 = getField("Lorg/apache/harmony/luni/internal/nls/Messages;", "bundle", java.util.ResourceBundle.class);
+      luni4 = getField("Lorg/apache/harmony/nio/internal/nls/Messages;", "bundle", java.util.ResourceBundle.class);
+      luni5 = getField("Lorg/apache/harmony/niochar/internal/nls/Messages;", "bundle", java.util.ResourceBundle.class);
+      gcLockField = null;
+    } else {
+      luni1 = null;
+      luni2 = null;
+      luni3 = null;
+      luni4 = null;
+      luni5 = null;
+      gcLockField = getField("Ljava/lang/VMRuntime;", "gcLock", int.class);
+    }
+  }
 }
