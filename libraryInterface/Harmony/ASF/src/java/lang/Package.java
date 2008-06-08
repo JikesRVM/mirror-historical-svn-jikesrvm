@@ -17,9 +17,23 @@
 
 package java.lang;
 
+import java.lang.ref.SoftReference;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.net.URL;
+import java.net.JarURLConnection;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
+import java.util.Collection;
+import java.util.Hashtable;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.StringTokenizer;
+
+import org.jikesrvm.classloader.VM_BootstrapClassLoader;
+import org.jikesrvm.classloader.VM_Class;
 
 /**
  * This class must be implemented by the VM vendor.
@@ -36,12 +50,61 @@ import java.net.URL;
  * @since 1.0
  */
 public class Package implements AnnotatedElement {
+    /**
+     * The defining loader.
+     */
+    private final ClassLoader loader;
+
+    /**
+     * A map of {url<String>, attrs<Manifest>} pairs for caching
+     * attributes of bootsrap jars.
+     */
+    private static SoftReference<Map<String, Manifest>> jarCache;
+
+    /**
+     * An url of a source jar, for deffered attributes initialization.
+     * After the initialization, if any, is reset to null.
+     */
+    private String jar;
+
+    private String implTitle;
+
+    private String implVendor;
+
+    private String implVersion;
+
+    private final String name;
+
+    private URL sealBase;
+
+    private String specTitle;
+
+    private String specVendor;
+
+    private String specVersion;
+
+    /**
+     * Name must not be null.
+     */
+    Package(ClassLoader ld, String packageName, String sTitle, String sVersion, String sVendor,
+            String iTitle, String iVersion, String iVendor, URL base) {
+        loader = ld;
+        name = packageName.toString();
+        specTitle = sTitle;
+        specVersion = sVersion;
+        specVendor = sVendor;
+        implTitle = iTitle;
+        implVersion = iVersion;
+        implVendor = iVendor;
+        sealBase = base;
+    }
 
     /**
      * Prevent this class from being instantiated
      */
     private Package(){
-        //do nothing
+	loader = null;
+	name = null;
     }
     
     /**
@@ -53,7 +116,16 @@ public class Package implements AnnotatedElement {
      * @see java.lang.reflect.AnnotatedElement#getAnnotation(java.lang.Class)
      */
     public <T extends Annotation> T getAnnotation(Class<T> annotationType) {
-        return null;
+	if(annotationType == null) {
+	    throw new NullPointerException();
+	}
+	Annotation aa[] = getAnnotations();
+	for (int i = 0; i < aa.length; i++) {
+	    if(aa[i].annotationType().equals(annotationType)) {
+		return (T) aa[i];
+	    }
+	}
+	return null;
     }
 
     /**
@@ -64,7 +136,7 @@ public class Package implements AnnotatedElement {
      * @see java.lang.reflect.AnnotatedElement#getAnnotations()
      */
     public Annotation[] getAnnotations() {
-        return new Annotation[0];
+        return getDeclaredAnnotations();
     }
 
     /**
@@ -75,7 +147,16 @@ public class Package implements AnnotatedElement {
      * @see java.lang.reflect.AnnotatedElement#getDeclaredAnnotations()
      */
     public Annotation[] getDeclaredAnnotations() {
-        return new Annotation[0];
+	Class pkgInfo;
+	try
+	{
+	    pkgInfo = Class.forName(name + ".package-info", false, loader);
+	}
+	catch (ClassNotFoundException _)
+	{
+	    return new Annotation[0];
+	}
+	return pkgInfo.getDeclaredAnnotations();
     }
 
     /**
@@ -87,7 +168,7 @@ public class Package implements AnnotatedElement {
      * @see java.lang.reflect.AnnotatedElement#isAnnotationPresent(java.lang.Class)
      */
     public boolean isAnnotationPresent(Class<? extends Annotation> annotationType) {
-        return false;
+	return getAnnotation(annotationType) != null;
     }
 
     /**
@@ -97,7 +178,10 @@ public class Package implements AnnotatedElement {
      * @return The implementation title, or null
      */
     public String getImplementationTitle() {
-        return null;
+        if (jar != null) {
+            init();
+        }
+        return implTitle;
     }
 
     /**
@@ -108,7 +192,10 @@ public class Package implements AnnotatedElement {
      * @return The implementation vendor name, or null
      */
     public String getImplementationVendor() {
-        return null;
+        if (jar != null) {
+            init();
+        }
+        return implVendor;
     }
 
     /**
@@ -118,7 +205,10 @@ public class Package implements AnnotatedElement {
      * @return The implementation version, or null
      */
     public String getImplementationVersion() {
-        return null;
+        if (jar != null) {
+            init();
+        }
+        return implVersion;
     }
 
     /**
@@ -128,7 +218,7 @@ public class Package implements AnnotatedElement {
      * @return The name of this package
      */
     public String getName() {
-        return null;
+        return name;
     }
 
     /**
@@ -141,7 +231,10 @@ public class Package implements AnnotatedElement {
      * @see ClassLoader#getPackage
      */
     public static Package getPackage(String packageName) {
-        return null;
+	ClassLoader callerLoader = VM_Class.getClassLoaderFromStackFrame(1);
+        return callerLoader == null ?
+	    VM_BootstrapClassLoader.getBootstrapClassLoader().getPackage(packageName) :
+	    callerLoader.getPackage(packageName);
     }
 
     /**
@@ -152,7 +245,11 @@ public class Package implements AnnotatedElement {
      * @see ClassLoader#getPackages
      */
     public static Package[] getPackages() {
-        return null;
+        ClassLoader callerLoader = VM_Class.getClassLoaderFromStackFrame(1);
+        if (callerLoader == null) {
+	    return VM_BootstrapClassLoader.getBootstrapClassLoader().getPackages();
+        }
+        return callerLoader.getPackages();
     }
 
     /**
@@ -162,7 +259,10 @@ public class Package implements AnnotatedElement {
      * @return The specification title, or null
      */
     public String getSpecificationTitle() {
-        return null;
+        if (jar != null) {
+            init();
+        }
+        return specTitle;
     }
 
     /**
@@ -172,7 +272,10 @@ public class Package implements AnnotatedElement {
      * @return The specification vendor name, or null
      */
     public String getSpecificationVendor() {
-        return null;
+        if (jar != null) {
+            init();
+        }
+        return specVendor;
     }
 
     /**
@@ -183,7 +286,10 @@ public class Package implements AnnotatedElement {
      * @return The specification version string, or null
      */
     public String getSpecificationVersion() {
-        return null;
+        if (jar != null) {
+            init();
+        }
+        return specVersion;
     }
 
     /**
@@ -195,7 +301,7 @@ public class Package implements AnnotatedElement {
      */
     @Override
     public int hashCode() {
-        return 0;
+        return name.hashCode();
     }
 
     /**
@@ -203,14 +309,73 @@ public class Package implements AnnotatedElement {
      * the specified version string. Version strings are compared by comparing
      * each dot separated part of the version as an integer.
      * 
-     * @param version The version string to compare against
+     * @param desiredVersion The version string to compare against
      * @return true if the package versions are compatible, false otherwise
      * 
      * @throws NumberFormatException if the package's version string or the one
      *         provided is not in the correct format
      */
-    public boolean isCompatibleWith(String version) throws NumberFormatException {
-        return false;
+    public boolean isCompatibleWith(String desiredVersion) throws NumberFormatException {
+
+        if (jar != null) {
+            init();
+        }
+
+        if (specVersion == null || specVersion.length() == 0) {
+            throw new NumberFormatException(
+		"No specification version defined for the package");
+        }
+
+        if (!specVersion.matches("[\\p{javaDigit}]+(.[\\p{javaDigit}]+)*")) {
+            throw new NumberFormatException(
+                    "Package specification version is not of the correct dotted form : "
+                    + specVersion);
+        }
+
+        if (desiredVersion == null || desiredVersion.length() == 0) {
+            throw new NumberFormatException("Empty version to check");
+        }
+
+        if (!desiredVersion.matches("[\\p{javaDigit}]+(.[\\p{javaDigit}]+)*")) {
+            throw new NumberFormatException(
+                    "Desired version is not of the correct dotted form : "
+                    + desiredVersion);
+        }
+
+        StringTokenizer specVersionTokens = new StringTokenizer(specVersion,
+								".");
+
+        StringTokenizer desiredVersionTokens = new StringTokenizer(
+	    desiredVersion, ".");
+
+        try {
+            while (specVersionTokens.hasMoreElements()) {
+                int desiredVer = Integer.parseInt(desiredVersionTokens
+						  .nextToken());
+                int specVer = Integer.parseInt(specVersionTokens.nextToken());
+                if (specVer != desiredVer) {
+                    return specVer > desiredVer;
+                }
+            }
+        } catch (NoSuchElementException e) {
+	    /*
+	     * run out of tokens for desiredVersion
+	     */
+        }
+
+        /*
+         *   now, if desired is longer than spec, and they have been
+         *   equal so far (ex.  1.4  <->  1.4.0.0) then the remainder
+         *   better be zeros
+         */
+
+        while (desiredVersionTokens.hasMoreTokens()) {
+	    if (0 != Integer.parseInt(desiredVersionTokens.nextToken())) {
+		return false;
+	    }
+        }
+
+        return true;
     }
 
     /**
@@ -219,7 +384,10 @@ public class Package implements AnnotatedElement {
      * @return true if this package is sealed, false otherwise
      */
     public boolean isSealed() {
-        return false;
+        if (jar != null) {
+            init();
+        }
+        return sealBase != null;
     }
 
     /**
@@ -230,7 +398,10 @@ public class Package implements AnnotatedElement {
      * @return true if this package is sealed, false otherwise
      */
     public boolean isSealed(URL url) {
-        return false;
+        if (jar != null) {
+            init();
+        }
+        return url.equals(sealBase);
     }
 
     /**
@@ -241,6 +412,86 @@ public class Package implements AnnotatedElement {
      */
     @Override
     public String toString() {
-        return null;
+        if (jar != null) {
+            init();
+        }
+        return "package " + name + (specTitle != null ? " " + specTitle : "")
+	    + (specVersion != null ? " " + specVersion : "");
     }
+
+    /**
+     * Performs initialization of optional attributes, if the source jar location
+     * was specified in the lazy constructor.
+     */
+    private void init() {
+        try {
+            Map<String, Manifest> map = null;
+            Manifest manifest = null;
+            URL sealURL = null;
+            if (jarCache != null && (map = jarCache.get()) != null) {
+                manifest = map.get(jar);
+            }
+
+            if (manifest == null) {
+                final URL url = sealURL = new URL(jar);
+
+                manifest = AccessController.doPrivileged(
+                    new PrivilegedAction<Manifest>() {
+                        public Manifest run()
+                        {
+                            try {
+                                return ((JarURLConnection)url
+                                        .openConnection()).getManifest();
+                            } catch (Exception e) {
+                                return new Manifest();
+                            }
+                        }
+                    });
+                if (map == null) {
+                    map = new Hashtable<String, Manifest>();
+                    if (jarCache == null) {
+                        jarCache = new SoftReference<Map<String, Manifest>>(map);
+                    }
+                }
+                map.put(jar, manifest);
+            }
+
+            Attributes mainAttrs = manifest.getMainAttributes();
+            Attributes pkgAttrs = manifest.getAttributes(name.replace('.','/')+"/");
+
+            specTitle = pkgAttrs == null || (specTitle = pkgAttrs
+					     .getValue(Attributes.Name.SPECIFICATION_TITLE)) == null
+		? mainAttrs.getValue(Attributes.Name.SPECIFICATION_TITLE)
+		: specTitle;
+            specVersion = pkgAttrs == null || (specVersion = pkgAttrs
+					       .getValue(Attributes.Name.SPECIFICATION_VERSION)) == null
+		? mainAttrs.getValue(Attributes.Name.SPECIFICATION_VERSION)
+		: specVersion;
+            specVendor = pkgAttrs == null || (specVendor = pkgAttrs
+					      .getValue(Attributes.Name.SPECIFICATION_VENDOR)) == null
+		? mainAttrs.getValue(Attributes.Name.SPECIFICATION_VENDOR)
+		: specVendor;
+            implTitle = pkgAttrs == null || (implTitle = pkgAttrs
+					     .getValue(Attributes.Name.IMPLEMENTATION_TITLE)) == null
+		? mainAttrs.getValue(Attributes.Name.IMPLEMENTATION_TITLE)
+		: implTitle;
+            implVersion = pkgAttrs == null || (implVersion = pkgAttrs
+					       .getValue(Attributes.Name.IMPLEMENTATION_VERSION)) == null
+                    ? mainAttrs
+		.getValue(Attributes.Name.IMPLEMENTATION_VERSION)
+		: implVersion;
+            implVendor = pkgAttrs == null || (implVendor = pkgAttrs
+					      .getValue(Attributes.Name.IMPLEMENTATION_VENDOR)) == null
+		? mainAttrs.getValue(Attributes.Name.IMPLEMENTATION_VENDOR)
+		: implVendor;
+            String sealed = pkgAttrs == null || (sealed = pkgAttrs
+						 .getValue(Attributes.Name.SEALED)) == null ? mainAttrs
+		.getValue(Attributes.Name.SEALED) : sealed;
+            if (Boolean.valueOf(sealed).booleanValue()) {
+                sealBase = sealURL != null ? sealURL : new URL(jar);
+            }
+        } catch (Exception e) {}
+        jar = null;
+    }
+
 }
