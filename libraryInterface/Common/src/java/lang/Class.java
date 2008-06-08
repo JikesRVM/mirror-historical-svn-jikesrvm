@@ -506,6 +506,10 @@ public final class Class<T> implements Serializable, Type, AnnotatedElement, Gen
     return pd == null ? StaticData.unknownProtectionDomain : pd;
   }
 
+  void setProtectionDomain(ProtectionDomain protectionDomain) {
+    pd = protectionDomain;
+  }
+
   public URL getResource(String resName) {
     ClassLoader loader = type.getClassLoader();
     if (loader == VM_BootstrapClassLoader.getBootstrapClassLoader())
