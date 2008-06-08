@@ -12,6 +12,11 @@
  */
 package java.nio;
 
+import org.apache.harmony.luni.platform.PlatformAddressFactory;
+import org.apache.harmony.nio.internal.DirectBuffer;
+
+import static org.jikesrvm.VM_SizeConstants.BYTES_IN_ADDRESS;
+
 import org.vmmagic.unboxed.Address;
 
 /**
@@ -20,9 +25,16 @@ import org.vmmagic.unboxed.Address;
 public class JikesRVMSupport {
   public static Address getDirectBufferAddress(Buffer buffer) {
     throw new Error("TODO");
+/*
+      if (buffer instanceof DirectBuffer) {
+	  return Address.fromLong(((DirectBuffer)buffer).getBaseAddress().toLong());
+      } else {
+	  return Address.fromIntSignExtend(-1);
+      }
+*/
   }
 
   public static ByteBuffer newDirectByteBuffer(Address address, long capacity) {
-    throw new Error("TODO");
+    return new ReadWriteDirectByteBuffer(PlatformAddressFactory.on(address.toLong(), BYTES_IN_ADDRESS), (int)capacity, 0);
   }
 }
