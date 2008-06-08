@@ -19,6 +19,7 @@
 #define TRACE 1
 #include "bootImageRunner.h"
 #include "vmi.h"
+#include "zipsup.h"
 
 struct VMInterfaceFunctions_ vmi_impl = {
    &CheckVersion,
@@ -50,6 +51,8 @@ HyVMLSFunctionTable vmls_impl = {
     &HyVMLSGet,
     &HyVMLSSet
 };
+
+HyZipCachePool* zipCachePool = NULL;
 
 vmiError JNICALL CheckVersion (VMInterface * vmi, vmiVersion * version)
 {
@@ -93,8 +96,24 @@ HyVMLSFunctionTable * JNICALL GetVMLSFunctions (VMInterface * vmi)
 #ifndef HY_ZIP_API
 HyZipCachePool * JNICALL GetZipCachePool (VMInterface * vmi)
 {
-    fprintf(stderr, "UNIMPLEMENTED VMI call GetZipCachePool\n");
-    return NULL;
+    // FIXME: thread unsafe implementation...
+    if (zipCachePool != NULL)
+    {
+        return zipCachePool;
+    }
+    HyPortLibrary *portLibPointer = GetPortLibrary(vmi);
+    if (portLibPointer == NULL)
+    {
+	fprintf(stderr, "Error getting port library");
+	exit(-1);
+    }
+    zipCachePool = zipCachePool_new(portLibPointer);
+    if (zipCachePool == NULL)
+    {
+	fprintf(stderr, "Error accessing zip functions");
+	exit(-1);
+    }
+    return zipCachePool;
 }
 #else /* HY_ZIP_API */
 struct VMIZipFunctionTable * JNICALL GetZipFunctions (VMInterface * vmi)
@@ -145,7 +164,7 @@ VMInterface* JNICALL
 VMI_GetVMIFromJavaVM(JavaVM* vm)
 {
     return &vmi;
-}	
+}
 
 extern void initializeVMLocalStorage(JavaVM * vm);
 
