@@ -17,8 +17,8 @@
 
 package org.apache.harmony.kernel.vm;
 
-import org.jikesrvm.VM;
 import org.jikesrvm.classloader.VM_Atom;
+import org.jikesrvm.classloader.VM_BootstrapClassLoader;
 import org.jikesrvm.classloader.VM_Class;
 
 /**
@@ -59,7 +59,17 @@ public final class VM {
      * @see java.lang.ClassLoader#getStackClassLoader
      */
     static final ClassLoader getStackClassLoader(int depth) {
-        return VM_Class.getClassLoaderFromStackFrame(int depth);
+	if (org.jikesrvm.VM.runningVM) {
+	    ClassLoader ans = VM_Class.getClassLoaderFromStackFrame(depth);
+	    if (ans == VM_BootstrapClassLoader.getBootstrapClassLoader()) {
+		return null;
+	    } else {
+		return ans;
+	    }
+	}
+	else {
+	    return null;
+	}
     };
 
     /**
@@ -102,7 +112,7 @@ public final class VM {
      * @return the interned string equal to the specified String
      */
     public static final String intern(String string) {
-	return VM_Atom.internString(str);
+	return VM_Atom.internString(string);
     }
 
     /**
@@ -128,7 +138,17 @@ public final class VM {
      * @throws SecurityException when called from a non-bootstrap Class
      */
     public static ClassLoader callerClassLoader() {
-        return getClassLoader(1);
+	if (org.jikesrvm.VM.runningVM) {
+	    ClassLoader ans = VM_Class.getClassLoaderFromStackFrame(1);
+	    if (ans == VM_BootstrapClassLoader.getBootstrapClassLoader()) {
+		return null;
+	    } else {
+		return ans;
+	    }
+	}
+	else {
+	    return null;
+	}
     }
 
     /**
@@ -147,7 +167,7 @@ public final class VM {
      * @throws SecurityException when called from a non-bootstrap Class
      */
     public static ClassLoader bootCallerClassLoader() {
-        throw new Error("TODO");
+	return VM_BootstrapClassLoader.getBootstrapClassLoader();
     }
 
     /**
@@ -156,7 +176,7 @@ public final class VM {
      * @param str String the String to display
      */
     public static void dumpString(String str) {
-        VM.sysWriteln(str);
+        org.jikesrvm.VM.sysWriteln(str);
     }
 
     /**
