@@ -194,6 +194,7 @@ Ljava/util/Hashtable$HashIterator;
 
 Ljava/util/List;
 Ljava/util/ListResourceBundle;
+Ljava/util/PropertyResourceBundle$1;
 Ljava/util/PropertyResourceBundle;
 Ljava/util/MissingResourceException;
 Ljava/util/Properties;
@@ -267,6 +268,7 @@ Ljava/util/WeakHashMap;
 
 # class loaders
 Ljava/lang/ClassLoader;
+Ljava/lang/ClassLoader$1;
 Ljava/security/CodeSource;
 Ljava/security/Policy;
 Ljava/security/PermissionCollection;
@@ -277,6 +279,16 @@ Ljava/lang/reflect/InvocationTargetException;
 
 Ljava/net/URLClassLoader;
 Ljava/net/URLClassLoader$1;
+Ljava/net/URLClassLoader$2;
+Ljava/net/URLClassLoader$3;
+Ljava/net/URLClassLoader$4;
+Ljava/net/URLClassLoader$5;
+Ljava/net/URLClassLoader$IndexFile;
+Ljava/net/URLClassLoader$SubURLClassLoader;
+Ljava/net/URLClassLoader$URLFileHandler;
+Ljava/net/URLClassLoader$URLHandler;
+Ljava/net/URLClassLoader$URLJarHandler;
+Ljava/net/URLDecoder;
 Ljava/net/URL;
 Ljava/net/InetAddress;
 Ljava/net/NetPermission;
@@ -306,10 +318,18 @@ Ljava/nio/charset/CharsetDecoder;
 Ljava/nio/charset/Charset;
 Ljava/nio/charset/CodingErrorAction;
 Ljava/nio/charset/CoderResult;
+Ljava/nio/charset/spi/CharsetProvider;
 
+Ljava/nio/BaseByteBuffer;
+Ljava/nio/BufferFactory;
 Ljava/nio/ByteOrder;
 Ljava/nio/ByteBuffer;
 Ljava/nio/CharBuffer;
+Ljava/nio/DirectByteBuffer;
+Ljava/nio/DirectByteBuffer$SafeAddress;
+Ljava/nio/ReadWriteCharArrayBuffer;
+Ljava/nio/ReadWriteDirectByteBuffer;
+Ljava/nio/ReadWriteHeapByteBuffer;
 Ljava/security/AccessControlContext;
 Ljava/lang/ThreadLocal;
 # Used by ThreadLocal
@@ -320,6 +340,7 @@ Ljava/lang/SecurityManager;
 # class loading from zip files
 Ljava/util/zip/ZipFile;
 Ljava/util/zip/ZipFile$1;
+Ljava/util/zip/ZipFile$ZFEnum;
 
 Ljava/util/zip/ZipEntry;
 Ljava/util/zip/Inflater;
@@ -364,6 +385,7 @@ Ljava/util/jar/Manifest;
 Ljava/io/BufferedOutputStream;
 Ljava/io/BufferedInputStream;
 Ljava/io/ByteArrayInputStream;
+Ljava/io/ByteArrayOutputStream;
 Ljava/io/FileOutputStream;
 Ljava/io/PrintStream;
 Ljava/io/RandomAccessFile;
@@ -408,18 +430,39 @@ Ljava/util/logging/Level;
 [Ljava/util/logging/Level;
 Ljava/beans/PropertyChangeSupport;
 Ljava/io/FilePermission;
+Ljava/io/FilePermission$1;
+Ljava/io/FilePermissionCollection;
 
-
+Lorg/apache/harmony/archive/internal/nls/Messages;
+Lorg/apache/harmony/archive/internal/nls/Messages$1;
 Lorg/apache/harmony/kernel/vm/VM;
 Lorg/apache/harmony/luni/internal/net/www/protocol/file/Handler;
 Lorg/apache/harmony/luni/internal/net/www/protocol/file/FileURLConnection;
 Lorg/apache/harmony/luni/internal/net/www/protocol/jar/Handler;
 Lorg/apache/harmony/luni/internal/net/www/protocol/jar/JarURLConnection;
+Lorg/apache/harmony/luni/platform/AbstractMemorySpy;
+Lorg/apache/harmony/luni/platform/AdapterManager;
+Lorg/apache/harmony/luni/platform/Endianness;
+Lorg/apache/harmony/luni/platform/ICommonDataTypes;
 Lorg/apache/harmony/luni/platform/IFileSystem;
+Lorg/apache/harmony/luni/platform/IMemorySpy;
+Lorg/apache/harmony/luni/platform/IMemorySystem;
+Lorg/apache/harmony/luni/platform/OSComponentFactory;
+Lorg/apache/harmony/luni/platform/OSFileSystem;
+Lorg/apache/harmony/luni/platform/OSMemory;
+Lorg/apache/harmony/luni/platform/OSNetworkSystem;
+Lorg/apache/harmony/luni/platform/OSResourcesMonitor;
 Lorg/apache/harmony/luni/platform/Platform;
+Lorg/apache/harmony/luni/platform/PlatformAddress;
+Lorg/apache/harmony/luni/platform/PlatformAddressFactory;
+Lorg/apache/harmony/luni/platform/RuntimeMemorySpy;
+Lorg/apache/harmony/luni/util/Msg;
+Lorg/apache/harmony/luni/util/MsgHelp;
+Lorg/apache/harmony/luni/util/MsgHelp$1;
 Lorg/apache/harmony/luni/util/PriviAction;
 Lorg/apache/harmony/luni/util/Util;
 Lorg/apache/harmony/nio/FileChannelFactory;
+Lorg/apache/harmony/nio/internal/DirectBuffer;
 Lorg/apache/harmony/nio/internal/FileChannelImpl;
 Lorg/apache/harmony/nio/internal/FileChannelImpl$1;
 Lorg/apache/harmony/nio/internal/FileChannelImpl$RepositioningLock;
@@ -443,8 +486,15 @@ Lorg/apache/harmony/niochar/charset/ISO_8859_1$1;
 Lorg/apache/harmony/niochar/charset/ISO_8859_1$Decoder;
 Lorg/apache/harmony/niochar/charset/ISO_8859_1$Encoder;
 Lorg/apache/harmony/niochar/charset/ISO_8859_1;
+Lorg/apache/harmony/niochar/internal/nls/Messages;
 
 # Picked up from icu4j
 Lcom/ibm/icu/util/ULocale;
 Lcom/ibm/icu/util/ULocale$IDParser;
-
+Lcom/ibm/icu/charset/CharsetProviderICU;
+Lcom/ibm/icu/charset/CharsetUTF8$CharsetDecoderUTF8;
+Lcom/ibm/icu/charset/CharsetUTF8$CharsetEncoderUTF8;
+Lcom/ibm/icu/charset/CharsetUTF8;
+Lcom/ibm/icu/charset/Charset88591$CharsetDecoder88591;
+Lcom/ibm/icu/charset/Charset88591$CharsetEncoder88591;
+Lcom/ibm/icu/charset/Charset88591;
