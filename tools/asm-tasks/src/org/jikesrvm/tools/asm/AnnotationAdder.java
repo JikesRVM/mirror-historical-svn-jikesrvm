@@ -400,58 +400,53 @@ public final class AnnotationAdder {
       }
 
       // String
-      if (classLibrary.toLowerCase().equals("harmony")) {
-        addToAdapt(Uninterruptible.class, String.class.getMethod("length", new Class[0]));
-        addToAdapt(Uninterruptible.class,
-                   "java/lang/String",
-                   "getValue",
-                   "()[C");
+      if (!classLibrary.toLowerCase().equals("harmony")) {
+	  addToAdapt(Pure.class, String.class.getMethod("charAt", new Class[]{int.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("getBytes", new Class[]{String.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("getBytes", new Class[0]));
+	  addToAdapt(Pure.class, String.class.getMethod("equals", new Class[]{Object.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("equalsIgnoreCase", new Class[]{String.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("compareTo", new Class[]{String.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("compareToIgnoreCase", new Class[]{String.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("regionMatches", new Class[]{int.class, String.class, int.class, int.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("regionMatches", new Class[]{boolean.class, int.class, String.class, int.class, int.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("startsWith", new Class[]{String.class, int.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("startsWith", new Class[]{String.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("endsWith", new Class[]{String.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("hashCode", new Class[0]));
+	  addToAdapt(Pure.class, String.class.getMethod("indexOf", new Class[]{int.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("indexOf", new Class[]{int.class, int.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("lastIndexOf", new Class[]{int.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("lastIndexOf", new Class[]{int.class, int.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("indexOf", new Class[]{String.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("indexOf", new Class[]{String.class, int.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("lastIndexOf", new Class[]{String.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("lastIndexOf", new Class[]{String.class, int.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("substring", new Class[]{int.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("substring", new Class[]{int.class, int.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("subSequence", new Class[]{int.class, int.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("concat", new Class[]{String.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("replace", new Class[]{char.class, char.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("substring", new Class[]{int.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("matches", new Class[]{String.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("replaceFirst", new Class[]{String.class, String.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("replaceAll", new Class[]{String.class, String.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("toLowerCase", new Class[]{Locale.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("toLowerCase", new Class[0]));
+	  addToAdapt(Pure.class, String.class.getMethod("toUpperCase", new Class[]{Locale.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("toUpperCase", new Class[0]));
+	  addToAdapt(Pure.class, String.class.getMethod("trim", new Class[0]));
+	  addToAdapt(Pure.class, String.class.getMethod("valueOf", new Class[]{boolean.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("valueOf", new Class[]{char.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("valueOf", new Class[]{int.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("valueOf", new Class[]{long.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("valueOf", new Class[]{float.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("valueOf", new Class[]{double.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("intern", new Class[0]));
+	  addToAdapt(Pure.class, String.class.getMethod("codePointCount", new Class[]{int.class, int.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("offsetByCodePoints", new Class[]{int.class, int.class}));
+	  addToAdapt(Pure.class, String.class.getMethod("length", new Class[0]));
       }
-      addToAdapt(Pure.class, String.class.getMethod("charAt", new Class[]{int.class}));
-      addToAdapt(Pure.class, String.class.getMethod("getBytes", new Class[]{String.class}));
-      addToAdapt(Pure.class, String.class.getMethod("getBytes", new Class[0]));
-      addToAdapt(Pure.class, String.class.getMethod("equals", new Class[]{Object.class}));
-      addToAdapt(Pure.class, String.class.getMethod("equalsIgnoreCase", new Class[]{String.class}));
-      addToAdapt(Pure.class, String.class.getMethod("compareTo", new Class[]{String.class}));
-      addToAdapt(Pure.class, String.class.getMethod("compareToIgnoreCase", new Class[]{String.class}));
-      addToAdapt(Pure.class, String.class.getMethod("regionMatches", new Class[]{int.class, String.class, int.class, int.class}));
-      addToAdapt(Pure.class, String.class.getMethod("regionMatches", new Class[]{boolean.class, int.class, String.class, int.class, int.class}));
-      addToAdapt(Pure.class, String.class.getMethod("startsWith", new Class[]{String.class, int.class}));
-      addToAdapt(Pure.class, String.class.getMethod("startsWith", new Class[]{String.class}));
-      addToAdapt(Pure.class, String.class.getMethod("endsWith", new Class[]{String.class}));
-      addToAdapt(Pure.class, String.class.getMethod("hashCode", new Class[0]));
-      addToAdapt(Pure.class, String.class.getMethod("indexOf", new Class[]{int.class}));
-      addToAdapt(Pure.class, String.class.getMethod("indexOf", new Class[]{int.class, int.class}));
-      addToAdapt(Pure.class, String.class.getMethod("lastIndexOf", new Class[]{int.class}));
-      addToAdapt(Pure.class, String.class.getMethod("lastIndexOf", new Class[]{int.class, int.class}));
-      addToAdapt(Pure.class, String.class.getMethod("indexOf", new Class[]{String.class}));
-      addToAdapt(Pure.class, String.class.getMethod("indexOf", new Class[]{String.class, int.class}));
-      addToAdapt(Pure.class, String.class.getMethod("lastIndexOf", new Class[]{String.class}));
-      addToAdapt(Pure.class, String.class.getMethod("lastIndexOf", new Class[]{String.class, int.class}));
-      addToAdapt(Pure.class, String.class.getMethod("substring", new Class[]{int.class}));
-      addToAdapt(Pure.class, String.class.getMethod("substring", new Class[]{int.class, int.class}));
-      addToAdapt(Pure.class, String.class.getMethod("subSequence", new Class[]{int.class, int.class}));
-      addToAdapt(Pure.class, String.class.getMethod("concat", new Class[]{String.class}));
-      addToAdapt(Pure.class, String.class.getMethod("replace", new Class[]{char.class, char.class}));
-      addToAdapt(Pure.class, String.class.getMethod("substring", new Class[]{int.class}));
-      addToAdapt(Pure.class, String.class.getMethod("matches", new Class[]{String.class}));
-      addToAdapt(Pure.class, String.class.getMethod("replaceFirst", new Class[]{String.class, String.class}));
-      addToAdapt(Pure.class, String.class.getMethod("replaceAll", new Class[]{String.class, String.class}));
-      addToAdapt(Pure.class, String.class.getMethod("toLowerCase", new Class[]{Locale.class}));
-      addToAdapt(Pure.class, String.class.getMethod("toLowerCase", new Class[0]));
-      addToAdapt(Pure.class, String.class.getMethod("toUpperCase", new Class[]{Locale.class}));
-      addToAdapt(Pure.class, String.class.getMethod("toUpperCase", new Class[0]));
-      addToAdapt(Pure.class, String.class.getMethod("trim", new Class[0]));
-      addToAdapt(Pure.class, String.class.getMethod("valueOf", new Class[]{boolean.class}));
-      addToAdapt(Pure.class, String.class.getMethod("valueOf", new Class[]{char.class}));
-      addToAdapt(Pure.class, String.class.getMethod("valueOf", new Class[]{int.class}));
-      addToAdapt(Pure.class, String.class.getMethod("valueOf", new Class[]{long.class}));
-      addToAdapt(Pure.class, String.class.getMethod("valueOf", new Class[]{float.class}));
-      addToAdapt(Pure.class, String.class.getMethod("valueOf", new Class[]{double.class}));
-      addToAdapt(Pure.class, String.class.getMethod("intern", new Class[0]));
-      addToAdapt(Pure.class, String.class.getMethod("codePointCount", new Class[]{int.class, int.class}));
-      addToAdapt(Pure.class, String.class.getMethod("offsetByCodePoints", new Class[]{int.class, int.class}));
-      addToAdapt(Pure.class, String.class.getMethod("length", new Class[0]));
     } catch (Exception e) {
       System.out.println("Exception " + e);
       throw new Error(e);
