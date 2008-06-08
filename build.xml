@@ -1037,6 +1037,7 @@ Check to make sure all required properties are specified. This includes properti
             <pathelement location="${harmony.lib.dir}/instrument.jar"/>
             <pathelement location="${harmony.lib.dir}/nio.jar"/>
             <pathelement location="${harmony.lib.dir}/nio_char.jar"/>
+            <pathelement location="${harmony.lib.dir}/regex.jar"/>
             <pathelement location="${harmony.lib.dir}/security-kernel-stubs.jar"/>
             <pathelement location="${harmony.lib.dir}/security.jar"/>
           </bootclasspath>
@@ -1045,7 +1046,7 @@ Check to make sure all required properties are specified. This includes properti
           </classpath>
           <include name="Dummy.java"/>
           <include name="OptDummy.java"/>
-          <include name="gnu/**/*.java"/>
+          <include name="org/apache/**/*.java"/>
           <include name="sun/**/*.java"/>
           <include name="java/**/*.java"/>
           <include name="${arch-helper-class}"/>
@@ -1529,8 +1530,8 @@ Check to make sure all required properties are specified. This includes properti
       <arg value="${bl.dir}/jvm.C"/>
     </exec>
 
-    <!-- create casslib shared library -->
-    <condition property="classlib.dll" value="${target.dll-prefix}classlib${target.dll-ext}" else="">
+    <!-- create vmi shared library -->
+    <condition property="vmi.dll" value="${target.dll-prefix}vmi${target.dll-ext}" else="">
         <equals arg1="${classlib.provider}" arg2="Harmony"/>
     </condition>
     <if>
@@ -1539,11 +1540,12 @@ Check to make sure all required properties are specified. This includes properti
       </conditions>
       <sequential>
         <exec executable="${c.exe}" failonerror="true">
-          <arg line="-DLINUX=1 ${rvm.c++.args} -lpthread ${c++.librt} -L${harmony.lib.dir} -lhyprt"/>
+          <arg line="-DLINUX=1 ${rvm.c++.args} -lpthread ${c++.librt} -L${harmony.lib.dir} -lhyprt -lhyarchive -lhyzlib"/>
           <arg value="-o"/>
-          <arg value="${build.base}/${classlib.dll}"/>
+          <arg value="${build.base}/${vmi.dll}"/>
           <arg value="${bl.dir}/harmony.c"/>
           <arg value="libraryInterface/Harmony/ASF/native/vmls.c"/>
+          <arg value="-Wl,--version-script=${bl.dir}/harmony.exp"/>
         </exec>
       </sequential>
     </if>
@@ -1597,13 +1599,15 @@ Check to make sure all required properties are specified. This includes properti
           <arg value="-o"/>
           <arg value="${build.base}/JikesRVM"/>
           <arg value="-L${build.base}"/>
+	  <arg value="-L${harmony.lib.dir}"/>
           <arg value="-ldl"/>
 	  <arg value="-lrvm"/>
-          <arg value="-lclasslib"/>
-	  <arg value="-L${harmony.lib.dir}"/>
+          <arg value="-lvmi"/>
+          <arg value="-lhyarchive"/>
           <arg value="-lhyprt"/>
           <arg value="-lhythr"/>
           <arg value="-lhysig"/>
+          <arg value="-lhyzlib"/>
 	</exec>
       </sequential>
     </if>
