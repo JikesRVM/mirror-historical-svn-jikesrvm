@@ -21,14 +21,25 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.ByteBuffer;
+import java.security.CodeSource;
 import java.security.ProtectionDomain;
+import java.security.cert.Certificate;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Hashtable;
+import java.util.NoSuchElementException;
 import java.util.Vector;
 
+import org.jikesrvm.VM;
 import org.jikesrvm.classloader.VM_BootstrapClassLoader;
+import org.jikesrvm.classloader.VM_Class;
+import org.jikesrvm.classloader.VM_ClassLoader;
 import org.jikesrvm.classloader.VM_Type;
 import org.jikesrvm.runtime.VM_DynamicLibrary;
+
+import org.apache.harmony.lang.RuntimePermissionCollection;
 
 /**
  * <p>
@@ -48,16 +59,78 @@ import org.jikesrvm.runtime.VM_DynamicLibrary;
 public abstract class ClassLoader {
 
     /**
+     * empty set of certificates
+     */
+    private static final Certificate[] EMPTY_CERTIFICATES = new Certificate[0];
+
+    /**
+     * default protection domain.
+     */
+    private ProtectionDomain defaultDomain;
+  
+    /**
      * Map containing all packages defined in the class loader
      */
-    static HashMap<String, Package> definedPackages = new HashMap<String, Package>();
+    private final HashMap<String, Package> definedPackages;
+
+    /**
+     * Map containing all classes loaded by the class loader
+     */
+    private final HashMap<String, Class<?>> loadedClasses;
+
+    /**
+     * The following
+     * mapping is used <String name, Certificate[] certificates>, where name -
+     * the name of a package, certificates - array of certificates.
+     */
+    private final Hashtable<String, Certificate[]> packageCertificates;
 
     /**
      * The 'System' ClassLoader; also known as the bootstrap ClassLoader.
      * 
      * @see #getSystemClassLoader()
      */
-    static ClassLoader systemClassLoader;
+    private static ClassLoader systemClassLoader;
+
+    /**
+     * parent class loader
+     */
+    private final ClassLoader parentClassLoader;
+
+    /**
+     * Constructs a new instance of this class with the system class loader as
+     * its parent.
+     * 
+     * @throws SecurityException
+     *             if a security manager exists and it does not allow the
+     *             creation of new ClassLoaders.
+     */
+    protected ClassLoader() {
+	this(getSystemClassLoader());
+    }
+
+    /**
+     * Constructs a new instance of this class with the given class loader as
+     * its parent.
+     * 
+     * @param parentLoader
+     *            The ClassLoader to use as the new class loaders parent.
+     * @throws SecurityException
+     *             if a security manager exists and it does not allow the
+     *             creation of new ClassLoaders.
+     * @throws NullPointerException
+     *             if the parent is null.
+     */
+    protected ClassLoader(ClassLoader parentLoader) {
+	SecurityManager sc = System.getSecurityManager();
+        if (sc != null) {
+            sc.checkCreateClassLoader();
+        }
+        parentClassLoader = parentLoader;
+        definedPackages = new HashMap<String, Package>();
+        loadedClasses = new HashMap<String, Class<?>>();
+        packageCertificates =  new Hashtable<String, Certificate[]>();
+    }
 
     /**
      * <p>
@@ -85,7 +158,17 @@ public abstract class ClassLoader {
      *             the system class loader.
      */
     public static ClassLoader getSystemClassLoader() {
-      return VM_BootstrapClassLoader.getBootstrapClassLoader();
+        SecurityManager sc = System.getSecurityManager();
+        if (sc != null) {
+            // we use VMClassRegistry.getClassLoader(...) method instead of
+            // Class.getClassLoader() due to avoid redundant security
+            // checking
+            ClassLoader callerLoader = VM_Class.getClassLoaderFromStackFrame(1);
+            if (callerLoader != null && callerLoader != systemClassLoader) {
+                sc.checkPermission(RuntimePermissionCollection.GET_CLASS_LOADER_PERMISSION);
+            }
+        }
+        return VM_BootstrapClassLoader.getBootstrapClassLoader();
     }
 
     /**
@@ -98,7 +181,7 @@ public abstract class ClassLoader {
      * @see Class#getResource
      */
     public static URL getSystemResource(String resName) {
-        return null;
+	return getSystemClassLoader().getResource(resName);
     }
 
     /**
@@ -113,8 +196,8 @@ public abstract class ClassLoader {
      *             if an IO exception occurs
      */
     public static Enumeration<URL> getSystemResources(String resName)
-            throws IOException {
-        return null;
+	throws IOException {
+	return getSystemClassLoader().getResources(resName);
     }
 
     /**
@@ -129,35 +212,7 @@ public abstract class ClassLoader {
      * @see Class#getResourceAsStream
      */
     public static InputStream getSystemResourceAsStream(String resName) {
-        return null;
-    }
-
-    /**
-     * Constructs a new instance of this class with the system class loader as
-     * its parent.
-     * 
-     * @throws SecurityException
-     *             if a security manager exists and it does not allow the
-     *             creation of new ClassLoaders.
-     */
-    protected ClassLoader() {
-        super();
-    }
-
-    /**
-     * Constructs a new instance of this class with the given class loader as
-     * its parent.
-     * 
-     * @param parentLoader
-     *            The ClassLoader to use as the new class loaders parent.
-     * @throws SecurityException
-     *             if a security manager exists and it does not allow the
-     *             creation of new ClassLoaders.
-     * @throws NullPointerException
-     *             if the parent is null.
-     */
-    protected ClassLoader(ClassLoader parentLoader) {
-        super();
+	return getSystemClassLoader().getResourceAsStream(resName);
     }
 
     /**
@@ -174,8 +229,8 @@ public abstract class ClassLoader {
      */
     @Deprecated
     protected final Class<?> defineClass(byte[] classRep, int offset, int length)
-            throws ClassFormatError {
-        return null;
+	throws ClassFormatError {
+	return defineClass(null, classRep, offset, length);
     }
 
     /**
@@ -192,8 +247,8 @@ public abstract class ClassLoader {
      *            The length of the class file
      */
     protected final Class<?> defineClass(String className, byte[] classRep,
-            int offset, int length) throws ClassFormatError {
-        return null;
+					 int offset, int length) throws ClassFormatError {
+        return defineClass(className, classRep, offset, length, null);
     }
 
     /**
@@ -213,9 +268,53 @@ public abstract class ClassLoader {
      *            The protection domain this class should belongs to.
      */
     protected final Class<?> defineClass(String className, byte[] classRep,
-            int offset, int length, ProtectionDomain protectionDomain)
-            throws java.lang.ClassFormatError {
-        return null;
+					 int offset, int length, ProtectionDomain protectionDomain)
+	throws java.lang.ClassFormatError {
+        if (className != null && className.indexOf('/') != -1) {
+            throw new NoClassDefFoundError(
+		"The name is expected in binary (canonical) form,"
+		+ " therefore '/' symbols are not allowed: " + className);
+        }
+        if (offset < 0 || length < 0 || offset + length > classRep.length) {
+            throw new IndexOutOfBoundsException(
+                "Either offset or len is outside of the data array");
+        }
+        if (protectionDomain == null) {
+            if (defaultDomain == null) {
+                defaultDomain = new ProtectionDomain(
+		    new CodeSource(null, (Certificate[])null), null, this, null);            
+            }        
+            protectionDomain = defaultDomain;
+        }
+        Certificate[] certs = null;
+        String packageName = null;
+        if (className != null) {
+            if (className.startsWith("java.")) {
+                throw new SecurityException(
+                    "It is not allowed to define classes inside the java.* package: " + className);
+            }
+            int lastDot = className.lastIndexOf('.');
+            packageName = lastDot == -1 ? "" : className.substring(0, lastDot);
+            certs = getCertificates(packageName, protectionDomain.getCodeSource());
+        }
+        Class<?> clazz = defineClass0(className, classRep, offset, length);
+        clazz.setProtectionDomain(protectionDomain);
+        if (certs != null) {
+            packageCertificates.put(packageName, certs);
+        }
+        return clazz;
+    }
+  
+    /**
+     * Loads new type into the classloader name space. 
+     * The class loader is marked as defining class loader. 
+     */
+    private Class<?> defineClass0(String name, byte[] data, int offset, int len) 
+	throws ClassFormatError {
+	VM_Type vmType = VM_ClassLoader.defineClassInternal(name, data, offset, len, this);
+	Class<?> ans = vmType.getClassForType();
+	loadedClasses.put(name, ans);
+	return ans;
     }
 
     /**
@@ -236,7 +335,7 @@ public abstract class ClassLoader {
      * @since 1.5
      */
     protected final Class<?> defineClass(String name, ByteBuffer b,
-            ProtectionDomain protectionDomain) throws ClassFormatError {
+					 ProtectionDomain protectionDomain) throws ClassFormatError {
         byte[] temp = new byte[b.remaining()];
         b.get(temp);
         return defineClass(name, temp, 0, temp.length, protectionDomain);
@@ -254,8 +353,8 @@ public abstract class ClassLoader {
      *             if the class cannot be found.
      */
     protected Class<?> findClass(String className)
-            throws ClassNotFoundException {
-        return null;
+	throws ClassNotFoundException {
+        throw new ClassNotFoundException("Can not find class " + className);
     }
 
     /**
@@ -268,7 +367,7 @@ public abstract class ClassLoader {
      *            The name of the class to search for.
      */
     protected final Class<?> findLoadedClass(String className) {
-        return null;
+	return loadedClasses.get(className);
     }
 
     /**
@@ -282,8 +381,8 @@ public abstract class ClassLoader {
      *             if the class cannot be found.
      */
     protected final Class<?> findSystemClass(String className)
-            throws ClassNotFoundException {
-        return null;
+	throws ClassNotFoundException {
+        return getSystemClassLoader().loadClass(className, false);
     }
 
     /**
@@ -295,7 +394,14 @@ public abstract class ClassLoader {
      *             loader to be retrieved.
      */
     public final ClassLoader getParent() {
-        return null;
+        SecurityManager sc = System.getSecurityManager();
+        if (sc != null) {
+            ClassLoader callerLoader = VM_Class.getClassLoaderFromStackFrame(1);
+            if (callerLoader != null && !callerLoader.isSameOrAncestor(this)) {
+                sc.checkPermission(RuntimePermissionCollection.GET_CLASS_LOADER_PERMISSION);
+            }
+        }
+        return parentClassLoader;
     }
 
     /**
@@ -309,7 +415,11 @@ public abstract class ClassLoader {
      * @see Class#getResource(String)
      */
     public URL getResource(String resName) {
-        return null;
+        String nm = resName.toString(); // NPE if null
+        URL foundResource = (parentClassLoader == null)
+            ? VM_BootstrapClassLoader.getBootstrapClassLoader().findResource(nm)
+            : parentClassLoader.getResource(nm);
+        return foundResource == null ? findResource(nm) : foundResource;
     }
 
     /**
@@ -324,7 +434,43 @@ public abstract class ClassLoader {
      *             if an IO exception occurs
      */
     public Enumeration<URL> getResources(String resName) throws IOException {
-      return new Vector<URL>().elements();
+	org.jikesrvm.VM.sysWriteln("getResources " + resName);
+        ClassLoader cl = this;
+        final ArrayList<Enumeration<URL>> foundResources = 
+            new ArrayList<Enumeration<URL>>();
+        Enumeration<URL> resourcesEnum;
+        do {
+            resourcesEnum = cl.findResources(resName);
+            if (resourcesEnum != null && resourcesEnum.hasMoreElements()) {
+                foundResources.add(resourcesEnum);
+            }            
+        } while ((cl = cl.parentClassLoader) != null);
+        resourcesEnum = VM_BootstrapClassLoader.getBootstrapClassLoader().findResources(resName);
+        if (resourcesEnum != null && resourcesEnum.hasMoreElements()) {
+            foundResources.add(resourcesEnum);
+        }
+        return new Enumeration<URL>() {
+	    private int position = foundResources.size() - 1;
+	    public boolean hasMoreElements() {
+		while (position >= 0) {
+		    if (foundResources.get(position).hasMoreElements()) {
+			return true;
+		    }
+		    position--;
+		}
+		return false;
+	    }
+
+	    public URL nextElement() {
+		while (position >= 0) {
+		    try {
+			return (foundResources.get(position)).nextElement();
+		    } catch (NoSuchElementException e) {}
+		    position--;
+		}
+		throw new NoSuchElementException();
+	    }
+	};
     }
 
     /**
@@ -338,6 +484,13 @@ public abstract class ClassLoader {
      * @see Class#getResourceAsStream
      */
     public InputStream getResourceAsStream(String resName) {
+	URL foundResource = getResource(resName);
+        if (foundResource != null) {
+            try {
+                return foundResource.openStream();
+            } catch (IOException e) {
+            }
+        }
         return null;
     }
 
@@ -352,9 +505,9 @@ public abstract class ClassLoader {
      *             if the class could not be found.
      */
     public Class<?> loadClass(String className) throws ClassNotFoundException {
-      return VM_BootstrapClassLoader.getBootstrapClassLoader().loadClass(className, false);
+	return loadClass(className, false);
     }
-
+  
     /**
      * Loads the class with the specified name, optionally linking the class
      * after load. Steps are: 1) Call findLoadedClass(className) to determine if
@@ -370,8 +523,39 @@ public abstract class ClassLoader {
      *             if the class could not be found.
      */
     protected Class<?> loadClass(String className, boolean resolveClass)
-            throws ClassNotFoundException {
-      return VM_BootstrapClassLoader.getBootstrapClassLoader().loadClass(className, resolveClass);
+	throws ClassNotFoundException {
+	if (className == null) {
+            throw new NullPointerException();
+        }
+        if(className.indexOf("/") != -1) {
+            throw new ClassNotFoundException(className);
+        }
+
+        Class<?> clazz = findLoadedClass(className);
+        if (clazz == null) {
+            if (parentClassLoader == null) {
+                clazz = VM_BootstrapClassLoader.getBootstrapClassLoader().loadClass(className, false);
+            } else {
+                try {
+                    clazz = parentClassLoader.loadClass(className);
+                    // NB DRLVM does a trick here to determine the class loader
+                    // for a class, for Jikes RVM this is unnecessary as we have
+                    // the class loader in the type reference already pulled
+                    // from the stack, bytecode or specified
+                } catch (ClassNotFoundException e) {
+                }
+            }
+            if (clazz == null) {
+                clazz = findClass(className);
+                if (clazz == null) {
+                    throw new ClassNotFoundException(className);
+                }
+            }
+        }
+        if (resolveClass) {
+            resolveClass(clazz);
+        }
+        return clazz;
     }
 
     /**
@@ -384,10 +568,10 @@ public abstract class ClassLoader {
      *             if clazz is null.
      */
     protected final void resolveClass(Class<?> clazz) {
-      VM_Type cls = JikesRVMSupport.getTypeForClass(clazz);
-      cls.resolve();
-      cls.instantiate();
-      cls.initialize();
+	VM_Type cls = JikesRVMSupport.getTypeForClass(clazz);
+	cls.resolve();
+	cls.instantiate();
+	cls.initialize();
     }
 
     /**
@@ -407,12 +591,12 @@ public abstract class ClassLoader {
      * @see Class#getClassLoaderImpl()
      */
     final boolean isSystemClassLoader() {
-        return false;
+        return VM_BootstrapClassLoader.getBootstrapClassLoader() == this;
     }
 
     /**
      * <p>
-     * Answers true if the receiver is ancestor of another class loader.
+     * Answers true if the receiver is the same or ancestor of another class loader.
      * </p>
      * <p>
      * Note that this method has package visibility only. It is defined here to
@@ -424,7 +608,13 @@ public abstract class ClassLoader {
      *            A child candidate
      * @return <code>true</code> if the receiver is ancestor of the parameter
      */
-    final boolean isAncestorOf(ClassLoader child) {
+    final boolean isSameOrAncestor(ClassLoader child) {
+        while (child != null) {
+            if (this == child) {
+                return true;
+            }
+            child = child.parentClassLoader;
+        }
         return false;
     }
 
@@ -456,7 +646,8 @@ public abstract class ClassLoader {
      *             when an error occurs
      */
     protected Enumeration<URL> findResources(String resName) throws IOException {
-      return new Vector<URL>().elements();
+	// TODO: create a more efficient empty enum enumeration
+	return new Vector<URL>(0).elements();
     }
 
     /**
@@ -481,7 +672,21 @@ public abstract class ClassLoader {
      * @return The package requested, or null
      */
     protected Package getPackage(String name) {
-        return null;
+        Package pkg = null;
+        if (name == null) {
+            throw new NullPointerException();
+        }
+        synchronized (definedPackages) {
+            pkg = definedPackages.get(name);
+        }
+        if (pkg == null) {
+            if (parentClassLoader == null) {
+                pkg = VM_BootstrapClassLoader.getBootstrapClassLoader().getPackage(name);
+            } else {
+                pkg = parentClassLoader.getPackage(name);
+            }
+        }
+        return pkg;
     }
 
     /**
@@ -490,7 +695,9 @@ public abstract class ClassLoader {
      * @return All the packages known to this classloader
      */
     protected Package[] getPackages() {
-        return null;
+        ArrayList<Package> packages = new ArrayList<Package>();
+        fillPackages(packages);
+        return packages.toArray(new Package[packages.size()]);
     }
 
     /**
@@ -518,10 +725,19 @@ public abstract class ClassLoader {
      *             if the Package already exists
      */
     protected Package definePackage(String name, String specTitle,
-            String specVersion, String specVendor, String implTitle,
-            String implVersion, String implVendor, URL sealBase)
-            throws IllegalArgumentException {
-        return null;
+				    String specVersion, String specVendor, String implTitle,
+				    String implVersion, String implVendor, URL sealBase)
+	throws IllegalArgumentException {
+        synchronized (definedPackages) {
+            if (getPackage(name) != null) {
+                throw new IllegalArgumentException("Package " + name
+						   + "has been already defined.");
+            }
+            Package pkg = new Package(this, name, specTitle, specVersion, specVendor,
+				      implTitle, implVersion, implVendor, sealBase);
+            definedPackages.put(name, pkg);
+            return pkg;
+        }
     }
 
     /**
@@ -532,6 +748,7 @@ public abstract class ClassLoader {
      * @return signers The signers for the class
      */
     final Object[] getSigners(Class<?> c) {
+	VM.sysWriteln("TODO ClassLoader.getSigners");
         return null;
     }
 
@@ -544,6 +761,7 @@ public abstract class ClassLoader {
      *            The signers for the class
      */
     protected final void setSigners(Class<?> c, Object[] signers) {
+        VM.sysWriteln("TODO ClassLoader.setSigners");
         return;
     }
 
@@ -578,7 +796,7 @@ public abstract class ClassLoader {
      * @return the ClassLoader at the specified depth
      */
     static final ClassLoader getStackClassLoader(int depth) {
-        return null;
+        return VM_Class.getClassLoaderFromStackFrame(depth);
     }
 
     /**
@@ -592,7 +810,17 @@ public abstract class ClassLoader {
      * @return a ClassLoader or null for the bootstrap ClassLoader
      */
     static ClassLoader callerClassLoader() {
-        return null;
+	if (org.jikesrvm.VM.runningVM) {
+	    ClassLoader ans = VM_Class.getClassLoaderFromStackFrame(1);
+	    if (ans == VM_BootstrapClassLoader.getBootstrapClassLoader()) {
+		return null;
+	    } else {
+		return ans;
+	    }
+	}
+	else {
+	    return null;
+	}
     }
 
     /**
@@ -612,10 +840,45 @@ public abstract class ClassLoader {
      *             if the library was not allowed to be loaded
      */
     static void loadLibraryWithClassLoader(String libName, ClassLoader loader) {
-        // TODO: support loader argument
-	VM_DynamicLibrary.load(libName);
+        SecurityManager sc = System.getSecurityManager();
+        if (sc != null) {
+	    sc.checkLink(libName);
+        }
+        if (loader != null) {
+	    String fullLibName = loader.findLibrary(libName);
+	    if (fullLibName != null) {
+		loadLibrary(fullLibName, loader, null);
+		return;
+	    }
+        }       
+        String path = System.getProperty("java.library.path", "");
+        path += System.getProperty("vm.boot.library.path", "");
+        loadLibrary(libName, loader, path);
     }
 
+    static final void loadLibrary (String libName, ClassLoader loader, String libraryPath) {
+        SecurityManager sc = System.getSecurityManager();
+        if (sc != null) {
+	    sc.checkLink(libName);
+        }
+        String pathSeparator = System.getProperty("path.separator");
+        String fileSeparator = System.getProperty("file.separator");
+	org.jikesrvm.VM.sysWriteln("path.separator=", pathSeparator);
+	org.jikesrvm.VM.sysWriteln("file.separator=", fileSeparator);
+	org.jikesrvm.VM.sysWriteln("libraryPath=", libraryPath);
+        String st[] = fracture(libraryPath, pathSeparator);
+        int l = st.length;
+        for (int i = 0; i < l; i++) {
+	    // TODO: support loader argument
+	    org.jikesrvm.VM.sysWriteln("load(" + st[i]+ fileSeparator + libName + ")");
+	    if (VM_DynamicLibrary.load(st[i] + fileSeparator + libName) != 0) {
+		return;
+	    }
+        }
+	org.jikesrvm.VM.sysWriteln("ULE(" + libName + ")");
+        throw new UnsatisfiedLinkError(libName);
+    }
+  
     /**
      * This method must be provided by the VM vendor, as it is called by
      * java.lang.System.load(). System.load() cannot call Runtime.load() because
@@ -633,8 +896,8 @@ public abstract class ClassLoader {
      *             if the library could not be loaded
      */
     static void loadLibraryWithPath(String libName, ClassLoader loader,
-            String libraryPath) {
-        return;
+				    String libraryPath) {
+	throw new Error("TODO - no reference DRLVM code");
     }
 
     /**
@@ -646,6 +909,7 @@ public abstract class ClassLoader {
      *            Enable or disable assertion
      */
     public void setClassAssertionStatus(String cname, boolean enable) {
+        VM.sysWriteln("TODO ClassLoader.setClassAssertionStatus");
         return;
     }
 
@@ -658,6 +922,7 @@ public abstract class ClassLoader {
      *            Enable or disable assertion
      */
     public void setPackageAssertionStatus(String pname, boolean enable) {
+        VM.sysWriteln("TODO ClassLoader.setPackageAssertionStatus");
         return;
     }
 
@@ -668,6 +933,7 @@ public abstract class ClassLoader {
      *            Enable or disable assertion
      */
     public void setDefaultAssertionStatus(boolean enable) {
+        VM.sysWriteln("TODO ClassLoader.setDefaultAssertionStatus");
         return;
     }
 
@@ -676,6 +942,7 @@ public abstract class ClassLoader {
      * 
      */
     public void clearAssertionStatus() {
+	VM.sysWriteln("TODO ClassLoader.clearAssertionStatus");
         return;
     }
 
@@ -691,6 +958,7 @@ public abstract class ClassLoader {
      *            the name of class.
      */
     boolean getClassAssertionStatus(String cname) {
+	VM.sysWriteln("TODO ClassLoader.getClassAssertionStatus");
         return false;
     }
 
@@ -705,6 +973,7 @@ public abstract class ClassLoader {
      *            the name of package.
      */
     boolean getPackageAssertionStatus(String pname) {
+	VM.sysWriteln("TODO ClassLoader.setPackageAssertionStatus");
         return false;
     }
 
@@ -714,6 +983,107 @@ public abstract class ClassLoader {
      * @return boolean the default assertion status.
      */
     boolean getDefaultAssertionStatus() {
+	VM.sysWriteln("TODO ClassLoader.getDefaultAssertionStatus");
         return false;
+    }
+
+    /**
+     * Helper method to avoid StringTokenizer using.
+     */
+    private static String[] fracture(String str, String sep) {
+        if (str.length() == 0) {
+            return new String[0];
+        }
+        ArrayList<String> res = new ArrayList<String>();
+        int in = 0;
+        int curPos = 0;
+        int i = str.indexOf(sep);
+        int len = sep.length();
+        while (i != -1) {
+            String s = str.substring(curPos, i); 
+            res.add(s);
+            in++;
+            curPos = i + len;
+            i = str.indexOf(sep, curPos);
+        }
+
+        len = str.length();
+        if (curPos <= len) {
+            String s = str.substring(curPos, len); 
+            in++;
+            res.add(s);
+        }
+
+        return res.toArray(new String[in]);
+    }
+
+
+    /**
+     * Helper method for defineClass(...)
+     * 
+     * @return null if the package already has the same set of certificates, if
+     *         first class in the package is being defined then array of
+     *         certificates extracted from codeSource is returned.
+     * @throws SecurityException if the package has different set of
+     *         certificates than codeSource
+     */
+    private Certificate[] getCertificates(String packageName,
+                                          CodeSource codeSource) {
+        Certificate[] definedCerts = packageCertificates
+            .get(packageName);
+        Certificate[] classCerts = codeSource != null
+            ? codeSource.getCertificates() : EMPTY_CERTIFICATES;
+        classCerts = classCerts != null ? classCerts : EMPTY_CERTIFICATES;
+        // not first class in the package
+        if (definedCerts != null) {
+            if (!compareAsSet(definedCerts, classCerts)) {
+                throw new SecurityException("It is prohobited to define a "
+					    + "class which has different set of signers than "
+					    + "other classes in this package");
+            }
+            return null;
+        }
+        return classCerts;
+    }
+
+    /**
+     * Helper method for the getPackages() method.
+     */
+    private void fillPackages(ArrayList<Package> packages) {
+        if (parentClassLoader != null) {
+            parentClassLoader.fillPackages(packages);
+        }
+        synchronized (definedPackages) {
+            packages.addAll(definedPackages.values());
+        }
+    }
+
+    /**
+     * Neither certs1 nor certs2 cann't be equal to null.
+     */
+    private boolean compareAsSet(Certificate[] certs1, Certificate[] certs2) {
+        // TODO Is it possible to have multiple instances of same
+        // certificate in array? This implementation assumes that it is
+        // not possible.
+        if (certs1.length != certs1.length) {
+            return false;
+        }
+        if (certs1.length == 0) {
+            return true;
+        }
+        boolean[] hasEqual = new boolean[certs1.length];
+        for (int i = 0; i < certs1.length; i++) {
+            boolean isMatch = false;
+            for (int j = 0; j < certs2.length; j++) {
+                if (!hasEqual[j] && certs1[i].equals(certs2[j])) {
+                    hasEqual[j] = isMatch = true;
+                    break;
+                }
+            }
+            if (!isMatch) {
+                return false;
+            }
+        }
+        return true;
     }
 }
