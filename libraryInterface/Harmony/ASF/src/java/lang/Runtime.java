@@ -20,8 +20,11 @@ package java.lang;
 import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
 
 import org.jikesrvm.VM;
+import org.jikesrvm.classloader.VM_Class;
+import org.jikesrvm.runtime.VM_DynamicLibrary;
 
 /**
  * This class, with the exception of the exec() APIs, must be implemented by the
@@ -189,7 +192,26 @@ public class Runtime {
      * @throws SecurityException if the library was not allowed to be loaded
      */
     public void load(String pathName) {
-        return;
+        load0(pathName, VM_Class.getClassLoaderFromStackFrame(1), true);
+    }
+
+    void load0(String filename, ClassLoader cL, boolean check) throws SecurityException, UnsatisfiedLinkError {
+        if (check) {
+            if (filename == null) {
+                throw new NullPointerException();
+            }
+
+            SecurityManager currentSecurity = System.getSecurityManager();
+
+            if (currentSecurity != null) {
+                currentSecurity.checkLink(filename);
+            }
+        }
+	if (VM_DynamicLibrary.load(filename) == 0) {
+            // TODO: make use of cL
+	    throw new UnsatisfiedLinkError("Can not find the library: " +
+					   filename);
+	}
     }
 
     /**
@@ -200,7 +222,86 @@ public class Runtime {
      * @throws SecurityException if the library was not allowed to be loaded
      */
     public void loadLibrary(String libName) {
-        return;
+        loadLibrary0(libName, VM_Class.getClassLoaderFromStackFrame(1), true);
+    }
+
+    void loadLibrary0(String libname, ClassLoader cL, boolean check) throws SecurityException, UnsatisfiedLinkError {
+        if (check) {
+            if (libname == null) {
+                throw new NullPointerException();
+            }
+
+            SecurityManager currentSecurity = System.getSecurityManager();
+
+            if (currentSecurity != null) {
+                currentSecurity.checkLink(libname);
+            }
+        }
+
+        String libFullName = null;
+
+        if (cL!=null) {
+            libFullName = cL.findLibrary(libname);
+        }
+        if (libFullName == null) {
+            String allPaths = null;
+
+            //XXX: should we think hard about security policy for this block?:
+            String jlp = System.getProperty("java.library.path");
+            String vblp = System.getProperty("vm.boot.library.path");
+            String udp = System.getProperty("user.dir");
+            String pathSeparator = System.getProperty("path.separator");
+            String fileSeparator = System.getProperty("file.separator");
+            allPaths = (jlp!=null?jlp:"")+(vblp!=null?pathSeparator+vblp:"")+(udp!=null?pathSeparator+udp:"");
+
+            if (allPaths.length()==0) {
+                throw new UnsatisfiedLinkError("Can not find the library: " +
+					       libname);
+            }
+
+            //String[] paths = allPaths.split(pathSeparator);
+            String[] paths;
+            {
+                ArrayList<String> res = new ArrayList<String>();
+                int curPos = 0;
+                int l = pathSeparator.length();
+                int i = allPaths.indexOf(pathSeparator);
+                int in = 0;
+                while (i != -1) {
+                    String s = allPaths.substring(curPos, i);
+                    res.add(s);
+                    in++;
+                    curPos = i + l;
+                    i = allPaths.indexOf(pathSeparator, curPos);
+                }
+
+                if (curPos <= allPaths.length()) {
+                    String s = allPaths.substring(curPos, allPaths.length());
+                    in++;
+                    res.add(s);
+                }
+
+                paths = (String[]) res.toArray(new String[in]);
+            }
+
+            libname = System.mapLibraryName(libname);
+            for (int i=0; i<paths.length; i++) {
+                if (paths[i]==null) {
+                    continue;
+                }
+                libFullName = paths[i] + fileSeparator + libname;
+                try {
+                    this.load0(libFullName, cL, false);
+                    return;
+                } catch (UnsatisfiedLinkError e) {
+                }
+            }
+        } else {
+            this.load0(libFullName, cL, false);
+            return;
+        }
+        throw new UnsatisfiedLinkError("Can not find the library: " +
+				       libname);
     }
 
     /**

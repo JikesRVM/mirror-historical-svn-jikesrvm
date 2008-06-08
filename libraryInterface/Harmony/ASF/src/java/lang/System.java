@@ -32,6 +32,8 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.PropertyPermission;
 
+import org.jikesrvm.VM_CommandLineArgs;
+import org.jikesrvm.classloader.VM_Class;
 import org.jikesrvm.objectmodel.VM_ObjectModel;
 import org.jikesrvm.runtime.VM_Time;
 
@@ -48,17 +50,17 @@ public final class System {
     /**
      * Default input stream
      */
-    public static final InputStream in;
+    public static InputStream in;
 
     /**
      * Default output stream
      */
-    public static final PrintStream out;
+    public static PrintStream out;
 
     /**
      * Default error output stream
      */
-    public static final PrintStream err;
+    public static PrintStream err;
 
     // Get a ref to the Runtime instance for faster lookup
     private static final Runtime RUNTIME = Runtime.getRuntime();
@@ -94,7 +96,7 @@ public final class System {
     @SuppressWarnings("unused")
     public static void setIn(InputStream newIn) {
         SecurityManager secMgr = System.getSecurityManager();
-        setFieldImpl("in", newIn);
+	in = newIn;
     }
 
     /**
@@ -106,7 +108,7 @@ public final class System {
     @SuppressWarnings("unused")
     public static void setOut(java.io.PrintStream newOut) {
         SecurityManager secMgr = System.getSecurityManager();
-        setFieldImpl("out", newOut);
+	out = newOut;
     }
 
     /**
@@ -118,6 +120,7 @@ public final class System {
     @SuppressWarnings("unused")
     public static void setErr(java.io.PrintStream newErr) {
         SecurityManager secMgr = System.getSecurityManager();
+	err = newErr;
     }
 
     /**
@@ -506,13 +509,18 @@ public final class System {
         systemProperties.put("com.ibm.oti.configuration", "clear");
         systemProperties.put("com.ibm.oti.configuration.dir", "jclClear");
 
-        String[] list = getPropertyList();
-        for (int i = 0; i < list.length; i += 2) {
-            String key = list[i];
-            if (key == null) {
-                break;
+        String[] list = VM_CommandLineArgs.getEnvironmentArgs();
+        for (int i = 0; i < list.length; i ++) {
+            if (list[i] == null) {
+                continue;
             }
-            systemProperties.put(key, list[i + 1]);
+	    int index = list[i].indexOf('=');
+            String key = list[i].substring(0, index);
+            String value = list[i].substring(index+1);
+            if (key == null || key.length() == 0) {
+                continue;
+            }
+            systemProperties.put(key, value);
         }
 
         String consoleEncoding = (String) systemProperties.get("console.encoding");
@@ -523,7 +531,6 @@ public final class System {
             consoleEncoding = platformEncoding;
             systemProperties.put("console.encoding", consoleEncoding);
         }
-
     }
 
     /**
@@ -731,17 +738,6 @@ public final class System {
     }
 
     /**
-     * Answers an array of Strings containing key..value pairs (in consecutive
-     * array elements) which represent the starting values for the system
-     * properties as provided by the virtual machine.
-     * 
-     * @return the default values for the system properties.
-     */
-    private static String[] getPropertyList() {
-	return new String[0]; // TODO
-    }
-
-    /**
      * Return the requested encoding. 0 - initialize locale 1 - detected
      * platform encoding 2 - command line defined file.encoding 3 - command line
      * defined os.encoding
@@ -780,11 +776,10 @@ public final class System {
      * @param pathName the path of the file to be loaded
      */
     public static void load(String pathName) {
-        SecurityManager smngr = System.getSecurityManager();
-        if (smngr != null) {
-            smngr.checkLink(pathName);
-        }
-        ClassLoader.loadLibraryWithPath(pathName, ClassLoader.callerClassLoader(), null);
+        Runtime.getRuntime().load0(
+	    pathName,
+	    VM_Class.getClassLoaderFromStackFrame(1),
+	    true);
     }
 
     /**
@@ -796,8 +791,11 @@ public final class System {
      * @throws SecurityException if the library was not allowed to be loaded
      */
     public static void loadLibrary(String libName) {
-        ClassLoader.loadLibraryWithClassLoader(libName, ClassLoader.callerClassLoader());
-    }
+	Runtime.getRuntime().loadLibrary0(
+	    libName,
+	    VM_Class.getClassLoaderFromStackFrame(1),
+	    true);
+     }
 
     /**
      * Provides a hint to the virtual machine that it would be useful to attempt
@@ -879,7 +877,8 @@ public final class System {
      * @return the platform specific filename for the library
      */
     public static String mapLibraryName(String userLibName) {
-	throw new Error("TODO");
+	//TODO: support other formats
+	return "lib" + userLibName + ".so";
     }
 
     /**
