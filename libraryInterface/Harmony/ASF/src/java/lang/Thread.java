@@ -217,8 +217,6 @@ public class Thread implements Runnable {
     } else {
       vmThread = vmt;
     }
-    VM.sysWriteln("TODO");
-    VM_Scheduler.dumpStack();
     stacksize = stack;
     this.runnable = runnable;
   }
@@ -791,7 +789,6 @@ public class Thread implements Runnable {
      * @see Thread#run
      */
     public void start() {
-      org.jikesrvm.VM.sysWriteln("Starting thread " + vmThread);
       vmThread.start();  
     }
 

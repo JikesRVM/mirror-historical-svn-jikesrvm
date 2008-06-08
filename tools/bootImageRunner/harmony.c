@@ -16,7 +16,7 @@
  */
 
 #define LINUX
-#define TRACE 1
+#define TRACE 0
 #include "bootImageRunner.h"
 #include "vmi.h"
 #include "zipsup.h"
