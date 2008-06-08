@@ -440,6 +440,8 @@ Lorg/apache/harmony/luni/internal/net/www/protocol/file/Handler;
 Lorg/apache/harmony/luni/internal/net/www/protocol/file/FileURLConnection;
 Lorg/apache/harmony/luni/internal/net/www/protocol/jar/Handler;
 Lorg/apache/harmony/luni/internal/net/www/protocol/jar/JarURLConnection;
+Lorg/apache/harmony/luni/internal/nls/Messages;
+Lorg/apache/harmony/luni/internal/nls/Messages$1;
 Lorg/apache/harmony/luni/platform/AbstractMemorySpy;
 Lorg/apache/harmony/luni/platform/AdapterManager;
 Lorg/apache/harmony/luni/platform/Endianness;
@@ -472,6 +474,7 @@ Lorg/apache/harmony/nio/internal/ReadOnlyFileChannel;
 Lorg/apache/harmony/nio/internal/ReadWriteFileChannel;
 Lorg/apache/harmony/nio/internal/WriteOnlyFileChannel;
 Lorg/apache/harmony/nio/internal/nls/Messages;
+Lorg/apache/harmony/nio/internal/nls/Messages$1;
 Lorg/apache/harmony/niochar/CharsetProviderImpl;
 Lorg/apache/harmony/niochar/CharsetProviderImpl$1;
 Lorg/apache/harmony/niochar/charset/UTF_8$1;
@@ -487,6 +490,7 @@ Lorg/apache/harmony/niochar/charset/ISO_8859_1$Decoder;
 Lorg/apache/harmony/niochar/charset/ISO_8859_1$Encoder;
 Lorg/apache/harmony/niochar/charset/ISO_8859_1;
 Lorg/apache/harmony/niochar/internal/nls/Messages;
+Lorg/apache/harmony/niochar/internal/nls/Messages$1;
 
 # Picked up from icu4j
 Lcom/ibm/icu/util/ULocale;
