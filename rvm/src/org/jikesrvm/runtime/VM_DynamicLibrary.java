@@ -37,8 +37,7 @@ public final class VM_DynamicLibrary {
    * Add symbol for the boot image runner to find symbols within it.
    */
   public static void boot() {
-    // TODO: Harmony remove hack
-    System.loadLibrary("dist/prototype_x86_64-linux/librvmdynlib.so");
+    System.loadLibrary("rvmdynlib");
   }
 
   /**
