@@ -209,7 +209,7 @@ public class Throwable implements java.io.Serializable {
 		    String methodName = vmElement.getMethodName();
 		    if (methodName == null) methodName = "";
 		    boolean isNative = vmElement.isNative();
-		    elements[i] = new StackTraceElement(fileName, className, methodName, lineNumber);
+		    elements[i] = new StackTraceElement(className, methodName, fileName, lineNumber);
 		}
 		return elements;
 	    } catch (Throwable t) {
