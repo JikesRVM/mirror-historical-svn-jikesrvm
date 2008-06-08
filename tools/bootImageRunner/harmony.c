@@ -125,31 +125,30 @@ struct VMIZipFunctionTable * JNICALL GetZipFunctions (VMInterface * vmi)
 
 JavaVMInitArgs * JNICALL GetInitArgs (VMInterface * vmi)
 {
-    fprintf(stderr, "UNIMPLEMENTED VMI call GetInitArgs\n");
-    return NULL;
+    return JavaArgs;
 }
 
 vmiError JNICALL GetSystemProperty (VMInterface * vmi, char *key, char **valuePtr)
 {
-    fprintf(stderr, "UNIMPLEMENTED VMI call GetSystemProperty\n");
+    if (TRACE) fprintf(stderr, "UNIMPLEMENTED VMI call GetSystemProperty\n");
     return VMI_ERROR_UNIMPLEMENTED;
 }
 
 vmiError JNICALL SetSystemProperty (VMInterface * vmi, char *key, char *value)
 {
-    fprintf(stderr, "UNIMPLEMENTED VMI call SetSystemProperty\n");
+    if (TRACE) fprintf(stderr, "UNIMPLEMENTED VMI call SetSystemProperty\n");
     return VMI_ERROR_UNIMPLEMENTED;
 }
 
 vmiError JNICALL CountSystemProperties (VMInterface * vmi, int *countPtr)
 {
-    fprintf(stderr, "UNIMPLEMENTED VMI call CountSystemProperties\n");
+    if (TRACE) fprintf(stderr, "UNIMPLEMENTED VMI call CountSystemProperties\n");
     return VMI_ERROR_UNIMPLEMENTED;
 }
 
 vmiError JNICALL IterateSystemProperties (VMInterface * vmi, vmiSystemPropertyIterator iterator, void *userData)
 {
-    fprintf(stderr, "UNIMPLEMENTED VMI call IterateSystemProperties\n");
+    if (TRACE) fprintf(stderr, "UNIMPLEMENTED VMI call IterateSystemProperties\n");
     return VMI_ERROR_UNIMPLEMENTED;
 }
 
