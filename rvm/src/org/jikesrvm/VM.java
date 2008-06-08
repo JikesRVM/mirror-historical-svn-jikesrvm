@@ -208,8 +208,8 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
 
     // Initialize class loader.
     //
-    if (verboseBoot >= 1) VM.sysWriteln("Initializing bootstrap class loader");
     String bootstrapClasses = VM_CommandLineArgs.getBootstrapClasses();
+    if (verboseBoot >= 1) VM.sysWriteln("Initializing bootstrap class loader: ", bootstrapClasses);
     VM_ClassLoader.boot();      // Wipe out cached application class loader
     VM_BootstrapClassLoader.boot(bootstrapClasses);
 
@@ -261,6 +261,7 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     runClassInitializer("java.lang.ThreadLocalMap");
     // Possibly fix VMAccessController's contexts and inGetContext fields
     runClassInitializer("java.security.VMAccessController");
+    runClassInitializer("java.security.AccessController");
 
     if (verboseBoot >= 1) VM.sysWriteln("Booting VM_Lock");
     VM_Lock.boot();
@@ -282,8 +283,8 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     VM_Scheduler.getCurrentThread().initializeJNIEnv();
 
     // TODO - Harmony make this conditional and not explicit
-    System.loadLibrary("dist/prototype_x86_64-linux/libhyluni.so");
-    System.loadLibrary("dist/prototype_x86_64-linux/libhythr.so");
+    System.loadLibrary("hyluni");
+    System.loadLibrary("hythr");
     runClassInitializer("java.io.File"); // needed for when we initialize the
     // system/application class loader.
     runClassInitializer("java.lang.String");
@@ -306,13 +307,16 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     runClassInitializer("java.nio.charset.Charset");
     runClassInitializer("java.nio.charset.CharsetEncoder");
     runClassInitializer("java.nio.charset.CoderResult");
+    runClassInitializer("org.apache.harmony.niochar.CharsetProviderImpl");
 
     runClassInitializer("java.io.PrintWriter"); // Uses System.getProperty
     runClassInitializer("java.io.PrintStream"); // Uses System.getProperty
+    VM.sysWriteln("Default locale ", java.util.Locale.getDefault().toString());
     runClassInitializer("java.util.Locale");
+    VM.sysWriteln("Default locale ", java.util.Locale.getDefault().toString());
     runClassInitializer("java.util.ResourceBundle");
     runClassInitializer("java.util.zip.CRC32");
-    System.loadLibrary("dist/prototype_x86_64-linux/libhyarchive.so");
+    System.loadLibrary("hyarchive");
     runClassInitializer("java.util.zip.Inflater");
     runClassInitializer("java.util.zip.DeflaterHuffman");
     runClassInitializer("java.util.zip.InflaterDynHeader");
@@ -320,15 +324,21 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
 
     // Run class intializers that require JNI
     if (verboseBoot >= 1) VM.sysWriteln("Running late class initializers");
-    System.loadLibrary("javaio");
+    //System.loadLibrary("javaio");
     runClassInitializer("java.lang.Math");
     runClassInitializer("java.util.TreeMap");
     runClassInitializer("gnu.java.nio.VMChannel");
     runClassInitializer("gnu.java.nio.FileChannelImpl");
 
     runClassInitializer("java.io.FileDescriptor");
+    runClassInitializer("java.io.FilePermission");
     runClassInitializer("java.util.jar.JarFile");
     runClassInitializer("java.util.zip.ZipFile$PartialInputStream");
+    runClassInitializer("java.util.zip.ZipFile");
+    runClassInitializer("org.apache.harmony.luni.platform.OSMemory");
+    runClassInitializer("org.apache.harmony.luni.platform.Platform");
+    runClassInitializer("org.apache.harmony.luni.platform.AbstractMemorySpy");
+    runClassInitializer("org.apache.harmony.luni.platform.PlatformAddress");
 
     runClassInitializer("java.lang.VMDouble");
     runClassInitializer("java.util.PropertyPermission");
@@ -402,6 +412,18 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     // java.security.JikesRVMSupport.fullyBootedVM();
 
     runClassInitializer("java.lang.ClassLoader$StaticData");
+
+    VM_Entrypoints.luni1.setObjectValueUnchecked(null, null);
+    VM_Entrypoints.luni2.setObjectValueUnchecked(null, null);
+    VM_Entrypoints.luni3.setObjectValueUnchecked(null, null);
+    VM_Entrypoints.luni4.setObjectValueUnchecked(null, null);
+    VM_Entrypoints.luni5.setObjectValueUnchecked(null, null);
+    runClassInitializer("java.lang.String$ConsolePrintStream");
+    runClassInitializer("org.apache.harmony.luni.util.Msg");
+    runClassInitializer("org.apache.harmony.archive.internal.nls.Messages");
+    runClassInitializer("org.apache.harmony.luni.internal.nls.Messages");
+    runClassInitializer("org.apache.harmony.nio.internal.nls.Messages");
+    runClassInitializer("org.apache.harmony.niochar.internal.nls.Messages");
 
     // Allow profile information to be read in from a file
     //
