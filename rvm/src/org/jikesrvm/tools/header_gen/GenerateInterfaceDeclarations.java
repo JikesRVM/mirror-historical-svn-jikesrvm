@@ -550,12 +550,12 @@ public class GenerateInterfaceDeclarations {
     pln("VM_JNIEnvironment_JNIExternalFunctions_offset = ", offset);
 
     // fields in java.net.InetAddress
-    /* TODO: Harmony
-    offset = VM_Entrypoints.inetAddressAddressField.getOffset();
-    pln("java_net_InetAddress_address_offset = ", offset);
-    offset = VM_Entrypoints.inetAddressFamilyField.getOffset();
-    pln("java_net_InetAddress_family_offset = ", offset);
-    */
+    if (VM.BuildForGnuClasspath) {
+      offset = VM_Entrypoints.inetAddressAddressField.getOffset();
+      pln("java_net_InetAddress_address_offset = ", offset);
+      offset = VM_Entrypoints.inetAddressFamilyField.getOffset();
+      pln("java_net_InetAddress_family_offset = ", offset);
+    }
     // fields in java.net.SocketImpl
     //
     offset = VM_Entrypoints.socketImplAddressField.getOffset();

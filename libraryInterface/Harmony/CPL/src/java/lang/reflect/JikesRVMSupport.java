@@ -141,6 +141,10 @@ public class JikesRVMSupport {
     return new Constructor<T>(m);
   }
 
+  public static Object createVMConstructor(VM_Method m) {
+    throw new Error("Harmony doesn't provide the VMConstructor API");
+  }
+
   public static VM_Field getFieldOf(Field f) {
     throw new Error("TODO");
   }

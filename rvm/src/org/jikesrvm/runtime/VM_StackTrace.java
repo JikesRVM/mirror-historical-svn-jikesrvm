@@ -471,14 +471,14 @@ public class VM_StackTrace {
         compiledMethod = getCompiledMethod(element);
       }
       // (2) remove any VMThrowable frames
-/* TODO - Harmony
-      while((element < compiledMethods.length) &&
-            (compiledMethod != null) &&
-            compiledMethod.getMethod().getDeclaringClass().getClassForType() == java.lang.VMThrowable.class) {
-        element++;
-        compiledMethod = getCompiledMethod(element);
+      if (VM.BuildForGnuClasspath) {
+        while((element < compiledMethods.length) &&
+              (compiledMethod != null) &&
+              compiledMethod.getMethod().getDeclaringClass().getClassForType().getName().equals("java.lang.VMThrowable")) {
+          element++;
+          compiledMethod = getCompiledMethod(element);
+        }
       }
-*/
       // (3) remove any Throwable frames
       while((element < compiledMethods.length) &&
             (compiledMethod != null) &&

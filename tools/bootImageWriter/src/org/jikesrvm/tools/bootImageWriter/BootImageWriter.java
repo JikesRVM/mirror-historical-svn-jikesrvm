@@ -415,7 +415,7 @@ public class BootImageWriter extends BootImageWriterMessages
           fail("argument syntax error: Got a -classlib flag without a following class library name");
         classLibrary = args[i].toLowerCase().intern();
         continue;
-      }      
+      }
       // name of code image file
       if (args[i].equals("-oc")) {
         if (++i >= args.length)
@@ -2023,11 +2023,11 @@ public class BootImageWriter extends BootImageWriterMessages
       } else if (jdkType.equals(java.lang.Byte.class) &&
                  rvmFieldName.equals("CACHE") && rvmFieldType.isArrayType()) {
         VM_Statics.setSlotContents(rvmFieldOffset, new Byte[256]);
-        return true;        
+        return true;
       } else if (jdkType.equals(java.lang.Throwable.class) &&
                  rvmFieldName.equals("zeroLengthStackTrace") && rvmFieldType.isArrayType()) {
         VM_Statics.setSlotContents(rvmFieldOffset, new StackTraceElement[0]);
-        return true;        
+        return true;
       } else {
         // unknown static field
         return false;
@@ -2256,17 +2256,17 @@ public class BootImageWriter extends BootImageWriterMessages
         String fieldName;
         Object value;
         if (rvmFieldName.equals("countryCode")) {
-	  value = ((java.util.Locale)jdkObject).getCountry();
-	  fieldName = "countryCode";
-	} else if (rvmFieldName.equals("languageCode")) {
-	  value = ((java.util.Locale)jdkObject).getLanguage();
-	  fieldName = "languageCode";
-	} else if (rvmFieldName.equals("variantCode")) {
-	  value = ((java.util.Locale)jdkObject).getVariant();
-	  fieldName = "languageCode";
-	} else {
+          value = ((java.util.Locale)jdkObject).getCountry();
+          fieldName = "countryCode";
+        } else if (rvmFieldName.equals("languageCode")) {
+          value = ((java.util.Locale)jdkObject).getLanguage();
+          fieldName = "languageCode";
+        } else if (rvmFieldName.equals("variantCode")) {
+          value = ((java.util.Locale)jdkObject).getVariant();
+          fieldName = "languageCode";
+        } else {
           return false;
-	}
+        }
         if (verbose >= 2) traceContext.push(value.getClass().getName(),
                                             "java.util.Locale",
                                             fieldName);
@@ -2376,7 +2376,7 @@ public class BootImageWriter extends BootImageWriterMessages
           if (verbose >= 2) traceContext.push("VMConstructor",
                                               "java.lang.Constructor",
                                               "cons");
-          Object vmcons = null; // TODO: Harmony - java.lang.reflect.JikesRVMSupport.createVMConstructor(constructor);
+          Object vmcons = java.lang.reflect.JikesRVMSupport.createVMConstructor(constructor);
           Address imageAddress = BootImageMap.findOrCreateEntry(vmcons).imageAddress;
           if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
             // object not part of bootimage: install null reference

@@ -1035,7 +1035,7 @@ public final class Class<T> implements Serializable, Type, AnnotatedElement, Gen
   }
 
   // TODO: Harmony
-  static final Class[] getStackClasses(int maxDepth, boolean stopAtPrivileged) {
+  static Class[] getStackClasses(int maxDepth, boolean stopAtPrivileged) {
     return null;
   }
 }

@@ -359,8 +359,10 @@ public class VM_Entrypoints {
   public static final VM_Field edgeCountersField =
       getField(org.jikesrvm.compilers.baseline.VM_EdgeCounts.class, "data", int[][].class);
 
-  public static final VM_Field inetAddressAddressField = null; // TODO: Harmony - getField(java.net.InetAddress.class, "address", int.class);
-  public static final VM_Field inetAddressFamilyField = null; // TODO: Harmony - getField(java.net.InetAddress.class, "family", int.class);
+  public static final VM_Field inetAddressAddressField = VM.BuildForGnuClasspath ?
+      getField(java.net.InetAddress.class, "address", int.class) : null;
+  public static final VM_Field inetAddressFamilyField = VM.BuildForGnuClasspath ?
+      getField(java.net.InetAddress.class, "family", int.class) : null;
 
   public static final VM_Field socketImplAddressField =
       getField(java.net.SocketImpl.class, "address", java.net.InetAddress.class);
@@ -381,7 +383,7 @@ public class VM_Entrypoints {
   public static final VM_NormalMethod optResolveMethod;
   public static final VM_NormalMethod optNewArrayArrayMethod;
   public static final VM_NormalMethod optNew2DArrayMethod;
-  public static final VM_NormalMethod sysArrayCopy = null; // TODO: Fix after Harmony integration
+  public static final VM_NormalMethod sysArrayCopy;
 
   static {
     if (VM.BuildForOptCompiler) {
@@ -408,6 +410,12 @@ public class VM_Entrypoints {
           getMethod(org.jikesrvm.compilers.opt.runtimesupport.OptLinker.class, "newArrayArray", "(I[II)Ljava/lang/Object;");
       optNew2DArrayMethod =
           getMethod(org.jikesrvm.compilers.opt.runtimesupport.OptLinker.class, "new2DArray", "(IIII)Ljava/lang/Object;");
+      if (VM.BuildForGnuClasspath) {
+        sysArrayCopy = getMethod("Ljava/lang/VMSystem;", "arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V");
+        sysArrayCopy.setRuntimeServiceMethod(false);
+      } else {
+        sysArrayCopy = null;
+      }
     } else {
       specializedMethodsField = null;
       osrOrganizerQueueLockField = null;
@@ -420,6 +428,7 @@ public class VM_Entrypoints {
       optResolveMethod = null;
       optNewArrayArrayMethod = null;
       optNew2DArrayMethod = null;
+      sysArrayCopy = null;
     }
   }
 
