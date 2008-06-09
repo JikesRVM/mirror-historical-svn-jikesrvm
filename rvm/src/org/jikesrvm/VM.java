@@ -292,9 +292,10 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     if (verboseBoot >= 1) VM.sysWriteln("Initializing JNI for boot thread");
     VM_Scheduler.getCurrentThread().initializeJNIEnv();
 
-    // TODO - Harmony make this conditional and not explicit
-    System.loadLibrary("hyluni");
-    System.loadLibrary("hythr");
+    if (VM.BuildForHarmony) {
+      System.loadLibrary("hyluni");
+      System.loadLibrary("hythr");
+    }
     runClassInitializer("java.io.File"); // needed for when we initialize the
     // system/application class loader.
     runClassInitializer("java.lang.String");
@@ -322,7 +323,9 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
       runClassInitializer("java.nio.charset.CharsetEncoder");
     }
     runClassInitializer("java.nio.charset.CoderResult");
-    runClassInitializer("org.apache.harmony.niochar.CharsetProviderImpl");
+    if (VM.BuildForHarmony) {
+      runClassInitializer("org.apache.harmony.niochar.CharsetProviderImpl");
+    }
 
     runClassInitializer("java.io.PrintWriter"); // Uses System.getProperty
     System.setProperty("line.separator", "\n");
@@ -330,7 +333,9 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     runClassInitializer("java.util.Locale");
     runClassInitializer("java.util.ResourceBundle");
     runClassInitializer("java.util.zip.CRC32");
-    System.loadLibrary("hyarchive");
+    if (VM.BuildForHarmony) {
+      System.loadLibrary("hyarchive");
+    }
     runClassInitializer("java.util.zip.Inflater");
     if (VM.BuildForGnuClasspath) {
       runClassInitializer("java.util.zip.DeflaterHuffman");
@@ -339,7 +344,9 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     }
     // Run class intializers that require JNI
     if (verboseBoot >= 1) VM.sysWriteln("Running late class initializers");
-    //System.loadLibrary("javaio");
+    if (VM.BuildForGnuClasspath) {
+      System.loadLibrary("javaio");
+    }
     runClassInitializer("java.lang.Math");
     runClassInitializer("java.util.TreeMap");
     if (VM.BuildForGnuClasspath) {
@@ -353,11 +360,12 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
       runClassInitializer("java.util.zip.ZipFile$PartialInputStream");
     }
     runClassInitializer("java.util.zip.ZipFile");
-    runClassInitializer("org.apache.harmony.luni.platform.OSMemory");
-    runClassInitializer("org.apache.harmony.luni.platform.Platform");
-    runClassInitializer("org.apache.harmony.luni.platform.AbstractMemorySpy");
-    runClassInitializer("org.apache.harmony.luni.platform.PlatformAddress");
-
+    if (VM.BuildForHarmony) {
+      runClassInitializer("org.apache.harmony.luni.platform.OSMemory");
+      runClassInitializer("org.apache.harmony.luni.platform.Platform");
+      runClassInitializer("org.apache.harmony.luni.platform.AbstractMemorySpy");
+      runClassInitializer("org.apache.harmony.luni.platform.PlatformAddress");
+    }
     if (VM.BuildForGnuClasspath) {
       runClassInitializer("java.lang.VMDouble");
     }
@@ -402,8 +410,10 @@ public class VM extends VM_Properties implements VM_Constants, VM_ExitStatus {
     if (VM.verboseClassLoading || verboseBoot >= 1) VM.sysWrite("[VM booted]\n");
 
     // set up JikesRVM socket I/O
-    //if (verboseBoot >= 1) VM.sysWriteln("Initializing socket factories");
-    //JikesRVMSocketImpl.boot();
+    if (VM.BuildForGnuClasspath) {
+      if (verboseBoot >= 1) VM.sysWriteln("Initializing socket factories");
+      JikesRVMSocketImpl.boot();
+    }
 
     if (VM.BuildForAdaptiveSystem) {
       if (verboseBoot >= 1) VM.sysWriteln("Initializing adaptive system");
