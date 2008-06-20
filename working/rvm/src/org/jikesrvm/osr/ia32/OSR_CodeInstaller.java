@@ -116,8 +116,8 @@ public abstract class OSR_CodeInstaller implements BaselineConstants {
       VM.sysWrite("JTOC register ");
       VM.sysWriteHex(Magic.getTocPointer());
       VM.sysWriteln();
-      VM.sysWrite("Processor register ");
-      VM.sysWriteHex(Magic.objectAsAddress(Magic.getProcessorRegister()));
+      VM.sysWrite("Thread register ");
+      VM.sysWriteHex(Magic.objectAsAddress(Magic.getThreadRegister()));
       VM.sysWriteln();
 
       VM.sysWriteln("tsfromFPOffset ", tsfromFPOffset);

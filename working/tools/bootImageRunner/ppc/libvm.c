@@ -341,7 +341,6 @@ int HardwareTrapMethodId;
 /* TOC offset of Runtime.deliverHardwareException */
 Offset DeliverHardwareExceptionOffset;
 Offset DumpStackAndDieOffset;      // TOC offset of Scheduler.dumpStackAndDie
-static Offset ProcessorsOffset;    // TOC offset of Scheduler.processors[]
 Offset DebugRequestedOffset;       // TOC offset of Scheduler.debugRequested
 
 typedef void (*SIGNAL_HANDLER)(int); // Standard unix signal handler.
@@ -712,8 +711,8 @@ cTrapHandler(int signum, int UNUSED zero, sigcontext *context)
                 rvmPTR_ARG(faultingAddress));
         fprintf(SysTraceFile,"             fp=" FMTrvmPTR "\n",
                 rvmPTR_ARG(GET_GPR(save,FP)));
-       fprintf(SysTraceFile,"             pr=" FMTrvmPTR "\n",
-               rvmPTR_ARG(GET_GPR(save,Constants_PROCESSOR_REGISTER)));
+       fprintf(SysTraceFile,"             tr=" FMTrvmPTR "\n",
+               rvmPTR_ARG(GET_GPR(save,Constants_THREAD_REGISTER)));
        fprintf(SysTraceFile,"trap/exception: type=%s\n", strsignal(signum));
        fprintf(SysTraceFile,"             ip=" FMTrvmPTR "\n", rvmPTR_ARG(ip));
        fprintf(SysTraceFile,"          instr=0x%08x\n", instruction);
@@ -738,9 +737,7 @@ cTrapHandler(int signum, int UNUSED zero, sigcontext *context)
 
    /* Copy the trapped register set into the current thread's "hardware
       exception registers" save area. */
-    Address thread =
-      *(Address *)(GET_GPR(save,Constants_PROCESSOR_REGISTER) +
-                      Processor_activeThread_offset);
+    Address thread = GET_GPS(save,Constants_THREAD_REGISTER);
     Address *registers = *(Address **)
         ((char *)thread + RVMThread_exceptionRegisters_offset);
 
@@ -959,11 +956,6 @@ cTrapHandler(int signum, int UNUSED zero, sigcontext *context)
             }
             *(Address *)((char *)thread + RVMThread_stackLimit_offset)
                 = stackLimit;
-            Address *limit_address =
-                (Address *)(GET_GPR(save,Constants_PROCESSOR_REGISTER) +
-                               Processor_activeThreadStackLimit_offset);
-
-            *limit_address = stackLimit;
 
             break;
         }
@@ -1216,7 +1208,6 @@ createVM(int vmInSeparateThread)
     //    Scheduler.threads[], Scheduler.DebugRequested
     //
     DumpStackAndDieOffset = bootRecord.dumpStackAndDieOffset;
-    ProcessorsOffset = bootRecord.greenProcessorsOffset;
     DebugRequestedOffset = bootRecord.debugRequestedOffset;
 
     if (lib_verbose) {
@@ -1349,17 +1340,10 @@ createVM(int vmInSeparateThread)
     // set up initial stack frame
     //
     Address  jtoc = bootRecord.tocRegister;
-    Address *processors = *(Address **)(bootRecord.tocRegister +
-                                              bootRecord.greenProcessorsOffset);
-    Address  pr = processors[GreenScheduler_PRIMORDIAL_PROCESSOR_ID];
+    Address  tr = *(Address*)(bootRecord.tocRegister+bootThreadOffset);
     Address tid = bootRecord.tiRegister;
     Address  ip = bootRecord.ipRegister;
     Address  sp = bootRecord.spRegister;
-
-    // initialize the thread id in the primordial processor object.
-    //
-    *(unsigned int *) (pr + Processor_threadId_offset)
-      = Scheduler_PRIMORDIAL_THREAD_INDEX << ThinLockConstants_TL_THREAD_ID_SHIFT;
 
     // Set up thread stack
     Address  fp = sp - Constants_STACKFRAME_HEADER_SIZE;  // size in bytes
@@ -1389,7 +1373,7 @@ createVM(int vmInSeparateThread)
         /* Try starting the VM in a separate pthread.  We need to synchronize
            before exiting. */
         startupRegs[0] = jtoc;
-        startupRegs[1] = pr;
+        startupRegs[1] = tr;
         startupRegs[2] = tid;
         startupRegs[3] = fp;
 
@@ -1411,10 +1395,10 @@ createVM(int vmInSeparateThread)
     } else {
         if (lib_verbose) {
             fprintf(SysTraceFile, "%s: calling boot thread: jtoc = " FMTrvmPTR
-                    "   pr = " FMTrvmPTR "   tid = %d   fp = " FMTrvmPTR "\n",
-                    Me, rvmPTR_ARG(jtoc), rvmPTR_ARG(pr), tid, rvmPTR_ARG(fp));
+                    "   tr = " FMTrvmPTR "   tid = %d   fp = " FMTrvmPTR "\n",
+                    Me, rvmPTR_ARG(jtoc), rvmPTR_ARG(tr), tid, rvmPTR_ARG(fp));
         }
-        bootThread(jtoc, pr, tid, fp);
+        bootThread(jtoc, tr, tid, fp);
         fprintf(SysErrorFile, "Unexpected return from bootThread\n");
         return 1;
     }
@@ -1449,13 +1433,6 @@ extern "C" void *
 getJTOC()
 {
     return (void*) VmToc;
-}
-
-// Get offset of Scheduler.processors in JTOC.
-extern "C" Offset
-getProcessorsOffset()
-{
-    return ProcessorsOffset;
 }
 
 

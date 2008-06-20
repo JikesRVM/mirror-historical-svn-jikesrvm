@@ -29,10 +29,8 @@ import org.vmmagic.unboxed.*;
  * objects which have become garbage.  Those which have are made live
  * again are moved to the live object list for finalization.
  *
- * Elsewhere, there is a distinguished Finalizer thread which
- * enqueues itself on the Scheduler finalizerQueue.  At the end of gc,
- * if needed and if the Scheduler finalizerQueue is not empty,
- * the finalizer thread is scheduled to be run when gc is completed.
+ * Elsewhere, there is a distinguished Finalizer thread which waits
+ * until it is notified by the GC (at end of GC).
  */
 @Uninterruptible public class Finalizer {
 

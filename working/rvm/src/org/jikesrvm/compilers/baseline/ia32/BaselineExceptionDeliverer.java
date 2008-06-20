@@ -21,8 +21,6 @@ import org.jikesrvm.ia32.BaselineConstants;
 import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.runtime.ExceptionDeliverer;
 import org.jikesrvm.runtime.Magic;
-import org.jikesrvm.scheduler.Processor;
-import org.jikesrvm.scheduler.Scheduler;
 import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
@@ -41,7 +39,7 @@ public abstract class BaselineExceptionDeliverer extends ExceptionDeliverer impl
                                Throwable exceptionObject, ArchitectureSpecific.Registers registers) {
     Address fp = registers.getInnermostFramePointer();
     NormalMethod method = (NormalMethod) compiledMethod.getMethod();
-    RVMThread myThread = Scheduler.getCurrentThread();
+    RVMThread myThread = RVMThread.getCurrentThread();
 
     // reset sp to "empty expression stack" state
     //

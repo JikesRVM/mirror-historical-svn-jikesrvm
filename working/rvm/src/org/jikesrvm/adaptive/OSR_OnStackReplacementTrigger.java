@@ -16,7 +16,6 @@ import org.jikesrvm.adaptive.controller.Controller;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
-import org.jikesrvm.scheduler.Scheduler;
 import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.runtime.Magic;
 import org.vmmagic.pragma.NoInline;
@@ -35,7 +34,7 @@ public class OSR_OnStackReplacementTrigger {
   @Uninterruptible
   public static void trigger(int ypTakenInCMID, Offset tsFromFPoff, Offset ypTakenFPoff, int whereFrom) {
 
-    RVMThread thread = Scheduler.getCurrentThread();
+    RVMThread thread = RVMThread.getCurrentThread();
     CompiledMethod ypTakenInCM = CompiledMethods.getCompiledMethod(ypTakenInCMID);
     RVMMethod ypTakenInMethod = ypTakenInCM.getMethod();
     boolean isInBootImage = ypTakenInMethod.getDeclaringClass().isInBootImage();

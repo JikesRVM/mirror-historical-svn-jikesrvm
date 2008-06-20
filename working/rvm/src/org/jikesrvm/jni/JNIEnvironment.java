@@ -16,7 +16,7 @@ import org.jikesrvm.VM;
 import org.jikesrvm.SizeConstants;
 import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.runtime.Magic;
-import org.jikesrvm.scheduler.Processor;
+import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Untraced;
@@ -85,7 +85,7 @@ public class JNIEnvironment implements SizeConstants {
    */
   @Entrypoint
   @Untraced
-  protected Processor savedPRreg;
+  protected RVMThread savedTRreg;
 
   /**
    * true if the bottom stack frame is native,

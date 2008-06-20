@@ -14,9 +14,10 @@ package org.jikesrvm.runtime;
 
 import org.jikesrvm.apt.annotations.GenerateImplementation;
 import org.jikesrvm.apt.annotations.SysCallTemplate;
-import org.jikesrvm.scheduler.Processor;
+import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
+import org.vmmagic.unboxed.Word;
 import org.vmmagic.unboxed.Extent;
 import org.vmmagic.unboxed.Offset;
 
@@ -55,10 +56,6 @@ public abstract class SysCall {
 
   @SysCallTemplate
   public abstract void sysConsoleWriteDouble(double value, int postDecimalDigits);
-
-  // Register offsets of static fields in the JTOC
-  @SysCallTemplate
-  public abstract void sysRegisterStaticFieldOffsets(int gcStatusOffset, int timerTickOffset, int reportedTimerTickOffset);
 
   // startup/shutdown
   @SysCallTemplate
@@ -277,68 +274,9 @@ public abstract class SysCall {
   @SysCallTemplate
   public abstract Address sysDlsym(Address libHandler, byte[] symbolName);
 
-  // network
-  @SysCallTemplate
-  public abstract int sysNetSocketCreate(int isStream);
-
-  @SysCallTemplate
-  public abstract int sysNetSocketPort(int fd);
-
-  @SysCallTemplate
-  public abstract int sysNetSocketSndBuf(int fd);
-
-  @SysCallTemplate
-  public abstract int sysNetSocketFamily(int fd);
-
-  @SysCallTemplate
-  public abstract int sysNetSocketLocalAddress(int fd);
-
-  @SysCallTemplate
-  public abstract int sysNetSocketBind(int fd, int family, int localAddress, int localPort);
-
-  @SysCallTemplate
-  public abstract int sysNetSocketConnect(int fd, int family, int remoteAddress, int remotePort);
-
-  @SysCallTemplate
-  public abstract int sysNetSocketListen(int fd, int backlog);
-
-  @SysCallTemplate
-  public abstract int sysNetSocketAccept(int fd, java.net.SocketImpl connectionObject);
-
-  @SysCallTemplate
-  public abstract int sysNetSocketLinger(int fd, int enable, int timeout);
-
-  @SysCallTemplate
-  public abstract int sysNetSocketNoDelay(int fd, int enable);
-
-  @SysCallTemplate
-  public abstract int sysNetSocketNoBlock(int fd, int enable);
-
-  @SysCallTemplate
-  public abstract int sysNetSocketClose(int fd);
-
-  @SysCallTemplate
-  public abstract int sysNetSocketShutdown(int fd, int how);
-
-  @SysCallTemplate
-  public abstract int sysNetSelect(int[] allFds, int rc, int wc, int ec);
-
-  // process management
-  @SysCallTemplate
-  public abstract void sysWaitPids(Address pidArray, Address exitStatusArray, int numPids);
-
   // system startup pthread sync. primitives
   @SysCallTemplate
   public abstract void sysCreateThreadSpecificDataKeys();
-
-  @SysCallTemplate
-  public abstract void sysInitializeStartupLocks(int howMany);
-
-  @SysCallTemplate
-  public abstract void sysWaitForVirtualProcessorInitialization();
-
-  @SysCallTemplate
-  public abstract void sysWaitForMultithreadingStart();
 
   // system calls for alignment checking
   @SysCallTemplate

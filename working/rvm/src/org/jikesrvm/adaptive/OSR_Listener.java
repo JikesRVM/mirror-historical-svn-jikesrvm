@@ -16,7 +16,6 @@ import org.jikesrvm.adaptive.controller.Controller;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.runtime.Magic;
-import org.jikesrvm.scheduler.Scheduler;
 import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
@@ -29,11 +28,12 @@ import org.vmmagic.unboxed.Offset;
 public class OSR_Listener {
 
   public static boolean checkForOSRPromotion(int whereFrom, Address yieldpointServiceMethodFP) {
-    if (Scheduler.getCurrentThread().isIdleThread()) return false;
-    if (Scheduler.getCurrentThread().isSystemThread()) return false;
+    if (RVMThread.getCurrentThread().isSystemThread()) return false;
 
     // check if there are pending osr request
-    if ((Controller.osrOrganizer != null) && (Controller.osrOrganizer.osr_flag)) {
+    // PNT: this SHOULD NOT be necessary, but I have a feeling that it sadly
+    // is.
+    if (false && (Controller.osrOrganizer != null) && (Controller.osrOrganizer.osr_flag)) {
       Controller.osrOrganizer.activate();
     }
 
@@ -50,7 +50,7 @@ public class OSR_Listener {
       Address tsFromFP = yieldpointServiceMethodFP;
       Address realFP = Magic.getCallerFramePointer(tsFromFP);
 
-      Address stackbeg = Magic.objectAsAddress(Scheduler.getCurrentThread().getStack());
+      Address stackbeg = Magic.objectAsAddress(RVMThread.getCurrentThread().getStack());
 
       Offset tsFromFPoff = tsFromFP.diff(stackbeg);
       Offset realFPoff = realFP.diff(stackbeg);
@@ -65,7 +65,7 @@ public class OSR_Listener {
     Address tsFromFP = yieldpointServiceMethodFP;
     Address realFP = Magic.getCallerFramePointer(tsFromFP);
     int ypTakenInCMID = Magic.getCompiledMethodID(realFP);
-    Address stackbeg = Magic.objectAsAddress(Scheduler.getCurrentThread().getStack());
+    Address stackbeg = Magic.objectAsAddress(RVMThread.getCurrentThread().getStack());
 
     Offset tsFromFPoff = tsFromFP.diff(stackbeg);
     Offset realFPoff = realFP.diff(stackbeg);

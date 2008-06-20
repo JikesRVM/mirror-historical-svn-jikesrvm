@@ -18,7 +18,7 @@ import org.mmtk.utility.Log;
 import org.jikesrvm.VM;
 import org.jikesrvm.runtime.BootRecord;
 import org.jikesrvm.runtime.Magic;
-import org.jikesrvm.scheduler.Scheduler;
+import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.memorymanagers.mminterface.CollectorThread;
 
 import org.vmmagic.unboxed.*;
@@ -66,7 +66,7 @@ public class ScanBootImage implements Constants {
 
     /* figure out striding */
     int stride = CollectorThread.numCollectors()<<LOG_CHUNK_BYTES;
-    CollectorThread collector = Magic.threadAsCollectorThread(Scheduler.getCurrentThread());
+    CollectorThread collector = Magic.threadAsCollectorThread(RVMThread.getCurrentThread());
     int start = (collector.getGCOrdinal() - 1)<<LOG_CHUNK_BYTES;
     Address cursor = mapStart.plus(start);
 

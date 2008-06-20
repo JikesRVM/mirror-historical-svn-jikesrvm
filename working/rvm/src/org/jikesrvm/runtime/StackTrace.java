@@ -26,7 +26,6 @@ import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.compilers.opt.runtimesupport.OptCompiledMethod;
 import org.jikesrvm.compilers.opt.runtimesupport.OptEncodedCallSiteTree;
 import org.jikesrvm.compilers.opt.runtimesupport.OptMachineCodeMap;
-import org.jikesrvm.scheduler.Scheduler;
 import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
@@ -85,7 +84,7 @@ public class StackTrace {
     if (isVerbose) {
       VM.disableGC();
       VM.sysWriteln("[ BEGIN Verbosely dumping stack at time of creating StackTrace # ", traceIndex);
-      Scheduler.dumpStack();
+      RVMThread.dumpStack();
       VM.sysWriteln("END Verbosely dumping stack at time of creating StackTrace # ", traceIndex, " ]");
       VM.enableGC();
     }
@@ -431,8 +430,7 @@ public class StackTrace {
      * at java.lang.ExceptionInInitializerError.<init>(ExceptionInInitializerError.java:75)
      *
      * and an OutOfMemoryError to look like:
-     * at org.jikesrvm.scheduler.Processor.dispatch(Processor.java:211)
-     * at org.jikesrvm.scheduler.RVMThread.morph(RVMThread.java:1125)
+     * ???
      * ...
      * at org.jikesrvm.memorymanagers.mminterface.MM_Interface.allocateSpace(MM_Interface.java:613)
      * ...

@@ -601,8 +601,6 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
     if (isPrefix("Lorg/mmtk/", typeBA) ||
         isPrefix("Lorg/jikesrvm/mm/", typeBA) ||
         isPrefix("Lorg/jikesrvm/memorymanagers/", typeBA) ||
-        isPrefix("Lorg/jikesrvm/scheduler/Processor;", typeBA) ||
-        isPrefix("Lorg/jikesrvm/scheduler/greenthreads/GreenProcessor;", typeBA) ||
         isPrefix("Lorg/jikesrvm/jni/JNIEnvironment;", typeBA)) {
       allocator = Plan.ALLOC_IMMORTAL;
     }
@@ -964,22 +962,6 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
     }
 
     return (TIB)newRuntimeTable(size, RVMType.TIBType);
-  }
-
-  /**
-   * Allocate a new processors table
-   *
-   * @param size The size of the table.
-   * @return the new processors table
-   */
-  @Inline
-  @Interruptible
-  public static ProcessorTable newProcessorTable(int size) {
-    if (!VM.runningVM) {
-      return ProcessorTable.allocate(size);
-    }
-
-    return (ProcessorTable)newRuntimeTable(size, RVMType.ProcessorTableType);
   }
 
   /**

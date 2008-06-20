@@ -24,7 +24,7 @@ import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.compilers.opt.OptimizingCompilerException;
 import org.jikesrvm.compilers.opt.runtimesupport.OptCompiledMethod;
 import org.jikesrvm.compilers.opt.runtimesupport.OptMachineCodeMap;
-import org.jikesrvm.scheduler.greenthreads.GreenScheduler;
+import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.unboxed.Offset;
 
 /**
@@ -101,7 +101,8 @@ public class DynamicCallGraphOrganizer extends Organizer {
     } else {
       numberOfBufferTriples = Controller.options.DCG_SAMPLE_SIZE;
     }
-    numberOfBufferTriples *= GreenScheduler.numProcessors;
+    // PNT: I have a bad feeling about this:
+    numberOfBufferTriples *= RVMThread.numProcessors;
     bufferSize = numberOfBufferTriples * 3;
     buffer = new int[bufferSize];
 

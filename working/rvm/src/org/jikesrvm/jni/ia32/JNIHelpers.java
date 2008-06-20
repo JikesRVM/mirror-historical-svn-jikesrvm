@@ -22,7 +22,7 @@ import org.jikesrvm.jni.JNIFunctions;
 import org.jikesrvm.jni.JNIGenericHelpers;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.Reflection;
-import org.jikesrvm.scheduler.Scheduler;
+import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.NoOptCompile;
 import org.vmmagic.unboxed.Address;
@@ -305,7 +305,7 @@ public abstract class JNIHelpers extends JNIGenericHelpers {
     TypeReference[] argTypes = targetMethod.getParameterTypes();
     int argCount = argTypes.length;
     Object[] argObjectArray = new Object[argCount];
-    JNIEnvironment env = Scheduler.getCurrentThread().getJNIEnv();
+    JNIEnvironment env = RVMThread.getCurrentThread().getJNIEnv();
 
     Address addr = argAddress;
     for (int i = 0; i < argCount; i++) {
@@ -364,7 +364,7 @@ public abstract class JNIHelpers extends JNIGenericHelpers {
     Object[] argObjectArray = new Object[argCount];
 
     // get the JNIEnvironment for this thread in case we need to dereference any object arg
-    JNIEnvironment env = Scheduler.getCurrentThread().getJNIEnv();
+    JNIEnvironment env = RVMThread.getCurrentThread().getJNIEnv();
 
     Address addr = argAddress;
     for (int i = 0; i < argCount; i++, addr = addr.plus(8)) {

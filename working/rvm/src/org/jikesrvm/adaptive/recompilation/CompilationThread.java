@@ -16,7 +16,7 @@ import org.jikesrvm.adaptive.OSR_OnStackReplacementPlan;
 import org.jikesrvm.adaptive.controller.Controller;
 import org.jikesrvm.adaptive.controller.ControllerPlan;
 import org.jikesrvm.adaptive.util.AOSLogging;
-import org.jikesrvm.scheduler.greenthreads.GreenThread;
+import org.jikesrvm.scheduler.RVMThread;
 
 /**
  *  This class is a separate thread whose job is to monitor a (priority)
@@ -27,7 +27,7 @@ import org.jikesrvm.scheduler.greenthreads.GreenThread;
  *  No intelligence is contained in this class.  All policy decisions are
  *  made by the controllerThread.
  */
-public final class CompilationThread extends GreenThread {
+public final class CompilationThread extends RVMThread {
 
   /**
    * constructor

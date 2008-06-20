@@ -16,7 +16,9 @@ import org.vmmagic.Unboxed;
 import org.vmmagic.pragma.RawStorage;
 
 /**
- * To be commented
+ * Represents a pointer-sized int used for describing the offset, in
+ * bytes, from an Address to a memory location.  Typically used to
+ * refer to a field in a type-unsafe way.
  */
 @Unboxed
 @RawStorage(lengthInWords = true, length = 1)

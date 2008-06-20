@@ -30,7 +30,7 @@ import org.jikesrvm.adaptive.recompilation.InvocationCounts;
 import org.jikesrvm.adaptive.util.AOSGenerator;
 import org.jikesrvm.adaptive.util.AOSLogging;
 import org.jikesrvm.adaptive.util.AOSOptions;
-import org.jikesrvm.scheduler.Scheduler.ThreadModel;
+import org.jikesrvm.scheduler.RVMThread;
 
 /**
  * This class implements the controller thread.  This entity is the brains of
@@ -42,7 +42,7 @@ import org.jikesrvm.scheduler.Scheduler.ThreadModel;
  *     c) static information about a method; or
  *     d) all of the above.
  */
-public final class ControllerThread extends ThreadModel {
+public final class ControllerThread extends RVMThread {
 
   /**
    * constructor

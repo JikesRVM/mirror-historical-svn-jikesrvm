@@ -241,7 +241,7 @@ public interface RegisterConstants {
   // Dedicated registers.
   //
   GPR STACK_POINTER = ESP;
-  GPR PROCESSOR_REGISTER = ESI;
+  GPR THREAD_REGISTER = ESI;
 
   byte NUM_GPRS = 8;
   byte NUM_FPRS = 8;

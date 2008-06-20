@@ -146,8 +146,8 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
     /* available registers S0, T0, T1 */
 
     /* push a new frame */
-    asm.emitPUSH_RegDisp(PR, fpOffset); // link this frame with next
-    ProcessorLocalState.emitMoveRegToField(asm, fpOffset, SP); // establish base of new frame
+    asm.emitPUSH_RegDisp(TR, fpOffset); // link this frame with next
+    ThreadLocalState.emitMoveRegToField(asm, fpOffset, SP); // establish base of new frame
     asm.emitPUSH_Imm(INVISIBLE_METHOD_ID);
     asm.emitADD_Reg_Imm(SP, STACKFRAME_BODY_OFFSET);
 
@@ -159,7 +159,7 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
     * T1 length
     * T0 scratch
     */
-    ProcessorLocalState.emitMoveFieldToReg(asm, S0, fpOffset);
+    ThreadLocalState.emitMoveFieldToReg(asm, S0, fpOffset);
     asm.emitMOV_Reg_RegDisp(S0, S0, PARAMS_FP_OFFSET);// S0 <- Parameters
     asm.emitMOV_Reg_RegDisp(T1, S0, ObjectModel.getArrayLengthOffset());    // T1 <- Parameters.length()
     asm.emitCMP_Reg_Imm(T1, 0);                    // length == 0 ?
@@ -176,7 +176,7 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
 
     if (SSE2_FULL) {
       /* write fprs onto fprs registers */
-      ProcessorLocalState.emitMoveFieldToReg(asm, S0, fpOffset);
+      ThreadLocalState.emitMoveFieldToReg(asm, S0, fpOffset);
       asm.emitMOV_Reg_RegDisp(T0, S0, FPRS_FP_OFFSET);    // T0 <- FPRs
       asm.emitMOV_Reg_RegDisp(T1, T0, ObjectModel.getArrayLengthOffset());    // T1 <- FPRs.length()
       asm.emitMOV_Reg_RegDisp(S0, S0, FPRMETA_FP_OFFSET); // S0 <- FPRmeta
@@ -224,7 +224,7 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
 
     } else {
       /* write fprs onto fprs registers */
-      ProcessorLocalState.emitMoveFieldToReg(asm, S0, fpOffset);
+      ThreadLocalState.emitMoveFieldToReg(asm, S0, fpOffset);
       asm.emitMOV_Reg_RegDisp(S0, S0, FPRS_FP_OFFSET);   // S0 <- FPRs
       asm.emitMOV_Reg_RegDisp(T1, S0, ObjectModel.getArrayLengthOffset());    // T1 <- FPRs.length()
       asm.emitSHL_Reg_Imm(T1, LG_WORDSIZE + 1);         // length in bytes
@@ -242,7 +242,7 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
     }
 
     /* write gprs: S0 = Base address of GPRs[], T1 = GPRs.length */
-    ProcessorLocalState.emitMoveFieldToReg(asm, S0, fpOffset);
+    ThreadLocalState.emitMoveFieldToReg(asm, S0, fpOffset);
     asm.emitMOV_Reg_RegDisp(S0, S0, GPRS_FP_OFFSET);   // S0 <- GPRs
     asm.emitMOV_Reg_RegDisp(T1, S0, ObjectModel.getArrayLengthOffset());    // T1 <- GPRs.length()
     asm.emitCMP_Reg_Imm(T1, 0);                        // length == 0 ?
@@ -256,7 +256,7 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
     fr4.resolve(asm);
 
     /* branch to method.  On a good day we might even be back */
-    ProcessorLocalState.emitMoveFieldToReg(asm, S0, fpOffset);
+    ThreadLocalState.emitMoveFieldToReg(asm, S0, fpOffset);
     asm.emitMOV_Reg_RegDisp(S0, S0, CODE_FP_OFFSET);   // S0 <- code
     asm.emitCALL_Reg(S0);                              // go there
     // T0/T1 have returned value
@@ -265,12 +265,14 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
     // NOTE: RVM callee has popped the params, so we can simply
     //       add back in the initial SP to FP delta to get SP to be a framepointer again!
     asm.emitADD_Reg_Imm(SP, -STACKFRAME_BODY_OFFSET + 4);
-    asm.emitPOP_RegDisp(PR, fpOffset);
+    asm.emitPOP_RegDisp(TR, fpOffset);
 
     asm.emitRET_Imm(5 << LG_WORDSIZE);                  // again, exactly 5 parameters
 
     return asm.getMachineCodes();
   }
+  
+  // PNT: time for the epic fun!  Oh yay!
 
   /**
    * Machine code to implement "Magic.saveThreadState()".
@@ -293,7 +295,7 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
     Offset ipOffset = ArchEntrypoints.registersIPField.getOffset();
     Offset fpOffset = ArchEntrypoints.registersFPField.getOffset();
     Offset gprsOffset = ArchEntrypoints.registersGPRsField.getOffset();
-    asm.emitMOV_Reg_RegDisp(S0, PR, ArchEntrypoints.framePointerField.getOffset());
+    asm.emitMOV_Reg_RegDisp(S0, TR, ArchEntrypoints.framePointerField.getOffset());
     asm.emitMOV_RegDisp_Reg(T0, fpOffset, S0);        // registers.fp := pr.framePointer
     asm.emitPOP_Reg(T1);                      // T1 := return address
     asm.emitMOV_RegDisp_Reg(T0, ipOffset, T1);        // registers.ip := return address
@@ -325,6 +327,7 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
    *    restores new thread's Registers nonvolatile hardware state.
    *    execution resumes at address specificed by restored thread's Registers ip field
    */
+  // PNT: this currently does not work
   private static ArchitectureSpecific.CodeArray generateThreadSwitchInstructions() {
     if (VM.VerifyAssertions) {
       VM._assert(NUM_NONVOLATILE_FPRS == 0); // assuming no NV FPRs (otherwise would have to save them here)
@@ -338,7 +341,7 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
     // (1) Save hardware state of thread we are switching off of.
     asm.emitMOV_Reg_RegDisp(S0, T0, regsOffset);      // S0 = T0.contextRegisters
     asm.emitPOP_RegDisp(S0, ipOffset);            // T0.contextRegisters.ip = returnAddress
-    asm.emitPUSH_RegDisp(PR, ArchEntrypoints.framePointerField.getOffset()); // push PR.framePointer
+    asm.emitPUSH_RegDisp(TR, ArchEntrypoints.framePointerField.getOffset()); // push TR.framePointer
     asm.emitPOP_RegDisp(S0, fpOffset);            // T0.contextRegisters.fp = pushed framepointer
     asm.emitADD_Reg_Imm(SP, 8);                   // discard 2 words of parameters (T0, T1)
     asm.emitMOV_Reg_RegDisp(S0, S0, gprsOffset);      // S0 = T0.contextRegisters.gprs;
@@ -350,15 +353,16 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
     }
 
     // (2) Set currentThread.beingDispatched to false
-    asm.emitMOV_RegDisp_Imm_Byte(T0,
-                                 Entrypoints.beingDispatchedField.getOffset(),
-                                 0); // previous thread's stack is nolonger in use, so it can now be dispatched on any virtual processor
+    // PNT: don't have this field anymore
+    //asm.emitMOV_RegDisp_Imm_Byte(T0,
+    //                             Entrypoints.beingDispatchedField.getOffset(),
+    //                             0); // previous thread's stack is nolonger in use, so it can now be dispatched on any virtual processor
 
     // (3) Restore hardware state of thread we are switching to.
     asm.emitMOV_Reg_RegDisp(S0, T1, fpOffset);        // S0 := restoreRegs.fp
-    ProcessorLocalState.emitMoveRegToField(asm,
-                                              ArchEntrypoints.framePointerField.getOffset(),
-                                              S0); // PR.framePointer = restoreRegs.fp
+    ThreadLocalState.emitMoveRegToField(asm,
+					   ArchEntrypoints.framePointerField.getOffset(),
+					   S0); // TR.framePointer = restoreRegs.fp
     asm.emitMOV_Reg_RegDisp(S0, T1, gprsOffset);      // S0 := restoreRegs.gprs[]
     asm.emitMOV_Reg_RegDisp(SP, S0, Offset.fromIntZeroExtend(SP.value() << LG_WORDSIZE)); // SP := restoreRegs.gprs[#SP]
     for (int i = 0; i < NUM_NONVOLATILE_GPRS; i++) {
@@ -381,15 +385,15 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
    *    none
    *
    *  Side effects at runtime:
-   *    all registers are restored except PROCESSOR_REGISTER and EFLAGS;
+   *    all registers are restored except THREAD_REGISTER and EFLAGS;
    *    execution resumes at "registers.ip"
    */
   private static ArchitectureSpecific.CodeArray generateRestoreHardwareExceptionStateInstructions() {
     Assembler asm = new ArchitectureSpecific.Assembler(0);
 
-    // Set PR.framePointer to be registers.fp
+    // Set TR.framePointer to be registers.fp
     asm.emitMOV_Reg_RegDisp(S0, T0, ArchEntrypoints.registersFPField.getOffset());
-    ProcessorLocalState.emitMoveRegToField(asm, ArchEntrypoints.framePointerField.getOffset(), S0);
+    ThreadLocalState.emitMoveRegToField(asm, ArchEntrypoints.framePointerField.getOffset(), S0);
 
     // Restore SP
     asm.emitMOV_Reg_RegDisp(S0, T0, ArchEntrypoints.registersGPRsField.getOffset());
@@ -398,7 +402,7 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
     // Push registers.ip to stack (now that SP has been restored)
     asm.emitPUSH_RegDisp(T0, ArchEntrypoints.registersIPField.getOffset());
 
-    // Restore the GPRs except for S0, PR, and SP
+    // Restore the GPRs except for S0, TR, and SP
     // (restored above and then modified by pushing registers.ip!)
     Offset off = Offset.zero();
     for (byte i = 0; i < NUM_GPRS; i++, off = off.plus(WORDSIZE)) {
@@ -412,6 +416,60 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
 
     // Return to registers.ip (popping stack)
     asm.emitRET();
+    
+    ////////////////////// JNI entry slow path ///////////////////////
+    enterJNIBlockedRef.resolve(asm);
+    
+    // push S0 so that we don't lose it
+    asm.emitPUSH_Reg(S0);
+
+    // NOTE: ESI (THREAD_REGISTER, or TR) should still have the thread
+    // pointer, since up to this point we would have saved it but not
+    // overwritten it.
+    
+    // call into our friendly slow path function.  note that this should
+    // work because:
+    // 1) we're not calling from C so we don't care what registers are
+    //    considered non-volatile in C
+    // 2) all Java non-volatiles have been saved
+    // 3) the only other registers we need - ESI and S0 are taken care
+    //    of (see above)
+    // 4) the prologue and epilogue will take care of the frame pointer
+    //    accordingly (it will just save it on the stack and then restore
+    //    it - so we don't even have to know what its value is here)
+    // the only thing we have to make sure of is that MMTk ignores the
+    // framePointer field in RVMThread and uses the one in the JNI
+    // environment instead (see Collection.prepareMutator)...
+    asm.emitCALL_Abs(
+      Magic.getTocPointer().plus(
+	Entrypoints.enterJNIBlockedMethod.getOffset()));
+    
+    // restore S0, since the previous call would have likely destroyed it
+    asm.emitPOP_Reg(S0);
+    
+    // go back to the main code
+    asm.emitJMP_Imm(doneEnterJNILabel);
+
+    ////////////////////// JNI exit slow path ///////////////////////
+    leaveJNIBlockedRef.resolve(asm);
+    
+    // push S0 so that we don't lose it
+    asm.emitPUSH_Reg(S0);
+
+    // NOTE: ESI already has the thread pointer because we just reloaded
+    // it!
+
+    // call into our friendly slow path function.  this works for the same
+    // reasons why the enterJNIBlockedMethod call above works.
+    asm.emitCALL_Abs(
+      Magic.getTocPointer().plus(
+	Entrypoints.leaveJNIBlockedMethod.getOffset()));
+    
+    // restore S0, since the previous call would have likely destroyed it
+    asm.emitPOP_Reg(S0);
+    
+    asm.emitJMP_Imm(doneLeaveJNILabel);
+    
     return asm.getMachineCodes();
   }
 }

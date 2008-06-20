@@ -40,7 +40,7 @@ public interface AosEntrypoints {
       getMethod("Lorg/jikesrvm/adaptive/recompilation/InvocationCounts;", "counterTripped", "(I)V");
   RVMField globalCBSField =
       getField("Lorg/jikesrvm/adaptive/recompilation/instrumentation/CounterBasedSampling;", "globalCounter", "I");
-  RVMField processorCBSField = getField("Lorg/jikesrvm/scheduler/Processor;", "processor_cbs_counter", "I");
+  RVMField threadCBSField = getField("Lorg/jikesrvm/scheduler/RVMThread;", "thread_cbs_counter", "I");
   RVMField cbsResetValueField =
       getField("Lorg/jikesrvm/adaptive/recompilation/instrumentation/CounterBasedSampling;", "resetValue", "I");
   RVMField specializedMethodsField =

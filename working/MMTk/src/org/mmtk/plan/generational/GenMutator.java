@@ -238,6 +238,7 @@ import org.vmmagic.unboxed.*;
     return false;
   }
 
+  // is this ever called in a non-concurrent collector?
   /**
    * Flush per-mutator remembered sets into the global remset pool.
    */

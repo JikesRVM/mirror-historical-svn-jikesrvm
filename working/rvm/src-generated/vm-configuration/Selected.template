@@ -12,7 +12,7 @@
  */
 package org.jikesrvm.memorymanagers.mminterface;
 
-import org.jikesrvm.scheduler.Processor;
+import org.jikesrvm.scheduler.RVMThread;
 
 import org.vmmagic.pragma.*;
 
@@ -39,20 +39,20 @@ public class Selected {
   @Uninterruptible
   public static class Collector extends @_PLAN_@Collector
   {
-    private Processor processor;
-    public Collector(Processor parent) { processor = parent; }
+    private RVMThread thread;
+    public Collector(RVMThread parent) { thread = parent; }
     @Inline
-    public final Processor getProcessor() { return processor; }
+    public final RVMThread getThread() { return thread; }
     @Inline
-    public static Collector get() { return Processor.getCurrentProcessor().collectorContext; }
+    public static Collector get() { return RVMThread.getCurrentThread().collectorContext; }
   }
 
   @Uninterruptible
   public static class Mutator extends @_PLAN_@Mutator
   {
     @Inline
-    public final Processor getProcessor() { return (Processor) this; }
+    public final RVMThread getThread() { return (RVMThread) this; }
     @Inline
-    public static Mutator get() { return Processor.getCurrentProcessor(); }
+    public static Mutator get() { return RVMThread.getCurrentThread(); }
   }
 }

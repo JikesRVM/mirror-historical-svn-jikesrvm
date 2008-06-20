@@ -36,7 +36,7 @@ import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.assembler.ForwardReference;
 import org.jikesrvm.compilers.common.assembler.ia32.Assembler;
 import org.jikesrvm.ia32.BaselineConstants;
-import org.jikesrvm.ia32.ProcessorLocalState;
+import org.jikesrvm.ia32.ThreadLocalState;
 import org.jikesrvm.jni.ia32.JNICompiler;
 import org.jikesrvm.memorymanagers.mminterface.MM_Constants;
 import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
@@ -2857,7 +2857,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
       InterfaceMethodSignature sig = InterfaceMethodSignature.findOrCreate(methodRef);
 
       // squirrel away signature ID
-      ProcessorLocalState.emitMoveImmToField(asm, ArchEntrypoints.hiddenSignatureIdField.getOffset(), sig.getId());
+      ThreadLocalState.emitMoveImmToField(asm, ArchEntrypoints.hiddenSignatureIdField.getOffset(), sig.getId());
       // T1 = "this" object
       asm.emitMOV_Reg_RegDisp(T1, SP,
           Offset.fromIntZeroExtend((count - 1) << 2));
@@ -3163,10 +3163,10 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
        * point of the caller.
        * The third word of the header contains the compiled method id of the called method.
        */
-      asm.emitPUSH_RegDisp(PR, ArchEntrypoints.framePointerField.getOffset());        // store caller's frame pointer
-      ProcessorLocalState.emitMoveRegToField(asm,
-                                                ArchEntrypoints.framePointerField.getOffset(),
-                                                SP); // establish new frame
+      asm.emitPUSH_RegDisp(TR, ArchEntrypoints.framePointerField.getOffset());        // store caller's frame pointer
+      ThreadLocalState.emitMoveRegToField(asm,
+					     ArchEntrypoints.framePointerField.getOffset(),
+					     SP); // establish new frame
       /*
        * NOTE: until the end of the prologue SP holds the framepointer.
        */
@@ -3223,7 +3223,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
        */
       if (isInterruptible) {
         // S0<-limit
-        ProcessorLocalState.emitMoveFieldToReg(asm, S0, Entrypoints.activeThreadStackLimitField.getOffset());
+        ThreadLocalState.emitMoveFieldToReg(asm, S0, Entrypoints.stackLimitField.getOffset());
 
         asm.emitSUB_Reg_Reg(S0, SP);                                           // space left
         asm.emitADD_Reg_Imm(S0, method.getOperandWords() << LG_WORDSIZE);      // space left after this expression stack
@@ -3261,7 +3261,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
 
     if (isInterruptible) {
       // S0<-limit
-      ProcessorLocalState.emitMoveFieldToReg(asm, S0, Entrypoints.activeThreadStackLimitField.getOffset());
+      ThreadLocalState.emitMoveFieldToReg(asm, S0, Entrypoints.stackLimitField.getOffset());
       asm.emitSUB_Reg_Reg(S0, SP);                                       // spa
       asm.emitADD_Reg_Imm(S0, method.getOperandWords() << LG_WORDSIZE);  // spa
       asm.emitBranchLikelyNextInstruction();
@@ -3364,7 +3364,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
       asm.emitBranchLikelyNextInstruction();
       ForwardReference fr = asm.forwardJcc(Assembler.LGT);
       // "pass" index param to C trap handler
-      ProcessorLocalState.emitMoveRegToField(asm,
+      ThreadLocalState.emitMoveRegToField(asm,
           ArchEntrypoints.arrayIndexTrapParamField.getOffset(), indexReg);
       // trap
       asm.emitINT_Imm(RuntimeEntrypoints.TRAP_ARRAY_BOUNDS + RVM_TRAP_BASE);
@@ -4293,7 +4293,6 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
         methodName == MagicNames.objectAsType ||
         methodName == MagicNames.objectAsShortArray ||
         methodName == MagicNames.objectAsIntArray ||
-        methodName == MagicNames.objectAsProcessor ||
         methodName == MagicNames.objectAsThread ||
         methodName == MagicNames.threadAsCollectorThread ||
         methodName == MagicNames.floatAsIntBits ||

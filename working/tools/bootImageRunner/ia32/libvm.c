@@ -101,9 +101,6 @@ static unsigned VmToc;
 /* TOC offset of Scheduler.dumpStackAndDie */
 static Offset DumpStackAndDieOffset;
 
-/* TOC offset of Scheduler.processors[] */
-static Offset ProcessorsOffset;
-
 /* TOC offset of Scheduler.debugRequested */
 static Offset DebugRequestedOffset;
 
@@ -441,7 +438,7 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
       _exit(EXIT_STATUS_DYING_WITH_UNCAUGHT_EXCEPTION);
     }
 
-    unsigned int localVirtualProcessorAddress;
+    unsigned int localNativeThreadAddress;
     unsigned int localFrameAddress;
     unsigned int localJTOC = VmToc;
 
@@ -454,7 +451,7 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
      * mechanism
      */
     localInstructionAddress     = IA32_EIP(context);
-    localVirtualProcessorAddress = IA32_ESI(context);
+    localNativeThreadAddress = IA32_ESI(context);
 
     // We are prepared to handle these kinds of "recoverable" traps:
     //
@@ -469,7 +466,7 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
     //
     isRecoverable = 0;
 
-    if (isVmSignal(localInstructionAddress, localVirtualProcessorAddress))
+    if (isVmSignal(localInstructionAddress, localNativeThreadAddress))
     {
         if (signo == SIGSEGV /*&& check the adddress TODO */)
             isRecoverable = 1;
@@ -608,13 +605,13 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
         }
     }
 
-    /* test validity of virtual processor address */
+    /* test validity of native thread address */
     {
         unsigned int vp_hn;  /* the high nibble of the vp address value */
-        vp_hn = localVirtualProcessorAddress >> 28;
-        if (vp_hn < 3 || !inRVMAddressSpace(localVirtualProcessorAddress))
+        vp_hn = localNativeThreadAddress >> 28;
+        if (vp_hn < 3 || !inRVMAddressSpace(localNativeThreadAddress))
         {
-            writeErr("invalid vp address (not an address - high nibble %d)\n",
+            writeErr("invalid native thread address (not an address - high nibble %d)\n",
                      vp_hn);
             signal(signo, SIG_DFL);
             raise(signo);
@@ -626,7 +623,7 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
 
     /* get the frame pointer from processor object  */
     localFrameAddress =
-        *(unsigned *) (localVirtualProcessorAddress + Processor_framePointer_offset);
+        *(unsigned *) (localNativeThreadAddress + Thread_framePointer_offset);
 
     /* test validity of frame address */
     {
@@ -652,8 +649,7 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
     DumpStackAndDieOffset = bootRecord->dumpStackAndDieOffset;
 
     /* get the active thread id */
-    unsigned int threadObjectAddress =
-        *(unsigned int*) (localVirtualProcessorAddress + Processor_activeThread_offset);
+    unsigned int threadObjectAddress = (unsigned int)localNativeThreadAddress;
 
     /* then get its hardware exception registers */
     unsigned int registers =
@@ -801,7 +797,7 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
         fprintf(SysTraceFile, "Trap code is 0x%x\n", IA32_EAX(context));
 
     sp = (long unsigned int *) ((char *) sp - 4);       /* next parameter is info for array bounds trap */
-    *(int *) sp = *(unsigned *) (localVirtualProcessorAddress + Processor_arrayIndexTrapParam_offset);
+    *(int *) sp = *(unsigned *) (localNativeThreadAddress + Thread_arrayIndexTrapParam_offset);
     IA32_EDX(context) = *(int *)sp; // also pass second param in EDX.
     sp = (long unsigned int *) ((char *) sp - 4);       /* return address - looks like called from failing instruction */
     *(int *) sp = instructionFollowing;
@@ -817,7 +813,7 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
      * returning  */
     IA32_ESP(context) = (int) sp;
     IA32_EBP(context) = (int) fp;
-    *(unsigned int *) (localVirtualProcessorAddress + Processor_framePointer_offset) = (int) fp;
+    *(unsigned int *) (localNativeThreadAddress + Thread_framePointer_offset) = (int) fp;
 
     /* setup to return to deliver hardware exception routine */
     IA32_EIP(context) = javaExceptionHandlerAddress;
@@ -876,10 +872,10 @@ softwareSignalHandler(int signo,
         unsigned int localJTOC = VmToc;
         int dumpStack = *(int *) ((char *) localJTOC + DumpStackAndDieOffset);
 
-        /* get the frame pointer from processor object  */
-        unsigned int localVirtualProcessorAddress       = IA32_ESI(context);
+        /* get the frame pointer from thread object  */
+        unsigned int localNativeThreadAddress       = IA32_ESI(context);
         unsigned int localFrameAddress =
-            *(unsigned *) (localVirtualProcessorAddress + Processor_framePointer_offset);
+            *(unsigned *) (localNativeThreadAddress + Thread_framePointer_offset);
 
         /* setup stack frame to contain the frame pointer */
         long unsigned int *sp = (long unsigned int *) IA32_ESP(context);
@@ -963,6 +959,7 @@ mapImageFile(const char *fileName, const void *targetAddress, bool isCode,
 }
 
 
+jmp_buf primordial_jb;
 
 
 /* Returns 1 upon any errors.   Never returns except to report an error. */
@@ -1040,9 +1037,6 @@ createVM(int UNUSED vmInSeparateThread)
 
     /* remember jtoc location for later use by trap handler */
     VmToc = bootRecord->tocRegister;
-
-    /* get and remember JTOC offset of Scheduler.processors[] */
-    ProcessorsOffset = bootRecord->greenProcessorsOffset;
 
     // remember JTOC offset of Scheduler.DebugRequested
     //
@@ -1214,9 +1208,3 @@ getJTOC(void)
     return (void*) VmToc;
 }
 
-// Get offset of Scheduler.processors in JTOC.
-extern "C" Offset
-getProcessorsOffset(void)
-{
-    return ProcessorsOffset;
-}

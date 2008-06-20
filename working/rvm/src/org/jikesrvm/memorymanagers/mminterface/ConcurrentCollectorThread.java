@@ -14,10 +14,8 @@ package org.jikesrvm.memorymanagers.mminterface;
 
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.VM;
-import org.jikesrvm.scheduler.Scheduler;
-import org.jikesrvm.scheduler.greenthreads.GreenProcessor;
-import org.jikesrvm.scheduler.greenthreads.GreenScheduler;
-import org.jikesrvm.scheduler.greenthreads.GreenThread;
+import org.jikesrvm.scheduler.RVMThread;
+import org.jikesrvm.scheduler.HeavyCondLock;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.Uninterruptible;
@@ -26,7 +24,7 @@ import org.vmmagic.pragma.Uninterruptible;
  * Threads that perform collector work while mutators are active. these
  * threads wait for the collector to activate them.
  */
-public final class ConcurrentCollectorThread extends GreenThread {
+public final class ConcurrentCollectorThread extends RVMThread {
 
   /***********************************************************************
    *
@@ -39,8 +37,10 @@ public final class ConcurrentCollectorThread extends GreenThread {
   private static final String myName = "ConcurrentCollectorThread";
 
 
-  /** maps processor id to associated collector thread */
-  public static ConcurrentCollectorThread[] concurrentCollectorThreads;
+  private static HeavyCondLock schedLock;
+  private static boolean triggerRun;
+  private static int maxRunning = RVMThread.numProcessors;
+  private static int running;
 
   /***********************************************************************
    *
@@ -60,13 +60,10 @@ public final class ConcurrentCollectorThread extends GreenThread {
    * @param processorAffinity The processor with which this thread is
    * associated.
    */
-  ConcurrentCollectorThread(byte[] stack, GreenProcessor processorAffinity) {
+  ConcurrentCollectorThread(byte[] stack) {
     super(stack, myName);
+    this.collectorContext = new Selected.Collector(this);
     makeDaemon(true); // this is redundant, but harmless
-    this.processorAffinity = processorAffinity;
-
-    /* associate this collector thread with its affinity processor */
-    concurrentCollectorThreads[processorAffinity.id] = this;
   }
 
   /**
@@ -74,7 +71,10 @@ public final class ConcurrentCollectorThread extends GreenThread {
    */
   @Interruptible
   public static void init() {
-    concurrentCollectorThreads = new ConcurrentCollectorThread[1 + GreenScheduler.MAX_PROCESSORS];
+  }
+  
+  public static void boot() {
+    schedLock = new HeavyCondLock();
   }
 
   /**
@@ -87,9 +87,9 @@ public final class ConcurrentCollectorThread extends GreenThread {
    * @return a new collector thread
    */
   @Interruptible
-  public static ConcurrentCollectorThread createConcurrentCollectorThread(GreenProcessor processorAffinity) {
+  public static ConcurrentCollectorThread createConcurrentCollectorThread() {
     byte[] stack = MM_Interface.newStack(ArchitectureSpecific.StackframeLayoutConstants.STACK_SIZE_COLLECTOR, true);
-    return new ConcurrentCollectorThread(stack, processorAffinity);
+    return new ConcurrentCollectorThread(stack);
   }
 
   /**
@@ -113,12 +113,48 @@ public final class ConcurrentCollectorThread extends GreenThread {
     while (true) {
       /* suspend this thread: it will resume when the garbage collector
        * notifies it there is work to do. */
-      Scheduler.suspendConcurrentCollectorThread();
+      schedLock.lock();
+      running--;
+      if (running==0) {
+	schedLock.broadcast();
+      }
+      while (!triggerRun) {
+	schedLock.waitNicely();
+      }
+      running++;
+      if (running==maxRunning) {
+	schedLock.broadcast();
+      }
+      // wait for the trigger to reset
+      while (triggerRun) {
+	schedLock.waitNicely();
+      }
+      schedLock.unlock();
 
       if (verbose >= 1) VM.sysWriteln("GC Message: Concurrent collector awake");
       Selected.Collector.get().concurrentCollect();
       if (verbose >= 1) VM.sysWriteln("GC Message: Concurrent collector finished");
     }
+  }
+  
+  @Uninterruptible
+  public static void scheduleConcurrentCollectorThreads() {
+    schedLock.lock();
+    // wait for previous concurrent collection cycle to finish
+    while (running!=0) {
+      schedLock.waitNicely();
+    }
+    // now start a new cycle
+    triggerRun=true;
+    schedLock.broadcast();
+    // wait for all of them to start running
+    while (running<maxRunning) {
+      schedLock.waitNicely();
+    }
+    // reset the trigger
+    triggerRun=false;
+    schedLock.broadcast();
+    schedLock.unlock();
   }
 }
 

@@ -17,11 +17,12 @@ import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.Reflection;
+import org.vmmagic.pragma.Uninterruptible;
 
 /**
  * Finalizer thread.
  *
- * This thread is created by Scheduler.boot() at runtime startup.
+ * This thread is created by RVMThread.boot() at runtime startup.
  * Its "run" method does the following:
  *    1. yield to the gcwaitqueue, until scheduled by g.c.
  *    2. For all objects on finalize Q, run the finalize() method
@@ -29,11 +30,30 @@ import org.jikesrvm.runtime.Reflection;
  *
  * This thread comes out of wait state via notify from the garbage collector
  */
-public class FinalizerThread extends Scheduler.ThreadModel {
+public class FinalizerThread extends RVMThread {
 
   private static final int verbose = 0; // currently goes up to 2
 
   private final Object[] none = new Object[0];
+  
+  private static boolean shouldRun;
+  private static HeavyCondLock schedLock;
+  
+  @Override
+  public static void boot() {
+    schedLock=new HeavyCondLock();
+    FinalizerThread ft=new FinalizerThread();
+    ft.makeDaemon(true);
+    ft.start();
+  }
+  
+  @Uninterruptible
+  public static void schedule() {
+    schedLock.lock();
+    shouldRun=true;
+    schedLock.broadcast();
+    schedLock.unlock();
+  }
 
   public FinalizerThread() {
     super("FinalizerThread");
@@ -43,7 +63,7 @@ public class FinalizerThread extends Scheduler.ThreadModel {
   @Override
   public void run() {
     if (verbose >= 1) {
-      Scheduler.trace("FinalizerThread ", "run routine entered");
+      RVMThread.trace("FinalizerThread ", "run routine entered");
     }
 
     try {
@@ -51,7 +71,12 @@ public class FinalizerThread extends Scheduler.ThreadModel {
 
         // suspend this thread: it will resume when the garbage collector
         // places objects on the finalizer queue and notifies.
-        Scheduler.suspendFinalizerThread();
+        schedLock.lock();
+	if (!shouldRun) {
+	  schedLock.waitNicely();
+	}
+	shouldRun=false;
+	schedLock.unlock();
 
         if (verbose >= 1) {
           VM.sysWriteln("FinalizerThread starting finalization");
@@ -70,7 +95,7 @@ public class FinalizerThread extends Scheduler.ThreadModel {
             RVMMethod method = Magic.getObjectType(o).asClass().getFinalizer();
             if (VM.VerifyAssertions) VM._assert(method != null);
             Reflection.invoke(method, o, none);
-          } catch (Exception e) {
+          } catch (Throwable e) {
             if (verbose >= 1) VM.sysWriteln("Throwable exception caught for finalize call");
           }
           if (verbose >= 2) {
@@ -80,7 +105,7 @@ public class FinalizerThread extends Scheduler.ThreadModel {
         if (verbose >= 1) VM.sysWriteln("FinalizerThread finished finalization");
 
       }          // while (true)
-    } catch (Exception e) {
+    } catch (Throwable e) {
       VM.sysWriteln("Unexpected exception thrown in finalizer thread: ", e.toString());
       e.printStackTrace();
     }

@@ -29,7 +29,6 @@ import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.RuntimeCompiler;
 import org.jikesrvm.compilers.opt.driver.CompilationPlan;
 import org.jikesrvm.runtime.Time;
-import org.jikesrvm.scheduler.Scheduler;
 import org.jikesrvm.scheduler.RVMThread;
 
 /**
@@ -144,7 +143,7 @@ public class AOSLogging {
     try {
       if (Controller.options.LOGGING_LEVEL >= 1) {
         synchronized (log) {
-          final String threadType = t.isIdleThread() ? "i" : t.isGCThread() ? "g" : t.isDaemonThread() ? "d" : "";
+          final String threadType = t.isGCThread() ? "g" : t.isDaemonThread() ? "d" : "";
           final String status = threadType + (!t.isAlive() ? "!" : "");
           log.println(getTime() +
                       " ThreadIndex: " +
@@ -456,8 +455,9 @@ public class AOSLogging {
     if (Controller.options.LOGGING_LEVEL >= 1) {
       printControllerStats();
 
-      for (int i = 0, n = Scheduler.threads.length; i < n; i++) {
-        RVMThread t = Scheduler.threads[i];
+      // PNT: this may miss threads when threads exit
+      for (int i = 0, n = RVMThread.numThreads; i < n; i++) {
+        RVMThread t = RVMThread.threads[i];
         if (t != null) {
           AOSLogging.threadExiting(t);
         }

@@ -101,4 +101,12 @@ import org.vmmagic.pragma.*;
   protected void registerSpecializedMethods() {
     super.registerSpecializedMethods();
   }
+
+  /**
+   * Register specialized methods.
+   */
+  @Interruptible
+  protected void registerSpecializedMethods() {
+    super.registerSpecializedMethods();
+  }
 }

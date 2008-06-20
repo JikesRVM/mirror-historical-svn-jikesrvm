@@ -346,7 +346,7 @@ public abstract class JNICompiler implements BaselineConstants {
    *  -C   |saved EBX |         |saved EBX |
    *       |          |         |align pad |
    *  -10  |          |         |returnAddr|  (return from OutOfLine to generated epilog)
-   *  -14  |          |         |saved PR  |
+   *  -14  |          |         |saved TR  |
    *  -18  |          |         |arg n-1   |  reordered args to native method (firstLocalOffset
    *  -1C  |          |         | ...      |  ...
    *  -20  |          |         |arg 1     |  ...
@@ -431,11 +431,10 @@ public abstract class JNICompiler implements BaselineConstants {
 
     // Prepare the side stack to hold new refs
     // Leave S0 holding the threads' JNIEnvironment
-    ProcessorLocalState.emitMoveFieldToReg(asm, S0, Entrypoints.activeThreadField.getOffset());
-    asm.emitMOV_Reg_RegDisp(S0, S0, Entrypoints.jniEnvField.getOffset());        // S0 <- jniEnv
+    ThreadLocalState.emitMoveFieldToReg(asm, S0, Entrypoints.jniEnvField.getOffset());
 
-    // save PR in the jniEnv for JNI call from native
-    ProcessorLocalState.emitStoreProcessor(asm, S0, Entrypoints.JNIEnvSavedPRField.getOffset());
+    // save TR in the jniEnv for JNI call from native
+    ThreadLocalState.emitStoreThread(asm, S0, Entrypoints.JNIEnvSavedTRField.getOffset());
 
     // save JNIEnvironemt in stack frame so we can find it when we return
     asm.emitMOV_RegDisp_Reg(EBP, JNI_ENV_OFFSET, S0);
@@ -691,7 +690,7 @@ public abstract class JNICompiler implements BaselineConstants {
    *
    * <pre>
    * NOTE:
-   *   -We need PR to access Java environment; we can get it from the
+   *   -We need TR to access Java environment; we can get it from the
    *    JNIEnv* (which is an interior pointer to the JNIEnvironment)
    *   -Unlike the powerPC scheme which has a special prolog preceding
    *    the normal Java prolog, the Intel scheme replaces the Java prolog

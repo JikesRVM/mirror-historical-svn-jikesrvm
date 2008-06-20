@@ -14,8 +14,8 @@ package org.jikesrvm.adaptive.measurements.organizers;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.adaptive.measurements.listeners.Listener;
-import org.jikesrvm.scheduler.greenthreads.GreenThread;
-import org.jikesrvm.scheduler.greenthreads.GreenThreadQueue;
+import org.jikesrvm.scheduler.RVMThread;
+import org.jikesrvm.scheduler.Latch;
 import org.vmmagic.pragma.Uninterruptible;
 
 /**
@@ -24,7 +24,7 @@ import org.vmmagic.pragma.Uninterruptible;
  * simple or complex tasks, but it is always simply following the
  * instructions given by the controller.
  */
-public abstract class Organizer extends GreenThread {
+public abstract class Organizer extends RVMThread {
 
   /** Constructor */
   public Organizer() {
@@ -37,11 +37,9 @@ public abstract class Organizer extends GreenThread {
    */
   protected Listener listener;
 
-  /**
-   * A queue to hold the organizer thread when it isn't executing
-   */
-  private final GreenThreadQueue tq = new GreenThreadQueue();
-
+  /** A latch used for activate/passivate. */
+  private final Latch latch = new Latch(false);
+  
   /**
    * Called when thread is scheduled.
    */
@@ -88,7 +86,7 @@ public abstract class Organizer extends GreenThread {
       if (VM.VerifyAssertions) VM._assert(!listener.isActive());
       listener.activate();
     }
-    GreenThread.yield(tq);
+    latch.waitAndClose();
   }
 
   /**
@@ -100,8 +98,6 @@ public abstract class Organizer extends GreenThread {
       if (VM.VerifyAssertions) VM._assert(listener.isActive());
       listener.passivate();
     }
-    GreenThread org = tq.dequeue();
-    if (VM.VerifyAssertions) VM._assert(org != null);
-    org.schedule();
+    latch.open();
   }
 }

@@ -29,7 +29,6 @@ import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.objectmodel.TIB;
-import org.jikesrvm.scheduler.Scheduler;
 import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
@@ -76,6 +75,8 @@ import org.vmmagic.unboxed.Offset;
  */
 public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.StackframeLayoutConstants {
 
+  private static final boolean traceAthrow = false;
+  
   // Trap codes for communication with C trap handler.
   //
   public static final int TRAP_UNKNOWN = -1;
@@ -801,7 +802,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
         break;
       default:
         exceptionObject = new java.lang.UnknownError();
-        Scheduler.traceback("UNKNOWN ERROR");
+        RVMThread.traceback("UNKNOWN ERROR");
         break;
     }
 
@@ -917,7 +918,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
     BootRecord.the_boot_record.deliverHardwareExceptionOffset =
         Entrypoints.deliverHardwareExceptionMethod.getOffset();
 
-    // tell "RunBootImage.C" to set "Scheduler.debugRequested" flag
+    // tell "RunBootImage.C" to set "RVMThread.debugRequested" flag
     // whenever the host operating system detects a debug request signal
     //
     BootRecord.the_boot_record.debugRequestedOffset = Entrypoints.debugRequestedField.getOffset();
@@ -1057,7 +1058,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
     }
     /* No appropriate catch block found. */
 
-    Scheduler.getCurrentThread().handleUncaughtException(exceptionObject);
+    RVMThread.getCurrentThread().handleUncaughtException(exceptionObject);
   }
 
 
@@ -1170,6 +1171,6 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
    */
   @Inline
   private static boolean canForceGC() {
-    return VM.ForceFrequentGC && Scheduler.safeToForceGCs();
+    return VM.ForceFrequentGC && RVMThread.safeToForceGCs();
   }
 }

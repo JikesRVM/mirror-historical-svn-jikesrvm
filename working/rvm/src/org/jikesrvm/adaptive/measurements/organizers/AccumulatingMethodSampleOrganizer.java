@@ -18,7 +18,7 @@ import org.jikesrvm.adaptive.database.methodsamples.MethodCountData;
 import org.jikesrvm.adaptive.measurements.RuntimeMeasurements;
 import org.jikesrvm.adaptive.measurements.listeners.MethodListener;
 import org.jikesrvm.adaptive.util.AOSLogging;
-import org.jikesrvm.scheduler.greenthreads.GreenScheduler;
+import org.jikesrvm.scheduler.RVMThread;
 
 /**
  * An organizer for method listener information that
@@ -42,7 +42,8 @@ public final class AccumulatingMethodSampleOrganizer extends Organizer {
   @Override
   public void initialize() {
     data = new MethodCountData();
-    int numSamples = Controller.options.METHOD_SAMPLE_SIZE * GreenScheduler.numProcessors;
+    // PNT: I have a bad feeling about this:
+    int numSamples = Controller.options.METHOD_SAMPLE_SIZE * RVMThread.numProcessors;
     if (Controller.options.mlCBS()) {
       numSamples *= VM.CBSMethodSamplesPerTick;
     }

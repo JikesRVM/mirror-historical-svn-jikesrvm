@@ -14,7 +14,7 @@ package org.jikesrvm.mm.mmtk;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.Services;
-import org.jikesrvm.scheduler.Processor;
+import org.jikesrvm.scheduler.RVMThread;
 
 import org.vmmagic.pragma.*;
 
@@ -36,7 +36,7 @@ import org.vmmagic.pragma.*;
    * @param len number of characters in message
    */
   public void writeThreadId(char [] c, int len) {
-    VM.psysWrite(c, len);
+    VM.tsysWrite(c, len);
   }
 
   /**
@@ -55,15 +55,15 @@ import org.vmmagic.pragma.*;
    */
   @LogicallyUninterruptible
   public int copyStringToChars(String src, char [] dst,
-                                     int dstBegin, int dstEnd) {
+			       int dstBegin, int dstEnd) {
     if (VM.runningVM)
-      Processor.getCurrentProcessor().disableThreadSwitching("Disabled for MMTk string copy");
+      RVMThread.getCurrentThread().disableYieldpoints();
     int len = src.length();
     int n = (dstBegin + len <= dstEnd) ? len : (dstEnd - dstBegin);
     for (int i = 0; i < n; i++)
       Services.setArrayNoBarrier(dst, dstBegin + i, src.charAt(i));
     if (VM.runningVM)
-      Processor.getCurrentProcessor().enableThreadSwitching();
+      RVMThread.getCurrentThread().enableYieldpoints();
     return n;
   }
 }

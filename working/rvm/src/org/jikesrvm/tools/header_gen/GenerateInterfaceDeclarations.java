@@ -26,13 +26,8 @@ import org.jikesrvm.objectmodel.ThinLockConstants;
 import org.jikesrvm.runtime.ArchEntrypoints;
 import org.jikesrvm.runtime.Entrypoints;
 import org.jikesrvm.runtime.RuntimeEntrypoints;
-import org.jikesrvm.scheduler.Scheduler;
-import org.jikesrvm.scheduler.greenthreads.FileSystem;
-import org.jikesrvm.scheduler.greenthreads.GreenScheduler;
-import org.jikesrvm.scheduler.greenthreads.ThreadEventConstants;
-import org.jikesrvm.scheduler.greenthreads.ThreadIOConstants;
-import org.jikesrvm.scheduler.greenthreads.ThreadIOQueue;
-import org.jikesrvm.scheduler.greenthreads.ThreadProcessWaitQueue;
+import org.jikesrvm.scheduler.RVMThread;
+import org.jikesrvm.runtime.FileSystem;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -435,37 +430,6 @@ public class GenerateInterfaceDeclarations {
     //
     pln("ObjectModel_ARRAY_LENGTH_OFFSET = ", ObjectModel.getArrayLengthOffset());
     pln();
-
-    // values in Scheduler
-    //
-    p("static const int GreenScheduler_PRIMORDIAL_PROCESSOR_ID = " + GreenScheduler.PRIMORDIAL_PROCESSOR_ID + ";\n");
-    p("static const int Scheduler_PRIMORDIAL_THREAD_INDEX = " + Scheduler.PRIMORDIAL_THREAD_INDEX + ";\n");
-    p("\n");
-
-    // values in ThreadEventConstants
-    //
-    p("static const double ThreadEventConstants_WAIT_INFINITE = " + ThreadEventConstants.WAIT_INFINITE + ";\n");
-
-    // values in ThreadIOQueue
-    //
-    p("static const int ThreadIOQueue_READ_OFFSET = " + ThreadIOQueue.READ_OFFSET + ";\n");
-    p("static const int ThreadIOQueue_WRITE_OFFSET = " + ThreadIOQueue.WRITE_OFFSET + ";\n");
-    p("static const int ThreadIOQueue_EXCEPT_OFFSET = " + ThreadIOQueue.EXCEPT_OFFSET + ";\n");
-    p("\n");
-
-    // values in ThreadIOConstants
-    //
-    p("static const int ThreadIOConstants_FD_READY = " + ThreadIOConstants.FD_READY + ";\n");
-    p("static const int ThreadIOConstants_FD_READY_BIT = " + ThreadIOConstants.FD_READY_BIT + ";\n");
-    p("static const int ThreadIOConstants_FD_INVALID = " + ThreadIOConstants.FD_INVALID + ";\n");
-    p("static const int ThreadIOConstants_FD_INVALID_BIT = " + ThreadIOConstants.FD_INVALID_BIT + ";\n");
-    p("static const int ThreadIOConstants_FD_MASK = " + ThreadIOConstants.FD_MASK + ";\n");
-    p("\n");
-
-    // values in ThreadProcessWaitQueue
-    //
-    p("static const int ThreadProcessWaitQueue_PROCESS_FINISHED = " +
-      ThreadProcessWaitQueue.PROCESS_FINISHED + ";\n");
 
     // values in RuntimeEntrypoints
     //

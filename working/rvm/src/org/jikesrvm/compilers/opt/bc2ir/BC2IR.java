@@ -3796,8 +3796,9 @@ public final class BC2IR
    * @param elemType the type of the array references elements
    * @return true if an unconditional throw is generated, false otherwise
    */
+  // PNT: implement the @NoCheckStore pragma
   private boolean do_CheckStore(Operand ref, Operand elem, TypeReference elemType) {
-    if (gc.options.NO_CHECKSTORE) {
+    if (gc.options.NO_CHECKSTORE || !gc.doesCheckStore) {
       return false;     // Unsafely eliminate all store checks
     }
     if (CF_CHECKSTORE) {

@@ -135,6 +135,9 @@ public abstract class OutOfLineMachineCode
       asm.emitLAddrU(i, BYTES_IN_ADDRESS, S0);                 // GPRi := gprs[i]
     }
 
+    // PNT: fix this!!  it won't be easy, since we have to save all volatile
+    // regs...
+
     //
     // free registers: 0, S0
     //

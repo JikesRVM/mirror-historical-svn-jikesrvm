@@ -394,4 +394,13 @@ public abstract class Gen extends StopTheWorld {
     TransitiveClosure.registerSpecializedScan(SCAN_NURSERY, GenNurseryTraceLocal.class);
     super.registerSpecializedMethods();
   }
+
+  /**
+   * Register specialized methods.
+   */
+  @Interruptible
+  protected void registerSpecializedMethods() {
+    TransitiveClosure.registerSpecializedScan(SCAN_NURSERY, GenNurseryTraceLocal.class);
+    super.registerSpecializedMethods();
+  }
 }

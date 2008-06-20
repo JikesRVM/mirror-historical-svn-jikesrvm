@@ -16,16 +16,12 @@ import org.jikesrvm.VM;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.mm.mmtk.SynchronizedCounter;
 import static org.jikesrvm.runtime.SysCall.sysCall;
-import org.jikesrvm.scheduler.Processor;
-import org.jikesrvm.scheduler.Scheduler;
-import org.jikesrvm.scheduler.greenthreads.GreenProcessor;
-import org.jikesrvm.scheduler.greenthreads.GreenScheduler;
-import org.jikesrvm.scheduler.greenthreads.GreenThread;
+import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Uninterruptible;
 
 /**
  * A synchronization barrier used to synchronize collector threads,
- * and the Processors they are running on, during parallel collections.
+ * and the processors they are running on, during parallel collections.
  *
  * The core barrier functionality is implemented by a barrier object.
  * The code in this class is in charge of VM-related idiosyncrasies like
@@ -63,7 +59,7 @@ public final class SynchronizationBarrier {
     Magic.isync(); // so subsequent instructions won't see stale values
 
     // XXX This should be changed to return ordinal of current rendezvous rather than the one at the beginning
-    return Magic.threadAsCollectorThread(Scheduler.getCurrentThread()).getGCOrdinal();
+    return Magic.threadAsCollectorThread(RVMThread.getCurrentThread()).getGCOrdinal();
   }
 
   /**
@@ -77,13 +73,12 @@ public final class SynchronizationBarrier {
   @Uninterruptible
   public void startupRendezvous() {
 
-    int myProcessorId = Processor.getCurrentProcessorId();
-    CollectorThread th = Magic.threadAsCollectorThread(Scheduler.getCurrentThread());
+    CollectorThread th = Magic.threadAsCollectorThread(RVMThread.getCurrentThread());
     int myNumber = th.getGCOrdinal();
 
     if (verbose > 0) {
-      VM.sysWriteln("GC Message: SynchronizationBarrier.startupRendezvous: proc ",
-                    myProcessorId,
+      VM.sysWriteln("GC Message: SynchronizationBarrier.startupRendezvous: thr ",
+                    th.getThreadSlot(),
                     " ordinal ",
                     myNumber);
     }

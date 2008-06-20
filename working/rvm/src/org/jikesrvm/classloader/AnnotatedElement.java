@@ -257,6 +257,14 @@ public abstract class AnnotatedElement implements java.lang.reflect.AnnotatedEle
   public final boolean hasUninterruptibleAnnotation() {
     return isAnnotationDeclared(TypeReference.Uninterruptible);
   }
+  
+  /**
+   * Return true if this element has a NoCheckStore annotation.
+   * @see org.vmmagic.pragma.NoCheckStore
+   */
+  public final boolean hasNoCheckStoreAnnotation() {
+    return isAnnotationDeclared(TypeReference.NoCheckStore);
+  }
 
   /**
    * Return true if this element has a Unpreemptible annotation.

@@ -121,7 +121,7 @@ public final class TypeReference {
   public static final TypeReference ITableArray = findOrCreate(org.jikesrvm.objectmodel.ITableArray.class);
   public static final TypeReference ITable = findOrCreate(org.jikesrvm.objectmodel.ITable.class);
   public static final TypeReference IMT = findOrCreate(org.jikesrvm.objectmodel.IMT.class);
-  public static final TypeReference ProcessorTable = findOrCreate(org.jikesrvm.scheduler.ProcessorTable.class);
+  public static final TypeReference Thread = findOrCreate(org.jikesrvm.scheduler.RVMThread.class);
   public static final TypeReference FunctionTable = findOrCreate(org.jikesrvm.jni.FunctionTable.class);
 
   public static final TypeReference JavaLangObject = findOrCreate(java.lang.Object.class);
@@ -162,6 +162,7 @@ public final class TypeReference {
   public static final TypeReference UninterruptibleNoWarn =
       findOrCreate(org.vmmagic.pragma.UninterruptibleNoWarn.class);
   public static final TypeReference Uninterruptible = findOrCreate(org.vmmagic.pragma.Uninterruptible.class);
+  public static final TypeReference NoCheckStore = findOrCreate(org.vmmagic.pragma.NoCheckStore.class);
   public static final TypeReference Unpreemptible = findOrCreate(org.vmmagic.pragma.Unpreemptible.class);
   public static final TypeReference Inline = findOrCreate(org.vmmagic.pragma.Inline.class);
   public static final TypeReference NoInline = findOrCreate(org.vmmagic.pragma.NoInline.class);
@@ -538,7 +539,7 @@ public final class TypeReference {
    */
   @Uninterruptible
   public boolean isRuntimeTable() {
-    return this == IMT || this == TIB || this == ITable || this == ITableArray || this == ProcessorTable || this == FunctionTable;
+    return this == IMT || this == TIB || this == ITable || this == ITableArray || this == FunctionTable;
   }
 
   /**

@@ -163,12 +163,12 @@ import org.vmmagic.unboxed.Offset;
     if (thread.getJNIEnv() != null) {
       trace.reportDelayedRootEdge(Magic.objectAsAddress(thread).plus(Entrypoints.jniEnvField.getOffset()));
       trace.reportDelayedRootEdge(Magic.objectAsAddress(thread.getJNIEnv()).plus(Entrypoints.JNIRefsField.getOffset()));
-      trace.reportDelayedRootEdge(Magic.objectAsAddress(thread.getJNIEnv()).plus(Entrypoints.JNIEnvSavedPRField.getOffset()));
+      trace.reportDelayedRootEdge(Magic.objectAsAddress(thread.getJNIEnv()).plus(Entrypoints.JNIEnvSavedTRField.getOffset()));
       trace.reportDelayedRootEdge(Magic.objectAsAddress(thread.getJNIEnv()).plus(Entrypoints.JNIPendingExceptionField.getOffset()));
     }
 
     /* Grab the ScanThread instance associated with this thread */
-    ScanThread scanner = Magic.threadAsCollectorThread(Scheduler.getCurrentThread()).getThreadScanner();
+    ScanThread scanner = Magic.threadAsCollectorThread(RVMThread.getCurrentThread()).getThreadScanner();
 
     /* scan the stack */
     scanner.startScan(trace, processCodeLocations, thread, gprs, ip, fp, initialIPLoc, topFrame);
@@ -622,11 +622,11 @@ import org.vmmagic.unboxed.Offset;
       dumpStackFrame(verbosity);
       Log.writeln();
       Log.writeln("Dumping stack starting at frame with bad ref:");
-      Scheduler.dumpStack(ip, fp);
+      RVMThread.dumpStack(ip, fp);
       /* dump stack starting at top */
       Address top_ip = thread.getContextRegisters().getInnermostInstructionAddress();
       Address top_fp = thread.getContextRegisters().getInnermostFramePointer();
-      Scheduler.dumpStack(top_ip, top_fp);
+      RVMThread.dumpStack(top_ip, top_fp);
       VM.sysFail("\n\nScanStack: Detected bad GC map; exiting RVM with fatal error");
     }
   }

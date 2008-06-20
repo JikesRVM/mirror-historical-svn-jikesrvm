@@ -16,7 +16,7 @@ import org.mmtk.plan.TraceLocal;
 import org.mmtk.utility.Constants;
 import org.jikesrvm.runtime.Statics;
 import org.jikesrvm.runtime.Magic;
-import org.jikesrvm.scheduler.Scheduler;
+import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.memorymanagers.mminterface.CollectorThread;
 
 import org.vmmagic.unboxed.*;
@@ -50,7 +50,7 @@ public final class ScanStatics implements Constants {
     // The number of collector threads
     final int numberOfCollectors = CollectorThread.numCollectors();
     // This thread as a collector
-    final CollectorThread ct = Magic.threadAsCollectorThread(Scheduler.getCurrentThread());
+    final CollectorThread ct = Magic.threadAsCollectorThread(RVMThread.getCurrentThread());
     // The number of static references
     final int numberOfReferences = Statics.getNumberOfReferenceSlots();
     // The size to give each thread

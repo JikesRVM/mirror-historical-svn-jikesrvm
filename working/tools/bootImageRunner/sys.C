@@ -45,6 +45,7 @@ extern "C" int sched_yield(void);
 #include <sys/wait.h>
 #include <time.h>               // nanosleep() and other
 #include <utime.h>
+#include <setjmp.h>
 
 #ifdef RVM_WITH_PERFCTR
 #  include "perfctr.h"
@@ -249,21 +250,6 @@ extern "C" void sysDisableAlignmentChecking() { }
 extern "C" void sysReportAlignmentChecking() { }
 
 #endif // RVM_WITH_ALIGNMENT_CHECKING
-
-// Static fields offset from the JTOC. Not generated as part of generate
-// interface declarations to avoid races causing different static field
-// layouts
-Offset GCStatusOffset;
-Offset TimerTicksOffset;
-Offset ReportedTimerTicksOffset;
-
-extern "C" void
-sysRegisterStaticFieldOffsets(int gcOffset, int ttOffset, int rttOffset)
-{
-	GCStatusOffset = (Offset)gcOffset;
-	ReportedTimerTicksOffset = (Offset)rttOffset;
-	TimerTicksOffset = (Offset)ttOffset;
-}
 
 pthread_mutex_t DeathLock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -509,9 +495,7 @@ sysBytesAvailable(int fd)
     int count = 0;
     if (ioctl(fd, FIONREAD, &count) == -1)
     {
-        bool badFD = (errno == EBADF);
-        fprintf(SysErrorFile, "%s: FIONREAD ioctl on %d failed: %s (errno=%d)\n", Me, fd, strerror( errno ), errno);
-        return badFD ? ThreadIOConstants_FD_INVALID : -1;
+	return -1;
     }
 // fprintf(SysTraceFile, "%s: available fd=%d count=%d\n", Me, fd, count);
     return count;
@@ -1229,15 +1213,15 @@ sysWaitForMultithreadingStart()
   This happens to be only called once, at thread startup time, but please
   don't rely on that fact.
 */
-extern "C" int
+extern "C" Word
 sysPthreadSelf()
 {
-    int thread;
+    Word thread;
 
-    thread = (int)pthread_self();
+    thread = (Word)pthread_self();
 
     if (VERBOSE_PTHREAD)
-        fprintf(SysTraceFile, "%s: sysPthreadSelf: thread %d\n", Me, thread);
+        fprintf(SysTraceFile, "%s: sysPthreadSelf: thread %x\n", Me, thread);
 
     return thread;
 }
@@ -1304,7 +1288,7 @@ sysPthreadSetupSignalHandling()
 
 //
 extern "C" int
-sysPthreadSignal(int pthread)
+sysPthreadSignal(Word pthread)
 {
     pthread_t thread;
     thread = (pthread_t)pthread;
@@ -1315,7 +1299,7 @@ sysPthreadSignal(int pthread)
 
 //
 extern "C" int
-sysPthreadJoin(int pthread)
+sysPthreadJoin(Word pthread)
 {
     pthread_t thread;
     thread = (pthread_t)pthread;
@@ -1338,7 +1322,7 @@ sysPthreadExit()
 // Returned: nothing
 //
 extern "C" void
-sysVirtualProcessorYield()
+sysSchedYield()
 {
     /** According to the Linux manpage, sched_yield()'s presence can be
      *  tested for by using the #define _POSIX_PRIORITY_SCHEDULING, and if
@@ -1390,9 +1374,80 @@ sysPthreadSigWait( int * lockwordAddress,
     // sysYield until unblocked
     //
     while ( *lockwordAddress == 5 /*Processor.BLOCKED_IN_SIGWAIT*/ )
-        sysVirtualProcessorYield();
+        sysSchedYield();
 
     return 0;
+}
+
+////////////// Pthread mutex and condition functions /////////////
+
+extern "C" Word
+sysPthreadMutexCreate()
+{
+    pthread_mutex_t *mutex = new pthread_mutex_t;
+    pthread_mutex_init(mutex,NULL);
+    return (Word)mutex;
+}
+
+extern "C" void
+sysPthreadMutexDestroy(Word _mutex)
+{
+    pthread_mutex_t *mutex=(pthread_mutex_t*)_mutex;
+    pthread_mutex_destroy(mutex);
+    delete mutex;
+}
+
+extern "C" void
+sysPthreadMutexLock(Word _mutex)
+{
+    pthread_mutex_lock((pthread_mutex_t*)_mutex);
+}
+
+extern "C" void
+sysPthreadMutexUnlock(Word _mutex)
+{
+    pthread_mutex_unlock((pthread_mutex_t*)_mutex);
+}
+
+extern "C" Word
+sysPthreadCondCreate()
+{
+    pthread_cond_t *cond = new pthread_cond_t;
+    pthread_cond_init(cond,NULL);
+    return (Word)cond;
+}
+
+extern "C" void
+sysPthreadCondDestroy(Word _cond)
+{
+    pthread_cond_t *cond=(pthread_cond_t*)_cond;
+    pthread_cond_destroy(cond);
+    delete cond;
+}
+
+extern "C" void
+sysPthreadCondTimedWait(Word cond,Word mutex,
+			long long whenWakeupNanos)
+{
+    timespec ts;
+    ts.tv_sec = (time_t)(whenWakeupNanos/1000000000L);
+    ts.tv_nsec = (long)(whenWakeupNanos%1000000000L);
+    pthread_cond_timedwait((pthread_cond_t*)cond,
+			   (pthread_mutex_t*)mutex,
+			   &ts);
+}
+
+extern "C" void
+sysPthreadCondWait(Word cond,Word mutex)
+{
+    pthread_cond_wait((pthread_cond_t*)cond,
+		      (pthread_mutex_t*)mutex);
+}
+
+extern "C" void
+sysPthreadCondBroadcast(Word cond)
+{
+    pthread_cond_broadcast((pthread_cond_t*)cond);
 }
 
 // Stash address of the Processor object in the thread-specific
@@ -1401,16 +1456,30 @@ sysPthreadSigWait( int * lockwordAddress,
 // native code.
 //
 extern "C" int
-sysStashVmProcessorInPthread(Address vmProcessor)
+sysStashVmThreadInPthread(Address vmThread)
 {
-    //fprintf(SysErrorFile, "stashing vm processor = %d, self=%u\n", vmProcessor, pthread_self());
-    int rc = pthread_setspecific(VmProcessorKey, (void*) vmProcessor);
-    int rc2 = pthread_setspecific(IsVmProcessorKey, (void*) 1);
+    //fprintf(SysErrorFile, "stashing vm processor = %d, self=%u\n", vmThread, pthread_self());
+    int rc = pthread_setspecific(VmThreadKey, (void*) vmThread);
+    int rc2 = pthread_setspecific(IsVmThreadKey, (void*) 1);
     if (rc != 0 || rc2 != 0) {
         fprintf(SysErrorFile, "%s: pthread_setspecific() failed (err=%d,%d)\n", Me, rc, rc2);
         sysExit(EXIT_STATUS_SYSCALL_TROUBLE);
     }
     return 0;
+}
+
+extern "C" void
+sysTerminatePthread()
+{
+#ifdef RFOR_POWERPC
+    asm("sync");
+#endif
+    jmp_buf *jb = (jmp_buf*)pthread_getspecific(TerminateJmpBufKey);
+    if (jb==NULL) {
+	jb=&primordial_jb;
+    }
+    printf("doing longjmp in sysTerminatePthread\n");
+    longjmp(*jb,1);
 }
 
 //------------------------//
@@ -1709,6 +1778,7 @@ sysZeroPages(void *dst, int cnt)
 #undef STRATEGY
 }
 
+//PNT: use a soft handshake whenever we do this.
 // Synchronize caches: force data in dcache to be written out to main memory
 // so that it will be seen by icache when instructions are fetched back.
 //

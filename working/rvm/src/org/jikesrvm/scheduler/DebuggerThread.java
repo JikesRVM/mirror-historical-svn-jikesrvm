@@ -17,11 +17,14 @@ import java.util.ArrayList;
 import org.jikesrvm.VM;
 import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.runtime.Magic;
-import org.jikesrvm.scheduler.greenthreads.FileSystem;
+import org.jikesrvm.runtime.FileSystem;
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
 
+// PNT: what to do about this?
+// seems like we can just wake it up whenever anyone receives a SIGQUIT.
+// leave this alone for now...
 /**
  * An interactive debugger that runs inside the virtual machine.
  * This thread is normally dormant and only scheduled for execution
@@ -29,7 +32,7 @@ import org.vmmagic.unboxed.Address;
  * signal (SIGQUIT).
  */
 @NonMoving
-public class DebuggerThread extends Scheduler.ThreadModel {
+public class DebuggerThread extends RVMThread {
   public DebuggerThread() {
     super("Debugger");
     makeDaemon(true);
@@ -76,7 +79,7 @@ public class DebuggerThread extends Scheduler.ThreadModel {
 
       case'*': // repeat previous command once per second, until SIGQUIT is received
         if (previousTokens != null) {
-          for (Scheduler.debugRequested = false; !Scheduler.debugRequested;) {
+          for (RVMThread.debugRequested = false; !RVMThread.debugRequested;) {
             VM.sysWrite("\033[H\033[2J");
             eval(previousTokens);
             RVMThread.sleep(1000,0);
@@ -91,11 +94,11 @@ public class DebuggerThread extends Scheduler.ThreadModel {
     switch (command) {
       case't': // display thread(s)
         if (tokens.length == 1) { //
-          for (Scheduler.ThreadModel thread : Scheduler.threads) {
+          for (RVMThread thread : RVMThread.threads) {
             if (thread == null) continue;
             VM.sysWrite(rightJustify(thread.getIndex() + " ", 4) +
                         leftJustify(thread.toString(), 40) +
-                        thread.getThreadState() +
+                        thread.getState() +
                         "\n");
           }
         } else if (tokens.length == 2) { // display specified thread
@@ -103,17 +106,17 @@ public class DebuggerThread extends Scheduler.ThreadModel {
           // !!TODO: danger here - how do we know if thread's context registers are
           //         currently valid (ie. thread is not currently running and
           //         won't start running while we're looking at it) ?
-          RVMThread thread = Scheduler.threads[threadIndex];
+          RVMThread thread = RVMThread.threadBySlot[threadIndex];
 
           VM.sysWriteln(thread.getIndex() + " " + thread + " " + thread.getThreadState());
 
           Address fp =
-              (thread == Scheduler.getCurrentThread()) ? Magic.getFramePointer() :
+              (thread == RVMThread.getCurrentThread()) ? Magic.getFramePointer() :
                  thread.contextRegisters.getInnermostFramePointer();
 
-          Processor.getCurrentProcessor().disableThreadSwitching("disabled for debugger to dump stacks");
-          Scheduler.dumpStack(fp);
-          Processor.getCurrentProcessor().enableThreadSwitching();
+          RVMThread.getCurrentProcessor().disableYieldpoints();
+          RVMThread.dumpStack(fp);
+          RVMThread.getCurrentProcessor().enableYieldpoints();
         } else {
           VM.sysWrite("please specify a thread id\n");
         }
@@ -135,11 +138,12 @@ public class DebuggerThread extends Scheduler.ThreadModel {
         return;
 
       case'd': // dump virtual machine state
-        Scheduler.dumpVirtualMachine();
+        RVMThread.dumpVirtualMachine();
         return;
 
       case'c': // continue execution of virtual machine (make debugger dormant until next debug request)
-        Scheduler.suspendDebuggerThread();
+	// PNT: do something else here
+        //RVMThread.suspendDebuggerThread();
         return;
 
       case'q': // terminate execution of virtual machine
@@ -148,8 +152,9 @@ public class DebuggerThread extends Scheduler.ThreadModel {
         return;
 
       case EOF: // got a signal without a stdin; dump VM and continue
-          Scheduler.dumpVirtualMachine();
-          Scheduler.suspendDebuggerThread();
+          RVMThread.dumpVirtualMachine();
+	  // PNT: do something else here
+          //RVMThread.suspendDebuggerThread();
           return;
 
       default:
@@ -195,6 +200,7 @@ public class DebuggerThread extends Scheduler.ThreadModel {
   //
   private static String[] readTokens() {
     StringBuilder line = new StringBuilder();
+    // PNT: this will block out GC
     int bb = FileSystem.readByte(STDIN);
 
     if (bb < 0) {

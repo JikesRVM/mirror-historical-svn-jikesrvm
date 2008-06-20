@@ -755,7 +755,7 @@ import org.vmmagic.pragma.*;
 
   private static Log getLog() {
     if (VM.assertions.runningVM())
-      return VM.activePlan.collector().getLog();
+      return VM.activePlan.mutator().getLog();
     else
       return log;
   }

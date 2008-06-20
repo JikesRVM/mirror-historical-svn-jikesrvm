@@ -774,7 +774,7 @@ public class BootImageWriter extends BootImageWriterMessages
     bootRecord.spRegister  = BootImageMap.getImageAddress(startupStack, true).plus(startupStack.length);
     bootRecord.ipRegister  = BootImageMap.getImageAddress(startupCode.getBacking(), true);
 
-    bootRecord.greenProcessorsOffset = Entrypoints.greenProcessorsField.getOffset();
+    bootRecord.bootThreadOffset = Entrypoints.bootThreadField.getOffset();
 
     bootRecord.bootImageDataStart = bootImageDataAddress;
     bootRecord.bootImageDataEnd   = bootImageDataAddress.plus(bootImage.getDataSize());
@@ -1132,6 +1132,9 @@ public class BootImageWriter extends BootImageWriterMessages
       // set up some stuff we need for compiling
       OutOfLineMachineCode.init();
 
+      // set up some stuff we need for compiling
+      OutOfLineMachineCode.init();
+
       //
       // Compile methods and populate jtoc with literals, TIBs, and machine code.
       //
@@ -1270,7 +1273,7 @@ public class BootImageWriter extends BootImageWriterMessages
       //
       // Create stack, thread, and processor context in which rvm will begin
       // execution.
-      startupThread = Scheduler.setupBootThread();
+      startupThread = RVMThread.setupBootThread();
       byte[] stack = startupThread.getStack();
       // sanity check for bootstrap loader
       int idx = stack.length - 1;
@@ -1665,8 +1668,6 @@ public class BootImageWriter extends BootImageWriterMessages
             backing = ((ITable)jdkObject).getBacking();
           } else if (rvmType == RVMType.ITableArrayType) {
             backing = ((ITableArray)jdkObject).getBacking();
-          } else if (rvmType == RVMType.ProcessorTableType) {
-            backing = ((ProcessorTable)jdkObject).getBacking();
           } else if (rvmType == RVMType.FunctionTableType) {
             backing = ((FunctionTable)jdkObject).getBacking();
           } else {

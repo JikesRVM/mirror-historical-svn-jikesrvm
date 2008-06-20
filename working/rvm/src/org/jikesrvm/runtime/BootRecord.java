@@ -189,15 +189,15 @@ public class BootRecord {
    */
   Offset deliverHardwareExceptionOffset;
   /**
-   * jtoc offset of Scheduler.dumpStackAndDie(I)
+   * jtoc offset of RVMThread.dumpStackAndDie(I)
    */
   public Offset dumpStackAndDieOffset;
   /**
-   * jtoc offset of GreenScheduler.processors[]
+   * jtoc offset of RVMThread.bootThread
    */
-  public Offset greenProcessorsOffset;
+  public Offset bootThreadOffset;
   /**
-   * jtoc offset of Scheduler.debugRequested
+   * jtoc offset of RVMThread.debugRequested
    */
   Offset debugRequestedOffset;
   /**
@@ -214,9 +214,6 @@ public class BootRecord {
   public Address sysConsoleWriteIntegerIP;
   public Address sysConsoleWriteLongIP;
   public Address sysConsoleWriteDoubleIP;
-
-  // fix up C offsets for statics
-  public Address sysRegisterStaticFieldOffsetsIP;
 
   // startup/shutdown
   public Address sysExitIP;
@@ -254,17 +251,26 @@ public class BootRecord {
 
   // threads
   public Address sysNumProcessorsIP;
-  public Address sysVirtualProcessorCreateIP;
-  public Address sysVirtualProcessorBindIP;
-  @Entrypoint
-  public Address sysVirtualProcessorYieldIP;
-  public Address sysVirtualProcessorEnableTimeSlicingIP;
+  public Address sysNativeThreadCreateIP;
+  public Address sysSchedYieldIP;
   public Address sysPthreadSelfIP;
   public Address sysPthreadSetupSignalHandlingIP;
   public Address sysPthreadSignalIP;
   public Address sysPthreadExitIP;
   public Address sysPthreadJoinIP;
-  public Address sysStashVmProcessorInPthreadIP;
+  public Address sysStashVmThreadInPthreadIP;
+  public Address sysTerminatePthreadIP;
+  
+  // mutexes and conds
+  public Address sysPthreadMutexCreateIP;
+  public Address sysPthreadMutexDestroyIP;
+  public Address sysPthreadMutexLockIP;
+  public Address sysPthreadMutexUnlockIP;
+  public Address sysPthreadCondCreateIP;
+  public Address sysPthreadCondDestroyIP;
+  public Address sysPthreadCondTimedWaitIP;
+  public Address sysPthreadCondWaitIP;
+  public Address sysPthreadCondBroadcastIP;
 
   // arithmetic
   @Entrypoint
@@ -298,31 +304,8 @@ public class BootRecord {
   Address sysDlopenIP;
   Address sysDlsymIP;
 
-  // network
-  public Address sysNetSocketSndBufIP;
-  public Address sysNetSocketCreateIP;
-  public Address sysNetSocketPortIP;
-  public Address sysNetSocketFamilyIP;
-  public Address sysNetSocketLocalAddressIP;
-  public Address sysNetSocketBindIP;
-  public Address sysNetSocketConnectIP;
-  public Address sysNetSocketListenIP;
-  public Address sysNetSocketAcceptIP;
-  public Address sysNetSocketLingerIP;
-  public Address sysNetSocketNoDelayIP;
-  public Address sysNetSocketNoBlockIP;
-  public Address sysNetSocketCloseIP;
-  public Address sysNetSocketShutdownIP;
-  public Address sysNetSelectIP;
-
-  // process management
-  public Address sysWaitPidsIP;
-
   // system startup pthread sync. primitives
   public Address sysCreateThreadSpecificDataKeysIP;
-  public Address sysInitializeStartupLocksIP;
-  public Address sysWaitForVirtualProcessorInitializationIP;
-  public Address sysWaitForMultithreadingStartIP;
 
   // VMMath
   public Address sysVMMathSinIP;

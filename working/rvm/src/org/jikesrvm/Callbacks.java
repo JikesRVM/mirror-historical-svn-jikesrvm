@@ -1148,7 +1148,7 @@ public final class Callbacks {
   @SuppressWarnings("unused")
   private static int getThread() {
     if (VM.runningVM) {
-      return Scheduler.getCurrentThread().getIndex();
+      return RVMThread.getCurrentThread().getIndex();
     } else {
       return System.identityHashCode(Thread.currentThread());
     }
@@ -1160,7 +1160,7 @@ public final class Callbacks {
   @SuppressWarnings("unused")
   private static void printStack(String message) {
     if (VM.runningVM) {
-      Scheduler.traceback(message);
+      RVMThread.traceback(message);
     } else {
       new Throwable(message).printStackTrace();
     }

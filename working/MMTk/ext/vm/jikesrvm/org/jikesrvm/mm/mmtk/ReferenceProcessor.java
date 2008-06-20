@@ -22,7 +22,7 @@ import org.vmmagic.unboxed.*;
 import org.jikesrvm.VM;
 import org.jikesrvm.memorymanagers.mminterface.DebugUtil;
 import org.jikesrvm.runtime.Entrypoints;
-import org.jikesrvm.scheduler.Scheduler;
+import org.jikesrvm.scheduler.RVMThread;
 
 import java.lang.ref.Reference;
 import java.lang.ref.SoftReference;
@@ -225,8 +225,9 @@ public final class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
     lock.acquire();
     while (growingTable || maxIndex >= references.length()) {
       if (growingTable) {
+	// FIXME PNT: this looks incredibly wrong.
         lock.release();
-        Scheduler.yield(); // (1) Allow another thread to grow the table
+        RVMThread.yield(); // (1) Allow another thread to grow the table
         lock.acquire();
       } else {
         growingTable = true;  // Prevent other threads from growing table while lock is released

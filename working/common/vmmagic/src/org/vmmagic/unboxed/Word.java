@@ -16,15 +16,17 @@ import org.vmmagic.Unboxed;
 import org.vmmagic.pragma.RawStorage;
 
 /**
- * (Mistakes in) comments by Robin Garner
- * @see Address
+ * A generic pointer-sized int.  Can always be used to hold all of the
+ * bits of an Address, Offset, or Extent.  Use this when you are given an
+ * opaque pointer-sized int and you don't much care what its
+ * kind/type/semantics are.
  */
 @Unboxed
 @RawStorage(lengthInWords = true, length = 1)
 public final class Word {
 
   /**
-   * Convert an into to a word.  On 64-bit machines, sign-extend the
+   * Convert an int to a word.  On 64-bit machines, sign-extend the
    * high order bit.
    *
    * @param val

@@ -21,7 +21,6 @@ import org.vmmagic.pragma.*;
 import org.jikesrvm.runtime.Entrypoints;
 import org.jikesrvm.scheduler.Synchronization;
 import org.jikesrvm.runtime.Magic;
-import org.jikesrvm.scheduler.Scheduler;
 import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.runtime.Time;
 
@@ -137,7 +136,7 @@ import org.mmtk.utility.Log;
           lastSlowReportNano = nowNano;
 
           Log.write("GC Warning: slow/deadlock - thread ");
-          writeThreadIdToLog(Scheduler.getCurrentThread());
+          writeThreadIdToLog(RVMThread.getCurrentThread());
           Log.write(" with ticket "); Log.write(ticket);
           Log.write(" failed to acquire lock "); Log.write(id);
           Log.write(" ("); Log.write(name);
@@ -162,9 +161,9 @@ import org.mmtk.utility.Log;
 
         if (nowNano - approximateStartNano > TIME_OUT) {
           Log.write("GC Warning: Locked out thread: ");
-          writeThreadIdToLog(Scheduler.getCurrentThread());
+          writeThreadIdToLog(RVMThread.getCurrentThread());
           Log.writeln();
-          Scheduler.dumpStack();
+          RVMThread.dumpStack();
           VM.sysFail("Deadlock or someone holding on to lock for too long");
         }
       }
@@ -178,13 +177,13 @@ import org.mmtk.utility.Log;
       Log.writeln();
     }
 
-    setLocker(Scheduler.getCurrentThread(), -1);
+    setLocker(RVMThread.getCurrentThread(), -1);
 
     Magic.isync();
   }
 
   public void check(int w) {
-    if (VM.VerifyAssertions) VM._assert(Scheduler.getCurrentThread() == thread);
+    if (VM.VerifyAssertions) VM._assert(RVMThread.getCurrentThread() == thread);
     if (verbose) {
       Log.write("Thread ");
       writeThreadIdToLog(thread);

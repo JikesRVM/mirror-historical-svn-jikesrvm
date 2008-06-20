@@ -21,7 +21,7 @@ import org.jikesrvm.adaptive.util.AOSLogging;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.compilers.opt.runtimesupport.OptCompiledMethod;
-import org.jikesrvm.scheduler.greenthreads.GreenScheduler;
+import org.jikesrvm.scheduler.RVMThread;
 
 /**
  * An organizer for method listener information.
@@ -56,7 +56,8 @@ public final class MethodSampleOrganizer extends Organizer {
   public void initialize() {
     AOSLogging.methodSampleOrganizerThreadStarted(filterOptLevel);
 
-    int numSamples = Controller.options.METHOD_SAMPLE_SIZE * GreenScheduler.numProcessors;
+    // PNT: I have a bad feeling about this:
+    int numSamples = Controller.options.METHOD_SAMPLE_SIZE * RVMThread.numProcessors;
     if (Controller.options.mlCBS()) {
       numSamples *= VM.CBSMethodSamplesPerTick;
     }

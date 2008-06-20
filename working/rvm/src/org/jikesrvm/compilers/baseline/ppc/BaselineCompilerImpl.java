@@ -1025,6 +1025,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    */
   @Override
   protected final void emit_aastore() {
+    // PNT: do not call checkstore in NoCheckStore methods
     asm.emitLAddrToc(T0, Entrypoints.checkstoreMethod.getOffset());
     asm.emitMTCTR(T0);
     peekAddr(T1, 0);    // T1 is value to store

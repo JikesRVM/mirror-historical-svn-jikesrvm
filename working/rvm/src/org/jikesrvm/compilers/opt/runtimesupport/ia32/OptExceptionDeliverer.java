@@ -20,8 +20,6 @@ import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.opt.runtimesupport.OptCompiledMethod;
 import org.jikesrvm.runtime.ExceptionDeliverer;
 import org.jikesrvm.runtime.Magic;
-import org.jikesrvm.scheduler.Processor;
-import org.jikesrvm.scheduler.Scheduler;
 import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
@@ -42,7 +40,7 @@ public abstract class OptExceptionDeliverer extends ExceptionDeliverer
                                Throwable exceptionObject, Registers registers) {
     OptCompiledMethod optMethod = (OptCompiledMethod) compiledMethod;
     Address fp = registers.getInnermostFramePointer();
-    RVMThread myThread = Scheduler.getCurrentThread();
+    RVMThread myThread = RVMThread.getCurrentThread();
 
     if (TRACE) {
       VM.sysWrite("Frame size of ");

@@ -1452,13 +1452,6 @@ Check to make sure all required properties are specified. This includes properti
       <equals arg1="${target.arch}" arg2="ppc"/>
     </condition>
 
-    <condition property="include.syswrap" value="true">
-      <or>
-        <equals arg1="${target.os}" arg2="Linux"/>
-        <equals arg1="${target.os}" arg2="Solaris"/>
-      </or>
-    </condition>
-
     <condition property="gcspy.includes.dir" value="-I${jikesrvm.dir}/tools/gcspy-stub/src">
       <isset property="include.gcspy-stub"/>
     </condition>
@@ -1511,19 +1504,6 @@ Check to make sure all required properties are specified. This includes properti
     <property name="rvm.src" value="${bl.dir}/RunBootImage.C ${bl.dir}/sys.C ${rvm.arch.src} ${perfctr.src}"/>
   </target>
 
-  <target name="build-syswrap" depends="check-bootloader-properties" if="include.syswrap">
-    <!-- create syswrap shared library -->
-    <mkdir dir="${build.base}"/>
-    <property name="syswrap.dll" value="${target.dll-prefix}syswrap${target.dll-ext}"/>
-    <exec executable="${c++.exe}" failonerror="true">
-      <arg line="${rvm.c++.args}"/>
-      <arg line="-nostartfiles -shared"/>
-      <arg value="-o"/>
-      <arg value="${build.base}/${syswrap.dll}"/>
-      <arg value="${bl.dir}/syswrap.C"/>
-    </exec>
-  </target>
-
   <target name="build-ppc-bootThread" depends="check-bootloader-properties" if="gen-ppc-bootThread">
     <test-file name="cpp.exe" location="${host.file}"/>
     <exec executable="${cpp.exe}" failonerror="true" output="${build.native}/bootThread.s">
@@ -1542,7 +1522,7 @@ Check to make sure all required properties are specified. This includes properti
     </exec>
   </target>
 
-  <target name="build-bootloader" depends="build-gcspy-stub,build-syswrap,build-ppc-bootThread">
+  <target name="build-bootloader" depends="build-gcspy-stub,build-ppc-bootThread">
 
     <!-- rdynamic flag used to control the exporting of symbols into an ELF -->
     <condition property="c++.rdynamic" value="" else="-rdynamic">

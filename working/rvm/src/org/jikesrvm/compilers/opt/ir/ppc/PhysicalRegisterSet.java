@@ -293,8 +293,8 @@ public abstract class PhysicalRegisterSet extends GenericPhysicalRegisterSet
   /**
    * @return the processor register
    */
-  public Register getPR() {
-    return reg[PROCESSOR_REGISTER];
+  public Register getTR() {
+    return reg[THREAD_REGISTER];
   }
 
   /**

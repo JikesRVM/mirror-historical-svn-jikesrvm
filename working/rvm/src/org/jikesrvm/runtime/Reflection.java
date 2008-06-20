@@ -20,7 +20,7 @@ import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.classloader.TypeReference;
 import org.jikesrvm.compilers.common.CompiledMethod;
-import org.jikesrvm.scheduler.Processor;
+import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.WordArray;
@@ -115,14 +115,14 @@ public class Reflection implements Constants {
       cm = targetMethod.getCurrentCompiledMethod();
     }
 
-    Processor.getCurrentProcessor().disableThreadSwitching("Packaging parameters for reflection");
+    RVMThread.getCurrentThread().disableYieldpoints();
 
     CodeArray code = cm.getEntryCodeArray();
     MachineReflection.packageParameters(method, thisArg, otherArgs, GPRs, FPRs, FPRmeta, Spills);
 
-    // critical: no threadswitch/GCpoints between here and the invoke of code!
+    // critical: no yieldpoints/GCpoints between here and the invoke of code!
     //           We may have references hidden in the GPRs and Spills arrays!!!
-    Processor.getCurrentProcessor().enableThreadSwitching();
+    RVMThread.getCurrentThread().enableYieldpoints();
 
     if (!returnIsPrimitive) {
       return Magic.invokeMethodReturningObject(code, GPRs, FPRs, FPRmeta, Spills);
