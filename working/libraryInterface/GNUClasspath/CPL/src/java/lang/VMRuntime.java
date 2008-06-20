@@ -16,8 +16,7 @@ import java.io.File;
 
 import org.jikesrvm.*;
 import org.jikesrvm.runtime.DynamicLibrary;
-import org.jikesrvm.scheduler.greenthreads.VMProcess;
-import org.jikesrvm.scheduler.Scheduler;
+import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.memorymanagers.mminterface.*;
 
 /**

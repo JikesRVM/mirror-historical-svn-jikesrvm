@@ -76,7 +76,7 @@
 [Lorg/mmtk/utility/statistics/Timer;
 [Lorg/mmtk/vm/ReferenceProcessor$Semantics;
 
-[Lorg/jikesrvm/scheduler/RVMThread$State;
+[Lorg/jikesrvm/scheduler/RVMThread$Waiting;
 
 [Lorg/vmmagic/pragma/Inline$When;
 Lsun/misc/Unsafe;

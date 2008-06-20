@@ -1422,10 +1422,6 @@ Check to make sure all required properties are specified. This includes properti
            classpath="${build.vm.jar}">
       <class name="org.jikesrvm.runtime.DynamicLibrary"/>
     </javah>
-    <javah outputFile="${build.native}/org_jikesrvm_scheduler_greenthreads_VMProcess.h"
-           classpath="${build.vm.jar}">
-      <class name="org.jikesrvm.scheduler.greenthreads.VMProcess"/>
-    </javah>
   </target>
 
   <target name="gen-runbootimage" depends="check-properties">
@@ -1566,15 +1562,6 @@ Check to make sure all required properties are specified. This includes properti
       </sequential>
     </if>
 
-    <!-- create rvmexec shared library -->
-    <property name="rvmexec.dll" value="${target.dll-prefix}rvmexec${target.jni-suffix}"/>
-    <exec executable="${c++.exe}" failonerror="true">
-      <arg line="${rvm.c++.args}"/>
-      <arg value="-o"/>
-      <arg value="${build.base}/${rvmexec.dll}"/>
-      <arg value="${bl.dir}/org_jikesrvm_scheduler_greenthreads_VMProcess.c"/>
-    </exec>
-
     <!-- create rvmdynlib shared library -->
     <property name="rvmdynlib.dll" value="${target.dll-prefix}rvmdynlib${target.jni-suffix}"/>
     <exec executable="${c++.exe}" failonerror="true">
@@ -1665,10 +1652,6 @@ Check to make sure all required properties are specified. This includes properti
       </fileset>
     </copy>
     <copy file="${basedir}/tools/bootImageRunner/rvm.classpath" tofile="${dist.base}/rvm">
-      <filterset>
-        <filter token="PRELOAD"
-                value="${target.dll-prefix}syswrap${target.dll-ext}"/>
-      </filterset>
     </copy>
     <chmod file="${dist.base}/rvm" perm="ugo+rx"/>
     <copy file="${build.rt.jar}" todir="${dist.base}"/>
