@@ -47,23 +47,18 @@ public class OSR_OnStackReplacementTrigger {
     event.tsFromFPoff = tsFromFPoff;
     event.ypTakenFPoff = ypTakenFPoff;
 
-    // make sure that the above stores don't get ordered after the flagging
-    // this thread is requesting OSR.
-    Magic.sync();
-
-    // consumer:
+    thread.monitor().lock();
     thread.requesting_osr = true;
+    thread.monitor().unlock();
 
-    // make sure that the flag is set to activate the OSR organizer after
-    // this thread has flagged its request for OSR.
-    Magic.sync();
-
-    // osr organizer must be initialized already
-    if (!Controller.osrOrganizer.osr_flag) {
-      Controller.osrOrganizer.osr_flag = true;
-      Controller.osrOrganizer.activate();
+    Controller.osrOrganizer.activate();
+    
+    // PNT: make sure there isn't anything funny going on with the context regs
+    thread.monitor().lock();
+    while (!thread.osr_done) {
+      thread.monitor().waitNicely();
     }
-
-    thread.osrPark();
+    thread.osr_done=false;
+    thread.monitor().unlock();
   }
 }

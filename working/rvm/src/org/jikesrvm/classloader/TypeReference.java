@@ -146,7 +146,6 @@ public final class TypeReference {
   public static final TypeReference JavaLangIllegalMonitorStateException =
       findOrCreate(java.lang.IllegalMonitorStateException.class);
 
-  public static final TypeReference Processor = findOrCreate(org.jikesrvm.scheduler.Processor.class);
   public static final TypeReference Type = findOrCreate(org.jikesrvm.classloader.RVMType.class);
   public static final TypeReference Class = findOrCreate(org.jikesrvm.classloader.RVMClass.class);
 

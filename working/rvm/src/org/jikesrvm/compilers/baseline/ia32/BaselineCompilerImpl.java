@@ -628,11 +628,13 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
   @Override
   protected final void emit_aastore() {
     Barriers.compileModifyCheck(asm, 8);
-    asm.emitPUSH_RegDisp(SP, TWO_SLOTS); // duplicate array ref
-    asm.emitPUSH_RegDisp(SP, ONE_SLOT);  // duplicate object value
-    genParameterRegisterLoad(2);         // pass 2 parameter
-    // call checkstore(array ref, value)
-    asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.checkstoreMethod.getOffset()));
+    if (doesCheckStore) {
+      asm.emitPUSH_RegDisp(SP, TWO_SLOTS); // duplicate array ref
+      asm.emitPUSH_RegDisp(SP, ONE_SLOT);  // duplicate object value
+      genParameterRegisterLoad(2);         // pass 2 parameter
+      // call checkstore(array ref, value)
+      asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.checkstoreMethod.getOffset()));
+    }
     asm.emitMOV_Reg_RegDisp(T0, SP, ONE_SLOT);  // T0 is array index
     asm.emitMOV_Reg_RegDisp(S0, SP, TWO_SLOTS); // S0 is the array ref
     genBoundsCheck(asm, T0, S0);        // T0 is index, S0 is address of array
@@ -3182,7 +3184,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
 
       int savedRegistersSize = SAVED_GPRS << LG_WORDSIZE;       // default
       /* handle "dynamic brige" methods:
-       * save all registers except FP, SP, PR, S0 (scratch), and
+       * save all registers except FP, SP, TR, S0 (scratch), and
        * EDI and EBX saved above.
        */
       // TODO: (SJF): When I try to reclaim ESI, I may have to save it here?
@@ -3292,7 +3294,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
       asm.emitADD_Reg_Imm(SP, fp2spOffset(NO_SLOT).toInt() - bytesPopped);     // SP becomes frame pointer
       asm.emitMOV_Reg_RegDisp(EDI, SP, EDI_SAVE_OFFSET);           // restore nonvolatile EDI register
       asm.emitMOV_Reg_RegDisp(EBX, SP, EBX_SAVE_OFFSET);             // restore nonvolatile EBX register
-      asm.emitPOP_RegDisp(PR, ArchEntrypoints.framePointerField.getOffset()); // discard frame
+      asm.emitPOP_RegDisp(TR, ArchEntrypoints.framePointerField.getOffset()); // discard frame
       asm.emitRET_Imm(parameterWords << LG_WORDSIZE);    // return to caller- pop parameters from stack
     }
   }
@@ -3664,7 +3666,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
     }
 
     // thread switch requested ??
-    ProcessorLocalState.emitCompareFieldWithImm(asm, Entrypoints.takeYieldpointField.getOffset(), 0);
+    ThreadLocalState.emitCompareFieldWithImm(asm, Entrypoints.takeYieldpointField.getOffset(), 0);
     ForwardReference fr1;
     if (whereFrom == RVMThread.PROLOGUE) {
       // Take yieldpoint if yieldpoint flag is non-zero (either 1 or -1)
@@ -4102,26 +4104,26 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
       return true;
     }
 
-    // get the processor register (PR)
-    if (methodName == MagicNames.getProcessorRegister) {
-      asm.emitPUSH_Reg(PR);
+    // get the processor register (TR)
+    if (methodName == MagicNames.getThreadRegister) {
+      asm.emitPUSH_Reg(TR);
       return true;
     }
 
-    // set the processor register (PR)
-    if (methodName == MagicNames.setProcessorRegister) {
-      asm.emitPOP_Reg(PR);
+    // set the processor register (TR)
+    if (methodName == MagicNames.setThreadRegister) {
+      asm.emitPOP_Reg(TR);
       return true;
     }
 
     // Get the value in ESI
-    if (methodName == MagicNames.getESIAsProcessor) {
+    if (methodName == MagicNames.getESIAsThread) {
       asm.emitPUSH_Reg(ESI);
       return true;
     }
 
     // Set the value in ESI
-    if (methodName == MagicNames.setESIAsProcessor) {
+    if (methodName == MagicNames.setESIAsThread) {
       asm.emitPOP_Reg(ESI);
       return true;
     }
@@ -4418,7 +4420,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
       asm.emitMOV_Reg_RegDisp(EDI, SP, EDI_SAVE_OFFSET);
 
       // pop frame
-      asm.emitPOP_RegDisp(PR, ArchEntrypoints.framePointerField.getOffset()); // FP<-previous FP
+      asm.emitPOP_RegDisp(TR, ArchEntrypoints.framePointerField.getOffset()); // FP<-previous FP
 
       // branch
       asm.emitJMP_Reg(S0);
@@ -4434,7 +4436,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
       asm.emitMOV_Reg_RegDisp(EBX, SP, EBX_SAVE_OFFSET);
 
       // discard current stack frame
-      asm.emitPOP_RegDisp(PR, ArchEntrypoints.framePointerField.getOffset());
+      asm.emitPOP_RegDisp(TR, ArchEntrypoints.framePointerField.getOffset());
 
       // return to caller- pop parameters from stack
       asm.emitRET_Imm(parameterWords << LG_WORDSIZE);
