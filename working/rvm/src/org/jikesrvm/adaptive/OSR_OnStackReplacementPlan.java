@@ -132,6 +132,9 @@ public class OSR_OnStackReplacementPlan implements Constants {
       }
     }
 
-    suspendedThread.osrUnpark();
+    suspendedThread.monitor().lock();
+    suspendedThread.osr_done=true;
+    suspendedThread.monitor().broadcast();
+    suspendedThread.monitor().unlock();
   }
 }
