@@ -33,8 +33,7 @@ public class MMTk_Events extends org.mmtk.vm.MMTk_Events {
 
   public final EventType gcStart;
   public final EventType gcStop;
-  public final EventType pageAcquire;
-  public final EventType pageRelease;
+  public final EventType pageAction;
   public final EventType heapSizeChanged;
 
   private final VM_Engine engine;
@@ -46,27 +45,23 @@ public class MMTk_Events extends org.mmtk.vm.MMTk_Events {
     gcStart = engine.defineEvent("GC Start", "Start of a GC cycle",
                           new EventAttribute("Reason","Encoded reason for GC",ScalarType.INT));
     gcStop = engine.defineEvent("GC Stop", "End of a GC Cycle");
-    pageAcquire = engine.defineEvent("Page Acquire", "A space has acquired one or more new pages",
+    pageAction = engine.defineEvent("Page Action", "A space has acquired or released one or more pages",
                               new EventAttribute[] {
                                   new EventAttribute("Space", "Space ID", ScalarType.INT),
                                   new EventAttribute("Start Address", "Start address of range of released pages", ScalarType.INT),
-                                  new EventAttribute("Num Pages", "Number of pages released", ScalarType.INT)});
-    pageRelease = engine.defineEvent("Page Release", "A space has released one or more of its pages",
-                              new EventAttribute[] {
-                                  new EventAttribute("Space", "Space ID", ScalarType.INT),
-                                  new EventAttribute("Start Address", "Start address of range of released pages", ScalarType.INT),
-                                  new EventAttribute("Num Pages", "Number of pages released", ScalarType.INT)});
+                                  new EventAttribute("Num Pages", "Number of pages released", ScalarType.INT),
+                                  new EventAttribute("Acquire/Release", "0 for acquire, 1 for release", ScalarType.INT)});
     heapSizeChanged = engine.defineEvent("Heapsize", "Current heapsize ceiling",
                                          new EventAttribute("Heapsize", "Heapsize in bytes", ScalarType.INT));
     events = this;
   }
 
   public void tracePageAcquired(Space space, Address startAddress, int numPages) {
-    VM_Processor.getCurrentFeedlet().addEvent(pageAcquire, space.getIndex(), startAddress.toInt(), numPages);
+    VM_Processor.getCurrentFeedlet().addEvent(pageAction, space.getIndex(), startAddress.toInt(), numPages, 0);
   }
 
   public void tracePageReleased(Space space, Address startAddress, int numPages) {
-    VM_Processor.getCurrentFeedlet().addEvent(pageRelease, space.getIndex(), startAddress.toInt(), numPages);
+    VM_Processor.getCurrentFeedlet().addEvent(pageAction, space.getIndex(), startAddress.toInt(), numPages, 1);
   }
 
   public void heapSizeChanged(Extent heapSize) {
