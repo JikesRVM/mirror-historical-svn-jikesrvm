@@ -671,7 +671,7 @@ public class RuntimeCompiler implements Constants, Callbacks.ExitMonitor {
               // exception in progress. can't use opt compiler:
               // it uses exceptions and runtime doesn't support
               // multiple pending (undelivered) exceptions [--DL]
-              Scheduler.getCurrentThread().getExceptionRegisters().inuse) {
+              RVMThread.getCurrentThread().getExceptionRegisters().inuse) {
             // compile with baseline compiler
             cm = baselineCompile(method);
             ControllerMemory.incrementNumBase();

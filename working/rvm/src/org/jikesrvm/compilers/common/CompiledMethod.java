@@ -225,7 +225,7 @@ public abstract class CompiledMethod implements SizeConstants {
         }
         if (dieOnFailure) {
           VM.sysWriteln("Attempting to dump virtual machine state before exiting");
-          Scheduler.dumpVirtualMachine();
+          RVMThread.dumpVirtualMachine();
           VM.sysFail("Terminating VM due to invalid request for instruction offset");
         }
       }

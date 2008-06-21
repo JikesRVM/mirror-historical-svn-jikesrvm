@@ -67,8 +67,6 @@ public abstract class BaselineExceptionDeliverer extends ExceptionDeliverer impl
     // the stacklimit should be harmless, since the stacklimit should already have exactly
     // the value we are setting it too.
     myThread.stackLimit = Magic.objectAsAddress(myThread.getStack()).plus(STACK_SIZE_GUARD);
-    Processor.getCurrentProcessor().activeThreadStackLimit = myThread.stackLimit;
-
     Magic.restoreHardwareExceptionState(registers);
     if (VM.VerifyAssertions) VM._assert(NOT_REACHED);
   }
@@ -92,7 +90,7 @@ public abstract class BaselineExceptionDeliverer extends ExceptionDeliverer impl
               Magic.addressAsObject(fp.plus(BaselineCompilerImpl.locationToOffset(((BaselineCompiledMethod) compiledMethod).getGeneralLocalLocation(
                   0)) - BYTES_IN_ADDRESS).loadAddress());
         }
-        if (ObjectModel.holdsLock(lock, Scheduler.getCurrentThread())) {
+        if (ObjectModel.holdsLock(lock, RVMThread.getCurrentThread())) {
           ObjectModel.genericUnlock(lock);
         }
       }
