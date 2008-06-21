@@ -104,7 +104,6 @@ public abstract class OptExceptionDeliverer extends ExceptionDeliverer
     // the stacklimit should be harmless, since the stacklimit should already have exactly
     // the value we are setting it too.
     myThread.stackLimit = Magic.objectAsAddress(myThread.getStack()).plus(STACK_SIZE_GUARD);
-    Processor.getCurrentProcessor().activeThreadStackLimit = myThread.stackLimit;
 
     // "branches" to catchBlockInstructionAddress
     Magic.restoreHardwareExceptionState(registers);

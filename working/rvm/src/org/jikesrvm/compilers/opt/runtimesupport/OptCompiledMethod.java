@@ -535,28 +535,6 @@ public final class OptCompiledMethod extends CompiledMethod {
         // isync at thread switch point.
         Magic.sync();
 
-        if (Scheduler.syncObj == null) {
-          Scheduler.syncObj = new Object();
-        }
-
-        // how may processors to be synchronized
-        // no current process, no the first dummy processor
-        Scheduler.toSyncProcessors = GreenScheduler.numProcessors - 1;
-
-        synchronized (Scheduler.syncObj) {
-          for (int i = Scheduler.getFirstProcessorId(); i <= Scheduler.getLastProcessorId(); i++) {
-            Processor proc = GreenScheduler.getProcessor(i);
-            // do not sync the current processor
-            if (proc != Processor.getCurrentProcessor()) {
-              proc.requestPostCodePatchSync();
-            }
-          }
-        }
-
-        if (DEBUG_CODE_PATCH) {
-          VM.sysWriteln("processors to be synchronized : ", Scheduler.toSyncProcessors);
-        }
-
         // do sync only when necessary
         while (Scheduler.toSyncProcessors > 0) {
           Scheduler.yield();
@@ -568,6 +546,8 @@ public final class OptCompiledMethod extends CompiledMethod {
         // forced the data caches to be in synch), but we need the icbi instructions
         Memory.sync(Magic.objectAsAddress(instructions),
                        instructions.length() << ArchitectureSpecific.RegisterConstants.LG_INSTRUCTION_WIDTH);
+	
+	RVMThread.softHandshake(codePatchSyncRequestVisitor);
 
         if (DEBUG_CODE_PATCH) {
           VM.sysWrite("all processors get synchronized!\n");
@@ -577,4 +557,13 @@ public final class OptCompiledMethod extends CompiledMethod {
     }
   }
 
+  
+  private static RVMThread.SoftHandshakeVisitor codePatchSyncRequestVisitor =
+    new RVMThread.SoftHandshakeVisitor() {
+      @Uninterruptible
+      public boolean checkAndSignal(RVMThread t) {
+	t.codePatchSyncRequested = true;
+	return true; // handshake with everyone but ourselves.
+      }
+    };
 }
