@@ -57,15 +57,6 @@ public class JNIEnvironment implements SizeConstants {
   private static AddressArray[] LinkageTriplets;
 
   /**
-   * Stash the JTOC somewhere we can find it later
-   * when we are making a C => Java transition.
-   * We mainly need this for OSX/Linux but it is also nice to have on AIX.
-   */
-  @SuppressWarnings({"unused", "UnusedDeclaration"})
-  // used by native code
-  private final Address savedJTOC = VM.BuildForPowerPC ? Magic.getTocPointer() : Address.zero();
-
-  /**
    * This is the pointer to the shared JNIFunction table.
    * When we invoke a native method, we adjust the pointer we
    * pass to the native code such that this field is at offset 0.

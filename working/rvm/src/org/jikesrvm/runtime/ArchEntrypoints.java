@@ -46,22 +46,16 @@ public interface ArchEntrypoints {
       (VM.BuildForPowerPC) ? EntrypointHelper.getField("Lorg/jikesrvm/" + arch + "/Registers;",
                                       "lr",
                                       "Lorg/vmmagic/unboxed/Address;") : null;
-  RVMField toSyncProcessorsField =
-      (VM.BuildForPowerPC) ? EntrypointHelper.getField("Lorg/jikesrvm/scheduler/Scheduler;", "toSyncProcessors", "I") : null;
   RVMField registersFPField =
       (VM.BuildForIA32) ? EntrypointHelper.getField("Lorg/jikesrvm/" + arch + "/Registers;",
                                    "fp",
                                    "Lorg/vmmagic/unboxed/Address;") : null;
   RVMField framePointerField =
-      (VM.BuildForIA32) ? EntrypointHelper.getField("Lorg/jikesrvm/scheduler/Processor;",
+      (VM.BuildForIA32) ? EntrypointHelper.getField("Lorg/jikesrvm/scheduler/RVMThread;",
                                    "framePointer",
                                    "Lorg/vmmagic/unboxed/Address;") : null;
   RVMField hiddenSignatureIdField =
-      (VM.BuildForIA32) ? EntrypointHelper.getField("Lorg/jikesrvm/scheduler/Processor;", "hiddenSignatureId", "I") : null;
+      (VM.BuildForIA32) ? EntrypointHelper.getField("Lorg/jikesrvm/scheduler/RVMThread;", "hiddenSignatureId", "I") : null;
   RVMField arrayIndexTrapParamField =
-      (VM.BuildForIA32) ? EntrypointHelper.getField("Lorg/jikesrvm/scheduler/Processor;", "arrayIndexTrapParam", "I") : null;
-  RVMField JNIEnvSavedJTOCField =
-      (VM.BuildForPowerPC) ? EntrypointHelper.getField("Lorg/jikesrvm/jni/JNIEnvironment;",
-                                      "savedJTOC",
-                                      "Lorg/vmmagic/unboxed/Address;") : null;
+      (VM.BuildForIA32) ? EntrypointHelper.getField("Lorg/jikesrvm/scheduler/RVMThread;", "arrayIndexTrapParam", "I") : null;
 }

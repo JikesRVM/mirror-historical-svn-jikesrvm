@@ -14,9 +14,8 @@ package org.jikesrvm.runtime;
 
 import org.jikesrvm.ArchitectureSpecific.StackframeLayoutConstants;
 import org.jikesrvm.VM;
-import org.jikesrvm.scheduler.Scheduler;
 import org.jikesrvm.scheduler.RVMThread;
-import org.jikesrvm.scheduler.greenthreads.FileSystem;
+import org.jikesrvm.scheduler.runtime.FileSystem;
 import org.jikesrvm.util.ImmutableEntryHashMapRVM;
 import org.jikesrvm.util.StringUtilities;
 import org.vmmagic.unboxed.Address;

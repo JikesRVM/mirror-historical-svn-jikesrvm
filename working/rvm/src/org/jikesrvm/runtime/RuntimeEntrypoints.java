@@ -676,7 +676,12 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
   @NoInline
   @Entrypoint
   public static void athrow(Throwable exceptionObject) {
-    RVMThread myThread = Scheduler.getCurrentThread();
+    if (traceAthrow) {
+      VM.sysWriteln("in athrow.");
+      RVMThread.dumpStack();
+    }
+    
+    RVMThread myThread = RVMThread.getCurrentThread();
     Registers exceptionRegisters = myThread.getExceptionRegisters();
     VM.disableGC();              // VM.enableGC() is called when the exception is delivered.
     Magic.saveThreadState(exceptionRegisters);
@@ -707,7 +712,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
   @Entrypoint
   static void deliverHardwareException(int trapCode, int trapInfo) {
 
-    RVMThread myThread = Scheduler.getCurrentThread();
+    RVMThread myThread = RVMThread.getCurrentThread();
     Registers exceptionRegisters = myThread.getExceptionRegisters();
 
     if ((trapCode == TRAP_STACK_OVERFLOW || trapCode == TRAP_JNI_STACK) &&

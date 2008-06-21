@@ -62,8 +62,8 @@ public class StackTrace {
       }
       isVerbose = (traceIndex % VM.VerboseStackTracePeriod == 0);
     }
-    RVMThread stackTraceThread = Scheduler.getCurrentThread().getThreadForStackTrace();
-    if (stackTraceThread != Scheduler.getCurrentThread()) {
+    RVMThread stackTraceThread = RVMThread.getCurrentThread().getThreadForStackTrace();
+    if (stackTraceThread != RVMThread.getCurrentThread()) {
       // (1) Count the number of frames comprising the stack.
       int numFrames = countFramesNoGC(stackTraceThread);
       // (2) Construct arrays to hold raw data
