@@ -12,10 +12,10 @@
  */
 
 /*
- * Called as: bootThread(int ip, int pr, int rvm_sp)
+ * Called as: bootThread(int ip, int tr, int rvm_sp)
  *
  * where ip - address in RVM to branch to
- *       pr - address of the processor object
+ *       tr - address of the thread object
  *       rvm_sp - address of the RVM stack
  */
 
@@ -50,7 +50,7 @@
 	 * the old stack to read parameters.
 	 */
         movl 16(%ebp),%esp	// new_esp <- parameter sp value
-	movl 12(%ebp),PR	// PR register <- paramater processos obj value
+	movl 12(%ebp),TR	// TR register <- paramater thread obj value
         movl  8(%ebp),%eax	// eax <- parameter RVM ip
 
 	/*
