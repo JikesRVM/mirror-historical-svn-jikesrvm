@@ -134,9 +134,9 @@ pageRoundUp(int size)
  * you can set a breakpoint here with gdb.
  */
 int
-boot (int ip, int pr, int sp)
+boot (int ip, int tr, int sp)
 {
-    return bootThread (ip, pr, sp);
+    return bootThread (ip, tr, sp);
 }
 
 #include <disasm.h>
@@ -743,7 +743,6 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
     sp = (long unsigned int *)stackLimit - 384;
     stackLimit -= Constants_STACK_SIZE_GUARD;
     *(unsigned *)(threadObjectAddress + RVMThread_stackLimit_offset) = stackLimit;
-    *(unsigned *)(IA32_ESI(context) + Processor_activeThreadStackLimit_offset) = stackLimit;
 
     /* Insert artificial stackframe at site of trap. */
     /* This frame marks the place where "hardware exception registers" were saved. */
@@ -1166,38 +1165,39 @@ createVM(int UNUSED vmInSeparateThread)
         fprintf(SysErrorFile, "%s: sigaction failed (errno=%d)\n", Me, errno);
         return 1;
     }
-
+    
     /* set up initial stack frame */
     int ip   = bootRecord->ipRegister;
     int jtoc = bootRecord->tocRegister;
-    int pr;
+    int tr;
     int *sp  = (int *) bootRecord->spRegister;
-    {
-        unsigned *processors
-            = *(unsigned **) (bootRecord->tocRegister
-                              + bootRecord->greenProcessorsOffset);
-        pr      = processors[GreenScheduler_PRIMORDIAL_PROCESSOR_ID];
 
-        /* initialize the thread id jtoc, and framepointer fields in the primordial
-         * processor object.
-         */
-        *(unsigned int *) (pr + Processor_threadId_offset)
-            = Scheduler_PRIMORDIAL_THREAD_INDEX
-                << ThinLockConstants_TL_THREAD_ID_SHIFT;
-        *(unsigned int *) (pr + Processor_framePointer_offset)
-            = (int)sp - 8;
+    tr = *(int *) (bootRecord->tocRegister
+		   + bootRecord->bootThreadOffset);
+    
+    /* initialize the thread id jtoc, and framepointer fields in the primordial
+     * processor object.
+     */
+    *(unsigned int *) (tr + Thread_framePointer_offset)
+	= (int)sp - 8;
+	
+    // setup place that we'll return to when we're done
+    if (setjmp(primordial_jb)) {
+	*(int*)(tr + Thread_execStatus_offset) = Thread_TERMINATED;
+	// cannot return or else the process will exit
+	for (;;) pause();
+    } else {
+	*--sp = 0xdeadbabe;         /* STACKFRAME_RETURN_ADDRESS_OFFSET */
+	*--sp = Constants_STACKFRAME_SENTINEL_FP; /* STACKFRAME_FRAME_POINTER_OFFSET */
+	*--sp = Constants_INVISIBLE_METHOD_ID; /* STACKFRAME_METHOD_ID_OFFSET */
+	*--sp = 0; /* STACKFRAME_NEXT_INSTRUCTION_OFFSET (for AIX compatability) */
+	
+	// fprintf(SysTraceFile, "%s: here goes...\n", Me);
+	int rc = boot (ip, tr, (int) sp);
+	
+	fprintf(SysErrorFile, "%s: createVM(): boot() returned; failed to create a virtual machine.  rc=%d.  Bye.\n", Me, rc);
+	return 1;
     }
-
-    *--sp = 0xdeadbabe;         /* STACKFRAME_RETURN_ADDRESS_OFFSET */
-    *--sp = Constants_STACKFRAME_SENTINEL_FP; /* STACKFRAME_FRAME_POINTER_OFFSET */
-    *--sp = Constants_INVISIBLE_METHOD_ID; /* STACKFRAME_METHOD_ID_OFFSET */
-    *--sp = 0; /* STACKFRAME_NEXT_INSTRUCTION_OFFSET (for AIX compatability) */
-
-    // fprintf(SysTraceFile, "%s: here goes...\n", Me);
-    int rc = boot (ip, pr, (int) sp);
-
-    fprintf(SysErrorFile, "%s: createVM(): boot() returned; failed to create a virtual machine.  rc=%d.  Bye.\n", Me, rc);
-    return 1;
 }
 
 
