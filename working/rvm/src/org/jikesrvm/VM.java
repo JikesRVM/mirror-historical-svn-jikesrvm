@@ -12,7 +12,7 @@
  */
 package org.jikesrvm;
 
-import org.jikesrvm.ArchitectureSpecific.ProcessorLocalState;
+import org.jikesrvm.ArchitectureSpecific.ThreadLocalState;
 import org.jikesrvm.adaptive.controller.Controller;
 import org.jikesrvm.adaptive.util.CompilerAdvice;
 import org.jikesrvm.classloader.Atom;
@@ -397,12 +397,6 @@ public class VM extends Properties implements Constants, ExitStatus {
     String[] applicationArguments = CommandLineArgs.lateProcessCommandLineArguments();
 
     if (VM.verboseClassLoading || verboseBoot >= 1) VM.sysWrite("[VM booted]\n");
-
-    // set up JikesRVM socket I/O
-    if (VM.BuildForGnuClasspath) {
-      if (verboseBoot >= 1) VM.sysWriteln("Initializing socket factories");
-      JikesRVMSocketImpl.boot();
-    }
 
     if (VM.BuildForAdaptiveSystem) {
       if (verboseBoot >= 1) VM.sysWriteln("Initializing adaptive system");
@@ -2286,9 +2280,12 @@ public class VM extends Properties implements Constants, ExitStatus {
       BootImageCompiler.init(bootCompilerArgs);
     }
     RuntimeEntrypoints.init();
-    Scheduler.init();
+    RVMThread.init();
     MM_Interface.init();
   }
+
+  public static void disableYieldpoints() { RVMThread.getCurrentThread().disableYieldpoints(); }
+  public static void enableYieldpoints() { RVMThread.getCurrentThread().enableYieldpoints(); }
 
   /**
    * The disableGC() and enableGC() methods are for use as guards to protect

@@ -468,27 +468,9 @@ public class GenerateInterfaceDeclarations {
     // Value in org.mmtk.vm.Constants:
     p("static const int MMTk_Constants_BYTES_IN_PAGE            = " + org.mmtk.utility.Constants.BYTES_IN_PAGE + ";\n");
 
-    // fields in Processor
-    //
-    Offset offset;
-    offset = Entrypoints.timeSliceExpiredField.getOffset();
-    pln("Processor_timeSliceExpired_offset = ", offset);
-    offset = Entrypoints.takeYieldpointField.getOffset();
-    pln("Processor_takeYieldpoint_offset = ", offset);
-    offset = Entrypoints.activeThreadStackLimitField.getOffset();
-    pln("Processor_activeThreadStackLimit_offset = ", offset);
-    offset = Entrypoints.pthreadIDField.getOffset();
-    pln("Processor_pthread_id_offset = ", offset);
-    offset = Entrypoints.activeThreadField.getOffset();
-    pln("Processor_activeThread_offset = ", offset);
-    offset = Entrypoints.vpStatusField.getOffset();
-    pln("Processor_vpStatus_offset = ", offset);
-    offset = Entrypoints.threadIdField.getOffset();
-    pln("Processor_threadId_offset = ", offset);
-
     // fields in RVMThread
     //
-    offset = Entrypoints.threadStackField.getOffset();
+    Offset offset = Entrypoints.threadStackField.getOffset();
     pln("RVMThread_stack_offset = ", offset);
     offset = Entrypoints.stackLimitField.getOffset();
     pln("RVMThread_stackLimit_offset = ", offset);
@@ -496,7 +478,12 @@ public class GenerateInterfaceDeclarations {
     pln("RVMThread_exceptionRegisters_offset = ", offset);
     offset = Entrypoints.jniEnvField.getOffset();
     pln("RVMThread_jniEnv_offset = ", offset);
-
+    offset = Entrypoints.execStatusField.getOffset();
+    pln("RVMThread_execStatus_offset = ", offset);
+    
+    // constants in RVMThread
+    pln("static const int RVMThread_TERMINATED = "+RVMThread.TERMINATED+";");
+    
     // fields in Registers
     //
     offset = ArchEntrypoints.registersGPRsField.getOffset();
@@ -512,20 +499,6 @@ public class GenerateInterfaceDeclarations {
     // fields in JNIEnvironment
     offset = Entrypoints.JNIExternalFunctionsField.getOffset();
     pln("JNIEnvironment_JNIExternalFunctions_offset = ", offset);
-
-    // fields in java.net.InetAddress
-    if (VM.BuildForGnuClasspath) {
-      offset = Entrypoints.inetAddressAddressField.getOffset();
-      pln("java_net_InetAddress_address_offset = ", offset);
-      offset = Entrypoints.inetAddressFamilyField.getOffset();
-      pln("java_net_InetAddress_family_offset = ", offset);
-    }
-    // fields in java.net.SocketImpl
-    //
-    offset = Entrypoints.socketImplAddressField.getOffset();
-    pln("java_net_SocketImpl_address_offset = ", offset);
-    offset = Entrypoints.socketImplPortField.getOffset();
-    pln("java_net_SocketImpl_port_offset = ", offset);
 
     arch.emitArchVirtualMachineDeclarations();
   }
