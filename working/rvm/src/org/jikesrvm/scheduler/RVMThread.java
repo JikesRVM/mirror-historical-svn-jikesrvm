@@ -101,89 +101,82 @@ public class RVMThread extends MM_ThreadContext {
   /** Number of notifyAll operations */
   static int notifyAllOperations;
 
-  /**
-   * The thread is modeled by a state machine the following constants describe
-   * the state of the state machine. Invalid transitions will generate
-   * IllegalThreadStateExceptions.
+  /*
+   * definitions for thread status for interaction of Java-native transitions
+   * and requests for threads to stop.
    */
-  protected static enum State {
-    /**
-     * The thread is created but not yet scheduled to run. This state is the
-     * same as {@link Thread.State#NEW}
-     */
-    NEW,
-    /**
-     * The thread is scheduled to run on a Processor. This state is the same
-     * as {@link Thread.State#RUNNABLE}
-     */
-    RUNNABLE,
-    /**
-     * The thread is blocked by waiting for a monitor lock. This state is the
-     * same as {@link Thread.State#BLOCKED}
-     */
-    BLOCKED,
-    /**
-     * The thread is waiting indefintely for a notify. This state maps to
-     * {@link Thread.State#WAITING}
-     */
-    WAITING,
-    /**
-     * The thread is waiting for a notify or a time out. This state maps to
-     * {@link Thread.State#TIMED_WAITING}
-     */
-    TIMED_WAITING,
-    /**
-     * The thread has exited. This state maps to {@link Thread.State#TERMINATED}
-     */
-    TERMINATED,
-    /**
-     * The thread is waiting for a notify or a time out. This state maps to
-     * {@link Thread.State#TIMED_WAITING}
-     */
-    SLEEPING,
-    /**
-     * The thread is suspended awaiting a resume. This state maps to
-     * {@link Thread.State#WAITING} which makes better sense than the JDK 1.5
-     * convention
-     */
-    SUSPENDED,
-    /**
-     * The thread is parked for OSR awaiting an OSR unpark. This state maps to
-     * {@link Thread.State#WAITING}
-     */
-    OSR_PARKED,
-    /**
-     * The thread is awaiting this thread to become RUNNABLE. This state maps to
-     * {@link Thread.State#WAITING} matching JDK 1.5 convention
-     */
-    JOINING,
-    /**
-     * The thread is parked awaiting a unpark. This state maps to
-     * {@link Thread.State#WAITING} matching JDK 1.5 convention
-     */
-    PARKED,
-    /**
-     * The thread is parked awaiting a unpark. This state maps to
-     * {@link Thread.State#TIMED_WAITING} matching JDK 1.5 convention
-     */
-    TIMED_PARK,
-    /**
-     * This state is valid only for green threads. The thread is awaiting IO to
-     * readable. This state maps to {@link Thread.State#WAITING}.
-     */
-    IO_WAITING,
-    /**
-     * This state is valid only for green threads. The thread is awaiting a
-     * process to finish. This state maps to {@link Thread.State#WAITING}.
-     */
-    PROCESS_WAITING
-  }
-
+  /** thread has not yet started */
+  public static final int NEW = 0;
+  /** thread is in Java code */
+  public static final int IN_JAVA = 1;
+  /** thread is in native code.  the point is that for now, the thread is
+   * not executing Java code and is effectively at a safe point, but it may
+   * transition back into Java code at any moment. */
+  public static final int IN_NATIVE = 2;
+  /** like IN_NATIVE, but indicates that the thread is in JNI native code
+   * rather than VM native code. */
+  public static final int IN_JNI = 3;
+  /** thread is in Java code but is expected to block.  the point is that
+   * we're waiting for the thread to reach a safe point and expect this to
+   * happen in bounded time; but if the thread were to escape to native we
+   * want to know about it.  thus, transitions into native code while in the
+   * IN_JAVA_TO_BLOCK state result in a notification (broadcast on the
+   * thread's monitor) and a state change to BLOCKED_IN_NATIVE.
+   * Observe that it is always safe to conservatively change IN_JAVA to
+   * IN_JAVA_TO_BLOCK. */
+  public static final int IN_JAVA_TO_BLOCK = 4;
+  /** thread is in native code, and is to block before returning to
+   * Java code.  the point is that the thread is guaranteed not to execute
+   * any Java code until:
+   * <ol>
+   * <li>The state changes to IN_NATIVE, and
+   * <li>The thread gets a broadcast on its monitor.
+   * </ol>
+   * Observe that it is always safe to conservatively change IN_NATIVE to
+   * BLOCKED_IN_NATIVE. */
+  public static final int BLOCKED_IN_NATIVE = 5;
+  /** like BLOCKED_IN_NATIVE, but indicates that the thread is in JNI rather
+   * than VM native code. */
+  public static final int BLOCKED_IN_JNI = 6;
+  /** Thread has died. */
+  public static final int TERMINATED = 7;
+  
   /**
-   * State of the thread. Either NEW, RUNNABLE, BLOCKED, WAITING, TIMED_WAITING,
-   * TERMINATED, SLEEPING, SUSPENDED or PARKED
+   * Thread state.  Indicates if the thread is running, and if so, what
+   * mode of execution it is using (Java, VM native, or JNI)
    */
-  protected State state;
+  @Entrypoint
+  public int execStatus;
+  
+  /** Is the thread about to terminate?  Protected by the thread's monitor.
+   * Note that this field is not set atomically with the entering of the
+   * thread onto the aboutToTerminate array - in fact it happens before
+   * that. */
+  boolean isAboutToTerminate;
+  
+  /** Is this thread in the process of blocking? */
+  boolean isBlocking;
+  
+  /**
+   * Is the thread no longer executing user code?  Protected by the
+   * Java monitor associated with the VM_Thread object.
+   */
+  boolean isJoinable;
+  
+  /** Link pointer for queues (specifically VM_ThreadQueue).  A thread can
+   * only be on one such queue at a time.  The queue that a thread is on
+   * is indicated by <code>queuedOn</code>. */
+  RVMThread next;
+  
+  /** The queue that the thread is on, or null if the thread is not on a
+   * queue (specifically VM_ThreadQueue).  If the thread is on such a queue,
+   * the <code>next</code> field is used as a link pointer. */
+  ThreadQueue queuedOn;
+  
+  // to handle contention for spin locks
+  //
+  SpinLock awaitingSpinLock;
+  RVMThread contenderLink;
 
   /**
    * java.lang.Thread wrapper for this Thread. Not final so it may be
@@ -1014,25 +1007,25 @@ public class RVMThread extends MM_ThreadContext {
     // put self in list of threads known to scheduler and garbage collector
     if (!VM.runningVM) {
       // create primordial thread (in boot image)
-      threadSlot = Scheduler.assignThreadSlot(this);
+      assignThreadSlot();
       // Remember the boot thread
-      if (VM.VerifyAssertions) VM._assert(bootThread == null);
-      bootThread = this;
       this.systemThread = true;
-      this.state = State.RUNNABLE;
+      this.execStatus = IN_JAVA;
+      this.waiting = Waiting.RUNNABLE;
       // assign final field
       onStackReplacementEvent = null;
     } else {
       // create a normal (ie. non-primordial) thread
-      if (trace) Scheduler.trace("Thread create: ", name);
-      if (trace) Scheduler.trace("daemon: ", daemon ? "true" : "false");
-      if (trace) Scheduler.trace("Thread", "create");
+      if (trace) trace("RVMThread create: ", name);
+      if (trace) trace("daemon: ", daemon ? "true" : "false");
+      if (trace) trace("RVMThread", "create");
       // set up wrapper Thread if one exists
       this.thread = thread;
       // Set thread type
       this.systemThread = system;
 
-      this.state = State.NEW;
+      this.execStatus = NEW;
+      this.waiting = Waiting.RUNNABLE;
 
       stackLimit = Magic.objectAsAddress(stack).plus(STACK_SIZE_GUARD);
 
@@ -1069,12 +1062,432 @@ public class RVMThread extends MM_ThreadContext {
       }
     }
   }
+  
+  /**
+   * Create a thread with default stack and with the given name.
+   */
+  public RVMThread(String name) {
+    this(MM_Interface.newStack(STACK_SIZE_NORMAL, false),
+        null, // java.lang.Thread
+        name,
+        true, // daemon
+        true, // system
+        Thread.NORM_PRIORITY);
+  }
+
+  /**
+   * Create a thread with the given stack and name. Used by
+   * {@link org.jikesrvm.memorymanagers.mminterface.CollectorThread} and the
+   * boot image writer for the boot thread.
+   */
+  public RVMThread(byte[] stack, String name) {
+    this(stack,
+        null, // java.lang.Thread
+        name,
+        true, // daemon
+        true, // system
+        Thread.NORM_PRIORITY);
+  }
+
+  /**
+   * Create a thread with ... called by java.lang.VMThread.create. System thread
+   * isn't set.
+   */
+  public RVMThread(Thread thread, long stacksize, String name, boolean daemon, int priority) {
+    this(MM_Interface.newStack((stacksize <= 0) ? STACK_SIZE_NORMAL : (int)stacksize, false),
+        thread, name, daemon, false, priority);
+  }
+
+  final void acknowledgeBlockRequests() {
+    boolean hadSome=false;
+    if (VM.VerifyAssertions) VM._assert(blockAdapters!=null);
+    for (int i=0;i<blockAdapters.length;++i) {
+      if (blockAdapters[i].hasBlockRequest(this)) {
+	blockAdapters[i].setBlocked(this,true);
+	blockAdapters[i].clearBlockRequest(this);
+	hadSome=true;
+      }
+    }
+    if (hadSome) {
+      monitor().broadcast();
+    }
+  }
+  
+  /**
+   * Checks if the thread is supposed to be blocked.  Only call this method
+   * when already holding the monitor(), for two reasons:
+   * <ol>
+   * <li>This method does not acquire the monitor() lock even though it needs
+   *     to have it acquired given the data structures that it is accessing.
+   * <li>You will typically want to call this method to decide if you need
+   *     to take action under the assumption that the thread is blocked (or
+   *     not blocked).  So long as you hold the lock the thread cannot change
+   *     state from blocked to not blocked.
+   * </ol>
+   * @return if the thread is supposed to be blocked
+   */
+  public final boolean isBlocked() {
+    for (int i=0;i<blockAdapters.length;++i) {
+      if (blockAdapters[i].isBlocked(this)) {
+	return true;
+      }
+    }
+    return false;
+  }
+  
+  /**
+   * Checks if the thread is executing Java code.  A thread is executing
+   * Java code if its <code>execStatus</code> is <code>IN_JAVA</code> or
+   * <code>IN_JAVA_TO_BLOCK</code>, and if it is not
+   * <code>aboutToTerminate</code>, and if it is not blocked.  Only call
+   * this method when already holding the monitor(), for two reasons:
+   * <ol>
+   * <li>This method does not acquire the monitor() lock even though it needs
+   *     to have it acquired given the data structures that it is accessing.
+   * <li>You will typically want to call this method to decide if you need
+   *     to take action under the assumption that the thread is running Java
+   *     (or not running Java).  So long as you hold the lock the thread
+   *     cannot change state from running-Java to not-running-Java.
+   * </ol>
+   * @return if the thread is running Java
+   */
+  public final boolean isInJava() {
+    return !isBlocking
+      && !isAboutToTerminate
+      && (execStatus==IN_JAVA || execStatus==IN_JAVA_TO_BLOCK);
+  }
+
+  /** A variant of checkBlock() that does not save the thread state. */
+  @NoInline
+  final void checkBlockNoSaveContext() {
+    // NB: anything this method calls CANNOT change the contextRegisters
+    // or the JNI env.  as well, this code will be running concurrently
+    // with stop-the-world GC!
+    monitor().lock();
+    isBlocking=true;
+
+    // deal with requests that would require a soft handshake rendezvous
+    handleHandshakeRequest();
+    
+    // check if a soft handshake has been requested, and if so, clear the
+    // request
+    boolean commitSoftRendezvous=softRendezvousCheckAndClear();
+    
+    if (commitSoftRendezvous) {
+      // if a soft handshake had been requested, we need to acknowledge it.
+      // but to acknowledge it we cannot be holding the monitor() lock.
+      // it turns out that at this point in the code it is perfectly safe
+      // to release it, because:
+      // 1) callers of this method expect that it may, in all likelihood,
+      //    release the monitor() lock if they were holding it, since it
+      //    calls wait()
+      // 2) if the block requests get cleared when we release the lock,
+      //    we won't call wait, since we reacquire the lock prior to checking
+      //    for block requests.
+      int recCount=monitor().unlockCompletely();
+      softRendezvousCommit();
+      monitor().relock(recCount);
+    }
+
+    for (;;) {
+      // deal with block requests
+      acknowledgeBlockRequests();
+      
+      // are we blocked?
+      if (!isBlocked()) {
+	break;
+      }
+      
+      // what if a GC request comes while we're here for a suspend()
+      // request?
+      // answer: we get awoken, reloop, and acknowledge the GC block
+      // request.
+      monitor().await();
+    }
+
+    // we're about to unblock, so indicate to the world that we're running
+    // again.
+    execStatus = IN_JAVA;
+    
+    // let everyone know that we're back to executing code
+    isBlocking=false;
+    
+    // deal with requests that came up while we were blocked.
+    handleHandshakeRequest();
+    
+    monitor().unlock();
+  }
+  
+  /**
+   * Check if the thread is supposed to block, and if so, block it.  This
+   * method will ensure that soft handshake requests are acknowledged or
+   * else inhibited, that any blocking request is handled, that the
+   * execution state of the thread (<code>execStatus</code>) is set to
+   * <code>IN_JAVA</code> once all blocking requests are cleared, and that
+   * other threads are notified that this thread is in the middle of blocking
+   * by setting the appropriate flag (<code>isBlocking</code>).  Note that
+   * this thread acquires the monitor(), though it may release it completely
+   * either by calling wait() or by calling unlockCompletely().  Thus,
+   * although it isn't generally a problem to call this method while holding
+   * the monitor() lock, you should only do so if the loss of atomicity is
+   * acceptable.
+   * <p>
+   * Generally, this method should be called from the following four places:
+   * <ol>
+   * <li>The block() method, if the thread is requesting to block itself.
+   *     Currently such requests only come when a thread calls suspend().
+   *     Doing so has unclear semantics (other threads may call resume()
+   *     too early causing the well-known race) but must be supported because
+   *     it's still part of the JDK.  Why it's safe: the block() method
+   *     needs to hold the monitor() for the time it takes it to make
+   *     the block request, but does not need to continue to hold it when
+   *     it calls checkBlock().  Thus, the fact that checkBlock() breaks
+   *     atomicity is not a concern.
+   * <li>The yieldpoint.  One of the purposes of a yieldpoint is to
+   *     periodically check if the current thread should be blocked.  This
+   *     is accomplished by calling checkBlock().  Why it's safe: the
+   *     yieldpoint performs several distinct actions, all of which
+   *     individually require the monitor() lock - but the monitor() lock
+   *     does not have to be held contiguously.  Thus, the loss of atomicity
+   *     from calling checkBlock() is fine.
+   * <li>The "Nicely" methods of HeavyCondLock.  These methods allow you
+   *     to block on a mutex or condition variable while notifying the
+   *     system that you are not executing Java code.  When these blocking
+   *     methods return, they check if there had been a request to block,
+   *     and if so, they call checkBlock().  Why it's safe: This is subtle.
+   *     Two cases exist.  The first case is when a Nicely method is called
+   *     on a HeavyCondLock instance that is not a thread monitor().  In
+   *     this case, it does not matter that checkBlock() may acquire and
+   *     then completely release the monitor(), since the user was not holding
+   *     the monitor().  However, this will break if the user is <i>also</i>
+   *     holding the monitor() when calling the Nicely method on a different
+   *     lock.  This case should never happen because no other locks should
+   *     ever be acquired when the monitor() is held.  Additionally: there
+   *     is the concern that some other locks should never be held while
+   *     attempting to acquire the monitor(); the HeavyCondLock ensures
+   *     that checkBlock() is only called when that lock itself is released.
+   *     The other case is when a Nicely method is called on the monitor()
+   *     itself.  This should only be done when using <i>your own</i>
+   *     monitor() - that is the monitor() of the thread your are running on.
+   *     In this case, the Nicely methods work because: (i) lockNicely()
+   *     only calls checkBlock() on the initial lock entry (not on recursive
+   *     entry), so atomicity is not broken, and (ii) waitNicely() and
+   *     friends only call checkBlock() after wait() returns - at which
+   *     point it is safe to release and reacquire the lock, since there
+   *     cannot be a race with broadcast() once we have committed to not
+   *     calling wait() again.
+   * <li>Any code following a potentially-blocking native call.  Case (3)
+   *     above is somewhat subsumed in this except that it is special due
+   *     to the fact that it's blocking on VM locks.  So, this case refers
+   *     specifically to JNI.  The JNI epilogues will call
+   *     leaveJNIBlocked(), which calls a variant of this method.
+   * </ol>
+   */
+  @NoInline
+  @NoOptCompile
+  @BaselineSaveLSRegisters
+  // PNT: make sure we generate GC maps for unint methods
+  final void checkBlock() {
+    Magic.saveThreadState(contextRegisters);
+    checkBlockNoSaveContext();
+  }
+  
+  final void enterNativeBlocked(boolean jni) {
+    // NB: anything this method calls CANNOT change the contextRegisters
+    // or the JNI env.  as well, this code will be running concurrently
+    // with stop-the-world GC!
+    boolean commitSoftRendezvous;
+    monitor().lock();
+    if (jni) {
+      execStatus=BLOCKED_IN_JNI;
+    } else {
+      execStatus=BLOCKED_IN_NATIVE;
+    }
+    acknowledgeBlockRequests();
+    commitSoftRendezvous=softRendezvousCheckAndClear();
+    monitor().unlock();
+    if (commitSoftRendezvous) softRendezvousCommit();
+  }
+  
+  final void enterNativeBlocked() {
+    enterNativeBlocked(false);
+  }
+  
+  @Entrypoint
+  static final void enterJNIBlocked() {
+    getCurrentThread().enterNativeBlocked(true);
+  }
+  
+  @Entrypoint
+  static final void leaveJNIBlocked() {
+    getCurrentThread().checkBlockNoSaveContext();
+  }
+  
+  private int setBlockedExecStatus() {
+    Offset offset=Entrypoints.execStatusField.getOffset();
+    int oldState,newState;
+    do {
+      oldState=Magic.prepareInt(this,offset);
+      if (oldState==IN_JAVA) {
+	newState=IN_JAVA_TO_BLOCK;
+      } else if (oldState==IN_NATIVE) {
+	newState=BLOCKED_IN_NATIVE;
+      } else if (oldState==IN_JNI) {
+	newState=BLOCKED_IN_JNI;
+      } else {
+	newState=oldState; /* use the CAS to assert that we observed
+			      what we thought we observed */
+      }
+    } while (!(Magic.attemptInt(this,offset,oldState,newState)));
+    return newState;
+  }
+  
+  final void block(BlockAdapter ba,boolean asynchronous) {
+    monitor().lock();
+    int token=ba.requestBlock(this);
+    if (getCurrentThread()==this) {
+      checkBlock();
+    } else {
+      takeYieldpoint = 1;
+      
+      // CAS the execStatus field
+      int newState = setBlockedExecStatus();
+      
+      // this broadcast serves two purposes: notifies threads that are
+      // IN_JAVA but waiting on monitor() that they should awake and
+      // acknowledge the block request; or notifies anyone
+      // waiting for this thread to block that the thread is
+      // BLOCKED_IN_NATIVE or BLOCKED_IN_JNI.  in the latter case the
+      // broadcast() happens _before_ the setting of the flags that the
+      // other threads would be awaiting, but that is fine, since we're
+      // still holding the lock anyway.
+      monitor().broadcast();
+      
+      if (newState==IN_JAVA_TO_BLOCK) {
+	if (!asynchronous) {
+	  while (ba.hasBlockRequest(this,token) &&
+		 !ba.isBlocked(this)) {
+	    monitor().await();
+	  }
+	}
+      } else /* if newState==BLOCKED_IN_NATIVE || newState==BLOCKED_IN_JNI */ {
+	// we own the thread for now - it cannot go back to executing Java
+	// code until we release the lock.  before we do so we change its
+	// state accordingly and tell anyone who is waiting.
+	ba.clearBlockRequest(this);
+	ba.setBlocked(this,true);
+      }
+    }
+    monitor().unlock();
+  }
+  
+  public final boolean blockedFor(BlockAdapter ba) {
+    monitor().lock();
+    boolean result=ba.isBlocked(this);
+    monitor().unlock();
+    return result;
+  }
+  
+  public final void asyncBlock(BlockAdapter ba) {
+    block(ba,true);
+  }
+  
+  public final void block(BlockAdapter ba) {
+    block(ba,false);
+  }
+  
+  public static void enterNative() {
+    RVMThread t=getCurrentThread();
+    Offset offset=Entrypoints.execStatusField.getOffset();
+    int oldState,newState;
+    do {
+      oldState=Magic.prepareInt(t,offset);
+      if (oldState==IN_JAVA) {
+	newState=IN_NATIVE;
+      } else if (oldState==IN_JAVA_TO_BLOCK) {
+	t.enterNativeBlocked();
+	return;
+      } else {
+	VM._assert(false);
+	return; // make javac happy
+      }
+    } while (!(Magic.attemptInt(t,offset,oldState,newState)));
+  }
+  
+  public static boolean attemptLeaveNativeNoBlock() {
+    RVMThread t=getCurrentThread();
+    Offset offset=Entrypoints.execStatusField.getOffset();
+    int oldState,newState;
+    do {
+      oldState=Magic.prepareInt(t,offset);
+      if (oldState==IN_NATIVE || oldState==IN_JNI) {
+	newState=IN_JAVA;
+      } else if (oldState==BLOCKED_IN_NATIVE || oldState==BLOCKED_IN_JNI) {
+	return false;
+      } else {
+	VM._assert(false);
+	return true; // make javac happy
+      }
+    } while (!(Magic.attemptInt(t,offset,oldState,newState)));
+    return true;
+  }
+  
+  public static void leaveNative() {
+    if (!attemptLeaveNativeNoBlock()) {
+      getCurrentThread().checkBlockNoSaveContext();
+    }
+  }
+  
+  public final void unblock(BlockAdapter ba) {
+    monitor().lock();
+    ba.clearBlockRequest(this);
+    ba.setBlocked(this,false);
+    monitor().broadcast();
+    monitor().unlock();
+  }
+  
+  /** Are we allowed to take yieldpoints? */
+  @Inline
+  public boolean yieldpointsEnabled() {
+    return yieldpointsEnabledCount == 1;
+  }
+  
+  /** Enable yieldpoints on this thread. */
+  public void enableYieldpoints() {
+    ++yieldpointsEnabledCount;
+    if (VM.VerifyAssertions) VM._assert(yieldpointsEnabledCount <= 1);
+    if (yieldpointsEnabled() && yieldpointRequestPending) {
+      takeYieldpoint = 1;
+      yieldpointRequestPending = false;
+    }
+  }
+  
+  /** Disable yieldpoints on this thread. */
+  public void disableYieldpoints() {
+    --yieldpointsEnabledCount;
+  }
+  
+  /**
+   * Fail if yieldpoints are disabled on this thread
+   */
+  public void failIfYieldpointsDisabled() {
+    if (!yieldpointsEnabled()) {
+      VM.sysWrite("No yieldpoints on thread ", threadSlot);
+      VM.sysWrite(" with addr ", Magic.objectAsAddress(this));
+      VM.sysWriteln();
+      VM._assert(false);
+    }
+  }
+
+  public static RVMThread getCurrentThread() {
+    return ThreadLocalState.getCurrentThread();
+  }
 
   /**
    * Called during booting to give the boot thread a java.lang.Thread
    */
   @Interruptible
-  public final void setupBootThread() {
+  public final void setupBootJavaThread() {
     thread = java.lang.JikesRVMSupport.createThread(this, "Jikes_RVM_Boot_Thread");
   }
 
@@ -1145,31 +1558,6 @@ public class RVMThread extends MM_ThreadContext {
     return jniEnv != null && jniEnv.hasNativeStackFrame();
   }
 
-  /**
-   * Change the state of the thread and fail if we're not in the expected thread
-   * state. This method is logically uninterruptible as we should never be in
-   * the wrong state
-   *
-   * @param oldState the previous thread state
-   * @param newState the new thread state
-   */
-  @LogicallyUninterruptible
-  @Entrypoint
-  protected final void changeThreadState(State oldState, State newState) {
-    if (trace) {
-      VM.sysWrite("Thread.changeThreadState: thread=", threadSlot, name);
-      VM.sysWrite(" current=", java.lang.JikesRVMSupport.getEnumName(state));
-      VM.sysWrite(" old=", java.lang.JikesRVMSupport.getEnumName(oldState));
-      VM.sysWriteln(" new=", java.lang.JikesRVMSupport.getEnumName(newState));
-    }
-    if (state == oldState) {
-      state = newState;
-    } else {
-      throw new IllegalThreadStateException("Illegal thread state change from " +
-          oldState + " to " + newState + " when in state " + state + " in thread " + name);
-    }
-  }
-
   /*
    * Starting and ending threads
    */
@@ -1236,35 +1624,21 @@ public class RVMThread extends MM_ThreadContext {
   }
 
   /**
-   * Put this thread on ready queue for subsequent execution on a future
-   * timeslice.
-   * Assumption: Thread.contextRegisters are ready to pick up execution
-   *             ie. return to a yield or begin thread startup code
-   */
-  public abstract void schedule();
-  /**
-   * Update internal state of Thread and Scheduler to indicate that
-   * a thread is about to start
-   */
-  protected abstract void registerThreadInternal();
-
-  /**
-   * Update internal state of Thread and Scheduler to indicate that
-   * a thread is about to start
-   */
-  public final void registerThread() {
-    changeThreadState(State.NEW, State.RUNNABLE);
-    registerThreadInternal();
-  }
-
-  /**
    * Start execution of 'this' by putting it on the appropriate queue
    * of an unspecified virtual processor.
    */
   @Interruptible
   public final void start() {
-    registerThread();
-    schedule();
+    this.execStatus = IN_JAVA;
+    acctLock.lock();
+    numActiveThreads++;
+    if (daemon) {
+      numActiveDaemons++;
+    }
+    acctLock.unlock();
+    sysCall.sysNativeThreadCreate(Magic.objectAsAddress(this),
+				  contextRegisters.ip,
+				  contextRegisters.getInnermostFramePointer());
   }
 
   /**
@@ -1273,13 +1647,14 @@ public class RVMThread extends MM_ThreadContext {
    */
   @Interruptible
   public final void terminate() {
+    VM.sysWriteln("in terminate()");
     if (VM.VerifyAssertions) VM._assert(Scheduler.getCurrentThread() == this);
     boolean terminateSystem = false;
     if (trace) Scheduler.trace("Thread", "terminate");
     if (traceTermination) {
       VM.disableGC();
       VM.sysWriteln("[ BEGIN Verbosely dumping stack at time of thread termination");
-      Scheduler.dumpStack();
+      dumpStack();
       VM.sysWriteln("END Verbosely dumping stack at time of creating thread termination ]");
       VM.enableGC();
     }
@@ -1294,13 +1669,13 @@ public class RVMThread extends MM_ThreadContext {
     if (VM.VerifyAssertions) {
       if (Lock.countLocksHeldByThread(getLockingId()) > 0) {
         VM.sysWriteln("Error, thread terminating holding a lock");
-        Scheduler.dumpVirtualMachine();
+        RVMThread.dumpVirtualMachine();
       }
     }
-    // begin critical section
-    //
-    Scheduler.threadCreationMutex.lock("thread termination");
-    Processor.getCurrentProcessor().disableThreadSwitching("disabled for thread termination");
+
+    VM.sysWriteln("doing accounting...");
+    
+    acctLock.lock();
 
     //
     // if the thread terminated because of an exception, remove
@@ -1308,11 +1683,12 @@ public class RVMThread extends MM_ThreadContext {
     // garbage collector will attempt to relocate its ip field.
     exceptionRegisters.inuse = false;
 
-    Scheduler.numActiveThreads -= 1;
+    numActiveThreads -= 1;
     if (daemon) {
-      Scheduler.numDaemons -= 1;
+      numActiveDaemons -= 1;
     }
-    if ((Scheduler.numDaemons == Scheduler.numActiveThreads) &&
+    VM.sysWriteln("active = ",numActiveThreads,", daemons = ",numActiveDaemons);
+    if ((numActiveDaemons == numActiveThreads) &&
         (VM.mainThread != null) &&
         VM.mainThread.launched) {
       // no non-daemon thread remains and the main thread was launched
@@ -1327,21 +1703,17 @@ public class RVMThread extends MM_ThreadContext {
     }
     if (traceTermination) {
       VM.sysWriteln("Thread.terminate: myThread.daemon = ", daemon);
-      VM.sysWriteln("  Scheduler.numActiveThreads = ", Scheduler.numActiveThreads);
-      VM.sysWriteln("  Scheduler.numDaemons = ", Scheduler.numDaemons);
+      VM.sysWriteln("  RVMThread.numActiveThreads = ", RVMThread.numActiveThreads);
+      VM.sysWriteln("  RVMThread.numActiveDaemons = ", RVMThread.numActiveDaemons);
       VM.sysWriteln("  terminateSystem = ", terminateSystem);
     }
-    // end critical section
-    //
-    Processor.getCurrentProcessor().enableThreadSwitching();
-    Scheduler.threadCreationMutex.unlock();
 
-    if (VM.VerifyAssertions) {
-      if (VM.fullyBooted || !terminateSystem) {
-        Processor.getCurrentProcessor().failIfThreadSwitchingDisabled();
-      }
-    }
+    acctLock.unlock();
+
+    VM.sysWriteln("done with accounting.");
+
     if (terminateSystem) {
+      VM.sysWriteln("terminating system.");
       if (uncaughtExceptionCount > 0)
         /* Use System.exit so that any shutdown hooks are run.  */ {
         if (VM.TraceExceptionDelivery) {
