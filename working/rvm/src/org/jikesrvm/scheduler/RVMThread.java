@@ -1836,36 +1836,32 @@ public class RVMThread extends MM_ThreadContext {
    */
 
   /**
-   * Thread model dependent part of thread suspension
-   */
-  protected abstract void suspendInternal();
-
-  /**
    * Suspend execution of current thread until it is resumed.
    * Call only if caller has appropriate security clearance.
    */
   @LogicallyUninterruptible
   public final void suspend() {
-    Throwable rethrow = null;
-    changeThreadState(State.RUNNABLE, State.SUSPENDED);
+    ObjectModel.genericUnlock(thread);
+    Throwable rethrow=null;
+    monitor().lock();
     try {
-      // let go of outer lock
-      ObjectModel.genericUnlock(thread);
-      suspendInternal();
+      if (execStatus!=IN_JAVA &&
+	  execStatus!=IN_JAVA_TO_BLOCK &&
+	  execStatus!=IN_NATIVE &&
+	  execStatus!=BLOCKED_IN_NATIVE &&
+	  execStatus!=BLOCKED_IN_JNI) {
+	throw new IllegalThreadStateException(
+	  "Cannot suspend a thread that is not running.");
+      }
+      block(suspendBlockAdapter);
     } catch (Throwable t) {
-      rethrow = t;
+      rethrow=t;
+    } finally {
+      monitor().unlock();
     }
-    // regain outer lock
     ObjectModel.genericLock(thread);
-    if (rethrow != null) {
-      RuntimeEntrypoints.athrow(rethrow);
-    }
+    if (rethrow!=null) RuntimeEntrypoints.athrow(rethrow);
   }
-
-  /**
-   * Thread model dependent part of thread resumption
-   */
-  protected abstract void resumeInternal();
 
   /**
    * Resume execution of a thread that has been suspended.
@@ -1873,72 +1869,129 @@ public class RVMThread extends MM_ThreadContext {
    */
   @Interruptible
   public final void resume() {
-    changeThreadState(State.SUSPENDED, State.RUNNABLE);
-    if (trace) Scheduler.trace("Thread", "resume() scheduleThread ", getIndex());
-    resumeInternal();
+    unblock(suspendBlockAdapter);
+  }
+  
+  public static void yield() {
+    sysCall.sysSchedYield();
   }
 
-  /*
-   * OSR support
-   */
-
-  /** Suspend the thread pending completion of OSR, unless OSR has already
-   * completed. */
-  public abstract void osrPark();
-  /** Signal completion of OSR activity on this thread.  Resume it if it was
-   * already parked, or prevent it from parking if it is about to park. */
-  public abstract void osrUnpark();
-
-  /*
-   * Sleep support
-   */
-
-  /**
-   * Thread model dependent sleep
-   * @param millis
-   * @param ns
-   */
-  @Interruptible
-  protected abstract void sleepInternal(long millis, int ns) throws InterruptedException;
   /**
    * Suspend execution of current thread for specified number of seconds
    * (or fraction).
    */
   @Interruptible
   public static void sleep(long millis, int ns) throws InterruptedException {
-    RVMThread myThread = Scheduler.getCurrentThread();
-    myThread.changeThreadState(State.RUNNABLE, State.SLEEPING);
-    try {
-      myThread.sleepInternal(millis, ns);
-    } catch (InterruptedException ie) {
-      if (myThread.state != State.RUNNABLE)
-        myThread.changeThreadState(State.SLEEPING, State.RUNNABLE);
-      myThread.clearInterrupted();
-      throw(ie);
+    RVMThread t=getCurrentThread();
+    t.waiting = Waiting.TIMED_WAITING;
+    long atStart=sysCall.sysNanoTime();
+    long whenEnd=atStart+(long)ns+millis*1000L*1000L;
+    t.monitor().lock();
+    while (!t.hasInterrupt && t.asyncThrowable==null &&
+	   sysCall.sysNanoTime()<whenEnd) {
+      t.monitor().timedWaitAbsoluteNicely(whenEnd);
     }
-    myThread.changeThreadState(State.SLEEPING, State.RUNNABLE);
+    boolean throwInterrupt=false;
+    Throwable throwThis=null;
+    if (t.hasInterrupt) {
+      t.hasInterrupt=false;
+      throwInterrupt=true;
+    }
+    if (t.asyncThrowable!=null) {
+      throwThis=t.asyncThrowable;
+      t.asyncThrowable=null;
+    }
+    t.monitor().unlock();
+    t.waiting = Waiting.RUNNABLE;
+    if (throwThis!=null) {
+      RuntimeEntrypoints.athrow(throwThis);
+    }
+    if (throwInterrupt) {
+      throw new InterruptedException("sleep interrupted");
+    }
   }
-
+  
   /*
    * Wait and notify support
    */
 
-  /**
-   * Support for Java {@link java.lang.Object#wait()} synchronization primitive.
-   *
-   * @param o the object synchronized on
-   * @param millis the number of milliseconds to wait for notification
-   */
   @Interruptible
-  protected abstract Throwable waitInternal(Object o, long millis);
+  void waitImpl(Object o, boolean hasTimeout, long whenWakeupNanos) {
+    boolean throwInterrupt=false;
+    Throwable throwThis=null;
+    if (asyncThrowable!=null) {
+      throwThis=asyncThrowable;
+      asyncThrowable=null;
+    } else if (!ObjectModel.holdsLock(o, this)) {
+      throw new IllegalMonitorStateException("waiting on " + o);
+    } else if (hasInterrupt) {
+      throwInterrupt=true;
+      hasInterrupt=false;
+    } else {
+      waiting = hasTimeout ? Waiting.TIMED_WAITING : Waiting.WAITING;
+      // get lock for object
+      Lock l = ObjectModel.getHeavyLock(o, true);
+      // this thread is supposed to own the lock on o
+      if (VM.VerifyAssertions) VM._assert(l.getOwnerId() == getLockingId());
 
-  /**
-   * Support for Java {@link java.lang.Object#wait()} synchronization primitive.
-   *
-   * @param o the object synchronized on
-   */
-  @Interruptible
-  protected abstract Throwable waitInternal(Object o);
+      // release the lock
+      l.mutex.lock();
+      RVMThread toAwaken = l.entering.dequeue();
+      waitObject = l.getLockedObject();
+      waitCount = l.getRecursionCount();
+      l.setOwnerId(0);
+      l.waiting.enqueue(this);
+      l.mutex.unlock();
+
+      // if there was a thread waiting, awaken it
+      if (toAwaken!=null) {
+	toAwaken.monitor().lockedBroadcast();
+      }
+      
+      // block
+      monitor().lock();
+      while (l.waiting.isQueued(this) &&
+	     !hasInterrupt &&
+	     asyncThrowable==null &&
+	     (!hasTimeout || sysCall.sysNanoTime() < whenWakeupNanos)) {
+	if (hasTimeout) {
+	  monitor().timedWaitAbsoluteNicely(whenWakeupNanos);
+	} else {
+	  monitor().waitNicely();
+	}
+      }
+      
+      // figure out if anything special happened while we were blocked
+      if (hasInterrupt) {
+	throwInterrupt=true;
+	hasInterrupt=false;
+      }
+      if (asyncThrowable!=null) {
+	throwThis=asyncThrowable;
+	asyncThrowable=null;
+      }
+      monitor().unlock();
+      
+      // reacquire the lock, restoring the recursion count
+      ObjectModel.genericLock(o);
+      waitObject=null;
+      if (waitCount != 1) { // reset recursion count
+        Lock l2 = ObjectModel.getHeavyLock(o, true);
+        l2.setRecursionCount(waitCount);
+      }
+      l.waiting.remove(this); /* in case we got here due to an interrupt
+				 or a stop() rather than a notify */
+      waiting = Waiting.RUNNABLE;
+    }
+    
+    // check if we should exit in a special way
+    if (throwThis!=null) {
+      RuntimeEntrypoints.athrow(throwThis);
+    }
+    if (throwInterrupt) {
+      RuntimeEntrypoints.athrow(new InterruptedException("sleep interrupted"));
+    }
+  }
 
   /**
    * Support for Java {@link java.lang.Object#wait()} synchronization primitive.
@@ -2445,11 +2498,11 @@ public class RVMThread extends MM_ThreadContext {
       VM.sysFail("system error: resizing stack while GC is in progress");
     }
     byte[] newStack = MM_Interface.newStack(newSize, false);
-    Processor.getCurrentProcessor().disableThreadSwitching("disabled for stack resizing");
+    getCurrentThread().disabeYieldpoints();
     transferExecutionToNewStack(newStack, exceptionRegisters);
-    Processor.getCurrentProcessor().enableThreadSwitching();
+    getCurrentThread().enableYieldpoints();
     if (traceAdjustments) {
-      RVMThread t = Scheduler.getCurrentThread();
+      RVMThread t = getCurrentThread();
       VM.sysWrite("Thread: resized stack ", t.getIndex());
       VM.sysWrite(" to ", t.stack.length / 1024);
       VM.sysWrite("k\n");
@@ -2661,16 +2714,19 @@ public class RVMThread extends MM_ThreadContext {
       // nothing to do
     } else {
       daemon = on;
-      if (state == State.NEW) {
+      if (execStatus == NEW) {
         // thread will start as a daemon
       } else {
-        Scheduler.threadCreationMutex.lock("daemon creation mutex");
-        Scheduler.numDaemons += on ? 1 : -1;
-        Scheduler.threadCreationMutex.unlock();
-
-        if (Scheduler.numDaemons == Scheduler.numActiveThreads) {
+	boolean terminateSystem = false;
+	acctLock.lock();
+	numActiveDaemons += on ? 1 : -1;
+        if (numActiveDaemons == numActiveThreads) {
+	  terminateSystem=true;
+	}
+	acctLock.unlock();
+	if (terminateSystem) {
           if (VM.TraceThreads) {
-            Scheduler.trace("Thread", "last non Daemon demonized");
+            trace("Thread", "last non Daemon demonized");
           }
           VM.sysExit(0);
           if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
@@ -2826,30 +2882,40 @@ public class RVMThread extends MM_ThreadContext {
    */
   @Interruptible
   public final Thread.State getState() {
-    switch (state) {
-    case NEW:
-      return Thread.State.NEW;
-    case RUNNABLE:
-      return Thread.State.RUNNABLE;
-    case BLOCKED:
-      return Thread.State.BLOCKED;
-    case WAITING:
-    case SUSPENDED:
-    case OSR_PARKED:
-    case JOINING:
-    case PARKED:
-    case IO_WAITING:
-    case PROCESS_WAITING:
-      return Thread.State.WAITING;
-    case TIMED_WAITING:
-    case TIMED_PARK:
-    case SLEEPING:
-      return Thread.State.TIMED_WAITING;
-    case TERMINATED:
-      return Thread.State.TERMINATED;
+    monitor().lock();
+    try {
+      switch (execStatus) {
+      case NEW:
+	return Thread.State.NEW;
+      case IN_JAVA:
+      case IN_NATIVE:
+      case IN_JNI:
+      case IN_JAVA_TO_BLOCK:
+      case BLOCKED_IN_NATIVE:
+      case BLOCKED_IN_JNI:
+	if (isAboutToTerminate) {
+	  return Thread.State.TERMINATED;
+	}
+	switch (waiting) {
+	case RUNNABLE:
+	  return Thread.State.RUNNABLE;
+	case WAITING:
+	  return Thread.State.WAITING;
+	case TIMED_WAITING:
+	  return Thread.State.TIMED_WAITING;
+	default:
+	  VM.sysFail("Unknown waiting value: "+waiting);
+	  return null;
+	}
+      case TERMINATED:
+	return Thread.State.TERMINATED;
+      default:
+	VM.sysFail("Unknown value of execStatus: "+execStatus);
+	return null;
+      }
+    } finally {
+      monitor().unlock();
     }
-    VM.sysFail("Unknown thread state " + state);
-    return null;
   }
   /**
    * Wait for the thread to die or for the timeout to occur
