@@ -198,16 +198,16 @@ public final class ThinLock implements ThinLockConstants {
     while (true) { // spurious contention detected
       Word old = Magic.prepareWord(o, lockOffset);
       Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
-      Word threadId = Word.fromIntZeroExtend(Processor.getCurrentProcessor().threadId);
+      Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
       if (id.NE(threadId)) { // not normal case
         if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // o has a heavy lock
           Lock.getLock(getLockIndex(old)).unlockHeavy(o);
           // note that unlockHeavy has issued a sync
           return;
         }
-        Scheduler.trace("Lock", "unlock error: thin lock word = ", old.toAddress());
-        Scheduler.trace("Lock", "unlock error: thin lock word = ", Magic.objectAsAddress(o));
-        // Scheduler.trace("Lock", Thread.getCurrentThread().toString(), 0);
+        RVMThread.trace("Lock", "unlock error: thin lock word = ", old.toAddress());
+        RVMThread.trace("Lock", "unlock error: thin lock word = ", Magic.objectAsAddress(o));
+        // RVMThread.trace("Lock", RVMThread.getCurrentThread().toString(), 0);
         raiseIllegalMonitorStateException("thin unlocking", o);
       }
       if (old.and(TL_LOCK_COUNT_MASK).isZero()) { // get count, 0 is the last lock
