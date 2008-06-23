@@ -180,13 +180,4 @@ public class CopyMS extends StopTheWorld {
     TransitiveClosure.registerSpecializedScan(SCAN_COPYMS, CopyMSTraceLocal.class);
     super.registerSpecializedMethods();
   }
-
-  /**
-   * Register specialized methods.
-   */
-  @Interruptible
-  protected void registerSpecializedMethods() {
-    TransitiveClosure.registerSpecializedScan(SCAN_COPYMS, CopyMSTraceLocal.class);
-    super.registerSpecializedMethods();
-  }
 }

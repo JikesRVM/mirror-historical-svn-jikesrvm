@@ -203,14 +203,4 @@ import org.vmmagic.unboxed.ObjectReference;
     TransitiveClosure.registerSpecializedScan(SCAN_FORWARD, MCForwardTraceLocal.class);
     super.registerSpecializedMethods();
   }
-
-  /**
-   * Register specialized methods.
-   */
-  @Interruptible
-  protected void registerSpecializedMethods() {
-    TransitiveClosure.registerSpecializedScan(SCAN_MARK, MCMarkTraceLocal.class);
-    TransitiveClosure.registerSpecializedScan(SCAN_FORWARD, MCForwardTraceLocal.class);
-    super.registerSpecializedMethods();
-  }
 }

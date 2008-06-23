@@ -205,13 +205,4 @@ public class SS extends StopTheWorld {
     TransitiveClosure.registerSpecializedScan(SCAN_SS, SSTraceLocal.class);
     super.registerSpecializedMethods();
   }
-
-  /**
-   * Register specialized methods.
-   */
-  @Interruptible
-  protected void registerSpecializedMethods() {
-    TransitiveClosure.registerSpecializedScan(SCAN_SS, SSTraceLocal.class);
-    super.registerSpecializedMethods();
-  }
 }
