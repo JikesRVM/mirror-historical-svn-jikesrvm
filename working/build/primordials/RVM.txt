@@ -52,8 +52,8 @@
 [Lorg/jikesrvm/scheduler/HeavyCondLock;
 [Lorg/jikesrvm/scheduler/NoYieldpointsCondLock;
 [[Lorg/jikesrvm/scheduler/RVMThread;
-[Lorg/jikesrvm/scheduler/Thread$BlockAdapter;
-[[Lorg/jikesrvm/scheduler/Thread$BlockAdapter;
+[Lorg/jikesrvm/scheduler/RVMThread$BlockAdapter;
+[[Lorg/jikesrvm/scheduler/RVMThread$BlockAdapter;
 [Lorg/jikesrvm/scheduler/Lock;
 [[Lorg/jikesrvm/scheduler/Lock;
 
