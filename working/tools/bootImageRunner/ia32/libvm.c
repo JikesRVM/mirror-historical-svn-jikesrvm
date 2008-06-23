@@ -1183,7 +1183,7 @@ createVM(int UNUSED vmInSeparateThread)
 	
     // setup place that we'll return to when we're done
     if (setjmp(primordial_jb)) {
-	*(int*)(tr + Thread_execStatus_offset) = Thread_TERMINATED;
+	*(int*)(tr + RVMThread_execStatus_offset) = RVMThread_TERMINATED;
 	// cannot return or else the process will exit
 	for (;;) pause();
     } else {

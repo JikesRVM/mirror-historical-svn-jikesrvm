@@ -895,7 +895,7 @@ sysNativeThreadStartup(void *args)
     if (setjmp(*jb)) {
 	// this is where we come to terminate the thread
 	free(jb);
-	*(int*)(tr + Thread_execStatus_offset) = Thread_TERMINATED;
+	*(int*)(tr + RVMThread_execStatus_offset) = RVMThread_TERMINATED;
     } else {
 	pthread_setspecific(TerminateJmpBufKey, jb);
 	
