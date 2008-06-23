@@ -84,7 +84,7 @@ public final class SynchronizationBarrier {
       return;               // leave barrier
     }
 
-    int numParticipating = Thread.numProcessors;
+    int numParticipating = RVMThread.numProcessors;
 
     if (verbose > 0) {
       VM.sysWriteln("GC Message: startupRendezvous  numParticipating = ", numParticipating);

@@ -13,6 +13,7 @@
 package java.lang;
 
 import java.io.File;
+import java.io.IOException;
 
 import org.jikesrvm.*;
 import org.jikesrvm.runtime.DynamicLibrary;

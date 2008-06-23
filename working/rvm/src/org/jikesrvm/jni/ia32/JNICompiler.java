@@ -127,7 +127,7 @@ public abstract class JNICompiler implements BaselineConstants {
 
     // skip the slow path if we succeeded
     ForwardReference enteredJNIRef=
-      asm.forwardJcc(VM_Assembler.EQ);
+      asm.forwardJcc(Assembler.EQ);
     
     // NOTE: ESI (THREAD_REGISTER, or TR) should still have the thread
     // pointer, since up to this point we would have saved it but not
@@ -144,7 +144,7 @@ public abstract class JNICompiler implements BaselineConstants {
     //    accordingly (it will just save it on the stack and then restore
     //    it - so we don't even have to know what its value is here)
     // the only thing we have to make sure of is that MMTk ignores the
-    // framePointer field in VM_Thread and uses the one in the JNI
+    // framePointer field in RVMThread and uses the one in the JNI
     // environment instead (see Collection.prepareMutator)...
     asm.emitCALL_Abs(
       Magic.getTocPointer().plus(
@@ -183,7 +183,7 @@ public abstract class JNICompiler implements BaselineConstants {
     
     // if we succeed, skip the slow path
     ForwardReference leftJNIRef=
-      asm.forwardJcc(VM_Assembler.EQ);
+      asm.forwardJcc(Assembler.EQ);
     
     // NOTE: ESI already has the thread pointer because we just reloaded
     // it!
@@ -806,7 +806,7 @@ public abstract class JNICompiler implements BaselineConstants {
 
     // get the JNI env and TR
     asm.emitMOV_Reg_RegDisp(EBX, EBP, Offset.fromIntSignExtend(2 * WORDSIZE));   // pick up arg 0 (from callers frame)
-    ThreadLocalState.emitLoadThread(asm, EBX, Entrypoints.JNIEnvSaveTRField.getOffset());
+    ThreadLocalState.emitLoadThread(asm, EBX, Entrypoints.JNIEnvSavedTRField.getOffset());
     
     // what we need to keep in mind at this point:
     // - EBX has JNI env (but it's nonvolatile)

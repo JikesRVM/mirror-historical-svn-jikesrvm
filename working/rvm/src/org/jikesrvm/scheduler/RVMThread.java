@@ -14,7 +14,7 @@ package org.jikesrvm.scheduler;
 
 import org.jikesrvm.ArchitectureSpecific.CodeArray;
 import org.jikesrvm.ArchitectureSpecific.Registers;
-import org.jikesrvm.ArchitectureSpecific.OSR_PostThreadSwitch;
+import org.jikesrvm.ArchitectureSpecificOpt.OSR_PostThreadSwitch;
 import static org.jikesrvm.ArchitectureSpecific.StackframeLayoutConstants.STACK_SIZE_NORMAL;
 import static org.jikesrvm.ArchitectureSpecific.StackframeLayoutConstants.INVISIBLE_METHOD_ID;
 import static org.jikesrvm.ArchitectureSpecific.StackframeLayoutConstants.STACKFRAME_SENTINEL_FP;
@@ -1648,9 +1648,9 @@ public class RVMThread extends MM_ThreadContext {
   @Interruptible
   public final void terminate() {
     VM.sysWriteln("in terminate()");
-    if (VM.VerifyAssertions) VM._assert(Scheduler.getCurrentThread() == this);
+    if (VM.VerifyAssertions) VM._assert(getCurrentThread() == this);
     boolean terminateSystem = false;
-    if (trace) Scheduler.trace("Thread", "terminate");
+    if (trace) trace("Thread", "terminate");
     if (traceTermination) {
       VM.disableGC();
       VM.sysWriteln("[ BEGIN Verbosely dumping stack at time of thread termination");
@@ -2498,7 +2498,7 @@ public class RVMThread extends MM_ThreadContext {
       VM.sysFail("system error: resizing stack while GC is in progress");
     }
     byte[] newStack = MM_Interface.newStack(newSize, false);
-    getCurrentThread().disabeYieldpoints();
+    getCurrentThread().disableYieldpoints();
     transferExecutionToNewStack(newStack, exceptionRegisters);
     getCurrentThread().enableYieldpoints();
     if (traceAdjustments) {
@@ -3100,7 +3100,7 @@ public class RVMThread extends MM_ThreadContext {
       VM.sysWriteln(".");
     }
     if (uncaughtExceptionCount > VM.maxSystemTroubleRecursionDepth) {
-      Scheduler.dumpVirtualMachine();
+      dumpVirtualMachine();
       VM.dieAbruptlyRecursiveSystemTrouble();
       if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
     }

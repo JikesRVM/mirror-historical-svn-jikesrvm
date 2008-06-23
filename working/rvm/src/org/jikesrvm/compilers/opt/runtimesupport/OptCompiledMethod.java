@@ -535,11 +535,6 @@ public final class OptCompiledMethod extends CompiledMethod {
         // isync at thread switch point.
         Magic.sync();
 
-        // do sync only when necessary
-        while (Scheduler.toSyncProcessors > 0) {
-          Scheduler.yield();
-        }
-
         // All other processors now will see the patched code in their data cache.
         // We now need to force everyone's instruction caches to be in synch with their
         // data caches.  Some of the work of this call is redundant (since we already have

@@ -416,60 +416,6 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
 
     // Return to registers.ip (popping stack)
     asm.emitRET();
-    
-    ////////////////////// JNI entry slow path ///////////////////////
-    enterJNIBlockedRef.resolve(asm);
-    
-    // push S0 so that we don't lose it
-    asm.emitPUSH_Reg(S0);
-
-    // NOTE: ESI (THREAD_REGISTER, or TR) should still have the thread
-    // pointer, since up to this point we would have saved it but not
-    // overwritten it.
-    
-    // call into our friendly slow path function.  note that this should
-    // work because:
-    // 1) we're not calling from C so we don't care what registers are
-    //    considered non-volatile in C
-    // 2) all Java non-volatiles have been saved
-    // 3) the only other registers we need - ESI and S0 are taken care
-    //    of (see above)
-    // 4) the prologue and epilogue will take care of the frame pointer
-    //    accordingly (it will just save it on the stack and then restore
-    //    it - so we don't even have to know what its value is here)
-    // the only thing we have to make sure of is that MMTk ignores the
-    // framePointer field in RVMThread and uses the one in the JNI
-    // environment instead (see Collection.prepareMutator)...
-    asm.emitCALL_Abs(
-      Magic.getTocPointer().plus(
-	Entrypoints.enterJNIBlockedMethod.getOffset()));
-    
-    // restore S0, since the previous call would have likely destroyed it
-    asm.emitPOP_Reg(S0);
-    
-    // go back to the main code
-    asm.emitJMP_Imm(doneEnterJNILabel);
-
-    ////////////////////// JNI exit slow path ///////////////////////
-    leaveJNIBlockedRef.resolve(asm);
-    
-    // push S0 so that we don't lose it
-    asm.emitPUSH_Reg(S0);
-
-    // NOTE: ESI already has the thread pointer because we just reloaded
-    // it!
-
-    // call into our friendly slow path function.  this works for the same
-    // reasons why the enterJNIBlockedMethod call above works.
-    asm.emitCALL_Abs(
-      Magic.getTocPointer().plus(
-	Entrypoints.leaveJNIBlockedMethod.getOffset()));
-    
-    // restore S0, since the previous call would have likely destroyed it
-    asm.emitPOP_Reg(S0);
-    
-    asm.emitJMP_Imm(doneLeaveJNILabel);
-    
     return asm.getMachineCodes();
   }
 }
