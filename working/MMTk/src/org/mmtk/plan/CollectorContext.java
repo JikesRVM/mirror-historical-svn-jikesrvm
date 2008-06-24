@@ -24,7 +24,7 @@ import org.vmmagic.pragma.*;
 import org.vmmagic.unboxed.*;
 
 // this is such a confused class...  it seems that this is only needed
-// to be defined for collector threads.  but frack knows!
+// to be defined for collector threads.  but who knows!
 /**
  * This class (and its sub-classes) implement <i>per-collector thread</i>
  * behavior.  We assume <i>N</i> collector threads and <i>M</i>
@@ -203,30 +203,4 @@ import org.vmmagic.unboxed.*;
   /** @return the unique identifier for this collector context. */
   @Inline
   public int getId() { return id; }
-
-  /****************************************************************************
-   * Collector read/write barriers.
-   */
-
-  /**
-   * Store an object reference
-   *
-   * @param slot The location of the reference
-   * @param value The value to store
-   */
-  @Inline
-  public void storeObjectReference(Address slot, ObjectReference value) {
-    slot.store(value);
-  }
-
-  /**
-   * Load an object reference
-   *
-   * @param slot The location of the reference
-   * @param value The value to store
-   */
-  @Inline
-  public ObjectReference loadObjectReference(Address slot) {
-    return slot.loadObjectReference();
-  }
 }

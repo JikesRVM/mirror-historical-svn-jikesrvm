@@ -698,7 +698,7 @@ import org.vmmagic.unboxed.Offset;
       Log.write(loc); Log.write(" (");
       Log.write(loc.diff(start));
       Log.write("):   ");
-      ObjectReference value = Selected.Collector.get().loadObjectReference(loc);
+      ObjectReference value = Selected.Mutator.get().loadObjectReference(loc);
       Log.write(value);
       Log.write(" ");
       Log.flush();

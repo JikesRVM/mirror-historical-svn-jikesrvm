@@ -24,30 +24,4 @@ import org.vmmagic.unboxed.ObjectReference;
  */
 @Uninterruptible
 public class PoisonedCollector extends MSCollector {
-  /****************************************************************************
-   *
-   * Collector read/write barriers.
-   */
-
-  /**
-   * Store an object reference
-   *
-   * @param slot The location of the reference
-   * @param value The value to store
-   */
-  @Inline
-  public void storeObjectReference(Address slot, ObjectReference value) {
-    slot.store(Poisoned.poison(value));
-  }
-
-  /**
-   * Load an object reference
-   *
-   * @param slot The location of the reference
-   * @param value The value to store
-   */
-  @Inline
-  public ObjectReference loadObjectReference(Address slot) {
-    return Poisoned.depoison(slot.loadWord());
-  }
 }

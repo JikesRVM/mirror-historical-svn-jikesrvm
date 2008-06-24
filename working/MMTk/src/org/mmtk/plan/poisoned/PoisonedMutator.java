@@ -119,4 +119,31 @@ public class PoisonedMutator extends MSMutator {
   public ObjectReference readBarrier(ObjectReference src, Address slot, Offset metaDataA, int metaDataB, int mode) {
     return Poisoned.depoison(VM.barriers.performRawReadInBarrier(src, slot, metaDataA, metaDataB, mode));
   }
+
+  /****************************************************************************
+   *
+   * Runtime read/write barriers.
+   */
+
+  /**
+   * Store an object reference
+   *
+   * @param slot The location of the reference
+   * @param value The value to store
+   */
+  @Inline
+  public void storeObjectReference(Address slot, ObjectReference value) {
+    slot.store(Poisoned.poison(value));
+  }
+
+  /**
+   * Load an object reference
+   *
+   * @param slot The location of the reference
+   * @param value The value to store
+   */
+  @Inline
+  public ObjectReference loadObjectReference(Address slot) {
+    return Poisoned.depoison(slot.loadWord());
+  }
 }
