@@ -342,6 +342,7 @@ public final class CollectorThread extends RVMThread {
       
       /* block all threads. */
       if (gcOrdinal == GC_ORDINAL_BASE) {
+	VM.sysWriteln("Thread #",getThreadSlot()," is about to block a bunch of threads.");
 	RVMThread.handshakeLock.lock();
 	// fixpoint until there are no threads that we haven't blocked.
 	// fixpoint is needed in case some thread spawns another thread
@@ -380,6 +381,7 @@ public final class CollectorThread extends RVMThread {
 	  }
 	}
 	RVMThread.handshakeLock.unlock();
+	VM.sysWriteln("Thread #",getThreadSlot()," just blocked a bunch of threads.");
       }
 
       /* wait for other collector threads to arrive or be made
@@ -465,6 +467,7 @@ public final class CollectorThread extends RVMThread {
         /* notify mutators waiting on previous handshake object -
          * actually we don't notify anymore, mutators are simply in
          * processor ready queues waiting to be dispatched. */
+	VM.sysWriteln("Thread #",getThreadSlot()," is unblocking a bunch of threads.");
         handshake.notifyCompletion();
         handshake.reset();
 	
@@ -486,6 +489,7 @@ public final class CollectorThread extends RVMThread {
 	  RVMThread.handshakeThreads[i]=null; // help GC
 	}
 	RVMThread.handshakeLock.unlock();
+	VM.sysWriteln("Thread #",getThreadSlot()," just unblocked a bunch of threads.");
 
         /* schedule the FinalizerThread, if there is work to do & it is idle */
         Collection.scheduleFinalizerThread();
@@ -535,3 +539,9 @@ public final class CollectorThread extends RVMThread {
   }
 
 }
+
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

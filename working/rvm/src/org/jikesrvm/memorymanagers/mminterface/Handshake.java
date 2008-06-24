@@ -73,11 +73,13 @@ public class Handshake {
     if (request(why)) {
       if (verbose >= 1) VM.sysWriteln("GC Message: Handshake.requestAndAwaitCompletion - yielding");
       /* allow a gc thread to run */
+      VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is waiting for the GC to finish.");
       lock.lock();
       while (!completionFlag) {
 	lock.waitNicely();
       }
       lock.unlock();
+      VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is done waiting for the GC.");
       if (verbose >= 1) VM.sysWriteln("GC Message: Handshake.requestAndAwaitCompletion - mutator running");
     }
   }
@@ -121,6 +123,8 @@ public class Handshake {
    */
   @Uninterruptible
   private void waitForPrecedingGC() {
+    VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is waiting for the preceding GC to finish");
+    
     int maxCollectorThreads = RVMThread.numProcessors;
 
     /* Wait for all gc threads to finish preceeding collection cycle */
@@ -134,6 +138,8 @@ public class Handshake {
       lock.await();
     }
     lock.unlock();
+
+    VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is done waiting for the preceding GC to finish");
   }
 
   /**
@@ -182,6 +188,7 @@ public class Handshake {
    */
   @Uninterruptible
   void notifyCompletion() {
+    VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is notifying the world that GC is done.");
     lock.lock();
     if (verbose >= 1) {
       VM.sysWriteln("GC Message: Handshake.notifyCompletion");
@@ -189,7 +196,13 @@ public class Handshake {
     completionFlag = true;
     lock.broadcast();
     lock.unlock();
+    VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is done notifying the world that GC is done.");
   }
 }
 
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/
 

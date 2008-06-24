@@ -1160,11 +1160,13 @@ public class RVMThread extends MM_ThreadContext {
   /** A variant of checkBlock() that does not save the thread state. */
   @NoInline
   final void checkBlockNoSaveContext() {
+    VM.sysWriteln("Thread #",threadSlot," in checkBlockNoSaveContext");
     // NB: anything this method calls CANNOT change the contextRegisters
     // or the JNI env.  as well, this code will be running concurrently
     // with stop-the-world GC!
     monitor().lock();
     isBlocking=true;
+    VM.sysWriteln("Thread #",threadSlot," acquired lock and has notified everyone that we're blocked");
 
     // deal with requests that would require a soft handshake rendezvous
     handleHandshakeRequest();
@@ -1189,6 +1191,8 @@ public class RVMThread extends MM_ThreadContext {
       monitor().relock(recCount);
     }
 
+    VM.sysWriteln("Thread #",threadSlot," has acknowledged soft handshakes");
+
     for (;;) {
       // deal with block requests
       acknowledgeBlockRequests();
@@ -1198,12 +1202,18 @@ public class RVMThread extends MM_ThreadContext {
 	break;
       }
       
+      VM.sysWriteln("Thread #",threadSlot," is still blocked");
+      
       // what if a GC request comes while we're here for a suspend()
       // request?
       // answer: we get awoken, reloop, and acknowledge the GC block
       // request.
       monitor().await();
+
+      VM.sysWriteln("Thread #",threadSlot," has awoken; checking if we're still blocked");
     }
+
+    VM.sysWriteln("Thread #",threadSlot," is unblocking");
 
     // we're about to unblock, so indicate to the world that we're running
     // again.
@@ -1216,6 +1226,8 @@ public class RVMThread extends MM_ThreadContext {
     handleHandshakeRequest();
     
     monitor().unlock();
+
+    VM.sysWriteln("Thread #",threadSlot," is unblocked");
   }
   
   /**
@@ -1293,6 +1305,7 @@ public class RVMThread extends MM_ThreadContext {
   }
   
   final void enterNativeBlocked(boolean jni) {
+    VM.sysWriteln("Thread #",threadSlot," entering native blocked.");
     // NB: anything this method calls CANNOT change the contextRegisters
     // or the JNI env.  as well, this code will be running concurrently
     // with stop-the-world GC!
@@ -1306,7 +1319,9 @@ public class RVMThread extends MM_ThreadContext {
     acknowledgeBlockRequests();
     commitSoftRendezvous=softRendezvousCheckAndClear();
     monitor().unlock();
+    VM.sysWriteln("Thread #",threadSlot," done with the locking part of native entry.");
     if (commitSoftRendezvous) softRendezvousCommit();
+    VM.sysWriteln("Thread #",threadSlot," done enter native blocked.");
   }
   
   final void enterNativeBlocked() {
@@ -1343,11 +1358,14 @@ public class RVMThread extends MM_ThreadContext {
   }
   
   final void block(BlockAdapter ba,boolean asynchronous) {
+    VM.sysWriteln("Thread #",getCurrentThread().threadSlot," is requesting that thread #",threadSlot," blocks.");
     monitor().lock();
     int token=ba.requestBlock(this);
     if (getCurrentThread()==this) {
+      VM.sysWriteln("Thread #",threadSlot," is blocking.");
       checkBlock();
     } else {
+      VM.sysWriteln("Thread #",threadSlot," is being told to block.");
       takeYieldpoint = 1;
       
       // CAS the execStatus field
@@ -1365,20 +1383,25 @@ public class RVMThread extends MM_ThreadContext {
       
       if (newState==IN_JAVA_TO_BLOCK) {
 	if (!asynchronous) {
+	  VM.sysWriteln("Thread #",getCurrentThread().threadSlot," is waiting for thread #",threadSlot," to block.");
 	  while (ba.hasBlockRequest(this,token) &&
 		 !ba.isBlocked(this)) {
+	    VM.sysWriteln("Thread #",getCurrentThread().threadSlot," is calling wait until thread #",threadSlot," blocks.");
 	    monitor().await();
+	    VM.sysWriteln("Thread #",getCurrentThread().threadSlot," has returned from the wait call.");
 	  }
 	}
       } else /* if newState==BLOCKED_IN_NATIVE || newState==BLOCKED_IN_JNI */ {
 	// we own the thread for now - it cannot go back to executing Java
 	// code until we release the lock.  before we do so we change its
 	// state accordingly and tell anyone who is waiting.
+	VM.sysWriteln("Thread #",getCurrentThread().threadSlot," has seen thread #",threadSlot," in native; changing its status accordingly.");
 	ba.clearBlockRequest(this);
 	ba.setBlocked(this,true);
       }
     }
     monitor().unlock();
+    VM.sysWriteln("Thread #",getCurrentThread().threadSlot," is done telling thread #",threadSlot," to block.");
   }
   
   public final boolean blockedFor(BlockAdapter ba) {
@@ -1481,6 +1504,10 @@ public class RVMThread extends MM_ThreadContext {
 
   public static RVMThread getCurrentThread() {
     return ThreadLocalState.getCurrentThread();
+  }
+
+  public static int getCurrentThreadSlot() {
+    return ThreadLocalState.getCurrentThread().threadSlot;
   }
 
   /**
@@ -3660,3 +3687,9 @@ public class RVMThread extends MM_ThreadContext {
   }
 
 }
+
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

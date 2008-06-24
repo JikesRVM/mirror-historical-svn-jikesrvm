@@ -31,6 +31,7 @@
     <attribute name="heapsize" default=""/>
     <attribute name="requires-display" default="false"/>
     <sequential>
+      <echo message="args are @{name}"/>
       <rvm tag="@{name}" class="Harness" requires-display="@{requires-display}" args="@{name}" timeLimit="@{timeLimit}" maxHeapSize="@{heapsize}"/>
       <outputSingleStatisticResults tag="@{name}" key="time" pattern="===== DaCapo @{name} PASSED in (.*) msec ====="/>
     </sequential>
