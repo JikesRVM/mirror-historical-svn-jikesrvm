@@ -1971,7 +1971,6 @@ public class RVMThread extends MM_ThreadContext {
       waitObject = l.getLockedObject();
       waitCount = l.getRecursionCount();
       l.setOwnerId(0);
-      // PNT: FIXME: waiting cannot be protected by the lock itself!
       l.waiting.enqueue(this);
       l.mutex.unlock();
 
@@ -2004,10 +2003,19 @@ public class RVMThread extends MM_ThreadContext {
       }
       monitor().unlock();
       
+      if (l.waiting.isQueued(this)) {
+	l.mutex.lock();
+	l.waiting.remove(this); /* in case we got here due to an interrupt
+				   or a stop() rather than a notify */
+	l.mutex.unlock();
+	
+	// Note that the above must be done before attempting to acquire
+	// the lock, since acquiring the lock may require queueing the thread.
+	// But we cannot queue the thread if it is already on another
+	// queue.
+      }
+      
       // reacquire the lock, restoring the recursion count
-      // PNT: FIXME: waiting cannot be protected by the lock itself!!
-      l.waiting.remove(this); /* in case we got here due to an interrupt
-				 or a stop() rather than a notify */
       ObjectModel.genericLock(o);
       waitObject=null;
       if (waitCount != 1) { // reset recursion count
