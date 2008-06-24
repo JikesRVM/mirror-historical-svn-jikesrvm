@@ -242,7 +242,6 @@ public class Lock implements Constants {
       ownerId = threadId;
       recursionCount = 1;
     } else {
-      if (VM.VerifyAssertions) VM._assert(me.yieldpointsEnabled());
       entering.enqueue(me);
       mutex.unlock();
       
