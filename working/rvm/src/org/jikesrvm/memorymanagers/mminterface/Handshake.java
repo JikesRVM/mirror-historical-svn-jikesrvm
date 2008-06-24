@@ -111,9 +111,12 @@ public class Handshake {
     lock.lock();
     collectorThreadsParked++;
     lock.broadcast();
+    VM.sysWriteln("GC Thread #",RVMThread.getCurrentThreadSlot()," parked.");
     while (!requestFlag) {
+      VM.sysWriteln("GC Thread #",RVMThread.getCurrentThreadSlot()," waiting for request.");
       lock.await();
     }
+    VM.sysWriteln("GC Thread #",RVMThread.getCurrentThreadSlot()," got request, unparking.");
     collectorThreadsParked--;
     lock.unlock();
   }

@@ -320,6 +320,9 @@ public final class CollectorThread extends RVMThread {
   // and store all registers from previous method in prologue, so that we can stack access them while scanning this thread.
   @Uninterruptible
   public void run() {
+    // this is kind of stupid.
+    gcOrdinal = Synchronization.fetchAndAdd(participantCount, Offset.zero(), 1) + GC_ORDINAL_BASE;
+    
     for (int count = 0; ; count++) {
       // wait for collection to start
 
@@ -327,9 +330,10 @@ public final class CollectorThread extends RVMThread {
        * Handshake.request(). */
       handshake.parkCollectorThread();
 
+      VM.sysWriteln("Collector starting!!!!");
+      
       if (verbose >= 2) VM.sysWriteln("GC Message: CT.run waking up");
 
-      gcOrdinal = Synchronization.fetchAndAdd(participantCount, Offset.zero(), 1) + GC_ORDINAL_BASE;
       long startTime = Time.nanoTime();
 
       if (verbose > 2) VM.sysWriteln("GC Message: CT.run entering first rendezvous - gcOrdinal =", gcOrdinal);

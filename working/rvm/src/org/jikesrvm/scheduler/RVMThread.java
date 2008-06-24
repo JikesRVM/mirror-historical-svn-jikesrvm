@@ -1462,11 +1462,13 @@ public class RVMThread extends MM_ThreadContext {
   }
   
   public final void unblock(BlockAdapter ba) {
+    VM.sysWriteln("Thread #",getCurrentThread().threadSlot," is requesting that thread #",threadSlot," unblocks.");
     monitor().lock();
     ba.clearBlockRequest(this);
     ba.setBlocked(this,false);
     monitor().broadcast();
     monitor().unlock();
+    VM.sysWriteln("Thread #",getCurrentThread().threadSlot," is done requesting that thread #",threadSlot," unblocks.");
   }
   
   /** Are we allowed to take yieldpoints? */
