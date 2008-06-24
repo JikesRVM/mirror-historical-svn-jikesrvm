@@ -221,6 +221,7 @@ public final class SpinLock implements Constants {
     Magic.pause();    // reduce overhead of spin wait on IA
     if (n <= 0) return;  // method call overhead is delay enough
     if (n > 100) {
+      // PNT: FIXME: we're dying here ... maybe we're deadlocking?
       VM.sysWriteln("Unexpectedly large processor lock contention");
       RVMThread.dumpStack();
       VM.sysFail("Unexpectedly large processor lock contention");
