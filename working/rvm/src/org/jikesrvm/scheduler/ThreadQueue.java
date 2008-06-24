@@ -93,9 +93,8 @@ public class ThreadQueue {
       is not on the queue.  Also does nothing (and returns in O(1)) if
       the thread is on a different queue. */
   public boolean remove(RVMThread t) {
-    // PNT: FIXME: this is totally broken!!
     if (t.queuedOn!=this) return false;
-    for (RVMThread cur=null;cur!=tail;cur=cur.next) {
+    for (RVMThread cur=null;cur!=tail;cur=getNext(cur)) {
       if (getNext(cur)==t) {
 	setNext(cur,t.next);
 	t.queuedOn=null;
