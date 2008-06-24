@@ -1971,6 +1971,7 @@ public class RVMThread extends MM_ThreadContext {
       waitObject = l.getLockedObject();
       waitCount = l.getRecursionCount();
       l.setOwnerId(0);
+      // PNT: FIXME: waiting cannot be protected by the lock itself!
       l.waiting.enqueue(this);
       l.mutex.unlock();
 
@@ -2004,14 +2005,15 @@ public class RVMThread extends MM_ThreadContext {
       monitor().unlock();
       
       // reacquire the lock, restoring the recursion count
+      // PNT: FIXME: waiting cannot be protected by the lock itself!!
+      l.waiting.remove(this); /* in case we got here due to an interrupt
+				 or a stop() rather than a notify */
       ObjectModel.genericLock(o);
       waitObject=null;
       if (waitCount != 1) { // reset recursion count
         Lock l2 = ObjectModel.getHeavyLock(o, true);
         l2.setRecursionCount(waitCount);
       }
-      l.waiting.remove(this); /* in case we got here due to an interrupt
-				 or a stop() rather than a notify */
       waiting = Waiting.RUNNABLE;
     }
     
