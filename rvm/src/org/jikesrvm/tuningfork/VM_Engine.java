@@ -211,7 +211,7 @@ public final class VM_Engine {
       activeFeedletChunk.close();
       unwrittenMetaChunks.enqueue(activeFeedletChunk);
       activeFeedletChunk = new FeedletChunk();
-      if (!activeFeedletChunk.addProperty(f.getFeedletIndex(), name, description)) {
+      if (!activeFeedletChunk.add(f.getFeedletIndex(), name, description)) {
         if (VM.VerifyAssertions) {
           VM.sysFail("FeedletChunk is too small to to add feedlet "+name+" (" +description+")");
         }
@@ -243,7 +243,6 @@ public final class VM_Engine {
 
   private void shutdownFeedlet(VM_Feedlet feedlet) {
     feedlet.shutdown();
-    VM.sysWriteln("executing shutdownFeedlet for ",feedlet.getFeedletIndex());
     if (!activeFeedletChunk.remove(feedlet.getFeedletIndex())) {
       activeFeedletChunk.close();
       unwrittenMetaChunks.enqueue(activeFeedletChunk);
