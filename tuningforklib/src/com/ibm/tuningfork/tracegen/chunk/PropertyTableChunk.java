@@ -58,6 +58,8 @@ public class PropertyTableChunk extends Chunk {
     }
 
     public void reset() {
-	resetImpl();
+ 	resetImpl();
+        numberOfProperties = 0;
+        seek(PROPERTY_DATA_OFFSET);
     }
 }

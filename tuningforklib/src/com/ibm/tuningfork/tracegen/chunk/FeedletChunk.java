@@ -98,5 +98,7 @@ public class FeedletChunk extends Chunk {
 
     public void reset() {
 	resetImpl();
+	feedletOperations = 0;
+        seek(FEEDLET_DATA_OFFSET);
     }
 }

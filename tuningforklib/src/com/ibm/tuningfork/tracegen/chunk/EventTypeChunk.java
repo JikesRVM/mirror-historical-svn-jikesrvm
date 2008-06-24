@@ -72,6 +72,8 @@ public class EventTypeChunk extends Chunk {
 
     public void reset() {
 	resetImpl();
+	numberOfEventTypes = 0;
+	seek(EVENT_DATA_OFFSET);
     }
 
 }

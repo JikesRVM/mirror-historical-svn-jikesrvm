@@ -56,5 +56,7 @@ public class StringTableChunk extends Chunk {
 
     public void reset() {
 	resetImpl();
+	numberOfStrings = 0;
+        seek(STRING_DATA_OFFSET);
     }
 }
