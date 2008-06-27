@@ -682,7 +682,7 @@ sysNanoTime()
 	long long retVal;
 #ifndef __MACH__
 	struct timespec tp;
-    int rc = clock_gettime(CLOCK_MONOTONIC, &tp);
+    int rc = clock_gettime(CLOCK_REALTIME, &tp);
 	if (rc != 0) {
 		retVal = rc;
 	    if (lib_verbose) {
@@ -1191,11 +1191,17 @@ sysPthreadCondTimedWait(Word cond,Word mutex,
 			long long whenWakeupNanos)
 {
     timespec ts;
-    ts.tv_sec = (time_t)(whenWakeupNanos/1000000000L);
-    ts.tv_nsec = (long)(whenWakeupNanos%1000000000L);
-    pthread_cond_timedwait((pthread_cond_t*)cond,
-			   (pthread_mutex_t*)mutex,
-			   &ts);
+    ts.tv_sec = (time_t)(whenWakeupNanos/1000000000LL);
+    ts.tv_nsec = (long)(whenWakeupNanos%1000000000LL);
+    if (0) printf("starting wait at %lld until %lld (%ld, %ld)\n",
+		  sysNanoTime(),whenWakeupNanos,ts.tv_sec,ts.tv_nsec);
+    fflush(stdout);
+    int res=pthread_cond_timedwait((pthread_cond_t*)cond,
+				   (pthread_mutex_t*)mutex,
+				   &ts);
+    if (0) printf("returned from wait at %lld instead of %lld with res = %d\n",
+		  sysNanoTime(),whenWakeupNanos,res);
+    fflush(stdout);
 }
 
 extern "C" void

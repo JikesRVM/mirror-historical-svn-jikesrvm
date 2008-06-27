@@ -95,7 +95,7 @@ public final class SpinLock implements Constants {
    * The state of the processor lock.
    * <ul>
    * <li> <code>null</code>, if the lock is not owned;
-   * <li> the processor that owns the lock, if no processors are waithing;
+   * <li> the processor that owns the lock, if no processors are waiting;
    * <li> the last in a circular chain of processors waiting to own the lock; or
    * <li> <code>IN_FLUX</code>, if the circular chain is being edited.
    * </ul>
@@ -217,14 +217,19 @@ public final class SpinLock implements Constants {
    * succeed.
    */
   @NoInline
-  private static void handleMicrocontention(int n) {
+  private void handleMicrocontention(int n) {
     Magic.pause();    // reduce overhead of spin wait on IA
     if (n <= 0) return;  // method call overhead is delay enough
     if (n > 100) {
       // PNT: FIXME: we're dying here ... maybe we're deadlocking?
-      VM.sysWriteln("Unexpectedly large processor lock contention");
+      RVMThread t=latestContender;
+      if (t==null) {
+	VM.sysWriteln("Unexpectedly large spin lock contention in ",RVMThread.getCurrentThreadSlot(),"; lock held by nobody");
+      } else {
+	VM.sysWriteln("Unexpectedly large spin lock contention in ",RVMThread.getCurrentThreadSlot(),"; lock held by ",t.getThreadSlot());
+      }
       RVMThread.dumpStack();
-      VM.sysFail("Unexpectedly large processor lock contention");
+      VM.sysFail("Unexpectedly large spin lock contention");
     }
     // PNT: this is weird.
     int pid = RVMThread.getCurrentThread().getIndex(); // delay a different amount in each thread
@@ -247,7 +252,7 @@ public final class SpinLock implements Constants {
 
 }
 
-/* For the emacs weenies in the crowd.
+/*
 Local Variables:
    c-basic-offset: 2
 End:

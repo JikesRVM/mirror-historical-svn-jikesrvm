@@ -59,6 +59,20 @@ public class Handshake {
     lock = new HeavyCondLock();
   }
 
+  @Uninterruptible
+  public void waitForGCToFinish() {
+    if (verbose >= 1) VM.sysWriteln("GC Message: Handshake.requestAndAwaitCompletion - yielding");
+    /* allow a gc thread to run */
+    VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is waiting for the GC to finish.");
+    lock.lock();
+    while (!completionFlag) {
+      lock.waitNicely();
+    }
+    lock.unlock();
+    VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is done waiting for the GC.");
+    if (verbose >= 1) VM.sysWriteln("GC Message: Handshake.requestAndAwaitCompletion - mutator running");
+  }
+
   /**
    * Called by mutators to request a garbage collection and wait for
    * it to complete.
@@ -71,16 +85,7 @@ public class Handshake {
   @Uninterruptible
   public void requestAndAwaitCompletion(int why) {
     if (request(why)) {
-      if (verbose >= 1) VM.sysWriteln("GC Message: Handshake.requestAndAwaitCompletion - yielding");
-      /* allow a gc thread to run */
-      VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is waiting for the GC to finish.");
-      lock.lock();
-      while (!completionFlag) {
-	lock.waitNicely();
-      }
-      lock.unlock();
-      VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is done waiting for the GC.");
-      if (verbose >= 1) VM.sysWriteln("GC Message: Handshake.requestAndAwaitCompletion - mutator running");
+      waitForGCToFinish();
     }
   }
 
@@ -155,7 +160,9 @@ public class Handshake {
    */
   @Uninterruptible
   private boolean request(int why) {
+    VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is trying to make a GC request");
     lock.lock();
+    VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," acquired the lock for making a GC request");
     if (why > gcTrigger) gcTrigger = why;
     if (requestFlag) {
       if (verbose >= 1) {

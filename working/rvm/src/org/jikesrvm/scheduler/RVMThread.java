@@ -370,6 +370,11 @@ public class RVMThread extends MM_ThreadContext {
   boolean yieldpointRequestPending;
   
   /**
+   * Are we at a yieldpoint right now?
+   */
+  boolean atYieldpoint;
+  
+  /**
    * Is there a flush request for this thread?  This is handled via
    * a soft handshake.
    */
@@ -700,7 +705,7 @@ public class RVMThread extends MM_ThreadContext {
   public static volatile boolean debugRequested;
 
   /** Number of times dump stack has been called recursively */
-  protected static int inDumpStack = 0;
+  protected int inDumpStack = 0;
 
   /** In dump stack and dying */
   protected static boolean exitInProgress = false;
@@ -1204,7 +1209,7 @@ public class RVMThread extends MM_ThreadContext {
 	break;
       }
       
-      if (traceBlock) VM.sysWriteln("Thread #",threadSlot," is still blocked");
+      /*if (traceBlock)*/ VM.sysWriteln("Thread #",threadSlot," is really blocked");
       
       // what if a GC request comes while we're here for a suspend()
       // request?
@@ -1389,7 +1394,17 @@ public class RVMThread extends MM_ThreadContext {
 	  while (ba.hasBlockRequest(this,token) &&
 		 !ba.isBlocked(this)) {
 	    if (traceBlock) VM.sysWriteln("Thread #",getCurrentThread().threadSlot," is calling wait until thread #",threadSlot," blocks.");
-	    monitor().await();
+	    if (VM.VerifyAssertions) {
+	      // do a timed wait, and assert that the thread did not disappear
+	      // into native in the meantime
+	      monitor().timedWaitRelative(1000L*1000L*1000L); // 1 sec
+	      if (traceBlock) {
+		VM.sysWriteln("Thread #",threadSlot,"'s status is ",execStatus);
+	      }
+	      VM._assert(execStatus!=IN_NATIVE);
+	    } else {
+	      monitor().await();
+	    }
 	    if (traceBlock) VM.sysWriteln("Thread #",getCurrentThread().threadSlot," has returned from the wait call.");
 	  }
 	}
@@ -2172,7 +2187,7 @@ public class RVMThread extends MM_ThreadContext {
   }
 
   /**
-   * Get this thread's index in {@link threads}[].
+   * Get this thread's index in {@link threadBySlot}[].
    */
   @LogicallyUninterruptible
   public final int getIndex() {
@@ -2386,6 +2401,9 @@ public class RVMThread extends MM_ThreadContext {
     boolean cbsOverrun = false;
     RVMThread t = getCurrentThread();
     
+    boolean wasAtYieldpoint=t.atYieldpoint;
+    t.atYieldpoint=true;
+    
     t.yieldpointsTaken++;
     
     // If thread is in critical section we can't do anything right now, defer until later
@@ -2399,8 +2417,13 @@ public class RVMThread extends MM_ThreadContext {
     // lost (because some other thread sets it to non-0), but in that case we'll
     // just come back here and reset it to 0 again.
     if (!t.yieldpointsEnabled()) {
+      if (traceBlock && !wasAtYieldpoint) {
+	VM.sysWriteln("Thread #",t.threadSlot," deferring yield!");
+	dumpStack();
+      }
       t.yieldpointRequestPending = true;
       t.takeYieldpoint = 0;
+      t.atYieldpoint=false;
       return;
     }
     
@@ -2515,6 +2538,8 @@ public class RVMThread extends MM_ThreadContext {
       }
     }
     t.monitor().unlock();
+    
+    t.atYieldpoint=false;
     
     if (throwThis!=null) {
       throwFromUninterruptible(throwThis);
@@ -3446,14 +3471,15 @@ public class RVMThread extends MM_ThreadContext {
    * @param fp frame pointer for first frame to dump
    */
   public static void dumpStack(Address ip, Address fp) {
-    ++inDumpStack;
-    if (inDumpStack > 1 &&
-        inDumpStack <= VM.maxSystemTroubleRecursionDepth + VM.maxSystemTroubleRecursionDepthBeforeWeStopVMSysWrite) {
+    RVMThread t=getCurrentThread();
+    ++t.inDumpStack;
+    if (t.inDumpStack > 1 &&
+        t.inDumpStack <= VM.maxSystemTroubleRecursionDepth + VM.maxSystemTroubleRecursionDepthBeforeWeStopVMSysWrite) {
       VM.sysWrite("RVMThread.dumpStack(): in a recursive call, ");
-      VM.sysWrite(inDumpStack);
+      VM.sysWrite(t.inDumpStack);
       VM.sysWriteln(" deep.");
     }
-    if (inDumpStack > VM.maxSystemTroubleRecursionDepth) {
+    if (t.inDumpStack > VM.maxSystemTroubleRecursionDepth) {
       VM.dieAbruptlyRecursiveSystemTrouble();
       if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
     }
@@ -3524,11 +3550,11 @@ public class RVMThread extends MM_ThreadContext {
             break;
           }
         } // end while
-      } catch (Throwable t) {
+      } catch (Throwable th) {
         VM.sysWriteln("Something bad killed the stack dump. The last frame pointer was: ", fp);
       }
     }
-    --inDumpStack;
+    --t.inDumpStack;
   }
 
   /**

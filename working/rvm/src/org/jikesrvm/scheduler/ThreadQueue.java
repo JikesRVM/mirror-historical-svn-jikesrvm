@@ -14,6 +14,7 @@ package org.jikesrvm.scheduler;
 
 import org.jikesrvm.VM;
 import org.vmmagic.pragma.Uninterruptible;
+import org.jikesrvm.runtime.Magic;
 
 /**
  * An unsynchronized queue data structure for Threads.  The current
@@ -22,6 +23,8 @@ import org.vmmagic.pragma.Uninterruptible;
  */
 @Uninterruptible
 public class ThreadQueue {
+  protected static final boolean trace = true;
+
   RVMThread head;
   RVMThread tail;
   
@@ -33,6 +36,9 @@ public class ThreadQueue {
   }
   
   public void enqueue(RVMThread t) {
+    if (trace) {
+      VM.sysWriteln("enqueueing ",t.getThreadSlot()," onto ",Magic.objectAsAddress(this));
+    }
     if (VM.VerifyAssertions) VM._assert(t.queuedOn==null);
     t.next=null;
     if (tail==null) {
@@ -58,6 +64,13 @@ public class ThreadQueue {
       if (VM.VerifyAssertions) VM._assert(result.queuedOn==this);
       result.next=null;
       result.queuedOn=null;
+    }
+    if (trace) {
+      if (result==null) {
+	VM.sysWriteln("dequeueing null from ",Magic.objectAsAddress(this));
+      } else {
+	VM.sysWriteln("dequeueing ",result.getThreadSlot()," from ",Magic.objectAsAddress(this));
+      }
     }
     return result;
   }
@@ -94,13 +107,30 @@ public class ThreadQueue {
       the thread is on a different queue. */
   public boolean remove(RVMThread t) {
     if (t.queuedOn!=this) return false;
+    if (trace) {
+      VM.sysWriteln("removing ",t.getThreadSlot()," from ",Magic.objectAsAddress(this));
+    }
     for (RVMThread cur=null;cur!=tail;cur=getNext(cur)) {
       if (getNext(cur)==t) {
+	if (trace) {
+	  VM.sysWriteln("found!  before:");
+	  dump();
+	}
 	setNext(cur,t.next);
+	if (tail==t) {
+	  tail=cur;
+	}
+	if (trace) {
+	  VM.sysWriteln("after:");
+	  dump();
+	}
+	t.next=null;
 	t.queuedOn=null;
 	return true;
       }
     }
+    VM.sysWriteln("Could not remove Thread #",t.getThreadSlot()," from queue!");
+    dump();
     VM._assert(VM.NOT_REACHED);
     return false; // make javac happy
   }
@@ -119,6 +149,16 @@ public class ThreadQueue {
       pastFirst = true;
     }
     VM.sysWrite("\n");
+    if (head!=null) {
+      VM.sysWriteln("head: ",head.getThreadSlot());
+    } else {
+      VM.sysWriteln("head: null");
+    }
+    if (tail!=null) {
+      VM.sysWriteln("tail: ",tail.getThreadSlot());
+    } else {
+      VM.sysWriteln("tail: null");
+    }
   }
 }
 

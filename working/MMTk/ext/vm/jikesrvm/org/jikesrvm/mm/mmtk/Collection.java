@@ -89,7 +89,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
     }
 
     while (Plan.isCollectionTriggered()) {
-      // PNT: park the thread!!!!!!!
+      CollectorThread.handshake.waitForGCToFinish();
     }
     checkForOutOfMemoryError(true);
   }
@@ -368,3 +368,9 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
     ConcurrentCollectorThread.scheduleConcurrentCollectorThreads();
   }
 }
+
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

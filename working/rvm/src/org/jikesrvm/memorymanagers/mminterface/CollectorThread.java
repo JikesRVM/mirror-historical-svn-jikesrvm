@@ -244,7 +244,7 @@ public final class CollectorThread extends RVMThread {
   public static void collect(Handshake handshake, int why) {
     handshake.requestAndAwaitCompletion(why);
   }
-
+  
   /**
    * Initiate a garbage collection at next GC safe point.  Called by a
    * mutator thread at any time.  The caller should pass the
@@ -380,6 +380,7 @@ public final class CollectorThread extends RVMThread {
 	  if (numToHandshake==0) break;
 	  
 	  for (int i=0;i<numToHandshake;++i) {
+	    VM.sysWriteln("waiting for ",RVMThread.handshakeThreads[i].getThreadSlot()," to block");
 	    RVMThread.handshakeThreads[i].block(RVMThread.gcBlockAdapter);
 	    RVMThread.handshakeThreads[i]=null; // help GC
 	  }
