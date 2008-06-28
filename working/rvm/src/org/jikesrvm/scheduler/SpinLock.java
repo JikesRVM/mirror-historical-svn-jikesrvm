@@ -222,6 +222,7 @@ public final class SpinLock implements Constants {
     if (n <= 0) return;  // method call overhead is delay enough
     if (n > 100) {
       // PNT: FIXME: we're dying here ... maybe we're deadlocking?
+      VM.sysWriteln("Unexpectedly large spin lock contention on ",Magic.objectAsAddress(this));
       RVMThread t=latestContender;
       if (t==null) {
 	VM.sysWriteln("Unexpectedly large spin lock contention in ",RVMThread.getCurrentThreadSlot(),"; lock held by nobody");

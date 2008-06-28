@@ -1653,6 +1653,8 @@ public class RVMThread extends MM_ThreadContext {
     currentThread.enableYieldpoints();
     
     sysCall.sysStashVmThreadInPthread(currentThread);
+    
+    VM.sysWriteln("Thread #",currentThread.threadSlot," running!");
 
     if (trace) {
       VM.sysWriteln("Thread.startoff(): about to call ", currentThread.toString(), ".run()");
@@ -1682,6 +1684,7 @@ public class RVMThread extends MM_ThreadContext {
       numActiveDaemons++;
     }
     acctLock.unlock();
+    VM.sysWriteln("Thread #",threadSlot," starting!");
     sysCall.sysNativeThreadCreate(Magic.objectAsAddress(this),
 				  contextRegisters.ip,
 				  contextRegisters.getInnermostFramePointer());
@@ -1693,7 +1696,7 @@ public class RVMThread extends MM_ThreadContext {
    */
   @Interruptible
   public final void terminate() {
-    VM.sysWriteln("in terminate()");
+    VM.sysWriteln("in terminate() for Thread #",threadSlot);
     if (VM.VerifyAssertions) VM._assert(getCurrentThread() == this);
     boolean terminateSystem = false;
     if (trace) trace("Thread", "terminate");
@@ -1787,10 +1790,13 @@ public class RVMThread extends MM_ThreadContext {
 
     VM.sysWriteln("making joinable...");
 
+    // PNT: this is really iffy
     synchronized (this) {
       isJoinable = true;
       notifyAll();
     }
+    
+    VM.sysWriteln("Thread #",threadSlot," is joinable.");
 
     VM.sysWriteln("killing jnienv...");
 
@@ -2992,10 +2998,12 @@ public class RVMThread extends MM_ThreadContext {
   public final void join(long ms, int ns) throws InterruptedException {
     RVMThread myThread = getCurrentThread();
     if (VM.VerifyAssertions) VM._assert(myThread != this);
+    VM.sysWriteln("Joining on Thread #",threadSlot);
     synchronized(this) {
       if (ms == 0 && ns == 0) {
-        while (isAlive()) {
+        while (!isJoinable) {
           wait(this);
+	  VM.sysWriteln("relooping in join on Thread #",threadSlot);
         }
       } else {
         long startNano = Time.nanoTime();

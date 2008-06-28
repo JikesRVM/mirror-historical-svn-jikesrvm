@@ -196,7 +196,7 @@ public class Lock implements Constants {
   /** Queue for entering the lock, guarded by mutex. */
   ThreadQueue entering;
   
-  /** Queue for waiting on a notify, guarded by the monitor itself. */
+  /** Queue for waiting on a notify, guarded by mutex as well. */
   ThreadQueue waiting;
 
   /**

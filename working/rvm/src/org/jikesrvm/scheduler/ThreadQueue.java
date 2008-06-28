@@ -23,7 +23,7 @@ import org.jikesrvm.runtime.Magic;
  */
 @Uninterruptible
 public class ThreadQueue {
-  protected static final boolean trace = true;
+  protected static final boolean trace = false;
 
   RVMThread head;
   RVMThread tail;

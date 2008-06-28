@@ -866,7 +866,7 @@ sysNativeThreadCreate(Address tr, Address ip, Address fp)
     //
     pthread_attr_setscope(&sysNativeThreadAttributes, PTHREAD_SCOPE_SYSTEM);
 
-    // create virtual processor
+    // create native thread
     //
     if ((rc = pthread_create(&sysNativeThreadHandle,
                              &sysNativeThreadAttributes,
