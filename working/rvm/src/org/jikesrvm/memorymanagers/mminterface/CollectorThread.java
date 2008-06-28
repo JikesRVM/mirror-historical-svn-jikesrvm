@@ -473,9 +473,6 @@ public final class CollectorThread extends RVMThread {
          * actually we don't notify anymore, mutators are simply in
          * processor ready queues waiting to be dispatched. */
 	VM.sysWriteln("Thread #",getThreadSlot()," is unblocking a bunch of threads.");
-        handshake.notifyCompletion();
-        handshake.reset();
-	
 	// and now unblock all threads
 	RVMThread.handshakeLock.lock();
 	RVMThread.acctLock.lock();
@@ -507,7 +504,17 @@ public final class CollectorThread extends RVMThread {
       /* final cleanup for initial collector thread */
       if (gcOrdinal == GC_ORDINAL_BASE) {
         /* clear the GC flags */
+	
         Plan.collectionComplete();
+	
+	VM.sysWriteln("Marked the collection as complete.");
+
+        handshake.notifyCompletion();
+
+	VM.sysWriteln("Notified collection completion.");
+
+        handshake.reset();
+	
         gcThreadRunning = false;
       } // if designated thread
       rendezvous(9999);

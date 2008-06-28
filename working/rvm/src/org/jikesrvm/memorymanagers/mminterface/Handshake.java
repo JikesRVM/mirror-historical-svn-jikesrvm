@@ -19,6 +19,7 @@ import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.scheduler.HeavyCondLock;
 import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.Uninterruptible;
+import org.mmtk.plan.Plan;
 
 /**
  * Handshake handles mutator requests to initiate a collection, and
@@ -183,6 +184,9 @@ public class Handshake {
       waitForPrecedingGC();
       requestFlag = true;
       completionFlag = false;
+      
+      Plan.setCollectionTriggered();
+      
       lock.broadcast();
     }
     lock.unlock();

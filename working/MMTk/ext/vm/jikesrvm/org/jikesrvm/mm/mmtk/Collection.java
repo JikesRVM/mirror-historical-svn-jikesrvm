@@ -111,7 +111,6 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
 
     checkForOutOfMemoryError(false);
 
-    Plan.setCollectionTriggered();
     if (why == EXTERNAL_GC_TRIGGER) {
       if (Options.verbose.getValue() == 1 || Options.verbose.getValue() == 2)
         VM.sysWrite("[Forced GC]");
@@ -193,7 +192,6 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    * exhaustion first.
    */
   public final void triggerAsyncCollection(int why) {
-    Plan.setCollectionTriggered();
     if (Options.verbose.getValue() >= 1) {
       if (why == INTERNAL_PHASE_GC_TRIGGER) {
         VM.sysWrite("[Async-Phase GC]");

@@ -55,10 +55,10 @@ import org.mmtk.utility.Log;
   private static final long CHECK_NANOTIME_CYCLE_THRESHOLD = (long)1e7;  // (1e7 cycles / 4e9 cycles/sec == 2.5ms)
 
   /**
-   * A lock operation is considered slow if it takes more than 200 milliseconds.
+   * A lock operation is considered slow if it takes more than 2000 milliseconds.
    * The value is represented in nanoSeconds (for use with Time.nanoTime()).
    */
-  private static long SLOW_THRESHOLD = 200 * ((long)1e6);
+  private static long SLOW_THRESHOLD = 2000 * ((long)1e6);
 
   /**
    * A lock operation times out if it takes more than 10x SLOW_THRESHOLD.
@@ -111,6 +111,8 @@ import org.mmtk.utility.Log;
     long approximateStartNano = 0;
     long lastSlowReportNano = 0;
     long lastSlowReportCycles = 0;
+    
+    int lastServing=serving;
 
     while (ticket != serving) {
       long nowCycles = Time.cycles();
@@ -127,11 +129,12 @@ import org.mmtk.utility.Log;
       if (delta > CHECK_NANOTIME_CYCLE_THRESHOLD) {
         lastSlowReportCycles = nowCycles;
         long nowNano = Time.nanoTime();
-        if (approximateStartNano == 0) {
+        if (serving!=lastServing || approximateStartNano == 0) {
           approximateStartNano = nowNano;
           lastSlowReportNano = nowNano;
+	  lastServing = serving;
         }
-
+	
         if (nowNano - lastSlowReportNano > SLOW_THRESHOLD) {
           lastSlowReportNano = nowNano;
 
@@ -236,3 +239,8 @@ import org.mmtk.utility.Log;
     Services.releaseDumpBuffer();
   }
 }
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/
