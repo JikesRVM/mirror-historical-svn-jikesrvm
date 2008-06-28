@@ -275,8 +275,8 @@ public final class ThinLock implements ThinLockConstants {
     if (l == null) return false; // can't allocate locks during GC
     Lock rtn = attemptToInflate(o, lockOffset, l);
     if (l != rtn) {
-      l.mutex.lock();
       l = rtn;
+      l.mutex.lock();
     }
     return l.lockHeavyLocked(o);
   }

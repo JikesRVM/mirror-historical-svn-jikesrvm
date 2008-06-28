@@ -1810,6 +1810,8 @@ public class RVMThread extends MM_ThreadContext {
 
     // returned cached free lock
     if (cachedFreeLock != null) {
+      VM.sysWriteln("Thread #",threadSlot,": about to free lock ",
+		    Magic.objectAsAddress(cachedFreeLock));
       if (VM.VerifyAssertions) VM._assert(!cachedFreeLock.mutex.lockHeld());
       Lock.returnLock(cachedFreeLock);
       cachedFreeLock = null;
