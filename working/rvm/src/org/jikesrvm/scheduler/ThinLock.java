@@ -295,9 +295,11 @@ public final class ThinLock implements ThinLockConstants {
       old = Magic.prepareWord(o, lockOffset);
       // check to see if another thread has already created a fat lock
       if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // already a fat lock in place
-	VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot(),
-		      ": freeing lock ",Magic.objectAsAddress(l),
-		      " because we had a double-inflate");
+	if (Lock.trace) {
+	  VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot(),
+			": freeing lock ",Magic.objectAsAddress(l),
+			" because we had a double-inflate");
+	}
         Lock.free(l);
         l.mutex.unlock();
         l = Lock.getLock(getLockIndex(old));

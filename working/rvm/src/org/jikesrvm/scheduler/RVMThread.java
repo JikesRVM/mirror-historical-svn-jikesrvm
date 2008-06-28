@@ -86,6 +86,8 @@ public class RVMThread extends MM_ThreadContext {
    */
   /** Trace thread blockage */
   protected static final boolean traceBlock = false;
+  /** Trace thread start/stop */
+  protected static final boolean traceAcct = false;
   /** Trace execution */
   protected static final boolean trace = false;
   /** Trace thread termination */
@@ -1209,7 +1211,7 @@ public class RVMThread extends MM_ThreadContext {
 	break;
       }
       
-      /*if (traceBlock)*/ VM.sysWriteln("Thread #",threadSlot," is really blocked");
+      if (traceBlock) VM.sysWriteln("Thread #",threadSlot," is really blocked");
       
       // what if a GC request comes while we're here for a suspend()
       // request?
@@ -1654,7 +1656,7 @@ public class RVMThread extends MM_ThreadContext {
     
     sysCall.sysStashVmThreadInPthread(currentThread);
     
-    VM.sysWriteln("Thread #",currentThread.threadSlot," running!");
+    if (traceAcct) VM.sysWriteln("Thread #",currentThread.threadSlot," running!");
 
     if (trace) {
       VM.sysWriteln("Thread.startoff(): about to call ", currentThread.toString(), ".run()");
@@ -1684,7 +1686,7 @@ public class RVMThread extends MM_ThreadContext {
       numActiveDaemons++;
     }
     acctLock.unlock();
-    VM.sysWriteln("Thread #",threadSlot," starting!");
+    if (traceAcct) VM.sysWriteln("Thread #",threadSlot," starting!");
     sysCall.sysNativeThreadCreate(Magic.objectAsAddress(this),
 				  contextRegisters.ip,
 				  contextRegisters.getInnermostFramePointer());
@@ -1696,10 +1698,9 @@ public class RVMThread extends MM_ThreadContext {
    */
   @Interruptible
   public final void terminate() {
-    VM.sysWriteln("in terminate() for Thread #",threadSlot);
+    if (traceAcct) VM.sysWriteln("in terminate() for Thread #",threadSlot);
     if (VM.VerifyAssertions) VM._assert(getCurrentThread() == this);
     boolean terminateSystem = false;
-    if (trace) trace("Thread", "terminate");
     if (traceTermination) {
       VM.disableGC();
       VM.sysWriteln("[ BEGIN Verbosely dumping stack at time of thread termination");
@@ -1722,7 +1723,7 @@ public class RVMThread extends MM_ThreadContext {
       }
     }
 
-    VM.sysWriteln("doing accounting...");
+    if (traceAcct) VM.sysWriteln("doing accounting...");
     
     acctLock.lock();
 
@@ -1736,7 +1737,7 @@ public class RVMThread extends MM_ThreadContext {
     if (daemon) {
       numActiveDaemons -= 1;
     }
-    VM.sysWriteln("active = ",numActiveThreads,", daemons = ",numActiveDaemons);
+    if (traceAcct) VM.sysWriteln("active = ",numActiveThreads,", daemons = ",numActiveDaemons);
     if ((numActiveDaemons == numActiveThreads) &&
         (VM.mainThread != null) &&
         VM.mainThread.launched) {
@@ -1759,10 +1760,10 @@ public class RVMThread extends MM_ThreadContext {
 
     acctLock.unlock();
 
-    VM.sysWriteln("done with accounting.");
+    if (traceAcct) VM.sysWriteln("done with accounting.");
 
     if (terminateSystem) {
-      VM.sysWriteln("terminating system.");
+      if (traceAcct) VM.sysWriteln("terminating system.");
       if (uncaughtExceptionCount > 0)
         /* Use System.exit so that any shutdown hooks are run.  */ {
         if (VM.TraceExceptionDelivery) {
@@ -1788,7 +1789,7 @@ public class RVMThread extends MM_ThreadContext {
       if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
     }
 
-    VM.sysWriteln("making joinable...");
+    if (traceAcct) VM.sysWriteln("making joinable...");
 
     // PNT: this is really iffy
     synchronized (this) {
@@ -1796,9 +1797,9 @@ public class RVMThread extends MM_ThreadContext {
       notifyAll();
     }
     
-    VM.sysWriteln("Thread #",threadSlot," is joinable.");
+    if (traceAcct) VM.sysWriteln("Thread #",threadSlot," is joinable.");
 
-    VM.sysWriteln("killing jnienv...");
+    if (traceAcct) VM.sysWriteln("killing jnienv...");
 
     if (jniEnv != null) {
       // warning: this is synchronized!
@@ -1806,27 +1807,31 @@ public class RVMThread extends MM_ThreadContext {
       jniEnv = null;
     }
     
-    VM.sysWriteln("returning cached lock...");
+    if (traceAcct) VM.sysWriteln("returning cached lock...");
 
     // returned cached free lock
     if (cachedFreeLock != null) {
-      VM.sysWriteln("Thread #",threadSlot,": about to free lock ",
-		    Magic.objectAsAddress(cachedFreeLock));
+      if (Lock.trace) {
+	VM.sysWriteln("Thread #",threadSlot,": about to free lock ",
+		      Magic.objectAsAddress(cachedFreeLock));
+      }
       if (VM.VerifyAssertions) VM._assert(!cachedFreeLock.mutex.lockHeld());
       Lock.returnLock(cachedFreeLock);
       cachedFreeLock = null;
     }
 
-    VM.sysWriteln("adding to aboutToTerminate...");
+    if (traceAcct) VM.sysWriteln("adding to aboutToTerminate...");
 
     addAboutToTerminate();
 
-    VM.sysWriteln("acquireCount for my monitor: ",monitor().acquireCount);
-    VM.sysWriteln("timer ticks: ",timerTicks);
-    VM.sysWriteln("yieldpoints taken: ",yieldpointsTaken);
-    VM.sysWriteln("yieldpoints taken fully: ",yieldpointsTakenFully);
+    if (traceAcct) {
+      VM.sysWriteln("acquireCount for my monitor: ",monitor().acquireCount);
+      VM.sysWriteln("timer ticks: ",timerTicks);
+      VM.sysWriteln("yieldpoints taken: ",yieldpointsTaken);
+      VM.sysWriteln("yieldpoints taken fully: ",yieldpointsTakenFully);
+    }
     
-    VM.sysWriteln("finishing thread termination...");
+    if (traceAcct) VM.sysWriteln("finishing thread termination...");
 
     finishThreadTermination();
   }
@@ -3001,12 +3006,12 @@ public class RVMThread extends MM_ThreadContext {
   public final void join(long ms, int ns) throws InterruptedException {
     RVMThread myThread = getCurrentThread();
     if (VM.VerifyAssertions) VM._assert(myThread != this);
-    VM.sysWriteln("Joining on Thread #",threadSlot);
+    if (traceBlock) VM.sysWriteln("Joining on Thread #",threadSlot);
     synchronized(this) {
       if (ms == 0 && ns == 0) {
         while (!isJoinable) {
           wait(this);
-	  VM.sysWriteln("relooping in join on Thread #",threadSlot);
+	  if (traceBlock) VM.sysWriteln("relooping in join on Thread #",threadSlot);
         }
       } else {
         long startNano = Time.nanoTime();
