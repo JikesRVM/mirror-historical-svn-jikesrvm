@@ -120,6 +120,9 @@ public class Lock implements Constants {
    * Constants
    */
 
+  /** do debug tracing? */
+  protected static final boolean trace = true;
+   
   /** Control the gathering of statistics */
   public static final boolean STATS = false;
 
@@ -465,6 +468,8 @@ public class Lock implements Constants {
     if (me.cachedFreeLock != null) {
       Lock l = me.cachedFreeLock;
       me.cachedFreeLock = null;
+      VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
+		    ", a cached free lock from Thread #",me.getThreadSlot());
       return l;
     }
 
@@ -480,6 +485,10 @@ public class Lock implements Constants {
 	  globalFreeLocks--;
 	}
 	lockAllocationMutex.unlock();
+	if (l!=null) {
+	  VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
+			" from the global freelist for Thread #",me.getThreadSlot());
+	}
       } else {
 	l = new Lock(); // may cause thread switch (and processor loss)
 	lockAllocationMutex.lock();
@@ -506,6 +515,11 @@ public class Lock implements Constants {
 	   * Note: Derek and I BELIEVE that an isync is not required in the other processor because the lock is newly allocated - Bowen */
 	  Magic.sync();
 	}
+	if (l!=null) {
+	  VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
+			", a freshly allocated lock for Thread #",
+			me.getThreadSlot());
+	}
       }
     }
     return l;
@@ -520,13 +534,22 @@ public class Lock implements Constants {
     l.active = false;
     RVMThread me = RVMThread.getCurrentThread();
     if (me.cachedFreeLock == null) {
+      VM.sysWriteln("Lock.free: setting ",Magic.objectAsAddress(l),
+		    " as the cached free lock for Thread #",
+		    me.getThreadSlot());
       me.cachedFreeLock = l;
     } else {
+      VM.sysWriteln("Lock.free: returning ",Magic.objectAsAddress(l),
+		    " to the global freelist for Thread #",
+		    me.getThreadSlot());
       returnLock(l);
     }
   }
     
   static void returnLock(Lock l) {
+    VM.sysWriteln("Lock.returnLock: returning ",Magic.objectAsAddress(l),
+		  " to the global freelist for Thread #",
+		  RVMThread.getCurrentThreadSlot());
     lockAllocationMutex.lock();
     l.nextFreeLock = globalFreeLock;
     globalFreeLock = l;
@@ -695,3 +718,9 @@ public class Lock implements Constants {
     }
   }
 }
+
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

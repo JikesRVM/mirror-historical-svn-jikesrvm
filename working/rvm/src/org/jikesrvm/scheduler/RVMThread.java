@@ -1810,6 +1810,7 @@ public class RVMThread extends MM_ThreadContext {
 
     // returned cached free lock
     if (cachedFreeLock != null) {
+      if (VM.VerifyAssertions) VM._assert(!cachedFreeLock.mutex.lockHeld());
       Lock.returnLock(cachedFreeLock);
       cachedFreeLock = null;
     }

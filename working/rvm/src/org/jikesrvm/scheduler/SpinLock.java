@@ -105,6 +105,8 @@ public final class SpinLock implements Constants {
   @Untraced
   RVMThread latestContender;
 
+  public boolean lockHeld() { return latestContender!=null; }
+  
   /**
    * Acquire a processor lock.
    */
@@ -228,6 +230,9 @@ public final class SpinLock implements Constants {
 	VM.sysWriteln("Unexpectedly large spin lock contention in ",RVMThread.getCurrentThreadSlot(),"; lock held by nobody");
       } else {
 	VM.sysWriteln("Unexpectedly large spin lock contention in ",RVMThread.getCurrentThreadSlot(),"; lock held by ",t.getThreadSlot());
+	if (t!=RVMThread.getCurrentThread()) {
+	  VM.sysWriteln("But -- at least the spin lock is held by a different thread.");
+	}
       }
       RVMThread.dumpStack();
       VM.sysFail("Unexpectedly large spin lock contention");
