@@ -708,6 +708,9 @@ public class RVMThread extends MM_ThreadContext {
 
   /** Number of times dump stack has been called recursively */
   protected int inDumpStack = 0;
+  
+  /** Lock used for dumping stack and such. */
+  protected static HeavyCondLock dumpLock;
 
   /** In dump stack and dying */
   protected static boolean exitInProgress = false;
@@ -852,6 +855,7 @@ public class RVMThread extends MM_ThreadContext {
    */
   @Interruptible // except not really, since we don't enable yieldpoints yet
   public static void boot() {
+    dumpLock=new HeavyCondLock();
     acctLock=new NoYieldpointsCondLock();
     outputLock=new NoYieldpointsCondLock();
     softHandshakeDataLock=new HeavyCondLock();
@@ -3487,6 +3491,8 @@ public class RVMThread extends MM_ThreadContext {
    * @param fp frame pointer for first frame to dump
    */
   public static void dumpStack(Address ip, Address fp) {
+    boolean b=HeavyCondLock.lock(dumpLock);
+    
     RVMThread t=getCurrentThread();
     ++t.inDumpStack;
     if (t.inDumpStack > 1 &&
@@ -3571,6 +3577,8 @@ public class RVMThread extends MM_ThreadContext {
       }
     }
     --t.inDumpStack;
+
+    HeavyCondLock.unlock(b,dumpLock);
   }
 
   /**
@@ -3710,6 +3718,7 @@ public class RVMThread extends MM_ThreadContext {
    * Dump state of virtual machine.
    */
   public static void dumpVirtualMachine() {
+    boolean b=HeavyCondLock.lock(dumpLock);
     getCurrentThread().disableYieldpoints();
     
     VM.sysWrite("\n-- Threads --\n");
@@ -3740,6 +3749,7 @@ public class RVMThread extends MM_ThreadContext {
     }
     
     getCurrentThread().enableYieldpoints();
+    HeavyCondLock.unlock(b,dumpLock);
   }
 
 }

@@ -434,6 +434,19 @@ public class HeavyCondLock {
 	 m2,m2.mutex,
 	 m3,m3.mutex);
   }
+  
+  public static boolean lock(HeavyCondLock l) {
+    if (l==null) {
+      return false;
+    } else {
+      l.lock();
+      return true;
+    }
+  }
+  
+  public static void unlock(boolean b,HeavyCondLock l) {
+    if (b) l.unlock();
+  }
 }
 
 /* For the emacs weenies in the crowd.
