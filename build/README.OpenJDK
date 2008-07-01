@@ -1,0 +1,48 @@
+####################
+# OpenJDK build info
+####################
+
+To build OpenJDK, set the following parameters in .ant.properties 
+in addition to host.name, target.name and config.name
+
+#Build OpenJDK instead of Classpath or Harmony
+classlib.provider=OpenJDK
+
+#Path of your current JDK 1.7.0 build
+#Download from http://download.java.net/openjdk/jdk7/
+openjdk.import.path=/home/gousiosg/Desktop/jdk1.7.0
+
+#Same as openjdk.import.paths
+openjdk.build.import.path=/home/gousiosg/Desktop/jdk1.7.0
+
+#$JAVA_HOME for a JDK 1.6 installation
+openjdk.bootdir=/usr/lib/jvm/java-6-sun/
+
+#Path to openjdk binary plugs
+#Download from http://download.java.net/openjdk/jdk7/ 
+#Automatic download support to be added to the OpenJDK build process
+openjdk.binary.plugs=/home/gousiosg/workspace/openjdk/openjdk-binary-plugs
+
+#################
+# Build on Ubuntu
+#################
+
+The following packages are required to build OpenJDK on a 
+default Ubuntu 8.04 installation:
+
+build-essential
+mercurial
+libasound2-dev
+libcupsys2-dev
+x11proto-*-dev
+libx11-dev
+libxext-dev
+libxt-dev
+libxv-dev
+libxi-dev
+libxtst-dev
+xlibs-dev
+libfreetype6-dev
+gcc-4.1 (and change the link /usr/bin/gcc from gcc-4.2 to gcc-4.1)
+sun-java6-jdk
+

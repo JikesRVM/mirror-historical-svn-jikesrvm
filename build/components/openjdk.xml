@@ -1,0 +1,136 @@
+<!--
+ ~  This file is part of the Jikes RVM project (http://jikesrvm.org).
+ ~
+ ~  This file is licensed to You under the Common Public License (CPL);
+ ~  You may not use this file except in compliance with the License. You
+ ~  may obtain a copy of the License at
+ ~
+ ~      http://www.opensource.org/licenses/cpl1.0.php
+ ~
+ ~  See the COPYRIGHT.txt file distributed with this work for information
+ ~  regarding copyright ownership.
+ -->
+<project name="openjdk" default="build" basedir=".">
+
+
+  <import file="base.xml"/>
+  <property file="${components.file}"/>
+  <property name="hg.exe" value="hg"/>
+  <property name="openjdk.version" value="b29"/>
+  <property name="openjdk.description" value="OpenJDK class Libraries"/>
+  <property name="openjdk.component.dir" location="${components.dir}/openjdk"/>
+  <property name="openjdk.package.dir" value="${openjdk.component.dir}/${openjdk.version}"/>
+  <property name="openjdk.dir" value="${openjdk.package.dir}/"/>
+  <property name="openjdk.hg.revision" value="380:0e1d82bbcb2c" />
+
+  <!-- **************************************************************************** -->
+  <!-- *               Downloading and installing OpenJDK component               * -->
+  <!-- **************************************************************************** -->
+
+  <!-- init properties for downloading openjdk from hg -->
+  <target name="init-openjdk-properties" depends="prepare-ant-tasks">
+    <available property="openjdk.repo.exists"  file="${openjdk.dir}/.hg/hgrc" />
+    <property name="openjdk.from-hg" value="true"/>
+  </target>
+
+  <!--Check if the provided patch can be applied-->
+  <target name="can-apply-patch">
+    <exec executable="${hg.exe}" dir="${openjdk.dir}">
+      <arg value="parents"/>
+      <redirector outputproperty="current.hg.revision">
+        <outputfilterchain>
+          <linecontains>
+            <contains value="changeset:"/>
+          </linecontains>
+          <tokenfilter>
+              <replaceregex pattern="\s*changeset:\s*" replace=""/>
+          </tokenfilter>
+        </outputfilterchain>
+      </redirector>
+    </exec>
+    <echo message="Current revision = ${current.hg.revision}"/>
+    <condition property="openjdk.patch.applied" value="false" else="true">
+      <equals arg1="${openjdk.hg.revision}" arg2="${current.hg.revision}" trim="true"/>
+    </condition>
+    <echo message="Checked out revision = ${opendjdk.hg.revision}" />
+    <echo message="Patch applied: ${openjdk.patch.applied}" /> 
+  </target>
+
+  <!-- download openjdk from hg -->
+  <target name="get-openjdk-from-hg" depends="init-openjdk-properties" 
+  	if="openjdk.from-hg" unless="openjdk.repo.exists">
+    <mkdir dir="${openjdk.component.dir}" />
+    <echo message="Cloning OpenJDK mercurial repository" />
+    <exec executable="${hg.exe}">
+      <arg value="clone"/>
+      <arg value="http://hg.openjdk.java.net/jdk7/jdk7/jdk/"/>
+      <arg value="${openjdk.dir}"/>
+    </exec>
+    <echo message="Checking out tag ${openjdk.version}" />
+    <exec executable="${hg.exe}" dir="${openjdk.dir}">
+      <arg value="checkout" />
+      <arg value="-r" />
+      <arg value="${openjdk.hg.revision}" />
+    </exec>
+  </target>
+
+  <target name="fetch" depends="get-openjdk-from-hg"/>
+
+
+  <!-- *************************************************************************** -->
+  <!--                           Patch OpenJDK                                     -->
+  <!-- *************************************************************************** -->
+  <target name="pre-patch-apply" depends="fetch, can-apply-patch"/> 
+  
+  <target name="patch-openjdk-hg" depends="pre-patch-apply" if="openjdk.from-hg" 
+  	unless="openjdk.patch.applied">
+    <echo message="Applying patch" />
+    <exec executable="${hg.exe}" dir="${openjdk.dir}">
+      <arg value="patch" />
+      <arg value="-m patch " />
+      <arg value="${components.patch.dir}/openjdk-hg.RVM.patch" />
+    </exec>
+  </target>
+
+  <target name="patch" depends="patch-openjdk-hg"/>
+
+  <!-- *************************************************************************** -->
+  <!--                           Build OpenJDK                                     -->
+  <!-- *************************************************************************** -->
+  <macrodef name="buildOpenJDK">
+    <attribute name="target"/>
+    <sequential>
+      <exec executable="${make.exe}" dir="${openjdk.dir}/make" failonerror="true">
+        <env key="ALT_JDK_IMPORT_PATH" value="${openjdk.import.path}"/>
+        <env key="ALT_BUILD_JDK_IMPORT_PATH" value="${openjdk.build.import.path}"/>
+        <env key="ALT_BINARY_PLUGS_PATH" value="${openjdk.binary.plugs}"/>            
+        <env key="ALT_BOOTDIR" value="${openjdk.bootdir}"/>
+        <env key="ALT_BOOTDIR" value="${openjdk.bootdir}"/>
+        <env key="LD_LIBRARY_PATH" value=""/> <!--OpenJDK's make hates this-->
+        <arg value="@{target}"/>
+      </exec>
+    </sequential>
+  </macrodef>
+
+  <target name="set-build-properties">
+     <condition property="openjdk.arch.builddir" value="linux-i586" else="NOT-SET" >
+       <equals arg1="${target.name}" arg2="ia32-linux"/>
+    </condition>
+  </target>
+
+  <target name="build" depends="fetch,patch,set-build-properties" 
+       description="Download OpenJDK and build.">
+    <!-- build openjdk in openjdk.dir -->
+    <buildOpenJDK target="openjdk"/>
+    <buildOpenJDK target="images"/>
+    <setComponentsConfig key="openjdk.include.dir" value="${openjdk.dir}/build/${openjdk.arch.builddir}/include"/>
+    <setComponentsConfig key="openjdk.lib.dir" value="${openjdk.dir}/build/${openjdk.arch.builddir}/classes"/>
+  </target>
+
+  <!-- *************************************************************************** -->
+  <!--              Ensure - Entry point from main build                           -->
+  <!-- *************************************************************************** -->
+  <target name="ensure" depends="prepare-ant-tasks">
+    <ensureUptodate name="openjdk" dir="${openjdk.dir}/build"/>
+  </target>
+</project>

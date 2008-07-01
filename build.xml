@@ -87,6 +87,9 @@
   <condition property="classpath.classlib" value="true">
     <equals arg1="${classlib.provider}" arg2="GNU Classpath"/>
   </condition>
+  <condition property="openjdk.classlib" value="true">
+    <equals arg1="${classlib.provider}" arg2="OpenJDK"/>
+  </condition>
 
   <!-- Permit parallelisation of the bootimage build -->
   <property name="bootimage.threads" value="1"/>
@@ -158,6 +161,7 @@
           <or>
             <equals arg1="${classlib.provider}" arg2="Harmony"/>
             <equals arg1="${classlib.provider}" arg2="GNU Classpath"/>
+	    <equals arg1="${classlib.provider}" arg2="OpenJDK"/>
           </or>
 	</not>
       </condition>
@@ -168,6 +172,7 @@
           <or>
             <isset property="harmony.classlib"/>
             <isset property="classpath.classlib"/>
+	    <isset property="openjdk.classlib"/>
           </or>
 	</not>
       </condition>
@@ -256,6 +261,14 @@
       </conditions>
       <sequential>
         <ant antfile="build/components/harmony.xml" target="ensure"/>
+      </sequential>
+    </if>
+    <if>
+      <conditions>
+      	<equals arg1="${classlib.provider}" arg2="OpenJDK"/>
+      </conditions>
+      <sequential>
+      	<ant antfile="build/components/openjdk.xml" target="ensure"/>
       </sequential>
     </if>
     <ant antfile="build/components/checkstyle.xml" target="ensure"/>

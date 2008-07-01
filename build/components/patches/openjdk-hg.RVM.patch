@@ -1,0 +1,14 @@
+diff -r 0a5b87833562 make/java/nio/Makefile
+--- a/make/java/nio/Makefile	Fri Jun 20 08:45:07 2008 -0700
++++ b/make/java/nio/Makefile	Thu Jun 26 09:22:16 2008 +0300
+@@ -594,7 +594,9 @@ GEN_CODER_CMD = SPP="$(SPP_CMD)" SED="$(
+ 	$(prep-target)
+ 	@$(RM) $@.temp
+ 	$(GEN_CODER_CMD) encoder $< $@.temp
+-	$(MV) $@.temp $@
++	$(CAT) $@.temp |$(SED) -e 's/\$$replType\$$/byte \[\]/' > $@.temp1
++	$(RM) $@.temp
++	$(MV) $@.temp1 $@
+ 
+ #
+ # Generated exception classes
