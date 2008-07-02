@@ -49,11 +49,12 @@
       </redirector>
     </exec>
     <echo message="Current revision = ${current.hg.revision}"/>
-    <condition property="openjdk.patch.applied" value="false" else="true">
-      <equals arg1="${openjdk.hg.revision}" arg2="${current.hg.revision}" trim="true"/>
+    <condition property="openjdk.patch.applied">
+      <not>
+        <equals arg1="${openjdk.hg.revision}" arg2="${current.hg.revision}" trim="true"/>
+      </not>
     </condition>
-    <echo message="Checked out revision = ${opendjdk.hg.revision}" />
-    <echo message="Patch applied: ${openjdk.patch.applied}" /> 
+    <echo message="Checked out revision = ${openjdk.hg.revision}" />
   </target>
 
   <!-- download openjdk from hg -->
@@ -88,7 +89,12 @@
     <exec executable="${hg.exe}" dir="${openjdk.dir}">
       <arg value="patch" />
       <arg value="-m patch " />
-      <arg value="${components.patch.dir}/openjdk-hg.RVM.patch" />
+      <arg value="${components.patch.dir}/openjdk-hg.RVM-549-01.patch" />
+    </exec>
+    <exec executable="${hg.exe}" dir="${openjdk.dir}">
+      <arg value="patch" />
+      <arg value="-m patch " />
+      <arg value="${components.patch.dir}/openjdk-hg.RVM-549-02.patch" />
     </exec>
   </target>
 

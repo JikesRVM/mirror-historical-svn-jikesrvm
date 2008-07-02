@@ -1,0 +1,65 @@
+diff -r 06a60027f441 make/common/Release.gmk
+--- a/make/common/Release.gmk	Tue Jul 01 10:34:15 2008 +0300
++++ b/make/common/Release.gmk	Wed Jul 02 10:52:31 2008 +0300
+@@ -162,7 +162,7 @@ JDK_MAN_PAGES =            \
+ 	javac.1            \
+ 	javadoc.1          \
+ 	javah.1            \
+-	javap.1            \
++#	javap.1            \
+ 	jconsole.1         \
+ 	jdb.1              \
+ 	jhat.1             \
+@@ -344,7 +344,7 @@ TOOLS = \
+ 	sun/tools/jar		\
+ 	sun/tools/java		\
+ 	sun/tools/javac		\
+-	sun/tools/javap		\
++#	sun/tools/javap		\
+ 	sun/tools/jps		\
+ 	sun/tools/jstat		\
+ 	sun/tools/jstatd	\
+@@ -379,7 +379,7 @@ TOOLS = \
+ 	com/sun/tools/javadoc   \
+ 	com/sun/tools/apt       \
+ 	com/sun/tools/javah     \
+-	com/sun/tools/javap     \
++#	com/sun/tools/javap     \
+ 	com/sun/tools/corba     \
+ 	com/sun/tools/internal/xjc       \
+ 	com/sun/tools/internal/ws       \
+@@ -456,7 +456,7 @@ NOTJRETOOLS = \
+ 	javadoc$(EXE_SUFFIX) \
+ 	apt$(EXE_SUFFIX) \
+ 	javah$(EXE_SUFFIX) \
+-	javap$(EXE_SUFFIX) \
++#	javap$(EXE_SUFFIX) \
+ 	jdb$(EXE_SUFFIX) \
+ 	jps$(EXE_SUFFIX) \
+ 	jrunscript$(EXE_SUFFIX) \
+@@ -569,9 +569,9 @@ NOT_RT_JAR_LIST = $(ABS_TEMPDIR)/not_rt_
+ 	$(ECHO) "sun/tools/asm/" >> $@
+ 	$(ECHO) "sun/tools/java/" >> $@
+ 	$(ECHO) "sun/tools/javac/" >> $@
+-	$(ECHO) "sun/tools/javap/" >> $@
++#	$(ECHO) "sun/tools/javap/" >> $@
+ 	$(ECHO) "com/sun/tools/classfile/" >> $@
+-	$(ECHO) "com/sun/tools/javap/" >> $@
++#	$(ECHO) "com/sun/tools/javap/" >> $@
+ 	$(ECHO) "sun/tools/jconsole/" >> $@
+ 	$(ECHO) "sun/tools/jps/" >> $@
+ 	$(ECHO) "sun/tools/jstat/" >> $@
+diff -r 06a60027f441 make/common/internal/Defs-langtools.gmk
+--- a/make/common/internal/Defs-langtools.gmk	Tue Jul 01 10:34:15 2008 +0300
++++ b/make/common/internal/Defs-langtools.gmk	Wed Jul 02 10:52:31 2008 +0300
+@@ -39,7 +39,7 @@ IMPORT_TOOLS_PACKAGES +=            \
+       com/sun/tools/doclets         \
+       com/sun/tools/javac           \
+       com/sun/tools/javadoc         \
+-      com/sun/tools/javah           \
+-      com/sun/tools/javap           \
+-      sun/tools/javap
++      com/sun/tools/javah           
++#      com/sun/tools/javap           \
++#      sun/tools/javap
+ 

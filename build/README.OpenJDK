@@ -43,6 +43,6 @@ libxi-dev
 libxtst-dev
 xlibs-dev
 libfreetype6-dev
-gcc-4.1 (and change the link /usr/bin/gcc from gcc-4.2 to gcc-4.1)
+gcc-4.1 (change the link /usr/bin/gcc from /usr/bin/gcc-4.2 to /usr/bin/gcc-4.1)
 sun-java6-jdk
 
