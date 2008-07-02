@@ -129,14 +129,16 @@
     <!-- build openjdk in openjdk.dir -->
     <buildOpenJDK target="openjdk"/>
     <buildOpenJDK target="images"/>
+    <writeComponentConstants dir="${openjdk.dir}" />
     <setComponentsConfig key="openjdk.include.dir" value="${openjdk.dir}/build/${openjdk.arch.builddir}/include"/>
-    <setComponentsConfig key="openjdk.lib.dir" value="${openjdk.dir}/build/${openjdk.arch.builddir}/classes"/>
+    <setComponentsConfig key="openjdk.lib.dir" 
+      value="${openjdk.dir}/build/${openjdk.arch.builddir}/j2sdk-image/jre/lib"/>
   </target>
 
   <!-- *************************************************************************** -->
   <!--              Ensure - Entry point from main build                           -->
   <!-- *************************************************************************** -->
   <target name="ensure" depends="prepare-ant-tasks">
-    <ensureUptodate name="openjdk" dir="${openjdk.dir}/build"/>
+    <ensureUptodate name="openjdk" dir="${openjdk.dir}"/>
   </target>
 </project>

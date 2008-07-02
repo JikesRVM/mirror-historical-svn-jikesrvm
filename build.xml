@@ -195,6 +195,15 @@
     <property name="build.extra.rt.jars" value=":${harmony.lib.dir}/yoko-rmi-impl.jar:${harmony.lib.dir}/instrument.jar:${harmony.lib.dir}/beans.jar:${harmony.lib.dir}/xml-apis.jar:${harmony.lib.dir}/mx4j.jar:${harmony.lib.dir}/nio.jar:${harmony.lib.dir}/xalan.jar:${harmony.lib.dir}/resolver.jar:${harmony.lib.dir}/logging.jar:${harmony.lib.dir}/bcprov.jar:${harmony.lib.dir}/security.jar:${harmony.lib.dir}/sql.jar:${harmony.lib.dir}/print.jar:${harmony.lib.dir}/mx4j-remote.jar:${harmony.lib.dir}/concurrent.jar:${harmony.lib.dir}/luni-kernel-stubs.jar:${harmony.lib.dir}/misc.jar:${harmony.lib.dir}/accessibility.jar:${harmony.lib.dir}/crypto.jar:${harmony.lib.dir}/yoko.jar:${harmony.lib.dir}/rmi.jar:${harmony.lib.dir}/security-kernel-stubs.jar:${harmony.lib.dir}/x-net.jar:${harmony.lib.dir}/icu4j-charsets-3_8.jar:${harmony.lib.dir}/imageio.jar:${harmony.lib.dir}/nio_char.jar:${harmony.lib.dir}/lang-management.jar:${harmony.lib.dir}/regex.jar:${harmony.lib.dir}/applet.jar:${harmony.lib.dir}/prefs.jar:${harmony.lib.dir}/annotation.jar:${harmony.lib.dir}/math.jar:${harmony.lib.dir}/luni.jar:${harmony.lib.dir}/archive.jar:${harmony.lib.dir}/awt.jar:${harmony.lib.dir}/nio_char-src.jar:${harmony.lib.dir}/xercesImpl.jar:${harmony.lib.dir}/yoko-rmi-spec.jar:${harmony.lib.dir}/swing.jar:${harmony.lib.dir}/auth.jar:${harmony.lib.dir}/yoko-core.jar:${harmony.lib.dir}/text.jar:${harmony.lib.dir}/jndi.jar:${harmony.lib.dir}/suncompat.jar:${harmony.lib.dir}/sound.jar:${harmony.lib.dir}/icu4j-3_8.jar:${harmony.lib.dir}/bcel-5.2.jar"/>
   </target>
 
+  <target name="check-openjdk-properties" depends="check-components-properties,check-classlibrary-properties"
+    if="openjdk.classlib">
+    <propertycopy name="openjdk.lib.dir" from="${target.name}.openjdk.lib.dir"/>
+    <test-file name="openjdk.lib.dir" location="${components.file}"/>
+    <property file="${openjdk.lib.dir}/constants.properties"/>
+    <property name="config.portable-native-sync" value="false"/>
+    <property name="build.extra.rt.jars" value="${openjdk.lib.dir}/resources.jar:${openjdk.lib.dir}/charsets.jar:${openjdk.lib.dir}/jce.jar:${openjdk.lib.dir}/resources.jar"/>
+  </target>
+
   <target name="check-mmtk-properties"  depends="check-host-name">
     <available property="mmtk_properties_present" file="${mmtk.properties}"/>
     <fail unless="mmtk_properties_present">
@@ -319,8 +328,8 @@ Check to make sure all required properties are specified. This includes properti
  * component properties for classpath, gcspy etc.
   -->
   <target name="check-properties"
-          depends="check-host-properties,check-config-properties,check-target-properties,check-classlibrary-properties,check-classpath-properties,check-harmony-properties,check-gcspy-properties,check-mmtk-properties"
-          description="Check that all require properties are specified.">
+          depends="check-host-properties,check-config-properties,check-target-properties,check-classlibrary-properties,check-classpath-properties,check-harmony-properties,check-openjdk-properties,check-gcspy-properties,check-mmtk-properties"
+          description="Check that all required properties are specified.">
 
     <!-- setup properties for start of build. -->
     <tstamp prefix="start">
@@ -1099,6 +1108,40 @@ Check to make sure all required properties are specified. This includes properti
             <pathelement location="${harmony.lib.dir}/regex.jar"/>
             <pathelement location="${harmony.lib.dir}/security-kernel-stubs.jar"/>
             <pathelement location="${harmony.lib.dir}/security.jar"/>
+          </bootclasspath>
+          <classpath>
+            <pathelement location="${build.vmmagic-stub.classes}"/>
+          </classpath>
+          <include name="Dummy.java"/>
+          <include name="OptDummy.java"/>
+          <include name="org/apache/**/*.java"/>
+          <include name="sun/**/*.java"/>
+          <include name="java/**/*.java"/>
+          <include name="${arch-helper-class}"/>
+          <include name="org/jikesrvm/mm/mmtk/**/*.java"/>
+          <include name="org/jikesrvm/tools/oth/OptTestHarness.java"/>
+          <include name="org/jikesrvm/tools/header_gen/GenArch_${target.arch}.java"/>
+          <exclude name="org/jikesrvm/tools/header_gen.GenerateInterfaceDeclarations.java"/>
+        </javac>
+      </sequential>
+    </if>
+
+    <if>
+       <conditions>
+        <equals arg1="${classlib.provider}" arg2="OpenJDK"/>
+      </conditions>
+      <sequential>       
+        <javac destdir="${build.classes}"
+               debug="true"
+               fork="true"
+               memoryMaximumSize="500M"
+               debugLevel="lines,source"
+               source="1.5"
+               target="1.5"
+               srcdir="${main.java}:${mmtk-vm-rvm.java}"
+               sourcepath="${mmtk.java}:${options.java}:${generated.java}:${generated.config.java}:${generated.arch.java}:${main.java}:${mmtk-vm-rvm.java}">
+          <bootclasspath>
+            <pathelement location="${openjdk-lib-dir}/rt.jar"/>
           </bootclasspath>
           <classpath>
             <pathelement location="${build.vmmagic-stub.classes}"/>
