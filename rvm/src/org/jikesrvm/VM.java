@@ -47,6 +47,7 @@ import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.scheduler.greenthreads.JikesRVMSocketImpl;
 import org.jikesrvm.scheduler.greenthreads.FileSystem;
 import org.jikesrvm.scheduler.greenthreads.GreenScheduler;
+import gnu.classpath.jdwp.JikesRVMJDWP;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
@@ -422,6 +423,7 @@ public class VM extends Properties implements Constants, ExitStatus {
     if (VM.BuildForGnuClasspath) {
       if (verboseBoot >= 1) VM.sysWriteln("Initializing socket factories");
       JikesRVMSocketImpl.boot();
+      runClassInitializer("java.net.InetAddress");
     }
 
     if (VM.BuildForAdaptiveSystem) {
@@ -482,6 +484,9 @@ public class VM extends Properties implements Constants, ExitStatus {
     if (VM.AlignmentChecking) {
       SysCall.sysCall.sysEnableAlignmentChecking();
     }
+
+    // start JDWP agent right before running the applcation.
+    JikesRVMJDWP.boot();
 
     // Schedule "main" thread for execution.
     if (verboseBoot >= 2) VM.sysWriteln("Creating main thread");

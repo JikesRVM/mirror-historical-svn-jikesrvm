@@ -252,6 +252,16 @@ public final class NormalMethod extends RVMMethod implements BytecodeConstants {
     }
     return lineNumberMap[--idx] >>> 16; // upper 16 bits are line number
   }
+  
+  /**
+   * Return the line number map.
+   * @see #lineNumberMap
+   * @return map of line numbers
+   */
+  @Uninterruptible
+  public final int[] getLineNumberMap() {
+	  return lineNumberMap; 
+  }
 
   // Extra methods for on-stack replacement
   // BaselineCompiler and BC2IR should check if a method is

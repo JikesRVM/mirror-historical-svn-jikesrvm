@@ -17,6 +17,7 @@ import org.jikesrvm.ArchitectureSpecific.Registers;
 import static org.jikesrvm.ArchitectureSpecific.StackframeLayoutConstants.INVISIBLE_METHOD_ID;
 import static org.jikesrvm.ArchitectureSpecific.StackframeLayoutConstants.STACKFRAME_SENTINEL_FP;
 import static org.jikesrvm.ArchitectureSpecific.StackframeLayoutConstants.STACK_SIZE_GUARD;
+import org.jikesrvm.Callbacks;
 import org.jikesrvm.VM;
 import org.jikesrvm.Configuration;
 import org.jikesrvm.Services;
@@ -651,6 +652,7 @@ public abstract class RVMThread {
    */
   @Interruptible
   public final void start() {
+    Callbacks.notifyThreadStart(this);
     registerThread();
     schedule();
   }
@@ -675,6 +677,7 @@ public abstract class RVMThread {
     if (VM.BuildForAdaptiveSystem) {
       RuntimeMeasurements.monitorThreadExit();
     }
+    Callbacks.notifyThreadEnd(this);
 
     // allow java.lang.Thread.exit() to remove this thread from ThreadGroup
     java.lang.JikesRVMSupport.threadDied(thread);

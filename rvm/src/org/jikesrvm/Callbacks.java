@@ -14,10 +14,12 @@ package org.jikesrvm;
 
 import java.util.Enumeration;
 import org.jikesrvm.classloader.Atom;
+import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.classloader.RVMType;
 import org.jikesrvm.scheduler.Scheduler;
+import org.jikesrvm.scheduler.RVMThread;
 
 /**
  * A class for managing various callbacks from the VM.
@@ -310,6 +312,70 @@ public final class Callbacks {
     classInitializedEnabled = true;
   }
 
+  /**
+   * Interface for monitoring exceptions.
+   */
+  public interface ExceptionCatchMonitor {
+    /**
+     * Notify the monitor that an Exception has been thrown and catched.
+     * @param e The exception.
+     * @param catchMethod The catch target method.
+     * @param catchByteCodeIndex The catch target byte code index.
+     */
+    void notifyExceptionCatch(Throwable e, 
+        NormalMethod sourceMethod, int sourceByteCodeIndex,
+        NormalMethod catchMethod, int catchByteCodeIndex);
+  }
+
+  /**
+   * Thrown Exception callback list.
+   */
+  private static CallbackList exceptionCatchCallbacks = null;
+  private static final Object exceptionCatchLock = new Object();
+  private static boolean exceptionCatchEnabled = true;
+
+  /**
+   * Register a callback for Exception event.
+   * @param cb the object to notify when event happens
+   */
+  public static void addExceptionCatchMonitor(ExceptionCatchMonitor cb) {
+    synchronized (exceptionCatchLock) {
+      if (TRACE_ADDMONITOR || TRACE_EXCEPTIONCATCH) {
+        VM.sysWrite("adding method override monitor: ");
+        VM.sysWrite(getClass(cb));
+        VM.sysWrite("\n");
+      }
+      exceptionCatchCallbacks = new CallbackList(cb, exceptionCatchCallbacks);
+    }
+  }
+
+  /**
+   * Notify the callback manager that an exception was thrown and catched.
+   */
+  public static void notifyExceptionCatch(Throwable e,
+      NormalMethod sourceMethod, int sourceByteCodeIndex,
+      NormalMethod catchMethod, int catchByteCodeIndex) {
+    // NOTE: will need synchronization if allowing unregistering
+    if (!exceptionCatchEnabled) return;
+    exceptionCatchEnabled = false;
+    if (TRACE_EXCEPTIONCATCH) {
+      //VM.sysWrite(getThread(), false);
+      //VM.sysWrite(": ");
+      VM.sysWrite("invoking exception throw monitors: ");
+      }
+    for (CallbackList l = exceptionCatchCallbacks; l != null; l = l.next) {
+      if (TRACE_EXCEPTIONCATCH) {
+        VM.sysWrite("    ");
+        VM.sysWrite(getClass(l.callback));
+        VM.sysWrite("\n");
+      }
+      ((ExceptionCatchMonitor) l.callback).notifyExceptionCatch(e,
+          sourceMethod, sourceByteCodeIndex,
+          catchMethod, catchByteCodeIndex);
+    }
+    exceptionCatchEnabled = true;
+  }
+  
   /**
    * Interface for monitoring method override.
    */
@@ -802,6 +868,124 @@ public final class Callbacks {
     }
   }
 
+  
+  /**
+   * Interface for monitoring thread start.
+   */
+  public interface ThreadStartMonitor {
+    /**
+     * Notify the monitor that a thread about to start.
+     * @param vmThread the thrread about to start.
+     */
+    void notifyThreadStart(RVMThread vmThread);
+  }
+
+  /**
+   * Thread start callback list.
+   */
+  private static CallbackList threadStartCallbacks = null;
+  private static final Object threadStartLock = new Object();
+  private static boolean threadStartEnabled = true;
+
+  /**
+   * Register a callback for thread start.
+   * @param cb the object to notify when event happens
+   */
+  public static void addThreadStartedMonitor(ThreadStartMonitor cb) {
+    synchronized (threadStartLock) {
+      if (TRACE_ADDMONITOR || TRACE_THREADSTART) {
+        VM.sysWrite("adding thread started monitor: ");
+        VM.sysWrite(getClass(cb));
+        VM.sysWrite("\n");
+      }
+      threadStartCallbacks = new CallbackList(cb, threadStartCallbacks);
+    }
+  }
+
+  /**
+   * Notify the callback manager that a thread is about to start.
+   * 
+   * @param vmThread the thread about to start.
+   */
+  public static void notifyThreadStart(RVMThread vmThread) {
+    // NOTE: will need synchronization if allowing unregistering
+    if (!threadStartEnabled)
+      return;
+    threadStartEnabled = false;
+    if (TRACE_THREADSTART) {
+      VM.sysWrite("invoking thread start monitors: ");
+      VM.sysWrite(vmThread.getJavaLangThread().getName());
+      VM.sysWrite("\n");
+    }
+    for (CallbackList l = threadStartCallbacks; l != null; l = l.next) {
+      if (TRACE_THREADSTART) {
+        VM.sysWrite("    ");
+        VM.sysWrite(getClass(l.callback));
+        VM.sysWrite("\n");
+      }
+      ((ThreadStartMonitor) l.callback).notifyThreadStart(vmThread);
+    }
+    threadStartEnabled = true;
+  }
+
+  /**
+   * Interface for monitoring thread end.
+   */
+  public interface ThreadEndMonitor {
+    /**
+     * Notify the monitor that a thread ended.
+     * 
+     * @param vmThread the thread that was ended.
+     */
+    void notifyThreadEnd(RVMThread vmThread);
+  }
+
+  /**
+   * Thread end callback list.
+   */
+  private static CallbackList threadEndCallbacks = null;
+  private static final Object threadEndLock = new Object();
+  private static boolean threadEndEnabled = true;
+
+  /**
+   * Register a callback for thread end.
+   * @param cb the object to notify when event happens
+   */
+  public static void addThreadEndMonitor(ThreadEndMonitor cb) {
+    synchronized (threadEndLock) {
+      if (TRACE_ADDMONITOR || TRACE_THREADEND) {
+        VM.sysWrite("adding thread ended monitor: ");
+        VM.sysWrite(getClass(cb));
+        VM.sysWrite("\n");
+      }
+      threadEndCallbacks = new CallbackList(cb, threadEndCallbacks);
+    }
+  }
+
+  /**
+   * Notify the callback manager that a thread is about to end.
+   * @param vmThread the thread about to end.
+   */
+  public static void notifyThreadEnd(RVMThread vmThread) {
+    // NOTE: will need synchronization if allowing unregistering
+    if (!threadEndEnabled) return;
+    threadEndEnabled = false;
+    if (TRACE_THREADEND) {
+      VM.sysWrite("invoking thread end monitors: ");
+      VM.sysWrite(vmThread.getJavaLangThread().getName());
+      VM.sysWrite("\n");
+    }
+    for (CallbackList l = threadEndCallbacks; l != null; l = l.next) {
+      if (TRACE_THREADEND) {
+        VM.sysWrite("    ");
+        VM.sysWrite(getClass(l.callback));
+        VM.sysWrite("\n");
+      }
+      ((ThreadEndMonitor) l.callback).notifyThreadEnd(vmThread);
+    }
+    threadEndEnabled = true;
+  }
+
   /**
    * Interface for monitoring when an application starts executing
    */
@@ -1115,6 +1299,7 @@ public final class Callbacks {
   private static final boolean TRACE_CLASSRESOLVED = false;
   private static final boolean TRACE_CLASSINITIALIZED = false;
   private static final boolean TRACE_CLASSINSTANTIATED = false;
+  private static final boolean TRACE_EXCEPTIONCATCH = false;
   private static final boolean TRACE_METHODOVERRIDE = false;
   private static final boolean TRACE_METHODCOMPILE = false;
   private static final boolean TRACE_FORNAME = false;
@@ -1123,6 +1308,8 @@ public final class Callbacks {
   private static final boolean TRACE_BOOTIMAGE = false;
   private static final boolean TRACE_STARTUP = false;
   private static final boolean TRACE_EXIT = false;
+  private static final boolean TRACE_THREADSTART = false;
+  private static final boolean TRACE_THREADEND = false;
   private static final boolean TRACE_APP_RUN_START = false;
   private static final boolean TRACE_APP_RUN_COMPLETE = false;
   private static final boolean TRACE_APP_START = false;

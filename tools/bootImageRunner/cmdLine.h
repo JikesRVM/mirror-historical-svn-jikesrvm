@@ -38,8 +38,8 @@ static const int OPT_INDEX                     = BASE_INDEX+1;
 static const int VMCLASSES_INDEX               = OPT_INDEX+1;
 static const int CPUAFFINITY_INDEX             = VMCLASSES_INDEX+1;
 static const int PROCESSORS_INDEX              = CPUAFFINITY_INDEX+1;
-
-static const int numNonstandardArgs      = PROCESSORS_INDEX+1;
+static const int RUNJDWP_INDEX                 = PROCESSORS_INDEX + 1;
+static const int numNonstandardArgs      = RUNJDWP_INDEX+1;
 
 static const char* nonStandardArgs[numNonstandardArgs] = {
    "-X",
@@ -61,6 +61,7 @@ static const char* nonStandardArgs[numNonstandardArgs] = {
    "-X:vmClasses=",
    "-X:cpuAffinity=",
    "-X:processors=",
+   "-Xrunjdwp:",
 };
 
 // a NULL-terminated list.
@@ -93,6 +94,8 @@ static const char* nonStandardUsage[] = {
    "                             -classpath argument.",
    "    -X:cpuAffinity=<number>  physical cpu to which 1st VP is bound",
    "    -X:processors=<number|\"all\">  no. of virtual processors",
+   "    -Xrunjdwp:<option>       Load and configure JDWP agent",
+   "             :help           Print usage choices for -X;runjdwp",
    NULL                         /* End of messages */
 };
 

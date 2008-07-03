@@ -601,6 +601,10 @@ public final class JikesRVMSocketImpl extends SocketImpl implements SizeConstant
 
     int rc;
     try {
+	  // work around for the socket bug here.
+      rc = FileSystem.bytesAvailable(native_fd);
+      if (rc <= 0) {return rc;}
+
       rc = FileSystem.readBytes(native_fd, buffer, offset, count, totalWaitTime);
     } catch (TimeoutException e) {
       throw new SocketTimeoutException("socket receive timed out");

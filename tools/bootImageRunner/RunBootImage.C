@@ -370,7 +370,8 @@ processCommandLineArguments(const char *CLAs[], int n_CLAs, bool *fastExit)
             || strnequal(token, "-javaagent:", 11)
             || strnequal(token, nonStandardArgs[VMCLASSES_INDEX], 13)
             || strnequal(token, nonStandardArgs[CPUAFFINITY_INDEX], 15)
-            || strnequal(token, nonStandardArgs[PROCESSORS_INDEX], 14))
+            || strnequal(token, nonStandardArgs[PROCESSORS_INDEX], 14)
+            || strnequal(token, nonStandardArgs[RUNJDWP_INDEX], 10))
         {
             CLAs[n_JCLAs++]=token;
             continue;

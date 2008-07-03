@@ -23,6 +23,7 @@ import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import static org.jikesrvm.runtime.SysCall.sysCall;
 import org.jikesrvm.scheduler.Scheduler;
 import org.jikesrvm.scheduler.greenthreads.GreenScheduler;
+import gnu.classpath.jdwp.JikesRVMJDWP;
 
 /**
  * Command line option processing.
@@ -78,7 +79,9 @@ public class CommandLineArgs {
     GC_ARG,
     BOOTSTRAP_CLASSES_ARG,
     CPUAFFINITY_ARG,
-    PROCESSORS_ARG
+    PROCESSORS_ARG,
+    JDWP_HELP_ARG,
+    JDWP_ARG,
   }
 
   /** Represent a single command line prefix */
@@ -184,6 +187,8 @@ public class CommandLineArgs {
                                             new Prefix("-X:vm:help$", PrefixType.HELP_ARG),
                                             new Prefix("-X:vm$", PrefixType.HELP_ARG),
                                             new Prefix("-X:vm:", PrefixType.ARG),
+                                            new Prefix("-Xrunjdwp:help$", PrefixType.JDWP_HELP_ARG),
+                                            new Prefix("-Xrunjdwp:", PrefixType.JDWP_ARG),
 
                                             /* Silently ignored */
                                             new Prefix("-Xverify", PrefixType.VERIFY_ARG),
@@ -628,6 +633,15 @@ public class CommandLineArgs {
             VM.sysWriteln("Unrecognized command line argument ", p.value, arg);
             VM.sysExit(VM.EXIT_STATUS_BOGUS_COMMAND_LINE_ARG);
           }
+          break;
+         // -------------------------------------------------------------------
+         // JDWP (Java Debugger Wire Protocol) arguments
+         // -------------------------------------------------------------------
+        case JDWP_HELP_ARG:
+          JikesRVMJDWP.printHelp();
+          break;
+        case JDWP_ARG:
+          JikesRVMJDWP.processsCommandLineArg(arg);
           break;
       }
     }

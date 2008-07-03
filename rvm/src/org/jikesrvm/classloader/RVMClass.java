@@ -2550,6 +2550,14 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
   }
 
   /**
+   * Loading status.
+   */
+  @Uninterruptible
+  public boolean isLoaded() {
+    return state >= CLASS_LOADED;
+  }
+
+  /**
    * Only intended to be used by the BootImageWriter
    */
   @Override

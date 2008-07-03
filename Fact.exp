@@ -1,0 +1,61 @@
+#!/usr/bin/expect
+
+set timeout 10
+spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
+expect {
+    -re "VM Started: .+\n.*MainThread... " {}
+    timeout {
+	error "can not reach initialization sequence";
+    }
+}
+
+send "threads\n"
+expect {
+    -re "MainThread... " {}
+    timeout {
+	error "can not enumerate the threads";
+    }
+}
+
+send "where\n"
+expect {
+    -re "MainThread... " {}
+    timeout {
+	error "can not dump call frames";
+    }
+}
+
+send "sourcepath rvm/src\n"
+expect {
+    -re "MainThread... " {}
+}
+
+send "list\n"
+expect {
+    -re "MainThread... " {}
+    timeout {
+	error "can not list source code.";
+    }
+}
+
+send "up\n"
+expect {
+    -re "MainThread... " {}
+}
+
+
+send "list\n"
+expect {
+    -re "MainThread... " {}
+    timeout {
+	error "can not list source code.";
+    }
+}
+
+send "exit\n"
+expect {
+    eof {puts "PASS\n" }
+    timeout {
+	error "can not complete"
+    }
+}

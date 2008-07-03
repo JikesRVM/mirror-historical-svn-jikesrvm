@@ -16,6 +16,7 @@ import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.ArchitectureSpecific.Registers;
 import org.jikesrvm.VM;
 import org.jikesrvm.Constants;
+import org.jikesrvm.Callbacks;
 import org.jikesrvm.classloader.RVMArray;
 import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.DynamicTypeCheck;
@@ -24,8 +25,12 @@ import org.jikesrvm.classloader.MemberReference;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.classloader.RVMType;
 import org.jikesrvm.classloader.TypeReference;
+import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
+import org.jikesrvm.compilers.baseline.BaselineCompiledMethod;
+import org.jikesrvm.compilers.opt.runtimesupport.OptCompiledMethod;
+import org.jikesrvm.compilers.opt.runtimesupport.OptMachineCodeMap;
 import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.objectmodel.TIB;
@@ -989,6 +994,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
             VM.sysWriteln("found one; delivering.");
           }
           Address catchBlockStart = compiledMethod.getInstructionAddress(Offset.fromIntSignExtend(catchBlockOffset));
+          notifyExceptionCatch(exceptionObject, exceptionRegisters, compiledMethod, catchBlockStart);
           exceptionDeliverer.deliverException(compiledMethod, catchBlockStart, exceptionObject, exceptionRegisters);
           if (VM.VerifyAssertions) VM._assert(NOT_REACHED);
         }
@@ -1006,9 +1012,67 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
     }
     /* No appropriate catch block found. */
 
+    notifyExceptionCatch(exceptionObject, exceptionRegisters, null, Address.zero());
     Scheduler.getCurrentThread().handleUncaughtException(exceptionObject);
   }
 
+  /**
+   * Notify the exception and its catch event.
+   * 
+   * @param exceptionObject The exception.
+   * @param exceptionRegisters The exception context.
+   * @param catchcm The target catch method.
+   * @param catchBlockStart The raw address of the target catch code.
+   */
+  private static void notifyExceptionCatch(Throwable exceptionObject,
+      Registers exceptionRegisters, CompiledMethod catchcm,
+      Address catchBlockStart) {
+    
+    //find the exception location.
+    Address sourcefp = exceptionRegisters.getInnermostFramePointer();
+    int sourcecmid = Magic.getCompiledMethodID(sourcefp);
+    CompiledMethod sourcecm = CompiledMethods.getCompiledMethod(sourcecmid);
+    Address sourceIP = exceptionRegisters.getInnermostInstructionAddress();
+    Offset sourceOffset = sourcecm.getInstructionOffset(sourceIP);
+    final int sourceByteCodeIndex;
+    final NormalMethod sourceMethod;
+    if (sourcecm instanceof BaselineCompiledMethod) {
+      BaselineCompiledMethod bm = (BaselineCompiledMethod)sourcecm;
+      sourceMethod = (NormalMethod)bm.getMethod();
+      sourceByteCodeIndex = bm.findBytecodeIndexForInstruction(sourceOffset);
+    } else if (sourcecm instanceof OptCompiledMethod) {
+      OptCompiledMethod ocm = (OptCompiledMethod)sourcecm;
+      OptMachineCodeMap map = ocm.getMCMap();
+      sourceMethod = map.getMethodForMCOffset(sourceOffset);
+      sourceByteCodeIndex = map.getBytecodeIndexForMCOffset(sourceOffset);
+    } else {
+      sourceByteCodeIndex = -1;
+      sourceMethod = null;
+    }
+
+    //find the catch location.
+    final int catchByteCodeIndex;
+    final NormalMethod catchMethod;
+    if (catchcm instanceof BaselineCompiledMethod) {
+      BaselineCompiledMethod bcm = (BaselineCompiledMethod)catchcm;
+      Offset offset = bcm.getInstructionOffset(catchBlockStart);
+      catchByteCodeIndex= bcm.findBytecodeIndexForInstruction(offset);
+      catchMethod = (NormalMethod)bcm.getMethod();
+    } else if (catchcm instanceof OptCompiledMethod) {
+      OptCompiledMethod ocm = (OptCompiledMethod) catchcm;
+      OptMachineCodeMap map = ocm.getMCMap();
+      Offset offset = ocm.getInstructionOffset(catchBlockStart);
+      catchMethod =  map.getMethodForMCOffset(offset);
+      catchByteCodeIndex = map.getBytecodeIndexForMCOffset(offset);
+    } else {
+      catchByteCodeIndex = -1;
+      catchMethod = null;
+    }
+
+    //notify the exception catch event.
+    Callbacks.notifyExceptionCatch(exceptionObject, sourceMethod,
+        sourceByteCodeIndex, catchMethod, catchByteCodeIndex);
+  }
 
   /**
    * Skip over all frames below currfp with saved code pointers outside of heap
