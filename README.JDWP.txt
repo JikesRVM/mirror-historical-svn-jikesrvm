@@ -3,7 +3,16 @@ JikesRVM/JDWP implementation note
 
 * Trying how it works?
 
- Consider the simple example testing script for trying how this works.
+  Download and build the JikesRVM in Linux-2.6.xx/x86
+
+  (bash) svn checkout https://jikesrvm.svn.sourceforge.net/svnroot/jikesrvm/rvmroot/branches/RVM-JDWP-SoC2008 jdwp
+  ...
+  (bash) cd jdwp
+  (bash) ant -Dhost.name=ia32-linux -Dconfig.name=prototype
+  ...
+
+  Consider the simple example testing script for trying how this works.
+
    (bash) javac -g Fact.java
    (bash) expect Fact.exp
    spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm "-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y" Fact,address=8000
