@@ -43,7 +43,7 @@ public final class VM_CompilationThread extends VM_GreenThread {
    * them.
    */
   public void run() {
-    VM_AOSLogging.compilationThreadStarted();
+    VM_AOSLogging.logger.compilationThreadStarted();
 
     // Make a blocking call to deleteMin to get a plan and then execute it.
     // Repeat...

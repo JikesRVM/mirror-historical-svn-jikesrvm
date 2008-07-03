@@ -303,7 +303,7 @@ public final class VM_MethodCountData implements VM_Reportable {
             double ns = counts[index];
             VM_HotMethodRecompilationEvent event = new VM_HotMethodRecompilationEvent(cm, ns);
             VM_Controller.controllerInputQueue.insert(ns, event);
-            VM_AOSLogging.controllerNotifiedForHotness(cm, ns);
+            VM_AOSLogging.logger.controllerNotifiedForHotness(cm, ns);
           }
 
           // Since I was hot enough, also consider my children.

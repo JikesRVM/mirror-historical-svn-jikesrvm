@@ -94,7 +94,7 @@ public class VM_DynamicCallGraphOrganizer extends VM_Organizer {
    */
   @Override
   public void initialize() {
-    VM_AOSLogging.DCGOrganizerThreadStarted();
+    VM_AOSLogging.logger.DCGOrganizerThreadStarted();
 
     if (VM_Controller.options.cgCBS()) {
       numberOfBufferTriples = VM_Controller.options.DCG_SAMPLE_SIZE * VM.CBSCallSamplesPerTick;

@@ -85,7 +85,7 @@ public class OSR_OnStackReplacementPlan implements VM_Constants {
     // 3. install the code
     // 4. reschedule the thread to new code.
 
-    VM_AOSLogging.logOsrEvent("OSR compiling " + compPlan.method);
+    VM_AOSLogging.logger.logOsrEvent("OSR compiling " + compPlan.method);
 
     setTimeInitiated(VM_Controller.controllerClock);
 
@@ -111,7 +111,7 @@ public class OSR_OnStackReplacementPlan implements VM_Constants {
       OSR_ExecutionState state = extractor.extractState(suspendedThread, this.tsFromFPoff, this.ypTakenFPoff, CMID);
 
       if (invalidate) {
-        VM_AOSLogging.debug("Invalidate cmid " + CMID);
+        VM_AOSLogging.logger.debug("Invalidate cmid " + CMID);
         OSR_Profiler.notifyInvalidation(state);
       }
 
@@ -122,13 +122,13 @@ public class OSR_OnStackReplacementPlan implements VM_Constants {
 
       if (newCM == null) {
         setStatus(VM_ControllerPlan.ABORTED_COMPILATION_ERROR);
-        VM_AOSLogging.logOsrEvent("OSR compilation failed!");
+        VM_AOSLogging.logger.logOsrEvent("OSR compilation failed!");
       } else {
         setStatus(VM_ControllerPlan.COMPLETED);
         // now let OSR_CodeInstaller generate a code stub,
         // and OSR_PostThreadSwitch will install the stub to run.
         OSR_CodeInstaller.install(state, newCM);
-        VM_AOSLogging.logOsrEvent("OSR compilation succeeded! " + compPlan.method);
+        VM_AOSLogging.logger.logOsrEvent("OSR compilation succeeded! " + compPlan.method);
       }
     }
 

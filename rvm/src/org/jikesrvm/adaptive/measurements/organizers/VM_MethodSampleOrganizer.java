@@ -54,7 +54,7 @@ public final class VM_MethodSampleOrganizer extends VM_Organizer {
    */
   @Override
   public void initialize() {
-    VM_AOSLogging.methodSampleOrganizerThreadStarted(filterOptLevel);
+    VM_AOSLogging.logger.methodSampleOrganizerThreadStarted(filterOptLevel);
 
     int numSamples = VM_Controller.options.METHOD_SAMPLE_SIZE * VM_GreenScheduler.numProcessors;
     if (VM_Controller.options.mlCBS()) {
@@ -77,7 +77,7 @@ public final class VM_MethodSampleOrganizer extends VM_Organizer {
    * Method that is called when the sampling threshold is reached
    */
   void thresholdReached() {
-    VM_AOSLogging.organizerThresholdReached();
+    VM_AOSLogging.logger.organizerThresholdReached();
 
     int numSamples = ((VM_MethodListener) listener).getNumSamples();
     int[] samples = ((VM_MethodListener) listener).getSamples();
@@ -119,7 +119,7 @@ public final class VM_MethodSampleOrganizer extends VM_Organizer {
                (((VM_OptCompiledMethod) cm).getOptLevel() >= filterOptLevel)))) {
           VM_HotMethodRecompilationEvent event = new VM_HotMethodRecompilationEvent(cm, ns);
           VM_Controller.controllerInputQueue.insert(ns, event);
-          VM_AOSLogging.controllerNotifiedForHotness(cm, ns);
+          VM_AOSLogging.logger.controllerNotifiedForHotness(cm, ns);
         }
       }
     }

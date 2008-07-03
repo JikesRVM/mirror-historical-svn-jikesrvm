@@ -13,6 +13,7 @@
 package org.jikesrvm.adaptive.measurements;
 
 import java.util.Vector;
+
 import org.jikesrvm.ArchitectureSpecific.VM_StackframeLayoutConstants;
 import org.jikesrvm.adaptive.controller.VM_Controller;
 import org.jikesrvm.adaptive.measurements.listeners.VM_ContextListener;
@@ -309,7 +310,7 @@ public abstract class VM_RuntimeMeasurements {
    */
   public static void decayDecayableObjects() {
     decayEventCounter++;
-    VM_AOSLogging.decayingCounters();
+    VM_AOSLogging.logger.decayingCounters();
 
     for (VM_Decayable obj : decayObjects) {
       obj.decay();
@@ -357,12 +358,12 @@ public abstract class VM_RuntimeMeasurements {
   public static void report() {
     reportReportableObjects();
 
-    VM_AOSLogging.decayStatistics(decayEventCounter);
+    VM_AOSLogging.logger.decayStatistics(decayEventCounter);
 
     for (int i = 0, n = VM_Scheduler.threads.length; i < n; i++) {
       VM_Thread t = VM_Scheduler.threads[i];
       if (t != null) {
-        VM_AOSLogging.threadExiting(t);
+        VM_AOSLogging.logger.threadExiting(t);
       }
     }
   }
@@ -383,7 +384,7 @@ public abstract class VM_RuntimeMeasurements {
    * Called from VM_Thread.terminate.
    */
   public static void monitorThreadExit() {
-    VM_AOSLogging.threadExiting(VM_Scheduler.getCurrentThread());
+    VM_AOSLogging.logger.threadExiting(VM_Scheduler.getCurrentThread());
   }
 
   /**

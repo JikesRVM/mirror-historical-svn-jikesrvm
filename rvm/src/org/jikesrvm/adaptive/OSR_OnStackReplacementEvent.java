@@ -91,7 +91,7 @@ public final class OSR_OnStackReplacementEvent implements VM_ControllerInputEven
 
     VM_Controller.compilationQueue.insert(priority, plan);
 
-    VM_AOSLogging.logOsrEvent("OSR inserts compilation plan successfully!");
+    VM_AOSLogging.logger.logOsrEvent("OSR inserts compilation plan successfully!");
 
     // do not hold the reference anymore.
     suspendedThread = null;

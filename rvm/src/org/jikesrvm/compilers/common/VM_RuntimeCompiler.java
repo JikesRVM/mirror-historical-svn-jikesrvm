@@ -13,10 +13,10 @@
 package org.jikesrvm.compilers.common;
 
 import org.jikesrvm.ArchitectureSpecific;
-import org.jikesrvm.ArchitectureSpecific.VM_JNICompiler;
 import org.jikesrvm.VM;
 import org.jikesrvm.VM_Callbacks;
 import org.jikesrvm.VM_Constants;
+import org.jikesrvm.ArchitectureSpecific.VM_JNICompiler;
 import org.jikesrvm.adaptive.controller.VM_Controller;
 import org.jikesrvm.adaptive.controller.VM_ControllerMemory;
 import org.jikesrvm.adaptive.controller.VM_ControllerPlan;
@@ -32,8 +32,8 @@ import org.jikesrvm.classloader.VM_Type;
 import org.jikesrvm.classloader.VM_TypeReference;
 import org.jikesrvm.compilers.baseline.VM_BaselineCompiler;
 import org.jikesrvm.compilers.opt.MagicNotImplementedException;
-import org.jikesrvm.compilers.opt.OptimizingCompilerException;
 import org.jikesrvm.compilers.opt.OptOptions;
+import org.jikesrvm.compilers.opt.OptimizingCompilerException;
 import org.jikesrvm.compilers.opt.driver.CompilationPlan;
 import org.jikesrvm.compilers.opt.driver.OptimizationPlanElement;
 import org.jikesrvm.compilers.opt.driver.OptimizationPlanner;
@@ -141,8 +141,8 @@ public class VM_RuntimeCompiler implements VM_Constants, VM_Callbacks.ExitMonito
                       compiledMethod.getCompilationTime());
 
     if (VM.BuildForAdaptiveSystem) {
-      if (VM_AOSLogging.booted()) {
-        VM_AOSLogging.recordUpdatedCompilationRates(compiler,
+      if (VM_AOSLogging.logger.booted()) {
+        VM_AOSLogging.logger.recordUpdatedCompilationRates(compiler,
                                                     method,
                                                     method.getBytecodeLength(),
                                                     totalBCLength[compiler],
@@ -699,7 +699,7 @@ public class VM_RuntimeCompiler implements VM_Constants, VM_Callbacks.ExitMonito
               VM_CompilerAdviceAttribute attr = VM_CompilerAdviceAttribute.getCompilerAdviceInfo(method);
               if (attr.getCompiler() != VM_CompiledMethod.OPT) {
                 cm = fallback(method);
-                VM_AOSLogging.recordCompileTime(cm, 0.0);
+                VM_AOSLogging.logger.recordCompileTime(cm, 0.0);
                 return cm;
               }
               int newCMID = -2;
@@ -712,13 +712,13 @@ public class VM_RuntimeCompiler implements VM_Constants, VM_Callbacks.ExitMonito
                 // we don't have to use: if (VM_Controller.options.sampling())
                 compPlan = VM_Controller.recompilationStrategy.createCompilationPlan(method, attr.getOptLevel(), null);
               }
-              VM_AOSLogging.recompilationStarted(compPlan);
+              VM_AOSLogging.logger.recompilationStarted(compPlan);
               newCMID = recompileWithOpt(compPlan);
               cm = newCMID == -1 ? null : VM_CompiledMethods.getCompiledMethod(newCMID);
               if (newCMID == -1) {
-                VM_AOSLogging.recompilationAborted(compPlan);
+                VM_AOSLogging.logger.recompilationAborted(compPlan);
               } else if (newCMID > 0) {
-                VM_AOSLogging.recompilationCompleted(compPlan);
+                VM_AOSLogging.logger.recompilationCompleted(compPlan);
               }
               if (cm == null) { // if recompilation is aborted
                 cm = baselineCompile(method);
@@ -748,7 +748,7 @@ public class VM_RuntimeCompiler implements VM_Constants, VM_Callbacks.ExitMonito
               .enabled) {
         VM_AOSGenerator.baseCompilationCompleted(cm);
       }
-      VM_AOSLogging.recordCompileTime(cm, 0.0);
+      VM_AOSLogging.logger.recordCompileTime(cm, 0.0);
       return cm;
     } else {
       return baselineCompile(method);

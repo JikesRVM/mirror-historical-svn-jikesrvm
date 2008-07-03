@@ -13,6 +13,7 @@
 package org.jikesrvm.adaptive.controller;
 
 import java.util.Enumeration;
+
 import org.jikesrvm.VM;
 import org.jikesrvm.adaptive.OSR_OnStackReplacementEvent;
 import org.jikesrvm.adaptive.OSR_OrganizerThread;
@@ -72,11 +73,11 @@ public final class VM_ControllerThread extends ThreadModel {
     VM_Controller.controllerThread = this;
 
     // Bring up the logging system
-    VM_AOSLogging.boot();
+    VM_AOSLogging.logger.boot();
     if (VM_Controller.options.ENABLE_ADVICE_GENERATION) {
       VM_AOSGenerator.boot();
     }
-    VM_AOSLogging.controllerStarted();
+    VM_AOSLogging.logger.controllerStarted();
 
     // Create measurement entities that are NOT related to
     // adaptive recompilation
@@ -270,7 +271,7 @@ public final class VM_ControllerThread extends ThreadModel {
    * Final report
    */
   public static void report() {
-    VM_AOSLogging.controllerCompleted();
+    VM_AOSLogging.logger.controllerCompleted();
   }
 
 }

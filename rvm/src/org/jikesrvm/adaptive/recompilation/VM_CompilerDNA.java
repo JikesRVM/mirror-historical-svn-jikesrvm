@@ -16,6 +16,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.LineNumberReader;
 import java.util.StringTokenizer;
+
 import org.jikesrvm.VM;
 import org.jikesrvm.VM_Constants;
 import org.jikesrvm.adaptive.controller.VM_Controller;
@@ -171,10 +172,10 @@ public class VM_CompilerDNA implements VM_Constants {
     }
 
     for (int i = 0; i < compilationRates.length; i++) {
-      VM_AOSLogging.reportCompilationRate(i, compilationRates[i]);
+      VM_AOSLogging.logger.reportCompilationRate(i, compilationRates[i]);
     }
     for (int i = 0; i < speedupRates.length; i++) {
-      VM_AOSLogging.reportSpeedupRate(i, speedupRates[i]);
+      VM_AOSLogging.logger.reportSpeedupRate(i, speedupRates[i]);
     }
 
     // Compute MAX_OPT_LEVEL
@@ -207,9 +208,9 @@ public class VM_CompilerDNA implements VM_Constants {
         // Since compilation rates are not relative to the 1st compiler
         //  we invert the division.
         compileTimeRatio[prevCompiler][nextCompiler] = compilationRates[prevCompiler] / compilationRates[nextCompiler];
-        VM_AOSLogging.reportBenefitRatio(prevCompiler, nextCompiler, benefitRatio[prevCompiler][nextCompiler]);
+        VM_AOSLogging.logger.reportBenefitRatio(prevCompiler, nextCompiler, benefitRatio[prevCompiler][nextCompiler]);
 
-        VM_AOSLogging.reportCompileTimeRatio(prevCompiler, nextCompiler, compileTimeRatio[prevCompiler][nextCompiler]);
+        VM_AOSLogging.logger.reportCompileTimeRatio(prevCompiler, nextCompiler, compileTimeRatio[prevCompiler][nextCompiler]);
       }
     }
   }

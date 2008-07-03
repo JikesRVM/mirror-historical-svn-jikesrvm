@@ -131,8 +131,8 @@ public class OSR_Profiler implements VM_Callbacks.ExitMonitor {
         cmplplan.options.OSR_GUARDED_INLINING = savedOsr;
 
         if (newcmid != -1) {
-          VM_AOSLogging.debug("recompiling state with opt succeeded " + state.cmid);
-          VM_AOSLogging.debug("new cmid " + newcmid);
+          VM_AOSLogging.logger.debug("recompiling state with opt succeeded " + state.cmid);
+          VM_AOSLogging.logger.debug("new cmid " + newcmid);
 
           // transfer hotness to the new cmid
           double oldSamples = VM_Controller.methodSamples.getData(state.cmid);
