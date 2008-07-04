@@ -565,6 +565,9 @@ import org.vmmagic.unboxed.Offset;
     VM._assert(trace.willNotMoveInCurrentCollection(ObjectReference.fromObject(thread.getStack())));
     VM._assert(thread.getJNIEnv() == null || trace.willNotMoveInCurrentCollection(ObjectReference.fromObject(thread.getJNIEnv())));
     VM._assert(thread.getJNIEnv() == null || thread.getJNIEnv().refsArray() == null || trace.willNotMoveInCurrentCollection(ObjectReference.fromObject(thread.getJNIEnv().refsArray())));
+    VM.sysWriteln("thread = ",Magic.objectAsAddress(thread));
+    VM.sysWriteln("thread slot = ",thread.getThreadSlot());
+    VM.sysWriteln("thread.cr = ",Magic.objectAsAddress(thread.getContextRegisters()));
     VM._assert(trace.willNotMoveInCurrentCollection(ObjectReference.fromObject(thread.getContextRegisters())));
     VM._assert(trace.willNotMoveInCurrentCollection(ObjectReference.fromObject(thread.getContextRegisters().gprs)));
     VM._assert(trace.willNotMoveInCurrentCollection(ObjectReference.fromObject(thread.getExceptionRegisters())));
@@ -710,3 +713,8 @@ import org.vmmagic.unboxed.Offset;
     Log.writeln();
   }
 }
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

@@ -38,7 +38,7 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
    *
    * Class variables
    */
-  private static final boolean TRACE_PRECOPY = false; // DEBUG
+  private static final boolean TRACE_PRECOPY = true; // DEBUG
 
   /** Counter to track index into thread table for root tracing.  */
   private static final SynchronizedCounter threadCounter = new SynchronizedCounter();
@@ -173,6 +173,7 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
            * of the array entry */
           if (TRACE_PRECOPY) {
             VM.sysWriteln(ct.getGCOrdinal()," Forwarding thread ",threadIndex);
+            VM.sysWriteln(ct.getGCOrdinal()," with slot number ",thread.getThreadSlot());
             VM.sysWrite(ct.getGCOrdinal()," Old address ");
             VM.sysWriteln(ObjectReference.fromObject(thread).toAddress());
           }
@@ -192,7 +193,14 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
           precopyChildren(trace, ObjectReference.fromObject(thread));
 
           /* Registers */
+	  if (TRACE_PRECOPY) {
+	    VM.sysWriteln(ct.getGCOrdinal()," old cr address: ",Magic.objectAsAddress(thread.getContextRegisters()));
+	  }
           trace.processPrecopyEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadContextRegistersField.getOffset()), true);
+	  if (TRACE_PRECOPY) {
+	    VM.sysWriteln(ct.getGCOrdinal()," for thread ",Magic.objectAsAddress(thread));
+	    VM.sysWriteln(ct.getGCOrdinal()," new cr address: ",Magic.objectAsAddress(thread.getContextRegisters()));
+	  }
 
           trace.processPrecopyEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadExceptionRegistersField.getOffset()), true);
 
@@ -320,3 +328,9 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
     ScanBootImage.scanBootImage(trace);
   }
 }
+
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

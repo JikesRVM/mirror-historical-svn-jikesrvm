@@ -18,6 +18,7 @@ import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.Reflection;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.NonMoving;
 
 /**
  * Finalizer thread.
@@ -30,6 +31,7 @@ import org.vmmagic.pragma.Uninterruptible;
  *
  * This thread comes out of wait state via notify from the garbage collector
  */
+@NonMoving
 public class FinalizerThread extends RVMThread {
 
   private static final int verbose = 0; // currently goes up to 2

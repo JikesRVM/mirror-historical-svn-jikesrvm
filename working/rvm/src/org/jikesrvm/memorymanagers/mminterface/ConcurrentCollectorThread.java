@@ -19,11 +19,13 @@ import org.jikesrvm.scheduler.HeavyCondLock;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.NonMoving;
 
 /**
  * Threads that perform collector work while mutators are active. these
  * threads wait for the collector to activate them.
  */
+@NonMoving
 public final class ConcurrentCollectorThread extends RVMThread {
 
   /***********************************************************************

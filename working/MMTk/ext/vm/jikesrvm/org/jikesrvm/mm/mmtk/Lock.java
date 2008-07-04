@@ -158,6 +158,9 @@ import org.mmtk.utility.Log;
     Offset offset=Entrypoints.lockStateField.getOffset();
     for (;;) {
       int oldState=Magic.prepareInt(this,offset);
+      if (VM.VerifyAssertions) VM._assert(oldState==LOCKED ||
+					  oldState==LOCKED_QUEUED ||
+					  oldState==QUEUEING);
       if (oldState==LOCKED &&
 	  Magic.attemptInt(this,offset,LOCKED,CLEAR)) {
 	break;

@@ -77,6 +77,8 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
    * zeroed is desired.
    */
   private static final boolean CHECK_MEMORY_IS_ZEROED = false;
+  
+  private static final boolean traceAllocator = false;
 
   /***********************************************************************
    *
@@ -555,22 +557,40 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
    */
   @Interruptible
   public static int pickAllocator(RVMType type, RVMMethod method) {
+    if (traceAllocator) {
+      VM.sysWrite("allocator for ");
+      VM.sysWrite(type.getDescriptor());
+      VM.sysWrite(": ");
+    }
     if (method != null) {
       // We should strive to be allocation-free here.
       RVMClass cls = method.getDeclaringClass();
       byte[] clsBA = cls.getDescriptor().toByteArray();
       if (Selected.Constraints.get().withGCspy()) {
         if (isPrefix("Lorg/mmtk/vm/gcspy/", clsBA) || isPrefix("[Lorg/mmtk/vm/gcspy/", clsBA)) {
+	  if (traceAllocator) {
+	    VM.sysWriteln("GCSPY");
+	  }
           return Plan.ALLOC_GCSPY;
         }
       }
-      if (isPrefix("Lorg/jikesrvm/mm/mmtk/ReferenceProcessor", clsBA))
+      if (isPrefix("Lorg/jikesrvm/mm/mmtk/ReferenceProcessor", clsBA)) {
+	if (traceAllocator) {
+	  VM.sysWriteln("DEFAULT");
+	}
         return Plan.ALLOC_DEFAULT;
+      }
       if (isPrefix("Lorg/mmtk/", clsBA) ||
           isPrefix("Lorg/jikesrvm/mm/", clsBA) ||
           isPrefix("Lorg/jikesrvm/memorymanagers/mminterface/GCMapIteratorGroup", clsBA)) {
+	if (traceAllocator) {
+	  VM.sysWriteln("IMMORTAL");
+	}
         return Plan.ALLOC_IMMORTAL;
       }
+    }
+    if (traceAllocator) {
+      VM.sysWriteln(type.getMMAllocator());
     }
     return type.getMMAllocator();
   }
@@ -1278,3 +1298,8 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
 
 }
 
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/
