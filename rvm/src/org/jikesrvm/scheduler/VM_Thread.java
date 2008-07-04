@@ -12,17 +12,17 @@
  */
 package org.jikesrvm.scheduler;
 
-import org.jikesrvm.ArchitectureSpecific.VM_CodeArray;
-import org.jikesrvm.ArchitectureSpecific.VM_Registers;
-import static org.jikesrvm.ArchitectureSpecific.VM_StackframeLayoutConstants.INVISIBLE_METHOD_ID;
-import static org.jikesrvm.ArchitectureSpecific.VM_StackframeLayoutConstants.STACKFRAME_SENTINEL_FP;
-import static org.jikesrvm.ArchitectureSpecific.VM_StackframeLayoutConstants.STACK_SIZE_GUARD;
+import static org.jikesrvm.ia32.VM_StackframeLayoutConstants.INVISIBLE_METHOD_ID;
+import static org.jikesrvm.ia32.VM_StackframeLayoutConstants.STACKFRAME_SENTINEL_FP;
+import static org.jikesrvm.ia32.VM_StackframeLayoutConstants.STACK_SIZE_GUARD;
+
 import org.jikesrvm.VM;
 import org.jikesrvm.VM_Configuration;
 import org.jikesrvm.VM_Services;
 import org.jikesrvm.VM_UnimplementedError;
+import org.jikesrvm.ArchitectureSpecific.VM_CodeArray;
+import org.jikesrvm.ArchitectureSpecific.VM_Registers;
 import org.jikesrvm.adaptive.OSR_OnStackReplacementEvent;
-import org.jikesrvm.adaptive.measurements.VM_RuntimeMeasurements;
 import org.jikesrvm.compilers.common.VM_CompiledMethod;
 import org.jikesrvm.compilers.common.VM_CompiledMethods;
 import org.jikesrvm.jni.VM_JNIEnvironment;
@@ -685,10 +685,6 @@ public abstract class VM_Thread {
       VM_Scheduler.dumpStack();
       VM.sysWriteln("END Verbosely dumping stack at time of creating thread termination ]");
       VM.enableGC();
-    }
-
-    if (VM.BuildForAdaptiveSystem) {
-      VM_RuntimeMeasurements.monitorThreadExit();
     }
 
     // allow java.lang.Thread.exit() to remove this thread from ThreadGroup

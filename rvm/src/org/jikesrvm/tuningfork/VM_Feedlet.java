@@ -250,6 +250,74 @@ public final class VM_Feedlet {
     }
   }
 
+  /**
+   * Add an event to the feedlet's generated event stream
+   * @param et The type of event to add
+   * @param ival1 The first int data value
+   * @param dval1 The first double data value
+   */
+  public void addEvent(EventType et, int ival1, double dval1) {
+    if (!enabled) return;
+    if (CHECK_TYPES && !checkTypes(et, 1, 0, 1, 0)) return;
+
+    long timeStamp = getTimeStamp();
+    while (true) {
+      if (events == null && !acquireEventChunk()) {
+        return; /* failure */
+      }
+      if (events.addEvent(timeStamp, et, ival1, dval1)) {
+        return; /* success */
+      }
+      flushEventChunk(); /* events is full or stale; flush and try again */
+    }
+  }
+
+  /**
+   * Add an event to the feedlet's generated event stream
+   * @param et The type of event to add
+   * @param ival1 The first int data value
+   * @param ival2 The second int data value
+   * @param dval1 The first double data value
+   */
+  public void addEvent(EventType et, int ival1, int ival2, double dval1) {
+    if (!enabled) return;
+    if (CHECK_TYPES && !checkTypes(et, 2, 0, 1, 0)) return;
+
+    long timeStamp = getTimeStamp();
+    while (true) {
+      if (events == null && !acquireEventChunk()) {
+        return; /* failure */
+      }
+      if (events.addEvent(timeStamp, et, ival1, ival2, dval1)) {
+        return; /* success */
+      }
+      flushEventChunk(); /* events is full or stale; flush and try again */
+    }
+  }
+
+  /**
+   * Add an event to the feedlet's generated event stream
+   * @param et The type of event to add
+   * @param dval1 The first double data value
+   * @param sval The first String data value
+   */
+  public void addEvent(EventType et, double dval1, String sval1) {
+    if (!enabled) return;
+    if (CHECK_TYPES && !checkTypes(et, 0, 0, 1, 1)) return;
+
+    long timeStamp = getTimeStamp();
+    while (true) {
+      if (events == null && !acquireEventChunk()) {
+        return; /* failure */
+      }
+      if (events.addEvent(timeStamp, et, dval1, sval1)) {
+        return; /* success */
+      }
+      flushEventChunk(); /* events is full or stale; flush and try again */
+    }
+  }
+
+
   private boolean checkTypes(EventType et, int numInts, int numLongs, int numDoubles, int numStrings) {
     if (et.getNumberOfInts() != numInts ||
         et.getNumberOfLongs() != numLongs ||

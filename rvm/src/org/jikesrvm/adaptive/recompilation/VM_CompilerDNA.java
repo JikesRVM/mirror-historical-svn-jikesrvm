@@ -205,12 +205,8 @@ public class VM_CompilerDNA implements VM_Constants {
       for (int nextCompiler = prevCompiler + 1; nextCompiler < numCompilers; nextCompiler++) {
         benefitRatio[prevCompiler][nextCompiler] = speedupRates[nextCompiler] / speedupRates[prevCompiler];
 
-        // Since compilation rates are not relative to the 1st compiler
-        //  we invert the division.
+        // Since compilation rates are not relative to the 1st compiler we invert the division.
         compileTimeRatio[prevCompiler][nextCompiler] = compilationRates[prevCompiler] / compilationRates[nextCompiler];
-        VM_AOSLogging.logger.reportBenefitRatio(prevCompiler, nextCompiler, benefitRatio[prevCompiler][nextCompiler]);
-
-        VM_AOSLogging.logger.reportCompileTimeRatio(prevCompiler, nextCompiler, compileTimeRatio[prevCompiler][nextCompiler]);
       }
     }
   }

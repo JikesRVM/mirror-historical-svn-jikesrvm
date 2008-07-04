@@ -26,7 +26,6 @@ import org.jikesrvm.adaptive.measurements.instrumentation.VM_Instrumentation;
 import org.jikesrvm.adaptive.measurements.organizers.VM_Organizer;
 import org.jikesrvm.adaptive.recompilation.VM_CompilationThread;
 import org.jikesrvm.adaptive.recompilation.instrumentation.VM_CounterBasedSampling;
-import org.jikesrvm.adaptive.util.VM_AOSLogging;
 import org.jikesrvm.adaptive.util.VM_AOSOptions;
 import org.jikesrvm.adaptive.util.VM_BlockingPriorityQueue;
 import org.jikesrvm.compilers.baseline.VM_EdgeCounts;
@@ -37,10 +36,6 @@ import org.jikesrvm.scheduler.greenthreads.VM_GreenProcessor;
  * This class contains top level adaptive compilation subsystem functions.
  */
 public class VM_Controller implements VM_Callbacks.ExitMonitor,
-                                      VM_Callbacks.AppStartMonitor,
-                                      VM_Callbacks.AppCompleteMonitor,
-                                      VM_Callbacks.AppRunStartMonitor,
-                                      VM_Callbacks.AppRunCompleteMonitor,
                                       VM_Callbacks.RecompileAllDynamicallyLoadedMethodsMonitor {
 
   /**
@@ -179,10 +174,6 @@ public class VM_Controller implements VM_Callbacks.ExitMonitor,
 
     VM_Controller controller = new VM_Controller();
     VM_Callbacks.addExitMonitor(controller);
-    VM_Callbacks.addAppStartMonitor(controller);
-    VM_Callbacks.addAppCompleteMonitor(controller);
-    VM_Callbacks.addAppRunStartMonitor(controller);
-    VM_Callbacks.addAppRunCompleteMonitor(controller);
 
     // make sure the user hasn't explicitly prohibited this functionality
     if (!options.DISABLE_RECOMPILE_ALL_METHODS) {
@@ -201,49 +192,10 @@ public class VM_Controller implements VM_Callbacks.ExitMonitor,
   }
 
   /**
-   * To be called when the application starts
-   * @param app the application name
-   */
-  public void notifyAppStart(String app) {
-    VM_AOSLogging.logger.appStart(app);
-    VM_AOSLogging.logger.recordRecompAndThreadStats();
-  }
-
-  /**
-   * To be called when the application completes
-   * @param app the application name
-   */
-  public void notifyAppComplete(String app) {
-    VM_AOSLogging.logger.appComplete(app);
-    VM_AOSLogging.logger.recordRecompAndThreadStats();
-  }
-
-  /**
-   * To be called when the application completes one of its run
-   * @param app the application name
-   * @param run the run number, i.e. what iteration of the app we have started
-   */
-  public void notifyAppRunStart(String app, int run) {
-    VM_AOSLogging.logger.appRunStart(app, run);
-    VM_AOSLogging.logger.recordRecompAndThreadStats();
-  }
-
-  /**
-   * To be called when the application completes one of its run
-   * @param app the application name
-   * @param run the run number, i.e. what iteration of the app we have completed
-   */
-  public void notifyAppRunComplete(String app, int run) {
-    VM_AOSLogging.logger.appRunComplete(app, run);
-    VM_AOSLogging.logger.recordRecompAndThreadStats();
-  }
-
-  /**
    * Called when the application wants to recompile all dynamically
    *  loaded methods.  This can be expensive!
    */
   public void notifyRecompileAll() {
-    VM_AOSLogging.logger.recompilingAllDynamicallyLoadedMethods();
     VM_RecompilationManager.recompileAllDynamicallyLoadedMethods(false);
   }
 
@@ -312,8 +264,6 @@ public class VM_Controller implements VM_Callbacks.ExitMonitor,
       VM.sysWriteln("\tController clock ", controllerClock);
       VM.sysWriteln("\tNumber of method samples taken ", (int) methodSamples.getTotalNumberOfSamples());
     }
-
-    VM_AOSLogging.logger.systemExiting();
   }
 
   /**

@@ -54,8 +54,6 @@ public final class VM_MethodSampleOrganizer extends VM_Organizer {
    */
   @Override
   public void initialize() {
-    VM_AOSLogging.logger.methodSampleOrganizerThreadStarted(filterOptLevel);
-
     int numSamples = VM_Controller.options.METHOD_SAMPLE_SIZE * VM_GreenScheduler.numProcessors;
     if (VM_Controller.options.mlCBS()) {
       numSamples *= VM.CBSMethodSamplesPerTick;

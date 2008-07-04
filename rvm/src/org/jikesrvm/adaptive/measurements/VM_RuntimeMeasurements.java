@@ -24,7 +24,6 @@ import org.jikesrvm.compilers.common.VM_CompiledMethod;
 import org.jikesrvm.compilers.common.VM_CompiledMethods;
 import org.jikesrvm.runtime.VM_Magic;
 import org.jikesrvm.scheduler.VM_Scheduler;
-import org.jikesrvm.scheduler.VM_Thread;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
 
@@ -359,13 +358,6 @@ public abstract class VM_RuntimeMeasurements {
     reportReportableObjects();
 
     VM_AOSLogging.logger.decayStatistics(decayEventCounter);
-
-    for (int i = 0, n = VM_Scheduler.threads.length; i < n; i++) {
-      VM_Thread t = VM_Scheduler.threads[i];
-      if (t != null) {
-        VM_AOSLogging.logger.threadExiting(t);
-      }
-    }
   }
 
   /**
@@ -378,13 +370,6 @@ public abstract class VM_RuntimeMeasurements {
 
     cbsMethodListeners = new VM_MethodListener[0];
     cbsContextListeners = new VM_ContextListener[0];
-  }
-
-  /**
-   * Called from VM_Thread.terminate.
-   */
-  public static void monitorThreadExit() {
-    VM_AOSLogging.logger.threadExiting(VM_Scheduler.getCurrentThread());
   }
 
   /**

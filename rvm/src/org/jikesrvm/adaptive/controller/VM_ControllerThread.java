@@ -77,7 +77,6 @@ public final class VM_ControllerThread extends ThreadModel {
     if (VM_Controller.options.ENABLE_ADVICE_GENERATION) {
       VM_AOSGenerator.boot();
     }
-    VM_AOSLogging.logger.controllerStarted();
 
     // Create measurement entities that are NOT related to
     // adaptive recompilation
@@ -271,7 +270,7 @@ public final class VM_ControllerThread extends ThreadModel {
    * Final report
    */
   public static void report() {
-    VM_AOSLogging.logger.controllerCompleted();
+    VM_AOSLogging.logger.printControllerStats();
   }
 
 }

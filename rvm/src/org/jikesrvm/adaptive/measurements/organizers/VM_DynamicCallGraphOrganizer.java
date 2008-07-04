@@ -16,7 +16,6 @@ import org.jikesrvm.VM;
 import org.jikesrvm.adaptive.controller.VM_Controller;
 import org.jikesrvm.adaptive.measurements.VM_RuntimeMeasurements;
 import org.jikesrvm.adaptive.measurements.listeners.VM_EdgeListener;
-import org.jikesrvm.adaptive.util.VM_AOSLogging;
 import org.jikesrvm.classloader.VM_Method;
 import org.jikesrvm.compilers.baseline.VM_BaselineCompiledMethod;
 import org.jikesrvm.compilers.common.VM_CompiledMethod;
@@ -94,8 +93,6 @@ public class VM_DynamicCallGraphOrganizer extends VM_Organizer {
    */
   @Override
   public void initialize() {
-    VM_AOSLogging.logger.DCGOrganizerThreadStarted();
-
     if (VM_Controller.options.cgCBS()) {
       numberOfBufferTriples = VM_Controller.options.DCG_SAMPLE_SIZE * VM.CBSCallSamplesPerTick;
     } else {
