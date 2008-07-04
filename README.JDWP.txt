@@ -79,3 +79,6 @@ JikesRVM/JDWP implementation note
     ==> simple copy of the GNU claspath JDWP with the local bug patch
 	The bug fix will be reported and these source files will be
 	eventually removed before getting into the main branch.
+
+  * For the JDWP specific patch, you can try the following.
+    (bash) svn diff -r 14600
