@@ -160,7 +160,11 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
    * Notify BaselineCompilerImpl that we are starting code gen for the bytecode biStart
    */
   @Override
-  protected final void starting_bytecode() {}
+  protected final void starting_bytecode() {
+    //insert dummy code for 2 bytes "int xx" break point. 
+    asm.emitNOP();
+    asm.emitNOP();
+  }
 
   /**
    * Emit the prologue for the method

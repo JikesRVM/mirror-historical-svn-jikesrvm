@@ -1140,11 +1140,12 @@ sysVirtualProcessorBind(int UNUSED cpuId)
 #endif
 
 #ifdef RVM_FOR_LINUX
-    cpu_set_t cpuset;
-    CPU_ZERO(&cpuset);
-    CPU_SET(cpuId % numCpus, &cpuset);
+// this is due to UTCS's machine configuration problem. 
+//     cpu_set_t cpuset;
+//     CPU_ZERO(&cpuset);
+//     CPU_SET(cpuId % numCpus, &cpuset);
 
-    pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset);
+//     pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset);
 #endif
 }
 

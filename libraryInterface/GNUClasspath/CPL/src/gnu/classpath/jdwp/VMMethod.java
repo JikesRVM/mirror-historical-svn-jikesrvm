@@ -14,6 +14,7 @@ import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.classloader.MethodReference;
 import org.jikesrvm.classloader.NormalMethod;
+import org.jikesrvm.debug.JikesRVMJDWP;
 
 import gnu.classpath.jdwp.exception.InvalidMethodException;
 import gnu.classpath.jdwp.exception.JdwpException;
@@ -21,13 +22,14 @@ import gnu.classpath.jdwp.exception.NotImplementedException;
 import gnu.classpath.jdwp.util.LineTable;
 import gnu.classpath.jdwp.util.VariableTable;
 
+
 public final class VMMethod  {
 
   /** The size of the JDWP methodId is 8 (long).*/
   public static final int SIZE = 8;
 
   /** The RVM Method. */
-  private final RVMMethod meth;
+  final RVMMethod meth;
 
   /** Constructor.*/
   VMMethod(final RVMMethod meth) {

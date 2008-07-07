@@ -14,6 +14,7 @@ package org.jikesrvm.runtime;
 
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.ArchitectureSpecific.Registers;
+import org.jikesrvm.debug.BreakPointManager;
 import org.jikesrvm.VM;
 import org.jikesrvm.Constants;
 import org.jikesrvm.Callbacks;
@@ -93,6 +94,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
   public static final int TRAP_MUST_IMPLEMENT = 7;
   public static final int TRAP_STORE_CHECK = 8; // opt-compiler
   public static final int TRAP_STACK_OVERFLOW_FATAL = 9; // assertion checking
+  public static final int TRAP_BREAK_POINT = 10; // the break point.
 
   //---------------------------------------------------------------//
   //                     Type Checking.                            //
@@ -720,6 +722,9 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
           case TRAP_STORE_CHECK:
             VM.sysWriteln("\nFatal error: ArrayStoreException within uninterruptible region.");
             break;
+          case TRAP_BREAK_POINT:
+            VM.sysWriteln("\nFatal error: Breakpint within uninterruptible region.");
+            break;
           default:
             VM.sysWriteln("\nFatal error: Unknown hardware trap within uninterruptible region.");
           break;
@@ -729,6 +734,11 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
       }
     }
 
+    if (trapCode == TRAP_BREAK_POINT) {
+      VM.disableGC();
+      deliverBreakpointException(exceptionRegisters);
+      return;
+    }
     Throwable exceptionObject;
     switch (trapCode) {
       case TRAP_NULL_POINTER:
@@ -1014,6 +1024,60 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
 
     notifyExceptionCatch(exceptionObject, exceptionRegisters, null, Address.zero());
     Scheduler.getCurrentThread().handleUncaughtException(exceptionObject);
+  }
+
+
+  private static void deliverBreakpointException(Registers registers) {
+
+    if (VM.TraceExceptionDelivery) {
+      VM.sysWriteln("Nope.");
+      VM.sysWriteln("RuntimeEntrypoints.deliverBreakpointException() ");
+      VM.sysWriteln(" ip = ", VM.addressAsHexString(registers.getInnermostInstructionAddress()));
+      VM.sysWriteln(" fp = ", VM.addressAsHexString(registers.getInnermostFramePointer()));
+    }
+
+    // locate the break point form the register values.
+    Address ip = registers.getInnermostInstructionAddress();
+    Address fp = registers.getInnermostFramePointer();
+    int cmid = Magic.getCompiledMethodID(fp);
+    if (cmid == INVISIBLE_METHOD_ID) {
+      VM.sysWriteln("The break point trap could not find the compiled method ID");
+    } else {
+      CompiledMethod cm = CompiledMethods.getCompiledMethod(cmid);
+      if (cm instanceof BaselineCompiledMethod) {
+        BaselineCompiledMethod bcm = (BaselineCompiledMethod) cm;
+        Offset ip_offset = cm.getInstructionOffset(ip);
+        int bcIndex = bcm.findBytecodeIndexForInstruction(ip_offset);
+        NormalMethod method = (NormalMethod) bcm.getMethod();
+        if (bcIndex >= 0 && method != null) {
+          VM.enableGC();
+          BreakPointManager.deliverBreakPointHit(method, bcIndex);
+          VM.disableGC();
+        } else {
+          VM.sysWriteln("can not fire break point event:", bcIndex, method
+              .toString());
+        }
+      } else {
+        VM.sysWriteln("can not handle break point exception");
+      }
+    }
+
+    // now resume execution from the break point.
+    registers.ip = registers.ip.plus(2);
+    VM.enableGC();
+    if (VM.VerifyAssertions) {
+      VM._assert(registers.inuse);
+    }
+    registers.inuse = false;
+    
+    if (VM.TraceExceptionDelivery) {
+      VM.sysWriteln("resuming at ip = ",  VM.addressAsHexString(registers.ip));
+    }
+    Magic.restoreHardwareExceptionState(registers);
+
+    if (VM.VerifyAssertions) {
+      VM._assert(NOT_REACHED);
+    }
   }
 
   /**

@@ -23,7 +23,7 @@ import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import static org.jikesrvm.runtime.SysCall.sysCall;
 import org.jikesrvm.scheduler.Scheduler;
 import org.jikesrvm.scheduler.greenthreads.GreenScheduler;
-import gnu.classpath.jdwp.JikesRVMJDWP;
+import org.jikesrvm.debug.JikesRVMJDWP;
 
 /**
  * Command line option processing.

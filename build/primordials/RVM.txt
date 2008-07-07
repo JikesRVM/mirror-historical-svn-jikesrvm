@@ -80,3 +80,5 @@
 
 [Lorg/vmmagic/pragma/Inline$When;
 Lsun/misc/Unsafe;
+
+Lorg/jikesrvm/debug/JikesRVMJDWP;

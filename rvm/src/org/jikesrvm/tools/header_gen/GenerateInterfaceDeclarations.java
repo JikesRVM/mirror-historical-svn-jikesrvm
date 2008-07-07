@@ -479,6 +479,8 @@ public class GenerateInterfaceDeclarations {
     p("static const int Runtime_TRAP_JNI_STACK     = " + RuntimeEntrypoints.TRAP_JNI_STACK + ";\n");
     p("static const int Runtime_TRAP_MUST_IMPLEMENT = " + RuntimeEntrypoints.TRAP_MUST_IMPLEMENT + ";\n");
     p("static const int Runtime_TRAP_STORE_CHECK = " + RuntimeEntrypoints.TRAP_STORE_CHECK + ";\n");
+    p("static const int Runtime_TRAP_BREAK_POINT = " + RuntimeEntrypoints.TRAP_BREAK_POINT + ";\n");
+    
     pln();
 
     // values in FileSystem

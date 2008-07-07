@@ -47,7 +47,7 @@ import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.scheduler.greenthreads.JikesRVMSocketImpl;
 import org.jikesrvm.scheduler.greenthreads.FileSystem;
 import org.jikesrvm.scheduler.greenthreads.GreenScheduler;
-import gnu.classpath.jdwp.JikesRVMJDWP;
+import org.jikesrvm.debug.JikesRVMJDWP;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;

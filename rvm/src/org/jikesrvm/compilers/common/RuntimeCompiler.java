@@ -300,6 +300,9 @@ public class RuntimeCompiler implements Constants, Callbacks.ExitMonitor {
           record(BASELINE_COMPILER, method, cm);
         }
       }
+      if (cm != null) {
+        Callbacks.notifyMethodCompileComplete(cm);
+      }
     }
 
 
@@ -364,6 +367,9 @@ public class RuntimeCompiler implements Constants, Callbacks.ExitMonitor {
             cm.setCompilationTime(compileTime);
             record(COMPILER, method, cm);
           }
+        }
+        if (cm != null) {
+          Callbacks.notifyMethodCompileComplete(cm);
         }
       }
 
@@ -787,6 +793,9 @@ public class RuntimeCompiler implements Constants, Callbacks.ExitMonitor {
           record(JNI_COMPILER, method, cm);
         }
       }
+      if (cm != null) {
+        Callbacks.notifyMethodCompileComplete(cm);
+      }    Callbacks.notifyMethodCompileComplete(cm);
     }
 
     return cm;

@@ -568,5 +568,3 @@ Lgnu/java/net/protocol/file/Connection;
 Lgnu/java/net/protocol/file/Connection$StaticData;
 Ljava/io/FilePermission;
 Lgnu/java/nio/charset/EncodingHelper;
-
-Lgnu/classpath/jdwp/JikesRVMJDWP;

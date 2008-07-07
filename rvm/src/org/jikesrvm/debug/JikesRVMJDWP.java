@@ -1,7 +1,11 @@
-package gnu.classpath.jdwp;
+//package gnu.classpath.jdwp;
+package org.jikesrvm.debug;
 
 import java.util.StringTokenizer;
 import gnu.classpath.jdwp.Jdwp;
+import gnu.classpath.jdwp.VMIdManager;
+import gnu.classpath.jdwp.VMVirtualMachine;
+
 import org.jikesrvm.CommandLineArgs;
 import org.jikesrvm.VM;
 import org.jikesrvm.runtime.ExitStatus;

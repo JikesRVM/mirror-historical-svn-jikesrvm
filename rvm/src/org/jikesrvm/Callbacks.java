@@ -18,6 +18,7 @@ import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.classloader.RVMType;
+import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.scheduler.Scheduler;
 import org.jikesrvm.scheduler.RVMThread;
 
@@ -514,6 +515,77 @@ public final class Callbacks {
     methodCompileEnabled = true;
   }
 
+  
+
+  /**
+   * Interface for monitoring the completion of method compile.
+   */
+  public interface MethodCompileCompleteMonitor {
+    /**
+     * Notify the monitor that a method was compiled.
+     * NOTE: use VM.runningVM and VM.writingBootImage to determine
+     *       whether the VM is running
+     * @param method the method that was compiled.
+     * @param compiler the compiler that compiled the method.
+     *        Values are constants in CompiledMethod
+     */
+    void notifyMethodCompileComplete(CompiledMethod compiledMethod);
+  }
+
+  /**
+   * Method compile complete callback list.
+   */
+  private static CallbackList methodCompileCompleteCallbacks = null;
+  private static final Object methodCompileCompleteLock = new Object();
+  private static boolean methodCompileCompleteEnabled = true;
+
+  /**
+   * Register a callback for method compile.
+   * @param cb the object to notify when event happens
+   */
+  public static void addMethodCompileCompleteMonitor(MethodCompileCompleteMonitor cb) {
+    synchronized (methodCompileCompleteLock) {
+      if (TRACE_ADDMONITOR || TRACE_METHODCOMPILECOMPLETE) {
+        VM.sysWrite("adding method compile complete monitor: ");
+        VM.sysWrite(getClass(cb));
+        VM.sysWrite("\n");
+      }
+      methodCompileCompleteCallbacks = new CallbackList(cb, methodCompileCompleteCallbacks);
+    }
+  }
+
+  /**
+   * Notify the callback manager that a method is about to be compiled.
+   * NOTE: use VM.runningVM and VM.writingBootImage to determine
+   *       whether the VM is running
+   * @param method the method that will be compiled
+   * @param compiler the compiler that will be invoked
+   *        Values are constants in CompiledMethod
+   */
+  public static void notifyMethodCompileComplete(CompiledMethod compiledMethod) {
+    // NOTE: will need synchronization if allowing unregistering
+    if (!methodCompileCompleteEnabled) return;
+    methodCompileCompleteEnabled = false;
+    if (TRACE_METHODCOMPILECOMPLETE) {
+      //VM.sysWrite(getThread(), false);
+      //VM.sysWrite(": ");
+      VM.sysWrite("invoking method compile complete monitors: ");
+      VM.sysWrite(compiledMethod.getMethod());
+      VM.sysWrite(":");
+      VM.sysWrite(compiledMethod.getCompilerType());
+      VM.sysWrite("\n");
+      //printStack("From: ");
+    }
+    for (CallbackList l = methodCompileCompleteCallbacks; l != null; l = l.next) {
+      if (TRACE_METHODCOMPILECOMPLETE) {
+        VM.sysWrite("    ");
+        VM.sysWrite(getClass(l.callback));
+        VM.sysWrite("\n");
+      }
+      ((MethodCompileCompleteMonitor) l.callback).notifyMethodCompileComplete(compiledMethod);
+    }
+    methodCompileCompleteEnabled = true;
+  }
   /**
    * Interface for monitoring forName calls.
    */
@@ -1302,6 +1374,7 @@ public final class Callbacks {
   private static final boolean TRACE_EXCEPTIONCATCH = false;
   private static final boolean TRACE_METHODOVERRIDE = false;
   private static final boolean TRACE_METHODCOMPILE = false;
+  private static final boolean TRACE_METHODCOMPILECOMPLETE = false;
   private static final boolean TRACE_FORNAME = false;
   private static final boolean TRACE_DEFINECLASS = false;
   private static final boolean TRACE_LOADCLASS = false;

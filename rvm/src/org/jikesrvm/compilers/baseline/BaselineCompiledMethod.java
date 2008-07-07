@@ -378,4 +378,40 @@ public final class BaselineCompiledMethod extends CompiledMethod implements Base
     if (referenceMaps != null) size += referenceMaps.size();
     return size;
   }
+
+  /**
+   * Get machine code offset for a byte code index.
+   * 
+   * @param bcIndex The byte code index.
+   * @return The machine code offset, -1 if the byte code index is not
+   *         available in the byte code map.
+   */
+  @Uninterruptible
+  public int getMachineCodeOffset(int bcIndex) {
+    int mc_candidate = -1;
+    int bc = 0, mc = 0;
+    for(int i = 0; i < bytecodeMap.length;) {
+      int b = ((int) bytecodeMap[i++]) & 0xff;
+      final int delta_bc, delta_mc;
+      if (b != 0xff ) {
+        delta_bc = b >> 5; // MSB - 3bits
+        delta_mc = b & 0x1f; // LSB - 5 bits
+      } else {
+        int bc1 = ((int)bytecodeMap[i++]) & 0xff;
+        int bc2 = ((int)bytecodeMap[i++]) & 0xff;
+        delta_bc = bc1 << 8 | bc2; // Big-endian - 16 bits
+        int mc1 = ((int)bytecodeMap[i++]) & 0xff;
+        int mc2 = ((int)bytecodeMap[i++]) & 0xff;
+        delta_mc = mc1 << 8 | mc2; // Little-endian - 16 bits.
+      }
+      bc += delta_bc;
+      mc += delta_mc;
+      if (bc == bcIndex) {
+        mc_candidate = mc;
+      } else if (bc > bcIndex) {
+        break; // the byte code index is wrong.
+      }
+    }    
+    return mc_candidate ;
+  }
 }
