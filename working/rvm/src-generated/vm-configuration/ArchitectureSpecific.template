@@ -13,6 +13,7 @@
 package org.jikesrvm;
 
 import org.vmmagic.unboxed.WordArray;
+import org.vmmagic.pragma.NonMoving;
 
 import org.jikesrvm.compilers.baseline.BaselineCompiledMethod;
 
@@ -62,6 +63,7 @@ public class ArchitectureSpecific {
   public static final class OutOfLineMachineCode extends org.jikesrvm.@_ARCH_@.OutOfLineMachineCode {}
   public static final class ThreadLocalState extends org.jikesrvm.@_ARCH_@.ThreadLocalState {}
   public interface RegisterConstants extends org.jikesrvm.@_ARCH_@.RegisterConstants {}
+  @NonMoving
   public static final class Registers extends org.jikesrvm.@_ARCH_@.Registers {}
   public interface StackframeLayoutConstants extends org.jikesrvm.@_ARCH_@.StackframeLayoutConstants {}
   public interface TrapConstants extends org.jikesrvm.@_ARCH_@.TrapConstants {}
