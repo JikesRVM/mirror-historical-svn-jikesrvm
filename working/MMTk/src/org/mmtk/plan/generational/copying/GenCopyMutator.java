@@ -62,7 +62,7 @@ public class GenCopyMutator extends GenMutator {
    * Constructor
    */
   public GenCopyMutator() {
-    mature = new CopyLocal(GenCopy.toSpace());
+    mature = new CopyLocal();
   }
 
   /****************************************************************************
