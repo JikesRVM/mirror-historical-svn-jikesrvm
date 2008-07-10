@@ -18,7 +18,7 @@
   <property name="jikesrvm.dir" location="${basedir}"/>
   <import file="build/base.xml"/>
   <import file="build/tasks.xml"/>
-
+  
   <property name="config.mmtk" value="default"/>
   <property name="config.file" location="${jikesrvm.dir}/build/configs/${config.name}.properties"/>
   <property name="mmtk.properties" location="${jikesrvm.dir}/build/mmtk/${config.mmtk}.properties"/>
@@ -90,7 +90,7 @@
   <condition property="openjdk.classlib" value="true">
     <equals arg1="${classlib.provider}" arg2="OpenJDK"/>
   </condition>
-
+  
   <!-- Permit parallelisation of the bootimage build -->
   <property name="bootimage.threads" value="1"/>
 
@@ -149,32 +149,32 @@
   <target name="check-classlibrary-properties">
     <fail message="Cannot have both Harmony and Classpath class libraries">
       <condition>
-	<and>
+		<and>
           <isset property="harmony.classlib"/>
           <isset property="classpath.classlib"/>
-	</and>
+		</and>
       </condition>
     </fail>      
     <fail message="No class library specified. Make sure classlib.provider is defined.">
       <condition>
-	<not>
+		<not>
           <or>
             <equals arg1="${classlib.provider}" arg2="Harmony"/>
             <equals arg1="${classlib.provider}" arg2="GNU Classpath"/>
-	    <equals arg1="${classlib.provider}" arg2="OpenJDK"/>
+	    	<equals arg1="${classlib.provider}" arg2="OpenJDK"/>
           </or>
-	</not>
+		</not>
       </condition>
     </fail>
     <fail message="No class library specified. Make sure classlib.provider is defined.">
       <condition>
-	<not>
+		<not>
           <or>
             <isset property="harmony.classlib"/>
             <isset property="classpath.classlib"/>
-	    <isset property="openjdk.classlib"/>
+	    	<isset property="openjdk.classlib"/>
           </or>
-	</not>
+		</not>
       </condition>
     </fail>
   </target>
@@ -932,7 +932,8 @@ Check to make sure all required properties are specified. This includes properti
         <filter token="_RVM_WITH_ALIGNMENT_CHECKING_" value ="${config.alignment-checking}"/>
         <filter token="_PORTABLE_NATIVE_SYNC_" value="${config.portable-native-sync}"/>
         <filter token="_RVM_WITH_HARMONY_" value="${pp_RVM_WITH_HARMONY}"/>
-        <filter token="_RVM_WITH_GNU_CLASSPATH_" value="${pp_RVM_WITH_GNU_CLASSPATH}"/>
+      	<filter token="_RVM_WITH_OPENJDK_" value="${pp_RVM_WITH_OPENJDK}"/>
+      	<filter token="_RVM_WITH_GNU_CLASSPATH_" value="${pp_RVM_WITH_GNU_CLASSPATH}"/>
       </filterset>
     </copy>
 
@@ -1029,6 +1030,16 @@ Check to make sure all required properties are specified. This includes properti
         <property name="classlib.library-interface.non-cpl.java" location="libraryInterface/Harmony/ASF/src"/>
       </sequential>
     </if>
+  	<if>
+		<conditions>
+  	      <equals arg1="${classlib.provider}" arg2="OpenJDK"/>
+  	    </conditions>
+  	    <sequential>
+  	      <!-- TODO: OpenJDK -->
+  	      <property name="classlib.library-interface.cpl.java" location="libraryInterface/OpenJDK/CPL/src"/>
+  	      <property name="classlib.library-interface.non-cpl.java" location="libraryInterface/OpenJDK/GPL/src"/>
+  	    </sequential>
+  	</if>
   </target>
 
   <target name="compile" depends="compile-mmtk,compile-options,prepare-source,prepare-config-source,choose-classlib,do-checkstyle">
@@ -1138,7 +1149,7 @@ Check to make sure all required properties are specified. This includes properti
                debugLevel="lines,source"
                source="1.5"
                target="1.5"
-               srcdir="${main.java}:${mmtk-vm-rvm.java}"
+               srcdir="${main.java}:${classlib.library-interface.common.java}:${classlib.library-interface.non-cpl.java}:${classlib.library-interface.cpl.java}:${mmtk-vm-rvm.java}"
                sourcepath="${mmtk.java}:${options.java}:${generated.java}:${generated.config.java}:${generated.arch.java}:${main.java}:${mmtk-vm-rvm.java}">
           <bootclasspath>
             <pathelement location="${openjdk-lib-dir}/rt.jar"/>
@@ -1148,7 +1159,6 @@ Check to make sure all required properties are specified. This includes properti
           </classpath>
           <include name="Dummy.java"/>
           <include name="OptDummy.java"/>
-          <include name="org/apache/**/*.java"/>
           <include name="sun/**/*.java"/>
           <include name="java/**/*.java"/>
           <include name="${arch-helper-class}"/>
@@ -1200,7 +1210,7 @@ Check to make sure all required properties are specified. This includes properti
     </javac>
   </target>
 
-  <target name="package" depends="compile,compile-vmmagic,package-classpath,package-harmony"/>
+  <target name="package" depends="compile,compile-vmmagic,package-classpath,package-harmony,package-openjdk"/>
 
   <target name="package-harmony" if="harmony.classlib">
     <zip destfile="${build.rt.jar}" duplicate="preserve" basedir="${build.classes}" compress="false">
@@ -1220,7 +1230,27 @@ Check to make sure all required properties are specified. This includes properti
       <fileset dir="${build.options.classes}"/>
     </jar>
   </target>
-
+  <!--TODO: OpenJDK -->
+  <target name="package-openjdk" if="openjdk.classlib">
+  	<zip destfile="${build.rt.jar}" duplicate="preserve" basedir="${build.classes}" compress="false">
+      <include name="java/**"/>
+	  <include name="sun/**"/>
+	</zip>
+	<jar destfile="${build.vm.jar}" update="true" compress="false">
+	  <fileset dir="${build.classes}">
+	    <exclude name="java/**"/>
+	    <exclude name="sun/**"/>
+	  </fileset>
+	  <fileset dir="${build.vmmagic-stub.classes}">
+	    <include name="org/vmmagic/pragma/**"/>
+	    <include name="org/vmmagic/*"/>
+	  </fileset>
+      <fileset dir="${build.vmmagic.classes}"/>
+	  <fileset dir="${build.options.classes}"/>
+    </jar>
+  </target>
+	
+	
   <target name="package-classpath" if="classpath.classlib">
     <!-- create a rt.jar for the RVM -->
     <zip destfile="${build.rt.jar}" duplicate="preserve" basedir="${build.classes}" compress="false"> 
@@ -1345,6 +1375,20 @@ Check to make sure all required properties are specified. This includes properti
       </sequential>
     </if>
 
+  	<!--TODO: OpenJDK -->
+  	<if>
+	  <conditions>
+  	    <equals arg1="${classlib.provider}" arg2="OpenJDK"/>
+  	  </conditions>
+  	  <sequential>
+  	    <concat destfile="${build.base}/Primordials.txt">
+  	      <filelist dir="${build.base}" files="ClassesForImage.txt"/>
+  	      <filelist dir="${primordials.dir}"
+  	                files="OpenJDK.txt,RVM.txt${primordials.opt}${primordials.aos}${primordials.arch}"/>
+  	    </concat>
+  	  </sequential>
+  	</if>
+  	
     <replaceregexp file="${build.base}/Primordials.txt" match=".*#.*" replace="" byline="true"/>
   </target>
 
@@ -1379,6 +1423,10 @@ Check to make sure all required properties are specified. This includes properti
     <condition property="bootimage.classlib" value="Classpath">
       <equals arg1="${classlib.provider}" arg2="GNU Classpath"/>
     </condition>
+  	
+  	<condition property="bootimage.classlib" value="OpenJDK">
+  	      <equals arg1="${classlib.provider}" arg2="OpenJDK"/>
+  	    </condition>
 
     <echo message="Building bootimage. Output redirected to : ${build.base}/BootImageWriterOutput.txt"/>
     <echo message="MMTk properties = ${mmtk.properties}"/>
@@ -1542,6 +1590,11 @@ Check to make sure all required properties are specified. This includes properti
       <equals arg1="${classlib.provider}" arg2="Harmony"/>
     </condition>
 
+  	<!-- TODO: OpenJDK --> 
+  	<condition property="classlib.includes" value="-I${openjdk.include.dir}" else="">
+  	  <equals arg1="${classlib.provider}" arg2="OpenJDK"/>
+  	</condition>
+  	
     <condition property="arch.includes" value="-I${bl.dir}/ia32">
       <equals arg1="${target.arch}" arg2="ia32"/>
     </condition>
@@ -1651,7 +1704,7 @@ Check to make sure all required properties are specified. This includes properti
         </exec>
       </sequential>
     </if>
-
+    <!--TODO: OpenJDK ?-->
     <!-- create rvmexec shared library -->
     <property name="rvmexec.dll" value="${target.dll-prefix}rvmexec${target.jni-suffix}"/>
     <exec executable="${c++.exe}" failonerror="true">
@@ -1710,7 +1763,7 @@ Check to make sure all required properties are specified. This includes properti
           <arg value="-lhythr"/>
           <arg value="-lhysig"/>
           <arg value="-lhyzlib"/>
-	</exec>
+		</exec>
       </sequential>
     </if>
 
