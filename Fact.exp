@@ -1,11 +1,59 @@
 #!/usr/bin/expect
 
+## RUN/CONT
+proc trun { args } {
 set timeout 10
 spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
 expect {
     -re "VM Started: .+\n.*MainThread... " {}
     timeout {
 	error "can not reach initialization sequence";
+    }
+}
+
+send "cont\n"
+expect {
+    timeout {
+	error "can not complete"
+    }
+}
+}
+
+## RUN/EXIT
+proc texit { args } {
+spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
+expect {
+    -re "VM Started: .+\n.*MainThread... " {}
+    timeout {
+	error "can not reach initialization sequence";
+    }
+}
+
+send "exit\n"
+expect {
+    eof {puts "PASS\n" }
+    timeout {
+	error "can not complete"
+    }
+}
+}
+
+## RUN/THREAD/STACK
+proc tthreadAndStack { args } {
+set timeout 10
+spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
+expect {
+    -re "VM Started: .+\n.*MainThread... " {}
+    timeout {
+	error "can not reach initialization sequence";
+    }
+}
+
+send "classes\n"
+expect {
+    -re "MainThread... " {}
+    timeout {
+	error "can not enumerate the threads";
     }
 }
 
@@ -25,33 +73,6 @@ expect {
     }
 }
 
-send "sourcepath rvm/src\n"
-expect {
-    -re "MainThread... " {}
-}
-
-send "list\n"
-expect {
-    -re "MainThread... " {}
-    timeout {
-	error "can not list source code.";
-    }
-}
-
-send "up\n"
-expect {
-    -re "MainThread... " {}
-}
-
-
-send "list\n"
-expect {
-    -re "MainThread... " {}
-    timeout {
-	error "can not list source code.";
-    }
-}
-
 send "exit\n"
 expect {
     eof {puts "PASS\n" }
@@ -59,3 +80,129 @@ expect {
 	error "can not complete"
     }
 }
+}
+
+##BREAKPOINT
+proc tbreakpoint { args } {
+set timeout 10
+spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
+expect {
+    -re "VM Started: .+\n.*MainThread... " {}
+    timeout {
+	error "can not reach initialization sequence";
+    }
+}
+
+send "stop at Fact:18\n"
+expect {
+    -re "MainThread... " {}
+    timeout {
+	error "can not enumerate the threads";
+    }
+}
+
+send "cont\n"
+expect {
+    -re "MainThread... " {}
+    timeout {
+	error "can not enumerate the threads";
+    }
+}
+
+send "threads\n"
+expect {
+    -re "MainThread... " {}
+    timeout {
+	error "can not enumerate the threads";
+    }
+}
+
+send "where\n"
+expect {
+    -re "MainThread... " {}
+    timeout {
+	error "can not dump call frames";
+    }
+}
+
+send "cont\n"
+expect {
+    -re "MainThread... " {}
+    timeout {
+	error "can not enumerate the threads";
+    }
+}
+
+send "where\n"
+expect {
+    -re "MainThread... " {}
+    timeout {
+	error "can not dump call frames";
+    }
+}
+
+
+send "cont\n"
+expect {
+    -re "MainThread... " {}
+    timeout {
+	error "can not enumerate the threads";
+    }
+}
+
+send "where\n"
+expect {
+    -re "MainThread... " {}
+    timeout {
+	error "can not dump call frames";
+    }
+}
+
+
+send "cont\n"
+expect {
+    -re "MainThread... " {}
+    timeout {
+	error "can not enumerate the threads";
+    }
+}
+
+send "where\n"
+expect {
+    -re "MainThread... " {}
+    timeout {
+	error "can not dump call frames";
+    }
+}
+
+
+send "cont\n"
+expect {
+    -re "MainThread... " {}
+    timeout {
+	error "can not enumerate the threads";
+    }
+}
+
+send "where\n"
+expect {
+    -re "MainThread... " {}
+    timeout {
+	error "can not dump call frames";
+    }
+}
+
+
+send "cont\n"
+expect {
+    eof {puts "PASS\n" }
+    timeout {
+	error "can not complete"
+    }
+}
+}
+
+trun
+texit
+tthreadAndStack
+tbreakpoint

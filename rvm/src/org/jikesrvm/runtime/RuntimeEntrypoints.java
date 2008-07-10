@@ -734,11 +734,12 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
       }
     }
 
+	// Handle break point trap.
     if (trapCode == TRAP_BREAK_POINT) {
-      VM.disableGC();
       deliverBreakpointException(exceptionRegisters);
-      return;
+      if (VM.VerifyAssertions) {VM._assert(NOT_REACHED);}
     }
+
     Throwable exceptionObject;
     switch (trapCode) {
       case TRAP_NULL_POINTER:
@@ -1026,45 +1027,48 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
     Scheduler.getCurrentThread().handleUncaughtException(exceptionObject);
   }
 
-
+  /** Deliver a break point hit trap event. */
   private static void deliverBreakpointException(Registers registers) {
 
     if (VM.TraceExceptionDelivery) {
       VM.sysWriteln("Nope.");
       VM.sysWriteln("RuntimeEntrypoints.deliverBreakpointException() ");
-      VM.sysWriteln(" ip = ", VM.addressAsHexString(registers.getInnermostInstructionAddress()));
-      VM.sysWriteln(" fp = ", VM.addressAsHexString(registers.getInnermostFramePointer()));
     }
 
     // locate the break point form the register values.
+    final NormalMethod method;
+    final int bcIndex;
+    VM.disableGC();
+    // here, ip points a following instruction right after INT xx.
     Address ip = registers.getInnermostInstructionAddress();
     Address fp = registers.getInnermostFramePointer();
     int cmid = Magic.getCompiledMethodID(fp);
+    CompiledMethod cm = CompiledMethods.getCompiledMethod(cmid);
     if (cmid == INVISIBLE_METHOD_ID) {
-      VM.sysWriteln("The break point trap could not find the compiled method ID");
+      bcIndex = -1;
+      method =null;
     } else {
-      CompiledMethod cm = CompiledMethods.getCompiledMethod(cmid);
       if (cm instanceof BaselineCompiledMethod) {
         BaselineCompiledMethod bcm = (BaselineCompiledMethod) cm;
         Offset ip_offset = cm.getInstructionOffset(ip);
-        int bcIndex = bcm.findBytecodeIndexForInstruction(ip_offset);
-        NormalMethod method = (NormalMethod) bcm.getMethod();
-        if (bcIndex >= 0 && method != null) {
-          VM.enableGC();
-          BreakPointManager.deliverBreakPointHit(method, bcIndex);
-          VM.disableGC();
-        } else {
-          VM.sysWriteln("can not fire break point event:", bcIndex, method
-              .toString());
-        }
+        bcIndex = bcm.findBytecodeIndexForInstruction(ip_offset);
+        method = (NormalMethod) bcm.getMethod();
       } else {
-        VM.sysWriteln("can not handle break point exception");
+        bcIndex = -1;
+        method =null;
+      }
+    }
+    VM.enableGC();
+
+    if (method != null && bcIndex >= 0) {
+      BreakPointManager.deliverBreakPointHit(method, bcIndex);
+    } else {
+      if (VM.VerifyAssertions) {
+        VM._assert(false, "a break point trap from unknown source");
       }
     }
 
     // now resume execution from the break point.
-    registers.ip = registers.ip.plus(2);
-    VM.enableGC();
     if (VM.VerifyAssertions) {
       VM._assert(registers.inuse);
     }
@@ -1074,10 +1078,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
       VM.sysWriteln("resuming at ip = ",  VM.addressAsHexString(registers.ip));
     }
     Magic.restoreHardwareExceptionState(registers);
-
-    if (VM.VerifyAssertions) {
-      VM._assert(NOT_REACHED);
-    }
+    if (VM.VerifyAssertions) {VM._assert(NOT_REACHED);}
   }
 
   /**

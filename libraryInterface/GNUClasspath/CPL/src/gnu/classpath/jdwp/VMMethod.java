@@ -1,5 +1,15 @@
-/* VMMethod.java -- supplying JDWP operations. */
-
+/*
+ *  This file is part of the Jikes RVM project (http://jikesrvm.org).
+ *
+ *  This file is licensed to You under the Common Public License (CPL);
+ *  You may not use this file except in compliance with the License. You
+ *  may obtain a copy of the License at
+ *
+ *      http://www.opensource.org/licenses/cpl1.0.php
+ *
+ *  See the COPYRIGHT.txt file distributed with this work for information
+ *  regarding copyright ownership.
+ */
 package gnu.classpath.jdwp;
 
 import java.io.DataOutputStream;
@@ -22,17 +32,33 @@ import gnu.classpath.jdwp.exception.NotImplementedException;
 import gnu.classpath.jdwp.util.LineTable;
 import gnu.classpath.jdwp.util.VariableTable;
 
-
+/** JikesRVM Specific implementation of VMMethod. */
 public final class VMMethod  {
 
-  /** The size of the JDWP methodId is 8 (long).*/
+  /** The size of the JDWP methodId is 8 (long). */
   public static final int SIZE = 8;
 
-  /** The RVM Method. */
+  /** Obtain a vmmethod from the stream. */
+  public final static VMMethod readId(Class<?> klass, ByteBuffer bb)
+      throws JdwpException {
+    long mid = bb.getLong();
+    if (JikesRVMJDWP.getVerbose() >= 3) {
+      VM.sysWriteln("VMMethod.readId: ", mid);
+    }
+    MemberReference mref = MemberReference.getMemberRef((int) mid);
+    MethodReference methref = mref.asMethodReference();
+    RVMMethod meth = methref.peekResolvedMethod();
+    if (meth == null) {
+      throw new InvalidMethodException(mid);
+    }
+    return new VMMethod(meth);
+  }
+
+  /** The RVM Method. package private visibility. */
   final RVMMethod meth;
 
-  /** Constructor.*/
-  VMMethod(final RVMMethod meth) {
+  /** Constructor. */
+  VMMethod(RVMMethod meth) {
     this.meth = meth;
     if (VM.VerifyAssertions) {
       VM._assert(meth != null);
@@ -41,46 +67,31 @@ public final class VMMethod  {
 
   /** Returns the internal method ID for this method. */
   private final long getId() {
-    int mid = meth.getId();
-    return mid;
+    return meth.getId();
   }
 
   /** Returns the method's declaring class. */
   public final Class<?> getDeclaringClass() {
     RVMClass rvmclass = meth.getDeclaringClass();
     Class<?> cls = rvmclass.getClassForType();
-    if (JikesRVMJDWP.getVerbose() >= 3) {
-      VM.sysWriteln("getDeclaringClass: ", cls.toString());
-    }
     return cls;
   }
 
   /** Returns the name of this method. */
   public final String getName() {
     final String name = meth.getName().toString();
-    if (JikesRVMJDWP.getVerbose() >= 3) {
-      VM.sysWriteln("getName: ", name, " in ", toString());
-    }
     return name;
   }
 
   /** Returns the signature of this method. */
   public final String getSignature() {
     String mdesc = meth.getDescriptor().toString();
-    if (JikesRVMJDWP.getVerbose() >= 3) {
-      VM.sysWriteln("getDescriptor: ", mdesc, " in ", toString());
-    }
     return mdesc;
   };
 
   /** Returns the method's modifier flags. */
   public final int getModifiers() {
     final int modifiers = meth.getModifiers();
-    if (JikesRVMJDWP.getVerbose() >= 3) {
-      VM.sysWrite("getModifiers: ");
-      VM.sysWriteHex(modifiers);
-      VM.sysWriteln(" in ", toString());
-    }
     return modifiers;
   }
 
@@ -102,15 +113,16 @@ public final class VMMethod  {
     int[] rvmLineMap = nmeth.getLineNumberMap();
     int numEntries = rvmLineMap == null ? 0 : rvmLineMap.length;
 
-    int start = -1;
-    int end = 0;
+    int start = 0;
+    int end = nmeth.getBytecodeLength()-1;
     int[] lineNumbers = new int[numEntries];
     long[] lineCodeIndecies = new long[numEntries];
     for (int i = 0; i < numEntries; i++) {
       int bcindex = rvmLineMap[i] & 0xffff;
       int lineNumber = rvmLineMap[i] >>> 16;
-      if (start == -1 || start > bcindex) {start = bcindex;}
-      if (end < bcindex) { end = bcindex;}
+      if (VM.VerifyAssertions) {
+        VM._assert(bcindex >= start && bcindex <= end);
+      }
       lineCodeIndecies[i] = bcindex;
       lineNumbers[i] = lineNumber;
       if (JikesRVMJDWP.getVerbose() >= 3) {
@@ -118,22 +130,19 @@ public final class VMMethod  {
         VM.sysWriteln("  lineCodeIndecies[i]: ", lineCodeIndecies[i]);
       }
     }
+    if (JikesRVMJDWP.getVerbose() >= 3) {
+      VM.sysWriteln("  start: ", start);
+      VM.sysWriteln("  end: ", end);
+    }
     return new LineTable(start, end, lineNumbers, lineCodeIndecies);
   }
 
-  /** Retrieve the Java variable information.*/
+  /** TODO: to-be-implemented. Retrieve the Java variable information.*/
   public final VariableTable getVariableTable() throws JdwpException {
     if (JikesRVMJDWP.getVerbose() >= 3) {
       VM.sysWriteln("getVariableTable:", " in ", toString());
     }
     throw new NotImplementedException("getVariableTable");
-  }
-
-  /** Get a user friendly string representation. */
-  public final String toString() {
-    return meth.getDeclaringClass().toString()
-        + "." + meth.getName()
-        + meth.getDescriptor();
   }
 
   /** Write the methodId into the stream. */
@@ -144,19 +153,30 @@ public final class VMMethod  {
     ostream.writeLong(getId());
   }
 
-  /** Obtain a vm method from the stream. */
-  public final static VMMethod readId(Class<?> klass, ByteBuffer bb)
-      throws JdwpException {
-    long mid = bb.getLong();
-    if (JikesRVMJDWP.getVerbose() >= 3) {
-      VM.sysWriteln("readId: ", mid);
+  /**
+   * For the use with the Location. 
+   * @see gnu.classpath.jdwp.util.Location#hashCode
+   */
+  public int hashCode() {
+    return meth.hashCode();
+  }
+
+  /** 
+   * For the use with the Location.
+   * @see gnu.classpath.jdwp.util.Location#equals The method. 
+   */
+  public boolean equals(Object obj) {
+    if (obj instanceof VMMethod) {
+      return this.meth.equals(((VMMethod)obj).meth);
+    } else {
+      return false;
     }
-    MemberReference mref = MemberReference.getMemberRef((int) mid);
-    MethodReference methref = mref.asMethodReference();
-    RVMMethod meth = methref.peekResolvedMethod();
-    if (meth == null) {
-      throw new InvalidMethodException(mid);
-    }
-    return new VMMethod(meth);
+  }
+
+  /** Get a user friendly string representation. */
+  public final String toString() {
+    return meth.getDeclaringClass().toString()
+        + "." + meth.getName()
+        + meth.getDescriptor();
   }
 }

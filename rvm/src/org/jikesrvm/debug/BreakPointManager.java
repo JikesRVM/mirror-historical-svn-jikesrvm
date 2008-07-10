@@ -16,39 +16,35 @@ import org.jikesrvm.Callbacks;
 import org.jikesrvm.UnimplementedError;
 import org.jikesrvm.VM;
 import org.jikesrvm.ArchitectureSpecific.CodeArray;
-import org.jikesrvm.ArchitectureSpecific.Registers;
 import org.jikesrvm.Callbacks.MethodCompileCompleteMonitor;
 import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.compilers.baseline.BaselineCompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethod;
-import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.compilers.opt.runtimesupport.OptCompiledMethod;
 import org.jikesrvm.jni.JNICompiledMethod;
-import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.RuntimeEntrypoints;
+import org.jikesrvm.scheduler.Scheduler;
 import org.jikesrvm.util.LinkedListRVM;
-import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
-
-import static org.jikesrvm.ArchitectureSpecific.StackframeLayoutConstants.INVISIBLE_METHOD_ID;
 
 /**
  * A class managing a list of break points.
  */
 public class BreakPointManager implements MethodCompileCompleteMonitor {
-  
+
   private static final byte OPCODE_X86_NOP = (byte)0x90;
-  
+
   private static final byte OPCODE_X86_BREAK_TRAP = (byte)0xcc;
-  
+
   private static final byte OPCODE_X86_INT = (byte)0xcd;
 
-  private static final byte OPCODE_X86_INT_CODE = (byte)(RuntimeEntrypoints.TRAP_BREAK_POINT + 0x40);
-  
+  private static final byte OPCODE_X86_INT_CODE = (byte) 
+    (RuntimeEntrypoints.TRAP_BREAK_POINT + 0x40);
+
   private static BreakPointManager manager; 
-  
+
   /**
    * Initialize break point feature.
    * @param m The break point call back.
@@ -78,7 +74,20 @@ public class BreakPointManager implements MethodCompileCompleteMonitor {
     if (VM.VerifyAssertions) {
       VM._assert(manager != null);
     }
+    
+    if (Scheduler.getCurrentThread().isSystemThread()) {
+      if (JikesRVMJDWP.getVerbose() >= 3) {
+        VM.sysWriteln("skipping a system thread's break point hit: bcindex ",
+            bcindex, method.toString());
+      }
+    }      
+    if (JikesRVMJDWP.getVerbose() >= 2) {
+      VM.sysWriteln("firing a break point hit: bcindex ", bcindex, method.toString() );
+    }
     manager.breakPointMonitor.notifyBreakPointHit(method, bcindex);
+    if (JikesRVMJDWP.getVerbose() >= 2) {
+      VM.sysWriteln("resuming from the point hit: bcindex ", bcindex, method.toString() );
+    }
   }
   
   private final LinkedListRVM<BytecodeBreakPoint> activeByteCodeBreakPoints =

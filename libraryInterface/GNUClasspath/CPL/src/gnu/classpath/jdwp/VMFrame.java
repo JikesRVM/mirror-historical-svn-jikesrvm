@@ -1,3 +1,15 @@
+/*
+ *  This file is part of the Jikes RVM project (http://jikesrvm.org).
+ *
+ *  This file is licensed to You under the Common Public License (CPL);
+ *  You may not use this file except in compliance with the License. You
+ *  may obtain a copy of the License at
+ *
+ *      http://www.opensource.org/licenses/cpl1.0.php
+ *
+ *  See the COPYRIGHT.txt file distributed with this work for information
+ *  regarding copyright ownership.
+ */
 package gnu.classpath.jdwp;
 
 import org.jikesrvm.classloader.NativeMethod;
@@ -16,7 +28,7 @@ import gnu.classpath.jdwp.value.Value;
 /** JikesRVM Specific implementation of VMFrame. */
 public abstract class VMFrame {
 
-  /** The size of frameID is 8 (long. */
+  /** The size of frameID is 8 (long). */
   public static final int SIZE = 8;
 
   /** The current location of this frame.*/
@@ -44,7 +56,7 @@ public abstract class VMFrame {
     this.frameID = ((long)thread.getIndex()) << 32 | fno;
     this.loc = loc;
   }
-  
+
   /** Getters */
   public Location getLocation() { return loc;}
   public long getId() { return frameID;}
@@ -61,10 +73,17 @@ public abstract class VMFrame {
 
 /** The internal stack frame from the base line compiler. */
 final class VMBaseFrame extends VMFrame {
+
+  /** The baseline compiled method.*/
   private final BaselineCompiledMethod bcm;
+
+  /** The machine instruction offset in the base line compiled method code. */
   private final Offset ipOffset;
+
+  /** The frame point offset in the current thread's call stack.*/
   private final Offset fpOffset;
 
+  /** The constructor. */
   VMBaseFrame(int frameno, NormalMethod m, int bcinex, RVMThread thread,
       BaselineCompiledMethod bcm, Offset ipOffset, Offset fpOffset) {
     super(frameno, new Location(new VMMethod(m), bcinex), thread);
@@ -73,34 +92,34 @@ final class VMBaseFrame extends VMFrame {
     this.fpOffset = fpOffset;
   }
 
+  /** TODO: to-be-implemented. */
   public Value getValue(int slot, byte sig) throws JdwpException{
     throw new NotImplementedException("Frame.getValue");
   }
-
   public void setValue(int slot, Value value) throws JdwpException {
     throw new NotImplementedException("Frame.getValue");
   }
-
   public Object getObject() throws JdwpException {
     throw new NotImplementedException("Frame.getValue");
   }
 }
 
-/** The internal stack frame from the optimizing compiler. */
+/**
+ * The internal stack frame from the optimizing compiler. Note that
+ * ocm.getMethod() would return different from the loc.getMethod().meth, depend
+ * on the inlining decision in the root method ( =ocm.getMethod() ).
+ */
 final class VMOptFrame extends VMFrame {
+
+  /** The root opt-compiled method.*/
   private final OptCompiledMethod ocm;
+
+  /** The machine instruction offset in the opt-compiled code. */
   private final Offset ipOffset;
   private final Offset fpOffset;
   private final int iei;
 
-  VMOptFrame(int frameno, Location l,  RVMThread thread,
-      OptCompiledMethod ocm, Offset ipOffset, Offset fpOffset, int iei) {
-    super(frameno, l, thread);
-    this.ocm = ocm;
-    this.ipOffset = ipOffset;
-    this.fpOffset = fpOffset;
-    this.iei = iei;
-  }
+  /** The constructor. */
   VMOptFrame(int frameno, RVMMethod m, int bcinex, RVMThread thread,
       OptCompiledMethod ocm, Offset ipOffset, Offset fpOffset, int iei) {
     super(frameno, new Location(new VMMethod(m), bcinex), thread);
@@ -109,15 +128,14 @@ final class VMOptFrame extends VMFrame {
     this.fpOffset = fpOffset;
     this.iei = iei;
   }
-  
+
+  /** TODO: to-be-implemented. */
   public Value getValue(int slot, byte sig)  throws JdwpException {
     throw new NotImplementedException("Frame.getValue");
   }
-  
   public void setValue(int slot, Value value)  throws JdwpException {
     throw new NotImplementedException("Frame.getValue");
   }
-
   public Object getObject()  throws JdwpException {
     throw new NotImplementedException("Frame.getValue");
   }
@@ -125,16 +143,18 @@ final class VMOptFrame extends VMFrame {
 
 /** The internal stack frame from the JNI compiler. */
 final class VMNativeFrame extends VMFrame {
+
+  /** The constructor. */
   VMNativeFrame(int frameno, NativeMethod m, RVMThread thread ){
     super(frameno, new Location(new VMMethod(m), -1), thread);
+    // perhaps, the byte code index would be -1 [JDWP Method.LineTable], 
+    // or the back-debugger will ignore this byte code index.
   }
-  VMNativeFrame(int frameno, Location location, RVMThread thread ){
-    super(frameno, location, thread);
-  }
+
+  /** TODO: to-be-implemented. */
   public Value getValue(int slot, byte sig)  throws JdwpException {
     throw new NotImplementedException("Frame.getValue");
   }
-  
   public void setValue(int slot, Value value)  throws JdwpException {
     throw new NotImplementedException("Frame.getValue");
   }
