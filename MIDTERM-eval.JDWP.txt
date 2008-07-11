@@ -1,4 +1,8 @@
 * The midterm evaluation progress report
+  
+	Byeongcheol Lee
+	bclee@cs.utexas.edu
+	July 11 2008
 
 * Progress
   + 1.5 months (05/26/08 ~ 07/11/08)
@@ -14,11 +18,11 @@
 
 * TODO work
   + 1.5 months (07/14/08 ~ 09/01/08)
-    + include method call in the expression evaluation
-    + single stepping
-    + more testing scripts with SPECJVM98 and DaCapo
-    + write 2-3 pages tutorial to show how to interact with JDB and eclipse JDT
-    + submit the sample code to Google (09/03/08)
+    + Method call in the expression evaluation
+    + Single stepping
+    + More testing scripts with SPECJVM98 and DaCapo
+    + Write 2-3 pages tutorial to show how to interact with JDB and eclipse JDT
+    + Submit the sample code to Google (09/03/08)
 
 * Technical issues
 
@@ -46,15 +50,15 @@
     implement without the padded NOP, but this may increase the
     implementation complexity, decrease the robustness and lose
     portability. I'd like to delay the advance implementation until we
-    got all the basic JDWP functionality and user experience since
+    got all the basic JDWP functionalities and user experience since
     this advanced implementation may end up with overkilling.
 
   + Method entry/exit event in JDWP
 
     In compile-only approach as in JikesRVM, this event would be
     challenging to implement in an efficient way. This means that we
-    might have to insert break points for all the compiled
-    methods. The following is the specification:
+    might have to set break points for all the compiled methods'
+    entries and exits. The following is the specification:
 
     "Case MethodEntry - if eventKind is JDWP.EventKind.METHOD_ENTRY:
     Notification of a method invocation in the target VM. This event
@@ -76,8 +80,8 @@
 
    This actually is very powerful feature than the normal debuggers
    such as GDB. Since the debugger can stop the debugee program at
-   each method entry and exit, this even enables event the call graph
-   or calling context tree profiling:
+   each method entry and exit, this even enables the call graph or
+   calling context tree profiling:
 
    (bash)jdb -launch Fact
    Initializing jdb ...
@@ -97,17 +101,17 @@
    Method exited: return value = <void value>, "thread=main", Fact.main(), line=10 bci=28
 
    The question is "do we really want to have this feature?" I'm not
-   sure if the eclipse JDT actually use this feature. Personally I
-   never used this feature before I read the JDWP document.
+   sure if the eclipse JDT actually uses this feature. Personally I
+   had never used this feature before I read the JDWP document.
 
   + Power PC port
 
-   How much do we want support power PC? The only non-portable part is
-   the break point now. We have one old power PC machine, and I can do
-   in theory do this job. However, I did not have much experience with
+   How much do we want support power PC? The only problematic part is
+   the break point now. We have one old power PC machine, and I can in
+   theory do this job. However, I did not have much experience with
    the JikesRVM on the Power PC, and our machine had troubles
    before. The work time and effort with the Power PC is quite
-   unpredictable. I have two choices. 
+   unpredictable. I have two choices.
 
     1. Devote some of my time on the power PC work. --> this may risk
        the whole project schedule.
@@ -115,5 +119,5 @@
     2. Do not implement this summer, but keep explicit portability
        interface.
 
-  What would be wise choice?
+  What would be the wise choice?
 

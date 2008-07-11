@@ -1,5 +1,6 @@
-JikesRVM/JDWP implementation note
-  Byeongchoel Lee, UT Austin. bclee@cs.utexas.edu
+ JikesRVM/JDWP implementation note
+  Byeongchoel Lee, UT Austin
+  bclee@cs.utexas.edu
 
 * Trying how it works?
 
@@ -16,25 +17,17 @@ JikesRVM/JDWP implementation note
    (bash) javac -g Fact.java
    (bash) expect Fact.exp
    spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm "-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y" Fact,address=8000
-   Deferring uncaught java.lang.Throwable.
-   It will be set after the class is loaded.
    Initializing jdb ...
-   > 
    VM Started: No frames on the current call stack
 
    MainThread[1] cont
    fact(4) = 24
-   > 
    The application exited
    PASS
 
    spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm "-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y" Fact,address=8000
-   Deferring uncaught java.lang.Throwable.
-   It will be set after the class is loaded.
    Initializing jdb ...
-   > 
    VM Started: No frames on the current call stack
-
    MainThread[1] exit
    PASS
    ...
@@ -55,9 +48,7 @@ JikesRVM/JDWP implementation note
   * For the JDWP specific patch, you can try the following.
     (bash) svn diff -r 14600
 
------------------------------------------------------------------------------
-
-* JikesRVM JDWP options
+* JikesRVM/JDWP options
 
  The JikesRVM will implement the subset of the SUN JVM's JDWP command
  line options:
@@ -76,7 +67,7 @@ JikesRVM/JDWP implementation note
   onuncaught        NO
   suspend           YES                   gnu.classpath.jdwp.Jdwp._PROPERTY_SUSPEND
 
-  The following is the help message.
+  The following is the help message from JikesRVM/JDWP.
 
   ---------------------------------------------------------------------------
   coral:~/w/jdwp$rvm -Xrunjdwp:help
@@ -84,10 +75,11 @@ JikesRVM/JDWP implementation note
   -Xrunjdwp:[<option>=<value>, ...]		Configure the JDWP agent.
 
   Option             Default value       Description
-  suspend=y|n        ?                   Suspend VM before starting application.
+  suspend=y|n        y                   Suspend VM before starting application.
   transport=...      none                Name transport. e.g. dt_socket
   server=...         n                   Listens for the debugger
   address=...        none                Transport address for the connection
+  verbose=..         0                   JDWP subsystem verbose level
   ---------------------------------------------------------------------------
 
   An issue here is the default value for the "suspend." SUN JVM has
@@ -115,7 +107,7 @@ JikesRVM/JDWP implementation note
   to connect to the debugger and which transport channel to use. Both
   SUN hotspot and IBM J9 support all these two JDWP argument
   formats. The JDB in the JDK 1.6 internally uses the old format, and
-  the Eclipse JDT 3.3.2 the new format.
+  the Eclipse JDT 3.3.2 uses the new format.
 
   I'm a little bit concerned with the new JDWP argument format. The
   new JDWP command line argument seems to assume that the JDWP agent
@@ -253,15 +245,15 @@ JikesRVM/JDWP implementation note
   "-Xrunjdwp:."
   [http://java.sun.com/javase/6/docs/technotes/guides/jpda/conninv.html#Invocation]
 
------------------------------------------------------------------------------------
 * Jikes RVM JDWP status at the beginning
 
- + branch svn checkout
-  https://jikesrvm.svn.sourceforge.net/svnroot/jikesrvm/rvmroot/branches/RVM-33-JdwpSupport
-  jdwp
+ + branch 
 
- + log
-  coral:~/w/jdwp$svn log -r 13021:14081
+  (bash) svn checkout  https://jikesrvm.svn.sourceforge.net/svnroot/jikesrvm/rvmroot/branches/RVM-33-JdwpSupport jdwp
+  (bash) cd jdwp
+
+ + log	
+  (bash) svn log -r 13021:14081
   r13021 --> simply branch creation
   r13022 --> jdwp.13022.patch
   r13029 --> jdwp.13029.patch
@@ -271,9 +263,10 @@ JikesRVM/JDWP implementation note
   r13392 --> merge with r13380 trunk?
   r13403 --> jdwp.13403.patch
 
-  + Jikes RVM codes
+  + JikesRVM codes
 
-    + related to the Jikes RVM port of the JDWP
+    + The followings are related to the Jikes RVM port of the JDWP.
+
     file name                                         patches
     libraryInterface/GNUClasspath/LGPL/src/gnu/classpath/jdwp/VMMethod.java                                      r13022        r13354
     libraryInterface/GNUClasspath/LGPL/src/gnu/classpath/jdwp/VMIdManager.java                                   r13022
@@ -293,6 +286,7 @@ JikesRVM/JDWP implementation note
     rvm/src/org/jikesrvm/runtime/VM_ExitStatus.java                                                                            r13354
 
     + The followings are patches simply for the internal debugging and logging.
+
     file name                                         patches
     libraryInterface/Common/src/java/lang/Thread.java                                                                           r13354
     libraryInterface/GNUClasspath/LGPL/src/gnu/classpath/jdwp/Jdwp.java                                                                       r13403
