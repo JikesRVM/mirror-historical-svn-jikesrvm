@@ -1,0 +1,259 @@
+* Title: Debugging Support (RVM-33)
+
+* Contributor
+
+  Byeongcheol Lee
+
+  Ph.D student in the Computer Science Department
+  The University of Texas at Austin
+  bclee@cs.utexas.edu
+
+* Mentors
+
+  1. Kathryn McKinley, Professor, University of Texas at Austin
+  2. Steve Blackburn, Associate Professor, Australian National University
+  3. Ian Rogers, University of Manchester
+
+* Goals
+
+The goal of this project is to implement essential debugging
+functionalities in Jikes RVM and enable standard interaction between
+Jikes RVM and Java debuggers such as jdb and eclipse JDT through
+JDWP. This work will immediately allow the Jikes RVM researchers to
+productively monitor and tune their own implementation work. As a
+result, this work will place the Jikes RVM as more compelling research
+framework than otherwise.
+
+We clarify a few limitations in order to complete this project within
+2008 summer and obtain the robust implementation. First, we only
+support the Baseline compilers for x86 and ppc. We considered
+incorporating both the OSR and the interpreter, but this will make
+this project's completion unpredictable. Second, we do not implement
+optional JDWP features such as watch points.
+
+The most essential part of our contribution is the execution control
+and data inspection. The execution control includes pausing the
+program execution at a breakpoint, stepping the execution in small
+amount and resuming the execution. The data inspection includes
+querying local and global variables and evaluating Java expression at
+the break point. Unlike the other JVMs and JDWP agents written in
+C/C++, this is non-trivial task in the Jikes RVM since Jikes RVM and
+it JDWP agent are written in Java and stay in the same address
+space. We summarize the challenges and our proposed solutions.
+
+Challenges: Since Jikes RVM is a large and complex Java-in-Java
+system, and the classpath JDWP agent is written in Java, we anticipate
+three challenges. First, we need to minimize change in Jikes RVM since
+the Jikes RVM is a large and complex run time system including JIT and
+GC. Second, we need to determine the next dynamic Java byte code at
+the break point for single stepping. The problems are branches and
+indirect calls such as "ifeq" and "invokevirtual." To determine the
+exact target, we need to read the values in the Java operand stack,
+and decode the byte code instruction. Third, we have to keep the break
+point to be GC safe. A Java thread will be suspended at a arbitrary
+byte code, and at this break point position the classpath JDWP agent
+might trigger GC as this agent allocates objects to handle the JDWP
+protocols or invoke a Java method. For robust implementation, it's
+better to keep the every break point to be GC-safe.
+
+Solutions: We propose two approaches: JIT code patching and
+on-demand-stack-map in the baseline compiler. First, we patch JITted
+code and insert a call or a trap to the JDWP agent when we set a break
+point. Since the base line compiler keeps a one-to-one mapping table
+between a byte-code to its JITted code sequence, this approach
+requires a very small change to pause the program
+execution. Therefore, this approach effectively overcomes the first
+challenge to minimize the Jikes RVM change. Second, we generate the
+stack map for each break point on demand. When we set a break point by
+patching the base line compiled code, we also generate a stack map for
+this break point. The stack map here shows the physical locations of
+Java local variables and the Java operand stack elements. The stack
+map also enumerates invisible object references such as VM_Processor
+and VM_Static. This stack map solves the last two challenges about
+inspecting Java operand stack and keeping the break point to be GC
+safe. We modify the Baseline GC Map iterator to take this on-demand
+stack map into consideration when this iterator tries to enumerate
+object references at the break point. Therefore, the JDWP agent can
+allocate object and trigger GC at the break point.
+    
+The break point would be very similar to the yield point except that
+the GC reference map is created on demand when we set a break point.
+
+* initial goal
+
+This is a proto-type JDWP implementation to monitor and debug a small
+simple Java program (10 lines) under jdb. Here, we want to extend the
+JDWP agent in the GNU classpath and implement the most challenging
+part of JDWP debugger support in the Jikes RVM. For instance,
+
+  a. Breakpoint: setting, stopping and continuing.
+
+  b. Showing the calling context.
+
+  c. Evaluating Java expressions.
+
+  e. single stepping.
+
+* mid-term goal
+
+This is to write automated test cases with jdb. We will write a number
+of test cases to cover our JDWP implementation. The following is the
+JDWP functionality we want to cover.
+ 
+  http://java.sun.com/javase/6/docs/platform/jpda/jdwp/jdwp-protocol.html
+
+  # VirtualMachine(1)
+    * Version(1)                             YES   
+    * ClassesBySignature(2)                  YES   
+    * AllClasses(3)                          YES   
+    * AllThreads(4)                          YES   
+    * TopLevelThreadGroups(5)                YES   
+    * Dispose(6)                             NO    NOT_OBSERVABLE
+    * IDSizes(7)                             YES   
+    * Suspend(8)                             NO    NOT_OBSERVABLE
+    * Resume(9)                              NO    NOT_OBSERVABLE
+    * Exit(10)                               YES   
+    * CreateString(11)                       NO    NOT_OBSERVABLE
+    * Capabilities(12)                       NO    NOT_IMPLEMENTED
+    * ClassPaths(13)                         YES   
+    * DisposeObjects(14)                     NO
+    * HoldEvents(15)                         NO    NOT_OBSERVABLE
+    * ReleaseEvents(16)                      NO    NOT_OBSERVABLE
+    * CapabilitiesNew(17)                    NO    NOT_IMPLEMENTED
+    * RedefineClasses(18)                    NO    NOT_IMPLEMENTED
+    * SetDefaultStratum(19)                  NO    NOT_IMPLEMENTED
+    * AllClassesWithGeneric(20)              YES   
+    * InstanceCounts(21)                     NO    NOT_IMPLEMENTED
+
+  # ReferenceType Command Set(2)
+    * Signature(1)                           YES
+    * ClassLoader(2)                         YES
+    * Modifiers(3)                           YES 
+    * Fields(4)                              YES
+    * Methods(5)                             YES
+    * GetValues(6)                           YES
+    * SourceFile(7)                          YES
+    * NestedTypes(8)                         YES
+    * Status(9)                              YES 
+    * Interfaces(10)                         YES
+    * ClassObject(11)                        YES
+    * SourceDebugExtension(12)               NO     NOT_IMPLEMENTED
+    * SignatureWithGeneric(13)               YES
+    * FieldsWithGeneric(14)                  YES
+    * MethodsWithGeneric(15)                 YES
+    * Instances(16)                          NO     NOT_IMPLEMENTED
+    * ClassFileVersion(17)                   YES
+    * ConstantPool(18)                       NO     NOT_IMPLEMENTED
+
+  # ClassType Command Set(3)
+    * Superclass(1)                          YES
+    * SetValues(2)                           YES
+    * InvokeMethod(3)                        YES
+    * NewInstance(4)                         YES
+
+  # ArrayType Command Set(4)
+    * NewInstance(1)                         YES
+
+  # Method Command Set(6)
+    * LineTable(1)                           YES
+    * VariableTable(2)                       YES
+    * Bytecodes(3)                           YES
+    * IsObsolete(4)                          NO    NOT_IMPLEMENTED
+    * VariableTableWithGeneric(5)            YES
+
+  # ObjectReference Command Set(9)
+    * ReferenceType(1)                       YES
+    * GetValues(2)                           YES
+    * SetValues(3)                           YES
+    * MonitorInfo(5)                         NO   NOT_IMPLEMENTED
+    * InvokeMethod(6)                        YES 
+    * DisableCollection(7)                   NO   NOT_OBSERVABLE
+    * EnableCollection(8)                    NO   NOT_OBSERVABLE
+    * IsCollected(9)                         NO   NOT_OBSERVABLE
+    * ReferringObjects(10)                   NO   NOT_IMPLEMENTED
+
+  # StringReference Command Set(10)
+    * Value(1)                               YES
+
+  # ThreadReference(11)
+    * Name(1)                                YES
+    * Suspend(2)                             NO   NOT_OBSERVABLE
+    * Resume(3)                              NO   NOT_OBSERVABLE
+    * Status(4)                              NO   NOT_OBSERVABLE
+    * ThreadGroup(5)                         YES
+    * Frames(6)                              YES
+    * FrameCount(7)                          YES
+    * OwnedMonitors(8)                       NO   NOT_IMPLEMENTED
+    * CurrentContendedMonitor(9)             NO   NOT_IMPLEMENTED
+    * Stop(10)                               NO   NOT_OBSERVABLE
+    * Interrupt(11)                          NO   NOT_OBSERVABLE
+    * SuspendCount(12)                       NO   NOT_OBSERVABLE
+    * OwnedMonitorsStackDepthInfo(13)        NO   NOT_IMPLEMENTED
+    * ForceEarlyReturn(14)                   NO   NOT_IMPLEMENTED
+
+  # ThreadGroupReference Command Set(12)
+    * Name(1)                                YES
+    * Parent(2)                              YES
+    * Children(3)                            YES
+
+  # ArrayReference Command Set(13)
+    * Length(1)                              YES
+    * GetValues(2)                           YES
+    * SetValues(3)                           YES
+
+  # ClassLoaderReference Command Set(14)
+    * VisibleClasses(1)                      NO   NOT_OBSERVABLE
+
+  # EventRequest Command Set(15)
+    * Set(1) 
+    * Clear(2) 
+    * ClearAllBreakpoints(3) 
+      VM_START                               YES
+      VM_DEATH                               YES
+      SINGLE_STEP                            YES
+      BREAKPOINT                             YES
+      METHOD_ENTRY                           YES
+      METHOD_EXIT                            YES
+      METHOD_EXIT_WITH_RETURN_VALUE          NO   NOT_IMPLEMENTED
+      CLASS_PREPARE                          YES
+      CLASS_UNLOAD                           YES
+      CLASS_LOAD                             YES
+      MONITOR_CONTENDED_ENTER                NO   NOT_IMPLEMENTED
+      MONITOR_CONTENDED_ENTERED              NO   NOT_IMPLEMENTED
+      MONITOR_WAIT                           NO   NOT_IMPLEMENTED
+      MONITOR_WAITED                         NO   NOT_IMPLEMENTED
+      FRAME_POP                              YES
+      THREAD_START                           YES
+      THREAD_DEATH                           YES
+      THREAD_END                             YES
+      FIELD_ACCESS                           NO   NOT_IMPLEMENTED
+      FIELD_MODIFICATION                     NO   NOT_IMPLEMENTED
+
+  # StackFrame Command Set(16)
+    * GetValues(1)                           YES
+    * SetValues(2)                           YES
+    * ThisObject(3)                          YES
+    * PopFrames(4)                           NO   NOT_IMPLEMENTED
+
+  # ClassObjectReference Command Set(17)
+    * ReflectedType(1)                       YES
+
+Here, NOT_IMPLEMENTED means that the response to the protocol request
+is "NOT_IMPLEMENTED," and therefore we do not need any test
+cases. NOT_OBSERVABLE means that we implements the protocol request
+but we can not find how to cover this protocol with the automated test
+cases.
+
+* final-project-goal
+
+This is about demonstrating functional JDWP support and showing the
+implementation quality.
+
+  a. functional JDWP without optional features.
+
+  b. pass all the proposed test cases with the jdb.
+
+  c. compatibility test with eclipse JDT.
+
+  d. an experiment to measure the time and space overhead of this
+   implementation.

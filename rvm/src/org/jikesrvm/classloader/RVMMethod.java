@@ -139,6 +139,7 @@ public abstract class RVMMethod extends RVMMember implements BytecodeConstants {
     ExceptionHandlerMap tmp_exceptionHandlerMap = null;
     TypeReference[] tmp_exceptionTypes = null;
     int[] tmp_lineNumberMap = null;
+    LocalVariable[] tmp_localVariableTable = null;
     Atom tmp_signature = null;
     RVMAnnotation[] annotations = null;
     RVMAnnotation[][] parameterAnnotations = null;
@@ -172,6 +173,8 @@ public abstract class RVMMethod extends RVMMember implements BytecodeConstants {
                 tmp_lineNumberMap[k] = (lineNumber << BITS_IN_SHORT) | startPC;
               }
             }
+          } else if (attName == RVMClassLoader.localVariableTableAttributeName) {
+            tmp_localVariableTable = LocalVariable.readRVMLocalVariableTable(constantPool, input);
           } else {
             // All other entries in the attribute portion of the code attribute are boring.
             int skippedAmount = input.skipBytes(attLength);
@@ -251,7 +254,8 @@ public abstract class RVMMethod extends RVMMember implements BytecodeConstants {
                               tmp_signature,
                               annotations,
                               parameterAnnotations,
-                              tmp_annotationDefault);
+                              tmp_annotationDefault,
+                              tmp_localVariableTable);
     }
     return method;
   }
@@ -289,6 +293,7 @@ public abstract class RVMMethod extends RVMMember implements BytecodeConstants {
                                null,
                                null,
                                constantPool,
+                               null,
                                null,
                                null,
                                null,
@@ -345,6 +350,7 @@ public abstract class RVMMethod extends RVMMember implements BytecodeConstants {
                                null,
                                null,
                                constantPool,
+                               null,
                                null,
                                null,
                                null,

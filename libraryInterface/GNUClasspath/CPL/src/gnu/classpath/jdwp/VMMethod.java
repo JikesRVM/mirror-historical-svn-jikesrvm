@@ -18,6 +18,7 @@ import java.nio.ByteBuffer;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.classloader.AbstractMethod;
+import org.jikesrvm.classloader.LocalVariable;
 import org.jikesrvm.classloader.MemberReference;
 import org.jikesrvm.classloader.NativeMethod;
 import org.jikesrvm.classloader.RVMClass;
@@ -26,6 +27,7 @@ import org.jikesrvm.classloader.MethodReference;
 import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.debug.JikesRVMJDWP;
 
+import gnu.classpath.jdwp.exception.AbsentInformationException;
 import gnu.classpath.jdwp.exception.InvalidMethodException;
 import gnu.classpath.jdwp.exception.JdwpException;
 import gnu.classpath.jdwp.exception.NotImplementedException;
@@ -142,7 +144,32 @@ public final class VMMethod  {
     if (JikesRVMJDWP.getVerbose() >= 3) {
       VM.sysWriteln("getVariableTable:", " in ", toString());
     }
-    throw new NotImplementedException("getVariableTable");
+    if (meth instanceof NormalMethod == false ){
+      throw new AbsentInformationException("not Java method"); 
+    }
+    NormalMethod m = (NormalMethod)meth;
+    LocalVariable[] table = m.getlocalVariableTable();
+    if (table == null) {
+      throw new AbsentInformationException("no debugging information");
+    }
+    int argCnt = m.getParameterWords() + (m.isStatic() ? 0 : 1);
+    int slots = table.length;
+
+    long[] lineCI = new long[slots];
+    int[] slot = new int[slots];
+    int[] lengths = new int[slots];
+    String[] sigs = new String[slots];
+    String[] names= new String[slots];
+    for(int i =0; i < slots;i++) {
+      LocalVariable lv = table[i]; 
+      lineCI[i] = lv.getStart_pc();
+      slot[i] = lv.getIndex();
+      lengths[i] = lv.getLength();
+      sigs[i] = lv.getDescriptor().toString();
+      names[i] = lv.getName().toString();
+    }
+    return new VariableTable(argCnt, slots, lineCI, names,
+        sigs, lengths, slot);
   }
 
   /** Write the methodId into the stream. */

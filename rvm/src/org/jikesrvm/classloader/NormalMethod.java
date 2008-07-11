@@ -121,6 +121,12 @@ public final class NormalMethod extends RVMMethod implements BytecodeConstants {
    */
   private final int[] lineNumberMap;
 
+  /**
+   * local variable map from local variable's name and type to the local
+   * variable slot index.
+   */
+  private final LocalVariable[] localVariableTable;
+  
   // Extra fields for on-stack replacement
   /** Possible OSR bytecode array consisting of prologue and original bytecodes */
   private static final HashMapRVM<NormalMethod, byte[]> synthesizedBytecodes =
@@ -152,16 +158,19 @@ public final class NormalMethod extends RVMMethod implements BytecodeConstants {
    * @param annotations array of runtime visible annotations
    * @param parameterAnnotations array of runtime visible paramter annotations
    * @param ad annotation default value for that appears in annotation classes
+   * @param lvt local variable table
    */
   NormalMethod(TypeReference dc, MemberReference mr, short mo, TypeReference[] et, short lw, short ow,
                   byte[] bc, ExceptionHandlerMap eMap, int[] lm, int[] constantPool, Atom sig,
-                  RVMAnnotation[] annotations, RVMAnnotation[][] parameterAnnotations, Object ad) {
+                  RVMAnnotation[] annotations, RVMAnnotation[][] parameterAnnotations, Object ad,
+                  LocalVariable[] lvt) {
     super(dc, mr, mo, et, sig, annotations, parameterAnnotations, ad);
     localWords = lw;
     operandWords = ow;
     bytecodes = bc;
     exceptionHandlerMap = eMap;
     lineNumberMap = lm;
+    localVariableTable = lvt;
     computeSummary(constantPool);
   }
 
@@ -261,6 +270,16 @@ public final class NormalMethod extends RVMMethod implements BytecodeConstants {
   @Uninterruptible
   public final int[] getLineNumberMap() {
 	  return lineNumberMap; 
+  }
+
+  /**
+   * Return the local variable table.
+   * @see #localVariableTable.
+   * @return a table of local variable.
+   */
+  @Uninterruptible
+  public final LocalVariable[] getlocalVariableTable() {
+    return localVariableTable;
   }
 
   // Extra methods for on-stack replacement

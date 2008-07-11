@@ -31,6 +31,9 @@ import org.vmmagic.unboxed.Offset;
 
 /**
  * A class managing a list of break points.
+ * 
+ * TODO: We need to handle GC-safety at each break point.
+ * 
  */
 public class BreakPointManager implements MethodCompileCompleteMonitor {
 

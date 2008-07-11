@@ -2,207 +2,148 @@
 
 ## RUN/CONT
 proc trun { args } {
-set timeout 10
-spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
-expect {
-    -re "VM Started: .+\n.*MainThread... " {}
-    timeout {
-	error "can not reach initialization sequence";
+    set timeout 10
+    spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
+    expect {
+	-re "VM Started: .+\n.*MainThread... " {}
+	timeout { error "can not reach initialization sequence" }
     }
-}
 
-send "cont\n"
-expect {
-    timeout {
-	error "can not complete"
+    send "cont\n"
+    expect {
+	eof {puts "PASS\n" }
+	timeout { error "can not complete" }
     }
-}
 }
 
 ## RUN/EXIT
 proc texit { args } {
-spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
-expect {
-    -re "VM Started: .+\n.*MainThread... " {}
-    timeout {
-	error "can not reach initialization sequence";
+    spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
+    expect {
+	-re "VM Started: .+\n.*MainThread... " {}
+	timeout { error "can not reach initialization sequence" }
     }
-}
 
-send "exit\n"
-expect {
-    eof {puts "PASS\n" }
-    timeout {
-	error "can not complete"
+    send "exit\n"
+    expect {
+	eof {puts "PASS\n" }
+	timeout { error "can not complete" }
     }
-}
 }
 
 ## RUN/THREAD/STACK
 proc tthreadAndStack { args } {
-set timeout 10
-spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
-expect {
-    -re "VM Started: .+\n.*MainThread... " {}
-    timeout {
-	error "can not reach initialization sequence";
+    set timeout 10
+    spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
+    expect {
+	-re "VM Started: .+\n.*MainThread... " {}
+	timeout { error "can not reach initialization sequence" }
     }
-}
 
-send "classes\n"
-expect {
-    -re "MainThread... " {}
-    timeout {
-	error "can not enumerate the threads";
+    send "classes\n"
+    expect {
+	-re "MainThread... " {}
+	timeout { error "can not enumerate the classes" }
     }
-}
+    
+    send "threads\n"
+    expect {
+	-re "MainThread... " {}
+	timeout { error "can not enumerate the threads" }
+    }
 
-send "threads\n"
-expect {
-    -re "MainThread... " {}
-    timeout {
-	error "can not enumerate the threads";
+    send "where\n"
+    expect {
+	-re "MainThread... " {}
+	timeout { error "can not dump call frames" }
     }
-}
 
-send "where\n"
-expect {
-    -re "MainThread... " {}
-    timeout {
-	error "can not dump call frames";
+    send "exit\n"
+    expect {
+	eof {puts "PASS\n" }
+	timeout { error "can not complete"}
     }
-}
-
-send "exit\n"
-expect {
-    eof {puts "PASS\n" }
-    timeout {
-	error "can not complete"
-    }
-}
 }
 
 ##BREAKPOINT
 proc tbreakpoint { args } {
-set timeout 10
-spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
-expect {
-    -re "VM Started: .+\n.*MainThread... " {}
-    timeout {
-	error "can not reach initialization sequence";
+    set timeout 10
+    spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
+    expect {
+	-re "VM Started: .+\n.*MainThread... " {}
+	timeout { error "can not reach initialization sequence" }
     }
-}
 
-send "stop at Fact:18\n"
-expect {
-    -re "MainThread... " {}
-    timeout {
-	error "can not enumerate the threads";
+    send "stop at Fact:18\n"
+    expect {
+	-re "MainThread... " {}
+	timeout { error "can not set break point" }
     }
-}
 
-send "cont\n"
-expect {
-    -re "MainThread... " {}
-    timeout {
-	error "can not enumerate the threads";
+    set i 0
+    while { $i < 5 } {
+	send "cont\n"
+	expect {
+	    -re "MainThread... " {}
+	    timeout { error "can not stop at break point" }
+	}
+	send "where\n"
+	expect {
+	    -re "MainThread... " {}
+	    timeout { error "can not dump call frames" }
+	}
+	incr i
     }
-}
 
-send "threads\n"
-expect {
-    -re "MainThread... " {}
-    timeout {
-	error "can not enumerate the threads";
-    }
-}
-
-send "where\n"
-expect {
-    -re "MainThread... " {}
-    timeout {
-	error "can not dump call frames";
-    }
-}
-
-send "cont\n"
-expect {
-    -re "MainThread... " {}
-    timeout {
-	error "can not enumerate the threads";
-    }
-}
-
-send "where\n"
-expect {
-    -re "MainThread... " {}
-    timeout {
-	error "can not dump call frames";
+    send "cont\n"
+    expect {
+	eof {puts "PASS\n" }
+	timeout { error "can not complete" }
     }
 }
 
 
-send "cont\n"
-expect {
-    -re "MainThread... " {}
-    timeout {
-	error "can not enumerate the threads";
+
+##EXPR
+proc texpr { args } {
+    set timeout 10
+    spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
+    expect {
+	-re "VM Started: .+\n.*MainThread... " {}
+	timeout { error "can not reach initialization sequence" }
     }
-}
-
-send "where\n"
-expect {
-    -re "MainThread... " {}
-    timeout {
-	error "can not dump call frames";
+    
+    send "stop at Fact:18\n"
+    expect {
+	-re "MainThread... " {}
+	timeout { error "can not set a break point" }
     }
-}
-
-
-send "cont\n"
-expect {
-    -re "MainThread... " {}
-    timeout {
-	error "can not enumerate the threads";
+    
+    set i 0
+    while { $i < 5 } {
+	send "cont\n"
+	expect {
+	    -re "MainThread... " {}
+	    timeout { error "can not continue" }
+	}
+	
+	send "eval n\n"
+	expect { 
+	    -re "MainThread... " {}
+	    timeout { error "can not evalute a local variable" }
+	}
+	incr i
     }
-}
 
-send "where\n"
-expect {
-    -re "MainThread... " {}
-    timeout {
-	error "can not dump call frames";
+    send "cont\n"
+    expect {
+	eof {puts "PASS\n" }
+	timeout { error "can not complete" }
     }
-}
-
-
-send "cont\n"
-expect {
-    -re "MainThread... " {}
-    timeout {
-	error "can not enumerate the threads";
-    }
-}
-
-send "where\n"
-expect {
-    -re "MainThread... " {}
-    timeout {
-	error "can not dump call frames";
-    }
-}
-
-
-send "cont\n"
-expect {
-    eof {puts "PASS\n" }
-    timeout {
-	error "can not complete"
-    }
-}
 }
 
 trun
 texit
 tthreadAndStack
 tbreakpoint
+texpr
