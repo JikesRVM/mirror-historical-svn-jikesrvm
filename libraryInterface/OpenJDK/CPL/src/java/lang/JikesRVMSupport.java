@@ -64,7 +64,7 @@ public class JikesRVMSupport {
 
   @Uninterruptible
   public static char[] getBackingCharArray(String str) {
-    return str.getValue();
+    return str.toCharArray();
   }
 
   @Uninterruptible

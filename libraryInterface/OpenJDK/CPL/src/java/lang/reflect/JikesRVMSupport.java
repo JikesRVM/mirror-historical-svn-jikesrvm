@@ -34,18 +34,18 @@ public class JikesRVMSupport {
   }
 
   public static Object createVMConstructor(RVMMethod m) {
-    throw new Error("Harmony doesn't provide the VMConstructor API");
+    throw new Error("JikesRVMSupport.createVMConstructor: TODO");
   }
 
   public static RVMField getFieldOf(Field f) {
-    return (RVMField)f.getVMMember();
+    return f.vmField;
   }
 
   public static RVMMethod getMethodOf(Method m) {
-    return (RVMMethod)m.getVMMember();
+    return m.method;
   }
 
   public static <T> RVMMethod getMethodOf(Constructor<T> cons) {
-    return (RVMMethod)cons.getVMMember();
+    return cons.constructor;
   }
 }
