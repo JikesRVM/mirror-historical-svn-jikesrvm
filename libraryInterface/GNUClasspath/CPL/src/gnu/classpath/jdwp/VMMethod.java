@@ -30,14 +30,17 @@ import org.jikesrvm.debug.JikesRVMJDWP;
 import gnu.classpath.jdwp.exception.AbsentInformationException;
 import gnu.classpath.jdwp.exception.InvalidMethodException;
 import gnu.classpath.jdwp.exception.JdwpException;
-import gnu.classpath.jdwp.exception.NotImplementedException;
 import gnu.classpath.jdwp.util.LineTable;
 import gnu.classpath.jdwp.util.VariableTable;
 
 /** JikesRVM Specific implementation of VMMethod. */
 public final class VMMethod  {
 
-  /** The size of the JDWP methodId is 8 (long). */
+  /**
+   * The size of the JDWP methodId is 8 (long), but we internally use only
+   * 32bits (int). methodId numbers more than 0xFFFFFFFF are invalid method
+   * identifiers.
+   */
   public static final int SIZE = 8;
 
   /** Obtain a vmmethod from the stream. */
@@ -46,6 +49,9 @@ public final class VMMethod  {
     long mid = bb.getLong();
     if (JikesRVMJDWP.getVerbose() >= 3) {
       VM.sysWriteln("VMMethod.readId: ", mid);
+    }
+    if ((mid & 0x0000FFFFL) != mid) {
+      throw new InvalidMethodException(mid);
     }
     MemberReference mref = MemberReference.getMemberRef((int) mid);
     MethodReference methref = mref.asMethodReference();
@@ -62,43 +68,72 @@ public final class VMMethod  {
   /** Constructor. */
   VMMethod(RVMMethod meth) {
     this.meth = meth;
-    if (VM.VerifyAssertions) {
-      VM._assert(meth != null);
-    }
+    if (VM.VerifyAssertions) {VM._assert(meth != null);}
   }
 
   /** Returns the internal method ID for this method. */
-  private final long getId() {
+  private long getId() {
     return meth.getId();
   }
 
   /** Returns the method's declaring class. */
-  public final Class<?> getDeclaringClass() {
+  public Class<?> getDeclaringClass() {
     RVMClass rvmclass = meth.getDeclaringClass();
     Class<?> cls = rvmclass.getClassForType();
     return cls;
   }
 
-  /** Returns the name of this method. */
-  public final String getName() {
+  /** 
+   * Returns the name of this method.
+   * @see jdwp-protocol.html#JDWP_ReferenceType_Methods 
+   */
+  public String getName() {
     final String name = meth.getName().toString();
     return name;
   }
 
-  /** Returns the signature of this method. */
-  public final String getSignature() {
+  /**
+   * Returns the signature of this method. The signature terminology here is
+   * quite confusing. The JDWP SPEC says this is a "JNI signature" in the JNI
+   * 1.2 (Java Native Interface) specification, which in turn says
+   * "the Java VM's representation of type signature." The description in the
+   * JNI manual seems to mean the method descriptor rather than the method
+   * signature. The JDK 1.5 explicitly differentiates between the method
+   * descriptor and signature. The method signature is the additional
+   * information to support Java generic. Here we return the method descriptor
+   * even thought the name is getSignature.
+   * 
+   * @see java.sun.com/javase/6/docs/technotes/guides/jni/spec/types.html#
+   *      wp16432
+   * @see java.sun.com/docs/books/jvms/second_edition/ClassFileFormat-Java5.pdf
+   */
+  public String getSignature() {
     String mdesc = meth.getDescriptor().toString();
     return mdesc;
   };
 
-  /** Returns the method's modifier flags. */
-  public final int getModifiers() {
-    final int modifiers = meth.getModifiers();
+  /**
+   * Returns the method's modifier flags. Now report only defined modifiers in
+   * the JVM spec. For instance, do not report synthetic modifier bit even
+   * though the JikesRVM keeps this attribute.
+   * 
+   * @see jdwp-protocol.html#JDWP_ReferenceType_Methods
+   * @see JVM spec $4.6 Methods
+   * @see ClassLoaderConstants
+   * @see VMVirtualMachine#canGetSyntheticAttribute
+   */
+  public int getModifiers() {
+    int modifiers = meth.getModifiers() & 0x053F;
     return modifiers;
   }
 
-  /** Retrieve the line number map for this Java method. */
-  public final LineTable getLineTable() throws JdwpException {
+  /** 
+   * Retrieve the line number map for this Java method.
+   * 
+   * @see jdwp-protocol.html#JDWP_Method_LineTable
+   * @see JVM spec 4.7.8 The LineNumberTable Attribute 
+   */
+  public LineTable getLineTable() throws JdwpException {
     if (JikesRVMJDWP.getVerbose() >= 3) {
       VM.sysWriteln("getLineTable: in ", toString());
     }
@@ -139,8 +174,13 @@ public final class VMMethod  {
     return new LineTable(start, end, lineNumbers, lineCodeIndecies);
   }
 
-  /** TODO: to-be-implemented. Retrieve the Java variable information.*/
-  public final VariableTable getVariableTable() throws JdwpException {
+  /**
+   * Retrieve Java variable information.
+   * 
+   * @see JVM spec 4.7.9 The LocalVariableTable Attribute
+   * @see jdwp-protocol.html#JDWP_Method_VariableTable
+   */
+  public VariableTable getVariableTable() throws JdwpException {
     if (JikesRVMJDWP.getVerbose() >= 3) {
       VM.sysWriteln("getVariableTable:", " in ", toString());
     }
@@ -165,7 +205,8 @@ public final class VMMethod  {
       lineCI[i] = lv.getStart_pc();
       slot[i] = lv.getIndex();
       lengths[i] = lv.getLength();
-      sigs[i] = lv.getDescriptor().toString();
+      // this is actually descriptor rather than the signature.
+      sigs[i] = lv.getDescriptor().toString(); 
       names[i] = lv.getName().toString();
     }
     return new VariableTable(argCnt, slots, lineCI, names,
@@ -173,7 +214,7 @@ public final class VMMethod  {
   }
 
   /** Write the methodId into the stream. */
-  public final void writeId(DataOutputStream ostream) throws IOException {
+  public void writeId(DataOutputStream ostream) throws IOException {
     if (JikesRVMJDWP.getVerbose() >= 3) {
       VM.sysWriteln("writeId: " +  getId() + " in " + toString());
     }
@@ -201,9 +242,7 @@ public final class VMMethod  {
   }
 
   /** Get a user friendly string representation. */
-  public final String toString() {
-    return meth.getDeclaringClass().toString()
-        + "." + meth.getName()
-        + meth.getDescriptor();
+  public String toString() {
+    return meth.toString();
   }
 }

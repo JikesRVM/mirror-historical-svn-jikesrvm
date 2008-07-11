@@ -12,7 +12,6 @@
  */
 package gnu.classpath.jdwp;
 
-import org.jikesrvm.ArchitectureSpecific.BaselineConstants;
 import org.jikesrvm.classloader.NativeMethod;
 import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.classloader.RVMMethod;

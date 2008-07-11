@@ -397,7 +397,6 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
       throw new InvalidThreadException(-1);
     }
     //perform call stack walk.
-    final RVMThread vmThread = ti.thread;
     final class FrameCount {int count;}
     final FrameCount fcnt = new FrameCount();
     ti.stackWalk(new StackFrameVisitor() {
@@ -517,7 +516,11 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
       break;
     }
     case JdwpConstants.EventKind.CLASS_UNLOAD: {
-      //TODO: Does JikesRVM actually perform class unloading?
+      // TODO: JikesRVM does not seem to unload class. If I return
+      // UNIMPLEMENTED. the JDB gives up starting the debugging session. Here,
+      // this agent will pretends that the class unloading event is available,
+      // but never report the class unloading event since this will never happen
+      // before the JikesRVM implements the class unloading.
       if (JikesRVMJDWP.getVerbose() >= 1) {
         VM.sysWriteln("pretend as if implemented(CLASS_UNLOAD).");
       }
@@ -601,9 +604,9 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
       VM.sysWriteln(" Suspend =  ", request.getSuspendPolicy(), " ]");
     }
 
-    //TODO: to-be-implemented. Do need to do actually anything? This
-    //is seems to be only performance issue. The JDWP's event matching
-    //logic will automacally deal with uninteresting events.
+    // TODO: to-be-implemented. Do need to do actually anything? This
+    // is seems to be only performance issue. The JDWP's event matching
+    // logic will automatically deal with uninteresting events.
     final byte eventKind = request.getEventKind();
     switch (eventKind) {
     case JdwpConstants.EventKind.SINGLE_STEP: {
@@ -654,8 +657,12 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
       break;
     }
     case JdwpConstants.EventKind.CLASS_UNLOAD: {
-      VM.sysWriteln("CLASS_UNLOAD is not implemented");
-      throw new NotImplementedException("CLASS_UNLOAD");
+      // TODO: JikesRVM does not seem to unload class. If I return
+      // UNIMPLEMENTED. the JDB gives up starting the debugging session. Here,
+      // this agent will pretends that the class unloading event is available,
+      // but never report the class unloading event since this will never happen
+      // before the JikesRVM implements the class unloading.
+      break;
     }
     case JdwpConstants.EventKind.CLASS_LOAD: {
       VM.sysWriteln("CLASS_LOAD event is not implemented");
@@ -805,80 +812,89 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
     }
   };
 
-  /** Redefine a class byte code. */
+  /** 
+   * Redefine a class byte code.
+   * This optional feature will not be implemented.
+   * @see VMVirtualMachine#canRedefineClasses 
+   */
   public static void redefineClasses(Class<?>[] types, byte[][] bytecodes)
       throws JdwpException {
-    // This optional feature will not be implemented.
-    if (JikesRVMJDWP.getVerbose() >= 1) {
-      VM.sysWriteln("redefineClasses is not implemnted!");
-    }
+    if (VM.VerifyAssertions) {VM._assert(false);}
     throw new NotImplementedException("redefineClasses");
   };
 
-  /** Set the default stratum. */
+  /**
+   * Set the default stratum.
+   * This optional feature will not be implemented.
+   * @see VMVirtualMachine#canSetDefaultStratum
+   */
   public static void setDefaultStratum(String stratum) throws JdwpException {
-    // This optional feature will not be implemented.
-    if (JikesRVMJDWP.getVerbose() >= 1) {
-      VM.sysWriteln("setDefaultStratum is not implemnted!");
-    }
+    if (VM.VerifyAssertions) {VM._assert(false);}
     throw new NotImplementedException("setDefaultStratum");
   };
 
-  /** Get the source debug extension atrribute for a class. */
+  /**
+   * Get the source debug extension attribute for a class.
+   * This optional feature will not be implemented.
+   * 
+   * @see VMVirtualMachine#canGetSourceDebugExtension 
+   */
   public static String getSourceDebugExtension(Class<?> klass)
       throws JdwpException {
-    // This optional feature will not be implemented.
-    if (JikesRVMJDWP.getVerbose() >= 1) {
-      VM.sysWriteln("getSourceDebugExtension is not implemnted!");
-    }
+    if (VM.VerifyAssertions) {VM._assert(false);}
     throw new NotImplementedException("getSourceDebugExtension");
   }
 
-  /** Get a byte codes for a method. */
+  /**
+   * Get a byte codes for a method. This optional feature will not be
+   * implemented, but the implementation is trivial.
+   * @see VMVirtualMachine#canGetBytecodes
+   */
   public static final byte[] getBytecodes(VMMethod method) throws JdwpException {
-    // This optional feature will not be implemented, but the
-    // implementation seems to be trivial.
-    if (JikesRVMJDWP.getVerbose() >= 1) {
-      VM.sysWriteln("getBytecodes is not implemnted!");
-    }
+    if (VM.VerifyAssertions) {VM._assert(false);}
     throw new NotImplementedException("getBytecodes");
   }
 
-  /** Get a monitor info. */
+  /** 
+   * Get a monitor info.
+   * This optional feature will not be implemented.
+   * @see VMVirtualMachine#canGetOwnedMonitorInfo
+   */
   public static MonitorInfo getMonitorInfo(Object obj) throws JdwpException {
-    // This optional feature will not be implemented.
-    if (JikesRVMJDWP.getVerbose() >= 1) {
-      VM.sysWriteln("getMonitorInfo is not implemnted!");
-    }
+    if (VM.VerifyAssertions) {VM._assert(false);}
     throw new NotImplementedException("getMonitorInfo");
   }
 
-  /** Get a owned monitor. */
+  /** 
+   * Get a owned monitor.
+   * This optional feature will not be implemented.
+   * @see VMVirtualMachine#canGetOwnedMonitorInfo
+   */
   public static Object[] getOwnedMonitors(Thread thread) throws JdwpException {
-    // This optional feature will not be implemented.
-    if (JikesRVMJDWP.getVerbose() >= 1) {
-      VM.sysWriteln("getOwnedMonitors is not implemnted!");
-    }
+    if (VM.VerifyAssertions) {VM._assert(false);}
     throw new NotImplementedException("getOwnedMonitors");
   }
 
-  /** Get a current contened monitor. */
+  /** 
+   * Get a current contended monitor.
+   * This optional feature will not be implemented.
+   * 
+   * @see VMVirtualMachine#canGetCurrentContendedMonitor
+   */
   public static Object getCurrentContendedMonitor(Thread thread)
       throws JdwpException {
-    // This optional feature will not be implemented.
-    if (JikesRVMJDWP.getVerbose() >= 1) {
-      VM.sysWriteln("getCurrentContendedMonitor is not implemnted!");
-    }
+    if (VM.VerifyAssertions) {VM._assert(false);}
     throw new NotImplementedException("getCurrentContendedMonitor");
   };
 
-  /** Pop all the frames until the given frame in a suspened thread. */
+  /**
+   * Pop all the frames until the given frame in a suspended thread.
+   * This optional feature will not be implemented.
+   * @see VMVirtualMachine#canPopFrames
+   */
   public static void popFrames(Thread thread, long frameId)
       throws JdwpException {
-    // This optional feature will not be implemented.
-    if (JikesRVMJDWP.getVerbose() >= 1) {
-      VM.sysWriteln("popFrames is not implemnted!");
-    }
+    if (VM.VerifyAssertions) {VM._assert(false);}
     throw new NotImplementedException("popFrames");
   }
 
