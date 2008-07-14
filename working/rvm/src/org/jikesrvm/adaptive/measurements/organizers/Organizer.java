@@ -17,6 +17,7 @@ import org.jikesrvm.adaptive.measurements.listeners.Listener;
 import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.scheduler.Latch;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.NonMoving;
 
 /**
  * An Organizer acts an an intermediary between the low level
@@ -24,6 +25,7 @@ import org.vmmagic.pragma.Uninterruptible;
  * simple or complex tasks, but it is always simply following the
  * instructions given by the controller.
  */
+@NonMoving
 public abstract class Organizer extends RVMThread {
 
   /** Constructor */

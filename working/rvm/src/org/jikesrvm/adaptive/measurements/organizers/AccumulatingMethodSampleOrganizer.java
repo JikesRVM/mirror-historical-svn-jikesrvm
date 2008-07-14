@@ -19,6 +19,7 @@ import org.jikesrvm.adaptive.measurements.RuntimeMeasurements;
 import org.jikesrvm.adaptive.measurements.listeners.MethodListener;
 import org.jikesrvm.adaptive.util.AOSLogging;
 import org.jikesrvm.scheduler.RVMThread;
+import org.vmmagic.pragma.NonMoving;
 
 /**
  * An organizer for method listener information that
@@ -28,6 +29,7 @@ import org.jikesrvm.scheduler.RVMThread;
  * This organizer is used to simply gather aggregate sample data and
  * report it.
  */
+@NonMoving
 public final class AccumulatingMethodSampleOrganizer extends Organizer {
 
   private MethodCountData data;

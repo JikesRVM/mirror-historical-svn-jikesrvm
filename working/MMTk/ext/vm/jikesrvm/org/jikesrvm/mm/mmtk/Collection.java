@@ -251,6 +251,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
     if (VM.VerifyAssertions) VM._assert(execStatus == RVMThread.IN_JAVA);
     Address fp = Magic.getFramePointer();
     while (true) {
+      VM.sysWriteln("preparecollector: fp = ",fp);
       Address caller_ip = Magic.getReturnAddress(fp);
       Address caller_fp = Magic.getCallerFramePointer(fp);
       if (Magic.getCallerFramePointer(caller_fp).EQ(ArchitectureSpecific.StackframeLayoutConstants.STACKFRAME_SENTINEL_FP))
@@ -261,6 +262,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
       Atom cls = method.getDeclaringClass().getDescriptor();
       Atom name = method.getName();
       if (name == runAtom && cls == collectorThreadAtom) {
+	VM.sysWriteln("found ip = ",caller_ip,", fp = ",caller_fp);
         t.contextRegisters.setInnermost(caller_ip, caller_fp);
         break;
       }

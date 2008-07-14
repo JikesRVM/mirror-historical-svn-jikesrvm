@@ -189,6 +189,7 @@ public class StackTrace {
       ip = Magic.getReturnAddress(fp);
       fp = Magic.getCallerFramePointer(fp);
     }
+    VM.sysWriteln("stack frame count = ",stackFrameCount);
     return stackFrameCount;
   }
 
@@ -207,6 +208,7 @@ public class StackTrace {
     ip = Magic.getReturnAddress(fp);
     fp = Magic.getCallerFramePointer(fp);
     while (Magic.getCallerFramePointer(fp).NE(STACKFRAME_SENTINEL_FP)) {
+      //VM.sysWriteln("at stackFrameCount = ",stackFrameCount);
       int compiledMethodId = Magic.getCompiledMethodID(fp);
       compiledMethods[stackFrameCount] = compiledMethodId;
       if (compiledMethodId != INVISIBLE_METHOD_ID) {
@@ -216,11 +218,16 @@ public class StackTrace {
           instructionOffsets[stackFrameCount] =
             compiledMethod.getInstructionOffset(ip).toInt();
           if (compiledMethod.hasBridgeFromNativeAnnotation()) {
+	    //VM.sysWriteln("native!");
             // skip native frames, stopping at last native frame preceeding the
             // Java To C transition frame
             fp = RuntimeEntrypoints.unwindNativeStackFrame(fp);
           }
-        }
+        } else {
+	  //VM.sysWriteln("trap!");
+	}
+      } else {
+	//VM.sysWriteln("invisible method!");
       }
       stackFrameCount++;
       ip = Magic.getReturnAddress(fp);
@@ -565,3 +572,9 @@ public class StackTrace {
     }
   }
 }
+
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

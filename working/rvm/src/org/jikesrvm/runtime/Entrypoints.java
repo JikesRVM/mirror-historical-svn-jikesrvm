@@ -367,7 +367,6 @@ public class Entrypoints {
   //////////////////
   public static final RVMField specializedMethodsField;
 
-  public static final RVMField osrOrganizerQueueLockField;
   public static final NormalMethod optThreadSwitchFromOsrOptMethod;
   public static final NormalMethod optThreadSwitchFromPrologueMethod;
   public static final NormalMethod optThreadSwitchFromBackedgeMethod;
@@ -385,7 +384,6 @@ public class Entrypoints {
           getField(org.jikesrvm.compilers.opt.SpecializedMethodPool.class,
                    "specializedMethods",
                    org.jikesrvm.ArchitectureSpecific.CodeArray[].class);
-      osrOrganizerQueueLockField = getField(org.jikesrvm.adaptive.OSR_OrganizerThread.class, "queueLock", int.class);
       optThreadSwitchFromOsrOptMethod =
           getMethod(org.jikesrvm.compilers.opt.runtimesupport.OptSaveVolatile.class, "yieldpointFromOsrOpt", "()V");
       optThreadSwitchFromPrologueMethod =
@@ -408,7 +406,6 @@ public class Entrypoints {
       sysArrayCopy.setRuntimeServiceMethod(false);
     } else {
       specializedMethodsField = null;
-      osrOrganizerQueueLockField = null;
       optThreadSwitchFromOsrOptMethod = null;
       optThreadSwitchFromPrologueMethod = null;
       optThreadSwitchFromBackedgeMethod = null;

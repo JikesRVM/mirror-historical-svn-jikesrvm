@@ -86,6 +86,8 @@ public class RVMThread extends MM_ThreadContext {
    */
   /** Trace thread blockage */
   protected static final boolean traceBlock = false;
+  /** Trace when a thread is really blocked */
+  protected static final boolean traceReallyBlock = true || traceBlock;
   /** Trace thread start/stop */
   protected static final boolean traceAcct = false;
   /** Trace execution */
@@ -1217,7 +1219,7 @@ public class RVMThread extends MM_ThreadContext {
 	break;
       }
       
-      if (traceBlock) VM.sysWriteln("Thread #",threadSlot," is really blocked");
+      if (traceReallyBlock) VM.sysWriteln("Thread #",threadSlot," is really blocked with status ",execStatus);
       
       // what if a GC request comes while we're here for a suspend()
       // request?
@@ -1385,6 +1387,8 @@ public class RVMThread extends MM_ThreadContext {
       
       // CAS the execStatus field
       int newState = setBlockedExecStatus();
+      
+      if (traceReallyBlock) VM.sysWriteln("Thread #",getCurrentThreadSlot()," is blocking thread #",threadSlot," which is in state ",newState);
       
       // this broadcast serves two purposes: notifies threads that are
       // IN_JAVA but waiting on monitor() that they should awake and
@@ -2859,6 +2863,15 @@ public class RVMThread extends MM_ThreadContext {
   public boolean isGCThread() {
     return false;
   }
+  
+  /**
+   * Is this a concurrent collector thread?  Concurrent collector threads
+   * need to be stopped during GC.
+   * @return false
+   */
+  public boolean isConcurrentGCThread() {
+    return false;
+  }
 
   /**
    * Is this the debugger thread?
@@ -3461,6 +3474,7 @@ public class RVMThread extends MM_ThreadContext {
   @LogicallyUninterruptible
   public static void dumpStack() {
     if (VM.runningVM) {
+      VM.sysWriteln("Dumping stack for Thread #",getCurrentThreadSlot(),"\n");
       dumpStack(Magic.getFramePointer());
     } else {
       StackTraceElement[] elements =

@@ -17,6 +17,8 @@ import org.jikesrvm.adaptive.controller.Controller;
 import org.jikesrvm.adaptive.controller.ControllerPlan;
 import org.jikesrvm.adaptive.util.AOSLogging;
 import org.jikesrvm.scheduler.RVMThread;
+import org.jikesrvm.VM;
+import org.vmmagic.pragma.NonMoving;
 
 /**
  *  This class is a separate thread whose job is to monitor a (priority)
@@ -27,6 +29,7 @@ import org.jikesrvm.scheduler.RVMThread;
  *  No intelligence is contained in this class.  All policy decisions are
  *  made by the controllerThread.
  */
+@NonMoving
 public final class CompilationThread extends RVMThread {
 
   /**
@@ -50,11 +53,19 @@ public final class CompilationThread extends RVMThread {
     while (true) {
       Object plan = Controller.compilationQueue.deleteMin();
       if (plan instanceof ControllerPlan) {
+	VM.sysWriteln("doing recompilation!");
         ((ControllerPlan) plan).doRecompile();
       } else if (plan instanceof OSR_OnStackReplacementPlan) {
+	VM.sysWriteln("doing OSR!");
         ((OSR_OnStackReplacementPlan) plan).execute();
       }
     }
   }
 
 }
+
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

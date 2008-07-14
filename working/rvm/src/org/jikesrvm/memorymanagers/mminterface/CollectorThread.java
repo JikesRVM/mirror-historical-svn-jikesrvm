@@ -357,7 +357,8 @@ public final class CollectorThread extends RVMThread {
 	  int numToHandshake=0;
 	  for (int i=0;i<RVMThread.numThreads;++i) {
 	    RVMThread t=threads[i];
-	    if (!t.isGCThread() && !t.ignoreHandshakesAndGC()) {
+	    if (!(t.isGCThread() && !t.isConcurrentGCThread()) &&
+		!t.ignoreHandshakesAndGC()) {
 	      RVMThread.handshakeThreads[numToHandshake++]=t;
 	    }
 	  }
@@ -396,7 +397,9 @@ public final class CollectorThread extends RVMThread {
       do {
         /* actually perform the GC... */
         if (verbose >= 2) VM.sysWriteln("GC Message: CT.run  starting collection");
+	RVMThread.getCurrentThread().disableYieldpoints();
         Selected.Collector.get().collect(); // gc
+	RVMThread.getCurrentThread().enableYieldpoints();
         if (verbose >= 2) VM.sysWriteln("GC Message: CT.run  finished collection");
 
         gcBarrier.rendezvous(5200);
@@ -480,7 +483,8 @@ public final class CollectorThread extends RVMThread {
 	int numToHandshake=0;
 	for (int i=0;i<RVMThread.numThreads;++i) {
 	  RVMThread t=threads[i];
-	  if (!t.isGCThread() && !t.ignoreHandshakesAndGC()) {
+	  if (!(t.isGCThread() && !t.isConcurrentGCThread()) &&
+	      !t.ignoreHandshakesAndGC()) {
 	    RVMThread.handshakeThreads[numToHandshake++]=t;
 	  }
 	}

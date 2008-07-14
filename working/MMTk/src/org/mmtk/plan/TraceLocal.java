@@ -85,7 +85,7 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    * @param root True if <code>objLoc</code> is within a root.
    */
   @Inline
-  public final void processEdge(ObjectReference source, Address slot) {
+  public /*PNT final*/ void processEdge(ObjectReference source, Address slot) {
     ObjectReference object = VM.activePlan.mutator().loadObjectReference(slot);
     ObjectReference newObject = traceObject(object, false);
     VM.activePlan.mutator().storeObjectReference(slot, newObject);
@@ -116,7 +116,7 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    * @param untraced True if <code>objLoc</code> is an untraced root.
    */
   @Inline
-  public final void processRootEdge(Address slot, boolean untraced) {
+  public /*PNT final*/ void processRootEdge(Address slot, boolean untraced) {
     ObjectReference object;
     if (untraced) object = slot.loadObjectReference();
     else     object = VM.activePlan.mutator().loadObjectReference(slot);
@@ -134,7 +134,7 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    * @param slot The location of the interior edge.
    * @param root True if this is a root edge.
    */
-  public final void processInteriorEdge(ObjectReference target, Address slot, boolean root) {
+  public /*PNT final*/ void processInteriorEdge(ObjectReference target, Address slot, boolean root) {
     Address interiorRef = slot.loadAddress();
     Offset offset = interiorRef.diff(target.toAddress());
     ObjectReference newTarget = traceObject(target, root);
@@ -570,3 +570,9 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
     }
   }
 }
+
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

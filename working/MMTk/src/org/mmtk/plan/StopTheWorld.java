@@ -62,7 +62,9 @@ public abstract class StopTheWorld extends Simple {
     super.postBoot();
 
     if (Options.sanityCheck.getValue()) {
-      if (getSanityChecker() == null || VM.activePlan.collector().getSanityChecker() == null) {
+      // PNT: FIXME: uncomment the below and make it work.  current problem:
+      // there are no collector contexts yet!
+      if (getSanityChecker() == null /*|| VM.activePlan.collector().getSanityChecker() == null*/) {
         Log.writeln("Collector does not support sanity checking!");
       } else {
         Log.writeln("Collection sanity checking enabled.");
@@ -72,3 +74,9 @@ public abstract class StopTheWorld extends Simple {
     }
   }
 }
+
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

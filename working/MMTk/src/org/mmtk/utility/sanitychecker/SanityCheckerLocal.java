@@ -168,7 +168,18 @@ import org.vmmagic.unboxed.*;
     if (global().preGCSanity())
       return SanityChecker.UNSURE;
 
+    Log.write("checking object = ");
+    Log.write(object);
+    Log.writeln();
+    
     Space space = Space.getSpaceForObject(object);
+
+    Log.write("space = ");
+    Log.write(ObjectReference.fromObject(space));
+    Log.writeln();
+    
+    VM.objectModel.dumpObject(object);
+
     return space.isReachable(object) ? SanityChecker.ALIVE : SanityChecker.DEAD;
   }
 
@@ -178,3 +189,9 @@ import org.vmmagic.unboxed.*;
   }
 
 }
+
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

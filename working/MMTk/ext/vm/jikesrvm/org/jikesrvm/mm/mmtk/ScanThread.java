@@ -226,7 +226,11 @@ import org.vmmagic.unboxed.Offset;
    * performing the scan.
    */
   private void scanThreadInternal(Address gprs, int verbosity) {
-    if (verbosity >= 1) Log.writeln("--- Start Of Stack Scan ---\n");
+    if (verbosity >= 1) {
+      Log.writeln("--- Start Of Stack Scan ---\n");
+      Log.write("Thread #");
+      Log.writeln(thread.getThreadSlot());
+    }
     if (VM.VerifyAssertions) assertImmovableInCurrentCollection();
 
     /* first find any references to exception handlers in the registers */

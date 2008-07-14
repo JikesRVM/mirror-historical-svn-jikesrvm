@@ -17,6 +17,7 @@ import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.RVMThread;
+import org.jikesrvm.VM;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
@@ -46,6 +47,8 @@ public class OSR_Listener {
     int ypTakenInCMID = Magic.getCompiledMethodID(fp);
     CompiledMethod ypTakenInCM = CompiledMethods.getCompiledMethod(ypTakenInCMID);
     if (ypTakenInCM.isOutdated() && ypTakenInCM.getCompilerType() == CompiledMethod.BASELINE) {
+      
+      VM.sysWriteln("doing OSR on backedge!");
 
       Address tsFromFP = yieldpointServiceMethodFP;
       Address realFP = Magic.getCallerFramePointer(tsFromFP);
@@ -62,6 +65,8 @@ public class OSR_Listener {
   }
 
   public static void handleOSRFromOpt(Address yieldpointServiceMethodFP) {
+    VM.sysWriteln("doing OSR on opt!");
+
     Address tsFromFP = yieldpointServiceMethodFP;
     Address realFP = Magic.getCallerFramePointer(tsFromFP);
     int ypTakenInCMID = Magic.getCompiledMethodID(realFP);
@@ -73,3 +78,8 @@ public class OSR_Listener {
     OSR_OnStackReplacementTrigger.trigger(ypTakenInCMID, tsFromFPoff, realFPoff, RVMThread.OSROPT);
   }
 }
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

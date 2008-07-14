@@ -31,6 +31,7 @@ import org.jikesrvm.adaptive.util.AOSGenerator;
 import org.jikesrvm.adaptive.util.AOSLogging;
 import org.jikesrvm.adaptive.util.AOSOptions;
 import org.jikesrvm.scheduler.RVMThread;
+import org.vmmagic.pragma.NonMoving;
 
 /**
  * This class implements the controller thread.  This entity is the brains of
@@ -42,6 +43,7 @@ import org.jikesrvm.scheduler.RVMThread;
  *     c) static information about a method; or
  *     d) all of the above.
  */
+@NonMoving
 public final class ControllerThread extends RVMThread {
 
   /**
@@ -152,6 +154,7 @@ public final class ControllerThread extends RVMThread {
       if (Controller.options.EARLY_EXIT && Controller.options.EARLY_EXIT_TIME < Controller.controllerClock) {
         Controller.stop();
       }
+      VM.sysWriteln("processing a controller input event.");
       Object event = Controller.controllerInputQueue.deleteMin();
       ((ControllerInputEvent) event).process();
     }

@@ -121,7 +121,8 @@ public final class MethodReference extends MemberReference {
    * For use by RVMMethod constructor
    */
   void setResolvedMember(RVMMethod it) {
-    if (VM.VerifyAssertions) VM._assert(resolvedMember == null || resolvedMember == it);
+    if (VM.VerifyAssertions) VM._assert(resolvedMember == null ||
+					resolvedMember == it);
     resolvedMember = it;
   }
 
@@ -378,3 +379,8 @@ public final class MethodReference extends MemberReference {
     return null;
   }
 }
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

@@ -22,6 +22,7 @@ import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.compilers.opt.runtimesupport.OptCompiledMethod;
 import org.jikesrvm.scheduler.RVMThread;
+import org.vmmagic.pragma.NonMoving;
 
 /**
  * An organizer for method listener information.
@@ -32,6 +33,7 @@ import org.jikesrvm.scheduler.RVMThread;
  * sample data with the new data and then notify the controller of all
  * methods that were sampled in the current window.
  */
+@NonMoving
 public final class MethodSampleOrganizer extends Organizer {
 
   /**

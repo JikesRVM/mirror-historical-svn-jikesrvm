@@ -17,6 +17,7 @@ import org.jikesrvm.runtime.Entrypoints;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.NonMoving;
 
 /**
  * Organizer thread collects OSR requests and inserted in controller queue
@@ -25,6 +26,7 @@ import org.vmmagic.pragma.Uninterruptible;
  * it is own flag "requesting_osr" and notify the consumer. The consumer
  * scans the threads array and collect requests.
  */
+@NonMoving
 public final class OSR_OrganizerThread extends RVMThread {
   /** Constructor */
   public OSR_OrganizerThread() {

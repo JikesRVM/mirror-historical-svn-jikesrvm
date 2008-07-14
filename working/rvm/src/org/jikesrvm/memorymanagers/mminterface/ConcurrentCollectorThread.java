@@ -158,5 +158,16 @@ public final class ConcurrentCollectorThread extends RVMThread {
     schedLock.broadcast();
     schedLock.unlock();
   }
+
+  /**
+   * Is this a concurrent collector thread?  Concurrent collector threads
+   * need to be stopped during GC.
+   * @return true
+   */
+  @Uninterruptible
+  public boolean isConcurrentGCThread() {
+    return true;
+  }
+
 }
 
