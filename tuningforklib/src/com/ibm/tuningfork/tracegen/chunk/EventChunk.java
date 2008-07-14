@@ -190,32 +190,29 @@ public final class EventChunk extends Chunk {
     return true;
   }
 
+  @Inline
   public boolean addEvent(long timeStamp, EventType et, int[] idata,
                           long[] ldata, double[] ddata, String[] sdata) {
     int ilen = (idata == null) ? 0 : idata.length;
     int llen = (ldata == null) ? 0 : ldata.length;
     int dlen = (ddata == null) ? 0 : ddata.length;
     int slen = (sdata == null) ? 0 : sdata.length;
-    int guess = ENCODING_SPACE_LONG + ENCODING_SPACE_INT + ilen
-    * ENCODING_SPACE_INT + llen * ENCODING_SPACE_LONG + dlen
-    * ENCODING_SPACE_DOUBLE;
-    for (int i = 0; i < slen; i++) {
-      guess += JikesRVMSupport.getStringLength(sdata[i]);
-    }
+    int guess = ENCODING_SPACE_LONG + ENCODING_SPACE_INT + ilen * ENCODING_SPACE_INT +
+                llen * ENCODING_SPACE_LONG + dlen * ENCODING_SPACE_DOUBLE;
     if (!hasRoom(guess)) {
       return false;
     }
     int savedPosition = getPosition();
-    addLong(timeStamp);
-    addInt(et.getIndex());
+    addLongUnchecked(timeStamp);
+    addIntUnchecked(et.getIndex());
     for (int i = 0; i < ilen; i++) {
-      addInt(idata[i]);
+      addIntUnchecked(idata[i]);
     }
     for (int i = 0; i < llen; i++) {
-      addLong(ldata[i]);
+      addLongUnchecked(ldata[i]);
     }
     for (int i = 0; i < dlen; i++) {
-      addDouble(ddata[i]);
+      addDoubleUnchecked(ddata[i]);
     }
     for (int i = 0; i < slen; i++) {
       if (!addString(sdata[i])) {

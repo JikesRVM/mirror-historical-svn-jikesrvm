@@ -15,6 +15,7 @@ package org.jikesrvm.tuningfork;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.runtime.VM_Time;
+import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
 
@@ -317,6 +318,36 @@ public final class VM_Feedlet {
     }
   }
 
+  /**
+   * Add an event to the feedlet's generated event stream
+   * @param et
+   * @param idata an array of int data values (may be null if no such values for this event)
+   * @param ldata an array of long data values (may be null if no such values for this event)
+   * @param ddata an array of double data values (may be null if no such values for this event)
+   * @param sdata an array of String data values (may be null if no such values for this event)
+   */
+  @Inline
+  public void addEvent(EventType et, int[] idata, long[] ldata, double[] ddata, String[] sdata) {
+    if (!enabled) return;
+    if (CHECK_TYPES) {
+      int ilen = idata == null ? 0 : idata.length;
+      int llen = ldata == null ? 0 : ldata.length;
+      int dlen = ddata == null ? 0 : ddata.length;
+      int slen = sdata == null ? 0 : sdata.length;
+      if (!checkTypes(et, ilen, llen, dlen, slen)) return;
+    }
+
+    long timeStamp = getTimeStamp();
+    while (true) {
+      if (events == null && !acquireEventChunk()) {
+        return; /* failure */
+      }
+      if (events.addEvent(timeStamp, et, idata, ldata, ddata, sdata)) {
+        return; /* success */
+      }
+      flushEventChunk(); /* events is full or stale; flush and try again */
+    }
+  }
 
   private boolean checkTypes(EventType et, int numInts, int numLongs, int numDoubles, int numStrings) {
     if (et.getNumberOfInts() != numInts ||

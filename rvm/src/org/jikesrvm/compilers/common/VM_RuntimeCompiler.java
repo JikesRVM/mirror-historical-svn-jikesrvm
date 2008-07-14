@@ -141,19 +141,19 @@ public class VM_RuntimeCompiler implements VM_Constants, VM_Callbacks.ExitMonito
                       compiledMethod.getCompilationTime());
 
     if (VM.BuildForAdaptiveSystem) {
-      if (VM_AOSLogging.logger.booted()) {
-        VM_AOSLogging.logger.recordUpdatedCompilationRates(compiler,
-                                                    method,
-                                                    method.getBytecodeLength(),
-                                                    totalBCLength[compiler],
-                                                    compiledMethod.numberOfInstructions(),
-                                                    totalMCLength[compiler],
-                                                    compiledMethod.getCompilationTime(),
-                                                    totalCompTime[compiler],
-                                                    totalLogOfRates[compiler],
-                                                    totalLogValueMethods[compiler],
-                                                    totalMethods[compiler]);
-      }
+      VM_AOSLogging.logger.methodCompiled(compiler, method, compiledMethod);
+
+      VM_AOSLogging.logger.recordUpdatedCompilationRates(compiler,
+                                                         method,
+                                                         method.getBytecodeLength(),
+                                                         totalBCLength[compiler],
+                                                         compiledMethod.numberOfInstructions(),
+                                                         totalMCLength[compiler],
+                                                         compiledMethod.getCompilationTime(),
+                                                         totalCompTime[compiler],
+                                                         totalLogOfRates[compiler],
+                                                         totalLogValueMethods[compiler],
+                                                         totalMethods[compiler]);
     }
   }
 

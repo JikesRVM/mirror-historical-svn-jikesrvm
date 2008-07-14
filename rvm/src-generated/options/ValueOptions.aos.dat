@@ -42,10 +42,6 @@ What triggers us to take a method sample?
 "CGL_TIMER cgTimer timer" \
 "CGL_CBS cgCBS cbs"
 
-V LOGFILE_NAME String \"AOSLog.txt\" lf
-Name of log file
-
-
 V COMPILATION_ADVICE_FILE_OUTPUT String \"aosadvice.ca\" cafo
 Name of advice file
 

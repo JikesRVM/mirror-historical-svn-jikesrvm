@@ -12,21 +12,15 @@
  */
 package org.jikesrvm.adaptive.util;
 
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.PrintStream;
-
 import org.jikesrvm.VM;
 import org.jikesrvm.adaptive.controller.VM_Controller;
 import org.jikesrvm.adaptive.controller.VM_ControllerPlan;
 import org.jikesrvm.adaptive.controller.VM_HotMethodEvent;
-import org.jikesrvm.adaptive.recompilation.VM_CompilerDNA;
 import org.jikesrvm.classloader.VM_Method;
 import org.jikesrvm.classloader.VM_NormalMethod;
 import org.jikesrvm.compilers.common.VM_CompiledMethod;
-import org.jikesrvm.compilers.common.VM_RuntimeCompiler;
 import org.jikesrvm.compilers.opt.driver.CompilationPlan;
-import org.jikesrvm.runtime.VM_Time;
+import org.jikesrvm.compilers.opt.runtimesupport.VM_OptCompiledMethod;
 import org.jikesrvm.scheduler.VM_Processor;
 import org.jikesrvm.tuningfork.VM_Engine;
 
@@ -52,11 +46,6 @@ public class VM_AOSLogging {
   public static final VM_AOSLogging logger = new VM_AOSLogging();
 
   /**
-   * The output file stream, where all log messages will go
-   */
-  private PrintStream log;
-
-  /**
    * Record that the AOS logging has been booted.
    * Needed to allow fast exit from reporting to ensure
    * that when no class is specified to be run but "-help" is specified,
@@ -76,6 +65,8 @@ public class VM_AOSLogging {
 
   private EventType compilerSpeedup;
   private EventType compilationRate;
+  private EventType methodMapping;
+  private EventType methodCompiled;
 
 
   /**
@@ -87,13 +78,6 @@ public class VM_AOSLogging {
   }
 
   /**
-   * Helper routine to produce the current time as a string
-   */
-  private String getTime() {
-    return VM_Controller.controllerClock + ":" + VM_Time.nanoTime();
-  }
-
-  /**
    * Called from VM_ControllerThread.run to initialize the logging subsystem
    */
   public void boot() {
@@ -101,33 +85,29 @@ public class VM_AOSLogging {
     level = VM_Controller.options.LOGGING_LEVEL;
 
     /* Define properties */
-    for (int i=0; i<VM_CompilerDNA.getNumberOfCompilers(); i++) {
-      engine.addProperty("AOS_COMPILER_NAME:"+i, VM_CompilerDNA.getCompilerString(i));
-    }
+    engine.addProperty("COMPILER_NAME:0", "JNI Compiler");
+    engine.addProperty("COMPILER_NAME:1", "Baseline Compiler");
+    engine.addProperty("COMPILER_NAME:2", "Optimizing Compiler");
+
+    /* Attributes used across a number of EventTypes */
+    EventAttribute compiler = new EventAttribute("compiler", "Numeric id of compiler", ScalarType.INT);
+    EventAttribute optLevel = new EventAttribute("opt level", "Optimization level used for this compilation", ScalarType.INT);
+    EventAttribute mid = new EventAttribute("mid", "Method Id", ScalarType.INT);
+    EventAttribute cmid = new EventAttribute("cmid", "Compiled Method Id", ScalarType.INT);
 
     /* Define EventTypes */
-    compilerSpeedup = engine.defineEvent("CompilerSpeedup", "Speedup of given compiler over baseline compiler",
-                                         new EventAttribute[] { new EventAttribute("Compiler", "Numeric id of compiler", ScalarType.INT),
-                                                                new EventAttribute("Speedup", "Speedup expected of this compiler", ScalarType.DOUBLE) });
-    compilationRate = engine.defineEvent("CompilationRate", "Compilation time of given compiler compared to baseline compiler",
-                                         new EventAttribute[] { new EventAttribute("Compiler", "Numeric id of compiler", ScalarType.INT),
-                                                                new EventAttribute("Rate", "Compilation Rate expected of this compiler", ScalarType.DOUBLE) });
+    compilerSpeedup = engine.defineEvent("Compiler Speedup", "Speedup of given compiler over baseline compiler",
+                                         new EventAttribute[] { compiler, optLevel, new EventAttribute("Speedup", "Speedup expected of this compiler", ScalarType.DOUBLE) });
+    compilationRate = engine.defineEvent("Compilation Rate", "Compilation time of given compiler compared to baseline compiler",
+                                         new EventAttribute[] { compiler, optLevel, new EventAttribute("Rate", "Compilation Rate expected of this compiler", ScalarType.DOUBLE) });
+    methodMapping = engine.defineEvent("Method Mapping", "Mapping of method id to source level name of method",
+                                       new EventAttribute[] { mid,
+                                                              new EventAttribute("class", "Declaring class of the method", ScalarType.STRING),
+                                                              new EventAttribute("name", "Method name", ScalarType.STRING),
+                                                              new EventAttribute("descriptor", "Method descriptor", ScalarType.STRING) });
+    methodCompiled = engine.defineEvent("Method Compiled", "A method has been dynamically compiled",
+                                        new EventAttribute[] { mid, cmid, compiler, optLevel });
 
-    if (level >= 1) {
-      try {
-        log = new PrintStream(new FileOutputStream(VM_Controller.options.LOGFILE_NAME));
-
-        // This statement will force the compilation of println, so it
-        // is needed regardless of the particular content of the message!
-        synchronized (log) {
-          log.println(getTime() + " Logging enabled\n");
-          log.println(VM_Controller.options);
-        }
-      } catch (IOException e) {
-        VM.sysWrite("IOException caught in VM_AOSLogging.java while trying to create and start log file.\n");
-        VM.sysWrite("Please check for file permission problems\n");
-      }
-    }
     booted = true;
   }
 
@@ -140,12 +120,12 @@ public class VM_AOSLogging {
    * @param decayCount the number of decay events
    */
   public void decayStatistics(int decayCount) {
-    if (!booted) return; // fast exit
-    if (level >= 1) {
-      synchronized (log) {
-        log.print(getTime() + " Decay Organizer Statistics: \n\t" + " Num of Decay events: " + decayCount + "\n");
-      }
-    }
+//    if (!booted) return; // fast exit
+//    if (level >= 1) {
+//      synchronized (log) {
+//        log.print(getTime() + " Decay Organizer Statistics: \n\t" + " Num of Decay events: " + decayCount + "\n");
+//      }
+//    }
   }
 
   /**
@@ -211,9 +191,9 @@ public class VM_AOSLogging {
    * @param compiler the compiler you are reporting about
    * @param rate the speedup rate
    */
-  public void reportSpeedupRate(int compiler, double rate) {
+  public void reportSpeedupRate(int compiler, int optLevel, double rate) {
     if (level >= 1) {
-      VM_Processor.getCurrentFeedlet().addEvent(compilerSpeedup, compiler, rate);
+      VM_Processor.getCurrentFeedlet().addEvent(compilerSpeedup, compiler, optLevel, rate);
     }
   }
 
@@ -222,9 +202,27 @@ public class VM_AOSLogging {
    * @param compiler the compiler you are reporting about
    * @param rate the compilation rate (bytecodes per millisecond)
    */
-  public void reportCompilationRate(int compiler, double rate) {
+  public void reportCompilationRate(int compiler, int optLevel, double rate) {
     if (level >= 1) {
-      VM_Processor.getCurrentFeedlet().addEvent(compilationRate, compiler, rate);
+      VM_Processor.getCurrentFeedlet().addEvent(compilationRate, compiler, optLevel, rate);
+    }
+  }
+
+  public void methodCompiled(int compiler, VM_NormalMethod method, VM_CompiledMethod compiledMethod) {
+    if (level >= 1) {
+      VM_Processor.getCurrentFeedlet().addEvent(methodMapping,
+                                                new int[] { method.getId() },
+                                                null,
+                                                null,
+                                                new String[] { method.getDeclaringClass().getClassForType().getName(),
+                                                               method.getName().toString(),
+                                                               method.getDescriptor().toString()});
+      if (compiledMethod instanceof VM_OptCompiledMethod) {
+        VM_OptCompiledMethod optMeth = (VM_OptCompiledMethod)compiledMethod;
+        VM_Processor.getCurrentFeedlet().addEvent(methodCompiled, method.getId(), compiledMethod.getId(), compiler, optMeth.getOptLevel());
+      } else {
+        VM_Processor.getCurrentFeedlet().addEvent(methodCompiled, method.getId(), compiledMethod.getId(), compiler, -1);
+      }
     }
   }
 
@@ -240,10 +238,10 @@ public class VM_AOSLogging {
    */
   public void recompilationScheduled(CompilationPlan plan, double priority) {
     if (level >= 2) {
-      synchronized (log) {
-        log.println(getTime() + " Scheduling level " + plan.options.getOptLevel() + " recompilation of " + plan
-            .method + " (plan has priority " + priority + ")");
-      }
+//      synchronized (log) {
+//        log.println(getTime() + " Scheduling level " + plan.options.getOptLevel() + " recompilation of " + plan
+//            .method + " (plan has priority " + priority + ")");
+//      }
     }
   }
 
@@ -253,9 +251,9 @@ public class VM_AOSLogging {
    */
   public void recompilationStarted(CompilationPlan plan) {
     if (level >= 2) {
-      synchronized (log) {
-        log.println(getTime() + " Recompiling (at level " + plan.options.getOptLevel() + ") " + plan.method);
-      }
+//      synchronized (log) {
+//        log.println(getTime() + " Recompiling (at level " + plan.options.getOptLevel() + ") " + plan.method);
+//      }
     }
   }
 
@@ -266,11 +264,9 @@ public class VM_AOSLogging {
    */
   public void recompilationCompleted(CompilationPlan plan) {
     if (level >= 2) {
-      synchronized (log) {
-        //        log.println(getTime() +"  Recompiled (at level "+
-        //                    plan.options.getOptLevel() +") " +plan.method);
-        log.println(getTime() + "  Recompiled (at level " + plan.options.getOptLevel() + ") " + plan.method);
-      }
+//      synchronized (log) {
+//        log.println(getTime() + "  Recompiled (at level " + plan.options.getOptLevel() + ") " + plan.method);
+//      }
     }
   }
 
@@ -279,11 +275,11 @@ public class VM_AOSLogging {
    * @param plan the Compilation plan being executed.
    */
   public void recompilationAborted(CompilationPlan plan) {
-    if (level >= 2) {
-      synchronized (log) {
-        log.println(getTime() + " Failed recompiling (at level " + plan.options.getOptLevel() + " " + plan.method);
-      }
-    }
+//    if (level >= 2) {
+//      synchronized (log) {
+//        log.println(getTime() + " Failed recompiling (at level " + plan.options.getOptLevel() + " " + plan.method);
+//      }
+//    }
   }
 
   /**
@@ -292,23 +288,23 @@ public class VM_AOSLogging {
    * @param expectedCompilationTime the model-derived expected compilation time
    */
   public void recordCompileTime(VM_CompiledMethod cm, double expectedCompilationTime) {
-    if (log != null && level >= 2) {
-      synchronized (log) {
-        double compTime = cm.getCompilationTime();
-        log.println(getTime() +
-                    " Compiled " +
-                    cm.getMethod() +
-                    " with " +
-                    cm.getCompilerName() +
-                    " in " +
-                    compTime +
-                    " ms" +
-                    ", model estimated: " +
-                    expectedCompilationTime +
-                    " ms" +
-                    ", rate: " +
-                    (((VM_NormalMethod) cm.getMethod()).getBytecodeLength() / compTime));
-      }
+    if (level >= 2) {
+//      synchronized (log) {
+//        double compTime = cm.getCompilationTime();
+//        log.println(getTime() +
+//                    " Compiled " +
+//                    cm.getMethod() +
+//                    " with " +
+//                    cm.getCompilerName() +
+//                    " in " +
+//                    compTime +
+//                    " ms" +
+//                    ", model estimated: " +
+//                    expectedCompilationTime +
+//                    " ms" +
+//                    ", rate: " +
+//                    (((VM_NormalMethod) cm.getMethod()).getBytecodeLength() / compTime));
+//      }
     }
   }
 
@@ -319,9 +315,9 @@ public class VM_AOSLogging {
    */
   public void oldVersionStillHot(VM_HotMethodEvent hme) {
     if (level >= 2) {
-      synchronized (log) {
-        log.println(getTime() + " Found a method with an old version still hot " + hme);
-      }
+//      synchronized (log) {
+//        log.println(getTime() + " Found a method with an old version still hot " + hme);
+//      }
     }
   }
 
@@ -330,9 +326,9 @@ public class VM_AOSLogging {
    */
   public void decayingCounters() {
     if (level >= 2) {
-      synchronized (log) {
-        log.println(getTime() + " Decaying clock and decayable objects");
-      }
+//      synchronized (log) {
+//        log.println(getTime() + " Decaying clock and decayable objects");
+//      }
     }
   }
 
@@ -342,9 +338,9 @@ public class VM_AOSLogging {
    */
   public void organizerThresholdReached() {
     if (level >= 2) {
-      synchronized (log) {
-        log.println(getTime() + " OrganizerThread reached sample size threshold\n");
-      }
+//      synchronized (log) {
+//        log.println(getTime() + " OrganizerThread reached sample size threshold\n");
+//      }
     }
   }
 
@@ -357,17 +353,17 @@ public class VM_AOSLogging {
    */
   public void controllerNotifiedForHotness(VM_CompiledMethod hotMethod, double numSamples) {
     if (level >= 2) {
-      synchronized (log) {
-        log.println(getTime() +
-                    " Controller notified that method " +
-                    hotMethod.getMethod() +
-                    "(" +
-                    hotMethod.getId() +
-                    ")" +
-                    " has " +
-                    numSamples +
-                    " samples");
-      }
+//      synchronized (log) {
+//        log.println(getTime() +
+//                    " Controller notified that method " +
+//                    hotMethod.getMethod() +
+//                    "(" +
+//                    hotMethod.getId() +
+//                    ")" +
+//                    " has " +
+//                    numSamples +
+//                    " samples");
+//      }
     }
   }
 
@@ -383,15 +379,15 @@ public class VM_AOSLogging {
    */
   public void recordControllerEstimateCostDoNothing(VM_Method method, int optLevel, double cost) {
     if (level >= 3) {
-      synchronized (log) {
-        log.print(getTime() + "  Estimated cost of doing nothing (leaving at ");
-        if (optLevel == -1) {
-          log.print("baseline");
-        } else {
-          log.print("O" + optLevel);
-        }
-        log.println(") to " + method + " is " + cost);
-      }
+//      synchronized (log) {
+//        log.print(getTime() + "  Estimated cost of doing nothing (leaving at ");
+//        if (optLevel == -1) {
+//          log.print("baseline");
+//        } else {
+//          log.print("O" + optLevel);
+//        }
+//        log.println(") to " + method + " is " + cost);
+//      }
     }
   }
 
@@ -405,17 +401,17 @@ public class VM_AOSLogging {
   public void recordControllerEstimateCostOpt(VM_Method method, String choiceDesc, double compilationTime,
                                               double futureTime) {
     if (level >= 3) {
-      synchronized (log) {
-        log.println(getTime() +
-                    "  Estimated cost of OPT compiling " +
-                    method +
-                    " at " +
-                    choiceDesc +
-                    " is " +
-                    compilationTime +
-                    ", total future time is " +
-                    futureTime);
-      }
+//      synchronized (log) {
+//        log.println(getTime() +
+//                    "  Estimated cost of OPT compiling " +
+//                    method +
+//                    " at " +
+//                    choiceDesc +
+//                    " is " +
+//                    compilationTime +
+//                    ", total future time is " +
+//                    futureTime);
+//      }
     }
   }
 
@@ -439,32 +435,32 @@ public class VM_AOSLogging {
                                             int totalLogValueMethods, int totalMethods) {
 
     if (level >= 3) {
-      synchronized (log) {
-        boolean backBranch = false;
-        if (method instanceof VM_NormalMethod) {
-          backBranch = ((VM_NormalMethod) method).hasBackwardsBranch();
-        }
-        log.println(getTime() +
-                    "  Updated compilation rates for " +
-                    VM_RuntimeCompiler.getCompilerName(compiler) +
-                    "compiler");
-        log.println("\tmethod compiled: " + method);
-        log.println("\tbyte code length: " + BCLength + ", Total: " + totalBCLength);
-        log.println("\tmachine code length: " + MCLength + ", Total: " + totalMCLength);
-        log.println("\tbackwards branch: " + (backBranch ? "yes" : "no"));
-        log.println("\tcompilation time: " + compTime + ", Total: " + totalCompTime);
-        log.println("\tRate for this method: " + BCLength / compTime + ", Total of Logs: " + totalLogOfRates);
-        log.println("\tTotal Methods: " + totalMethods);
-        log.println("\tNew Rate: " + Math.exp(totalLogOfRates / totalLogValueMethods));
-      }
+//      synchronized (log) {
+//        boolean backBranch = false;
+//        if (method instanceof VM_NormalMethod) {
+//          backBranch = ((VM_NormalMethod) method).hasBackwardsBranch();
+//        }
+//        log.println(getTime() +
+//                    "  Updated compilation rates for " +
+//                    VM_RuntimeCompiler.getCompilerName(compiler) +
+//                    "compiler");
+//        log.println("\tmethod compiled: " + method);
+//        log.println("\tbyte code length: " + BCLength + ", Total: " + totalBCLength);
+//        log.println("\tmachine code length: " + MCLength + ", Total: " + totalMCLength);
+//        log.println("\tbackwards branch: " + (backBranch ? "yes" : "no"));
+//        log.println("\tcompilation time: " + compTime + ", Total: " + totalCompTime);
+//        log.println("\tRate for this method: " + BCLength / compTime + ", Total of Logs: " + totalLogOfRates);
+//        log.println("\tTotal Methods: " + totalMethods);
+//        log.println("\tNew Rate: " + Math.exp(totalLogOfRates / totalLogValueMethods));
+//      }
     }
   }
 
   public void compileAllMethodsCompleted() {
     if (level >= 2) {
-      synchronized (log) {
-        log.println(VM_Controller.controllerClock + "  Compiled all methods finished. ");
-      }
+//      synchronized (log) {
+//        log.println(VM_Controller.controllerClock + "  Compiled all methods finished. ");
+//      }
     }
   }
 
@@ -480,92 +476,92 @@ public class VM_AOSLogging {
   public void recordOSRRecompilationDecision(VM_ControllerPlan plan) {
     CompilationPlan cplan = plan.getCompPlan();
     if (level >= 1) {
-      synchronized (log) {
-        log.println(getTime() + " recompile with OSR " + "( at level " + cplan.options.getOptLevel() + " ) " + cplan
-            .method);
-      }
+//      synchronized (log) {
+//        log.println(getTime() + " recompile with OSR " + "( at level " + cplan.options.getOptLevel() + " ) " + cplan
+//            .method);
+//      }
     }
   }
 
   public void onStackReplacementStarted(CompilationPlan plan) {
     if (level >= 1) {
-      synchronized (log) {
-        log.println(getTime() + " OSR starts " + "( at level " + plan.options.getOptLevel() + " ) " + plan.method);
-      }
+//      synchronized (log) {
+//        log.println(getTime() + " OSR starts " + "( at level " + plan.options.getOptLevel() + " ) " + plan.method);
+//      }
     }
   }
 
   public void onStackReplacementCompleted(CompilationPlan plan) {
     if (level >= 1) {
-      synchronized (log) {
-        log.println(getTime() + " OSR ends " + "( at level " + plan.options.getOptLevel() + " ) " + plan.method);
-      }
+//      synchronized (log) {
+//        log.println(getTime() + " OSR ends " + "( at level " + plan.options.getOptLevel() + " ) " + plan.method);
+//      }
     }
   }
 
   public void onStackReplacementAborted(CompilationPlan plan) {
     if (level >= 1) {
-      synchronized (log) {
-        log.println(getTime() + " OSR failed " + "( at level " + plan.options.getOptLevel() + " ) " + plan.method);
-      }
+//      synchronized (log) {
+//        log.println(getTime() + " OSR failed " + "( at level " + plan.options.getOptLevel() + " ) " + plan.method);
+//      }
     }
   }
 
   public void logOsrEvent(String s) {
     if (level >= 1) {
-      synchronized (log) {
-        log.println(getTime() + " " + s);
-      }
+//      synchronized (log) {
+//        log.println(getTime() + " " + s);
+//      }
     }
   }
 
   public void deOptimizationStarted() {
     if (level >= 1) {
-      synchronized (log) {
-        log.println(getTime() + " Deoptimization starts ");
+//      synchronized (log) {
+//        log.println(getTime() + " Deoptimization starts ");
+//      }
       }
-    }
   }
 
   public void deOptimizationCompleted() {
     if (level >= 1) {
-      synchronized (log) {
-        log.println(getTime() + " Deoptimization ends.");
-      }
+//      synchronized (log) {
+//        log.println(getTime() + " Deoptimization ends.");
+//      }
     }
   }
 
   public void deOptimizationAborted() {
     if (level >= 1) {
-      synchronized (log) {
-        log.println(getTime() + " Deoptimization aborted.");
-      }
+//      synchronized (log) {
+//        log.println(getTime() + " Deoptimization aborted.");
+//      }
     }
   }
 
   public void debug(String s) {
     if (level >= 2) {
-      synchronized (log) {
-        log.println(getTime() + s);
-      }
+//      synchronized (log) {
+//        log.println(getTime() + s);
+//      }
     }
   }
 
   public void onstackreplacementStarted(CompilationPlan plan) {
-    synchronized (log) {
-      log.println(getTime() + " OSR starts " + "( at level " + plan.options.getOptLevel() + " ) " + plan.method);
-    }
+//    synchronized (log) {
+//      log.println(getTime() + " OSR starts " + "( at level " + plan.options.getOptLevel() + " ) " + plan.method);
+//    }
   }
 
   public void onstackreplacementCompleted(CompilationPlan plan) {
-    synchronized (log) {
-      log.println(getTime() + " OSR ends " + "( at level " + plan.options.getOptLevel() + " ) " + plan.method);
-    }
+//    synchronized (log) {
+//      log.println(getTime() + " OSR ends " + "( at level " + plan.options.getOptLevel() + " ) " + plan.method);
+//    }
   }
 
   public void onstackreplacementAborted(CompilationPlan plan) {
-    synchronized (log) {
-      log.println(getTime() + " OSR failed " + "( at level " + plan.options.getOptLevel() + " ) " + plan.method);
-    }
+//    synchronized (log) {
+//      log.println(getTime() + " OSR failed " + "( at level " + plan.options.getOptLevel() + " ) " + plan.method);
+//    }
   }
 }

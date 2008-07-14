@@ -172,10 +172,14 @@ public class VM_CompilerDNA implements VM_Constants {
     }
 
     for (int i = 0; i < compilationRates.length; i++) {
-      VM_AOSLogging.logger.reportCompilationRate(i, compilationRates[i]);
+      VM_AOSLogging.logger.reportCompilationRate(getRuntimeCompilerCompilerConstant(i),
+                                                 getOptLevel(i),
+                                                 compilationRates[i]);
     }
     for (int i = 0; i < speedupRates.length; i++) {
-      VM_AOSLogging.logger.reportSpeedupRate(i, speedupRates[i]);
+      VM_AOSLogging.logger.reportSpeedupRate(getRuntimeCompilerCompilerConstant(i),
+                                             getOptLevel(i),
+                                             speedupRates[i]);
     }
 
     // Compute MAX_OPT_LEVEL
@@ -288,6 +292,22 @@ public class VM_CompilerDNA implements VM_Constants {
         return -99;
     }
   }
+
+  /**
+   * A mapping from an CompilerDNA compiler number to the compiler numbers used by VM_RuntimeCompiler
+   * TODO: unify the various enumerations of compiler numbers into a coherent, single enum.
+   */
+  public static int getRuntimeCompilerCompilerConstant(int compiler) {
+    switch (compiler) {
+      case BASELINE:
+        return VM_RuntimeCompiler.BASELINE_COMPILER;
+      case OPT0: case OPT1: case OPT2:
+        return VM_RuntimeCompiler.COMPILER;
+      default:
+        return -1;
+    }
+  }
+
 
   /**
    * maps a compiler constant to a string
