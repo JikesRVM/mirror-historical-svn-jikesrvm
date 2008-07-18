@@ -90,7 +90,7 @@ import org.vmmagic.unboxed.Offset;
    * MULTIPLE GC THREADS WILL PRODUCE SCRAMBLED OUTPUT so only
    * use these when running with PROCESSORS=1
    */
-  static final int DEFAULT_VERBOSITY = 0;
+  static final int DEFAULT_VERBOSITY = 0 /*0*/;
   static final int FAILURE_VERBOSITY = 3;
 
   /***********************************************************************
@@ -156,6 +156,7 @@ import org.vmmagic.unboxed.Offset;
 
     /* Registers */
     trace.reportDelayedRootEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadContextRegistersField.getOffset()));
+    trace.reportDelayedRootEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadContextRegistersSaveField.getOffset()));
     trace.reportDelayedRootEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadExceptionRegistersField.getOffset()));
 
     /* Scan the JNI Env field */

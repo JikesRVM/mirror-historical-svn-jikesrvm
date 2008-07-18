@@ -416,6 +416,13 @@ public class RVMThread extends MM_ThreadContext {
   public final Registers contextRegisters;
 
   /**
+   * Place to save register state when this thread is not actually running.
+   */
+  @Entrypoint
+  @Untraced
+  public final Registers contextRegistersSave;
+
+  /**
    * Place to save register state during hardware(C signal trap handler) or
    * software (RuntimeEntrypoints.athrow) trap handling.
    */
@@ -1015,8 +1022,9 @@ public class RVMThread extends MM_ThreadContext {
     this.daemon = daemon;
     this.priority = priority;
 
-    contextRegisters   = new Registers();
-    exceptionRegisters = new Registers();
+    contextRegisters     = new Registers();
+    contextRegistersSave = new Registers();
+    exceptionRegisters   = new Registers();
 
     if(VM.VerifyAssertions) VM._assert(stack != null);
     // put self in list of threads known to scheduler and garbage collector
@@ -1315,7 +1323,6 @@ public class RVMThread extends MM_ThreadContext {
   @NoInline
   @NoOptCompile
   @BaselineSaveLSRegisters
-  // PNT: make sure we generate GC maps for unint methods
   final void checkBlock() {
     Magic.saveThreadState(contextRegisters);
     checkBlockNoSaveContext();

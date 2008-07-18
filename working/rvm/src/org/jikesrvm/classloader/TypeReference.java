@@ -168,7 +168,7 @@ public final class TypeReference {
   public static final TypeReference BaselineNoRegisters =
       VM.BuildForIA32 ? null : findOrCreate(org.vmmagic.pragma.BaselineNoRegisters.class);
   public static final TypeReference BaselineSaveLSRegisters =
-      VM.BuildForIA32 ? null : findOrCreate(org.vmmagic.pragma.BaselineSaveLSRegisters.class);
+      findOrCreate(org.vmmagic.pragma.BaselineSaveLSRegisters.class);
   public static final TypeReference Pure = findOrCreate(org.vmmagic.pragma.Pure.class);
   public static final TypeReference RuntimeFinal = findOrCreate(org.vmmagic.pragma.RuntimeFinal.class);
   public static final TypeReference NoNullCheck = findOrCreate(org.vmmagic.pragma.NoNullCheck.class);

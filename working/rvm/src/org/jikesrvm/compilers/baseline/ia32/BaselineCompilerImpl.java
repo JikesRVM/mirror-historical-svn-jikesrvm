@@ -131,6 +131,8 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
   private static int getFirstLocalOffset(NormalMethod method) {
     if (method.getDeclaringClass().hasBridgeFromNativeAnnotation()) {
       return STACKFRAME_BODY_OFFSET - (JNICompiler.SAVED_GPRS_FOR_JNI << LG_WORDSIZE);
+    } else if (method.hasBaselineSaveLSRegistersAnnotation()) {
+      return STACKFRAME_BODY_OFFSET - (SAVED_GPRS_FOR_SAVE_LS_REGISTERS << LG_WORDSIZE);
     } else {
       return STACKFRAME_BODY_OFFSET - (SAVED_GPRS << LG_WORDSIZE);
     }
@@ -3167,8 +3169,8 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
        */
       asm.emitPUSH_RegDisp(TR, ArchEntrypoints.framePointerField.getOffset());        // store caller's frame pointer
       ThreadLocalState.emitMoveRegToField(asm,
-					     ArchEntrypoints.framePointerField.getOffset(),
-					     SP); // establish new frame
+					  ArchEntrypoints.framePointerField.getOffset(),
+					  SP); // establish new frame
       /*
        * NOTE: until the end of the prologue SP holds the framepointer.
        */
@@ -3182,7 +3184,15 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
       asm.emitMOV_RegDisp_Reg(SP, EDI_SAVE_OFFSET, EDI);          // save nonvolatile EDI register
       asm.emitMOV_RegDisp_Reg(SP, EBX_SAVE_OFFSET, EBX);            // save nonvolatile EBX register
 
-      int savedRegistersSize = SAVED_GPRS << LG_WORDSIZE;       // default
+      int savedRegistersSize;
+
+      if (method.hasBaselineSaveLSRegistersAnnotation()) {
+	asm.emitMOV_RegDisp_Reg(SP, EBP_SAVE_OFFSET, EBP);
+	savedRegistersSize = SAVED_GPRS_FOR_SAVE_LS_REGISTERS << LG_WORDSIZE;
+      } else {
+	savedRegistersSize= SAVED_GPRS << LG_WORDSIZE;       // default
+      }
+
       /* handle "dynamic brige" methods:
        * save all registers except FP, SP, TR, S0 (scratch), and
        * EDI and EBX saved above.
@@ -3294,6 +3304,9 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
       asm.emitADD_Reg_Imm(SP, fp2spOffset(NO_SLOT).toInt() - bytesPopped);     // SP becomes frame pointer
       asm.emitMOV_Reg_RegDisp(EDI, SP, EDI_SAVE_OFFSET);           // restore nonvolatile EDI register
       asm.emitMOV_Reg_RegDisp(EBX, SP, EBX_SAVE_OFFSET);             // restore nonvolatile EBX register
+      if (method.hasBaselineSaveLSRegistersAnnotation()) {
+	asm.emitMOV_Reg_RegDisp(EBP, SP, EBP_SAVE_OFFSET);             // restore nonvolatile EBP register
+      }
       asm.emitPOP_RegDisp(TR, ArchEntrypoints.framePointerField.getOffset()); // discard frame
       asm.emitRET_Imm(parameterWords << LG_WORDSIZE);    // return to caller- pop parameters from stack
     }
@@ -4731,3 +4744,9 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
     return asm.generatePendingJMP(bTarget);
   }
 }
+
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

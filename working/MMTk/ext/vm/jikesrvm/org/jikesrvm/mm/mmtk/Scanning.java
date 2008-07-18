@@ -202,6 +202,7 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
 	    VM.sysWriteln(ct.getGCOrdinal()," new cr address: ",Magic.objectAsAddress(thread.getContextRegisters()));
 	  }
 
+          trace.processPrecopyEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadContextRegistersSaveField.getOffset()), true);
           trace.processPrecopyEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadExceptionRegistersField.getOffset()), true);
 
           if (thread.getJNIEnv() != null) {

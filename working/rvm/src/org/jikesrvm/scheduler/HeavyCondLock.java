@@ -285,8 +285,11 @@ public class HeavyCondLock {
   @NoOptCompile
   @BaselineSaveLSRegisters
   public void waitNicely() {
-    Magic.saveThreadState(RVMThread.getCurrentThread().contextRegisters);
+    RVMThread t=RVMThread.getCurrentThread();
+    Magic.saveThreadState(t.contextRegisters);
+    t.contextRegistersSave.copyFrom(t.contextRegisters);
     waitNicelyImpl();
+    t.contextRegistersSave.assertSame(t.contextRegisters);
   }
   
   @NoInline

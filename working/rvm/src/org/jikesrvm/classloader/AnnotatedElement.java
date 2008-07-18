@@ -302,6 +302,7 @@ public abstract class AnnotatedElement implements java.lang.reflect.AnnotatedEle
    * Return true if this element has a BaselineSaveLSRegisters annotation.
    * @see org.vmmagic.pragma.BaselineSaveLSRegisters
    */
+  @Uninterruptible
   public final boolean hasBaselineSaveLSRegistersAnnotation() {
     return isAnnotationDeclared(TypeReference.BaselineSaveLSRegisters);
   }

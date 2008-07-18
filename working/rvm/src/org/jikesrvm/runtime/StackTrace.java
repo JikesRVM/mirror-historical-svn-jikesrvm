@@ -28,6 +28,7 @@ import org.jikesrvm.compilers.opt.runtimesupport.OptEncodedCallSiteTree;
 import org.jikesrvm.compilers.opt.runtimesupport.OptMachineCodeMap;
 import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.NoInline;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -95,6 +96,7 @@ public class StackTrace {
    * The stack being walked isn't our stack so GC must be disabled.
    * @return number of stack frames encountered
    */
+  @NoInline
   private int countFramesNoGC(RVMThread stackTraceThread) {
     int stackFrameCount = 0;
     VM.disableGC(); // so fp & ip don't change under our feet
@@ -127,6 +129,7 @@ public class StackTrace {
    * Walk the stack recording the stack frames encountered.
    * The stack being walked isn't our stack so GC must be disabled.
    */
+  @NoInline
   private void recordFramesNoGC(RVMThread stackTraceThread) {
     int stackFrameCount = 0;
     VM.disableGC(); // so fp & ip don't change under our feet
@@ -165,6 +168,7 @@ public class StackTrace {
    * @return number of stack frames encountered
    */
   @Uninterruptible
+  @NoInline
   private int countFramesUninterruptible(RVMThread stackTraceThread) {
     int stackFrameCount = 0;
     Address fp;
@@ -189,7 +193,7 @@ public class StackTrace {
       ip = Magic.getReturnAddress(fp);
       fp = Magic.getCallerFramePointer(fp);
     }
-    VM.sysWriteln("stack frame count = ",stackFrameCount);
+    //VM.sysWriteln("stack frame count = ",stackFrameCount);
     return stackFrameCount;
   }
 

@@ -121,7 +121,7 @@ public class Lock implements Constants {
    */
 
   /** do debug tracing? */
-  protected static final boolean trace = true;
+  protected static final boolean trace = false;
    
   /** Control the gathering of statistics */
   public static final boolean STATS = false;
