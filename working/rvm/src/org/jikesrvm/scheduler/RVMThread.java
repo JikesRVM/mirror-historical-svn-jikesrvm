@@ -2434,6 +2434,10 @@ public class RVMThread extends MM_ThreadContext {
     boolean cbsOverrun = false;
     RVMThread t = getCurrentThread();
     
+    if (t.yieldToOSRRequested) {
+      VM.sysWriteln("Entering yieldpoint for OSR!");
+    }
+    
     boolean wasAtYieldpoint=t.atYieldpoint;
     t.atYieldpoint=true;
     
@@ -2450,6 +2454,7 @@ public class RVMThread extends MM_ThreadContext {
     // lost (because some other thread sets it to non-0), but in that case we'll
     // just come back here and reset it to 0 again.
     if (!t.yieldpointsEnabled()) {
+      if (VM.VerifyAssertions) VM._assert(!t.yieldToOSRRequested);
       if (traceBlock && !wasAtYieldpoint) {
 	VM.sysWriteln("Thread #",t.threadSlot," deferring yield!");
 	dumpStack();

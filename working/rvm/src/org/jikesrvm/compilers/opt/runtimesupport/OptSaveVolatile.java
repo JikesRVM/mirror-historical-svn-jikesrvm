@@ -109,6 +109,7 @@ public class OptSaveVolatile {
   public static void yieldpointFromOsrOpt() {
     Address fp = Magic.getFramePointer();
     RVMThread.getCurrentThread().yieldToOSRRequested = true;
+    RVMThread.getCurrentThread().takeYieldpoint = 1;
     RVMThread.yieldpoint(RVMThread.OSROPT, fp);
   }
 
