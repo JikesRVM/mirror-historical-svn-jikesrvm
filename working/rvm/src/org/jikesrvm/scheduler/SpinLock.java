@@ -104,7 +104,7 @@ public final class SpinLock implements Constants {
   @Entrypoint
   @Untraced
   RVMThread latestContender;
-
+  
   public boolean lockHeld() { return latestContender!=null; }
   
   /**

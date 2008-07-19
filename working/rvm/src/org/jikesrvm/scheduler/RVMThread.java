@@ -1832,7 +1832,7 @@ public class RVMThread extends MM_ThreadContext {
 	VM.sysWriteln("Thread #",threadSlot,": about to free lock ",
 		      Magic.objectAsAddress(cachedFreeLock));
       }
-      if (VM.VerifyAssertions) VM._assert(!cachedFreeLock.mutex.lockHeld());
+      if (VM.VerifyAssertions) VM._assert(cachedFreeLock.mutex.latestContender!=this);
       Lock.returnLock(cachedFreeLock);
       cachedFreeLock = null;
     }
@@ -3469,6 +3469,7 @@ public class RVMThread extends MM_ThreadContext {
 
   static void tracebackWithoutLock() {
     if (VM.runningVM) {
+      VM.sysWriteln("Thread #",getCurrentThreadSlot());
       dumpStack(Magic.getCallerFramePointer(Magic.getFramePointer()));
     } else {
       dumpStack();
