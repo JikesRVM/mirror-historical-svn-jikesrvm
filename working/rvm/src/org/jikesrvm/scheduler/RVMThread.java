@@ -1032,6 +1032,7 @@ public class RVMThread extends MM_ThreadContext {
       // create primordial thread (in boot image)
       assignThreadSlot();
       initMutator();
+      registerMutator();
       // Remember the boot thread
       this.systemThread = true;
       this.execStatus = IN_JAVA;
@@ -1070,6 +1071,7 @@ public class RVMThread extends MM_ThreadContext {
 
       assignThreadSlot();
       initMutator();
+      registerMutator();
 
       // only do this at runtime because it will call Magic;
       // we set this explicitly for the boot thread as part of booting.

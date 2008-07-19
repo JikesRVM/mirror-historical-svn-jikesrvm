@@ -89,13 +89,18 @@ public abstract class MutatorContext implements Constants {
    */
   public void initMutator() {
   }
+    
+  public void registerMutator() {
+    // don't register the mutator until we're initialized
+    id = VM.activePlan.registerMutator(this);
+  }
 
   /****************************************************************************
    * Instance fields
    */
 
   /** Unique mutator identifier */
-  protected int id = VM.activePlan.registerMutator(this);
+  protected int id;
 
   /** Used for printing log information in a thread safe manner */
   protected final Log log = new Log();
