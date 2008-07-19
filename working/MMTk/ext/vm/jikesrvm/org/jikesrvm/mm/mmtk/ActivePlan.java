@@ -18,6 +18,7 @@ import org.mmtk.plan.MutatorContext;
 import org.mmtk.plan.PlanConstraints;
 
 import org.jikesrvm.memorymanagers.mminterface.Selected;
+import org.jikesrvm.scheduler.RVMThread;
 
 import org.vmmagic.pragma.*;
 
@@ -28,7 +29,7 @@ import org.vmmagic.pragma.*;
 @Uninterruptible public final class ActivePlan extends org.mmtk.vm.ActivePlan {
 
   /* Collector and Mutator Context Management */
-  private static final int MAX_CONTEXTS = 100;
+  private static final int MAX_CONTEXTS = RVMThread.MAX_THREADS;
   private static Selected.Collector[] collectors = new Selected.Collector[MAX_CONTEXTS];
   private static int collectorCount = 0; // Number of collector instances
   private static Selected.Mutator[] mutators = new Selected.Mutator[MAX_CONTEXTS];

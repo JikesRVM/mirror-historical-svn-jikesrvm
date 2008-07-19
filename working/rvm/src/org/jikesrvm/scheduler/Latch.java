@@ -12,6 +12,8 @@
  */
 package org.jikesrvm.scheduler;
 
+import org.vmmagic.pragma.Uninterruptible;
+
 /**
  * An implementation of a latch using the HeavyCondLock in "nice" mode.
  * This essentially gives you park/unpark functionality.  It can also
@@ -25,6 +27,7 @@ package org.jikesrvm.scheduler;
  * ManualResetEvent example: use open() to set, close() to reset, and
  * wait() to wait.
  */
+@Uninterruptible
 public class Latch {
   private final HeavyCondLock schedLock = new HeavyCondLock();
   private boolean open;
@@ -70,7 +73,8 @@ public class Latch {
   
   /**
    * Wait for the latch to become open, and then close it and return.
-   * If the latch is already open, don't wait at all.
+   * If the latch is already open, don't wait at all, just close it
+   * immediately and return.
    */
   public void waitAndClose() {
     schedLock.lockNicely();

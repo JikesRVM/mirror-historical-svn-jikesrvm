@@ -14,6 +14,7 @@ package org.jikesrvm.scheduler;
 
 import static org.jikesrvm.runtime.SysCall.sysCall;
 import org.jikesrvm.runtime.Magic;
+import org.jikesrvm.VM;
 
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.NonMoving;
@@ -287,9 +288,11 @@ public class HeavyCondLock {
   public void waitNicely() {
     RVMThread t=RVMThread.getCurrentThread();
     Magic.saveThreadState(t.contextRegisters);
-    t.contextRegistersSave.copyFrom(t.contextRegisters);
+    if (VM.VerifyAssertions) t.contextRegistersSave.copyFrom(t.contextRegisters);
     waitNicelyImpl();
-    t.contextRegistersSave.assertSame(t.contextRegisters);
+    // assert that moving GC didn't modify the context registers, as that would
+    // indicate that we failed to save that register on the stack.
+    if (VM.VerifyAssertions) t.contextRegistersSave.assertSame(t.contextRegisters);
   }
   
   @NoInline
