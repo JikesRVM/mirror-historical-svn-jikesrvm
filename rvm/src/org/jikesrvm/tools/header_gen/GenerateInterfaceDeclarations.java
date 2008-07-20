@@ -480,7 +480,7 @@ public class GenerateInterfaceDeclarations {
     p("static const int Runtime_TRAP_MUST_IMPLEMENT = " + RuntimeEntrypoints.TRAP_MUST_IMPLEMENT + ";\n");
     p("static const int Runtime_TRAP_STORE_CHECK = " + RuntimeEntrypoints.TRAP_STORE_CHECK + ";\n");
     p("static const int Runtime_TRAP_BREAK_POINT = " + RuntimeEntrypoints.TRAP_BREAK_POINT + ";\n");
-    
+
     pln();
 
     // values in FileSystem
@@ -585,6 +585,7 @@ public class GenerateInterfaceDeclarations {
     pln("const int EXIT_STATUS_BOGUS_COMMAND_LINE_ARG               = " + VM.EXIT_STATUS_BOGUS_COMMAND_LINE_ARG + ";");
     pln("const int EXIT_STATUS_JNI_TROUBLE                          = " + VM.EXIT_STATUS_JNI_TROUBLE + ";");
     pln("const int EXIT_STATUS_BAD_WORKING_DIR                      = " + VM.EXIT_STATUS_BAD_WORKING_DIR + ";");
+    pln("const int EXIT_STATUS_JDWP_INITIALIZATION_FAILED           = " + VM.EXIT_STATUS_JDWP_INITIALIZATION_FAILED + ";");
   }
 
   // Emit assembler constants.

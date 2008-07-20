@@ -41,13 +41,17 @@ import org.jikesrvm.scheduler.RVMThread;
  * <li> ClassResolved     - called after a RVMClass is resolved
  * <li> ClassInstantiated - called after a RVMClass is instantiated
  * <li> ClassInitialized  - called after a RVMClass is initialized
+ * <li> ExceptionCatch    - called before the application catch an exception
  * <li> MethodOverride    - called when a method in a newly loaded class
  *                          overrides a method in an existing class
  * <li> MethodCompile     - called before a method is compiled
+ * <li> MethodCompileComplete - called after a method is compiled
  * <li> ForName           - called when java.lang.Class.forName() is invoked
  * <li> BootImageWriting  - called when boot image writing is started
  * <li> Startup           - called when the VM has completed booting
  * <li> Exit              - called when the VM is about to exit  (note: this is very fragile; TODO: remove???)
+ * <li> ThreadStart       - called when a thread starts
+ * <li> ThreadEnd         - called before a thread ends
  * <li> AppStart          - called before the application starts executing
  *                          all runs -- needs application support)
  * <li> AppComplete       - called after the application completes executing
@@ -376,7 +380,7 @@ public final class Callbacks {
     }
     exceptionCatchEnabled = true;
   }
-  
+
   /**
    * Interface for monitoring method override.
    */
@@ -514,8 +518,6 @@ public final class Callbacks {
     }
     methodCompileEnabled = true;
   }
-
-  
 
   /**
    * Interface for monitoring the completion of method compile.
@@ -940,7 +942,6 @@ public final class Callbacks {
     }
   }
 
-  
   /**
    * Interface for monitoring thread start.
    */

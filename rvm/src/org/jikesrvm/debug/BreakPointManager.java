@@ -12,21 +12,27 @@
  */
 package org.jikesrvm.debug;
 
+import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.Callbacks;
+import org.jikesrvm.Constants;
 import org.jikesrvm.UnimplementedError;
 import org.jikesrvm.VM;
 import org.jikesrvm.ArchitectureSpecific.CodeArray;
+import org.jikesrvm.ArchitectureSpecific.Registers;
 import org.jikesrvm.Callbacks.MethodCompileCompleteMonitor;
 import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.compilers.baseline.BaselineCompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethod;
+import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.compilers.opt.runtimesupport.OptCompiledMethod;
 import org.jikesrvm.jni.JNICompiledMethod;
+import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.RuntimeEntrypoints;
 import org.jikesrvm.scheduler.Scheduler;
 import org.jikesrvm.util.LinkedListRVM;
+import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
 /**
@@ -35,7 +41,8 @@ import org.vmmagic.unboxed.Offset;
  * TODO: We need to handle GC-safety at each break point.
  * 
  */
-public class BreakPointManager implements MethodCompileCompleteMonitor {
+public class BreakPointManager implements MethodCompileCompleteMonitor,
+    Constants, ArchitectureSpecific.StackframeLayoutConstants {
 
   private static final byte OPCODE_X86_NOP = (byte)0x90;
 
@@ -67,35 +74,69 @@ public class BreakPointManager implements MethodCompileCompleteMonitor {
     return manager;
   }
 
-  /**
-   * notify break point hit to the call back target. 
-   * 
-   * @param method The method that hits the break point.
-   * @param bcindex The byte code index.
-   */
-  public static void deliverBreakPointHit(NormalMethod method, int bcindex) {
-    if (VM.VerifyAssertions) {
-      VM._assert(manager != null);
-    }
-    
-    if (Scheduler.getCurrentThread().isSystemThread()) {
-      if (JikesRVMJDWP.getVerbose() >= 3) {
-        VM.sysWriteln("skipping a system thread's break point hit: bcindex ",
-            bcindex, method.toString());
+  /** Deliver a break point hit trap event. */
+  public static void deliverBreakpointHit(Registers registers) {
+
+    // Locate the break point from the register set.
+    // Here, ip points a following instruction right after INT xx.
+    final NormalMethod method;
+    final int bcIndex;
+    VM.disableGC(); //since we are dealing with Address.
+    Address ip = registers.getInnermostInstructionAddress();
+    Address fp = registers.getInnermostFramePointer();
+    int cmid = Magic.getCompiledMethodID(fp);
+    CompiledMethod cm = CompiledMethods.getCompiledMethod(cmid);
+    if (cmid == INVISIBLE_METHOD_ID) {
+      bcIndex = -1;
+      method =null;
+    } else {
+      if (cm instanceof BaselineCompiledMethod) {
+        BaselineCompiledMethod bcm = (BaselineCompiledMethod) cm;
+        Offset ip_offset = cm.getInstructionOffset(ip);
+        bcIndex = bcm.findBytecodeIndexForInstruction(ip_offset);
+        method = (NormalMethod) bcm.getMethod();
+      } else {
+        bcIndex = -1;
+        method =null;
       }
-    }      
-    if (JikesRVMJDWP.getVerbose() >= 2) {
-      VM.sysWriteln("firing a break point hit: bcindex ", bcindex, method.toString() );
     }
-    manager.breakPointMonitor.notifyBreakPointHit(method, bcindex);
-    if (JikesRVMJDWP.getVerbose() >= 2) {
-      VM.sysWriteln("resuming from the point hit: bcindex ", bcindex, method.toString() );
+    VM.enableGC();
+
+    // Notify the break point hit through a call back.
+    if (method != null && bcIndex >= 0) {
+      if (VM.VerifyAssertions) {VM._assert(manager != null);}
+      if (Scheduler.getCurrentThread().isSystemThread()) {
+        if (JikesRVMJDWP.getVerbose() >= 3) {
+          VM.sysWriteln("skipping a system thread's break point hit: bcindex ",
+              bcIndex, method.toString());
+        }
+      } else {
+        try {
+          manager.breakPointMonitor.notifyBreakPointHit(method, bcIndex);
+        } catch(Exception t) {
+          VM._assert(false,
+              "The break point call back should handle all the exception");
+        }
+      }
+    } else {
+      if (VM.VerifyAssertions) {
+        VM._assert(false, "a break point trap from unknown source");
+      }
     }
+
+    // now resume execution from the break point.
+    if (VM.VerifyAssertions) { VM._assert(registers.inuse);}
+    registers.inuse = false;
+    if (JikesRVMJDWP.getVerbose() >= 2) {
+      VM.sysWriteln("break point resuming at ip = ",  VM.addressAsHexString(registers.ip));
+    }
+    Magic.restoreHardwareExceptionState(registers);
+    if (VM.VerifyAssertions) {VM._assert(NOT_REACHED);}
   }
-  
+
   private final LinkedListRVM<BytecodeBreakPoint> activeByteCodeBreakPoints =
     new LinkedListRVM<BytecodeBreakPoint>();
-  
+
   private final LinkedListRVM<RawBreakPoint> activeRawBreakPoints =
     new LinkedListRVM<RawBreakPoint>();
 
@@ -123,10 +164,10 @@ public class BreakPointManager implements MethodCompileCompleteMonitor {
           .toString());
       return;
     }
-  
+
     BytecodeBreakPoint bp = new BytecodeBreakPoint(method, bcindex);
     ensureByteCodeBreakPointIsActive(bp);
-    
+
     if (JikesRVMJDWP.getVerbose() >= 2) {
       VM.sysWriteln("set break point: " + bp);
       if (JikesRVMJDWP.getVerbose() >= 3) {
@@ -147,7 +188,7 @@ public class BreakPointManager implements MethodCompileCompleteMonitor {
     }
     BytecodeBreakPoint bp = new BytecodeBreakPoint(method, bcindex);
     ensureByteCodeBreakPointIsDead(bp);
-    
+
     if (JikesRVMJDWP.getVerbose() >= 2) {
       VM.sysWriteln("clear break point: " + bp);
       if (JikesRVMJDWP.getVerbose() >= 3) {
@@ -202,16 +243,16 @@ public class BreakPointManager implements MethodCompileCompleteMonitor {
 
   private void ensureByteCodeBreakPointIsDead(BytecodeBreakPoint jbp) {
     if (!isActive(jbp)) {return;}
-    
+
     // remove the set of raw break point for the jbp.
     for(final RawBreakPoint bp: getRawBreakPoints(jbp)) {
       ensureRawBreakPointIsDead(bp);
     }
-    
+
     // remove the jbp. 
     activeByteCodeBreakPoints.remove(jbp);
   }
-  
+
   private boolean isActive(BytecodeBreakPoint bp) {
     for(final BytecodeBreakPoint abp : activeByteCodeBreakPoints) {
       if (abp.equals(bp)) {return true;}
@@ -236,9 +277,9 @@ public class BreakPointManager implements MethodCompileCompleteMonitor {
       int mcOffset = bcm.getMachineCodeOffset(jbp.bcindex);
       rawBPList.add(new RawBreakPoint(bcm, mcOffset));
     }
-    
+
     //handle opt code - not implemented
-    
+
     return rawBPList;
   }
 
@@ -314,8 +355,8 @@ public class BreakPointManager implements MethodCompileCompleteMonitor {
       }
     }
   }
-  
-  
+
+  /** For debugging, dump the currently active break points. */
   private void dumpActiveBreakPoints() {
     VM.sysWriteln("Breakpoint dump");
     VM.sysWriteln("  Byte code break points: ");
@@ -379,7 +420,7 @@ public class BreakPointManager implements MethodCompileCompleteMonitor {
           + method.getDescriptor();
     }
   }
-  
+
   /** A break point at the machine code level. */
   private static final class RawBreakPoint {
     private final CompiledMethod compiledMethod;

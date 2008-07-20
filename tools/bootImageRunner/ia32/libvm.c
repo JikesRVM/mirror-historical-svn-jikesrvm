@@ -744,10 +744,26 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
         // We should never get here.
         _exit(EXIT_STATUS_DYING_WITH_UNCAUGHT_EXCEPTION);
     }
-    sp = (long unsigned int *)stackLimit - 384;
-    stackLimit -= Constants_STACK_SIZE_GUARD;
-    *(unsigned *)(threadObjectAddress + RVMThread_stackLimit_offset) = stackLimit;
-    *(unsigned *)(IA32_ESI(context) + Processor_activeThreadStackLimit_offset) = stackLimit;
+
+    if ( (signo == SIGSEGV) && (*(unsigned char *)(localInstructionAddress) == 0xCD)
+         && (*(unsigned char*)(localInstructionAddress+1)
+             == (Constants_RVM_TRAP_BASE + Runtime_TRAP_BREAK_POINT)) ) {
+        /* 
+         * Advance ESP to right above the current local frame.  At
+         * Breakpoint hit, we just push new frames right above the
+         * current local frame instead of the stack-limit. This is to
+         * support method invocation at the break point.  
+         *
+         * TODO: Perhaps this is not the right place to handle a break
+         * point trap.
+         */
+        sp = (long unsigned int *) IA32_ESP(context);
+    } else {
+        sp = (long unsigned int *)stackLimit - 384;
+        stackLimit -= Constants_STACK_SIZE_GUARD;
+        *(unsigned *)(threadObjectAddress + RVMThread_stackLimit_offset) = stackLimit;
+        *(unsigned *)(IA32_ESI(context) + Processor_activeThreadStackLimit_offset) = stackLimit;
+    }
 
     /* Insert artificial stackframe at site of trap. */
     /* This frame marks the place where "hardware exception registers" were saved. */

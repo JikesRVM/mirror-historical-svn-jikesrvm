@@ -28,10 +28,20 @@ import gnu.classpath.jdwp.exception.InvalidFrameException;
 import gnu.classpath.jdwp.exception.InvalidThreadException;
 import gnu.classpath.jdwp.exception.JdwpException;
 import gnu.classpath.jdwp.exception.NotImplementedException;
+import gnu.classpath.jdwp.transport.JdwpConnection;
 import gnu.classpath.jdwp.util.Location;
 import gnu.classpath.jdwp.util.MethodResult;
 import gnu.classpath.jdwp.util.MonitorInfo;
+import gnu.classpath.jdwp.value.BooleanValue;
+import gnu.classpath.jdwp.value.ByteValue;
+import gnu.classpath.jdwp.value.CharValue;
+import gnu.classpath.jdwp.value.DoubleValue;
+import gnu.classpath.jdwp.value.FloatValue;
+import gnu.classpath.jdwp.value.IntValue;
+import gnu.classpath.jdwp.value.ObjectValue;
+import gnu.classpath.jdwp.value.ShortValue;
 import gnu.classpath.jdwp.value.Value;
+import gnu.classpath.jdwp.value.VoidValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,6 +58,7 @@ import org.jikesrvm.classloader.Primitive;
 import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.classloader.RVMType;
+import org.jikesrvm.classloader.TypeReference;
 import org.jikesrvm.compilers.baseline.BaselineCompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
@@ -58,9 +69,11 @@ import org.jikesrvm.debug.JikesRVMJDWP;
 import org.jikesrvm.jni.JNICompiledMethod;
 import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
 import org.jikesrvm.runtime.Magic;
+import org.jikesrvm.runtime.Reflection;
 import org.jikesrvm.scheduler.Scheduler;
 import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.util.HashMapRVM;
+import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.jikesrvm.ArchitectureSpecific.StackframeLayoutConstants;
@@ -117,51 +130,121 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
     BreakPointManager.init(jdwpNotifier);
   }
 
-  /** Get JDWP thread info for a user thread. */
-  private static ThreadInfo getThreadInfo(Thread thread) throws JdwpException {
-    if (VM.VerifyAssertions) {VM._assert(thread != null);}
-    RVMThread vmthread = JikesRVMSupport.getThread(thread);
-    if (!isDebugeeThread(vmthread))
-      throw new InvalidThreadException(-1);
-    if (VM.VerifyAssertions) {VM._assert(isDebugeeThread(vmthread));}
-    ThreadInfo ti = threadInfo.get(vmthread);
-    if (VM.VerifyAssertions) {VM._assert(ti != null);}
-    return ti;
-  }
 
   /** Suspend a debugee thread. */
   public static void suspendThread(final Thread thread) throws JdwpException {
-    getThreadInfo(thread).suspendThread();
-  }
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgentOrDebugeeThread(Scheduler.getCurrentThread()));
+      VM._assert(isDebugeeThread(JikesRVMSupport.getThread(thread)));
+    }
 
-  /** Suspend all the debuggee threads. */
-  public static void suspendAllThreads() throws JdwpException {
-    for (final RVMThread vmThread : threadInfo.keys()) {
-      Thread t = vmThread.getJavaLangThread();
-      suspendThread(t);
+    if (JikesRVMJDWP.getVerbose() >= 2) {
+      VM.sysWriteln("VMVirtualMachine.suspendThread: ", thread.getName(),
+          " in ", Scheduler.getCurrentThread().getName());
+    }
+
+    RVMThread suspendThread = JikesRVMSupport.getThread(thread);
+    RVMThread currentThread = Scheduler.getCurrentThread();
+    if (currentThread == suspendThread) {
+      // The thread is debugee thread, and this is myself.
+      Thread javaCurrentThread = currentThread.getJavaLangThread(); 
+      getThreadInfo(javaCurrentThread).suspendCurrentThread();
+    } else {
+      //I'm not the to-be-suspended thread.
+      getThreadInfo(thread).suspendThread();
     }
   }
 
-  /** Resume a debugee thread. */
+  /**
+   * Suspend all the debuggee threads. Two calling contexts are considered here.
+   * The first one is from VMVirtualMachine.suspend, and the current thread
+   * would be PacketProcessor. The second one is from the debugee thread due to
+   * SUSPEND_ALL event suspension policy.
+   */
+  public static void suspendAllThreads() throws JdwpException {
+    RVMThread currentThread = Scheduler.getCurrentThread();
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgentOrDebugeeThread(Scheduler.getCurrentThread()));
+    }
+
+    if (JikesRVMJDWP.getVerbose() >= 2) {
+      VM.sysWriteln("VMVirtualMachine.suspendAllThreads:  in ", 
+          Scheduler.getCurrentThread().getName());
+    }
+
+    //suspend except for currentThread.
+    synchronized(threadInfo) {
+      for (final RVMThread vmThread : threadInfo.keys()) {
+        if (vmThread != Scheduler.getCurrentThread()) {
+          Thread t = vmThread.getJavaLangThread();
+          getThreadInfo(t).suspendThread();
+        }
+      }
+    }
+
+    if (isDebugeeThread(currentThread)) { 
+      Thread javaCurrentThread = currentThread.getJavaLangThread(); 
+      getThreadInfo(javaCurrentThread).suspendCurrentThread();
+    }
+  }
+
+  /** 
+   * Resume a debugee thread.
+   */
   public static void resumeThread(final Thread thread) throws JdwpException {
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
+
+    if (JikesRVMJDWP.getVerbose() >= 2) {
+      VM.sysWriteln("VMVirtualMachine.resumeThread: ", thread.getName());
+    }
+
     getThreadInfo(thread).resumeThread();
   }
 
-  /** Resume all threads. */
+  /**
+   * Resume all threads. 
+   */
   public static void resumeAllThreads() throws JdwpException {
-    for (final RVMThread vmThread : threadInfo.keys()) {
-      Thread t = vmThread.getJavaLangThread();
-      resumeThread(t);
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
+    if (JikesRVMJDWP.getVerbose() >= 2) {
+      VM.sysWriteln("VMVirtualMachine.resumeAllThreads");
+    }
+    synchronized(threadInfo) {
+      for (final RVMThread vmThread : threadInfo.keys()) {
+        Thread t = vmThread.getJavaLangThread();
+        getThreadInfo(t).resumeThread();
+      }
     }
   }
 
-  /** Get the suspend count for a thread. */
+  /**
+   * Get the suspend count for a thread. 
+   */
   public static int getSuspendCount(final Thread thread) throws JdwpException {
-    return getThreadInfo(thread).getSuspendCount();
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
+
+    int count = getThreadInfo(thread).getSuspendCount(); 
+    if (JikesRVMJDWP.getVerbose() >= 2) {
+      VM.sysWriteln("VMVirtualMachine.getSuspendCount: " + count + " for ",
+          thread.getName());
+    }
+
+    return count; 
   };
 
-  /** Returns the status of a thread. */
+  /** 
+   * Returns the status of a thread. 
+   */
   public static int getThreadStatus(final Thread thread) throws JdwpException {
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
     ThreadInfo ti = getThreadInfo(thread);
     RVMThread vmThread = ti.thread;
     // using switch statement does not work here since
@@ -196,17 +279,12 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
     return status;
   }
 
-  /** Returns the number of loaded classes in the VM. */
-  public static int getAllLoadedClassesCount() throws JdwpException {
-    final int rValue = getAllLoadedClasses().size();
-    if (JikesRVMJDWP.getVerbose() >= 2) {
-      VM.sysWriteln("getAllLoadedClassesCount: ", rValue);
-    }
-    return rValue;
-  };
-
   /** Return all loaded classes. */
   public static Collection<Class<?>> getAllLoadedClasses() throws JdwpException {
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
+
     if (JikesRVMJDWP.getVerbose() >= 2) {
       VM.sysWriteln("getAllLoadedClasses: ");
     }
@@ -217,26 +295,12 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
     return Arrays.asList(loadedClasses);
   };
 
-  /** Helper method for the class and rvmtype mapping. */
-  private static RVMType getRVMType(final Class<?> clazz) throws JdwpException {
-    if (null == clazz) {
-      throw new InvalidClassException(-1);
-    }
-    RVMType vmType = JikesRVMSupport.getTypeForClass(clazz);
-    if (VM.VerifyAssertions) {
-      VM._assert(vmType != null && vmType instanceof Primitive == false);
-    }
-    return vmType;
-  }
-
-  /** Helper method for the class and rvmclass mapping. */
-  private static RVMClass getRVMClass(final Class<?> clazz) throws JdwpException {
-    RVMType vmType = getRVMType(clazz);
-    return (RVMClass)vmType;
-  }
-  
   /** Return the class status. */
   public static int getClassStatus(final Class<?> clazz) throws JdwpException {
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
+
     int status =  getStatus(getRVMType(clazz));
     if (JikesRVMJDWP.getVerbose() >= 2) {
       VM.sysWrite("getClassStatus:", clazz.getName());
@@ -245,35 +309,12 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
     return status;
   }
 
-  /** Get the class status. */
-  private static int getStatus(RVMType vmType) {
-    if (VM.VerifyAssertions) {
-      VM._assert(vmType != null);
-    }
-    // At this time, the clazz is at least Linking-verified state
-    // [ch 5.4.1, 2nd JVMSPEC]. This non-null clazz value indicates that the
-    // class ware successfully loaded. The JDWP does not show if the class is loaded 
-    // or not here since calling this routine automically implies that the class was 
-    // loaded. Since the JikesRVM skips the verification
-    // process. The clazz is already at least the verification stage.
-    int rValue = 0 | JdwpConstants.ClassStatus.VERIFIED; // the return state value.
-    if (vmType.isResolved()) {
-      // RVMType.resolve() includes the preparation by allocating JTOC entries. 
-      // The JVM specification says: 
-      // "Preparation involves creating the static fields for the class or interface and 
-      // initializing those fields to their standard default values"
-      //
-      rValue |= JdwpConstants.ClassStatus.PREPARED;
-        if (vmType.isInitialized()) {
-          rValue |= JdwpConstants.ClassStatus.INITIALIZED;
-        }
-    }
-    return rValue;
-  }
-
   /** Get the all the declared method in a class. */
   public static VMMethod[] getAllClassMethods(final Class<?> clazz)
       throws JdwpException {
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
     RVMClass vmClass = getRVMClass(clazz);
     // Calculate length.
     RVMMethod[] rmethods = vmClass.getDeclaredMethods();
@@ -291,22 +332,22 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
   /** Dump call stack frames in a suspended thread. */
   public static ArrayList<VMFrame> getFrames(final Thread thread,
       final int start, final int length) throws JdwpException {
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
     // "Returns the current call stack of a suspended thread. The sequence of
     // frames starts with the currently executing frame, followed by its caller,
     // and so on. The thread must be suspended, and the returned frameID is
     // valid only while the thread is suspended."
     // [jdwp-protocol.html#JDWP_ThreadReference_Frames]
-    ThreadInfo ti = getThreadInfo(thread);
-    if (ti.getSuspendCount() <= 0 ) {
-      throw new InvalidThreadException(-1);
-    }
     if (start < 0 || length < -1) {
       return new ArrayList<VMFrame>(); // simply return empty frame list.
     }
-    
+
     //perform call stack walk.
-    final RVMThread vmThread = ti.thread;
     final ArrayList<VMFrame> vmFrames = new ArrayList<VMFrame>();
+    ThreadInfo ti = getThreadInfo(thread);
+    final RVMThread vmThread = ti.thread;
     ti.stackWalk(new StackFrameVisitor() {
       int countDown = start; 
       int remaining = length; /** remaining frames to get. */
@@ -337,7 +378,6 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
         return true;
       }
     });
-
     if (JikesRVMJDWP.getVerbose() >= 2) {
       VM.sysWriteln("getFrames(" + start + ", " + length + ")");
     }
@@ -347,20 +387,19 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
   /** Retrieve a call frame from the thread and the frame identifier. */
   public static VMFrame getFrame(final Thread thread, long frameID)
       throws JdwpException {
-    ThreadInfo ti = getThreadInfo(thread);
-    if (ti.getSuspendCount() <= 0 ) {
-      throw new InvalidThreadException(-1);
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
     }
-    
     //perform call stack walk.
+    final class FrameRef { VMFrame f;}
+    final FrameRef fref = new FrameRef();
+      ThreadInfo ti = getThreadInfo(thread);
     final RVMThread vmThread = ti.thread;
     int threadID = (int) (frameID >>> 32);
     final int fid = (int) (frameID & 0x0FFFFFFFFL);
     if (threadID != vmThread.getIndex()) {
       throw new InvalidFrameException(frameID);
     }
-    final class FrameRef { VMFrame f;}
-    final FrameRef fref = new FrameRef();
     ti.stackWalk(new StackFrameVisitor() {
       boolean visit(int fno, NormalMethod m, int bcIndex,
           BaselineCompiledMethod bcm, Offset ip, Offset fp) {
@@ -392,13 +431,14 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
 
   /** Count the number of call frames in a suspended thread. */
   public static int getFrameCount(final Thread thread) throws JdwpException {
-    ThreadInfo ti = getThreadInfo(thread);
-    if (ti.getSuspendCount() <= 0 ) {
-      throw new InvalidThreadException(-1);
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
     }
     //perform call stack walk.
     final class FrameCount {int count;}
     final FrameCount fcnt = new FrameCount();
+
+    ThreadInfo ti = getThreadInfo(thread);
     ti.stackWalk(new StackFrameVisitor() {
       boolean visit(int frameno, NormalMethod m, int bcIndex,
           BaselineCompiledMethod bcm, Offset ip, Offset fp) {
@@ -426,22 +466,61 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
   /** TODO: needs more inspection. Get a list of requested classes .*/
   public static ArrayList<Class<?>> getLoadRequests(final ClassLoader cl)
       throws JdwpException {
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
     if (JikesRVMJDWP.getVerbose() >= 2) {
       VM.sysWriteln("getLoadRequests: ");
     }
     Class<?>[] classes = JikesRVMSupport.getInitiatedClasses(cl);
     return new ArrayList<Class<?>>(Arrays.asList(classes));
-  };
+  }
 
-  /** TODO: to-be-implemented. Execute a Java method in a suspended thread. */
+  /** Execute a Java method in a suspended thread.*/
   public static MethodResult executeMethod(Object obj, Thread thread,
       Class<?> clazz, VMMethod method, Value[] values, int options)
       throws JdwpException {
-    throw new NotImplementedException("executeMethod");
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+      VM._assert(isDebugeeThread(JikesRVMSupport.getThread(thread)));
+    }
+    Object[] argOthers = new Object[values.length];
+    for(int i=0; i < argOthers.length;i++) {
+      argOthers[i] = toReflectionObject(values[i]);
+    }
+    MethodInvokeRequest req = new MethodInvokeRequest(method.meth, obj, argOthers, options);
+    // enqueue request.
+    ThreadInfo ti = getThreadInfo(thread);
+    ti.requestMethodInvocation(req);
+    if (!req.isInvokeSingleThreaded()) {
+      synchronized(threadInfo) {
+        for (final RVMThread vmThread : threadInfo.keys()) {
+          if (vmThread != ti.thread) {
+            threadInfo.get(vmThread).resumeThread();
+          }
+        }
+      }
+    }
+
+    // dequeue the result.
+    MethodResult result = ti.waitForMethodInovationResult();
+    if (!req.isInvokeSingleThreaded()) {
+      synchronized(threadInfo) {
+        for (final RVMThread vmThread : threadInfo.keys()) {
+          if (vmThread != ti.thread) {
+            threadInfo.get(vmThread).suspendThread();
+          }
+        }
+      }
+    }
+    return result;
   }
 
   /** Get the source file name for a class. */
   public static String getSourceFile(Class<?> clazz) throws JdwpException {
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
     RVMClass vmClass = getRVMClass(clazz);
     String rValue = vmClass.getSourceName().toString();
     if (JikesRVMJDWP.getVerbose() >= 2) {
@@ -455,6 +534,9 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
   @SuppressWarnings("unchecked")
   public static void registerEvent(final EventRequest request)
       throws JdwpException {
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
 
     if (JikesRVMJDWP.getVerbose() >= 2) {
       VM.sysWrite("registerEvent [ID = ", request.getId());
@@ -516,7 +598,7 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
       break;
     }
     case JdwpConstants.EventKind.CLASS_UNLOAD: {
-      // TODO: JikesRVM does not seem to unload class. If I return
+      // JikesRVM does not unload class. If I return
       // UNIMPLEMENTED. the JDB gives up starting the debugging session. Here,
       // this agent will pretends that the class unloading event is available,
       // but never report the class unloading event since this will never happen
@@ -598,6 +680,9 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
   /** Clear a JDWP event. */
   @SuppressWarnings("unchecked")
   public static void unregisterEvent(EventRequest request) throws JdwpException {
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
     if (JikesRVMJDWP.getVerbose() >= 2) {
       VM.sysWrite("unregisterEvent [ID = ", request.getId());
       VM.sysWrite(" Event = ", getEventKindName(request.getEventKind()));
@@ -657,7 +742,7 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
       break;
     }
     case JdwpConstants.EventKind.CLASS_UNLOAD: {
-      // TODO: JikesRVM does not seem to unload class. If I return
+      // JikesRVM does not unload class. If I return
       // UNIMPLEMENTED. the JDB gives up starting the debugging session. Here,
       // this agent will pretends that the class unloading event is available,
       // but never report the class unloading event since this will never happen
@@ -710,6 +795,9 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
 
   /** Clear all the JDWP event. */
   public static void clearEvents(byte kind) throws JdwpException {
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
     if (JikesRVMJDWP.getVerbose() >= 2) {
       VM.sysWriteln("clearEvents[Event: ", getEventKindName(kind));
     }
@@ -819,7 +907,9 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
    */
   public static void redefineClasses(Class<?>[] types, byte[][] bytecodes)
       throws JdwpException {
-    if (VM.VerifyAssertions) {VM._assert(false);}
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
     throw new NotImplementedException("redefineClasses");
   };
 
@@ -829,7 +919,9 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
    * @see VMVirtualMachine#canSetDefaultStratum
    */
   public static void setDefaultStratum(String stratum) throws JdwpException {
-    if (VM.VerifyAssertions) {VM._assert(false);}
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
     throw new NotImplementedException("setDefaultStratum");
   };
 
@@ -841,7 +933,9 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
    */
   public static String getSourceDebugExtension(Class<?> klass)
       throws JdwpException {
-    if (VM.VerifyAssertions) {VM._assert(false);}
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
     throw new NotImplementedException("getSourceDebugExtension");
   }
 
@@ -851,7 +945,9 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
    * @see VMVirtualMachine#canGetBytecodes
    */
   public static final byte[] getBytecodes(VMMethod method) throws JdwpException {
-    if (VM.VerifyAssertions) {VM._assert(false);}
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
     throw new NotImplementedException("getBytecodes");
   }
 
@@ -861,7 +957,9 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
    * @see VMVirtualMachine#canGetOwnedMonitorInfo
    */
   public static MonitorInfo getMonitorInfo(Object obj) throws JdwpException {
-    if (VM.VerifyAssertions) {VM._assert(false);}
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
     throw new NotImplementedException("getMonitorInfo");
   }
 
@@ -871,7 +969,9 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
    * @see VMVirtualMachine#canGetOwnedMonitorInfo
    */
   public static Object[] getOwnedMonitors(Thread thread) throws JdwpException {
-    if (VM.VerifyAssertions) {VM._assert(false);}
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
     throw new NotImplementedException("getOwnedMonitors");
   }
 
@@ -883,7 +983,9 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
    */
   public static Object getCurrentContendedMonitor(Thread thread)
       throws JdwpException {
-    if (VM.VerifyAssertions) {VM._assert(false);}
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
     throw new NotImplementedException("getCurrentContendedMonitor");
   };
 
@@ -894,8 +996,94 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
    */
   public static void popFrames(Thread thread, long frameId)
       throws JdwpException {
-    if (VM.VerifyAssertions) {VM._assert(false);}
+    if (VM.VerifyAssertions) {
+      VM._assert(isJDWPAgent(Scheduler.getCurrentThread()));
+    }
     throw new NotImplementedException("popFrames");
+  }
+
+  /** Get JDWP thread info for a user thread. */
+  private static ThreadInfo getThreadInfo(Thread thread) throws JdwpException {
+    if (VM.VerifyAssertions) {VM._assert(thread != null);}
+    RVMThread vmthread = JikesRVMSupport.getThread(thread);
+    if (!isDebugeeThread(vmthread)) {
+      throw new InvalidThreadException(-1);
+    }
+    if (VM.VerifyAssertions) {VM._assert(isDebugeeThread(vmthread));}
+    ThreadInfo ti = null;
+    synchronized(threadInfo) {
+      ti = threadInfo.get(vmthread);
+    }
+    if (VM.VerifyAssertions) {VM._assert(ti != null);}
+    return ti;
+  }
+
+  /** Get the class status. */
+  @Uninterruptible
+  private static int getStatus(RVMType vmType) {
+    if (VM.VerifyAssertions) {
+      VM._assert(vmType != null);
+    }
+    // At this time, the clazz is at least Linking-verified state
+    // [ch 5.4.1, 2nd JVMSPEC]. This non-null clazz value indicates that the
+    // class ware successfully loaded. The JDWP does not show if the class is loaded 
+    // or not here since calling this routine automically implies that the class was 
+    // loaded. Since the JikesRVM skips the verification
+    // process. The clazz is already at least the verification stage.
+    int rValue = 0 | JdwpConstants.ClassStatus.VERIFIED; // the return state value.
+    if (vmType.isResolved()) {
+      // RVMType.resolve() includes the preparation by allocating JTOC entries. 
+      // The JVM specification says: 
+      // "Preparation involves creating the static fields for the class or interface and 
+      // initializing those fields to their standard default values"
+      //
+      rValue |= JdwpConstants.ClassStatus.PREPARED;
+        if (vmType.isInitialized()) {
+          rValue |= JdwpConstants.ClassStatus.INITIALIZED;
+        }
+    }
+    return rValue;
+  }
+  /** Helper method for the class and rvmtype mapping. */
+  private static RVMType getRVMType(final Class<?> clazz) throws JdwpException {
+    if (null == clazz) {
+      throw new InvalidClassException(-1);
+    }
+    RVMType vmType = JikesRVMSupport.getTypeForClass(clazz);
+    if (VM.VerifyAssertions) {
+      VM._assert(vmType != null && vmType instanceof Primitive == false);
+    }
+    return vmType;
+  }
+
+  /** Helper method for the class and rvmclass mapping. */
+  private static RVMClass getRVMClass(final Class<?> clazz) throws JdwpException {
+    RVMType vmType = getRVMType(clazz);
+    return (RVMClass)vmType;
+  }
+
+  /** From JDWP wrapper to the JikesRVM reflection wrapper.*/
+  private static Object toReflectionObject(Value v) {
+    if (v instanceof BooleanValue) {
+      return Reflection.wrapBoolean(((BooleanValue)v).getValue()? 1:0);
+    } else if (v instanceof ByteValue) {
+      return Reflection.wrapByte(((ByteValue)v).getValue());
+    } else if (v instanceof ShortValue) {
+      return Reflection.wrapShort(((ShortValue)v).getValue());
+    } else if (v instanceof CharValue) {
+      return Reflection.wrapChar(((CharValue)v).getValue());
+    } else if (v instanceof IntValue) {
+      return Reflection.wrapInt(((IntValue)v).getValue());
+    } else if (v instanceof FloatValue) {
+      return Reflection.wrapFloat(((FloatValue)v).getValue());
+    } else if (v instanceof DoubleValue) {
+      return Reflection.wrapDouble(((DoubleValue)v).getValue());
+    } else if (v instanceof ObjectValue ) {
+      return ((ObjectValue)v).getValue();
+    } else {
+      if (VM.VerifyAssertions) { VM._assert(false);}
+      return null;  
+    }
   }
 
   /** Checks whether or not a thread is debuggable thread. */
@@ -903,14 +1091,19 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
     if (null == thread) {
       return true;
     }
-    final boolean rValue = !isJDWPThread(thread) && !thread.isBootThread()
+    final boolean rValue = !isJDWPAgent(thread) && !thread.isBootThread()
         && !thread.isDebuggerThread() && !thread.isGCThread()
         && !thread.isSystemThread() && !thread.isIdleThread();
     return rValue;
   };
 
+  /** Whether or not a thread is JDWP work thread or the debugee thread. */
+  private static boolean isJDWPAgentOrDebugeeThread(RVMThread t) {
+    return isJDWPAgent(t) || isDebugeeThread(t);
+  }
+
   /** Whether or not a thread is JDWP work thread. */
-  private static boolean isJDWPThread(RVMThread thread) {
+  private static boolean isJDWPAgent(RVMThread thread) {
     if (thread == null) {
       return false;
     }
@@ -918,11 +1111,16 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
     if (jthread == null) {
       return false;
     }
+    if (jthread instanceof Jdwp 
+        || jthread instanceof JdwpConnection) {
+      return true;
+    }
     ThreadGroup jgroup = jthread.getThreadGroup();
     return jgroup == Jdwp.getDefault().getJdwpThreadGroup();
   }
 
   /** Get a readable JDWP event kind name from the JDWP constant. */
+  @Uninterruptible
   private static String getEventKindName(final byte kind) {
     switch (kind) {
     case JdwpConstants.EventKind.SINGLE_STEP:
@@ -967,6 +1165,7 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
   }
 
   /** Get a readable JDWP thraed status name from the JDWP constant. */
+  @Uninterruptible
   private static String getThreadStateName(final int status) {
     switch (status) {
     case JdwpConstants.ThreadStatus.RUNNING:
@@ -994,6 +1193,7 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
   }
 
   /** Print the beginning of call frame. */
+  @Uninterruptible
   private static void showPrologue(Address ip, Address fp) {
     VM.sysWrite("   at [ip = ");
     VM.sysWrite(ip);
@@ -1003,6 +1203,7 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
   }
 
   /** Print the hardware trap frame. */
+  @Uninterruptible
   private static void showHardwareTrapMethod(Address fp) {
     VM.sysWrite("   at [fp ");
     VM.sysWrite(fp);
@@ -1010,6 +1211,7 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
   }
 
   /** Print a stack frame for the native method. */
+  @Uninterruptible
   private static void showMethod(NativeMethod method, Address ip, Address fp) {
     showPrologue(ip, fp);
     if (method == null) {
@@ -1024,6 +1226,7 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
   }
 
   /** Print a stack frame for the Java method. */
+  @Uninterruptible
   private static void showMethod(RVMMethod method, int bcindex, Address ip,
       Address fp) {
     showPrologue(ip, fp);
@@ -1062,56 +1265,55 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
 
     private boolean breakPointEnabled = false;
 
-    /** Getters/Setters. */
-    private synchronized boolean isBreakPointEnabled() {
-      return breakPointEnabled;
-    }
+    /** The mask for disabling all the event.*/
+    private boolean notificationEnabled = true;
 
+    /** Getters/Setters. */
     private synchronized void setBreakPointEnabled(boolean breakPointEnabled) {
       this.breakPointEnabled = breakPointEnabled;
     }
-
-    private synchronized boolean isVmExitEnabled() {
-      return vmExitEnabled;
-    }
-
     private synchronized void setVmDeathEnabled(boolean vmExitEnabled) {
       this.vmExitEnabled = vmExitEnabled;
     }
-
-    private synchronized boolean isClassPrepareEnabled() {
-      return classPrepareEnabled;
-    }
-
-    private synchronized void setClassPrepareEnabled(
-        boolean classPrepareEnabled) {
+    private synchronized void setClassPrepareEnabled(boolean classPrepareEnabled) {
       this.classPrepareEnabled = classPrepareEnabled;
     }
-
-    private synchronized boolean isThreadStartEnabled() {
-      return threadStartEnabled;
-    }
-
-    private synchronized void setThreadStartEnabled(
-        boolean threadStartEnabled) {
+    private synchronized void setThreadStartEnabled(boolean threadStartEnabled) {
       this.threadStartEnabled = threadStartEnabled;
     }
-
-    private synchronized boolean isThreadEndEnabled() {
-      return threadEndEnabled;
-    }
-
     private synchronized void setThreadEndEnabled(boolean threadEndEnabled) {
       this.threadEndEnabled = threadEndEnabled;
     }
-
-    private synchronized boolean isExceptionCatchEnabled() {
-      return exceptionCatchEnabled;
+    private synchronized void setExceptionCatchEnabled(boolean exceptionThrowEnabled) {
+      this.exceptionCatchEnabled = exceptionThrowEnabled;
     }
 
-    private synchronized void setExceptionCatchEnabled(
-        boolean exceptionThrowEnabled) {
-      this.exceptionCatchEnabled = exceptionThrowEnabled;
+    /** control overall event notification to the JDWP event handler.*/
+    private synchronized final void disableEventNotify() {
+      this.notificationEnabled = false;
+    }
+    private synchronized final void enableEventNotify() {
+      this.notificationEnabled = true;
+    }
+
+    /** Event notification status. */
+    private synchronized boolean canNotifyBreakPoint() {
+      return notificationEnabled && breakPointEnabled;
+    }
+    private synchronized boolean canNotifyVmExit() {
+      return notificationEnabled && vmExitEnabled;
+    }
+    private synchronized boolean canNotifyThreadEnd() {
+      return notificationEnabled && threadEndEnabled;
+    }
+    private synchronized boolean canNotifyThreadStart() {
+      return notificationEnabled && threadStartEnabled;
+    }
+    private synchronized boolean canNotifyClassPrepare() {
+      return notificationEnabled && classPrepareEnabled;
+    }
+    private synchronized boolean canNotifyExceptionCatch() {
+      return notificationEnabled && exceptionCatchEnabled;
     }
 
     /** VM call back handlers. */
@@ -1123,7 +1325,7 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
     }
 
     public void notifyExit(int value) {
-      if (!isVmExitEnabled()) {
+      if (!canNotifyVmExit()) {
         return;
       }
       if (JikesRVMJDWP.getVerbose() >= 2) {
@@ -1133,36 +1335,39 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
     }
 
     public void notifyClassResolved(RVMClass vmClass) {
-      if (!isClassPrepareEnabled()) {
+      if (!canNotifyClassPrepare()) {
         return;
       }
       Class<?> clazz = vmClass.getClassForType();
       if (vmClass.getDescriptor().isBootstrapClassDescriptor()) {
         return;
       }
-      if (JikesRVMJDWP.getVerbose() >= 2) {
-        VM.sysWriteln("Firing CLASS_PREPARE: ", clazz.getName());
+      if (canNotifyClassPrepare()) {
+        if (JikesRVMJDWP.getVerbose() >= 2) {
+          VM.sysWriteln("Firing CLASS_PREPARE: ", clazz.getName());
+        }
+        Event event = new ClassPrepareEvent(Thread.currentThread(), clazz,
+            getStatus(vmClass));
+        Jdwp.notify(event);
       }
-      Event event = new ClassPrepareEvent(Thread.currentThread(), clazz,
-          getStatus(vmClass));
-      Jdwp.notify(event);
     }
 
+    /** Notification from a new thread. */
     public void notifyThreadStart(RVMThread vmThread) {
-      if (VM.VerifyAssertions) {
-        VM._assert(threadInfo.get(vmThread) == null);
-      }
       if (!isDebugeeThread(vmThread)) {
         if (JikesRVMJDWP.getVerbose() >= 2) {
-          VM
-              .sysWriteln("THREAD_START: skip system thread ", vmThread
-                  .getName());
+          VM.sysWriteln("THREAD_START: skip thread ", vmThread.getName());
         }
         return;
       }
-      threadInfo.put(vmThread, new ThreadInfo(vmThread));
-
-      if (isThreadStartEnabled()) {
+      synchronized(threadInfo) {
+        if (VM.VerifyAssertions) {
+          // this must be the first time.
+          VM._assert(threadInfo.get(vmThread) == null);
+        }
+        threadInfo.put(vmThread, new ThreadInfo(vmThread));
+      }
+      if (canNotifyThreadStart()) {
         Thread thread = vmThread.getJavaLangThread();
         if (JikesRVMJDWP.getVerbose() >= 2) {
           VM.sysWriteln("THREAD_START: firing ", thread.getName());
@@ -1172,19 +1377,15 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
       }
     }
 
+    /** Notification from the to-be-dead thread. */
     public void notifyThreadEnd(RVMThread vmThread) {
-      ThreadInfo ti = threadInfo.get(vmThread);
-      if (ti == null) {
+      if (!isDebugeeThread(vmThread)) {
         if (JikesRVMJDWP.getVerbose() >= 2) {
           VM.sysWriteln("THREAD_END: skip system thread ", vmThread.getName());
         }
         return;
       }
-      if (VM.VerifyAssertions) {
-        VM._assert(isDebugeeThread(vmThread));
-      }
-      threadInfo.remove(vmThread);
-      if (isThreadEndEnabled()) {
+      if (canNotifyThreadEnd()) {
         Thread thread = vmThread.getJavaLangThread();
         if (JikesRVMJDWP.getVerbose() >= 2) {
           VM.sysWriteln("THREAD_END: firing : ", thread.getName());
@@ -1192,21 +1393,41 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
         Event event = new ThreadStartEvent(thread);
         Jdwp.notify(event);
       }
+      synchronized(threadInfo) {
+        ThreadInfo ti = threadInfo.get(vmThread);
+        if (VM.VerifyAssertions) {
+          // the application thread must be registered previously.
+          VM._assert((ti != null) && isDebugeeThread(vmThread));
+        }
+        threadInfo.remove(vmThread);
+      }
     }
 
+    /**
+     * Notification from a thread that this thread will catch catch an
+     * exception.
+     */
     public void notifyExceptionCatch(Throwable e, NormalMethod sourceMethod,
         int sourceByteCodeIndex, NormalMethod catchMethod,
         int catchByteCodeIndex) {
       RVMThread vmThread = Scheduler.getCurrentThread();
-      ThreadInfo ti = threadInfo.get(vmThread);
-      if (ti == null) {
+      if (!isDebugeeThread(vmThread)) {
         if (JikesRVMJDWP.getVerbose() >= 2) {
-          VM.sysWriteln("NOTIFY_EXCEPTION: skip system thread ", vmThread
-              .getName());
+          VM.sysWriteln("EXCEPTION_CATCH: skip system thread ", vmThread.getName());
         }
         return;
       }
-      if (isExceptionCatchEnabled()) {
+      synchronized(threadInfo) {
+        ThreadInfo ti = threadInfo.get(vmThread);
+        if (ti == null) {
+          if (JikesRVMJDWP.getVerbose() >= 2) {
+            VM.sysWriteln("NOTIFY_EXCEPTION: skip system thread ", vmThread
+                .getName());
+          }
+          return;
+        }
+      }
+      if (canNotifyExceptionCatch()) {
         if (JikesRVMJDWP.getVerbose() >= 2) {
           VM.sysWriteln("NOTIFY_EXCEPTION: firing : ", e.toString(), " in ",
               vmThread.getName());
@@ -1228,16 +1449,27 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
         VM._assert(method != null && bcindex >= 0);
       }
       RVMThread t = Scheduler.getCurrentThread();
-      if (!isBreakPointEnabled() || !isDebugeeThread(t)) {
+      if (!canNotifyBreakPoint() || !isDebugeeThread(t)) {
+        if (JikesRVMJDWP.getVerbose() >= 2) {
+          VM.sysWrite("BREAKPOINT_HIT: skip break point ", t.getName());
+          VM.sysWriteln(" at ", bcindex, method.toString());
+        }
         return;
       }
-      Thread bpThread = t.getJavaLangThread();
-      if (VM.VerifyAssertions) {
-        VM._assert(bpThread != null);
+
+      if (canNotifyBreakPoint()) {
+        if (JikesRVMJDWP.getVerbose() >= 2) {
+          VM.sysWriteln("firing a break point hit: bcindex ", bcindex, 
+              method.toString());
+        }
+        Thread bpThread = t.getJavaLangThread();
+        if (VM.VerifyAssertions) {
+          VM._assert(bpThread != null);
+        }
+        Location loc = new Location(new VMMethod(method), bcindex);
+        Event event = new BreakpointEvent(bpThread, loc, null);
+        Jdwp.notify(event);
       }
-      Location loc = new Location(new VMMethod(method), bcindex);
-      Event event = new BreakpointEvent(bpThread, loc, null);
-      Jdwp.notify(event);
     }
   }
 
@@ -1263,6 +1495,15 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
 
     /** The JDWP suspension count. */
     private int suspendCount = 0;
+
+    /** The debugee thread requested suspending itself. */
+    private boolean selfSuspended;
+
+    /** Method invocation request. */
+    private MethodInvokeRequest methodInvokeRequest;
+
+    /** The result of method invocation. */
+    private MethodResult methodResult;
 
     ThreadInfo(RVMThread t) {
       if (VM.VerifyAssertions) {
@@ -1298,8 +1539,42 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
       }
     }
 
+    /**
+     * Perform special suspension due to the JDWP event suspension. The calling
+     * thread is the debugee thread, which triggered a JDWP event.
+     */
+    public synchronized void suspendCurrentThread() {
+      if (JikesRVMJDWP.getVerbose() >= 2) {
+        VM.sysWriteln("suspendFromJDWPEventNotify: name = ", thread.getName(),
+            " suspendCount = ", suspendCount);
+      }
+      if (VM.VerifyAssertions) {
+        VM._assert(thread == Scheduler.getCurrentThread());
+      }
+      selfSuspended = true;
+      suspendCount++;
+      while(suspendCount > 0) {
+        try {wait();} catch(InterruptedException e) {}
+        if (methodInvokeRequest != null) {
+          if (VM.VerifyAssertions) {
+            VM._assert(suspendCount > 0);
+          }
+          int saveSuspendCount = suspendCount;
+          suspendCount = 0; //resume state
+          jdwpNotifier.disableEventNotify();
+          methodResult = methodInvokeRequest.execute();
+          suspendCount = saveSuspendCount; //recover the old state.
+          jdwpNotifier.enableEventNotify();
+          notify();
+        }
+      }
+      methodInvokeRequest = null;
+      methodResult = null;
+      selfSuspended = false;
+    }
+
     /** Perform JDWP's thread resumption. */
-    public void resumeThread() {
+    public synchronized void resumeThread() {
       // "Resumes the execution of a given thread. If this thread was not previously 
       // suspended by the front-end, calling this command has no effect. Otherwise, 
       // the count of pending suspends on this thread is decremented. If it is 
@@ -1309,23 +1584,33 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
         VM.sysWriteln("resumeThread: name = ", thread.getName(),
             " suspendCount = ", suspendCount);
       }
-      Thread jthread = thread.getJavaLangThread();
       if (VM.VerifyAssertions) {
-        VM._assert(jthread != null);
+        VM._assert(thread != Scheduler.getCurrentThread());
       }
+
       boolean actualResume = false;
-      synchronized(this) {
-        if (suspendCount > 0) {
-          suspendCount--;
-          if (suspendCount == 0) {
-            actualResume = true;
-          }
+      if (suspendCount > 0) {
+        if (VM.VerifyAssertions) {
+          // suspended thread can resume itself.
+          VM._assert(Scheduler.getCurrentThread() != thread);
+        }
+        suspendCount--;
+        if (suspendCount == 0) {
+          actualResume = true;
         }
       }
       if (actualResume) {
-        synchronized (jthread) {
-          thread.resume();
-        }    
+        Thread jthread = thread.getJavaLangThread();
+        if (selfSuspended) {
+          notify();
+        } else {
+          if (VM.VerifyAssertions) {
+            VM._assert(jthread != null);
+          }
+          synchronized (jthread) {
+            thread.resume();
+          }
+        }
       }
     }
 
@@ -1334,17 +1619,46 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
       return suspendCount;
     }
 
+    private synchronized void requestMethodInvocation(MethodInvokeRequest req)
+        throws JdwpException {
+      if (!selfSuspended || suspendCount == 0) {
+        throw new JdwpException(JdwpConstants.Error.THREAD_NOT_SUSPENDED,
+            "Method invoke is possible only within a suspend thread by JDWP event.");
+
+      }
+      methodInvokeRequest = req;
+      notify();
+    }
+
+    private synchronized MethodResult waitForMethodInovationResult() {
+      MethodResult result;
+      try {
+        while(methodResult == null) {
+          wait();
+        }
+        result = methodResult;  
+        methodInvokeRequest = null;
+        methodResult = null;  
+      } catch(InterruptedException e) {
+        if (VM.VerifyAssertions) {
+          result = null;
+          VM._assert(false, "unexpected interruption.");
+        }
+      }
+      return result;
+    }
+
     /**
      * Walk the call frames in the suspended thread. If the thread is suspended,
      * visit call frames.
      */
-    private synchronized boolean stackWalk(StackFrameVisitor v) {
+    private synchronized void stackWalk(StackFrameVisitor v) throws InvalidThreadException {
       if (suspendCount <= 0) {
         if (JikesRVMJDWP.getVerbose() >= 1) {
           VM.sysWriteln("Reject stack walk on the running thread: ", thread
               .getName());
         }
-        return false;
+        throw new InvalidThreadException(-1);
       }
       RVMThread t = thread;
       if (VM.VerifyAssertions) {
@@ -1393,7 +1707,7 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
                 if (JikesRVMJDWP.getVerbose() >= 4) {showMethod(meth,bci,ip,fp);}
                 if (isDebuggableMethod(meth)) {
                   if (!v.visit(fno++, meth, bci, bcm, ipOffset, fpOffset)) {
-                    return true; // finish frame walk.
+                    return; // finish frame walk.
                   }
                 }
                 break;
@@ -1410,7 +1724,7 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
                 if (JikesRVMJDWP.getVerbose() >= 4) {showMethod(meth,bci,ip,fp);}
                 if (isDebuggableMethod(meth)) {
                   if (!v.visit(fno++, meth, bci, ocm, ipOffset, fpOffset, iei)) {
-                    return true;
+                    return;
                   }
                 }
                 // visit more inlined call sites.
@@ -1426,8 +1740,10 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
                   if (JikesRVMJDWP.getVerbose() >= 4) {
                     showMethod(meth, bci, ip, fp);
                   }
-                  if (!v.visit(fno++, meth, bci, ocm, ipOffset, fpOffset, iei)) {
-                    return true;
+                  if (isDebuggableMethod(meth)) {
+                    if (!v.visit(fno++, meth, bci, ocm, ipOffset, fpOffset, iei)) {
+                      return;
+                    }
                   }
                 }
                 break;
@@ -1438,7 +1754,7 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
                 if (JikesRVMJDWP.getVerbose() >= 4) {showMethod(meth, ip, fp);}
                 if (isDebuggableMethod(meth)) {
                   if (!v.visit(fno++, meth)) {
-                    return true;
+                    return;
                   }
                 }
                 break;
@@ -1456,7 +1772,73 @@ public final class VMVirtualMachine implements StackframeLayoutConstants {
           fp = Magic.getCallerFramePointer(fp);
         }
       }
-      return true;
     }
   }
-}
+
+  static class MethodInvokeRequest {
+    private final Object thisArg;
+    private final RVMMethod method;
+    private final Object[] otherArgs;
+    private final int options;
+
+    /** Constructor. */
+    private MethodInvokeRequest(RVMMethod method, Object obj,
+        Object[] otherArgs, int options) {
+      this.method = method;
+      this.thisArg = obj;
+      this.options = options;
+      this.otherArgs = otherArgs;
+    }
+
+    private boolean isInvokeSingleThreaded() {
+      return (options & JdwpConstants.InvokeOptions.INVOKE_SINGLE_THREADED) 
+        == JdwpConstants.InvokeOptions.INVOKE_SINGLE_THREADED; 
+    }
+
+    private MethodResult execute() {
+      Value resultValue;
+      Throwable exceptionResult;
+      try {
+        if (JikesRVMJDWP.getVerbose() >= 2) {
+          VM.sysWriteln("executing a method: ", method.toString());
+        }
+        Object o = Reflection.invoke(method, thisArg, otherArgs);
+        TypeReference type = method.getReturnType();
+        if (type.isVoidType()) {
+          resultValue = new VoidValue();
+        } else if (type.isPrimitiveType()) {
+          if (type.isBooleanType()) {
+            resultValue = new BooleanValue(Reflection.unwrapBoolean(o));
+          } else if (type.isByteType()) {
+            resultValue = new ByteValue(Reflection.unwrapByte(o));
+          } else if (type.isCharType()) {
+            resultValue = new CharValue(Reflection.unwrapChar(o));
+          } else if (type.isShortType()) {
+            resultValue = new ShortValue(Reflection.unwrapShort(o));
+          } else if (type.isIntType()) {
+            resultValue = new IntValue(Reflection.unwrapInt(o));
+          } else if (type.isFloatType()) {
+            resultValue = new FloatValue(Reflection.unwrapFloat(o));
+          } else if (type.isDoubleType()) {
+            resultValue = new DoubleValue(Reflection.unwrapDouble(o));
+          } else {
+            resultValue = null; 
+            exceptionResult = null;
+            if (VM.VerifyAssertions) {VM._assert(false);}
+          }
+        } else if (type.isReferenceType()) {
+          resultValue = new ObjectValue(o);
+        } else {
+          resultValue = null; 
+          exceptionResult = null;
+          if (VM.VerifyAssertions) {VM._assert(false);}
+        }
+        exceptionResult = null;
+      } catch(Exception e) {
+        exceptionResult = e;
+        resultValue = new VoidValue();
+      }
+      return new MethodResult(resultValue, exceptionResult);
+    }
+  }
+} 

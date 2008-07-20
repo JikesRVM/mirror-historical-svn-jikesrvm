@@ -14,6 +14,7 @@
 
   Consider the simple example testing script for trying how this works.
 
+   (bash) export PATH="$PWD/dist/prototype_ia32-linux/rvm:$PATH"
    (bash) javac -g Fact.java
    (bash) expect Fact.exp
    spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm "-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y" Fact,address=8000

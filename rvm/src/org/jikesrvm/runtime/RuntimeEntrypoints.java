@@ -734,9 +734,17 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
       }
     }
 
-	// Handle break point trap.
     if (trapCode == TRAP_BREAK_POINT) {
-      deliverBreakpointException(exceptionRegisters);
+      // Handle break point trap: The breakpoint register set and the the
+      // exception register set have different usage. The break point register
+      // set is for resuming the execution after the break point, but the
+      // exception register is to identify the exception source and its target
+      // code. In order to allow invoking a method at the break point and
+      // catching any exception, we want to release the exception register set.
+      Registers breakPointRegisters = new Registers();
+      breakPointRegisters.read(exceptionRegisters);
+      exceptionRegisters.inuse = false;
+      BreakPointManager.deliverBreakpointHit(breakPointRegisters);
       if (VM.VerifyAssertions) {VM._assert(NOT_REACHED);}
     }
 
@@ -1027,60 +1035,6 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
     Scheduler.getCurrentThread().handleUncaughtException(exceptionObject);
   }
 
-  /** Deliver a break point hit trap event. */
-  private static void deliverBreakpointException(Registers registers) {
-
-    if (VM.TraceExceptionDelivery) {
-      VM.sysWriteln("Nope.");
-      VM.sysWriteln("RuntimeEntrypoints.deliverBreakpointException() ");
-    }
-
-    // locate the break point form the register values.
-    final NormalMethod method;
-    final int bcIndex;
-    VM.disableGC();
-    // here, ip points a following instruction right after INT xx.
-    Address ip = registers.getInnermostInstructionAddress();
-    Address fp = registers.getInnermostFramePointer();
-    int cmid = Magic.getCompiledMethodID(fp);
-    CompiledMethod cm = CompiledMethods.getCompiledMethod(cmid);
-    if (cmid == INVISIBLE_METHOD_ID) {
-      bcIndex = -1;
-      method =null;
-    } else {
-      if (cm instanceof BaselineCompiledMethod) {
-        BaselineCompiledMethod bcm = (BaselineCompiledMethod) cm;
-        Offset ip_offset = cm.getInstructionOffset(ip);
-        bcIndex = bcm.findBytecodeIndexForInstruction(ip_offset);
-        method = (NormalMethod) bcm.getMethod();
-      } else {
-        bcIndex = -1;
-        method =null;
-      }
-    }
-    VM.enableGC();
-
-    if (method != null && bcIndex >= 0) {
-      BreakPointManager.deliverBreakPointHit(method, bcIndex);
-    } else {
-      if (VM.VerifyAssertions) {
-        VM._assert(false, "a break point trap from unknown source");
-      }
-    }
-
-    // now resume execution from the break point.
-    if (VM.VerifyAssertions) {
-      VM._assert(registers.inuse);
-    }
-    registers.inuse = false;
-    
-    if (VM.TraceExceptionDelivery) {
-      VM.sysWriteln("resuming at ip = ",  VM.addressAsHexString(registers.ip));
-    }
-    Magic.restoreHardwareExceptionState(registers);
-    if (VM.VerifyAssertions) {VM._assert(NOT_REACHED);}
-  }
-
   /**
    * Notify the exception and its catch event.
    * 
@@ -1092,7 +1046,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
   private static void notifyExceptionCatch(Throwable exceptionObject,
       Registers exceptionRegisters, CompiledMethod catchcm,
       Address catchBlockStart) {
-    
+
     //find the exception location.
     Address sourcefp = exceptionRegisters.getInnermostFramePointer();
     int sourcecmid = Magic.getCompiledMethodID(sourcefp);

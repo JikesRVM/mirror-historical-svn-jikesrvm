@@ -2,7 +2,6 @@
 
 ## RUN/CONT
 proc trun { args } {
-    set timeout 10
     spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
     expect {
 	-re "VM Started: .+\n.*MainThread... " {}
@@ -33,7 +32,6 @@ proc texit { args } {
 
 ## RUN/THREAD/STACK
 proc tthreadAndStack { args } {
-    set timeout 10
     spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
     expect {
 	-re "VM Started: .+\n.*MainThread... " {}
@@ -67,7 +65,6 @@ proc tthreadAndStack { args } {
 
 ##BREAKPOINT
 proc tbreakpoint { args } {
-    set timeout 10
     spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
     expect {
 	-re "VM Started: .+\n.*MainThread... " {}
@@ -106,7 +103,6 @@ proc tbreakpoint { args } {
 
 ##EXPR
 proc texpr { args } {
-    set timeout 10
     spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
     expect {
 	-re "VM Started: .+\n.*MainThread... " {}
@@ -132,6 +128,31 @@ proc texpr { args } {
 	    -re "MainThread... " {}
 	    timeout { error "can not evalute a local variable" }
 	}
+
+	send "eval Fact.fact(2)\n"
+	expect { 
+	    -re "MainThread... " {}
+	    timeout { error "can not evalute a local variable" }
+	}
+
+	send "eval n + Fact.fact(2)\n"
+	expect { 
+	    -re "MainThread... " {}
+	    timeout { error "can not evalute a local variable" }
+	}
+
+	send "eval Fact.fact(2) + Fact.fact(3)\n"
+	expect { 
+	    -re "MainThread... " {}
+	    timeout { error "can not evalute a local variable" }
+	}
+
+	send "eval Fact.fact(Fact.fact(3))\n"
+	expect { 
+	    -re "MainThread... " {}
+	    timeout { error "can not evalute a local variable" }
+	}
+
 	incr i
     }
 
@@ -142,6 +163,7 @@ proc texpr { args } {
     }
 }
 
+set timeout 30
 trun
 texit
 tthreadAndStack
