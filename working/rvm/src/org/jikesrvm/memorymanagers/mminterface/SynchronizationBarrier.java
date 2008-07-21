@@ -67,6 +67,8 @@ public final class SynchronizationBarrier {
   @Uninterruptible
   public void startupRendezvous() {
 
+    // PNT: FIXME: should not spin GC threads while there are mutator threads that need to do work to stop for GC.
+
     CollectorThread th = Magic.threadAsCollectorThread(RVMThread.getCurrentThread());
     int myNumber = th.getGCOrdinal();
 

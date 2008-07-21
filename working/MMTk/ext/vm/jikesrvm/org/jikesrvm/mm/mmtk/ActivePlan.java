@@ -157,6 +157,7 @@ import org.vmmagic.pragma.*;
    * @return The MutatorContext's unique identifier
    */
   @Interruptible
+  // PNT: FIXME: totally broken?  won't we run out of IDs?
   public synchronized int registerMutator(MutatorContext mutator) {
     mutators[mutatorCount] = (Selected.Mutator) mutator;
     return mutatorCount++;
