@@ -12,16 +12,12 @@
  */
 package java.lang;
 
-import java.security.ProtectionDomain;
 import java.lang.instrument.Instrumentation;
+import java.security.ProtectionDomain;
 
 import org.jikesrvm.classloader.RVMType;
-import org.jikesrvm.VM;
-
-import org.vmmagic.pragma.*;
-
-import org.jikesrvm.VM;              // for VerifyAssertions and _assert()
 import org.jikesrvm.scheduler.RVMThread;
+import org.vmmagic.pragma.Uninterruptible;
 
 /**
  * Library support interface of Jikes RVM
@@ -74,7 +70,6 @@ public class JikesRVMSupport {
 
   @Uninterruptible
   public static int getStringOffset(String str) {
-    // TODO - Harmony
     return str.offset;
   }
 
@@ -95,7 +90,7 @@ public class JikesRVMSupport {
   }
 
   public static void threadDied(Thread thread) {
-    // TODO - Harmony
+    throw new Error("TODO");
   }
   public static Throwable getStillBorn(Thread thread) {
     return null;
@@ -111,6 +106,7 @@ public class JikesRVMSupport {
     // TODO: make e.ordinal() non-uninterruptible
     return e.ordinal();
   }
+  
   @Uninterruptible
   public static String getEnumName(Enum<?> e) {
     // TODO: make Enum.name() non-uninterruptible
