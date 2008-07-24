@@ -215,6 +215,7 @@ public final class CollectorThread extends RVMThread {
   
   public static void boot() {
     handshake.boot();
+    gcBarrier.boot();
   }
 
   /**
@@ -344,7 +345,8 @@ public final class CollectorThread extends RVMThread {
         Plan.setCollectionTrigger(handshake.gcTrigger);
       }
       
-      /* block all threads. */
+      /* block all threads.  note that some threads will have already blocked
+	 themselves (if they had made their own GC requests). */
       if (gcOrdinal == GC_ORDINAL_BASE) {
 	VM.sysWriteln("Thread #",getThreadSlot()," is about to block a bunch of threads.");
 	RVMThread.handshakeLock.lock();
@@ -471,10 +473,18 @@ public final class CollectorThread extends RVMThread {
        * is enabled, so no mutators can possibly arrive at old
        * handshake object: it's safe to replace it with a new one. */
       if (gcOrdinal == GC_ORDINAL_BASE) {
+
+	// reset the handshake.  this ensures that once threads are awakened,
+	// any new GC requests that they make actually result in GC activity.
+	handshake.reset();
+	VM.sysWriteln("Thread #",getThreadSlot()," just reset the handshake.");
+
+        Plan.collectionComplete();
+	
+	VM.sysWriteln("Marked the collection as complete.");
+
         collectionAttemptBase = 0;
-        /* notify mutators waiting on previous handshake object -
-         * actually we don't notify anymore, mutators are simply in
-         * processor ready queues waiting to be dispatched. */
+
 	VM.sysWriteln("Thread #",getThreadSlot()," is unblocking a bunch of threads.");
 	// and now unblock all threads
 	RVMThread.handshakeLock.lock();
@@ -508,16 +518,6 @@ public final class CollectorThread extends RVMThread {
       /* final cleanup for initial collector thread */
       if (gcOrdinal == GC_ORDINAL_BASE) {
         /* clear the GC flags */
-	
-        Plan.collectionComplete();
-	
-	VM.sysWriteln("Marked the collection as complete.");
-
-        handshake.notifyCompletion();
-
-	VM.sysWriteln("Notified collection completion.");
-
-        handshake.reset();
 	
         gcThreadRunning = false;
       } // if designated thread

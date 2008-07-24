@@ -13,9 +13,7 @@
 package org.jikesrvm.memorymanagers.mminterface;
 
 import org.jikesrvm.VM;
-import org.jikesrvm.mm.mmtk.SynchronizedCounter;
-import org.jikesrvm.runtime.Magic;
-import org.jikesrvm.runtime.Time;
+import org.jikesrvm.scheduler.HeavyCondLock;
 import org.vmmagic.pragma.Uninterruptible;
 
 /**
@@ -28,107 +26,38 @@ import org.vmmagic.pragma.Uninterruptible;
 final class Barrier {
 
   public static final int VERBOSE = 0;
-
-  // The value of target is one more than the number of threads we expect to arrive.
-  // It is one greater to allow safely updating the currentCounter value.
-  // If target is -1, no thread can proceed past the barrier.
-  // 3 counters are needed to support proper resetting without race conditions.
-  //
-  private volatile int target = -1;
-  private static final int NUM_COUNTERS = 3;
-  final SynchronizedCounter[] counters;
-  SynchronizedCounter currentCounter;
-
-  // Debugging constants
-  private static final long WARN_PERIOD =  Time.secsToNanos(20); // Print msg every WARN_PERIOD seconds
-  private static final long TIME_OUT =  3 * WARN_PERIOD; // Die after TIME_OUT seconds;
-
-  public Barrier() {
-    counters = new SynchronizedCounter[NUM_COUNTERS];
-    for (int i = 0; i < NUM_COUNTERS; i++) {
-      counters[i] = new SynchronizedCounter();
-    }
-    currentCounter = new SynchronizedCounter();
+    
+  private HeavyCondLock lock;
+  private int target;
+  private int[] counters=new int[2]; // are two counters enough?
+  private int countIdx;
+  
+  public Barrier() {}
+  
+  public void boot(int target) {
+    lock=new HeavyCondLock();
+    this.target=target;
+    countIdx=0;
   }
-
-  // Set target to appropriate value
-  //
-  public void setTarget(int t) {
-    Magic.isync();
-    if (VM.VerifyAssertions) VM._assert(t >= 0);
-    target = t + 1;
-    Magic.sync();
-  }
-
-  public void clearTarget() {
-    Magic.isync();
-    target = -1;
-    Magic.sync();
-  }
-
-  // Returns whether caller was first to arrive.
-  // The coding to ensure resetting is delicate.
-  //
-  public int arrive(int where) {
-    Magic.isync();
-    int cur = currentCounter.peek();
-    SynchronizedCounter c = counters[cur];
-    int myValue = c.increment();
-    // Do NOT use the currentCounter variables unless designated thread
-    if (VERBOSE >= 1) {
-      VM.sysWriteln(where,": myValue = ",myValue);
-    }
-    if (VM.VerifyAssertions) VM._assert(myValue >= 0 && (target == -1 || myValue <= target));
-    if (myValue + 2 == target) {
-      // last one to show up
-      int next = (cur + 1) % NUM_COUNTERS;
-      int prev = (cur - 1 + NUM_COUNTERS) % NUM_COUNTERS;
-      counters[prev].reset();       // everyone has seen the value so safe to reset now
-      if (next == 0) {
-        currentCounter.reset(); // everyone has arrived but still waiting
-      } else {
-        currentCounter.increment();
-      }
-      c.increment(); // now safe to let others past barrier
-      Magic.sync();
-      return myValue;
+  
+  public void arrive() {
+    lock.lock();
+    int myCountIdx=countIdx;
+    counters[myCountIdx]++;
+    if (counters[myCountIdx]==target) {
+      counters[myCountIdx]=0;
+      countIdx^=1;
+      lock.broadcast();
     } else {
-      // everyone else
-      long startNano = 0;
-      long lastElapsedNano = 0;
-      while (true) {
-        long startCycles = Time.cycles();
-        long endCycles = startCycles + ((long) 1e9); // a few hundred milliseconds more or less.
-        long nowCycles;
-        do {
-          if (target != -1 && c.peek() == target) {
-            Magic.sync();
-            return myValue;
-          }
-          nowCycles = Time.cycles();
-        } while (startCycles < nowCycles && nowCycles < endCycles); /* check against both ends to guard against CPU migration */
-
-        /*
-         * According to the cycle counter, we've been spinning for a while.
-         * Time to check nanoTime and see if we should print a warning and/or sysFail.
-         */
-        if (startNano == 0) {
-          startNano = Time.nanoTime();
-        } else {
-          long nowNano = Time.nanoTime();
-          long elapsedNano = nowNano - startNano;
-          if (elapsedNano - lastElapsedNano > WARN_PERIOD) {
-            VM.sysWrite("GC Warning: Barrier wait has reached ",Time.nanosToSecs(elapsedNano),
-                        " seconds.  Called from ");
-            VM.sysWrite(where,".  myOrder = ",myValue,"  count is ");
-            VM.sysWriteln(c.peek()," waiting for ",target - 1);
-            lastElapsedNano = elapsedNano;
-          }
-          if (elapsedNano > TIME_OUT) {
-            VM.sysFail("GC Error: Barrier Timeout");
-          }
-        }
+      while (counters[myCountIdx]!=0) {
+	lock.await();
       }
     }
+    lock.unlock();
   }
 }
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

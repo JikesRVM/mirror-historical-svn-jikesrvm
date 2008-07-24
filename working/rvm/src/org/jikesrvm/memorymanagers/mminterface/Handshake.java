@@ -48,7 +48,6 @@ public class Handshake {
    */
   private HeavyCondLock lock;
   protected boolean requestFlag;
-  protected boolean completionFlag;
   public int gcTrigger;  // reason for this GC
   private int collectorThreadsParked;
 
@@ -65,11 +64,7 @@ public class Handshake {
     if (verbose >= 1) VM.sysWriteln("GC Message: Handshake.requestAndAwaitCompletion - yielding");
     /* allow a gc thread to run */
     VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is waiting for the GC to finish.");
-    lock.lock();
-    while (!completionFlag) {
-      lock.waitNicely();
-    }
-    lock.unlock();
+    RVMThread.getCurrentThread().block(RVMThread.gcBlockAdapter);
     VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is done waiting for the GC.");
     if (verbose >= 1) VM.sysWriteln("GC Message: Handshake.requestAndAwaitCompletion - mutator running");
   }
@@ -85,9 +80,8 @@ public class Handshake {
   @LogicallyUninterruptible
   @Uninterruptible
   public void requestAndAwaitCompletion(int why) {
-    if (request(why)) {
-      waitForGCToFinish();
-    }
+    request(why);
+    waitForGCToFinish();
   }
 
   /**
@@ -128,34 +122,7 @@ public class Handshake {
   }
 
   /**
-   * Wait for all GC threads to complete previous collection cycle.
-   */
-  @Uninterruptible
-  private void waitForPrecedingGC() {
-    VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is waiting for the preceding GC to finish");
-    
-    int maxCollectorThreads = RVMThread.numProcessors;
-
-    /* Wait for all gc threads to finish preceeding collection cycle */
-    if (verbose >= 1) {
-      VM.sysWrite("GC Message: Handshake.initiateCollection ");
-      VM.sysWriteln("checking if previous collection is finished");
-    }
-    
-    lock.lock();
-    while (collectorThreadsParked < maxCollectorThreads) {
-      lock.await();
-    }
-    lock.unlock();
-
-    VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is done waiting for the preceding GC to finish");
-  }
-
-  /**
-   * Called by mutators to request a garbage collection.  If the
-   * completionFlag is already set, return false.  Else, if the
-   * requestFlag is not yet set (ie this is the first mutator to
-   * request this collection) then initiate the collection sequence
+   * Called by mutators to request a garbage collection.
    *
    * @return true if the completion flag is not already set.
    */
@@ -181,9 +148,7 @@ public class Handshake {
 	VM.shutdown(VM.EXIT_STATUS_MISC_TROUBLE);
       }
 
-      waitForPrecedingGC();
       requestFlag = true;
-      completionFlag = false;
       
       Plan.setCollectionTriggered();
       
@@ -191,26 +156,6 @@ public class Handshake {
     }
     lock.unlock();
     return true;
-  }
-
-  /**
-   * Set the completion flag that indicates the collection has
-   * completed.  Called by a collector thread after the collection has
-   * completed.
-   *
-   * @see CollectorThread
-   */
-  @Uninterruptible
-  void notifyCompletion() {
-    VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is notifying the world that GC is done.");
-    lock.lock();
-    if (verbose >= 1) {
-      VM.sysWriteln("GC Message: Handshake.notifyCompletion");
-    }
-    completionFlag = true;
-    lock.broadcast();
-    lock.unlock();
-    VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is done notifying the world that GC is done.");
   }
 }
 

@@ -89,7 +89,7 @@ public class RVMThread extends MM_ThreadContext {
   /** Trace when a thread is really blocked */
   protected static final boolean traceReallyBlock = true || traceBlock;
   /** Trace thread start/stop */
-  protected static final boolean traceAcct = false;
+  protected static final boolean traceAcct = true;
   /** Trace execution */
   protected static final boolean trace = false;
   /** Trace thread termination */
@@ -299,7 +299,7 @@ public class RVMThread extends MM_ThreadContext {
   public long totalObjectsAllocated;
   /** used for instrumentation in allocators */
   public long synchronizedObjectsAllocated;
-
+  
   /**
    * Is the next taken yieldpoint in response to a request to perform OSR?
    */
@@ -1331,7 +1331,7 @@ public class RVMThread extends MM_ThreadContext {
   }
   
   final void enterNativeBlocked(boolean jni) {
-    if (traceBlock) VM.sysWriteln("Thread #",threadSlot," entering native blocked.");
+    if (traceReallyBlock) VM.sysWriteln("Thread #",threadSlot," entering native blocked.");
     // NB: anything this method calls CANNOT change the contextRegisters
     // or the JNI env.  as well, this code will be running concurrently
     // with stop-the-world GC!
@@ -1419,7 +1419,7 @@ public class RVMThread extends MM_ThreadContext {
 	      // do a timed wait, and assert that the thread did not disappear
 	      // into native in the meantime
 	      monitor().timedWaitRelative(1000L*1000L*1000L); // 1 sec
-	      if (traceBlock) {
+	      if (traceReallyBlock) {
 		VM.sysWriteln("Thread #",threadSlot,"'s status is ",execStatus);
 	      }
 	      VM._assert(execStatus!=IN_NATIVE);
@@ -1675,7 +1675,10 @@ public class RVMThread extends MM_ThreadContext {
     
     sysCall.sysStashVmThreadInPthread(currentThread);
     
-    if (traceAcct) VM.sysWriteln("Thread #",currentThread.threadSlot," running!");
+    if (traceAcct) {
+      VM.sysWriteln("Thread #",currentThread.threadSlot," with pthread id ",
+		    currentThread.pthread_id," running!");
+    }
 
     if (trace) {
       VM.sysWriteln("Thread.startoff(): about to call ", currentThread.toString(), ".run()");

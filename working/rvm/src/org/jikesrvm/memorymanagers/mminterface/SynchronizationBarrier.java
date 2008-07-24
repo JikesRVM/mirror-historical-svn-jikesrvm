@@ -32,16 +32,15 @@ public final class SynchronizationBarrier {
 
   private static final int verbose = 0;
 
-  // number of physical processors on running computer
-  private int numRealProcessors;
-
   final Barrier barrier = new Barrier();
   /**
    * Constructor
    */
   public SynchronizationBarrier() {
-    // initialize numRealProcessors to 1. Will be set to actual value later.
-    numRealProcessors = 1;
+  }
+    
+  public void boot() {
+    barrier.boot(RVMThread.numProcessors);
   }
 
   /**
@@ -50,7 +49,7 @@ public final class SynchronizationBarrier {
   @Uninterruptible
   public int rendezvous(int where) {
 
-    barrier.arrive(where);
+    barrier.arrive();
 
     Magic.isync(); // so subsequent instructions won't see stale values
 
@@ -67,7 +66,7 @@ public final class SynchronizationBarrier {
   @Uninterruptible
   public void startupRendezvous() {
 
-    // PNT: FIXME: should not spin GC threads while there are mutator threads that need to do work to stop for GC.
+    // PNT: FIXME: this is more complicated than it needs to be.
 
     CollectorThread th = Magic.threadAsCollectorThread(RVMThread.getCurrentThread());
     int myNumber = th.getGCOrdinal();
@@ -80,7 +79,7 @@ public final class SynchronizationBarrier {
     }
 
     if (myNumber > 1) {
-      barrier.arrive(8888); // wait for designated guy to do his job
+      barrier.arrive(); // wait for designated guy to do his job
       Magic.isync();     // so subsequent instructions won't see stale values
       if (verbose > 0) VM.sysWriteln("GC Message: startupRendezvous  leaving as ", myNumber);
       return;               // leave barrier
@@ -91,8 +90,7 @@ public final class SynchronizationBarrier {
     if (verbose > 0) {
       VM.sysWriteln("GC Message: startupRendezvous  numParticipating = ", numParticipating);
     }
-    barrier.setTarget(numParticipating); // retarded
-    barrier.arrive(8888);    // all setup now complete and we can proceed
+    barrier.arrive();    // all setup now complete and we can proceed
     Magic.sync();   // update main memory so other processors will see it in "while" loop
     Magic.isync();  // so subsequent instructions won't see stale values
     if (verbose > 0) {
@@ -100,3 +98,8 @@ public final class SynchronizationBarrier {
     }
   }  // startupRendezvous
 }
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/
