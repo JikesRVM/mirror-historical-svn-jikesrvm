@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.concurrent.locks.LockSupport;
 
 import org.jikesrvm.scheduler.RVMThread;
+import org.jikesrvm.scheduler.Scheduler;
 
 import sun.misc.SoftCache;
 import sun.nio.ch.Interruptible;
@@ -108,13 +109,6 @@ public class Thread implements Runnable {
   
   RVMThread t;
   
-  /* Make sure registerNatives is the first thing <clinit> does. */
-  private static native void registerNatives();
-
-  static {
-    registerNatives();
-  }
-
   private char name[];
   private int priority;
   private Thread threadQ;
@@ -232,12 +226,18 @@ public class Thread implements Runnable {
   /* Remembered Throwable from stop before start */
   private Throwable throwableFromStop;
 
+  RVMThread getThread() {
+    return t;
+  }
+  
   /**
    * Returns a reference to the currently executing thread object.
    *
    * @return  the currently executing thread.
    */
-  public static native Thread currentThread();
+  public static Thread currentThread() {
+    return Scheduler.getCurrentThread().getJavaLangThread();
+  }
 
   /**
    * A hint to the scheduler that the current thread is willing to yield
@@ -255,7 +255,9 @@ public class Thread implements Runnable {
    * concurrency control constructs such as the ones in the
    * {@link java.util.concurrent.locks} package.
    */
-  public static native void yield();
+  public static void yield() {
+    Scheduler.yield();
+  }
 
   /**
    * Causes the currently executing thread to sleep (temporarily cease
@@ -274,7 +276,9 @@ public class Thread implements Runnable {
    *          <i>interrupted status</i> of the current thread is
    *          cleared when this exception is thrown.
    */
-  public static native void sleep(long millis) throws InterruptedException;
+  public static void sleep(long millis) throws InterruptedException {
+    RVMThread.sleep(millis, 0);
+  }
 
   /**
    * Causes the currently executing thread to sleep (temporarily cease
@@ -379,6 +383,17 @@ public class Thread implements Runnable {
     tid = nextThreadID();
   }
 
+  private Thread(RVMThread vmt, ThreadGroup group, Runnable runnable, String threadName, long stack){
+
+    init(group, runnable, threadName, stack);
+  
+    if (vmt == null) {
+      t = new org.jikesrvm.scheduler.greenthreads.GreenThread(this, stack,  threadName, false, NORM_PRIORITY);
+    } else {
+      t = vmt;
+    }
+  }
+  
   /**
    * Allocates a new <code>Thread</code> object. This constructor has
    * the same effect as <code>Thread(null, null,</code>
@@ -389,7 +404,7 @@ public class Thread implements Runnable {
    * @see     #Thread(ThreadGroup, Runnable, String)
    */
   public Thread() {
-    init(null, null, "Thread-" + nextThreadNum(), 0);
+    this(null, null, null, "Thread-" + nextThreadNum(), 0);
   }
 
   /**
@@ -403,7 +418,7 @@ public class Thread implements Runnable {
    * @see     #Thread(ThreadGroup, Runnable, String)
    */
   public Thread(Runnable target) {
-    init(null, target, "Thread-" + nextThreadNum(), 0);
+    this(null, null, target, "Thread-" + nextThreadNum(), 0);
   }
 
   /**
@@ -420,7 +435,7 @@ public class Thread implements Runnable {
    * @see        #Thread(ThreadGroup, Runnable, String)
    */
   public Thread(ThreadGroup group, Runnable target) {
-    init(group, target, "Thread-" + nextThreadNum(), 0);
+    this(null, group, target, "Thread-" + nextThreadNum(), 0);
   }
 
   /**
@@ -431,7 +446,7 @@ public class Thread implements Runnable {
    * @see     #Thread(ThreadGroup, Runnable, String)
    */
   public Thread(String name) {
-    init(null, null, name, 0);
+    this(null, null, null, name, 0);
   }
 
   /**
@@ -445,7 +460,7 @@ public class Thread implements Runnable {
    * @see        #Thread(ThreadGroup, Runnable, String)
    */
   public Thread(ThreadGroup group, String name) {
-    init(group, null, name, 0);
+    this(null, group, null, name, 0);
   }
 
   /**
@@ -457,7 +472,7 @@ public class Thread implements Runnable {
    * @see     #Thread(ThreadGroup, Runnable, String)
    */
   public Thread(Runnable target, String name) {
-    init(null, target, name, 0);
+    this(null, null, target, name, 0);
   }
 
   /**
@@ -515,7 +530,7 @@ public class Thread implements Runnable {
    * @see        SecurityManager#checkAccess
    */
   public Thread(ThreadGroup group, Runnable target, String name) {
-    init(group, target, name, 0);
+    this(null, group, target, name, 0);
   }
 
   /**
@@ -576,12 +591,11 @@ public class Thread implements Runnable {
    * @since 1.4
    */
   public Thread(ThreadGroup group, Runnable target, String name, long stackSize) {
-    init(group, target, name, stackSize);
+    this(null, group, target, name, stackSize);
   }
   
   public Thread(RVMThread t, String name) {
-    this.t = t;
-    this.name = name.toCharArray();
+    this(t, null, null, name, 0);
   }
 
   /**
@@ -635,7 +649,9 @@ public class Thread implements Runnable {
     }
   }
 
-  private native void start0();
+  private void start0() {
+    t.start();
+  }
 
   /**
    * If this thread was constructed using a separate
@@ -929,7 +945,14 @@ public class Thread implements Runnable {
    * is reset or not based on the value of ClearInterrupted that is
    * passed.
    */
-  private native boolean isInterrupted(boolean ClearInterrupted);
+  private boolean isInterrupted(boolean ClearInterrupted) {
+    RVMThread current = Scheduler.getCurrentThread();
+    if (current.isInterrupted()) {
+      current.clearInterrupted();
+      return true;
+    }
+    return false;
+  }
 
   /**
    * Throws {@link NoSuchMethodError}.
@@ -960,7 +983,9 @@ public class Thread implements Runnable {
    * @return  <code>true</code> if this thread is alive;
    *          <code>false</code> otherwise.
    */
-  public final native boolean isAlive();
+  public final boolean isAlive() {
+    return t.isAlive();
+  }
 
   /**
    * Suspends this thread.
@@ -1168,7 +1193,9 @@ public class Thread implements Runnable {
    *             were never well-defined.
    */
   @Deprecated
-  public native int countStackFrames();
+  public int countStackFrames() {
+    return t.countStackFrames();
+  }
 
   /**
    * Waits at most {@code millis} milliseconds for this thread to
@@ -1447,7 +1474,9 @@ public class Thread implements Runnable {
    *         the specified object.
    * @since 1.4
    */
-  public static native boolean holdsLock(Object obj);
+  public static boolean holdsLock(Object obj) {
+    return Scheduler.getCurrentThread().holdsLock(obj);
+  }
 
   private static final StackTraceElement[] EMPTY_STACK_TRACE = new StackTraceElement[0];
 
@@ -1630,9 +1659,13 @@ public class Thread implements Runnable {
     return result.booleanValue();
   }
 
-  private native static StackTraceElement[][] dumpThreads(Thread[] threads);
+  private static StackTraceElement[][] dumpThreads(Thread[] threads) {
+    throw new Error("Thread.dumpThreads:TODO");
+  }
 
-  private native static Thread[] getThreads();
+  private static Thread[] getThreads() {
+    throw new Error("Thread.getThreads: TODO");
+  }
 
   /**
    * Returns the identifier of this Thread.  The thread ID is a positive
@@ -1898,13 +1931,23 @@ public class Thread implements Runnable {
   }
 
   /* Some private helper methods */
-  private native void setPriority0(int newPriority);
+  private void setPriority0(int newPriority) {
+    t.setPriority(newPriority);
+  }
 
-  private native void stop0(Object o);
+  private void stop0(Object o) {
+    t.kill(new ThreadDeath(), true);
+  }
 
-  private native void suspend0();
+  private  void suspend0() {
+    t.suspend();
+  }
 
-  private native void resume0();
+  private void resume0() {
+    t.resume();
+  }
 
-  private native void interrupt0();
+  private void interrupt0() {
+   t.interrupt(); 
+  }
 }
