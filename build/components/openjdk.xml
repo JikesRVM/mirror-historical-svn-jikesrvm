@@ -20,7 +20,7 @@
   <property name="openjdk.description" value="OpenJDK class Libraries"/>
   <property name="openjdk.component.dir" location="${components.dir}/openjdk"/>
   <property name="openjdk.package.dir" value="${openjdk.component.dir}/${openjdk.version}"/>
-  <property name="openjdk.dir" value="${openjdk.package.dir}/"/>
+  <property name="openjdk.dir" value="${openjdk.package.dir}"/>
   <property name="openjdk.hg.revision" value="380:0e1d82bbcb2c" />
 
   <!-- **************************************************************************** -->
@@ -129,10 +129,10 @@
     <!-- build openjdk in openjdk.dir -->
     <buildOpenJDK target="openjdk"/>
     <buildOpenJDK target="images"/>
-    <writeComponentConstants dir="${openjdk.dir}" />
+    <writeComponentConstants dir="${openjdk.dir}/build/${openjdk.arch.builddir}/j2sdk-image/jre/lib" />
     <setComponentsConfig key="openjdk.include.dir" value="${openjdk.dir}/build/${openjdk.arch.builddir}/include"/>
-    <setComponentsConfig key="openjdk.lib.dir" 
-      value="${openjdk.dir}/build/${openjdk.arch.builddir}/j2sdk-image/jre/lib"/>
+    <setComponentsConfig key="${target.name}.openjdk.lib.dir" 
+      value="${openjdk.dir}/build/${openjdk.arch.builddir}/j2re-image/lib"/>
   </target>
 
   <!-- *************************************************************************** -->

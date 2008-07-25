@@ -201,7 +201,7 @@
     <test-file name="openjdk.lib.dir" location="${components.file}"/>
     <property file="${openjdk.lib.dir}/constants.properties"/>
     <property name="config.portable-native-sync" value="false"/>
-    <property name="build.extra.rt.jars" value="${openjdk.lib.dir}/resources.jar:${openjdk.lib.dir}/charsets.jar:${openjdk.lib.dir}/jce.jar:${openjdk.lib.dir}/resources.jar"/>
+    <property name="build.extra.rt.jars" value="${openjdk.lib.dir}/resources.jar:${openjdk.lib.dir}/charsets.jar:${openjdk.lib.dir}/jce.jar"/>
   </target>
 
   <target name="check-mmtk-properties"  depends="check-host-name">
@@ -907,6 +907,9 @@ Check to make sure all required properties are specified. This includes properti
     <condition property="pp_RVM_WITH_GNU_CLASSPATH" value="true" else="false">
       <equals arg1="${classlib.provider}" arg2="GNU Classpath"/>
     </condition>
+    <condition property="pp_RVM_WITH_OPENJDK" value="true" else="false">
+      <equals arg1="${classlib.provider}" arg2="OpenJDK"/>
+    </condition>
 
     <copy file="${basedir}/rvm/src-generated/vm-configuration/Configuration.template"
           tofile="${generated.config.java}/org/jikesrvm/Configuration.java">
@@ -1035,7 +1038,6 @@ Check to make sure all required properties are specified. This includes properti
   	      <equals arg1="${classlib.provider}" arg2="OpenJDK"/>
   	    </conditions>
   	    <sequential>
-  	      <!-- TODO: OpenJDK -->
   	      <property name="classlib.library-interface.cpl.java" location="libraryInterface/OpenJDK/CPL/src"/>
   	      <property name="classlib.library-interface.non-cpl.java" location="libraryInterface/OpenJDK/GPL/src"/>
   	    </sequential>
@@ -1210,46 +1212,22 @@ Check to make sure all required properties are specified. This includes properti
     </javac>
   </target>
 
-  <target name="package" depends="compile,compile-vmmagic,package-classpath,package-harmony,package-openjdk"/>
+  <target name="package" depends="compile,compile-vmmagic,package-classpath,package-harmony,package-openjdk,package-rvm"/>
 
   <target name="package-harmony" if="harmony.classlib">
     <zip destfile="${build.rt.jar}" duplicate="preserve" basedir="${build.classes}" compress="false">
       <include name="java/**"/>
       <include name="sun/**"/>
     </zip>
-    <jar destfile="${build.vm.jar}" update="true" compress="false">
-      <fileset dir="${build.classes}">
-        <exclude name="java/**"/>
-        <exclude name="sun/**"/>
-      </fileset>
-      <fileset dir="${build.vmmagic-stub.classes}">
-        <include name="org/vmmagic/pragma/**"/>
-        <include name="org/vmmagic/*"/>
-      </fileset>
-      <fileset dir="${build.vmmagic.classes}"/>
-      <fileset dir="${build.options.classes}"/>
-    </jar>
   </target>
-  <!--TODO: OpenJDK -->
+
   <target name="package-openjdk" if="openjdk.classlib">
   	<zip destfile="${build.rt.jar}" duplicate="preserve" basedir="${build.classes}" compress="false">
       <include name="java/**"/>
 	  <include name="sun/**"/>
+  	  <zipfileset src="${openjdk.lib.dir}/rt.jar" />
 	</zip>
-	<jar destfile="${build.vm.jar}" update="true" compress="false">
-	  <fileset dir="${build.classes}">
-	    <exclude name="java/**"/>
-	    <exclude name="sun/**"/>
-	  </fileset>
-	  <fileset dir="${build.vmmagic-stub.classes}">
-	    <include name="org/vmmagic/pragma/**"/>
-	    <include name="org/vmmagic/*"/>
-	  </fileset>
-      <fileset dir="${build.vmmagic.classes}"/>
-	  <fileset dir="${build.options.classes}"/>
-    </jar>
   </target>
-	
 	
   <target name="package-classpath" if="classpath.classlib">
     <!-- create a rt.jar for the RVM -->
@@ -1259,9 +1237,12 @@ Check to make sure all required properties are specified. This includes properti
       <include name="gnu/**"/>
       <zipfileset src="${classpath.lib.dir}/classpath.jar"/>
     </zip>
+  </target>
+  
+  <target name="package-rvm">
     <jar destfile="${build.vm.jar}" update="true" compress="false">
       <fileset dir="${build.classes}">
-        <exclude name="java/**"/>
+      	<exclude name="java/**"/>
         <exclude name="sun/**"/>
         <exclude name="gnu/**"/>
       </fileset>
