@@ -29,11 +29,9 @@ import org.vmmagic.pragma.*;
 @Uninterruptible public final class ActivePlan extends org.mmtk.vm.ActivePlan {
 
   /* Collector and Mutator Context Management */
-  private static final int MAX_CONTEXTS = RVMThread.MAX_THREADS;
+  private static final int MAX_CONTEXTS = 128; // ??
   private static Selected.Collector[] collectors = new Selected.Collector[MAX_CONTEXTS];
   private static int collectorCount = 0; // Number of collector instances
-  private static Selected.Mutator[] mutators = new Selected.Mutator[MAX_CONTEXTS];
-  private static int mutatorCount = 0; // Number of mutator instances
   private static SynchronizedCounter mutatorCounter = new SynchronizedCounter();
 
   /** @return The active Plan instance. */
@@ -75,7 +73,7 @@ import org.vmmagic.pragma.*;
   public CollectorContext collector(int id) {
     return collectors[id];
   }
-
+  
   /**
    * Return the MutatorContext instance given its unique identifier.
    *
@@ -84,7 +82,12 @@ import org.vmmagic.pragma.*;
    */
   @Inline
   public MutatorContext mutator(int id) {
-    return mutators[id];
+    RVMThread t=RVMThread.threadBySlot[id];
+    if (t!=null && t.registeredMutator) {
+      return t;
+    } else {
+      return null;
+    }
   }
 
   /**
@@ -105,7 +108,12 @@ import org.vmmagic.pragma.*;
    */
   @Inline
   public Selected.Mutator selectedMutator(int id) {
-    return mutators[id];
+    RVMThread t=RVMThread.threadBySlot[id];
+    if (t!=null && t.registeredMutator) {
+      return t;
+    } else {
+      return null;
+    }
   }
 
 
@@ -117,7 +125,7 @@ import org.vmmagic.pragma.*;
 
   /** @return The number of registered MutatorContext instances. */
   public int mutatorCount() {
-    return mutatorCount;
+    return RVMThread.nextSlot;
   }
 
   /** Reset the mutator iterator */
@@ -134,8 +142,17 @@ import org.vmmagic.pragma.*;
    *  <code>null</code> when all mutators have been done.
    */
   public MutatorContext getNextMutator() {
-    int id = mutatorCounter.increment();
-    return id >= mutatorCount ? null : mutators[id];
+    for (;;) {
+      int idx = mutatorCounter.increment();
+      if (idx >= RVMThread.numThreads) {
+	return null;
+      } else {
+	RVMThread t=RVMThread.threads[idx];
+	if (t.registeredMutator) {
+	  return t;
+	}
+      }
+    }
   }
 
   /**
@@ -156,10 +173,14 @@ import org.vmmagic.pragma.*;
    * @param mutator The MutatorContext to register
    * @return The MutatorContext's unique identifier
    */
-  @Interruptible
-  // PNT: FIXME: totally broken?  won't we run out of IDs?
-  public synchronized int registerMutator(MutatorContext mutator) {
-    mutators[mutatorCount] = (Selected.Mutator) mutator;
-    return mutatorCount++;
+  public void registerMutator(MutatorContext mutator) {
+    RVMThread t=(RVMThread)mutator;
+    t.id = t.threadSlot;
+    t.registeredMutator = true;
   }
 }
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

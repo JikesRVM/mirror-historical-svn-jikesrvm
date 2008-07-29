@@ -15,6 +15,7 @@ package org.jikesrvm.memorymanagers.mminterface;
 import org.jikesrvm.VM;
 import org.jikesrvm.scheduler.HeavyCondLock;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Interruptible;
 
 /**
  * This class implements barrier synchronization.
@@ -34,6 +35,7 @@ final class Barrier {
   
   public Barrier() {}
   
+  @Interruptible
   public void boot(int target) {
     lock=new HeavyCondLock();
     this.target=target;

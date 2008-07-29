@@ -15,6 +15,7 @@ package org.mmtk.plan.concurrent;
 import org.mmtk.plan.Phase;
 import org.mmtk.plan.Plan;
 import org.mmtk.plan.SimpleCollector;
+import org.mmtk.plan.MutatorContext;
 import org.mmtk.plan.TraceLocal;
 import org.mmtk.utility.Log;
 import org.mmtk.utility.options.Options;
@@ -87,7 +88,10 @@ public abstract class ConcurrentCollector extends SimpleCollector {
       if (VM.VERIFY_ASSERTIONS) {
         VM.assertions._assert(!Plan.gcInProgress());
         for(int i=0; i < VM.activePlan.mutatorCount(); i++) {
-          VM.assertions._assert(((ConcurrentMutator)VM.activePlan.mutator(i)).barrierActive);
+	  MutatorContext mc=VM.activePlan.mutator(i);
+	  if (mc!=null) {
+	    VM.assertions._assert(((ConcurrentMutator)mc).barrierActive);
+	  }
         }
       }
       TraceLocal trace = getCurrentTrace();
@@ -144,3 +148,8 @@ public abstract class ConcurrentCollector extends SimpleCollector {
     return (Concurrent) VM.activePlan.global();
   }
 }
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

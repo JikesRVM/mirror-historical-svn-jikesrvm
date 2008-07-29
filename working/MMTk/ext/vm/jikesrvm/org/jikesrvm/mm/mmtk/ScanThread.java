@@ -380,6 +380,7 @@ import org.vmmagic.unboxed.Offset;
 
     /* establish the compiled method */
     compiledMethod = CompiledMethods.getCompiledMethod(compiledMethodId);
+    VM.sysWriteln("method id = ",compiledMethodId,", method = ",Magic.objectAsAddress(compiledMethod));
     compiledMethod.setActiveOnStack();  // prevents code from being collected
 
     compiledMethodType = compiledMethod.getCompilerType();

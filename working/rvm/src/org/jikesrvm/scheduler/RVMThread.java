@@ -212,7 +212,7 @@ public class RVMThread extends MM_ThreadContext {
    * and used in {@link Object} lock ownership tests.
    */
   @Entrypoint
-  private int threadSlot;
+  public int threadSlot;
 
   /**
    * Thread is a system thread, that is one used by the system and as
@@ -718,6 +718,9 @@ public class RVMThread extends MM_ThreadContext {
   /** Number of times dump stack has been called recursively */
   protected int inDumpStack = 0;
   
+  /** Is this a "registered mutator?" */
+  public boolean registeredMutator = false;
+  
   /** Lock used for dumping stack and such. */
   protected static HeavyCondLock dumpLock;
 
@@ -796,7 +799,7 @@ public class RVMThread extends MM_ThreadContext {
    * When there are no thread slots on the free list, this is the next one
    * to use.
    */
-  private static int nextSlot = 2;
+  public static int nextSlot = 2;
   
   /**
    * Number of threads in the system (some of which may not be active).
@@ -984,6 +987,7 @@ public class RVMThread extends MM_ThreadContext {
 
       acctLock.unlock();
     }
+    VM.sysWriteln("Thread #",threadSlot," at ",Magic.objectAsAddress(this));
   }
   
   /**
@@ -1071,7 +1075,9 @@ public class RVMThread extends MM_ThreadContext {
 
       assignThreadSlot();
       initMutator();
+      VM.sysWriteln("registering mutator for ",threadSlot);
       registerMutator();
+      VM.sysWriteln("registered mutator for ",threadSlot);
 
       // only do this at runtime because it will call Magic;
       // we set this explicitly for the boot thread as part of booting.
@@ -1433,6 +1439,8 @@ public class RVMThread extends MM_ThreadContext {
 	// we own the thread for now - it cannot go back to executing Java
 	// code until we release the lock.  before we do so we change its
 	// state accordingly and tell anyone who is waiting.
+	if (VM.VerifyAssertions) VM._assert(newState==BLOCKED_IN_NATIVE ||
+					    newState==BLOCKED_IN_JNI);
 	if (traceBlock) VM.sysWriteln("Thread #",getCurrentThread().threadSlot," has seen thread #",threadSlot," in native; changing its status accordingly.");
 	ba.clearBlockRequest(this);
 	ba.setBlocked(this,true);
@@ -1495,6 +1503,9 @@ public class RVMThread extends MM_ThreadContext {
   
   public static void leaveNative() {
     if (!attemptLeaveNativeNoBlock()) {
+      if (traceReallyBlock) {
+	VM.sysWriteln("Thread #",getCurrentThreadSlot()," is leaving native blocked");
+      }
       getCurrentThread().checkBlockNoSaveContext();
     }
   }
@@ -3223,6 +3234,61 @@ public class RVMThread extends MM_ThreadContext {
       if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
     }
   }
+  
+  private static void dumpThreadArray(RVMThread[] array,int bound) {
+    for (int i=0;i<bound;++i) {
+      if (i!=0) {
+	VM.sysWrite(", ");
+      }
+      VM.sysWrite(i,":");
+      RVMThread t=array[i];
+      if (t==null) {
+	VM.sysWrite("none");
+      } else {
+	VM.sysWrite(t.threadSlot,"(",t.execStatus);
+	if (t.isAboutToTerminate) {
+	  VM.sysWrite("T");
+	}
+	if (t.isBlocking) {
+	  VM.sysWrite("B");
+	}
+	if (t.isJoinable) {
+	  VM.sysWrite("J");
+	}
+	if (t.atYieldpoint) {
+	  VM.sysWrite("Y");
+	}
+	VM.sysWrite(")");
+      }
+    }
+  }
+  
+  private static void dumpThreadArray(String name,RVMThread[] array,int bound) {
+    VM.sysWrite(name);
+    VM.sysWrite(": ");
+    dumpThreadArray(array,bound);
+    VM.sysWriteln();
+  }
+  
+  public static void dumpAcct() {
+    dumpLock.lock();
+    acctLock.lock();
+    VM.sysWriteln("====== Begin Thread Accounting Dump ======");
+    dumpThreadArray("threadBySlot",threadBySlot,nextSlot);
+    dumpThreadArray("aboutToTerminate",aboutToTerminate,aboutToTerminateN);
+    VM.sysWrite("freeSlots: ");
+    for (int i=0;i<freeSlotN;++i) {
+      if (i!=0) {
+	VM.sysWrite(", ");
+      }
+      VM.sysWrite(i,":",freeSlots[i]);
+    }
+    VM.sysWriteln();
+    dumpThreadArray("threads",threads,numThreads);
+    VM.sysWriteln("====== End Thread Accounting Dump ======");
+    acctLock.unlock();
+    dumpLock.unlock();
+  }
 
   /**
    * Dump this thread's identifying information, for debugging, via
@@ -3777,7 +3843,9 @@ public class RVMThread extends MM_ThreadContext {
       RVMThread thr = threads[i];
       if (thr != null && thr != RVMThread.getCurrentThread() && thr.isAlive()) {
         thr.dump();
-        if (thr.contextRegisters != null)
+	// PNT: FIXME: this won't work so well since the context registers
+	// don't tend to have sane values
+        if (thr.contextRegisters != null && !thr.ignoreHandshakesAndGC())
           dumpStack(thr.contextRegisters.getInnermostFramePointer());
       }
     }

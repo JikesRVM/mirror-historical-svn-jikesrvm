@@ -117,10 +117,9 @@ public class ActivePlan extends org.mmtk.vm.ActivePlan {
    * Register a new <code>MutatorContext</code> instance.
    *
    * @param mutator The <code>MutatorContext</code> to register.
-   * @return The <code>MutatorContext</code>'s unique identifier
    */
   @Interruptible
-  public int registerMutator(MutatorContext mutator) {
-    return Mutator.register(mutator);
+  public void registerMutator(MutatorContext mutator) {
+    Mutator.register(mutator);
   }
 }

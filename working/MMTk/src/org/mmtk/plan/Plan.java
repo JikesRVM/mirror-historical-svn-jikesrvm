@@ -612,9 +612,12 @@ public abstract class Plan implements Constants {
    */
   public static Space getSpaceFromAllocatorAnyLocal(Allocator a) {
     for (int i = 0; i < VM.activePlan.mutatorCount(); i++) {
-      Space space = VM.activePlan.mutator(i).getSpaceFromAllocator(a);
-      if (space != null)
-        return space;
+      MutatorContext mc=VM.activePlan.mutator(i);
+      if (mc!=null) {
+	Space space = mc.getSpaceFromAllocator(a);
+	if (space != null)
+	  return space;
+      }
     }
     return null;
   }

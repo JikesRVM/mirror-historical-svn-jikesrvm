@@ -484,6 +484,11 @@ public abstract class Phase implements Constants {
           /* Iterate through all mutator contexts */
           MutatorContext mutator;
           while ((mutator = VM.activePlan.getNextMutator()) != null) {
+	    if (true) {
+	      Log.write("dealing with mutator ");
+	      Log.write(mutator.id);
+	      Log.writeln();
+	    }
             mutator.collectionPhase(phaseId, primary);
           }
           break;
@@ -889,3 +894,8 @@ public abstract class Phase implements Constants {
     VM.collection.scheduleConcurrentWorkers();
   }
 }
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

@@ -86,7 +86,15 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    */
   @Inline
   public /*PNT final*/ void processEdge(ObjectReference source, Address slot) {
+    Log.write("edge going from ");
+    Log.flush();
+    VM.objectModel.dumpObject(source);
+    Log.write("at ");
+    Log.write(slot);
+    Log.write(" to ");
     ObjectReference object = VM.activePlan.mutator().loadObjectReference(slot);
+    Log.write(object);
+    Log.writeln();
     ObjectReference newObject = traceObject(object, false);
     VM.activePlan.mutator().storeObjectReference(slot, newObject);
   }
@@ -103,6 +111,10 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    */
   @Inline
   public final void reportDelayedRootEdge(Address slot) {
+    Log.write("edge going from delayed root ");
+    Log.write(slot);
+    Log.write(" to ");
+    Log.writeln(slot.loadObjectReference());
     rootLocations.push(slot);
   }
 
@@ -117,6 +129,10 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    */
   @Inline
   public /*PNT final*/ void processRootEdge(Address slot, boolean untraced) {
+    Log.write("edge going from root ");
+    Log.write(slot);
+    Log.write(" to ");
+    Log.writeln(slot.loadObjectReference());
     ObjectReference object;
     if (untraced) object = slot.loadObjectReference();
     else     object = VM.activePlan.mutator().loadObjectReference(slot);
@@ -271,8 +287,12 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
       return Plan.smallCodeSpace.traceObject(this, object);
     if (Plan.USE_CODE_SPACE && Space.isInSpace(Plan.LARGE_CODE, object))
       return Plan.largeCodeSpace.traceObject(this, object);
-    if (VM.VERIFY_ASSERTIONS)
+    if (VM.VERIFY_ASSERTIONS) {
+      Log.write("Trouble tracing ");
+      Log.write(object);
+      Log.writeln();
       VM.assertions._assert(false, "No special case for space in traceObject");
+    }
     return ObjectReference.nullReference();
   }
 
@@ -530,7 +550,10 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
   private void assertMutatorRemsetsFlushed() {
     if (VM.VERIFY_ASSERTIONS) {
       for (int m = 0; m < VM.activePlan.mutatorCount(); m++) {
-        VM.activePlan.mutator(m).assertRemsetsFlushed();
+	MutatorContext mc=VM.activePlan.mutator(m);
+	if (mc!=null) {
+	  mc.assertRemsetsFlushed();
+	}
       }
     }
   }

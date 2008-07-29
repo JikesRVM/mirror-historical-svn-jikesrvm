@@ -84,8 +84,7 @@ import org.vmmagic.pragma.*;
    * Register a new <code>MutatorContext</code> instance.
    *
    * @param mutator The <code>MutatorContext</code> to register.
-   * @return The <code>MutatorContext</code>'s unique identifier
    */
-  @Interruptible
-  public abstract int registerMutator(MutatorContext mutator);
+  @Uninterruptible
+  public abstract void registerMutator(MutatorContext mutator);
 }

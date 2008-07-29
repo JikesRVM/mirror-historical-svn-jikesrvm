@@ -87,10 +87,10 @@ public class Mutator extends Thread {
   /**
    * Register a mutator, returning the allocated id.
    */
-  public static synchronized int register(MutatorContext context) {
+  public static synchronized void register(MutatorContext context) {
     int id = mutators.size();
     mutators.add(null);
-    return id;
+    context.id=id;
   }
 
   /** Is this thread out of memory if the gc cannot free memory */

@@ -390,6 +390,7 @@ public final class CollectorThread extends RVMThread {
 	}
 	RVMThread.handshakeLock.unlock();
 	VM.sysWriteln("Thread #",getThreadSlot()," just blocked a bunch of threads.");
+	RVMThread.dumpAcct();
       }
 
       /* wait for other collector threads to arrive or be made
