@@ -369,17 +369,23 @@ public final class CollectorThread extends RVMThread {
 	  for (int i=0;i<numToHandshake;++i) {
 	    RVMThread t=RVMThread.handshakeThreads[i];
 	    t.monitor().lock();
-	    if (t.blockedFor(RVMThread.gcBlockAdapter)) {
-	      // already blocked, remove
+	    if (t.blockedFor(RVMThread.gcBlockAdapter) ||
+		RVMThread.notRunning(t.asyncBlock(RVMThread.gcBlockAdapter))) {
+	      // already blocked or not running, remove
 	      RVMThread.handshakeThreads[i--]=
 		RVMThread.handshakeThreads[--numToHandshake];
 	      RVMThread.handshakeThreads[numToHandshake]=null; // help GC
-	    } else {
-	      t.asyncBlock(RVMThread.gcBlockAdapter);
 	    }
 	    t.monitor().unlock();
 	  }
 	  
+	  // quit trying to block threads if all threads are either blocked
+	  // or not running (a thread is "not running" if it is NEW or TERMINATED;
+	  // in the former case it means that the thread has not had start()
+	  // called on it while in the latter case it means that the thread
+	  // is either in the TERMINATED state or is about to be in that state
+	  // real soon now, and will not perform any heap-related stuff before
+	  // terminating).
 	  if (numToHandshake==0) break;
 	  
 	  for (int i=0;i<numToHandshake;++i) {

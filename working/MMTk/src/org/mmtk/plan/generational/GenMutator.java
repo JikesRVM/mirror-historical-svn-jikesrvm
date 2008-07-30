@@ -15,6 +15,7 @@ package org.mmtk.plan.generational;
 import org.mmtk.plan.*;
 import org.mmtk.policy.CopyLocal;
 import org.mmtk.policy.Space;
+import org.mmtk.utility.Log;
 import org.mmtk.utility.deque.*;
 import org.mmtk.utility.alloc.Allocator;
 import org.mmtk.utility.statistics.Stats;
@@ -243,6 +244,8 @@ import org.vmmagic.unboxed.*;
    * Flush per-mutator remembered sets into the global remset pool.
    */
   public final void flushRememberedSets() {
+    Log.write("flushing remembered sets for ");
+    Log.writeln(id);
     remset.flushLocal();
     arrayRemset.flushLocal();
     assertRemsetsFlushed();
@@ -257,6 +260,8 @@ import org.vmmagic.unboxed.*;
    */
   public final void assertRemsetsFlushed() {
     if (VM.VERIFY_ASSERTIONS) {
+      Log.write("asserting remsets flushed for ");
+      Log.writeln(id);
       VM.assertions._assert(remset.isFlushed());
       VM.assertions._assert(arrayRemset.isFlushed());
     }
@@ -310,3 +315,8 @@ import org.vmmagic.unboxed.*;
     return (Gen) VM.activePlan.global();
   }
 }
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

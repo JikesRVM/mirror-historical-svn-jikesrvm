@@ -147,6 +147,10 @@ public class RVMThread extends MM_ThreadContext {
   /** Thread has died. */
   public static final int TERMINATED = 7;
   
+  public static boolean notRunning(int state) {
+    return state==NEW || state==TERMINATED;
+  }
+  
   /**
    * Thread state.  Indicates if the thread is running, and if so, what
    * mode of execution it is using (Java, VM native, or JNI)
@@ -158,7 +162,9 @@ public class RVMThread extends MM_ThreadContext {
    * Note that this field is not set atomically with the entering of the
    * thread onto the aboutToTerminate array - in fact it happens before
    * that. */
-  boolean isAboutToTerminate;
+  // FIXME: there should be an execStatus state called TERMINATING that
+  // corresponds to this.  that would make a lot more sense.
+  public boolean isAboutToTerminate;
   
   /** Is this thread in the process of blocking? */
   boolean isBlocking;
@@ -1189,7 +1195,7 @@ public class RVMThread extends MM_ThreadContext {
       && !isAboutToTerminate
       && (execStatus==IN_JAVA || execStatus==IN_JAVA_TO_BLOCK);
   }
-
+  
   /** A variant of checkBlock() that does not save the thread state. */
   @NoInline
   final void checkBlockNoSaveContext() {
@@ -1389,65 +1395,83 @@ public class RVMThread extends MM_ThreadContext {
     return newState;
   }
   
-  final void block(BlockAdapter ba,boolean asynchronous) {
+  /** Attempt to block the thread, and return the state it is in after the
+      attempt.  If we're blocking ourselves, this will always return IN_JAVA.
+      If the thread signals to us the intention to die as we are trying to
+      block it, this will return TERMINATED.  NOTE: the thread's execStatus
+      will not actually be TERMINATED at that point yet. */
+  final int block(BlockAdapter ba,boolean asynchronous) {
+    int result;
     if (traceBlock) VM.sysWriteln("Thread #",getCurrentThread().threadSlot," is requesting that thread #",threadSlot," blocks.");
     monitor().lock();
     int token=ba.requestBlock(this);
     if (getCurrentThread()==this) {
       if (traceBlock) VM.sysWriteln("Thread #",threadSlot," is blocking.");
       checkBlock();
+      result=execStatus;
     } else {
       if (traceBlock) VM.sysWriteln("Thread #",threadSlot," is being told to block.");
-      takeYieldpoint = 1;
       
-      // CAS the execStatus field
-      int newState = setBlockedExecStatus();
-      
-      if (traceReallyBlock) VM.sysWriteln("Thread #",getCurrentThreadSlot()," is blocking thread #",threadSlot," which is in state ",newState);
-      
-      // this broadcast serves two purposes: notifies threads that are
-      // IN_JAVA but waiting on monitor() that they should awake and
-      // acknowledge the block request; or notifies anyone
-      // waiting for this thread to block that the thread is
-      // BLOCKED_IN_NATIVE or BLOCKED_IN_JNI.  in the latter case the
-      // broadcast() happens _before_ the setting of the flags that the
-      // other threads would be awaiting, but that is fine, since we're
-      // still holding the lock anyway.
-      monitor().broadcast();
-      
-      if (newState==IN_JAVA_TO_BLOCK) {
-	if (!asynchronous) {
-	  if (traceBlock) VM.sysWriteln("Thread #",getCurrentThread().threadSlot," is waiting for thread #",threadSlot," to block.");
-	  while (ba.hasBlockRequest(this,token) &&
-		 !ba.isBlocked(this)) {
-	    if (traceBlock) VM.sysWriteln("Thread #",getCurrentThread().threadSlot," is calling wait until thread #",threadSlot," blocks.");
-	    if (VM.VerifyAssertions) {
-	      // do a timed wait, and assert that the thread did not disappear
-	      // into native in the meantime
-	      monitor().timedWaitRelative(1000L*1000L*1000L); // 1 sec
-	      if (traceReallyBlock) {
-		VM.sysWriteln("Thread #",threadSlot,"'s status is ",execStatus);
+      if (isAboutToTerminate) {
+	if (traceBlock) VM.sysWriteln("Thread #",threadSlot," is terminating, returning as if blocked in TERMINATED state.");
+	result=TERMINATED;
+      } else {
+	takeYieldpoint = 1;
+	
+	// CAS the execStatus field
+	int newState = setBlockedExecStatus();
+	result=newState;
+	
+	if (traceReallyBlock) VM.sysWriteln("Thread #",getCurrentThreadSlot()," is blocking thread #",threadSlot," which is in state ",newState);
+	
+	// this broadcast serves two purposes: notifies threads that are
+	// IN_JAVA but waiting on monitor() that they should awake and
+	// acknowledge the block request; or notifies anyone
+	// waiting for this thread to block that the thread is
+	// BLOCKED_IN_NATIVE or BLOCKED_IN_JNI.  in the latter case the
+	// broadcast() happens _before_ the setting of the flags that the
+	// other threads would be awaiting, but that is fine, since we're
+	// still holding the lock anyway.
+	monitor().broadcast();
+	
+	if (newState==IN_JAVA_TO_BLOCK) {
+	  if (!asynchronous) {
+	    if (traceBlock) VM.sysWriteln("Thread #",getCurrentThread().threadSlot," is waiting for thread #",threadSlot," to block.");
+	    while (ba.hasBlockRequest(this,token) &&
+		   !ba.isBlocked(this) &&
+		   !isAboutToTerminate) {
+	      if (traceBlock) VM.sysWriteln("Thread #",getCurrentThread().threadSlot," is calling wait until thread #",threadSlot," blocks.");
+	      // will this deadlock when the thread dies?
+	      if (VM.VerifyAssertions) {
+		// do a timed wait, and assert that the thread did not disappear
+		// into native in the meantime
+		monitor().timedWaitRelative(1000L*1000L*1000L); // 1 sec
+		if (traceReallyBlock) {
+		  VM.sysWriteln("Thread #",threadSlot,"'s status is ",execStatus);
+		}
+		VM._assert(execStatus!=IN_NATIVE);
+	      } else {
+		monitor().await();
 	      }
-	      VM._assert(execStatus!=IN_NATIVE);
-	    } else {
-	      monitor().await();
+	      if (traceBlock) VM.sysWriteln("Thread #",getCurrentThread().threadSlot," has returned from the wait call.");
 	    }
-	    if (traceBlock) VM.sysWriteln("Thread #",getCurrentThread().threadSlot," has returned from the wait call.");
+	    if (isAboutToTerminate) {
+	      result=TERMINATED;
+	    }
 	  }
+	} else if (newState==BLOCKED_IN_NATIVE || newState==BLOCKED_IN_JNI) {
+	  // we own the thread for now - it cannot go back to executing Java
+	  // code until we release the lock.  before we do so we change its
+	  // state accordingly and tell anyone who is waiting.
+	  if (traceBlock) VM.sysWriteln("Thread #",getCurrentThread().threadSlot," has seen thread #",threadSlot," in native; changing its status accordingly.");
+	  ba.clearBlockRequest(this);
+	  ba.setBlocked(this,true);
 	}
-      } else /* if newState==BLOCKED_IN_NATIVE || newState==BLOCKED_IN_JNI */ {
-	// we own the thread for now - it cannot go back to executing Java
-	// code until we release the lock.  before we do so we change its
-	// state accordingly and tell anyone who is waiting.
-	if (VM.VerifyAssertions) VM._assert(newState==BLOCKED_IN_NATIVE ||
-					    newState==BLOCKED_IN_JNI);
-	if (traceBlock) VM.sysWriteln("Thread #",getCurrentThread().threadSlot," has seen thread #",threadSlot," in native; changing its status accordingly.");
-	ba.clearBlockRequest(this);
-	ba.setBlocked(this,true);
       }
     }
     monitor().unlock();
     if (traceBlock) VM.sysWriteln("Thread #",getCurrentThread().threadSlot," is done telling thread #",threadSlot," to block.");
+    return result;
   }
   
   public final boolean blockedFor(BlockAdapter ba) {
@@ -1457,12 +1481,12 @@ public class RVMThread extends MM_ThreadContext {
     return result;
   }
   
-  public final void asyncBlock(BlockAdapter ba) {
-    block(ba,true);
+  public final int asyncBlock(BlockAdapter ba) {
+    return block(ba,true);
   }
   
-  public final void block(BlockAdapter ba) {
-    block(ba,false);
+  public final int block(BlockAdapter ba) {
+    return block(ba,false);
   }
   
   public static void enterNative() {

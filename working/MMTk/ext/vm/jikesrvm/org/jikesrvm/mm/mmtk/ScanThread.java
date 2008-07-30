@@ -142,6 +142,11 @@ import org.vmmagic.unboxed.Offset;
   public static void scanThread(RVMThread thread, TraceLocal trace,
                                 boolean processCodeLocations,
                                 Address gprs, Address topFrame) {
+    // figure out if the thread should be scanned at all; if not, exit
+    if (thread.execStatus==RVMThread.NEW || thread.isAboutToTerminate) {
+      return;
+    }
+    
     /* establish ip and fp for the stack to be scanned */
     Address ip, fp, initialIPLoc;
     if (topFrame.isZero()) { /* implicit top of stack, inferred from thread */
