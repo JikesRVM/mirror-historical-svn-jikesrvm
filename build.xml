@@ -1356,7 +1356,6 @@ Check to make sure all required properties are specified. This includes properti
       </sequential>
     </if>
 
-  	<!--TODO: OpenJDK -->
   	<if>
 	  <conditions>
   	    <equals arg1="${classlib.provider}" arg2="OpenJDK"/>
@@ -1365,7 +1364,7 @@ Check to make sure all required properties are specified. This includes properti
   	    <concat destfile="${build.base}/Primordials.txt">
   	      <filelist dir="${build.base}" files="ClassesForImage.txt"/>
   	      <filelist dir="${primordials.dir}"
-  	                files="OpenJDK.txt,RVM.txt${primordials.opt}${primordials.aos}${primordials.arch}"/>
+  	                files="OpenJDK.txt,RVM.txt${primordials.arch}"/>
   	    </concat>
   	  </sequential>
   	</if>
