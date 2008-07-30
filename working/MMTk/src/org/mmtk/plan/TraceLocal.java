@@ -86,15 +86,19 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    */
   @Inline
   public /*PNT final*/ void processEdge(ObjectReference source, Address slot) {
-    Log.write("edge going from ");
-    Log.flush();
-    VM.objectModel.dumpObject(source);
-    Log.write("at ");
-    Log.write(slot);
-    Log.write(" to ");
+    if (false) {
+      Log.write("edge going from ");
+      Log.flush();
+      VM.objectModel.dumpObject(source);
+      Log.write("at ");
+      Log.write(slot);
+      Log.write(" to ");
+    }
     ObjectReference object = VM.activePlan.mutator().loadObjectReference(slot);
-    Log.write(object);
-    Log.writeln();
+    if (false) {
+      Log.write(object);
+      Log.writeln();
+    }
     ObjectReference newObject = traceObject(object, false);
     VM.activePlan.mutator().storeObjectReference(slot, newObject);
   }
@@ -111,10 +115,12 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    */
   @Inline
   public final void reportDelayedRootEdge(Address slot) {
-    Log.write("edge going from delayed root ");
-    Log.write(slot);
-    Log.write(" to ");
-    Log.writeln(slot.loadObjectReference());
+    if (false) {
+      Log.write("edge going from delayed root ");
+      Log.write(slot);
+      Log.write(" to ");
+      Log.writeln(slot.loadObjectReference());
+    }
     rootLocations.push(slot);
   }
 
@@ -129,10 +135,12 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    */
   @Inline
   public /*PNT final*/ void processRootEdge(Address slot, boolean untraced) {
-    Log.write("edge going from root ");
-    Log.write(slot);
-    Log.write(" to ");
-    Log.writeln(slot.loadObjectReference());
+    if (false) {
+      Log.write("edge going from root ");
+      Log.write(slot);
+      Log.write(" to ");
+      Log.writeln(slot.loadObjectReference());
+    }
     ObjectReference object;
     if (untraced) object = slot.loadObjectReference();
     else     object = VM.activePlan.mutator().loadObjectReference(slot);

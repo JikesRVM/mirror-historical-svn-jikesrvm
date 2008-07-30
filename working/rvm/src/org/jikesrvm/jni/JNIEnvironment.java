@@ -171,6 +171,8 @@ public class JNIEnvironment implements SizeConstants {
    * @param env the JNIEnvironment to deallocate
    */
   public static synchronized void deallocateEnvironment(JNIEnvironment env) {
+    env.savedTRreg = null; /* make sure that we don't have a reference back to
+			      the thread, once the thread has died. */
     env.next = pool;
     pool = env;
   }
@@ -351,3 +353,8 @@ public class JNIEnvironment implements SizeConstants {
     }
   }
 }
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

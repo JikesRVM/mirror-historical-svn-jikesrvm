@@ -2038,6 +2038,7 @@ public class RVMThread extends MM_ThreadContext {
 
       // if there was a thread waiting, awaken it
       if (toAwaken!=null) {
+	// is this where the problem is coming from?
 	toAwaken.monitor().lockedBroadcast();
       }
       
