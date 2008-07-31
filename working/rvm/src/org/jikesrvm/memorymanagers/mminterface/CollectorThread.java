@@ -324,13 +324,19 @@ public final class CollectorThread extends RVMThread {
     // this is kind of stupid.
     gcOrdinal = Synchronization.fetchAndAdd(participantCount, Offset.zero(), 1) + GC_ORDINAL_BASE;
     
+    RVMThread.getCurrentThread().disableYieldpoints();
+    
     for (int count = 0; ; count++) {
       // wait for collection to start
 
+      RVMThread.getCurrentThread().enableYieldpoints();
+      
       /* suspend this thread: it will resume when scheduled by
        * Handshake.request(). */
       handshake.parkCollectorThread();
 
+      RVMThread.getCurrentThread().disableYieldpoints();
+      
       if (verbose >= 2) VM.sysWriteln("GC Message: CT.run waking up");
 
       long startTime = Time.nanoTime();
@@ -406,9 +412,7 @@ public final class CollectorThread extends RVMThread {
       do {
         /* actually perform the GC... */
         if (verbose >= 2) VM.sysWriteln("GC Message: CT.run  starting collection");
-	RVMThread.getCurrentThread().disableYieldpoints();
         Selected.Collector.get().collect(); // gc
-	RVMThread.getCurrentThread().enableYieldpoints();
         if (verbose >= 2) VM.sysWriteln("GC Message: CT.run  finished collection");
 
         gcBarrier.rendezvous(5200);
