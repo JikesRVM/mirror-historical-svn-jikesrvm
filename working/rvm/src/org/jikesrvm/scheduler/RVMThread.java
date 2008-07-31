@@ -2497,10 +2497,6 @@ public class RVMThread extends MM_ThreadContext {
     boolean cbsOverrun = false;
     RVMThread t = getCurrentThread();
     
-    if (t.yieldToOSRRequested) {
-      VM.sysWriteln("Entering yieldpoint for OSR!");
-    }
-    
     boolean wasAtYieldpoint=t.atYieldpoint;
     t.atYieldpoint=true;
     
