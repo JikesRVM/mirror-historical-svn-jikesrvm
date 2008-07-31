@@ -48,8 +48,6 @@ public class OSR_Listener {
     CompiledMethod ypTakenInCM = CompiledMethods.getCompiledMethod(ypTakenInCMID);
     if (ypTakenInCM.isOutdated() && ypTakenInCM.getCompilerType() == CompiledMethod.BASELINE) {
       
-      VM.sysWriteln("doing OSR on backedge!");
-
       Address tsFromFP = yieldpointServiceMethodFP;
       Address realFP = Magic.getCallerFramePointer(tsFromFP);
 
@@ -65,8 +63,6 @@ public class OSR_Listener {
   }
 
   public static void handleOSRFromOpt(Address yieldpointServiceMethodFP) {
-    VM.sysWriteln("doing OSR on opt!");
-
     Address tsFromFP = yieldpointServiceMethodFP;
     Address realFP = Magic.getCallerFramePointer(tsFromFP);
     int ypTakenInCMID = Magic.getCompiledMethodID(realFP);

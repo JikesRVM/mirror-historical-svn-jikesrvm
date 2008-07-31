@@ -1245,7 +1245,6 @@ sysTerminatePthread()
     if (jb==NULL) {
 	jb=&primordial_jb;
     }
-    printf("doing longjmp in sysTerminatePthread\n");
     longjmp(*jb,1);
 }
 

@@ -154,7 +154,6 @@ public final class ControllerThread extends RVMThread {
       if (Controller.options.EARLY_EXIT && Controller.options.EARLY_EXIT_TIME < Controller.controllerClock) {
         Controller.stop();
       }
-      VM.sysWriteln("processing a controller input event.");
       Object event = Controller.controllerInputQueue.deleteMin();
       ((ControllerInputEvent) event).process();
     }

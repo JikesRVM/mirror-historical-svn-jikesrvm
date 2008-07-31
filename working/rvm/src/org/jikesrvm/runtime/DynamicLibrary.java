@@ -98,7 +98,6 @@ public final class DynamicLibrary {
     // Run any JNI_OnLoad functions defined within the library
     Address JNI_OnLoadAddress = getSymbol("JNI_OnLoad");
     if (!JNI_OnLoadAddress.isZero()) {
-      VM.sysWriteln("calling onload...");
       int version = runJNI_OnLoad(JNI_OnLoadAddress);
       checkJNIVersion(version);
     }
