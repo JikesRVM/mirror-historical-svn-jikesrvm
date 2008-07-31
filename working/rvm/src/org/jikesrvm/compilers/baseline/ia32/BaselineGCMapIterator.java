@@ -202,7 +202,6 @@ public abstract class BaselineGCMapIterator extends GCMapIterator implements Bas
     if (!finishedWithRegularMap) {
       if (counterArrayBase) {
         counterArrayBase = false;
-	VM.sysWriteln("Returning EBX");
         return registerLocations.get(EBX.value()).toAddress();
       }
       if (mapId < 0) {
@@ -238,7 +237,6 @@ public abstract class BaselineGCMapIterator extends GCMapIterator implements Bas
               VM.sysWrite("Offset is a JSR return address ie internal pointer.\n");
             }
           }
-	  VM.sysWriteln("Returning ",mapIndex);
           return (framePtr.plus(mapOffset));
         }
       } else {
@@ -280,7 +278,6 @@ public abstract class BaselineGCMapIterator extends GCMapIterator implements Bas
           VM.sysWrite(".\n");
         }
 	
-	VM.sysWriteln("Returning some bridge register location");
         return bridgeRegisterLocation.plus(4);
       }
 
@@ -308,7 +305,6 @@ public abstract class BaselineGCMapIterator extends GCMapIterator implements Bas
                 VM.sysWrite(bridgeSpilledParamLocation.plus(4));
                 VM.sysWrite(".\n");
               }
-	      VM.sysWriteln("Returning some bridge spilled param location");
               return bridgeSpilledParamLocation.plus(4);
             } else {
               break;
@@ -332,11 +328,9 @@ public abstract class BaselineGCMapIterator extends GCMapIterator implements Bas
     } else {
       // point registerLocations[] to our callers stackframe
       //
-      VM.sysWriteln("at method: ",currentMethod.getName());
       registerLocations.set(EDI.value(), framePtr.plus(EDI_SAVE_OFFSET).toWord());
       registerLocations.set(EBX.value(), framePtr.plus(EBX_SAVE_OFFSET).toWord());
       if (currentMethod.hasBaselineSaveLSRegistersAnnotation()) {
-	VM.sysWriteln("SETTING EBP REG LOCATION!");
 	registerLocations.set(EBP.value(), framePtr.plus(EBP_SAVE_OFFSET).toWord());
       }
     }

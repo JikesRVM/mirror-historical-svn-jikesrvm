@@ -419,8 +419,6 @@ public abstract class Plan implements Constants {
    * Set that a collection has been triggered.
    */
   public static void setCollectionTriggered() {
-    Log.write("SETTING THE COLLECTION AS TRIGGERED!!\n");
-    Log.flush();
     collectionTriggered = true;
   }
 

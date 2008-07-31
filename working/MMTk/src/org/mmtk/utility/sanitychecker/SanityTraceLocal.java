@@ -40,31 +40,6 @@ public final class SanityTraceLocal extends TraceLocal {
    * Object processing and tracing
    */
   
-  public void processEdge(ObjectReference source,Address slot) {
-    Log.write("sanity: from ");
-    Log.write(source);
-    Log.write(" to ");
-    Log.write(slot.loadObjectReference());
-    Log.writeln();
-    super.processEdge(source,slot);
-  }
-
-  public void processRootEdge(Address slot, boolean untraced) {
-    Log.write("sanity: from root to ");
-    Log.write(slot.loadObjectReference());
-    Log.writeln();
-    super.processRootEdge(slot,untraced);
-  }
-  
-  public void processInteriorEdge(ObjectReference target,Address slot,boolean root) {
-    Log.write("sanity: we have a root interior ref to ");
-    Log.write(target);
-    Log.write(" that is ");
-    Log.write(slot.loadAddress());
-    Log.writeln();
-    super.processInteriorEdge(target,slot,root);
-  }
-
   /**
    * This method is the core method during the trace of the object graph.
    * The role of this method is to:

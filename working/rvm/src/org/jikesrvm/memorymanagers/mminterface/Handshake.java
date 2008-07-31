@@ -63,9 +63,7 @@ public class Handshake {
   public void waitForGCToFinish() {
     if (verbose >= 1) VM.sysWriteln("GC Message: Handshake.requestAndAwaitCompletion - yielding");
     /* allow a gc thread to run */
-    VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is waiting for the GC to finish.");
     RVMThread.getCurrentThread().block(RVMThread.gcBlockAdapter);
-    VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is done waiting for the GC.");
     if (verbose >= 1) VM.sysWriteln("GC Message: Handshake.requestAndAwaitCompletion - mutator running");
   }
 
@@ -111,12 +109,12 @@ public class Handshake {
     lock.lock();
     collectorThreadsParked++;
     lock.broadcast();
-    VM.sysWriteln("GC Thread #",RVMThread.getCurrentThreadSlot()," parked.");
+    if (verbose>=1) VM.sysWriteln("GC Thread #",RVMThread.getCurrentThreadSlot()," parked.");
     while (!requestFlag) {
-      VM.sysWriteln("GC Thread #",RVMThread.getCurrentThreadSlot()," waiting for request.");
+      if (verbose>=1) VM.sysWriteln("GC Thread #",RVMThread.getCurrentThreadSlot()," waiting for request.");
       lock.await();
     }
-    VM.sysWriteln("GC Thread #",RVMThread.getCurrentThreadSlot()," got request, unparking.");
+    if (verbose>=1) VM.sysWriteln("GC Thread #",RVMThread.getCurrentThreadSlot()," got request, unparking.");
     collectorThreadsParked--;
     lock.unlock();
   }
@@ -128,9 +126,9 @@ public class Handshake {
    */
   @Uninterruptible
   private boolean request(int why) {
-    VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is trying to make a GC request");
+    if (verbose>=1) VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is trying to make a GC request");
     lock.lock();
-    VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," acquired the lock for making a GC request");
+    if (verbose>=1) VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," acquired the lock for making a GC request");
     if (why > gcTrigger) gcTrigger = why;
     if (requestFlag) {
       if (verbose >= 1) {

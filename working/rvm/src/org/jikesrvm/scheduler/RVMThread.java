@@ -87,9 +87,9 @@ public class RVMThread extends MM_ThreadContext {
   /** Trace thread blockage */
   protected static final boolean traceBlock = false;
   /** Trace when a thread is really blocked */
-  protected static final boolean traceReallyBlock = true || traceBlock;
+  protected static final boolean traceReallyBlock = false || traceBlock;
   /** Trace thread start/stop */
-  protected static final boolean traceAcct = true;
+  protected static final boolean traceAcct = false;
   /** Trace execution */
   protected static final boolean trace = false;
   /** Trace thread termination */
@@ -144,7 +144,10 @@ public class RVMThread extends MM_ThreadContext {
   /** like BLOCKED_IN_NATIVE, but indicates that the thread is in JNI rather
    * than VM native code. */
   public static final int BLOCKED_IN_JNI = 6;
-  /** Thread has died. */
+  /** Thread has died.  As in, it's no longer executing any Java code and will
+   * never do so in the future.  Once this is set, the GC will no longer mark
+   * any part of the thread as live; the thread's stack will be deleted.  Note
+   * that this is distinct from the aboutToTerminate state. */
   public static final int TERMINATED = 7;
   
   public static boolean notRunning(int state) {
@@ -161,7 +164,9 @@ public class RVMThread extends MM_ThreadContext {
   /** Is the thread about to terminate?  Protected by the thread's monitor.
    * Note that this field is not set atomically with the entering of the
    * thread onto the aboutToTerminate array - in fact it happens before
-   * that. */
+   * that.  When this field is set to true, the thread's stack will no
+   * longer be scanned by GC.  Note that this is distinct from the TERMINATED
+   * state. */
   // FIXME: there should be an execStatus state called TERMINATING that
   // corresponds to this.  that would make a lot more sense.
   public boolean isAboutToTerminate;
@@ -921,7 +926,20 @@ public class RVMThread extends MM_ThreadContext {
     monitor().lock();
     isAboutToTerminate=true;
     monitor().broadcast();
+    flushRequested=true; /* hack!  we really want to call
+			    MM_Interface.flushMutatorContext() here, but
+			    handleHandshakeRequest() will already call it
+			    if flushRequested is set.  so we do it by
+			    setting flushRequested to true. */
     handleHandshakeRequest();
+    // WARNING! DANGER! Since we've set isAboutToTerminate to true, when we
+    // release this lock the GC will:
+    // 1) No longer scan the thread's stack (though it will *see* the
+    //    thread's stack and mark the stack itself as live, without scanning
+    //    it).
+    // 2) No longer include the thread in any mutator phases ... hence the
+    //    need to ensure that the mutator context is flushed above.
+    // 3) No longer attempt to stop the thread.
     monitor().unlock();
 
     softRendezvous();
@@ -993,7 +1011,9 @@ public class RVMThread extends MM_ThreadContext {
 
       acctLock.unlock();
     }
-    VM.sysWriteln("Thread #",threadSlot," at ",Magic.objectAsAddress(this));
+    if (traceAcct) {
+      VM.sysWriteln("Thread #",threadSlot," at ",Magic.objectAsAddress(this));
+    }
   }
   
   /**
@@ -1081,9 +1101,13 @@ public class RVMThread extends MM_ThreadContext {
 
       assignThreadSlot();
       initMutator();
-      VM.sysWriteln("registering mutator for ",threadSlot);
+      if (traceAcct) {
+	VM.sysWriteln("registering mutator for ",threadSlot);
+      }
       registerMutator();
-      VM.sysWriteln("registered mutator for ",threadSlot);
+      if (traceAcct) {
+	VM.sysWriteln("registered mutator for ",threadSlot);
+      }
 
       // only do this at runtime because it will call Magic;
       // we set this explicitly for the boot thread as part of booting.

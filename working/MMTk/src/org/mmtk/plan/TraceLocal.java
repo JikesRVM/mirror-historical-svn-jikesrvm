@@ -85,7 +85,7 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    * @param root True if <code>objLoc</code> is within a root.
    */
   @Inline
-  public /*PNT final*/ void processEdge(ObjectReference source, Address slot) {
+  public final void processEdge(ObjectReference source, Address slot) {
     if (false) {
       Log.write("edge going from ");
       Log.flush();
@@ -134,7 +134,7 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    * @param untraced True if <code>objLoc</code> is an untraced root.
    */
   @Inline
-  public /*PNT final*/ void processRootEdge(Address slot, boolean untraced) {
+  public final void processRootEdge(Address slot, boolean untraced) {
     if (false) {
       Log.write("edge going from root ");
       Log.write(slot);
@@ -158,7 +158,7 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    * @param slot The location of the interior edge.
    * @param root True if this is a root edge.
    */
-  public /*PNT final*/ void processInteriorEdge(ObjectReference target, Address slot, boolean root) {
+  public final void processInteriorEdge(ObjectReference target, Address slot, boolean root) {
     Address interiorRef = slot.loadAddress();
     Offset offset = interiorRef.diff(target.toAddress());
     ObjectReference newTarget = traceObject(target, root);

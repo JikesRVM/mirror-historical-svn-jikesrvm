@@ -87,18 +87,7 @@ public class Map {
    */
   public static void insert(Address start, Extent extent, int descriptor,
       Space space) {
-    Log.write("adding space ");
     ObjectReference or=ObjectReference.fromObject(space);
-    if (or==null) {
-      Log.writeln("during build");
-    } else {
-      Log.write(or);
-      Log.write(" from ");
-      Log.write(start);
-      Log.write(" to ");
-      Log.write(start.plus(extent));
-      Log.writeln();
-    }
     Extent e = Extent.zero();
     while (e.LT(extent)) {
       int index = hashAddress(start.plus(e));
@@ -185,7 +174,6 @@ public class Map {
    * @param lastChunk The last chunk in the linked list of chunks to be freed
    */
   public static void freeAllChunks(Address lastChunk) {
-    Log.writeln("FREEING!  freeAllChunks");
     lock.acquire();
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(lastChunk.EQ(Space.chunkAlign(lastChunk, true)));
     int chunk = hashAddress(lastChunk);
@@ -204,7 +192,6 @@ public class Map {
    * @return The number of chunks which were contiguously allocated
    */
   public static int freeContiguousChunks(Address start) {
-    Log.writeln("FREEING!  freeContiguousChunks");
     lock.acquire();
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(start.EQ(Space.chunkAlign(start, true)));
     int rtn = freeContiguousChunks(hashAddress(start));
@@ -219,7 +206,6 @@ public class Map {
    * @return The number of chunks freed
    */
   private static int freeContiguousChunks(int chunk) {
-    Log.writeln("FREEING!  freeContiguousChunks");
     int chunks = regionMap.free(chunk);
     totalAvailableDiscontiguousChunks += chunks;
     for (int offset = 0; offset < chunks; offset++) {

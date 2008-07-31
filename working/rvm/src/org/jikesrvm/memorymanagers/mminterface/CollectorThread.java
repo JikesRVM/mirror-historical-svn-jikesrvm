@@ -331,8 +331,6 @@ public final class CollectorThread extends RVMThread {
        * Handshake.request(). */
       handshake.parkCollectorThread();
 
-      VM.sysWriteln("Collector starting!!!!");
-      
       if (verbose >= 2) VM.sysWriteln("GC Message: CT.run waking up");
 
       long startTime = Time.nanoTime();
@@ -348,7 +346,7 @@ public final class CollectorThread extends RVMThread {
       /* block all threads.  note that some threads will have already blocked
 	 themselves (if they had made their own GC requests). */
       if (gcOrdinal == GC_ORDINAL_BASE) {
-	VM.sysWriteln("Thread #",getThreadSlot()," is about to block a bunch of threads.");
+	if (verbose>=2) VM.sysWriteln("Thread #",getThreadSlot()," is about to block a bunch of threads.");
 	RVMThread.handshakeLock.lock();
 	// fixpoint until there are no threads that we haven't blocked.
 	// fixpoint is needed in case some thread spawns another thread
@@ -389,14 +387,16 @@ public final class CollectorThread extends RVMThread {
 	  if (numToHandshake==0) break;
 	  
 	  for (int i=0;i<numToHandshake;++i) {
-	    VM.sysWriteln("waiting for ",RVMThread.handshakeThreads[i].getThreadSlot()," to block");
+	    if (verbose>=2) VM.sysWriteln("waiting for ",RVMThread.handshakeThreads[i].getThreadSlot()," to block");
 	    RVMThread.handshakeThreads[i].block(RVMThread.gcBlockAdapter);
 	    RVMThread.handshakeThreads[i]=null; // help GC
 	  }
 	}
 	RVMThread.handshakeLock.unlock();
-	VM.sysWriteln("Thread #",getThreadSlot()," just blocked a bunch of threads.");
-	RVMThread.dumpAcct();
+	if (verbose>=2) {
+	  VM.sysWriteln("Thread #",getThreadSlot()," just blocked a bunch of threads.");
+	  RVMThread.dumpAcct();
+	}
       }
 
       /* wait for other collector threads to arrive or be made
@@ -484,15 +484,15 @@ public final class CollectorThread extends RVMThread {
 	// reset the handshake.  this ensures that once threads are awakened,
 	// any new GC requests that they make actually result in GC activity.
 	handshake.reset();
-	VM.sysWriteln("Thread #",getThreadSlot()," just reset the handshake.");
+	if (verbose>=2) VM.sysWriteln("Thread #",getThreadSlot()," just reset the handshake.");
 
         Plan.collectionComplete();
 	
-	VM.sysWriteln("Marked the collection as complete.");
+	if (verbose>=2) VM.sysWriteln("Marked the collection as complete.");
 
         collectionAttemptBase = 0;
 
-	VM.sysWriteln("Thread #",getThreadSlot()," is unblocking a bunch of threads.");
+	if (verbose>=2) VM.sysWriteln("Thread #",getThreadSlot()," is unblocking a bunch of threads.");
 	// and now unblock all threads
 	RVMThread.handshakeLock.lock();
 	RVMThread.acctLock.lock();
@@ -512,7 +512,7 @@ public final class CollectorThread extends RVMThread {
 	  RVMThread.handshakeThreads[i]=null; // help GC
 	}
 	RVMThread.handshakeLock.unlock();
-	VM.sysWriteln("Thread #",getThreadSlot()," just unblocked a bunch of threads.");
+	if (verbose>=2) VM.sysWriteln("Thread #",getThreadSlot()," just unblocked a bunch of threads.");
 
         /* schedule the FinalizerThread, if there is work to do & it is idle */
         Collection.scheduleFinalizerThread();

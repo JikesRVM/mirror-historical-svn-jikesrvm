@@ -38,7 +38,7 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
    *
    * Class variables
    */
-  private static final boolean TRACE_PRECOPY = true; // DEBUG
+  private static final boolean TRACE_PRECOPY = false; // DEBUG
 
   /** Counter to track index into thread table for root tracing.  */
   private static final SynchronizedCounter threadCounter = new SynchronizedCounter();

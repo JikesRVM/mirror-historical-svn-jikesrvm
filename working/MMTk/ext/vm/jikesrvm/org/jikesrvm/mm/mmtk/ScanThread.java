@@ -384,7 +384,6 @@ import org.vmmagic.unboxed.Offset;
 
     /* establish the compiled method */
     compiledMethod = CompiledMethods.getCompiledMethod(compiledMethodId);
-    VM.sysWriteln("method id = ",compiledMethodId,", method = ",Magic.objectAsAddress(compiledMethod));
     compiledMethod.setActiveOnStack();  // prevents code from being collected
 
     compiledMethodType = compiledMethod.getCompilerType();
@@ -575,9 +574,6 @@ import org.vmmagic.unboxed.Offset;
     VM._assert(trace.willNotMoveInCurrentCollection(ObjectReference.fromObject(thread.getStack())));
     VM._assert(thread.getJNIEnv() == null || trace.willNotMoveInCurrentCollection(ObjectReference.fromObject(thread.getJNIEnv())));
     VM._assert(thread.getJNIEnv() == null || thread.getJNIEnv().refsArray() == null || trace.willNotMoveInCurrentCollection(ObjectReference.fromObject(thread.getJNIEnv().refsArray())));
-    VM.sysWriteln("thread = ",Magic.objectAsAddress(thread));
-    VM.sysWriteln("thread slot = ",thread.getThreadSlot());
-    VM.sysWriteln("thread.cr = ",Magic.objectAsAddress(thread.getContextRegisters()));
     VM._assert(trace.willNotMoveInCurrentCollection(ObjectReference.fromObject(thread.getContextRegisters())));
     VM._assert(trace.willNotMoveInCurrentCollection(ObjectReference.fromObject(thread.getContextRegisters().gprs)));
     VM._assert(trace.willNotMoveInCurrentCollection(ObjectReference.fromObject(thread.getExceptionRegisters())));

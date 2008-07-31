@@ -484,7 +484,7 @@ public abstract class Phase implements Constants {
           /* Iterate through all mutator contexts */
           MutatorContext mutator;
           while ((mutator = VM.activePlan.getNextMutator()) != null) {
-	    if (true) {
+	    if (false) {
 	      Log.write("dealing with mutator ");
 	      Log.write(mutator.id);
 	      Log.writeln();
