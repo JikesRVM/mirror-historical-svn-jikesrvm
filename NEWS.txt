@@ -5,17 +5,23 @@ Jikes RVM NEWS -- History of significant changes
 This file contains the release notes since Jikes RVM 2.0.0, released
 on October 14, 2001,
 
-* Jikes RVM 3.0.3  (August 4, 2008)
+* Jikes RVM 3.0.1  (Future)
+
+NOTE:  All future release notes will be generated directly from JIRA.
+If you want something mentioned in the release notes, make sure there is
+a JIRA item for it that has been marked as fixed for 2.9.3.
+
+* Jikes RVM 3.0.0  (August 7, 2008)
 
 We're very happy to announce the release of Jikes RVM version 3.0.0.
-The road towards 3.0 began approximately two years ago and a large number of
+The road towards 3.0 began just about two years ago and a large number of
 people, both on the core team and from our user community at large,
 have contributed to making it a success. Thank You!
 
 The detailed release notes for major changes since 2.9.3 can be found
-below, but we'd like to highlight some of the major efforts that went
-into the 3.0 release (some of which were completed in the 2.9.x
-releases we've made along the way).
+below, but we'd like to highlight some of the larger themes that went
+into the 3.0 release (many of which have already been released in 
+the 2.9.x releases we've made along the way).
   ** Normalization of source code and build process
     *** Complete rewrite of the build/test systems to use ant.
     *** Jikes RVM can be developed in Eclipse using the JDT
@@ -28,7 +34,7 @@ releases we've made along the way).
     *** Support for Java 5 language features
     *** Use of Java 5 language features throughout the code base
     
-Detailed list (87 issues closed in the 3 months since 2.9.3)
+Detailed list (89 issues closed in the 3 months since 2.9.3)
 
 ** New Feature
     * [RVM-358] - Initial support for Apache Harmony class library
@@ -81,6 +87,7 @@ Detailed list (87 issues closed in the 3 months since 2.9.3)
     * [RVM-369] - PPC32-OSX - Crash in GC when a stack contains native frames
     * [RVM-372] - Integer overflow in sysNanoTime
     * [RVM-423] - Fop performance strangeness
+    * [RVM-442] - All poisoned tests fail PPC 32
     * [RVM-454] - The sub-test TestAnnotationInheritance of the basic tests is excluded until it can be fixed
     * [RVM-458] - Poisoned bit test highlights JNI problem
     * [RVM-469] - Fix IA32 assembler to use Address instead of Offset for absolute addressing
@@ -106,6 +113,7 @@ Detailed list (87 issues closed in the 3 months since 2.9.3)
     * [RVM-543] - Invoking JNI_OnLoad of unrelated libraries when loading a library with no JNI_OnLoad
     * [RVM-544] - Class argument in NewObject ignored
     * [RVM-547] - Building the boot image with the opt compiler and Harmony fails
+    * [RVM-550] - Implementation of isZero magic in PPC baseline compiler can overflow expression stack and corrupt stack frame
     * [RVM-571] - BigDecimal Pure annotations causes crash on SPECjbb2005 for FullAdaptiveMarkSweep
     * [RVM-582] - Fix all javadoc "syntax" errors
     * [RVM-583] - Incorrect rounding on simplified integer divide
@@ -117,16 +125,13 @@ Detailed list (87 issues closed in the 3 months since 2.9.3)
     * [RVM-599] - New poisoned test failures on x86
     * [RVM-608] - Object replacement ignores finalizer methods
 
-** Task
+** Task and Sub-Task
     * [RVM-37] - Doccument the command line options
     * [RVM-42] - Build/Test infrastructiure to compute compiler DNA
-
-** Sub-task
     * [RVM-490] - Null Pointer Exception in gnu.xml.transform.ParameterNode.clone
     * [RVM-518] - Change build logic so that the VM prefix on a class name does not control inclusion in the bootimage
     * [RVM-519] - Rename classes currently with VM_ prefix that will be confusing without it
     * [RVM-520] - Update userguide to remove VM_ (and OPT_) prefix globally.
-
 
 *Jikes RVM 2.9.3 Release Notes (May 9, 2008)
 
