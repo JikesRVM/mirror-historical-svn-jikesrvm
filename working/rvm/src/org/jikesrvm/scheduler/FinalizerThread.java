@@ -41,7 +41,6 @@ public class FinalizerThread extends RVMThread {
   private static boolean shouldRun;
   private static HeavyCondLock schedLock;
   
-  @Override
   public static void boot() {
     schedLock=new HeavyCondLock();
     FinalizerThread ft=new FinalizerThread();
