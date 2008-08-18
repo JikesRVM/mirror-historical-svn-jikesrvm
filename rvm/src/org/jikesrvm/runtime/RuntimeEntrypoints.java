@@ -14,7 +14,7 @@ package org.jikesrvm.runtime;
 
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.ArchitectureSpecific.Registers;
-import org.jikesrvm.debug.BreakPointManager;
+import org.jikesrvm.debug.BreakpointManager;
 import org.jikesrvm.VM;
 import org.jikesrvm.Constants;
 import org.jikesrvm.Callbacks;
@@ -744,7 +744,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
       Registers breakPointRegisters = new Registers();
       breakPointRegisters.read(exceptionRegisters);
       exceptionRegisters.inuse = false;
-      BreakPointManager.deliverBreakpointHit(breakPointRegisters);
+      BreakpointManager.deliverBreakpointHit(breakPointRegisters);
       if (VM.VerifyAssertions) {VM._assert(NOT_REACHED);}
     }
 
@@ -991,6 +991,8 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
       VM.sysWriteln("RuntimeEntrypoints.deliverException() entered; just got an exception object.");
     }
 
+    notifyExceptionCatch(exceptionObject, exceptionRegisters);
+
     // walk stack and look for a catch block
     //
     if (VM.TraceExceptionDelivery) {
@@ -1013,7 +1015,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
             VM.sysWriteln("found one; delivering.");
           }
           Address catchBlockStart = compiledMethod.getInstructionAddress(Offset.fromIntSignExtend(catchBlockOffset));
-          notifyExceptionCatch(exceptionObject, exceptionRegisters, compiledMethod, catchBlockStart);
+          notifyException(compiledMethod, catchBlockStart, exceptionObject, exceptionRegisters);
           exceptionDeliverer.deliverException(compiledMethod, catchBlockStart, exceptionObject, exceptionRegisters);
           if (VM.VerifyAssertions) VM._assert(NOT_REACHED);
         }
@@ -1030,11 +1032,38 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
       VM.sysWriteln("RuntimeEntrypoints.deliverException() found no catch block.");
     }
     /* No appropriate catch block found. */
-
-    notifyExceptionCatch(exceptionObject, exceptionRegisters, null, Address.zero());
     Scheduler.getCurrentThread().handleUncaughtException(exceptionObject);
   }
 
+  private static void notifyExceptionCatch(Throwable exceptionObject,
+      Registers exceptionRegisters) {
+    
+    //find the exception location.
+    Address sourcefp = exceptionRegisters.getInnermostFramePointer();
+    int sourcecmid = Magic.getCompiledMethodID(sourcefp);
+    CompiledMethod sourcecm = CompiledMethods.getCompiledMethod(sourcecmid);
+    Address sourceIP = exceptionRegisters.getInnermostInstructionAddress();
+    Offset sourceOffset = sourcecm.getInstructionOffset(sourceIP);
+    final int sourceByteCodeIndex;
+    final NormalMethod sourceMethod;
+    if (sourcecm instanceof BaselineCompiledMethod) {
+      BaselineCompiledMethod bm = (BaselineCompiledMethod)sourcecm;
+      sourceMethod = (NormalMethod)bm.getMethod();
+      sourceByteCodeIndex = bm.findBytecodeIndexForInstruction(sourceOffset);
+    } else if (sourcecm instanceof OptCompiledMethod) {
+      OptCompiledMethod ocm = (OptCompiledMethod)sourcecm;
+      OptMachineCodeMap map = ocm.getMCMap();
+      sourceMethod = map.getMethodForMCOffset(sourceOffset);
+      sourceByteCodeIndex = map.getBytecodeIndexForMCOffset(sourceOffset);
+    } else {
+      sourceByteCodeIndex = -1;
+      sourceMethod = null;
+    }
+    
+    //notify the exception catch event.
+    Callbacks.notifyExceptionCatch(exceptionObject, sourceMethod, sourceByteCodeIndex);
+  }
+  
   /**
    * Notify the exception and its catch event.
    * 
@@ -1043,9 +1072,9 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
    * @param catchcm The target catch method.
    * @param catchBlockStart The raw address of the target catch code.
    */
-  private static void notifyExceptionCatch(Throwable exceptionObject,
-      Registers exceptionRegisters, CompiledMethod catchcm,
-      Address catchBlockStart) {
+  private static void notifyException(CompiledMethod catchcm,
+      Address catchBlockStart, Throwable exceptionObject,
+      Registers exceptionRegisters) {
 
     //find the exception location.
     Address sourcefp = exceptionRegisters.getInnermostFramePointer();
@@ -1089,8 +1118,9 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
     }
 
     //notify the exception catch event.
-    Callbacks.notifyExceptionCatch(exceptionObject, sourceMethod,
-        sourceByteCodeIndex, catchMethod, catchByteCodeIndex);
+    Callbacks.notifyException(exceptionObject, 
+        sourceMethod, sourceByteCodeIndex,
+        catchMethod, catchByteCodeIndex);
   }
 
   /**

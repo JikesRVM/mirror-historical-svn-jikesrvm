@@ -48,6 +48,7 @@ import org.jikesrvm.scheduler.greenthreads.JikesRVMSocketImpl;
 import org.jikesrvm.scheduler.greenthreads.FileSystem;
 import org.jikesrvm.scheduler.greenthreads.GreenScheduler;
 import org.jikesrvm.debug.JikesRVMJDWP;
+import org.jikesrvm.debug.RVMDebug;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
@@ -485,7 +486,8 @@ public class VM extends Properties implements Constants, ExitStatus {
       SysCall.sysCall.sysEnableAlignmentChecking();
     }
 
-    // start JDWP agent right before running the applcation.
+    // start JDWP agent right before running the application.
+    RVMDebug.boot();
     JikesRVMJDWP.boot();
 
     // Schedule "main" thread for execution.

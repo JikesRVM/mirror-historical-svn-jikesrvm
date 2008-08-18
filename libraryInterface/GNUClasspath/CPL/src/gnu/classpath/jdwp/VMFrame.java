@@ -12,18 +12,9 @@
  */
 package gnu.classpath.jdwp;
 
-import org.jikesrvm.classloader.NativeMethod;
-import org.jikesrvm.classloader.NormalMethod;
-import org.jikesrvm.classloader.RVMMethod;
-import org.jikesrvm.compilers.baseline.BaselineCompiledMethod;
-import org.jikesrvm.compilers.baseline.ia32.BaselineCompilerImpl;
-import org.jikesrvm.compilers.opt.runtimesupport.OptCompiledMethod;
-import org.jikesrvm.debug.JikesRVMJDWP;
-import org.jikesrvm.runtime.Magic;
+import org.jikesrvm.debug.LocalVariable;
 import org.jikesrvm.scheduler.RVMThread;
-import org.jikesrvm.SizeConstants;
 import org.jikesrvm.VM;
-import org.vmmagic.unboxed.Offset;
 
 import gnu.classpath.jdwp.exception.JdwpException;
 import gnu.classpath.jdwp.exception.NotImplementedException;
@@ -40,7 +31,7 @@ import gnu.classpath.jdwp.value.ShortValue;
 import gnu.classpath.jdwp.value.Value;
 
 /** JikesRVM Specific implementation of VMFrame. */
-public abstract class VMFrame {
+public final class VMFrame {
 
   /** The size of frameID is 8 (long). */
   public static final int SIZE = 8;
@@ -64,11 +55,13 @@ public abstract class VMFrame {
   /** The owner thread. */
   protected final RVMThread thread;
 
+  private final int depth;
   /** Constructor. */
-  public VMFrame(int fno, Location loc, RVMThread thread) {
+  public VMFrame(int depth, Location loc, RVMThread thread) {
     this.thread = thread;
-    this.frameID = ((long)thread.getIndex()) << 32 | fno;
+    this.frameID = ((long)thread.getIndex()) << 32 | depth;
     this.loc = loc;
+    this.depth = depth;
   }
 
   /** Getters */
@@ -76,60 +69,30 @@ public abstract class VMFrame {
   public long getId() { return frameID;}
 
   /** Read a local variable in a frame. */
-  public abstract Value getValue(int slot, byte sig) throws JdwpException;
-
-  /** Write a local variable in a frame. */
-  public abstract void setValue(int slot, Value value)throws JdwpException;
-
-  /** Read a this variable in a frame. */
-  public abstract Object getObject() throws JdwpException;
-}
-
-/** The internal stack frame from the base line compiler. */
-final class VMBaseFrame extends VMFrame {
-
-  /** The baseline compiled method.*/
-  private final BaselineCompiledMethod bcm;
-
-  /** The machine instruction offset in the base line compiled method code. */
-  private final Offset ipOffset;
-
-  /** The frame point offset in the current thread's call stack.*/
-  private final Offset fpOffset;
-
-  /** The constructor. */
-  VMBaseFrame(int frameno, NormalMethod m, int bcindex, RVMThread thread,
-      BaselineCompiledMethod bcm, Offset ipOffset, Offset fpOffset) {
-    super(frameno, new Location(new VMMethod(m), bcindex), thread);
-    this.bcm = bcm;
-    this.ipOffset = ipOffset;
-    this.fpOffset = fpOffset;
-  }
-
-  /** Get the value of a local variable at the given slot index. */
-  public Value getValue(int slot, byte tag) throws JdwpException{
-    if (JikesRVMJDWP.getVerbose() >= 3) {
-      VM.sysWriteln("getValue: slot = ", slot, " tag", tag);
-    }
-    switch (tag) {
+  public Value getValue(int slot, byte tag) throws JdwpException {
+  switch (tag) {
     case JdwpConstants.Tag.BOOLEAN:
-      return new BooleanValue(getIntslotValue(slot) == 0? false:true);
+      return new BooleanValue(
+          LocalVariable.getInt(thread, depth, slot) == 0 ? false : true);
     case JdwpConstants.Tag.BYTE:
-      return new ByteValue((byte)(getIntslotValue(slot) & 0xff));
+      return new ByteValue(
+          (byte) (LocalVariable.getInt(thread, depth, slot) & 0xff));
     case JdwpConstants.Tag.CHAR:
-      return new CharValue((char)(getIntslotValue(slot) & 0xffff));
+      return new CharValue(
+          (char) (LocalVariable.getInt(thread, depth, slot) & 0xffff));
     case JdwpConstants.Tag.SHORT:
-      return new ShortValue((short)(getIntslotValue(slot) & 0xffff));
+      return new ShortValue(
+          (short) (LocalVariable.getInt(thread, depth, slot) & 0xffff));
     case JdwpConstants.Tag.INT:
-      return new IntValue(getIntslotValue(slot));
+      return new IntValue(LocalVariable.getInt(thread, depth, slot));
     case JdwpConstants.Tag.LONG:
-      return new LongValue(getLongslotValue(slot));
+      return new LongValue(LocalVariable.getLong(thread, depth, slot));
     case JdwpConstants.Tag.FLOAT:
-      return new FloatValue(Magic.intBitsAsFloat(getIntslotValue(slot)));
+      return new FloatValue(LocalVariable.getFloat(thread, depth, slot));
     case JdwpConstants.Tag.DOUBLE:
-      return new DoubleValue(Magic.longBitsAsDouble(getLongslotValue(slot)));
+      return new DoubleValue(LocalVariable.getDouble(thread, depth, slot));
     case JdwpConstants.Tag.OBJECT:
-      return new ObjectValue(getObjectSlotValue(slot));
+      return new ObjectValue(LocalVariable.getObject(thread, depth, slot));
     case JdwpConstants.Tag.STRING:
     case JdwpConstants.Tag.VOID:
     case JdwpConstants.Tag.ARRAY:
@@ -138,7 +101,8 @@ final class VMBaseFrame extends VMFrame {
     case JdwpConstants.Tag.CLASS_LOADER:
     case JdwpConstants.Tag.CLASS_OBJECT:
       if (VM.VerifyAssertions) {
-        VM._assert(false, "Do we use this specific type in the JDWP Frame.GetValues?");
+        VM._assert(false,
+            "Do we use this specific type in the JDWP Frame.GetValues?");
       }
       return null;
     default:
@@ -146,56 +110,56 @@ final class VMBaseFrame extends VMFrame {
         VM._assert(false, "Unsupported JDWP tag type: " + tag);
       }
       return null;
-    }
+    }    
   }
 
-  /** Set the value of a local variable at the given slot index. */
-  public void setValue(int slot, Value value) throws JdwpException {
+  /** Write a local variable in a frame. */
+  public void setValue(int slot, Value value)throws JdwpException {
     final int tag = value.getTag();
     switch(tag) {
     case JdwpConstants.Tag.BOOLEAN: {
       BooleanValue v = (BooleanValue) value;
-      setIntSlotValue(slot, v.getValue() ? 1 : 0);
+      LocalVariable.setInt(thread, depth, slot, v.getValue() ? 1 : 0);
       break;
     }
     case JdwpConstants.Tag.BYTE: {
       ByteValue v = (ByteValue) value;
-      setIntSlotValue(slot, v.getValue());
+      LocalVariable.setInt(thread, depth, slot, v.getValue());
       break;      
     }
     case JdwpConstants.Tag.CHAR: {
       CharValue v = (CharValue) value;
-      setIntSlotValue(slot, v.getValue());
+      LocalVariable.setInt(thread, depth, slot, v.getValue());
       break;      
     }
     case JdwpConstants.Tag.SHORT:{
       ShortValue v = (ShortValue) value;
-      setIntSlotValue(slot, v.getValue());
+      LocalVariable.setInt(thread, depth, slot, v.getValue());
       break;      
     }
     case JdwpConstants.Tag.INT: {
       IntValue v = (IntValue) value;
-      setIntSlotValue(slot, v.getValue());
+      LocalVariable.setInt(thread, depth, slot, v.getValue());
       break;      
     }
     case JdwpConstants.Tag.LONG: {
       LongValue v = (LongValue) value;
-      setLongSlotValue(slot, v.getValue());
+      LocalVariable.setLong(thread, depth, slot, v.getValue());
       break;      
     }
     case JdwpConstants.Tag.FLOAT: {
       FloatValue v = (FloatValue) value;
-      setIntSlotValue(slot, Magic.floatAsIntBits(v.getValue()));
+      LocalVariable.setFloat(thread, depth, slot, v.getValue());
       break;      
     } 
     case JdwpConstants.Tag.DOUBLE: {
       DoubleValue v = (DoubleValue) value;
-      setLongSlotValue(slot, Magic.doubleAsLongBits(v.getValue()));
+      LocalVariable.setDouble(thread, depth, slot, v.getValue());
       break;      
     }
     case JdwpConstants.Tag.OBJECT: {
       ObjectValue v = (ObjectValue) value;
-      setObjectSlotValue(slot, v.getValue());
+      LocalVariable.setObject(thread, depth, slot, v.getValue());
     }
     case JdwpConstants.Tag.STRING:
     case JdwpConstants.Tag.VOID:
@@ -213,129 +177,10 @@ final class VMBaseFrame extends VMFrame {
         VM._assert(false, "Unsupported JDWP tag type: " + tag);
       }
       break;
-    }
-    
-    throw new NotImplementedException("Frame.getValue");
+    }    
   }
 
-  /**
-   * Get the "this" object if the method is non-static method. Otherwise, return
-   * null. Do the debugger backend actually need this feature? This feature
-   * overlaps with the Frame.GetValues().
-   */
-  public Object getObject() throws JdwpException {
-    RVMMethod meth = bcm.getMethod();
-    if (meth.isStatic()) {
-      return null;
-    } else {
-      return getObjectSlotValue(0); //The first local variable is the "this"
-    }
-  }
-
-  private Object getObjectSlotValue(int slot) {
-    byte[] stack = thread.getStack();
-    Offset slotOffset = fpOffset.plus(getGeneralLocalOffset(slot));
-    return Magic.getObjectAtOffset(stack, slotOffset);
-  }
-
-  private void setObjectSlotValue(int slot, Object value) {
-    byte[] stack = thread.getStack();
-    Offset slotOffset = fpOffset.plus(getGeneralLocalOffset(slot));
-    Magic.setObjectAtOffset(stack, slotOffset, value);    
-  }
-
-  private int getIntslotValue(int slot) {
-    byte[] stack = thread.getStack();
-    Offset slotOffset = fpOffset.plus(getGeneralLocalOffset(slot));
-    return Magic.getIntAtOffset(stack, slotOffset);
-  }
-  
-  private long getLongslotValue(int slot) {
-    int lsb = getIntslotValue(slot);
-    int msb = getIntslotValue(slot+1);
-    long v = ((long)msb << 32) | (((long)lsb)& 0xFFFFFFFF);   
-    return v;
-  }
-
-  private void setIntSlotValue(int slot, int value) {
-    byte[] stack = thread.getStack();
-    Offset slotOffset = fpOffset.plus(getGeneralLocalOffset(slot));
-    Magic.setIntAtOffset(stack, slotOffset, value);
-  }
-  
-  private void setLongSlotValue(int slot, long value) {
-    int lsb = (int)(value & 0xFFFFFFFF);
-    int msb = (int)((value >> 32) &  0xFFFFFFFF);
-    setIntSlotValue(slot, lsb);
-    setIntSlotValue(slot, msb);
-  }
-
-  /** Get a frame pointer relative offset for a local variable slot. */
-  private int getGeneralLocalOffset(int slot) {
-    int location = bcm.getGeneralLocalLocation(slot);
-    int offset = BaselineCompilerImpl.locationToOffset(location)
-        - SizeConstants.BYTES_IN_ADDRESS;
-    return offset;
-  }
-}
-
-/**
- * The internal stack frame from the optimizing compiler. Note that
- * ocm.getMethod() would return different from the loc.getMethod().meth, depend
- * on the inlining decision in the root method ( =ocm.getMethod() ).
- */
-final class VMOptFrame extends VMFrame {
-
-  /** The root opt-compiled method.*/
-  private final OptCompiledMethod ocm;
-
-  /** The machine instruction offset in the opt-compiled code. */
-  private final Offset ipOffset;
-  private final Offset fpOffset;
-  private final int iei;
-
-  /** The constructor. */
-  VMOptFrame(int frameno, RVMMethod m, int bcinex, RVMThread thread,
-      OptCompiledMethod ocm, Offset ipOffset, Offset fpOffset, int iei) {
-    super(frameno, new Location(new VMMethod(m), bcinex), thread);
-    this.ocm = ocm;
-    this.ipOffset = ipOffset;
-    this.fpOffset = fpOffset;
-    this.iei = iei;
-  }
-
-  /**
-   * The JikesRVM currently support opt-compiled method, and this will be future
-   * work.
-   */
-  public Value getValue(int slot, byte sig)  throws JdwpException {
-    throw new NotImplementedException("Frame.getValue");
-  }
-  public void setValue(int slot, Value value)  throws JdwpException {
-    throw new NotImplementedException("Frame.getValue");
-  }
-  public Object getObject()  throws JdwpException {
-    throw new NotImplementedException("Frame.getValue");
-  }
-}
-
-/** The internal stack frame from the JNI compiler. */
-final class VMNativeFrame extends VMFrame {
-
-  /** The constructor. */
-  VMNativeFrame(int frameno, NativeMethod m, RVMThread thread ){
-    super(frameno, new Location(new VMMethod(m), -1), thread);
-    // perhaps, the byte code index would be -1 [JDWP Method.LineTable],
-    // or the back-end debugger will ignore this byte code index.
-  }
-
-  /** JDWP does not expect accessing native local variables. */
-  public Value getValue(int slot, byte sig)  throws JdwpException {
-    throw new NotImplementedException("Frame.getValue");
-  }
-  public void setValue(int slot, Value value)  throws JdwpException {
-    throw new NotImplementedException("Frame.getValue");
-  }
+  /** Read a this variable in a frame. */
   public Object getObject() throws JdwpException {
     throw new NotImplementedException("Frame.getValue");
   }

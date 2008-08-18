@@ -40,6 +40,7 @@ exception statement from your version. */
 package gnu.classpath.jdwp.transport;
 
 import gnu.classpath.jdwp.Jdwp;
+import gnu.classpath.jdwp.VMVirtualMachine;
 import gnu.classpath.jdwp.event.Event;
 import gnu.classpath.jdwp.event.EventRequest;
 

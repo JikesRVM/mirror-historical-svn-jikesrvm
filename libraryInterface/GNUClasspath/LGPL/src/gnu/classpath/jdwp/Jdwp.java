@@ -233,7 +233,7 @@ public class Jdwp
 	  }
       }
   }
-  
+
   /**
    * Notify the debugger of "co-located" events. This method should
    * not be called if debugging is not active (but it would not
@@ -358,6 +358,7 @@ public class Jdwp
    */
   public void subcomponentInitialized ()
   {
+    VMVirtualMachine.setAgentThread(Thread.currentThread());
     synchronized (_initLock)
       {
 	++_initCount;
@@ -367,6 +368,7 @@ public class Jdwp
 
   public void run ()
   {
+    VMVirtualMachine.setAgentThread(Thread.currentThread());
     try
       {
 	_doInitialization ();

@@ -2,7 +2,7 @@
 
 ## RUN/CONT
 proc trun { args } {
-    spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
+    spawn rdb Fact
     expect {
 	-re "VM Started: .+\n.*MainThread... " {}
 	timeout { error "can not reach initialization sequence" }
@@ -17,7 +17,7 @@ proc trun { args } {
 
 ## RUN/EXIT
 proc texit { args } {
-    spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
+    spawn rdb Fact
     expect {
 	-re "VM Started: .+\n.*MainThread... " {}
 	timeout { error "can not reach initialization sequence" }
@@ -32,7 +32,7 @@ proc texit { args } {
 
 ## RUN/THREAD/STACK
 proc tthreadAndStack { args } {
-    spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
+    spawn rdb Fact
     expect {
 	-re "VM Started: .+\n.*MainThread... " {}
 	timeout { error "can not reach initialization sequence" }
@@ -65,7 +65,7 @@ proc tthreadAndStack { args } {
 
 ##BREAKPOINT
 proc tbreakpoint { args } {
-    spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
+    spawn rdb Fact
     expect {
 	-re "VM Started: .+\n.*MainThread... " {}
 	timeout { error "can not reach initialization sequence" }
@@ -103,7 +103,7 @@ proc tbreakpoint { args } {
 
 ##EXPR
 proc texpr { args } {
-    spawn jdb -launch -connect com.sun.jdi.RawCommandLineLaunch:command=rvm\ \"-Xrunjdwp:verbose=0,transport=dt_socket,address=8000,suspend=y\"\ Fact,address=8000
+    spawn rdb Fact
     expect {
 	-re "VM Started: .+\n.*MainThread... " {}
 	timeout { error "can not reach initialization sequence" }
@@ -163,9 +163,42 @@ proc texpr { args } {
     }
 }
 
+proc tstep { args } {
+    spawn rdb Fact
+    expect {
+	-re "VM Started: .+\n.*MainThread... " {}
+	timeout { error "can not reach initialization sequence" }
+    }
+    send "stop in Fact.main\n"
+    expect {
+	-re "MainThread... " {}
+	timeout { error "can not set breakpoint." }
+    }
+    send "cont\n"
+    expect {
+	-re "MainThread... " {}
+	timeout { error "can not reach breakpoint." }
+    }
+    set i 0
+    while { $i < 5 } {
+	send "step\n"
+	expect {
+	    -re "MainThread... " {}
+	timeout { error "can not reach breakpoint." }
+	}
+	incr i
+    }
+    send "cont\n"
+    expect {
+	eof {puts "PASS\n" }
+	timeout { error "can not complete" }
+    }
+}
+
 set timeout 30
 trun
 texit
 tthreadAndStack
 tbreakpoint
 texpr
+#tstep

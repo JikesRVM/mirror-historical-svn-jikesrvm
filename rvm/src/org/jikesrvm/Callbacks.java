@@ -320,6 +320,69 @@ public final class Callbacks {
   /**
    * Interface for monitoring exceptions.
    */
+  public interface ExceptionMonitor {
+    /**
+     * Notify the monitor that an Exception has been thrown and catched.
+     * @param e The exception.
+     */
+    void notifyException(Throwable e, 
+        NormalMethod sourceMethod, int sourceByteCodeIndex,
+        NormalMethod catchMethod, int catchByteCodeIndex);
+  }
+
+  /**
+   * Thrown Exception callback list.
+   */
+  private static CallbackList ExceptionCallbacks = null;
+  private static final Object ExceptionLock = new Object();
+  private static boolean ExceptionEnabled = true;
+
+  /**
+   * Register a callback for Exception event.
+   * @param cb the object to notify when event happens
+   */
+  public static void addExceptionMonitor(ExceptionMonitor cb) {
+    synchronized (ExceptionLock) {
+      if (TRACE_ADDMONITOR || TRACE_EXCEPTION) {
+        VM.sysWrite("adding method override monitor: ");
+        VM.sysWrite(getClass(cb));
+        VM.sysWrite("\n");
+      }
+      ExceptionCallbacks = new CallbackList(cb, ExceptionCallbacks);
+    }
+  }
+
+  /**
+   * Notify the callback manager that an exception was thrown and catched.
+   */
+  public static void notifyException(Throwable e,
+      NormalMethod sourceMethod, int sourceByteCodeIndex,
+      NormalMethod catchMethod, int catchByteCodeIndex) {
+    // NOTE: will need synchronization if allowing unregistering
+    if (!ExceptionEnabled) return;
+    ExceptionEnabled = false;
+    if (TRACE_EXCEPTION) {
+      //VM.sysWrite(getThread(), false);
+      //VM.sysWrite(": ");
+      VM.sysWrite("invoking exception throw monitors: ");
+      }
+    for (CallbackList l = ExceptionCallbacks; l != null; l = l.next) {
+      if (TRACE_EXCEPTION) {
+        VM.sysWrite("    ");
+        VM.sysWrite(getClass(l.callback));
+        VM.sysWrite("\n");
+      }
+      ((ExceptionMonitor) l.callback).notifyException(e,
+          sourceMethod, sourceByteCodeIndex,
+          catchMethod, catchByteCodeIndex);
+    }
+    ExceptionEnabled = true;
+  }
+
+  
+  /**
+   * Interface for monitoring exceptions.
+   */
   public interface ExceptionCatchMonitor {
     /**
      * Notify the monitor that an Exception has been thrown and catched.
@@ -328,8 +391,7 @@ public final class Callbacks {
      * @param catchByteCodeIndex The catch target byte code index.
      */
     void notifyExceptionCatch(Throwable e, 
-        NormalMethod sourceMethod, int sourceByteCodeIndex,
-        NormalMethod catchMethod, int catchByteCodeIndex);
+        NormalMethod sourceMethod, int sourceByteCodeIndex);
   }
 
   /**
@@ -358,8 +420,7 @@ public final class Callbacks {
    * Notify the callback manager that an exception was thrown and catched.
    */
   public static void notifyExceptionCatch(Throwable e,
-      NormalMethod sourceMethod, int sourceByteCodeIndex,
-      NormalMethod catchMethod, int catchByteCodeIndex) {
+      NormalMethod sourceMethod, int sourceByteCodeIndex) {
     // NOTE: will need synchronization if allowing unregistering
     if (!exceptionCatchEnabled) return;
     exceptionCatchEnabled = false;
@@ -375,8 +436,7 @@ public final class Callbacks {
         VM.sysWrite("\n");
       }
       ((ExceptionCatchMonitor) l.callback).notifyExceptionCatch(e,
-          sourceMethod, sourceByteCodeIndex,
-          catchMethod, catchByteCodeIndex);
+          sourceMethod, sourceByteCodeIndex);
     }
     exceptionCatchEnabled = true;
   }
@@ -1373,6 +1433,7 @@ public final class Callbacks {
   private static final boolean TRACE_CLASSINITIALIZED = false;
   private static final boolean TRACE_CLASSINSTANTIATED = false;
   private static final boolean TRACE_EXCEPTIONCATCH = false;
+  private static final boolean TRACE_EXCEPTION = false;
   private static final boolean TRACE_METHODOVERRIDE = false;
   private static final boolean TRACE_METHODCOMPILE = false;
   private static final boolean TRACE_METHODCOMPILECOMPLETE = false;

@@ -1,3 +1,71 @@
+* Single stepping
+
+  * JVMTI/JDWP: JVMTI provides a single stepping at the byte code
+    level, and JDWP agent exposes the single stepping at both byte and
+    source code levels. A sequence of JVMTI single step events may
+    constitute a single JDWP single stepping if the JDWP sinigle step
+    request was at the source line level. If JDWP client asks more
+    filters such as class exclusion, the JDWP agent would skip more
+    JVMTI single stepping events.
+
+  * JDWP agent should keep the suspened location when the JDWP client
+    requests the single step event. Then the JDWP agent enables the
+    JVMTI byte code level single step, and resumes the application
+    thread. The application thread executes one byte code instruction,
+    and notifies this byte code completion event. The JDWP agent
+    compares the previouly recorded location and the new location. If
+    the difference between these two locations is far enough in terms
+    of step depth and step size, the JDWP agent notifies the JDWP
+    client of this JDWP level stepping event. Otherwise the JDWP agent
+    resumes the execution, and repeat this process until it observes
+    enough execution progress in the application.
+
+    + JDWP Single Step
+
+    "Case Step - if modKind is 10: Restricts reported step events to
+    those which satisfy depth and size constraints. This modifier can
+    be used with step event kinds only.
+       threadID  thread   Thread in which to step 
+       int         size   size of each step. See JDWP.StepSize 
+       int        depth   relative call stack limit. See JDWP.StepDepth"
+    [http://java.sun.com/javase/6/docs/platform/jpda/jdwp/jdwp-protocol.html#JDWP_EventRequest_Set]
+
+    "Case SingleStep - if eventKind is JDWP.EventKind.SINGLE_STEP:
+       Notification of step completion in the target VM. The step
+       event is generated before the code at its location is executed.
+       int        requestID	Request that generated event 
+       threadID	     thread	Stepped thread 
+       location	   location	Location stepped to"
+     [http://java.sun.com/javase/6/docs/platform/jpda/jdwp/jdwp-protocol.html#JDWP_Event_Composite]
+
+    + JVMTI Single Step request and callback
+
+    "jvmtiError SetEventNotificationMode(jvmtiEnv* env, jvmtiEventMode
+      mode, jvmtiEvent event_type, jthread event_thread, ...)"
+    [http://java.sun.com/j2se/1.5.0/docs/guide/jvmti/jvmti.html#SetEventNotificationMode]
+
+    "void JNICALL SingleStep(jvmtiEnv *jvmti_env, JNIEnv* jni_env,
+      jthread thread, jmethodID method, jlocation location)
+    
+    Typically, single step events represent the completion of one VM
+    instruction as defined the Java Virtual Machine
+    Specification. However, some implementations may define locations
+    differently."
+    [http://java.sun.com/j2se/1.5.0/docs/guide/jvmti/jvmti.html#SingleStep]
+
+    "StepDepth Constants
+      INTO	0	Step into any method calls that occur before the end of the step.  
+      OVER	1	Step over any method calls that occur before the end of the step.  
+      OUT	2	Step out of the current method."
+    [http://java.sun.com/javase/6/docs/platform/jpda/jdwp/jdwp-protocol.html#JDWP_StepDepth]
+
+    "StepSize Constants
+      MIN     0	        Step by the minimum possible amount (often a bytecode instruction).  
+      LINE    1         Step to the next source line unless there is no line number
+			information in which case a MIN step is done instead."
+      [http://java.sun.com/javase/6/docs/platform/jpda/jdwp/jdwp-protocol.html#JDWP_StepSize]
+
+
 * Method Invocation and its Implementation
   
   This is to support expression evalation that contains a method

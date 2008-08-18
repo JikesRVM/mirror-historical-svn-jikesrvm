@@ -13,15 +13,14 @@
 package org.jikesrvm.debug;
 
 import java.util.StringTokenizer;
-import gnu.classpath.jdwp.Jdwp;
-import gnu.classpath.jdwp.VMIdManager;
-import gnu.classpath.jdwp.VMVirtualMachine;
-
 import org.jikesrvm.CommandLineArgs;
 import org.jikesrvm.VM;
 import org.jikesrvm.runtime.ExitStatus;
 
-/** JikesRVM specific part of the JDWP implementation. */
+/**
+ * JikesRVM specific part of the JDWP implementation. This class processes the
+ * JDWP specific command line argument, and loads a JDWP agent.
+ */
 public class JikesRVMJDWP implements ExitStatus {
 
   /** Arguments for JDWP. */
@@ -96,28 +95,21 @@ public class JikesRVMJDWP implements ExitStatus {
   }
 
   /**
-   * Start the JDWP boot process.
+   * Load a JDWP agent.
    */
   public static void boot() {
     if (jdwpArgs == null) { return; }
+    if (VM.VerifyAssertions) {
+      VM._assert(RVMDebug.getRVMDebug() != null,
+          "RVMDebug must be initialized before initializing a JDWP agent.");
+    }
     try {
-      // Create a daemon JDWP thread and wait for it to be initialized
-      VMIdManager.init();
-      VMVirtualMachine.boot();
-      Jdwp jdwp = new Jdwp();
-      jdwp.setDaemon(true);
-      jdwp.configure(jdwpArgs);
-      jdwp.start();
-
-      // wait for initialization. not related for starting suspended.
-      jdwp.join();
-    } catch (Exception e) {
+      Class.forName("gnu.classpath.jdwp.JikesRVMSupport")
+          .getMethod("load", String.class).invoke(null, jdwpArgs);
+    }catch (Exception e) {
       VM.sysWriteln("Jdwp initialization failed");
       e.printStackTrace();
       VM.sysExit(EXIT_STATUS_JDWP_INITIALIZATION_FAILED);
     }
-    if (VM.VerifyAssertions) {
-      VM._assert(Jdwp.isDebugging, "The JDWP must be initialized here.");
-    }
-  }
+  }  
 }
