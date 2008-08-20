@@ -109,7 +109,7 @@ public class VM_AOSLogging {
     methodCompiled = engine.defineEvent("Method Compiled", "A method has been dynamically compiled",
                                         new EventAttribute[] { mid, cmid, compiler, optLevel });
     methodSampled = engine.defineEvent("Method Sampled", "Method samples have been reported to the controller",
-                                       new EventAttribute[] { cmid, new EventAttribute("samples", "Samples attributed to the method", ScalarType.DOUBLE) });
+                                       new EventAttribute[] { mid, cmid, new EventAttribute("samples", "Samples attributed to the method", ScalarType.DOUBLE) });
 
 
     booted = true;
@@ -357,7 +357,7 @@ public class VM_AOSLogging {
    */
   public void controllerNotifiedForHotness(VM_CompiledMethod hotMethod, double numSamples) {
     if (level >= 2) {
-      VM_Processor.getCurrentFeedlet().addEvent(methodSampled, hotMethod.getId(), numSamples);
+      VM_Processor.getCurrentFeedlet().addEvent(methodSampled, hotMethod.getMethod().getId(), hotMethod.getId(), numSamples);
     }
   }
 
