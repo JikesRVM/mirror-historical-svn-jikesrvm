@@ -14,7 +14,7 @@ package org.jikesrvm.runtime;
 
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.ArchitectureSpecific.Registers;
-import org.jikesrvm.debug.BreakpointManager;
+import org.jikesrvm.debug.BreakpointsImpl;
 import org.jikesrvm.VM;
 import org.jikesrvm.Constants;
 import org.jikesrvm.Callbacks;
@@ -744,7 +744,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
       Registers breakPointRegisters = new Registers();
       breakPointRegisters.read(exceptionRegisters);
       exceptionRegisters.inuse = false;
-      BreakpointManager.deliverBreakpointHit(breakPointRegisters);
+      BreakpointsImpl.deliverBreakpointHit(breakPointRegisters);
       if (VM.VerifyAssertions) {VM._assert(NOT_REACHED);}
     }
 

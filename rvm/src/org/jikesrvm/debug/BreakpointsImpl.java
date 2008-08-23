@@ -13,6 +13,7 @@
 package org.jikesrvm.debug;
 
 import org.jikesrvm.ArchitectureSpecific;
+import org.jikesrvm.Callbacks;
 import org.jikesrvm.Constants;
 import org.jikesrvm.UnimplementedError;
 import org.jikesrvm.VM;
@@ -28,6 +29,7 @@ import org.jikesrvm.compilers.opt.runtimesupport.OptCompiledMethod;
 import org.jikesrvm.jni.JNICompiledMethod;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.RuntimeEntrypoints;
+import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.scheduler.Scheduler;
 import org.jikesrvm.util.LinkedListRVM;
 import org.vmmagic.unboxed.Address;
@@ -39,8 +41,9 @@ import org.vmmagic.unboxed.Offset;
  * TODO: We need to handle GC-safety at each break point.
  * 
  */
-public class BreakpointManager implements Constants,
-    ArchitectureSpecific.StackframeLayoutConstants {
+public class BreakpointsImpl implements Constants,
+  Callbacks.MethodCompileCompleteMonitor, 
+  ArchitectureSpecific.StackframeLayoutConstants {
 
   private static final byte OPCODE_X86_NOP = (byte)0x90;
 
@@ -50,6 +53,23 @@ public class BreakpointManager implements Constants,
 
   private static final byte OPCODE_X86_INT_CODE = (byte) 
     (RuntimeEntrypoints.TRAP_BREAK_POINT + 0x40);
+
+  private static BreakpointsImpl breakPointImpl;
+  
+  static void boot() {
+    if (VM.VerifyAssertions) {
+      VM._assert(breakPointImpl == null);
+    }
+    breakPointImpl = new BreakpointsImpl();
+    Callbacks.addMethodCompileCompleteMonitor(breakPointImpl);
+  }
+
+  static BreakpointsImpl getBreakpointsImpl() {
+    if (VM.VerifyAssertions) {
+      VM._assert(breakPointImpl != null);
+    }
+    return breakPointImpl;
+  }
 
   /** Deliver a break point hit trap event. */
   public static void deliverBreakpointHit(Registers registers) {
@@ -88,7 +108,19 @@ public class BreakpointManager implements Constants,
         }
       } else {
         try {
-          RVMDebug.getRVMDebug().notifyBreakpoint(Scheduler.getCurrentThread(), method, bcIndex);
+          RVMDebug d = RVMDebug.getRVMDebug();
+          RVMDebugState s = d.eventRequest;
+          EventNotifier notifier = d.eventNotifier;
+          RVMThread thread = Scheduler.getCurrentThread();
+          boolean hasSteppingEvent = s.hasSteppingLocation(thread, method, bcIndex);
+          s.clearSteppingBreakpoints();
+          if (hasSteppingEvent) {
+            notifier.notifySingleStep(thread, method, bcIndex);
+          }
+          BreakpointList bplist = d.breakPoints;
+          if (bplist.contains(method, bcIndex)) {
+            notifier.notifyBreakpoint(thread, method, bcIndex);
+          }
         } catch(Exception t) {
           VM._assert(false,
               "The break point call back should handle all the exception");
@@ -110,19 +142,22 @@ public class BreakpointManager implements Constants,
     if (VM.VerifyAssertions) {VM._assert(NOT_REACHED);}
   }
 
-  private static final LinkedListRVM<BytecodeBreakPoint> activeByteCodeBreakPoints =
+  private final LinkedListRVM<BytecodeBreakPoint> activeByteCodeBreakPoints =
     new LinkedListRVM<BytecodeBreakPoint>();
 
-  private static final LinkedListRVM<RawBreakPoint> activeRawBreakPoints =
+  private final LinkedListRVM<RawBreakPoint> activeRawBreakPoints =
     new LinkedListRVM<RawBreakPoint>();
 
+  /** Constructor. */
+  BreakpointsImpl() {}
+  
   /**
    * Set a break point in a method.
    * 
    * @param method The method.
    * @param bcindex The byte code index within the method.
    */
-  public static void setBreakPoint(NormalMethod method, int bcindex) {
+  public synchronized void requestBreakPoint(NormalMethod method, int bcindex) {
     if (VM.VerifyAssertions) {
       VM._assert(method != null && bcindex >= 0);
     }
@@ -131,9 +166,15 @@ public class BreakpointManager implements Constants,
           .toString());
       return;
     }
-
-    BytecodeBreakPoint bp = new BytecodeBreakPoint(method, bcindex);
-    ensureByteCodeBreakPointIsActive(bp);
+    
+    BytecodeBreakPoint bp = findByteCodeBreakpoint(method, bcindex);
+    if (bp == null) {
+      MethodLocation loc = new MethodLocation(method, bcindex);
+      bp = new BytecodeBreakPoint(loc, 1);
+      ensureByteCodeBreakPointIsActive(bp);
+    } else {
+      bp.increaseCount();
+    }
 
     if (JikesRVMJDWP.getVerbose() >= 2) {
       VM.sysWriteln("set break point: " + bp);
@@ -149,10 +190,14 @@ public class BreakpointManager implements Constants,
    * @param method The method.
    * @param bcindex The byte code index within the method.
    */
-  public static void clearBreakPoint(NormalMethod method, int bcindex) {
-    BytecodeBreakPoint bp = new BytecodeBreakPoint(method, bcindex);
-    ensureByteCodeBreakPointIsDead(bp);
-
+  public synchronized void releaseBreakPoint(NormalMethod method, int bcindex) {
+    BytecodeBreakPoint bp = findByteCodeBreakpoint(method, bcindex);
+    if (VM.VerifyAssertions) {VM._assert(bp != null);}
+    bp.decreaseCount();
+    if (bp.getCount() == 0 ) {
+      ensureByteCodeBreakPointIsDead(bp);
+      activeByteCodeBreakPoints.remove(bp);
+    }
     if (JikesRVMJDWP.getVerbose() >= 2) {
       VM.sysWriteln("clear break point: " + bp);
       if (JikesRVMJDWP.getVerbose() >= 3) {
@@ -161,13 +206,13 @@ public class BreakpointManager implements Constants,
     }
   }
 
-  public static void checkBreakpoint(CompiledMethod cm) {
+  public synchronized void checkBreakpoint(CompiledMethod cm) {
     if (cm instanceof BaselineCompiledMethod) {
       BaselineCompiledMethod bcm = (BaselineCompiledMethod) cm;
       NormalMethod method = (NormalMethod)bcm.getMethod();
       for(final BytecodeBreakPoint jbp: activeByteCodeBreakPoints) {
-        if (jbp.method == method) {
-          int mcOffset = bcm.getMachineCodeOffset(jbp.bcindex);
+        if (jbp.getMethod() == method) {
+          int mcOffset = bcm.getMachineCodeOffset(jbp.getByteCodeIndex());
           RawBreakPoint rbp = new RawBreakPoint(bcm, mcOffset);
           ensureRawBreakPointIsActive(rbp);
         }
@@ -189,13 +234,27 @@ public class BreakpointManager implements Constants,
     }
   }
 
-  private static boolean isDebuggable(NormalMethod m) {
+  public void notifyMethodCompileComplete(CompiledMethod cm) {
+    checkBreakpoint(cm);
+  }
+
+  private synchronized BytecodeBreakPoint findByteCodeBreakpoint(
+      NormalMethod method, int bcindex) {
+    for(BytecodeBreakPoint bp : activeByteCodeBreakPoints) {
+      if (bp.getMethod() == method && bp.getByteCodeIndex() == bcindex) {
+        return bp;
+      }
+    }
+    return null;
+  }
+
+  private boolean isDebuggable(NormalMethod m) {
     RVMClass cls = m.getDeclaringClass();
     if (cls.getDescriptor().isRVMDescriptor()) {return false;}
     return true;
   }
 
-  private static void ensureByteCodeBreakPointIsActive(BytecodeBreakPoint jbp) {
+  private void ensureByteCodeBreakPointIsActive(BytecodeBreakPoint jbp) {
     //collect a set of raw break points.
     for(final RawBreakPoint rbp: getRawBreakPoints(jbp)) {
       ensureRawBreakPointIsActive(rbp);
@@ -205,7 +264,7 @@ public class BreakpointManager implements Constants,
     }
   }
 
-  private static void ensureByteCodeBreakPointIsDead(BytecodeBreakPoint jbp) {
+  private void ensureByteCodeBreakPointIsDead(BytecodeBreakPoint jbp) {
     if (!isActive(jbp)) {return;}
 
     // remove the set of raw break point for the jbp.
@@ -217,42 +276,41 @@ public class BreakpointManager implements Constants,
     activeByteCodeBreakPoints.remove(jbp);
   }
 
-  private static boolean isActive(BytecodeBreakPoint bp) {
+  private boolean isActive(BytecodeBreakPoint bp) {
     for(final BytecodeBreakPoint abp : activeByteCodeBreakPoints) {
       if (abp.equals(bp)) {return true;}
     } 
     return false;
   }
-  private static boolean isActive(RawBreakPoint bp) {
+  private boolean isActive(RawBreakPoint bp) {
     for(final RawBreakPoint abp : activeRawBreakPoints) {
       if (abp.equals(bp)) {return true;}
     } 
     return false;
   }
 
-  private static LinkedListRVM<RawBreakPoint> getRawBreakPoints(BytecodeBreakPoint jbp) {
+  private LinkedListRVM<RawBreakPoint> getRawBreakPoints(BytecodeBreakPoint jbp) {
     //collect a set of raw break points.
     LinkedListRVM<RawBreakPoint> rawBPList = new LinkedListRVM<RawBreakPoint>();
-    NormalMethod method = jbp.method;
+    NormalMethod method = jbp.getMethod();
     //handle baseline code.
     CompiledMethod cm = method.getCurrentCompiledMethod();
     if (cm instanceof BaselineCompiledMethod) {
       BaselineCompiledMethod bcm = (BaselineCompiledMethod)cm;
-      int mcOffset = bcm.getMachineCodeOffset(jbp.bcindex);
+      int mcOffset = bcm.getMachineCodeOffset(jbp.getByteCodeIndex());
       rawBPList.add(new RawBreakPoint(bcm, mcOffset));
     }
-
     //handle opt code - not implemented
 
     return rawBPList;
   }
 
-  private static void ensureRawBreakPointIsActive(RawBreakPoint bp) {
+  private void ensureRawBreakPointIsActive(RawBreakPoint bp) {
     if (isActive(bp)) { return;}
-    CompiledMethod cm = bp.compiledMethod;
+    CompiledMethod cm = bp.getCompiledMethod();
     if (cm instanceof BaselineCompiledMethod) {
       BaselineCompiledMethod bcm = (BaselineCompiledMethod)cm;
-      int mcOffset = bp.offset;
+      int mcOffset = bp.getOffset();
       int bcindex = bcm.findBytecodeIndexForInstruction(Offset.fromIntZeroExtend(mcOffset));
       CodeArray codes = bcm.getEntryCodeArray();
       byte inst = codes.get(mcOffset);
@@ -284,12 +342,12 @@ public class BreakpointManager implements Constants,
     }
   }
 
-  private static void ensureRawBreakPointIsDead(RawBreakPoint bp) {
+  private void ensureRawBreakPointIsDead(RawBreakPoint bp) {
     if (!isActive(bp)) {return;}
-    CompiledMethod cm = bp.compiledMethod;
+    CompiledMethod cm = bp.getCompiledMethod();
     if (cm instanceof BaselineCompiledMethod) {
       BaselineCompiledMethod bcm = (BaselineCompiledMethod)cm;
-      int mcOffset = bp.offset;
+      int mcOffset = bp.getOffset();
       int bcindex = bcm.findBytecodeIndexForInstruction(Offset.fromIntZeroExtend(mcOffset));
       CodeArray codes = bcm.getEntryCodeArray();
       byte inst = codes.get(mcOffset);
@@ -321,7 +379,7 @@ public class BreakpointManager implements Constants,
   }
 
   /** For debugging, dump the currently active break points. */
-  private static void  dumpActiveBreakPoints() {
+  private void  dumpActiveBreakPoints() {
     VM.sysWriteln("Breakpoint dump");
     VM.sysWriteln("  Byte code break points: ");
     for(final BytecodeBreakPoint jbp: activeByteCodeBreakPoints) {
@@ -332,82 +390,83 @@ public class BreakpointManager implements Constants,
       VM.sysWriteln(rbp.toString());
     }
   }
+}
 
+/** A break point at the byte code level. */
+class BytecodeBreakPoint {
+  private final MethodLocation location;
+  private int count;
 
-  /** A break point at the byte code level. */
-  private static class BytecodeBreakPoint {
-    private final NormalMethod method;
-    private final int bcindex;
-    /**
-     * @param m The method.
-     * @param bcindex The byte code Index;
-     */
-    public BytecodeBreakPoint(NormalMethod m, int bcindex) {
-      if (VM.VerifyAssertions) {
-        VM._assert(m != null);
-        VM._assert(bcindex >= 0);
-        VM._assert(bcindex < m.getBytecodeLength());
-      }
-      this.bcindex = bcindex;
-      this.method = m;
+  /**
+   * @param m The method.
+   * @param bcindex The byte code Index;
+   */
+  public BytecodeBreakPoint(MethodLocation location, int count) {
+    if (VM.VerifyAssertions) {
+      VM._assert(location != null);
     }
-    @Override
-    public int hashCode() {
-      return bcindex + method.hashCode();
-    }
-    @Override
-    public boolean equals(Object obj) {
-      if (obj instanceof BytecodeBreakPoint) {
-        BytecodeBreakPoint bp = (BytecodeBreakPoint)obj;  
-        return (bcindex == bp.bcindex) && (method.equals(bp.method)); 
-      } else {
-        return false;         
-      }
-    }
-    public String toString() {
-      return "JavaBreakPoint: bcindex = " + bcindex + " in "
-          + method.getDeclaringClass().toString() + "." + method.getName()
-          + method.getDescriptor();
+    this.location = location;
+    this.count = count;
+  }
+  MethodLocation getLocation() {return location;}
+  NormalMethod getMethod() { return location.getMethod();}
+  int getByteCodeIndex() {return location.getByteCodeIndex();}
+  int getCount() {return count;}
+  void setCount(int count) {this.count = count;}
+  void increaseCount() {this.count++;}
+  void decreaseCount() {
+    this.count--;
+    if (VM.VerifyAssertions) {
+      VM._assert(count >= 0);
     }
   }
+  public String toString() {
+    return location.toString() + " count = " + count;
+  }
+}
 
-  /** A break point at the machine code level. */
-  private static final class RawBreakPoint {
-    private final CompiledMethod compiledMethod;
-    private final int offset;
-    /**
-     * @param cm The compiled method.
-     * @param bpOffset The machine code offset;
-     */
-    public RawBreakPoint(CompiledMethod cm, int bpOffset) {
-      if (VM.VerifyAssertions) {
-        VM._assert(cm != null);
-        VM._assert(bpOffset >= 0);
-        VM._assert(bpOffset < cm.numberOfInstructions());
-      }
-      this.offset = bpOffset;
-      this.compiledMethod = cm;
+/** A break point at the machine code level. */
+final class RawBreakPoint {
+  private final CompiledMethod compiledMethod;
+  private final int offset;
+  /**
+   * @param cm The compiled method.
+   * @param bpOffset The machine code offset;
+   */
+  public RawBreakPoint(CompiledMethod cm, int bpOffset) {
+    if (VM.VerifyAssertions) {
+      VM._assert(cm != null);
+      VM._assert(bpOffset >= 0);
+      VM._assert(bpOffset < cm.numberOfInstructions());
     }
-    @Override
-    public int hashCode() {
-      return offset + compiledMethod.hashCode();
+    this.offset = bpOffset;
+    this.compiledMethod = cm;
+  }
+  @Override
+  public int hashCode() {
+    return offset + compiledMethod.hashCode();
+  }
+  @Override
+  public boolean equals(Object obj) {
+    if (obj instanceof RawBreakPoint) {
+      RawBreakPoint bp = (RawBreakPoint)obj;  
+      return (offset == bp.offset)
+          && (compiledMethod.equals(bp.compiledMethod)); 
+    } else {
+      return false;         
     }
-    @Override
-    public boolean equals(Object obj) {
-      if (obj instanceof RawBreakPoint) {
-        RawBreakPoint bp = (RawBreakPoint)obj;  
-        return (offset == bp.offset)
-            && (compiledMethod.equals(bp.compiledMethod)); 
-      } else {
-        return false;         
-      }
-    }
-    public String toString() {
-      RVMMethod method = compiledMethod.getMethod();
-      return "RawBreakPoint: mcoffset = " + offset + " compiler = "
-          + compiledMethod.getCompilerName()  + " in "
-          + method.getDeclaringClass().toString() + "." + method.getName()
-          + method.getDescriptor();
-    }
+  }
+  public String toString() {
+    RVMMethod method = compiledMethod.getMethod();
+    return "RawBreakPoint: mcoffset = " + offset + " compiler = "
+        + compiledMethod.getCompilerName()  + " in "
+        + method.getDeclaringClass().toString() + "." + method.getName()
+        + method.getDescriptor();
+  }
+  CompiledMethod getCompiledMethod() {
+    return compiledMethod;
+  }
+  int getOffset() {
+    return offset;
   }
 }

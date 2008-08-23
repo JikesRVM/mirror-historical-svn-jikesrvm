@@ -1,5 +1,15 @@
 * Single stepping
 
+  * General issue: Unlike other debugging events, the single stepping
+    is sensitive to when the user requests the stepping event. For a
+    breakpoint, the break program point is independent of the
+    breakpoint request time. However, the single step completion point
+    is dependent on the request point. For a machine level, the step
+    completion point is next dynamic byte code instrution. For a
+    source level, the completion point is the first dynamic
+    instruction with different source line with respect the source
+    line at the single step request.
+
   * JVMTI/JDWP: JVMTI provides a single stepping at the byte code
     level, and JDWP agent exposes the single stepping at both byte and
     source code levels. A sequence of JVMTI single step events may
@@ -198,3 +208,4 @@
   18        if ( n <= 0 ) {
   main[1] exit
   ------------------------------------------------------------------  
+

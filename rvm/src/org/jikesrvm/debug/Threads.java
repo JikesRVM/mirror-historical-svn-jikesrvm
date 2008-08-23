@@ -17,24 +17,19 @@ import java.util.List;
 import org.jikesrvm.VM;
 import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.scheduler.Scheduler;
-import org.jikesrvm.util.LinkedListRVM;
 
 /**
  * JikesRVM's thread information.
  */
 public final class Threads {
-  
-  private LinkedListRVM<RVMThread> activeThreadList = new LinkedListRVM<RVMThread>(); 
-  
-  private LinkedListRVM<RVMThread> agentThreads = new LinkedListRVM<RVMThread>();
-  
+
   /**
    * Run agent thread.
    * 
    * @param thread The agent thread.
    */
   public static void setAgentThread(RVMThread thread) {
-    RVMDebug.getRVMDebug().threads.setAgentThreadImpl(thread);
+    RVMDebug.getRVMDebug().eventRequest.addAgentThreadImpl(thread);
   }
 
   /**
@@ -44,11 +39,11 @@ public final class Threads {
    * @return true if the agent thread, and false otherwise.
    */
   public static boolean isAgentThread(RVMThread thread) {
-    return RVMDebug.getRVMDebug().threads.isAgentThreadImpl(thread);
+    return RVMDebug.getRVMDebug().eventRequest.isAgentThreadImpl(thread);
   }
   
   public static RVMThread[] getAllThreads() {
-    return RVMDebug.getRVMDebug().threads.getAllThreadsImpl();
+    return RVMDebug.getRVMDebug().eventRequest.getAllThreadsImpl();
   }
   
   static boolean isDebuggableThread(RVMThread thread) {
@@ -96,39 +91,5 @@ public final class Threads {
      for(RVMThread t : list) {
        resumeThread(t);
      }
-  }
-  
-  private synchronized void setAgentThreadImpl(RVMThread thread) {
-    if (!agentThreads.contains(thread)) {
-      agentThreads.add(thread);
-    }
-  }
-
-  private synchronized boolean isAgentThreadImpl(RVMThread thread) {
-    return agentThreads.contains(thread);
-  }
-  
-  synchronized void add(RVMThread thread) {
-    if (VM.VerifyAssertions) {
-      VM._assert(!activeThreadList.contains(thread));
-    }
-    activeThreadList.add(thread);
-  }
-  
-  synchronized void remove(RVMThread thread) {
-    if (VM.VerifyAssertions) {
-      VM._assert(activeThreadList.contains(thread));
-    }
-    activeThreadList.remove(thread);
-  }
-
-  public synchronized RVMThread[] getAllThreadsImpl() {
-    int size = activeThreadList.size();
-    RVMThread[] threads = new RVMThread[size];
-    int i = 0;
-    for(RVMThread t : activeThreadList) {
-      threads[i++] = t;
-    }
-    return threads;
   }
 }

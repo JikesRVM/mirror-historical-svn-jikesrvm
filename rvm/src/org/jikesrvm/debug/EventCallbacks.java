@@ -51,4 +51,7 @@ public interface EventCallbacks {
       NormalMethod catchMethod, int catchBytecodeIndex);
   
   public void exceptionCatch(RVMThread t, NormalMethod method, int bcindex, Throwable e);
+  
+  public void singleStep(RVMThread t, NormalMethod method, int bcindex);
+
 }

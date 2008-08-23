@@ -486,9 +486,8 @@ public class VM extends Properties implements Constants, ExitStatus {
       SysCall.sysCall.sysEnableAlignmentChecking();
     }
 
-    // start JDWP agent right before running the application.
+    // initialize debugging agent.
     RVMDebug.boot();
-    JikesRVMJDWP.boot();
 
     // Schedule "main" thread for execution.
     if (verboseBoot >= 2) VM.sysWriteln("Creating main thread");

@@ -137,55 +137,56 @@ public final class LocalVariable implements StackframeLayoutConstants{
       Magic.setLongAtOffset(stack, fpOffset.plus(localOffset(bcm, targetSlot)), value);
     }
   }
-  
-  private static ObjectReader objReader = new ObjectReader();
-  private static IntReader intReader = new IntReader();
-  private static LongReader longReader = new LongReader();
-  
-  private static ObjectWriter objWriter = new ObjectWriter();
-  private static IntWriter intWriter = new IntWriter();
-  private static LongWriter longWriter = new LongWriter();
- 
-  
+
   private LocalVariable() {}
   
   public static Object getObject(RVMThread thread, int depth, int slot) {
+    ObjectReader objReader = new ObjectReader();
     return objReader.read(thread, depth, slot);
   }
   
   public static int getInt(RVMThread thread, int depth, int slot) {
+    IntReader intReader = new IntReader();
     return intReader.read(thread, depth, slot);
   }
   
   public static long getLong(RVMThread thread, int depth, int slot) {
+    LongReader longReader = new LongReader();
     return longReader.read(thread, depth, slot);
   }
   
   public static float getFloat(RVMThread thread, int depth, int slot) {
+    IntReader intReader = new IntReader();
     return Magic.intBitsAsFloat(intReader.read(thread, depth, slot));
   }
   
   public static double getDouble(RVMThread thread, int depth, int slot) {
+    LongReader longReader = new LongReader();
     return Magic.longBitsAsDouble(longReader.read(thread, depth, slot));
   }
 
   public static void setObject(RVMThread thread, int depth, int slot, Object v) {
+    ObjectWriter objWriter = new ObjectWriter();
     objWriter.write(thread, depth, slot, v);
   }
   
   public static void setInt(RVMThread thread, int depth, int slot, int v) {
+    IntWriter intWriter = new IntWriter();
     intWriter.write(thread, depth, slot, v);
   }
 
   public static void setLong(RVMThread thread, int depth, int slot, long v) {
+    LongWriter longWriter = new LongWriter();
     longWriter.write(thread, depth, slot, v);
   }
     
   public static void setFloat(RVMThread thread, int depth, int slot, float v) {
+    IntWriter intWriter = new IntWriter();
     intWriter.write(thread, depth, slot, Magic.floatAsIntBits(v));
   }
 
   public static void setDouble(RVMThread thread, int depth, int slot, double v) {
+    LongWriter longWriter = new LongWriter();
     longWriter.write(thread, depth, slot, Magic.doubleAsLongBits(v));
   }
 

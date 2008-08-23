@@ -26,10 +26,8 @@ import gnu.classpath.jdwp.event.filters.LocationOnlyFilter;
 import gnu.classpath.jdwp.exception.InvalidClassException;
 import gnu.classpath.jdwp.exception.InvalidEventTypeException;
 import gnu.classpath.jdwp.exception.InvalidFrameException;
-import gnu.classpath.jdwp.exception.InvalidThreadException;
 import gnu.classpath.jdwp.exception.JdwpException;
 import gnu.classpath.jdwp.exception.NotImplementedException;
-import gnu.classpath.jdwp.transport.JdwpConnection;
 import gnu.classpath.jdwp.util.Location;
 import gnu.classpath.jdwp.util.MethodResult;
 import gnu.classpath.jdwp.util.MonitorInfo;
@@ -50,8 +48,6 @@ import java.util.Collection;
 import java.lang.JikesRVMSupport;
 
 import org.jikesrvm.VM;
-import org.jikesrvm.debug.Breakpoint;
-import org.jikesrvm.debug.BreakpointManager;
 import org.jikesrvm.debug.EventCallbacks;
 import org.jikesrvm.debug.RVMDebug;
 import org.jikesrvm.debug.StackFrame;
@@ -76,6 +72,121 @@ import org.jikesrvm.ArchitectureSpecific.StackframeLayoutConstants;
 /** JikesRVM implementation of VMVirtualMachine. */
 public final class VMVirtualMachine implements StackframeLayoutConstants,
     EventCallbacks {
+
+  /** JDWP agent specific per-thread information. */
+  static final class SuspendInfo {
+  
+    /** The JDWP suspension count. */
+    private int suspendCount = 0;
+  
+    /** The debugee thread requested suspending itself. */
+    private boolean selfSuspended = false;
+  
+    SuspendInfo() {}
+  
+    void increaseSuspendCount() {
+      suspendCount++;
+    }
+    
+    void decreaseSuspendCount() {
+      suspendCount--;
+      if (VM.VerifyAssertions) {
+        VM._assert(suspendCount >=0);
+      }
+    }
+    /** Getter/setters for the suspendCount. */
+    int getSuspendCount() {
+      return suspendCount;
+    }
+    boolean isSelfSuspended() {
+      return selfSuspended;
+    }
+  }
+
+  static class MethodInvokeRequest {
+    private final Object thisArg;
+    private final RVMMethod method;
+    private final Object[] otherArgs;
+    private final int options;
+  
+    /** The result of method invocation. */
+    private MethodResult methodResult;
+    
+    /** Constructor. */
+    private MethodInvokeRequest(RVMMethod method, Object obj,
+        Object[] otherArgs, int options) {
+      this.method = method;
+      this.thisArg = obj;
+      this.options = options;
+      this.otherArgs = otherArgs;
+    }
+  
+    private boolean isInvokeSingleThreaded() {
+      return (options & JdwpConstants.InvokeOptions.INVOKE_SINGLE_THREADED) 
+        == JdwpConstants.InvokeOptions.INVOKE_SINGLE_THREADED; 
+    }
+  
+    private synchronized MethodResult waitForResult() {
+      try {
+        while(methodResult == null) {
+          wait();
+        }
+      } catch(InterruptedException e) {
+        if (VM.VerifyAssertions) {
+          VM._assert(false, "unexpected interruption.");
+        }
+      }
+      return methodResult;
+    }
+  
+    private synchronized void execute() {
+      if (VM.VerifyAssertions) { VM._assert(methodResult == null);} 
+      Value resultValue;
+      Throwable exceptionResult;
+      try {
+        if (JikesRVMJDWP.getVerbose() >= 2) {
+          VM.sysWriteln("executing a method: ", method.toString());
+        }
+        Object o = Reflection.invoke(method, thisArg, otherArgs);
+        TypeReference type = method.getReturnType();
+        if (type.isVoidType()) {
+          resultValue = new VoidValue();
+        } else if (type.isPrimitiveType()) {
+          if (type.isBooleanType()) {
+            resultValue = new BooleanValue(Reflection.unwrapBoolean(o));
+          } else if (type.isByteType()) {
+            resultValue = new ByteValue(Reflection.unwrapByte(o));
+          } else if (type.isCharType()) {
+            resultValue = new CharValue(Reflection.unwrapChar(o));
+          } else if (type.isShortType()) {
+            resultValue = new ShortValue(Reflection.unwrapShort(o));
+          } else if (type.isIntType()) {
+            resultValue = new IntValue(Reflection.unwrapInt(o));
+          } else if (type.isFloatType()) {
+            resultValue = new FloatValue(Reflection.unwrapFloat(o));
+          } else if (type.isDoubleType()) {
+            resultValue = new DoubleValue(Reflection.unwrapDouble(o));
+          } else {
+            resultValue = null; 
+            exceptionResult = null;
+            if (VM.VerifyAssertions) {VM._assert(false);}
+          }
+        } else if (type.isReferenceType()) {
+          resultValue = new ObjectValue(o);
+        } else {
+          resultValue = null; 
+          exceptionResult = null;
+          if (VM.VerifyAssertions) {VM._assert(false);}
+        }
+        exceptionResult = null;
+      } catch(Exception e) {
+        exceptionResult = e;
+        resultValue = new VoidValue();
+      }
+      methodResult = new MethodResult(resultValue, exceptionResult);
+      notify();
+    }
+  }
 
   /** JDWP JVM optional capabilities - disabled. */
   public static final boolean canWatchFieldModification = false;
@@ -108,8 +219,41 @@ public final class VMVirtualMachine implements StackframeLayoutConstants,
 
   public static final boolean canSetDefaultStratum = false;
 
-  private static final VMVirtualMachine vm = new VMVirtualMachine(); 
+  /* The instance is for event call back from Jikes RVM. */
+  private static VMVirtualMachine vm; 
   
+  /** The JDWP specific user thread information. */
+  private static HashMapRVM<RVMThread,SuspendInfo> suspendedThreads;
+
+  /** Pending method invocation request for each thread. */
+  private static HashMapRVM<RVMThread,MethodInvokeRequest> invokeRequets;
+
+  /** The internal initialization process. */
+  public static void boot(String jdwpArgs) throws Exception {
+    vm = new VMVirtualMachine();
+    suspendedThreads =  new HashMapRVM<RVMThread,SuspendInfo>();
+    invokeRequets = new HashMapRVM<RVMThread,MethodInvokeRequest>();
+    RVMDebug rvmdbg = RVMDebug.getRVMDebug();
+    
+    VMIdManager.init();
+    Jdwp jdwp = new Jdwp();
+    jdwp.setDaemon(true);
+    jdwp.configure(jdwpArgs);
+    jdwp.start();
+    jdwp.join(); // wait for initialization. not related for starting suspended.
+    
+    // "The VM Start Event and VM Death Event are automatically generated events. This means they do not need to be requested using the EventRequest.Set command."
+    // [http://java.sun.com/javase/6/docs/platform/jpda/jdwp/jdwp-protocol.html#
+    // JDWP_Event_Composite
+    
+    rvmdbg.setEventCallbacks(vm);
+    rvmdbg.setEventNotificationMode(EventType.VM_INIT, true, null);
+    rvmdbg.setEventNotificationMode(EventType.VM_DEATH, true, null);
+    if (VM.VerifyAssertions) {
+      VM._assert(Jdwp.isDebugging, "The JDWP must be initialized here.");
+    }
+  }
+
   /** Suspend a debugee thread. */
   public static void suspendThread(final Thread thread) throws JdwpException {
     if (VM.VerifyAssertions) {
@@ -563,7 +707,8 @@ public final class VMVirtualMachine implements StackframeLayoutConstants,
           int bcIndex = (int)loc.getIndex();
           if (m instanceof NormalMethod && bcIndex >= 0 ) {
             NormalMethod method = (NormalMethod) m;
-            Breakpoint.setBreakPoint(method, bcIndex);
+            RVMDebug.getRVMDebug().setBreakPoint(method, bcIndex);
+            RVMDebug.getRVMDebug().setEventNotificationMode(RVMDebug.EventType.VM_BREAKPOINT, true, null);
           }
         } else {
           // TODO: what are possible filters?
@@ -714,7 +859,7 @@ public final class VMVirtualMachine implements StackframeLayoutConstants,
           int bcIndex = (int)loc.getIndex();
           if (m instanceof NormalMethod && bcIndex >= 0 ) {
             NormalMethod method = (NormalMethod) m;
-            Breakpoint.clearBreakPoint(method, bcIndex);
+            RVMDebug.getRVMDebug().clearBreakPoint(method, bcIndex);
           }
         }
       }
@@ -1174,39 +1319,8 @@ public final class VMVirtualMachine implements StackframeLayoutConstants,
     }
   }
 
-  /** The JDWP specific user thread information. */
-  static private final HashMapRVM<RVMThread,SuspendInfo> suspendedThreads = 
-    new HashMapRVM<RVMThread, SuspendInfo>();
 
-  static private final HashMapRVM<RVMThread,MethodInvokeRequest> invokeRequets =
-    new HashMapRVM<RVMThread,MethodInvokeRequest>();
-    
   
-  private VMVirtualMachine() {}
-
-  /** The internal initialization process. */
-  public static void boot(String jdwpArgs) throws Exception {
-    RVMDebug rvmdbg = RVMDebug.getRVMDebug();
-    
-    VMIdManager.init();
-    Jdwp jdwp = new Jdwp();
-    jdwp.setDaemon(true);
-    jdwp.configure(jdwpArgs);
-    jdwp.start();
-    jdwp.join(); // wait for initialization. not related for starting suspended.
-    
-    // "The VM Start Event and VM Death Event are automatically generated events. This means they do not need to be requested using the EventRequest.Set command."
-    // [http://java.sun.com/javase/6/docs/platform/jpda/jdwp/jdwp-protocol.html#
-    // JDWP_Event_Composite
-    
-    rvmdbg.setEventCallbacks(vm);
-    rvmdbg.setEventNotificationMode(EventType.VM_INIT, true, null);
-    rvmdbg.setEventNotificationMode(EventType.VM_DEATH, true, null);
-    if (VM.VerifyAssertions) {
-      VM._assert(Jdwp.isDebugging, "The JDWP must be initialized here.");
-    }
-  }
-
   /**
    * Notify the RVM of the Agent thread.
    * 
@@ -1220,7 +1334,7 @@ public final class VMVirtualMachine implements StackframeLayoutConstants,
     Threads.setAgentThread(rvmThread);
   }
 
-  public void vmStart() {}
+  private VMVirtualMachine() {}
 
   private LinkedListRVM<RVMThread> notifyingThreads = new LinkedListRVM<RVMThread>();
 
@@ -1237,7 +1351,7 @@ public final class VMVirtualMachine implements StackframeLayoutConstants,
         return; //skip events during the method invocation.
       }
     }
-
+  
      if (VM.VerifyAssertions) {
         synchronized(notifyingThreads) {
           boolean isExecutedBefore = notifyingThreads.contains(Scheduler.getCurrentThread());
@@ -1255,6 +1369,8 @@ public final class VMVirtualMachine implements StackframeLayoutConstants,
       }
     }
   }
+
+  public void vmStart() {}
 
   public void vmInit(RVMThread t) {
     if (JikesRVMJDWP.getVerbose() >= 2) {
@@ -1393,36 +1509,11 @@ public final class VMVirtualMachine implements StackframeLayoutConstants,
     notifyEvent(event);
   }
 
-  /** JDWP agent specific per-thread information. */
-  static final class SuspendInfo {
-
-    /** The JDWP suspension count. */
-    private int suspendCount = 0;
-  
-    /** The debugee thread requested suspending itself. */
-    private boolean selfSuspended = false;
-  
-    SuspendInfo() {}
-  
-    void increaseSuspendCount() {
-      suspendCount++;
-    }
-    
-    void decreaseSuspendCount() {
-      suspendCount--;
-      if (VM.VerifyAssertions) {
-        VM._assert(suspendCount >=0);
-      }
-    }
-    /** Getter/setters for the suspendCount. */
-    int getSuspendCount() {
-      return suspendCount;
-    }
-    boolean isSelfSuspended() {
-      return selfSuspended;
+  public void singleStep(RVMThread t, NormalMethod method, int bcindex) {
+    if (VM.VerifyAssertions) {
+      VM._assert(false, "not implemented");
     }
   }
-  
   private static boolean checkMethodInvocation() {
     MethodInvokeRequest req;
     synchronized(invokeRequets) {
@@ -1449,91 +1540,6 @@ public final class VMVirtualMachine implements StackframeLayoutConstants,
       synchronized(invokeRequets) {
         invokeRequets.put(t, req);
       }
-    }
-  }
-
-  static class MethodInvokeRequest {
-    private final Object thisArg;
-    private final RVMMethod method;
-    private final Object[] otherArgs;
-    private final int options;
-
-    /** The result of method invocation. */
-    private MethodResult methodResult;
-    
-    /** Constructor. */
-    private MethodInvokeRequest(RVMMethod method, Object obj,
-        Object[] otherArgs, int options) {
-      this.method = method;
-      this.thisArg = obj;
-      this.options = options;
-      this.otherArgs = otherArgs;
-    }
-
-    private boolean isInvokeSingleThreaded() {
-      return (options & JdwpConstants.InvokeOptions.INVOKE_SINGLE_THREADED) 
-        == JdwpConstants.InvokeOptions.INVOKE_SINGLE_THREADED; 
-    }
-
-    private synchronized MethodResult waitForResult() {
-      try {
-        while(methodResult == null) {
-          wait();
-        }
-      } catch(InterruptedException e) {
-        if (VM.VerifyAssertions) {
-          VM._assert(false, "unexpected interruption.");
-        }
-      }
-      return methodResult;
-    }
-
-    private synchronized void execute() {
-      if (VM.VerifyAssertions) { VM._assert(methodResult == null);} 
-      Value resultValue;
-      Throwable exceptionResult;
-      try {
-        if (JikesRVMJDWP.getVerbose() >= 2) {
-          VM.sysWriteln("executing a method: ", method.toString());
-        }
-        Object o = Reflection.invoke(method, thisArg, otherArgs);
-        TypeReference type = method.getReturnType();
-        if (type.isVoidType()) {
-          resultValue = new VoidValue();
-        } else if (type.isPrimitiveType()) {
-          if (type.isBooleanType()) {
-            resultValue = new BooleanValue(Reflection.unwrapBoolean(o));
-          } else if (type.isByteType()) {
-            resultValue = new ByteValue(Reflection.unwrapByte(o));
-          } else if (type.isCharType()) {
-            resultValue = new CharValue(Reflection.unwrapChar(o));
-          } else if (type.isShortType()) {
-            resultValue = new ShortValue(Reflection.unwrapShort(o));
-          } else if (type.isIntType()) {
-            resultValue = new IntValue(Reflection.unwrapInt(o));
-          } else if (type.isFloatType()) {
-            resultValue = new FloatValue(Reflection.unwrapFloat(o));
-          } else if (type.isDoubleType()) {
-            resultValue = new DoubleValue(Reflection.unwrapDouble(o));
-          } else {
-            resultValue = null; 
-            exceptionResult = null;
-            if (VM.VerifyAssertions) {VM._assert(false);}
-          }
-        } else if (type.isReferenceType()) {
-          resultValue = new ObjectValue(o);
-        } else {
-          resultValue = null; 
-          exceptionResult = null;
-          if (VM.VerifyAssertions) {VM._assert(false);}
-        }
-        exceptionResult = null;
-      } catch(Exception e) {
-        exceptionResult = e;
-        resultValue = new VoidValue();
-      }
-      methodResult = new MethodResult(resultValue, exceptionResult);
-      notify();
     }
   } 
 }
