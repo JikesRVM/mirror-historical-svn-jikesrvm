@@ -17,9 +17,13 @@ import java.lang.reflect.Field;
 import org.jikesrvm.classloader.RVMField;
 import org.jikesrvm.classloader.RVMType;
 import org.jikesrvm.runtime.Magic;
+import org.jikesrvm.runtime.Memory;
+import org.jikesrvm.runtime.SysCall;
 import org.jikesrvm.scheduler.Synchronization;
 import org.jikesrvm.scheduler.RVMThread;
+import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
+import org.vmmagic.unboxed.Extent;
 
 public final class Unsafe {
   private static final Unsafe unsafe = new Unsafe();
@@ -80,6 +84,85 @@ public final class Unsafe {
   public int getIntVolatile(Object obj,long offset) {
     Offset off = longToOffset(offset);
     return Magic.getIntAtOffset(obj,off);
+  }
+  
+  public byte getByte(long offset) {
+    Address a = Address.fromLong(offset);
+    return a.loadByte();
+  }
+  
+  public void putByte(long address, byte b) {
+    throw new Error("sun.misc.Unsafe.putByte: Not implemented");
+  }
+  
+  public char getChar(long offset) {
+    Address a = Address.fromLong(offset);
+    return a.loadChar();
+  }
+  
+  public void putChar(long address, char b) {
+    throw new Error("sun.misc.Unsafe.putChar: Not implemented");
+  }
+  
+  public short getShort(long offset) {
+    Address a = Address.fromLong(offset);
+    return a.loadShort();
+  }
+  
+  public void putShort(long address, short s) {
+    throw new Error("sun.misc.Unsafe.putShort: Not implemented");
+  }
+  
+  public int getInt(long offset) {
+    Address a = Address.fromLong(offset);
+    return a.loadInt();
+  }
+  
+  public void putInt(long address, int s) {
+    throw new Error("sun.misc.Unsafe.putInt: Not implemented");
+  }
+  
+  public long getLong(long offset) {
+    Address a = Address.fromLong(offset);
+    return a.loadLong();
+  }
+  
+  public void putLong(long address, long l) {
+    throw new Error("sun.misc.Unsafe.putLong: Not implemented");
+  }
+  
+  public double getDouble(long offset) {
+    Address a = Address.fromLong(offset);
+    return a.loadDouble();
+  }
+  
+  public void putDouble(long address, double l) {
+    throw new Error("sun.misc.Unsafe.putDouble: Not implemented");
+  }
+  
+  /*
+   * Warning: Sun's JDK implementation requires 64-bit address sizes for all
+   * memory operations. We use 32-bit sizes for now.
+   */
+  public long allocateMemory(long length) {
+    return SysCall.sysCall.sysMalloc((int)length).toLong();
+  }
+  
+  public void freeMemory(long addr) {
+    SysCall.sysCall.sysFree(Address.fromLong(addr));
+  }
+  
+  //call bzero to start with
+  // TODO: implement sysMemSet syscall
+  public void setMemory(long address, long bytes, byte value) {
+    SysCall.sysCall.sysZero(Address.fromLong(address), Extent.fromIntZeroExtend((int) bytes));
+  }
+  
+  public void copyMemory(long src, long dest, long bytes) {
+    Address from = Address.fromLong(src);
+    Address to = Address.fromLong(dest);
+    Extent e = Extent.fromIntZeroExtend((int)bytes); 
+    Memory.memcopy(to, from, e);
   }
 
   public void putLongVolatile(Object obj,long offset,long value) {
