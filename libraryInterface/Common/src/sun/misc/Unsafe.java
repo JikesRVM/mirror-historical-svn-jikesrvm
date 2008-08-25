@@ -140,6 +140,17 @@ public final class Unsafe {
     throw new Error("sun.misc.Unsafe.putDouble: Not implemented");
   }
   
+  //Simulate getBoolean, hopefully succesfuly
+  public boolean getBoolean(Object o, long offset) {
+    Offset off = longToOffset(offset);
+    return Magic.getUnsignedByteAtOffset(o, off) > 0; 
+  }
+  
+  public byte getByte(Object o, long offset) {
+    Offset off = longToOffset(offset);
+    return Magic.getByteAtOffset(o, off);
+  }
+  
   /*
    * Warning: Sun's JDK implementation requires 64-bit address sizes for all
    * memory operations. We use 32-bit sizes for now.

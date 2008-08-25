@@ -38,6 +38,8 @@ import java.lang.reflect.TypeVariable;
 
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.jikesrvm.classloader.*;
 
@@ -157,6 +159,10 @@ public final class Class<T> implements Serializable, Type, AnnotatedElement, Gen
     }
     ClassLoader cl = type.getClassLoader();
     return cl == BootstrapClassLoader.getBootstrapClassLoader() ? null : cl;
+  }
+  
+  ClassLoader getClassLoader0() {
+    return getClassLoader();
   }
 
   public Class<?> getComponentType() {
@@ -1011,6 +1017,47 @@ public final class Class<T> implements Serializable, Type, AnnotatedElement, Gen
       return false;
     }
   }
+  
+  T[] getEnumConstantsShared() {
+    if (enumConstants == null) {
+        if (!isEnum()) return null;
+        try {
+            final Method values = getMethod("values");
+            java.security.AccessController.doPrivileged(
+                new java.security.PrivilegedAction<Void>() {
+                    public Void run() {
+                            values.setAccessible(true);
+                            return null;
+                        }
+                    });
+            enumConstants = (T[])values.invoke(null);
+        }
+        // These can happen when users concoct enum-like classes
+        // that don't comply with the enum spec.
+        catch (InvocationTargetException ex) { return null; }
+        catch (NoSuchMethodException ex) { return null; }
+        catch (IllegalAccessException ex) { return null; }
+    }
+    return enumConstants;
+}
+private volatile transient T[] enumConstants = null;
+  
+  Map<String, T> enumConstantDirectory() {
+    if (enumConstantDirectory == null) {
+        T[] universe = getEnumConstantsShared();
+        if (universe == null)
+            throw new IllegalArgumentException(
+                getName() + " is not an enum type");
+        Map<String, T> m = new HashMap<String, T>(2 * universe.length);
+        for (T constant : universe)
+            m.put(((Enum)constant).name(), constant);
+        enumConstantDirectory = m;
+    }
+    return enumConstantDirectory;
+  }
+  
+  private volatile transient Map<String, T> enumConstantDirectory = null;
+
 
   /**
    * Utility method for use by classes in this package.
