@@ -1,16 +1,15 @@
 * Single stepping
 
-  * General issue: Unlike other debugging events, the single stepping
-    is sensitive to when the user requests the stepping event. For a
-    breakpoint, the break program point is independent of the
-    breakpoint request time. However, the single step completion point
+  * General issue: Unlike other JDWP debugging events, the single step
+    requires the JDWP agent to keep the program context when the agent
+    gets the request. In other words the single step completion point
     is dependent on the request point. For a machine level, the step
     completion point is next dynamic byte code instrution. For a
     source level, the completion point is the first dynamic
     instruction with different source line with respect the source
     line at the single step request.
 
-  * JVMTI/JDWP: JVMTI provides a single stepping at the byte code
+    JVMTI/JDWP: JVMTI provides a single stepping at the byte code
     level, and JDWP agent exposes the single stepping at both byte and
     source code levels. A sequence of JVMTI single step events may
     constitute a single JDWP single stepping if the JDWP sinigle step
@@ -18,7 +17,7 @@
     filters such as class exclusion, the JDWP agent would skip more
     JVMTI single stepping events.
 
-  * JDWP agent should keep the suspened location when the JDWP client
+    JDWP agent should keep the suspened location when the JDWP client
     requests the single step event. Then the JDWP agent enables the
     JVMTI byte code level single step, and resumes the application
     thread. The application thread executes one byte code instruction,
@@ -75,8 +74,7 @@
 			information in which case a MIN step is done instead."
       [http://java.sun.com/javase/6/docs/platform/jpda/jdwp/jdwp-protocol.html#JDWP_StepSize]
 
-
-* Method Invocation and its Implementation
+* Method Invocation at a break point
   
   This is to support expression evalation that contains a method
   call. For instance, consider "eval Fact.fact(2) + 1"
@@ -145,14 +143,12 @@
   application code at the breakpoint. After finishing the method
   invocation, this application thread returns to the suspened status.
 
-* Breakpoint Hit during Method Invocation
-
-  JikesRVM/JDWP agent skips breakpoints and any other JDWP events
-  during method invocation. The first reason is because this decision
-  would simplify the implementation. The second reason is that the
-  current GNU class path JDWP code (gnu.classpath.jdwp) is not
-  suitable for the another alternative. Let me explain the issues in
-  the following.
+  Breakpoint Hit during Method Invocation: JikesRVM/JDWP agent skips
+  breakpoints and any other JDWP events during method invocation. The
+  first reason is because this decision would simplify the
+  implementation. The second reason is that the current GNU class path
+  JDWP code (gnu.classpath.jdwp) is not suitable for the another
+  alternative. Let me explain the issues in the following.
 
           skipping vs. nested break state?
 
@@ -208,4 +204,45 @@
   18        if ( n <= 0 ) {
   main[1] exit
   ------------------------------------------------------------------  
+
+* Interface to the existing Java debuggers
+
+ The JikesRVM will implement the subset of the SUN JVM's JDWP command
+ line options:
+
+ [http://java.sun.com/javase/6/docs/technotes/guides/jpda/conninv.html#Invocation]
+
+  option name       JikesRVM implementation
+  -----------------------------------------
+  help              YES                            
+  transport         dt_socket only        gnu.classpath.jdwp.transport._TRANSPORT_PROPERTY  server            YES                   gnu.classpath.jdwp.transport.SocketTransport._PROPERTY_SERVER
+  address           YES                   gnu.classpath.jdwp.transport.SocketTransport._PROPERTY_ADDRESS
+  timeout           NO
+  launch            NO
+  onthrow           NO
+  onuncaught        NO
+  suspend           YES                   gnu.classpath.jdwp.Jdwp._PROPERTY_SUSPEND
+
+  The following is the help message from JikesRVM/JDWP.
+
+  ---------------------------------------------------------------------------
+  coral:~/w/jdwp$rvm -Xrunjdwp:help
+  -Xrunjdwp[:help]		Print usage of the JDWP agent.
+  -Xrunjdwp:[<option>=<value>, ...]		Configure the JDWP agent.
+
+  Option             Default value       Description
+  suspend=y|n        y                   Suspend VM before starting application.
+  transport=...      none                Name transport. e.g. dt_socket
+  server=...         n                   Listens for the debugger
+  address=...        none                Transport address for the connection
+  verbose=..         0                   JDWP subsystem verbose level
+  ---------------------------------------------------------------------------
+
+  An issue here is the default value for the "suspend." SUN JVM has
+  "y" as a default "suspend" value, but the GNU classpath JDWP has "n"
+  default value. For the compatibility with the existing tools, I'd
+  prefer "y" as default value. I have two choices for this. The first
+  one is to ask the GNU classpath community to switch to the "y"
+  default value. The second one is that the JikesRVM's porting layer
+  handles this.
 

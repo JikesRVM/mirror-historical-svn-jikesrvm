@@ -137,11 +137,12 @@ public final class StackFrame implements StackframeLayoutConstants{
   }
   
   /** Get the location information for a frame. */
-  public static void getFrameLocation(RVMThread thread, int depth) {
+  public static FrameLocation getFrameLocation(RVMThread thread, int depth) {
     if (VM.VerifyAssertions) {
       VM._assert(false, "Not implemented");
       VM._assert(depth >= 0 && thread != null);
     }
+    return null;
   }
 
   private StackFrame() {} //no instance.

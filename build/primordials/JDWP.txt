@@ -16,3 +16,6 @@ Lorg/jikesrvm/debug/JikesRVMJDWP;
 
 Lgnu/classpath/jdwp/event/VmDeathEvent;
 Lgnu/classpath/jdwp/Jdwp;
+Lgnu/classpath/jdwp/ThreadLocalInfos;
+Lgnu/classpath/jdwp/SuspendedThreadState;
+Lgnu/classpath/jdwp/VMVirtualMachineImpl;

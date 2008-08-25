@@ -195,7 +195,7 @@ proc tstep { args } {
     }
 }
 
-set timeout 30
+set timeout -1
 trun
 texit
 tthreadAndStack

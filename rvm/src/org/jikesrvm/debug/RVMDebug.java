@@ -18,7 +18,7 @@ import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.scheduler.RVMThread;
 
 /**
- * JikesRVM specific Debug implementation.
+ * A Debugger state keeper.  
  */
 public class RVMDebug {
 
@@ -81,10 +81,11 @@ public class RVMDebug {
   public void setBreakPoint(NormalMethod method, int bcindex) {
     breakPoints.setBreakPoint(method, bcindex);
   }
+
   public void clearBreakPoint(NormalMethod method, int bcindex) {
     breakPoints.clearBreakPoint(method, bcindex);
   }
-  
+
   /**
    * Set event notification mode. null thread value means all the threads.
    * 

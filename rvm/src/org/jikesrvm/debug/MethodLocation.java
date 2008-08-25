@@ -12,28 +12,8 @@
  */
 package org.jikesrvm.debug;
 
-import org.jikesrvm.ArchitectureSpecific;
-import org.jikesrvm.Callbacks;
-import org.jikesrvm.Constants;
-import org.jikesrvm.UnimplementedError;
 import org.jikesrvm.VM;
-import org.jikesrvm.ArchitectureSpecific.CodeArray;
-import org.jikesrvm.ArchitectureSpecific.Registers;
 import org.jikesrvm.classloader.NormalMethod;
-import org.jikesrvm.classloader.RVMClass;
-import org.jikesrvm.classloader.RVMMethod;
-import org.jikesrvm.compilers.baseline.BaselineCompiledMethod;
-import org.jikesrvm.compilers.common.CompiledMethod;
-import org.jikesrvm.compilers.common.CompiledMethods;
-import org.jikesrvm.compilers.opt.runtimesupport.OptCompiledMethod;
-import org.jikesrvm.jni.JNICompiledMethod;
-import org.jikesrvm.runtime.Magic;
-import org.jikesrvm.runtime.RuntimeEntrypoints;
-import org.jikesrvm.scheduler.RVMThread;
-import org.jikesrvm.scheduler.Scheduler;
-import org.jikesrvm.util.LinkedListRVM;
-import org.vmmagic.unboxed.Address;
-import org.vmmagic.unboxed.Offset;
 
 class MethodLocation {
   private final NormalMethod method;

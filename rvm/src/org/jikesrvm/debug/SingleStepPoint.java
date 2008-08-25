@@ -22,18 +22,6 @@ import org.jikesrvm.util.LinkedListRVM;
  * A bytecode level Single step implementation.
  */
 class SingleStepPoint {
- /**
-   * Decode the current bytecode the execute in a thread, find the next dynamic
-   * bytecode, and set a Breakpoint.
-   * 
-   * @param t The thread.
-   */
-  static SingleStepPoint findSingleStepPoint(RVMThread t) {
-    if (VM.VerifyAssertions) {
-      VM._assert(false, "Not implemented");
-    }
-    return null;
-  }
   private final RVMThread thread;
   private final NormalMethod method;
   private final int byteCodeIndex;
@@ -85,6 +73,18 @@ class SingleStepPoint {
       return false;
     return true;
   }
+  
+  /**
+   * Decode the current bytecode the execute in a thread, find the next dynamic
+   * bytecode, and set a Breakpoint.
+   * 
+   * @param t The thread.
+   */
+  static SingleStepPoint findSingleStepPoint(RVMThread t) {
+    if (VM.VerifyAssertions) {
+      VM._assert(false, "Not implemented");
+    }
+    return null;
+  }
 
- 
 }
