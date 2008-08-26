@@ -93,7 +93,6 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
   public static final int TRAP_MUST_IMPLEMENT = 7;
   public static final int TRAP_STORE_CHECK = 8; // opt-compiler
   public static final int TRAP_STACK_OVERFLOW_FATAL = 9; // assertion checking
-  public static final int TRAP_BREAK_POINT = 10; // the break point.
 
   //---------------------------------------------------------------//
   //                     Type Checking.                            //
@@ -721,9 +720,6 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
           case TRAP_STORE_CHECK:
             VM.sysWriteln("\nFatal error: ArrayStoreException within uninterruptible region.");
             break;
-          case TRAP_BREAK_POINT:
-            VM.sysWriteln("\nFatal error: Breakpint within uninterruptible region.");
-            break;
           default:
             VM.sysWriteln("\nFatal error: Unknown hardware trap within uninterruptible region.");
           break;
@@ -732,20 +728,6 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
         }
       }
     }
-
-//     if (trapCode == TRAP_BREAK_POINT) {
-//       // Handle break point trap: The breakpoint register set and the the
-//       // exception register set have different usage. The break point register
-//       // set is for resuming the execution after the break point, but the
-//       // exception register is to identify the exception source and its target
-//       // code. In order to allow invoking a method at the break point and
-//       // catching any exception, we want to release the exception register set.
-//       Registers breakPointRegisters = new Registers();
-//       breakPointRegisters.read(exceptionRegisters);
-//       exceptionRegisters.inuse = false;
-//       BreakpointsImpl.deliverBreakpointHit(breakPointRegisters);
-//       if (VM.VerifyAssertions) {VM._assert(NOT_REACHED);}
-//     }
 
     Throwable exceptionObject;
     switch (trapCode) {

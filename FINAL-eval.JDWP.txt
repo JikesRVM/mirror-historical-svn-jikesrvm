@@ -1,3 +1,45 @@
+* The final progress report
+  
+	Byeongcheol Lee
+	bclee@cs.utexas.edu
+	August 26 2008
+
+* Progress
+  + 1.5 months (07/14/08 ~ 08/26/08)
+  + Achievements
+    + Method call in the expression evaluation: working 
+    + Single stepping: working
+    + Source code refactoring: performed
+      + Most of the JikesRVM specific implementation is in org.jikesrvm.debug package
+      + org.jikesrvm.debug is self-contained, and is not dependent on gnu.classpath.jdwp
+  + Achievement compared with the proposal [SOC_PROPOSAL.JDWP.txt] and
+    the midterm progress [MIDTERM-eval.JDWP.txt]
+    + All the proposed features were implemented.
+    + Extensive testing and overhead evaluation were not
+      performed. These work will be better served through the user
+      feed back.
+
+* TODO work (after the Google SOC period)
+  + Preparing for getting into the JikesRVM trunk.
+    + Add more comments to the source code.
+    + More source code refactoring for maintaince.
+    + Throw out unnecessory code.
+  + Getting into the trunk
+    + Generate and send the JDWP patches (JikesRVM + GNUClasspath).
+    + Apply patch to the main trunk (with JikesRVM maintainers).
+  + More feed-back from community
+    + Perform regression test and fix any bugs.
+
+* Documentations
+  + SOC_PROPOSAL.JDWP.txt: the project proposal
+  + MIDTERM-eval.JDWP.txt: the mindterm progress report
+  + FINAL-eval.JDWP.txt: the final progress report
+  + README.JDWP.txt: how to use JikesRVM/JDWP feature
+  + NOTE.JDWP.txt: technical issues and decisions
+
+* Source files
+
+
 
  
 

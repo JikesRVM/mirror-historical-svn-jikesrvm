@@ -98,21 +98,4 @@ public abstract class Registers implements RegisterConstants {
     Offset ipOffset = ArchEntrypoints.registersIPField.getOffset();
     return Magic.objectAsAddress(this).plus(ipOffset);
   }
-
-  /**
-   * Read register values from a register set. 
-   * 
-   * @param src The source register set.
-   */
-  public final void read(Registers src) {
-    for(int i = 0; i < gprs.length();i++) {
-      gprs.set(i, src.gprs.get(i));
-    }
-    for(int i = 0; i < fprs.length;i++) {
-      fprs[i] = src.fprs[i];
-    }
-    ip = src.ip;
-    fp = src.fp;
-    inuse = src.inuse;
-  }
 }

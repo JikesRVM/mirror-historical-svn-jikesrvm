@@ -1,3 +1,10 @@
+* Power PC support
+
+  + The current source code does not support power pc, but this won't
+  be a hard work as we have power pc expert. This will be about adding
+  around 100 source lines to the power pc specific baseline compiler
+  sourc files.
+
 * Single stepping
 
   * General issue: Unlike other JDWP debugging events, the single step
