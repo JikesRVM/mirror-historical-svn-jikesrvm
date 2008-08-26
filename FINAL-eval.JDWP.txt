@@ -5,25 +5,29 @@
 	August 26 2008
 
 * Progress
-  + 1.5 months (07/14/08 ~ 08/26/08)
+  + Period
+    + 07/14/08(TU)~08/26/08(TU)
+    + 1.5 months 
   + Achievements
-    + Method call in the expression evaluation: working 
-    + Single stepping: working
+    + Method call in the expression evaluation: working (texpr in Fact.exp)
+    + Single stepping: working (tstep in Fact.exp)
     + Source code refactoring: performed
-      + Most of the JikesRVM specific implementation is in org.jikesrvm.debug package
-      + org.jikesrvm.debug is self-contained, and is not dependent on gnu.classpath.jdwp
-  + Achievement compared with the proposal [SOC_PROPOSAL.JDWP.txt] and
-    the midterm progress [MIDTERM-eval.JDWP.txt]
+      + Most of the JikesRVM specific implementation is in
+        org.jikesrvm.debug package
+      + org.jikesrvm.debug is self-contained, and is not dependent on
+        gnu.classpath.jdwp
+  + Achievement compared with the proposal [SOC_PROPOSAL.JDWP.txt]
     + All the proposed features were implemented.
     + Extensive testing and overhead evaluation were not
       performed. These work will be better served through the user
       feed back.
 
 * TODO work (after the Google SOC period)
+  + 9/8/08(M) ~ 9/12/08(F)
   + Preparing for getting into the JikesRVM trunk.
     + Add more comments to the source code.
-    + More source code refactoring for maintaince.
-    + Throw out unnecessory code.
+    + More source code refactoring for maintenance.
+    + Throw out unnecessary code.
   + Getting into the trunk
     + Generate and send the JDWP patches (JikesRVM + GNUClasspath).
     + Apply patch to the main trunk (with JikesRVM maintainers).
@@ -31,15 +35,75 @@
     + Perform regression test and fix any bugs.
 
 * Documentations
+
   + SOC_PROPOSAL.JDWP.txt: the project proposal
-  + MIDTERM-eval.JDWP.txt: the mindterm progress report
+  + MIDTERM-eval.JDWP.txt: the midterm progress report
   + FINAL-eval.JDWP.txt: the final progress report
   + README.JDWP.txt: how to use JikesRVM/JDWP feature
   + NOTE.JDWP.txt: technical issues and decisions
 
 * Source files
+  
+  + org.jikesrvm.debug package
+    + 12 source files, 1582 source lines.
+  + other JikesRVM source files
+    + 17 source files slightly modified and one source file added
+  + gnu.classpath.jdwp.VMXXX package under CPL
+    + 4 source files, 2507 source lines.
 
+  (bash) svn diff --summarize --no-diff-deleted -r 14599:14930
+  https://jikesrvm.svn.sourceforge.net/svnroot/jikesrvm/rvmroot/branches/RVM-JDWP-SoC2008|sed
+  '/LGPL/d'|sed 's/https.*SoC2008.//1'
 
-
- 
-
+A      Fact.class
+A      SOC_PROPOSAL.JDWP.txt
+A      libraryInterface/GNUClasspath/CPL/src/gnu/classpath/jdwp/VMVirtualMachineImpl.java
+A      libraryInterface/GNUClasspath/CPL/src/gnu/classpath/jdwp/VMMethod.java
+A      libraryInterface/GNUClasspath/CPL/src/gnu/classpath/jdwp/JikesRVMSupport.java
+A      libraryInterface/GNUClasspath/CPL/src/gnu/classpath/jdwp/VMFrame.java
+A      libraryInterface/GNUClasspath/CPL/src/gnu/classpath/jdwp/VMVirtualMachine.java
+A      libraryInterface/GNUClasspath/CPL/src/gnu/classpath/jdwp
+A      NOTE.JDWP.txt
+A      Fact.java
+M      build.xml
+A      FINAL-eval.JDWP.txt
+A      build/primordials/JDWP.txt
+M      tools/bootImageRunner/sys.C
+M      tools/bootImageRunner/cmdLine.h
+M      tools/bootImageRunner/RunBootImage.C
+M      rvm/src-generated/options/BooleanOptions.baseline.dat
+M      rvm/src/org/jikesrvm/runtime/RuntimeEntrypoints.java
+M      rvm/src/org/jikesrvm/runtime/ExitStatus.java
+M      rvm/src/org/jikesrvm/runtime/Entrypoints.java
+M      rvm/src/org/jikesrvm/CommandLineArgs.java
+A      rvm/src/org/jikesrvm/debug/JikesRVMJDWP.java
+A      rvm/src/org/jikesrvm/debug/LocalVariable.java
+A      rvm/src/org/jikesrvm/debug/StackFrame.java
+A      rvm/src/org/jikesrvm/debug/Breakpoints.java
+A      rvm/src/org/jikesrvm/debug/EventCallbacks.java
+A      rvm/src/org/jikesrvm/debug/EventNotifier.java
+A      rvm/src/org/jikesrvm/debug/MethodLocation.java
+A      rvm/src/org/jikesrvm/debug/Threads.java
+A      rvm/src/org/jikesrvm/debug/RVMDebug.java
+A      rvm/src/org/jikesrvm/debug/StackWalker.java
+A      rvm/src/org/jikesrvm/debug/RVMDebugState.java
+A      rvm/src/org/jikesrvm/debug/SingleStep.java
+A      rvm/src/org/jikesrvm/debug
+A      rvm/src/org/jikesrvm/classloader/LocalVariable.java
+M      rvm/src/org/jikesrvm/classloader/RVMMethod.java
+M      rvm/src/org/jikesrvm/classloader/NormalMethod.java
+M      rvm/src/org/jikesrvm/compilers/baseline/BaselineCompiledMethod.java
+M      rvm/src/org/jikesrvm/compilers/baseline/BaselineCompiler.java
+M      rvm/src/org/jikesrvm/compilers/baseline/ia32/BaselineCompilerImpl.java
+M      rvm/src/org/jikesrvm/compilers/common/RuntimeCompiler.java
+M      rvm/src/org/jikesrvm/Callbacks.java
+M      rvm/src/org/jikesrvm/tools/header_gen/GenerateInterfaceDeclarations.java
+M      rvm/src/org/jikesrvm/VM.java
+M      rvm/src/org/jikesrvm/scheduler/Processor.java
+M      rvm/src/org/jikesrvm/scheduler/greenthreads/GreenProcessor.java
+M      rvm/src/org/jikesrvm/scheduler/greenthreads/JikesRVMSocketImpl.java
+M      rvm/src/org/jikesrvm/scheduler/RVMThread.java
+A      MIDTERM-eval.JDWP.txt
+A      bin/rdb
+A      Fact.exp
+A      README.JDWP.txt
