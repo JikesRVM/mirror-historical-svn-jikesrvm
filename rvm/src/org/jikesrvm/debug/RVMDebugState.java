@@ -95,6 +95,14 @@ class RVMDebugState {
         l.add(thread); 
       }
     }
+    switch(eventType) {
+    case VM_SINGLE_STEP:
+      if (enabled) { SingleStep.setSingleStep(thread);}
+      else {SingleStep.clearSingleStep(thread);}
+      break;
+    default:
+      break;
+    }
   }
 
   /**

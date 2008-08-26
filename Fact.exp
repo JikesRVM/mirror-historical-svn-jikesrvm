@@ -196,9 +196,10 @@ proc tstep { args } {
 }
 
 set timeout -1
+
 trun
 texit
 tthreadAndStack
 tbreakpoint
 texpr
-#tstep
+tstep

@@ -41,7 +41,7 @@ import org.vmmagic.unboxed.Offset;
  */
 public class StackWalker implements StackframeLayoutConstants{
   private static boolean DEBUG = false;
-  
+
   /** Stack frame walk call back interface. */
   static interface CallStackFrameVisitor {
     abstract boolean visit(int depth, RVMMethod m, int bytecodeIndex,
@@ -54,12 +54,17 @@ public class StackWalker implements StackframeLayoutConstants{
    */
   static void stackWalk(RVMThread t, CallStackFrameVisitor v) {
     if (VM.VerifyAssertions) {
-      VM._assert(t.isAlive() && t.getState() == Thread.State.WAITING);
-      VM._assert(Scheduler.getCurrentThread() != t);
+      VM._assert(t.isAlive());
     }
     int depth = 0;
-    Address fp = t.contextRegisters.getInnermostFramePointer();
-    Address ip = t.contextRegisters.getInnermostInstructionAddress();
+    Address fp, ip;
+    if (t == Scheduler.getCurrentThread()) {
+      fp = Magic.getCallerFramePointer(Magic.getFramePointer());
+      ip = Magic.getReturnAddress(Magic.getFramePointer());
+    } else {
+      fp = t.contextRegisters.getInnermostFramePointer();
+      ip = t.contextRegisters.getInnermostInstructionAddress();  
+    }
     while (Magic.getCallerFramePointer(fp).NE(STACKFRAME_SENTINEL_FP)) {
       if (!MM_Interface.addressInVM(ip)) {
         // skip the nativeframes until java frame or the end.
@@ -78,8 +83,7 @@ public class StackWalker implements StackframeLayoutConstants{
         } else {
           CompiledMethod cm = CompiledMethods.getCompiledMethod(cmid);
           if (VM.VerifyAssertions) {
-            VM._assert(cm != null, "no compiled method for cmid =" + cmid
-                + " in thread " + t.getName());
+            VM._assert(cm != null);
           }
           int compilerType = cm.getCompilerType();
           switch (compilerType) {
@@ -107,7 +111,7 @@ public class StackWalker implements StackframeLayoutConstants{
             case CompiledMethod.OPT: {
               final Address stackbeg = Magic.objectAsAddress(t.getStack());
               final Offset fpOffset = fp.diff(stackbeg);
-              OptCompiledMethod ocm = (OptCompiledMethod) cm;
+              OptCompiledMethod ocm = (OptCompiledMethod)cm;
               Offset ipOffset = ocm.getInstructionOffset(ip, false);
               OptMachineCodeMap m = ocm.getMCMap();
               int bci = m.getBytecodeIndexForMCOffset(ipOffset);
@@ -146,6 +150,9 @@ public class StackWalker implements StackframeLayoutConstants{
               Offset ipOffset = jcm.getInstructionOffset(ip, false);
               Address stackbeg = Magic.objectAsAddress(t.getStack());
               Offset fpOffset = fp.diff(stackbeg);
+              if (DEBUG) {
+                showMethod(meth, ip, fp);
+              }
               if (isVisiableMethod(meth)) {
                 if (!v.visit(depth++, meth, -1, jcm, ipOffset, fpOffset, t)) {
                   return;
@@ -155,8 +162,8 @@ public class StackWalker implements StackframeLayoutConstants{
             }
             default: {
               if (VM.VerifyAssertions) {
-                VM._assert(false, "can not recognize compiler type "
-                    + compilerType);
+                // can not recognize compiler type +compilerType
+                VM._assert(false);
               }
               break;
             }

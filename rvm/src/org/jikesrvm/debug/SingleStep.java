@@ -58,7 +58,6 @@ public class SingleStep  {
     final NormalMethod method;
     final int bcIndex;
 
-    if (DEBUG) {VM.sysWriteln("singleStepHit: finding location");}
     VM.disableGC(); //since we are dealing with Address.
     Address ip = Magic.getReturnAddress(Magic.getFramePointer());
     Address fp = Magic.getCallerFramePointer(Magic.getFramePointer());
@@ -78,32 +77,40 @@ public class SingleStep  {
     }
     VM.enableGC();
 
-    if (DEBUG) {VM.sysWriteln("singleStepHit: location found");}
+    if (VM.VerifyAssertions) {
+      VM._assert(method != null && bcIndex >= 0, "a break point trap from unknown source");
+    }
 
-        // Notify the break point hit through a call back.
-    if (method != null && bcIndex >= 0) {
-      if (Scheduler.getCurrentThread().isSystemThread()) {
-        if (JikesRVMJDWP.getVerbose() >= 3) {
-          VM.sysWriteln("skipping a system thread's break point hit: bcindex ",
-              bcIndex, method.toString());
-        }
-      } else {
-        try {
-          RVMDebug d = RVMDebug.getRVMDebug();
-          RVMDebugState s = d.eventRequest;
-          EventNotifier notifier = d.eventNotifier;
-          RVMThread thread = Scheduler.getCurrentThread();
-          if (DEBUG) {VM.sysWriteln("singleStepHit:  notifying the event.");}
-          notifier.notifySingleStep(thread, method, bcIndex);
-        } catch(Exception t) {
-          VM._assert(false,
-              "The break point call back should handle all the exception");
-        }
+    if (DEBUG) {
+      VM.sysWrite("singleStepHit: location found ", bcIndex);
+      VM.sysWrite(" in ");VM.sysWrite(method.getDeclaringClass().getDescriptor());;
+      VM.sysWrite(".");VM.sysWrite(method.getName());
+      VM.sysWrite(method.getDescriptor());
+      VM.sysWriteln("");
+    }
+
+    // Notify the break point hit through a call back.
+    if (Scheduler.getCurrentThread().isSystemThread()) {
+      if (JikesRVMJDWP.getVerbose() >= 3) {
+        VM.sysWriteln("skipping a system thread's break point hit: bcindex ",
+            bcIndex, method.toString());
       }
     } else {
-      if (VM.VerifyAssertions) {
-        VM._assert(false, "a break point trap from unknown source");
+      try {
+        EventNotifier notifier = RVMDebug.getRVMDebug().eventNotifier;
+        RVMThread thread = Scheduler.getCurrentThread();
+        notifier.notifySingleStep(thread, method, bcIndex);
+      } catch(Exception t) {
+        t.printStackTrace();  
+        VM._assert(false,
+            "The break point call back should handle all the exceptions.");
       }
     }
+  }
+  public static void setSingleStep(RVMThread t) {
+    t.singleStep = true;
+  }
+  public static void clearSingleStep(RVMThread t) {
+    t.singleStep = false;
   }
 }

@@ -96,8 +96,13 @@ public class SingleStepEvent
       return _location;
     else if (type == EVENT_INSTANCE)
       return _instance;
-    else if (type == EVENT_CLASS)
-      return _instance.getClass();
+    // This looks incorrect. The right one would be the
+    // class object in the stepped method.
+//    else if (type == EVENT_CLASS)
+//      return _instance.getClass();
+    else if (type == EVENT_CLASS) {
+      return _location.getMethod().getDeclaringClass();
+    }
 
     return null;
   }

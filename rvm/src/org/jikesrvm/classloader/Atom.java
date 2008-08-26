@@ -754,6 +754,7 @@ public final class Atom {
    * (ie a class that must be loaded by the bootstrap class loader)
    */
   @Pure
+  @Uninterruptible
   public boolean isBootstrapClassDescriptor() {
     non_bootstrap_outer:
     for (final byte[] test : NON_BOOTSTRAP_CLASS_PREFIX_SET) {

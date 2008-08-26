@@ -16,6 +16,7 @@ import gnu.classpath.jdwp.SuspendedThreadState.SuspendInfo;
 import gnu.classpath.jdwp.event.BreakpointEvent;
 import gnu.classpath.jdwp.event.ClassPrepareEvent;
 import gnu.classpath.jdwp.event.Event;
+import gnu.classpath.jdwp.event.EventManager;
 import gnu.classpath.jdwp.event.EventRequest;
 import gnu.classpath.jdwp.event.ExceptionEvent;
 import gnu.classpath.jdwp.event.SingleStepEvent;
@@ -23,6 +24,7 @@ import gnu.classpath.jdwp.event.ThreadEndEvent;
 import gnu.classpath.jdwp.event.ThreadStartEvent;
 import gnu.classpath.jdwp.event.VmDeathEvent;
 import gnu.classpath.jdwp.event.VmInitEvent;
+import gnu.classpath.jdwp.event.filters.CountFilter;
 import gnu.classpath.jdwp.event.filters.IEventFilter;
 import gnu.classpath.jdwp.event.filters.LocationOnlyFilter;
 import gnu.classpath.jdwp.event.filters.StepFilter;
@@ -52,6 +54,7 @@ import gnu.xml.pipeline.EventFilter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 import java.lang.JikesRVMSupport;
 
 import org.jikesrvm.VM;
@@ -69,6 +72,7 @@ import org.jikesrvm.debug.JikesRVMJDWP;
 import org.jikesrvm.debug.RVMDebug.EventType;
 import org.jikesrvm.debug.StackFrame.FrameInfoList;
 import org.jikesrvm.debug.StackFrame.FrameLocation;
+import org.jikesrvm.debug.LocalVariable;
 import org.jikesrvm.runtime.Reflection;
 import org.jikesrvm.scheduler.Scheduler;
 import org.jikesrvm.scheduler.RVMThread;
@@ -175,8 +179,8 @@ public final class VMVirtualMachineImpl implements StackframeLayoutConstants,
   private static RVMThread getThread(EventRequest req) {
     try {
       for (Object o : req.getFilters()) {
-        if (o instanceof ThreadOnlyFilter) {
-          ThreadOnlyFilter f = (ThreadOnlyFilter) o;
+        if (o instanceof StepFilter) {
+          StepFilter f = (StepFilter) o;
           Thread thread = f.getThread().getThread();
           RVMThread t = JikesRVMSupport.getThread(thread);
           return t;
@@ -727,6 +731,7 @@ public final class VMVirtualMachineImpl implements StackframeLayoutConstants,
       if (VM.VerifyAssertions) {VM._assert(t != null);}
       singleStepState.resetSingleStep(t);
       RVMDebug.getRVMDebug().setEventNotificationMode(EventType.VM_SINGLE_STEP, false, t);
+      break;
     }
     case JdwpConstants.EventKind.BREAKPOINT: {
       Collection<IEventFilter> filters = (Collection<IEventFilter>)request.getFilters();
@@ -929,33 +934,6 @@ public final class VMVirtualMachineImpl implements StackframeLayoutConstants,
     }
   };
 
-  /**
-   * Notify an event to the JDWP client. This method prevent reporting an JDWP
-   * event while reporting the JDWP in a thread. This overlapped JDWP reportings
-   * in a thread is possible since the JDWP agent code is also the Java thread.
-   * 
-   * @param e The JDWP event.
-   */
-  private void notifyEvent(RVMThread t, Event e) {
-    
-    if (threadLocalInfos.isInvokingMethod(t)) {
-      return; // skip events during the method invocation.
-    }
-
-    try {
-      if (VM.VerifyAssertions) {
-        VM._assert(!threadLocalInfos.isNotifyingEvent(t),
-            "JDWP event can not overlap.");
-        threadLocalInfos.setNotifyingEvent(t, true);
-      }
-      Jdwp.notify(e);
-    } finally {
-      if (VM.VerifyAssertions) {
-        threadLocalInfos.setNotifyingEvent(t, false);
-      }
-    }
-  }
-
   public void vmStart() {}
 
   public void vmInit(RVMThread t) {
@@ -1087,16 +1065,88 @@ public final class VMVirtualMachineImpl implements StackframeLayoutConstants,
   }
 
   public void singleStep(RVMThread t, NormalMethod method, int bcindex) {
-    if (VM.VerifyAssertions) {
-      VM._assert(false, "not implemented");
-    }
     if (singleStepState.checkStepCompletion(t, method, bcindex)) {
-      VMMethod m = new VMMethod(method);
-      Location loc = new Location(m, bcindex);
-      SingleStepEvent e = new SingleStepEvent(t.getJavaLangThread(), loc, null);
+      final VMMethod m = new VMMethod(method);
+      final Location loc = new Location(m, bcindex);
+      final Object thisInstance;
+      if (method.isStatic()) {
+        thisInstance = null;
+      } else {
+        thisInstance = LocalVariable.getObject(t, 0, 0);//this variable is at slot 0.
+      }
+      SingleStepEvent e = new SingleStepEvent(t.getJavaLangThread(), loc, thisInstance);
       notifyEvent(t, e);
     }
   }
+
+  /**
+   * Notify an event to the JDWP client. This method prevent reporting an JDWP
+   * event while reporting the JDWP in a thread. This overlapped JDWP reportings
+   * in a thread is possible since the JDWP agent code is also the Java thread.
+   * 
+   * @param e The JDWP event.
+   */
+  private void notifyEvent(RVMThread t, Event e) {
+    
+    if (threadLocalInfos.isInvokingMethod(t)) {
+      return; // skip events during the method invocation.
+    }
+  
+    try {
+      if (VM.VerifyAssertions) {
+        VM._assert(!threadLocalInfos.isNotifyingEvent(t),
+            "JDWP event can not overlap.");
+        threadLocalInfos.setNotifyingEvent(t, true);
+      }
+      Jdwp.notify(e);
+    } finally {
+      if (VM.VerifyAssertions) {
+        threadLocalInfos.setNotifyingEvent(t, false);
+      }
+    }
+  
+    // clear some low-level request. For instance, stepping event request
+    // with its counter value zero or less should disable single-stepping.
+    if (e instanceof SingleStepEvent) {
+      checkDeadSingleStepping(t);
+    }
+  }
+
+  /**
+   * Check if we dont actual need single stepping for a thread.
+   * 
+   * @param t 
+   * @param e
+   */
+  private void checkDeadSingleStepping(RVMThread t) {
+    boolean singleStepIsDead = true; // from this, try to find the liveness evidence.
+    EventManager em = EventManager.getDefault();
+    Collection requests = em.getRequests(EventRequest.EVENT_SINGLE_STEP);
+    for(Iterator i = requests.iterator();i.hasNext();) {
+      EventRequest req = (EventRequest)i.next();
+      if (VM.VerifyAssertions) {
+        VM._assert(req.getEventKind() ==EventRequest.EVENT_SINGLE_STEP);
+      }
+      boolean activeSingleStep = true;
+      for(Iterator j = req.getFilters().iterator();j.hasNext();) {
+        IEventFilter filter = (IEventFilter)j.next();
+        if (filter instanceof CountFilter) {
+          CountFilter counterFilter = (CountFilter)filter; 
+          if (counterFilter.getCount() <= 0) {
+            activeSingleStep = false;
+          }
+        }
+      }
+      if (activeSingleStep) {
+        singleStepIsDead = false;
+        break;
+      }
+    }
+    if (singleStepIsDead) {
+      RVMDebug.getRVMDebug().setEventNotificationMode(EventType.VM_SINGLE_STEP, false, t);
+    }
+  }
+
   private boolean checkMethodInvocation(RVMThread t) {
     try {
       MethodInvokeRequest req = threadLocalInfos
@@ -1466,4 +1516,3 @@ class SingleStepState {
   return false;
   }
 }
-
