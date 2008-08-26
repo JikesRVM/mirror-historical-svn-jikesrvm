@@ -41,6 +41,10 @@ public final class BaselineCompiledMethod extends CompiledMethod implements Base
 
   /** Does the baseline compiled method have a counters array? */
   private boolean hasCounters;
+
+  /** Does this compiled method supports debugging? */
+  private boolean debuggingSupport;
+
   /**
    * The lock acquistion offset for synchronized methods.  For
    * synchronized methods, the offset (in the method prologue) after
@@ -311,6 +315,16 @@ public final class BaselineCompiledMethod extends CompiledMethod implements Base
   @Uninterruptible
   public boolean hasCounterArray() {
     return hasCounters;
+  }
+
+  /** Set the debugging support. */
+  void setDebuggingSupport() {
+    debuggingSupport = true;
+  }
+
+  @Uninterruptible
+  public boolean hasDebuggingSupport() {
+    return debuggingSupport;
   }
 
   // Taken: method that was compiled

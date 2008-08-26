@@ -523,7 +523,9 @@ public class GenerateInterfaceDeclarations {
     pln("Processor_vpStatus_offset = ", offset);
     offset = Entrypoints.threadIdField.getOffset();
     pln("Processor_threadId_offset = ", offset);
-
+    offset = Entrypoints.singleStepField.getOffset();
+    pln("Processor_singleStepField_offset = ", offset);
+    
     // fields in RVMThread
     //
     offset = Entrypoints.threadStackField.getOffset();
@@ -534,7 +536,9 @@ public class GenerateInterfaceDeclarations {
     pln("RVMThread_exceptionRegisters_offset = ", offset);
     offset = Entrypoints.jniEnvField.getOffset();
     pln("RVMThread_jniEnv_offset = ", offset);
-
+    offset = Entrypoints.threadSingleStepField.getOffset();
+    pln("RVMThread_singleStep_offset = ", offset);
+    
     // fields in Registers
     //
     offset = ArchEntrypoints.registersGPRsField.getOffset();

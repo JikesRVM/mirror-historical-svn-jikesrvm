@@ -14,7 +14,6 @@ package org.jikesrvm.runtime;
 
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.ArchitectureSpecific.Registers;
-import org.jikesrvm.debug.BreakpointsImpl;
 import org.jikesrvm.VM;
 import org.jikesrvm.Constants;
 import org.jikesrvm.Callbacks;
@@ -734,19 +733,19 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
       }
     }
 
-    if (trapCode == TRAP_BREAK_POINT) {
-      // Handle break point trap: The breakpoint register set and the the
-      // exception register set have different usage. The break point register
-      // set is for resuming the execution after the break point, but the
-      // exception register is to identify the exception source and its target
-      // code. In order to allow invoking a method at the break point and
-      // catching any exception, we want to release the exception register set.
-      Registers breakPointRegisters = new Registers();
-      breakPointRegisters.read(exceptionRegisters);
-      exceptionRegisters.inuse = false;
-      BreakpointsImpl.deliverBreakpointHit(breakPointRegisters);
-      if (VM.VerifyAssertions) {VM._assert(NOT_REACHED);}
-    }
+//     if (trapCode == TRAP_BREAK_POINT) {
+//       // Handle break point trap: The breakpoint register set and the the
+//       // exception register set have different usage. The break point register
+//       // set is for resuming the execution after the break point, but the
+//       // exception register is to identify the exception source and its target
+//       // code. In order to allow invoking a method at the break point and
+//       // catching any exception, we want to release the exception register set.
+//       Registers breakPointRegisters = new Registers();
+//       breakPointRegisters.read(exceptionRegisters);
+//       exceptionRegisters.inuse = false;
+//       BreakpointsImpl.deliverBreakpointHit(breakPointRegisters);
+//       if (VM.VerifyAssertions) {VM._assert(NOT_REACHED);}
+//     }
 
     Throwable exceptionObject;
     switch (trapCode) {

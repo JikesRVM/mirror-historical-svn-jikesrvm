@@ -321,6 +321,7 @@ public final class GreenProcessor extends Processor {
 
     threadId = activeThread.getLockingId();
     activeThreadStackLimit = activeThread.stackLimit; // Delay this to last possible moment so we can sysWrite
+    singleStep = activeThread.singleStep;
     Magic.threadSwitch(previousThread, activeThread.contextRegisters);
   }
 

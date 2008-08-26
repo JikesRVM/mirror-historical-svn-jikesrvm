@@ -23,6 +23,7 @@ import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.osr.OSR_BytecodeTraverser;
 import org.jikesrvm.runtime.Time;
 import org.jikesrvm.scheduler.Scheduler;
+import org.jikesrvm.debug.Breakpoints;
 import org.vmmagic.unboxed.Offset;
 
 /**
@@ -241,12 +242,20 @@ public abstract class BaselineCompiler extends TemplateCompilerFramework {
         start = Scheduler.getCurrentThread().startTimedInterval();
       }
 
+      if (VM.VerifyAssertions) {
+        VM._assert(!options.EDGE_COUNTERS || !options.DEBUG,
+                "edge counters and debugging support are exclusive in the baseline compiler");
+
+      }
       // determine if we are going to insert edge counters for this method
       if (options
           .EDGE_COUNTERS &&
           !method.getDeclaringClass().hasBridgeFromNativeAnnotation() &&
           (method.hasCondBranch() || method.hasSwitch())) {
         ((BaselineCompiledMethod) compiledMethod).setHasCounterArray(); // yes, we will inject counters for this method.
+      } else if (options.DEBUG 
+          && !method.getDeclaringClass().getDescriptor().isBootstrapClassDescriptor()) {
+        ((BaselineCompiledMethod) compiledMethod).setDebuggingSupport(); 
       }
 
       //do platform specific tasks before generating code;
@@ -300,6 +309,9 @@ public abstract class BaselineCompiler extends TemplateCompilerFramework {
       compiledMethod.compileComplete(instructions);
       if (edgeCounterIdx > 0) {
         EdgeCounts.allocateCounters(method, edgeCounterIdx);
+      }
+      if (((BaselineCompiledMethod)compiledMethod).hasDebuggingSupport()) {
+        Breakpoints.ensureFlags(method);
       }
       if (shouldPrint) {
         ((BaselineCompiledMethod) compiledMethod).printExceptionTable();

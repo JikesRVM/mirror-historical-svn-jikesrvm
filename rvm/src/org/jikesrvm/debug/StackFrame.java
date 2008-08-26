@@ -64,7 +64,7 @@ public final class StackFrame implements StackframeLayoutConstants{
   public static class FrameLocation {
     private RVMMethod method;
     private int location;
-    private FrameLocation() {}
+    public FrameLocation() {}
     
     /* private setters. */
     private void setMethod(RVMMethod method) {
@@ -119,6 +119,29 @@ public final class StackFrame implements StackframeLayoutConstants{
     }
   }
 
+  private static class FrameLocationExtractor implements CallStackFrameVisitor {
+    private FrameLocation loc;
+    private int countDown;
+
+    void extract(RVMThread t, FrameLocation loc, int depth) {
+      this.loc = loc;
+      this.countDown = depth;
+      StackWalker.stackWalk(t, this);
+    }
+    
+    public boolean visit(int frameno, RVMMethod m, int bytecodeIndex,
+        CompiledMethod cm, Offset ipOffset, Offset fpOffset, RVMThread t) {
+      if (countDown > 0) {
+        countDown--;
+        return true;
+      } else {
+        loc.setMethod(m);
+        loc.setLocation(bytecodeIndex);
+        return false;
+      }
+    }
+  }
+
   /** Dump call stack frames in a suspended thread. */
   public static void getFrames(RVMThread thread,
       FrameInfoList frames, final int start) {
@@ -138,11 +161,10 @@ public final class StackFrame implements StackframeLayoutConstants{
   
   /** Get the location information for a frame. */
   public static FrameLocation getFrameLocation(RVMThread thread, int depth) {
-    if (VM.VerifyAssertions) {
-      VM._assert(false, "Not implemented");
-      VM._assert(depth >= 0 && thread != null);
-    }
-    return null;
+    FrameLocationExtractor ext = new FrameLocationExtractor();
+    FrameLocation loc = new FrameLocation();
+    ext.extract(thread, loc, depth);
+    return loc;
   }
 
   private StackFrame() {} //no instance.

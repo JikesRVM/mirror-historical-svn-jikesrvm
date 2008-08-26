@@ -161,9 +161,23 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
    */
   @Override
   protected final void starting_bytecode() {
-    //insert dummy code for 2 bytes "int xx" break point. 
-    asm.emitNOP();
-    asm.emitNOP();
+    emit_breakpoint_check(biStart);
+  }
+
+  protected final void emit_breakpoint_check(int index) {
+    if (((BaselineCompiledMethod) compiledMethod).hasDebuggingSupport()) {
+      //insert single step break point.
+      ProcessorLocalState.emitCompareFieldWithImm(asm, Entrypoints.singleStepField.getOffset(), 0);
+      ForwardReference fr_sp = asm.forwardJcc(Assembler.EQ);
+      asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.singleStepHitMethod.getOffset()));
+      fr_sp.resolve(asm);
+
+      //insert break point.
+      asm.emitCMP_RegDisp_Imm(EBX, Offset.fromIntZeroExtend(index), 0);
+      ForwardReference fr_bp = asm.forwardJcc(Assembler.EQ);
+      asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.breakpointHitMethod.getOffset()));
+      fr_bp.resolve(asm);
+    }
   }
 
   /**
@@ -3365,6 +3379,17 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
         } else {
           asm.emitMOV_Reg_Abs(EBX, Magic.getTocPointer().plus(Entrypoints.edgeCountersField.getOffset()));
           asm.emitMOV_Reg_RegDisp(EBX, EBX, getEdgeCounterOffset());
+        }
+      } else if (!VM.runningTool && ((BaselineCompiledMethod)compiledMethod).hasDebuggingSupport()) {
+        // use (nonvolatile) EBX to hold base of this method's break point flag array
+        if (MM_Constants.NEEDS_READ_BARRIER) {
+          asm.emitPUSH_Abs(Magic.getTocPointer().plus(Entrypoints.breakpointFlagsField.getOffset()));
+          asm.emitPUSH_Imm(method.getId());
+          Barriers.compileArrayLoadBarrier(asm, false);
+          asm.emitMOV_Reg_Reg(EBX, T0);
+        } else {
+          asm.emitMOV_Reg_Abs(EBX, Magic.getTocPointer().plus(Entrypoints.breakpointFlagsField.getOffset()));
+          asm.emitMOV_Reg_RegDisp(EBX, EBX, Offset.fromIntZeroExtend(method.getId() << LOG_BYTES_IN_ADDRESS));
         }
       }
 

@@ -15,6 +15,7 @@ package org.jikesrvm.debug;
 import java.util.List;
 
 import org.jikesrvm.VM;
+import org.jikesrvm.debug.RVMDebug.EventType;
 import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.scheduler.Scheduler;
 
@@ -45,14 +46,14 @@ public final class Threads {
   public static RVMThread[] getAllThreads() {
     return RVMDebug.getRVMDebug().eventRequest.getAllThreadsImpl();
   }
-  
+
   static boolean isDebuggableThread(RVMThread thread) {
     final boolean rValue = !thread.isBootThread() && !thread.isDebuggerThread()
         && !thread.isGCThread() && !thread.isSystemThread()
         && !thread.isIdleThread();
     return rValue;
   }
-  
+
   public static void suspendThread(RVMThread thread) {
     Thread jthread = thread.getJavaLangThread();
     if (VM.VerifyAssertions) {
@@ -73,17 +74,18 @@ public final class Threads {
       }
     }
     if (suspendCurrentThread) {
-      suspendThread(Scheduler.getCurrentThread());
+      RVMThread myThread = Scheduler.getCurrentThread();
+      suspendThread(myThread);
     }
   }
   
-  public static void resumeThread(RVMThread thread) {
+  public static void resumeThread(RVMThread t) {
     if (VM.VerifyAssertions) {
-      VM._assert(thread != Scheduler.getCurrentThread());
+      VM._assert(t != Scheduler.getCurrentThread());
     }
-    Thread jthread = thread.getJavaLangThread();
+    Thread jthread = t.getJavaLangThread();
     synchronized (jthread) {
-      thread.resume();
+      t.resume();
     }
   }
   

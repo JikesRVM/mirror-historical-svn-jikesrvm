@@ -12,10 +12,8 @@
  */
 package org.jikesrvm.debug;
 
-import java.util.List;
-
-import org.jikesrvm.Callbacks;
 import org.jikesrvm.VM;
+import org.jikesrvm.ArchitectureSpecific.Registers;
 import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.util.HashMapRVM;
@@ -38,9 +36,6 @@ class RVMDebugState {
   
   private LinkedListRVM<RVMThread> agentThreads = 
     new LinkedListRVM<RVMThread>();
-
-  private final LinkedListRVM<SingleStepPoint> singleStepBreakpoints =  
-    new LinkedListRVM<SingleStepPoint>();
 
   RVMDebugState() {
     for(RVMDebug.EventType etype : RVMDebug.EventType.values() ) {
@@ -136,45 +131,5 @@ class RVMDebugState {
       threads[i++] = t;
     }
     return threads;
-  }
-  
-  synchronized boolean hasSteppingLocation(RVMThread thread, NormalMethod method, int bcindex) {
-    for (SingleStepPoint p : singleStepBreakpoints) {
-      if (p.getThread() == thread && p.getMethod() == method
-          && p.getByteCodeIndex() == bcindex) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  synchronized void clearSteppingBreakpoints() {
-    if (singleStepBreakpoints.size() > 0) {
-      for (SingleStepPoint p : singleStepBreakpoints) {
-        BreakpointsImpl bpImpl = BreakpointsImpl.getBreakpointsImpl();
-        bpImpl.releaseBreakPoint(p.getMethod(), p.getByteCodeIndex());
-      }
-    }
-  }
-
-  /**
-   * Check single step was set, and insert the breakpoint at the next dynamic
-   * byte code.
-   * 
-   * @param t The thread.
-   */
-  synchronized void ensureSingleStepBeforeResume(RVMThread t) {
-    SingleStepPoint p = SingleStepPoint.findSingleStepPoint(t);
-    if (VM.VerifyAssertions) {
-      VM._assert(p != null);
-    }
-    BreakpointsImpl bpImpl = BreakpointsImpl.getBreakpointsImpl();
-    bpImpl.requestBreakPoint(p.getMethod(), p.getByteCodeIndex());
-  }
-  
-  synchronized void ensureSingleStepBeforeResume(List<RVMThread> list) {
-    for(RVMThread t : list) {
-      ensureSingleStepBeforeResume(t);
-    }
-  }
+  }  
 }

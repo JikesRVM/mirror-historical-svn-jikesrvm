@@ -39,8 +39,6 @@ public class RVMDebug {
 
   public static void boot() {
     debug = new RVMDebug();
-
-    BreakpointsImpl.boot();
     JikesRVMJDWP.boot();
   }
 
@@ -52,9 +50,6 @@ public class RVMDebug {
   }
 
   final RVMDebugState eventRequest = new RVMDebugState();
-
-  final BreakpointList breakPoints = new BreakpointList();
-
   final EventNotifier eventNotifier;
 
   /** Only one instance. */
@@ -79,11 +74,11 @@ public class RVMDebug {
   }
 
   public void setBreakPoint(NormalMethod method, int bcindex) {
-    breakPoints.setBreakPoint(method, bcindex);
+    Breakpoints.setBreakpoint(method, bcindex);
   }
 
   public void clearBreakPoint(NormalMethod method, int bcindex) {
-    breakPoints.clearBreakPoint(method, bcindex);
+    Breakpoints.clearBreakpoint(method, bcindex);
   }
 
   /**

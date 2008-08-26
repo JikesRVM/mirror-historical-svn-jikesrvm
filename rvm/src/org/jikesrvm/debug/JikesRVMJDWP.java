@@ -16,6 +16,9 @@ import java.util.StringTokenizer;
 import org.jikesrvm.CommandLineArgs;
 import org.jikesrvm.VM;
 import org.jikesrvm.runtime.ExitStatus;
+import org.jikesrvm.compilers.baseline.BaselineCompiler;
+import org.jikesrvm.compilers.baseline.BaselineOptions;
+import org.jikesrvm.Configuration;
 
 /**
  * JikesRVM specific part of the JDWP implementation. This class processes the
@@ -103,6 +106,21 @@ public class JikesRVMJDWP implements ExitStatus {
       VM._assert(RVMDebug.getRVMDebug() != null,
           "RVMDebug must be initialized before initializing a JDWP agent.");
     }
+
+    // The debugging requires a baseline only compilation and its debugging support
+    if (!BaselineCompiler.options.DEBUG) {
+      VM.sysWriteln("JDWP agent requires debugging support from the baseline compiler");
+      VM.sysWriteln("Please, enable the debugging with -X:base:debug=true");
+      VM.sysWriteln("Note that in IA32, you need to disable the basline line edge profiling with -X:base:edge_counters=false");
+      VM.sysExit(EXIT_STATUS_JDWP_INITIALIZATION_FAILED);
+    }
+    if (Configuration.BuildForOptCompiler) {
+      VM.sysWriteln("The JikesRVM Debugging does not work with optimizing compiler.");
+      VM.sysWriteln("Please, choose a build configuration without the optimizing compiler.");
+      VM.sysExit(EXIT_STATUS_JDWP_INITIALIZATION_FAILED);
+    }
+    
+    //dynamically load a JDWP agent.
     try {
       Class.forName("gnu.classpath.jdwp.JikesRVMSupport")
           .getMethod("load", String.class).invoke(null, jdwpArgs);

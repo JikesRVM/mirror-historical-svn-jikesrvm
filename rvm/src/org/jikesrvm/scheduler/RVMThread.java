@@ -399,6 +399,12 @@ public abstract class RVMThread {
    */
   private static boolean systemShuttingDown = false;
 
+  
+  /**
+   * Flag to indicate byte code single step.
+   */
+  public boolean singleStep = false;
+
   /**
    * @param stack stack in which to execute the thread
    */

@@ -61,6 +61,6 @@ if (( $# == 0 ));then
     usage
 fi
 
-RVMCMD="rvm \"-Xrunjdwp:verbose=${JDWP_VERVOSE},transport=dt_socket,address=8000,suspend=y\" $*"
+RVMCMD="rvm -X:base:debug=true   \"-Xrunjdwp:verbose=${JDWP_VERVOSE},transport=dt_socket,address=8000,suspend=y\" $*"
 CONNECT="com.sun.jdi.RawCommandLineLaunch:command=${RVMCMD},address=8000"
 exec jdb ${JDB_OPTIONS} -launch -connect "${CONNECT}"

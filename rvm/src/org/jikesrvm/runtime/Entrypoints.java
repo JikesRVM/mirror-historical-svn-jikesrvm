@@ -208,7 +208,7 @@ public class Entrypoints {
       getField(org.jikesrvm.scheduler.greenthreads.GreenProcessor.class, "reportedTimerTicks", int.class);
   public static final RVMField vpStatusField = getField(org.jikesrvm.scheduler.Processor.class, "vpStatus", int.class);
   public static final RVMField threadIdField = getField(org.jikesrvm.scheduler.Processor.class, "threadId", int.class);
-
+  
   public static final RVMField referenceReferentField =
       getField(java.lang.ref.Reference.class, "_referent", org.vmmagic.unboxed.Address.class);
 
@@ -359,6 +359,18 @@ public class Entrypoints {
   public static final RVMField socketImplAddressField =
       getField(java.net.SocketImpl.class, "address", java.net.InetAddress.class);
   public static final RVMField socketImplPortField = getField(java.net.SocketImpl.class, "port", int.class);
+
+  // Debugging support
+  public static final RVMField singleStepField = getField(
+      org.jikesrvm.scheduler.Processor.class, "singleStep", boolean.class);
+  public static final RVMField threadSingleStepField =getField(
+      org.jikesrvm.scheduler.RVMThread.class, "singleStep", boolean.class);
+  public static final RVMField breakpointFlagsField = getField(
+      org.jikesrvm.debug.Breakpoints.class, "flags", int[][].class);
+  public static final NormalMethod singleStepHitMethod =
+    getMethod(org.jikesrvm.debug.SingleStep.class, "singleStepHit", "()V");
+  public static final NormalMethod breakpointHitMethod =
+    getMethod(org.jikesrvm.debug.Breakpoints.class, "breakPointHit", "()V");
 
   //////////////////
   // Entrypoints that are valid only when the opt compiler is included in the build

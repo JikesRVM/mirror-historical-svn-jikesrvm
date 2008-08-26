@@ -93,6 +93,8 @@ public abstract class Processor extends MM_ProcessorContext implements Constants
   @Entrypoint
   public int threadId;
 
+  @Entrypoint
+  public boolean singleStep;
   /* --------- BEGIN IA-specific fields. NOTE: NEED TO REFACTOR --------- */
   // On powerpc, these values are in dedicated registers,
   // we don't have registers to burn on IA32, so we indirect
