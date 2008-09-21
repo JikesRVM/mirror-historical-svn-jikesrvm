@@ -106,12 +106,15 @@ public class RVMThread extends MM_ThreadContext {
   static int notifyOperations;
   /** Number of notifyAll operations */
   static int notifyAllOperations;
+  
+  public static final boolean ALWAYS_LOCK_ON_STATE_TRANSITION = false;
 
   /*
    * definitions for thread status for interaction of Java-native transitions
    * and requests for threads to stop.
    */
-  /** thread has not yet started */
+  /** thread has not yet started.  this state holds right up until just before
+   * we call pthread_create(). */
   public static final int NEW = 0;
   /** thread is in Java code */
   public static final int IN_JAVA = 1;
@@ -250,6 +253,9 @@ public class RVMThread extends MM_ThreadContext {
   
   private long yieldpointsTaken;
   private long yieldpointsTakenFully;
+  
+  private long nativeEnteredBlocked;
+  private long jniEnteredBlocked;
 
   /**
    * Assertion checking while manipulating raw addresses --
@@ -725,6 +731,13 @@ public class RVMThread extends MM_ThreadContext {
    * See also: RunBootImage.C
    */
   public static volatile boolean debugRequested;
+  
+  public volatile boolean asyncDebugRequestedForThisThread;
+  
+  /**
+   * The latch for reporting profile data.
+   */
+  public static Latch doProfileReport;
 
   /** Number of times dump stack has been called recursively */
   protected int inDumpStack = 0;
@@ -733,7 +746,7 @@ public class RVMThread extends MM_ThreadContext {
   public boolean registeredMutator = false;
   
   /** Lock used for dumping stack and such. */
-  protected static HeavyCondLock dumpLock;
+  public static HeavyCondLock dumpLock;
 
   /** In dump stack and dying */
   protected static boolean exitInProgress = false;
@@ -780,6 +793,11 @@ public class RVMThread extends MM_ThreadContext {
    * thread accounting.
    */
   public static NoYieldpointsCondLock acctLock;
+  
+  /**
+   * Lock (mutex) used for servicing debug requests.
+   */
+  public static NoYieldpointsCondLock debugLock;
   
   /**
    * Lock used for generating debug output.
@@ -836,6 +854,11 @@ public class RVMThread extends MM_ThreadContext {
   public static RVMThread[] handshakeThreads = new RVMThread[MAX_THREADS];
     
   /**
+   * Preallocated array for use in debug requested.  Protected by debugLock.
+   */
+  public static RVMThread[] debugThreads = new RVMThread[MAX_THREADS];
+    
+  /**
    * Number of active threads in the system.
    */
   private static int numActiveThreads;
@@ -880,9 +903,11 @@ public class RVMThread extends MM_ThreadContext {
   public static void boot() {
     dumpLock=new HeavyCondLock();
     acctLock=new NoYieldpointsCondLock();
+    debugLock=new NoYieldpointsCondLock();
     outputLock=new NoYieldpointsCondLock();
     softHandshakeDataLock=new HeavyCondLock();
     handshakeLock=new HeavyCondLock();
+    doProfileReport=new Latch(false);
     monitorBySlot[getCurrentThread().threadSlot] =
       new NoYieldpointsCondLock();
     
@@ -939,7 +964,7 @@ public class RVMThread extends MM_ThreadContext {
     //    it).
     // 2) No longer include the thread in any mutator phases ... hence the
     //    need to ensure that the mutator context is flushed above.
-    // 3) No longer attempt to stop the thread.
+    // 3) No longer attempt to block the thread.
     monitor().unlock();
 
     softRendezvous();
@@ -1055,7 +1080,7 @@ public class RVMThread extends MM_ThreadContext {
     contextRegisters     = new Registers();
     contextRegistersSave = new Registers();
     exceptionRegisters   = new Registers();
-
+    
     if(VM.VerifyAssertions) VM._assert(stack != null);
     // put self in list of threads known to scheduler and garbage collector
     if (!VM.runningVM) {
@@ -1203,13 +1228,15 @@ public class RVMThread extends MM_ThreadContext {
    * Java code if its <code>execStatus</code> is <code>IN_JAVA</code> or
    * <code>IN_JAVA_TO_BLOCK</code>, and if it is not
    * <code>aboutToTerminate</code>, and if it is not blocked.  Only call
-   * this method when already holding the monitor(), for two reasons:
+   * this method when already holding the monitor(), and probably only after
+   * calling setBlockedExecStatus(), for two reasons:
    * <ol>
    * <li>This method does not acquire the monitor() lock even though it needs
    *     to have it acquired given the data structures that it is accessing.
    * <li>You will typically want to call this method to decide if you need
    *     to take action under the assumption that the thread is running Java
-   *     (or not running Java).  So long as you hold the lock the thread
+   *     (or not running Java).  So long as you hold the lock - and you have
+   *     called setBlockedExecStatus() - the thread
    *     cannot change state from running-Java to not-running-Java.
    * </ol>
    * @return if the thread is running Java
@@ -1374,8 +1401,10 @@ public class RVMThread extends MM_ThreadContext {
     boolean commitSoftRendezvous;
     monitor().lock();
     if (jni) {
+      jniEnteredBlocked++;
       execStatus=BLOCKED_IN_JNI;
     } else {
+      nativeEnteredBlocked++;
       execStatus=BLOCKED_IN_NATIVE;
     }
     acknowledgeBlockRequests();
@@ -1515,23 +1544,28 @@ public class RVMThread extends MM_ThreadContext {
   
   public static void enterNative() {
     RVMThread t=getCurrentThread();
-    Offset offset=Entrypoints.execStatusField.getOffset();
-    int oldState,newState;
-    do {
-      oldState=Magic.prepareInt(t,offset);
-      if (oldState==IN_JAVA) {
-	newState=IN_NATIVE;
-      } else if (oldState==IN_JAVA_TO_BLOCK) {
-	t.enterNativeBlocked();
-	return;
-      } else {
-	VM._assert(false);
-	return; // make javac happy
-      }
-    } while (!(Magic.attemptInt(t,offset,oldState,newState)));
+    if (ALWAYS_LOCK_ON_STATE_TRANSITION) {
+      t.enterNativeBlocked();
+    } else {
+      Offset offset=Entrypoints.execStatusField.getOffset();
+      int oldState,newState;
+      do {
+	oldState=Magic.prepareInt(t,offset);
+	if (oldState==IN_JAVA) {
+	  newState=IN_NATIVE;
+	} else if (oldState==IN_JAVA_TO_BLOCK) {
+	  t.enterNativeBlocked();
+	  return;
+	} else {
+	  VM._assert(false);
+	  return; // make javac happy
+	}
+      } while (!(Magic.attemptInt(t,offset,oldState,newState)));
+    }
   }
   
   public static boolean attemptLeaveNativeNoBlock() {
+    if (ALWAYS_LOCK_ON_STATE_TRANSITION) return false;
     RVMThread t=getCurrentThread();
     Offset offset=Entrypoints.execStatusField.getOffset();
     int oldState,newState;
@@ -1566,6 +1600,61 @@ public class RVMThread extends MM_ThreadContext {
     monitor().broadcast();
     monitor().unlock();
     if (traceBlock) VM.sysWriteln("Thread #",getCurrentThread().threadSlot," is done requesting that thread #",threadSlot," unblocks.");
+  }
+  
+  private final void handleDebugRequestForThread() {
+    monitor().lock();
+    dumpLock.lock();
+    extDump();
+    if (!isAboutToTerminate) {
+      setBlockedExecStatus();
+      if (isInJava()) {
+	asyncDebugRequestedForThisThread=true;
+	takeYieldpoint=1;
+	VM.sysWriteln("(stack trace will follow if thread is not lost...)");
+      } else {
+	if (contextRegisters!=null) {
+	  dumpStack(contextRegisters.getInnermostFramePointer());
+	} else {
+	  VM.sysWriteln("(cannot dump stack trace; thread is not running in Java but has no contextRegisters)");
+	}
+      }
+    }
+    dumpLock.unlock();
+    monitor().unlock();
+  }
+  
+  @NoCheckStore
+  public static final void checkDebugRequest() {
+    if (debugRequested) {
+      debugLock.lock();
+      if (debugRequested) {
+	debugRequested=false;
+	
+	VM.sysWriteln("=== Debug requested - attempting safe VM dump ===");
+	
+	dumpAcct();
+
+	VM.sysWriteln("Timer ticks = ",timerTicks);
+	
+	doProfileReport.open();
+	
+	// snapshot the threads
+	acctLock.lock();
+	int numDebugThreads=numThreads;
+	for (int i=0;i<numThreads;++i) {
+	  debugThreads[i]=threads[i];
+	}
+	acctLock.unlock();
+	
+	// do the magic
+	for (int i=0;i<numDebugThreads;++i) {
+	  debugThreads[i].handleDebugRequestForThread();
+	  debugThreads[i]=null;
+	}
+      }
+      debugLock.unlock();
+    }
   }
   
   /** Are we allowed to take yieldpoints? */
@@ -1758,8 +1847,10 @@ public class RVMThread extends MM_ThreadContext {
    * Start execution of 'this' by putting it on the appropriate queue
    * of an unspecified virtual processor.
    */
-  @Interruptible
+  @Interruptible // ???
   public final void start() {
+    // N.B.: cannot hit a yieldpoint between setting execStatus and starting the
+    // thread!!
     this.execStatus = IN_JAVA;
     acctLock.lock();
     numActiveThreads++;
@@ -1933,6 +2024,7 @@ public class RVMThread extends MM_ThreadContext {
   @BaselineSaveLSRegisters
   //Save all non-volatile registers in prologue
   @NoOptCompile
+  @NoInline
   //We should also have a pragma that saves all non-volatiles in opt compiler,
   // OSR_BaselineExecStateExtractor.java, should then restore all non-volatiles before stack replacement
   //todo fix this -- related to SaveVolatile
@@ -1948,6 +2040,7 @@ public class RVMThread extends MM_ThreadContext {
   @BaselineSaveLSRegisters
   //Save all non-volatile registers in prologue
   @NoOptCompile
+  @NoInline
   // We should also have a pragma that saves all non-volatiles in opt compiler,
   // OSR_BaselineExecStateExtractor.java, should then restore all non-volatiles before stack replacement
   // TODO fix this -- related to SaveVolatile
@@ -1963,6 +2056,7 @@ public class RVMThread extends MM_ThreadContext {
   @BaselineSaveLSRegisters
   //Save all non-volatile registers in prologue
   @NoOptCompile
+  @NoInline
   //We should also have a pragma that saves all non-volatiles in opt compiler,
   // OSR_BaselineExecStateExtractor.java, should then restore all non-volatiles before stack replacement
   // TODO fix this -- related to SaveVolatile
@@ -2485,8 +2579,20 @@ public class RVMThread extends MM_ThreadContext {
       Magic.isync();
     }
     
+    // process memory management requests
     if (flushRequested) {
       MM_Interface.flushMutatorContext();
+    }
+    
+    // not really a "soft handshake" request but we handle it here anyway
+    if (asyncDebugRequestedForThisThread) {
+      asyncDebugRequestedForThisThread=false;
+      dumpLock.lock();
+      VM.sysWriteln("Handling async stack trace request...");
+      dump();
+      VM.sysWriteln();
+      dumpStack();
+      dumpLock.unlock();
     }
   }
   
@@ -3316,8 +3422,8 @@ public class RVMThread extends MM_ThreadContext {
   }
   
   public static void dumpAcct() {
-    dumpLock.lock();
     acctLock.lock();
+    dumpLock.lock();
     VM.sysWriteln("====== Begin Thread Accounting Dump ======");
     dumpThreadArray("threadBySlot",threadBySlot,nextSlot);
     dumpThreadArray("aboutToTerminate",aboutToTerminate,aboutToTerminateN);
@@ -3331,8 +3437,18 @@ public class RVMThread extends MM_ThreadContext {
     VM.sysWriteln();
     dumpThreadArray("threads",threads,numThreads);
     VM.sysWriteln("====== End Thread Accounting Dump ======");
-    acctLock.unlock();
     dumpLock.unlock();
+    acctLock.unlock();
+  }
+
+  public void extDump() {
+    dump();
+    VM.sysWriteln();
+    VM.sysWriteln("acquireCount for my monitor: ",monitor().acquireCount);
+    VM.sysWriteln("yieldpoints taken: ",yieldpointsTaken);
+    VM.sysWriteln("yieldpoints taken fully: ",yieldpointsTakenFully);
+    VM.sysWriteln("native entered blocked: ",nativeEnteredBlocked);
+    VM.sysWriteln("JNI entered blocked: ",jniEnteredBlocked);
   }
 
   /**
@@ -3428,6 +3544,9 @@ public class RVMThread extends MM_ThreadContext {
     offset = Services.sprintf(dest, offset, java.lang.JikesRVMSupport.getEnumName(waiting));
     if (hasInterrupt || asyncThrowable!=null) {
       offset = Services.sprintf(dest, offset, "-interrupted");
+    }
+    if (isAboutToTerminate) {
+      offset = Services.sprintf(dest, offset, "-terminating");
     }
     return offset;
   }
@@ -3603,7 +3722,7 @@ public class RVMThread extends MM_ThreadContext {
   @LogicallyUninterruptible
   public static void dumpStack() {
     if (VM.runningVM) {
-      VM.sysWriteln("Dumping stack for Thread #",getCurrentThreadSlot(),"\n");
+      VM.sysWriteln("Dumping stack for Thread #",getCurrentThreadSlot());
       dumpStack(Magic.getFramePointer());
     } else {
       StackTraceElement[] elements =
@@ -3651,7 +3770,6 @@ public class RVMThread extends MM_ThreadContext {
       if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
     }
 
-    VM.sysWriteln();
     if (!isAddressValidFramePointer(fp)) {
       VM.sysWrite("Bogus looking frame pointer: ", fp);
       VM.sysWriteln(" not dumping stack");

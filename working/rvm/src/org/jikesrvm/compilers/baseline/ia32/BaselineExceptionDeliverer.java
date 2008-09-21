@@ -67,6 +67,7 @@ public abstract class BaselineExceptionDeliverer extends ExceptionDeliverer impl
     // the stacklimit should be harmless, since the stacklimit should already have exactly
     // the value we are setting it too.
     myThread.stackLimit = Magic.objectAsAddress(myThread.getStack()).plus(STACK_SIZE_GUARD);
+    
     Magic.restoreHardwareExceptionState(registers);
     if (VM.VerifyAssertions) VM._assert(NOT_REACHED);
   }
@@ -99,9 +100,17 @@ public abstract class BaselineExceptionDeliverer extends ExceptionDeliverer impl
     if (VM.VerifyAssertions) VM._assert(SAVED_GPRS == 2);
     registers.gprs.set(EDI.value(), fp.plus(EDI_SAVE_OFFSET).loadWord());
     registers.gprs.set(EBX.value(), fp.plus(EBX_SAVE_OFFSET).loadWord());
+    if (method.hasBaselineSaveLSRegistersAnnotation()) {
+      registers.gprs.set(EBP.value(), fp.plus(EBP_SAVE_OFFSET).toWord());
+    }
 
     registers.unwindStackFrame();
   }
 }
 
 
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

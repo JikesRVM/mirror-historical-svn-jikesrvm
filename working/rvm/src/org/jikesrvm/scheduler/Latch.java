@@ -50,6 +50,18 @@ public class Latch {
   }
   
   /**
+   * Like open(), but does it without letting the system know that we
+   * could potentially block.  This is faster, and better for use in
+   * interrupt handlers.
+   */
+  public void openDangerously() {
+    schedLock.lockNicely();
+    open=true;
+    schedLock.broadcast();
+    schedLock.unlock();
+  }
+  
+  /**
    * Close the latch, causing future calls to wait() or waitAndClose()
    * to block.
    */

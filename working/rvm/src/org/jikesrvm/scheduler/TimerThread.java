@@ -65,6 +65,7 @@ public class TimerThread extends RVMThread {
 	    candidate.takeYieldpoint=1;
 	  }
 	}
+	RVMThread.checkDebugRequest();
       }
     } catch (Throwable e) {
       printExceptionAndDie(e);

@@ -662,24 +662,28 @@ public abstract class RVMMethod extends RVMMember implements BytecodeConstants {
     RVMClass declaringClass = getDeclaringClass();
     if (VM.VerifyAssertions) VM._assert(declaringClass.isResolved());
     if (isCompiled()) {
-      return currentCompiledMethod.getEntryCodeArray();
+      CodeArray result=currentCompiledMethod.getEntryCodeArray();
+      return result;
     } else if (!VM.writingBootImage || isNative()) {
       if (!isStatic() && !isObjectInitializer() && !isPrivate()) {
         // A non-private virtual method.
         if (declaringClass.isJavaLangObjectType() ||
             declaringClass.getSuperClass().findVirtualMethod(getName(), getDescriptor()) == null) {
           // The root method of a virtual method family can use the lazy method invoker directly.
-          return Entrypoints.lazyMethodInvokerMethod.getCurrentEntryCodeArray();
+          CodeArray result=Entrypoints.lazyMethodInvokerMethod.getCurrentEntryCodeArray();
+	  return result;
         } else {
           // All other virtual methods in the family must use unique stubs to
           // ensure correct operation of the method test (guarded inlining of virtual calls).
           // It is TIBs job to marshall between the actual trampoline and this marker.
-          return LazyCompilationTrampoline.instructions;
+	  CodeArray result=LazyCompilationTrampoline.instructions;
+	  return result;
         }
       } else {
         // We'll never do a method test against this method.
         // Therefore we can use the lazy method invoker directly.
-        return Entrypoints.lazyMethodInvokerMethod.getCurrentEntryCodeArray();
+        CodeArray result=Entrypoints.lazyMethodInvokerMethod.getCurrentEntryCodeArray();
+	return result;
       }
     } else {
       compile();
@@ -822,3 +826,9 @@ public abstract class RVMMethod extends RVMMember implements BytecodeConstants {
     return result;
   }
 }
+
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

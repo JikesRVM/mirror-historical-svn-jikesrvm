@@ -17,6 +17,7 @@ import org.jikesrvm.ArchitectureSpecific.CodeArray;
 import org.jikesrvm.ArchitectureSpecific.BaselineCompilerImpl;
 import org.jikesrvm.ArchitectureSpecific.MachineCode;
 import org.jikesrvm.VM;
+import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
@@ -316,3 +317,8 @@ public abstract class BaselineCompiler extends TemplateCompilerFramework {
     return "baseline";
   }
 }
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

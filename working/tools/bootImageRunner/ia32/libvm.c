@@ -406,22 +406,22 @@ int handleAlignmentTrap(int signo, void* context) {
 
 #endif // RVM_WITH_ALIGNMENT_CHECKING
 
-void
+extern "C" void
 hardwareTrapHandler(int signo, siginfo_t *si, void *context)
 {
     // alignment checking: handle hardware alignment exceptions
-    #ifdef RVM_WITH_ALIGNMENT_CHECKING
+#ifdef RVM_WITH_ALIGNMENT_CHECKING
     if (signo == SIGBUS || alignCheckHandlerJumpLocation) {
       int returnNow = handleAlignmentTrap(signo, context);
       if (returnNow) {
         return;
       }
     }
-    #endif // RVM_WITH_ALIGNMENT_CHECKING
-	
+#endif // RVM_WITH_ALIGNMENT_CHECKING
+    
     unsigned int localInstructionAddress;
     static pthread_mutex_t exceptionLock = PTHREAD_MUTEX_INITIALIZER;
-
+    
     /*
      * Get the exceptionLock. We can not call pthread_mutex_lock,
      * it might block and we could catch another signal
@@ -437,7 +437,7 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
       // We should never get here.
       _exit(EXIT_STATUS_DYING_WITH_UNCAUGHT_EXCEPTION);
     }
-
+    
     unsigned int localNativeThreadAddress;
     unsigned int localFrameAddress;
     unsigned int localJTOC = VmToc;
@@ -925,7 +925,6 @@ mapImageFile(const char *fileName, const void *targetAddress, bool isCode,
     *roundedImageSize = pageRoundUp(actualImageSize);
     fseek (fin, 0L, SEEK_SET);
 
-
     void *bootRegion = 0;
     bootRegion = mmap((void*)targetAddress, *roundedImageSize,
 		      PROT_READ | PROT_WRITE | PROT_EXEC,
@@ -1103,7 +1102,7 @@ createVM(int UNUSED vmInSeparateThread)
     struct sigaction action;
 
     memset (&action, 0, sizeof action);
-    action.sa_sigaction = &hardwareTrapHandler;
+    action.sa_sigaction = hardwareTrapHandler;
     /*
      * mask all signal from reaching the signal handler while the signal
      * handler is running

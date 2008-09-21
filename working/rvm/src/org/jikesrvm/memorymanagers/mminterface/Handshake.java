@@ -59,6 +59,13 @@ public class Handshake {
     lock = new HeavyCondLock();
   }
 
+  /**
+   * Call this if you know that a GC request has already been made and you'd like
+   * to wait on that GC to finish - presumably because you're trying to allocate
+   * and cannot reasonably do so before GC is done.  Note, there CANNOT be a
+   * GC safe point between when you realize that there is already a GC request and
+   * when you call this method!
+   */
   @Uninterruptible
   public void waitForGCToFinish() {
     if (verbose >= 1) VM.sysWriteln("GC Message: Handshake.requestAndAwaitCompletion - yielding");
@@ -112,7 +119,7 @@ public class Handshake {
     if (verbose>=1) VM.sysWriteln("GC Thread #",RVMThread.getCurrentThreadSlot()," parked.");
     while (!requestFlag) {
       if (verbose>=1) VM.sysWriteln("GC Thread #",RVMThread.getCurrentThreadSlot()," waiting for request.");
-      lock.await();
+      lock.waitNicely();
     }
     if (verbose>=1) VM.sysWriteln("GC Thread #",RVMThread.getCurrentThreadSlot()," got request, unparking.");
     collectorThreadsParked--;

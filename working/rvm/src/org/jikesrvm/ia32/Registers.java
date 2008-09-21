@@ -139,6 +139,17 @@ public abstract class Registers implements RegisterConstants {
     Offset ipOffset = ArchEntrypoints.registersIPField.getOffset();
     return Magic.objectAsAddress(this).plus(ipOffset);
   }
+  
+  public final void dump() {
+    for (int i=0;i<NUM_GPRS;++i) {
+      VM.sysWriteln("gprs[",i,"] = ",gprs.get(i));
+    }
+    for (int i=0;i<NUM_FPRS;++i) {
+      VM.sysWriteln("fprs[",i,"] = ",fprs[i]);
+    }
+    VM.sysWriteln("ip = ",ip);
+    VM.sysWriteln("fp = ",fp);
+  }
 }
 
 /* For the emacs weenies in the crowd.

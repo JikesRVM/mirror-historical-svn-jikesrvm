@@ -116,7 +116,8 @@ extern "C" int     incinterval(timer_t id, itimerstruc_t *newvalue, itimerstruc_
 // static int TimerDelay  =  10; // timer tick interval, in milliseconds     (10 <= delay <= 999)
 // static int SelectDelay =   2; // pause time for select(), in milliseconds (0  <= delay <= 999)
 
-static void *sysNativeThreadStartup(void *args);
+extern "C" void *sysNativeThreadStartup(void *args);
+extern "C" void hardwareTrapHandler(int signo, siginfo_t *si, void *context);
 
 /* This routine is not yet used by all of the functions that return strings in
  * buffers, but I hope that it will be one day. */
@@ -886,9 +887,21 @@ sysNativeThreadCreate(Address tr, Address ip, Address fp)
 // keys for managing thread termination
 static pthread_key_t TerminateJmpBufKey;
 
-static void *
+extern "C" void *
 sysNativeThreadStartup(void *args)
 {
+    /* install a stack for hardwareTrapHandler() to run on */
+    stack_t stack;
+
+    memset (&stack, 0, sizeof stack);
+    stack.ss_sp = new char[SIGSTKSZ];
+
+    stack.ss_size = SIGSTKSZ;
+    if (sigaltstack (&stack, 0)) {
+        fprintf(stderr,"sigaltstack failed (errno=%d)\n",errno);
+        exit(1);
+    }
+
     Address tr       = ((Address *)args)[0];
 
     jmp_buf *jb = (jmp_buf*)malloc(sizeof(jmp_buf));
@@ -1611,7 +1624,8 @@ sysMMap(char *start , size_t length ,
         int protection , int flags ,
         int fd , Offset offset)
 {
-   return mmap(start, (size_t)(length), protection, flags, fd, (off_t)offset);
+   void *result=mmap(start, (size_t)(length), protection, flags, fd, (off_t)offset);
+   return result;
 }
 
 // Same as mmap, but with more debugging support.
