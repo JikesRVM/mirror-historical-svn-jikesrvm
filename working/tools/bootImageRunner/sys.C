@@ -892,10 +892,11 @@ sysNativeThreadStartup(void *args)
 {
     /* install a stack for hardwareTrapHandler() to run on */
     stack_t stack;
+    char *stackBuf;
 
     memset (&stack, 0, sizeof stack);
-    stack.ss_sp = new char[SIGSTKSZ];
-
+    stack.ss_sp = stackBuf = new char[SIGSTKSZ];
+    stack.ss_flags = 0;
     stack.ss_size = SIGSTKSZ;
     if (sigaltstack (&stack, 0)) {
         fprintf(stderr,"sigaltstack failed (errno=%d)\n",errno);
@@ -909,6 +910,10 @@ sysNativeThreadStartup(void *args)
 	// this is where we come to terminate the thread
 	free(jb);
 	*(int*)(tr + RVMThread_execStatus_offset) = RVMThread_TERMINATED;
+	
+	stack.ss_flags = SS_DISABLE;
+	sigaltstack(&stack, 0);
+	delete[] stackBuf;
     } else {
 	pthread_setspecific(TerminateJmpBufKey, jb);
 	

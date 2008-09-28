@@ -1023,6 +1023,9 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
     if (VM.TraceExceptionDelivery) {
       VM.sysWriteln("RuntimeEntrypoints.deliverException() entered; just got an exception object.");
     }
+    
+    //VM.sysWriteln("throwing exception!");
+    //RVMThread.dumpStack();
 
     // walk stack and look for a catch block
     //

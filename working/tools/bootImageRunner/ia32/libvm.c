@@ -420,6 +420,8 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
 #endif // RVM_WITH_ALIGNMENT_CHECKING
     
     unsigned int localInstructionAddress;
+
+#if 0
     static pthread_mutex_t exceptionLock = PTHREAD_MUTEX_INITIALIZER;
     
     /*
@@ -438,6 +440,11 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
       _exit(EXIT_STATUS_DYING_WITH_UNCAUGHT_EXCEPTION);
     }
     
+    printf("got the lock\n");
+#endif
+    
+    printf("pthread = %p\n",pthread_self());
+
     unsigned int localNativeThreadAddress;
     unsigned int localFrameAddress;
     unsigned int localJTOC = VmToc;
@@ -452,6 +459,9 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
      */
     localInstructionAddress     = IA32_EIP(context);
     localNativeThreadAddress = IA32_ESI(context);
+
+    /* FOR DEBUG ONLY */
+    instructionFollowing = getInstructionFollowing(localInstructionAddress);
 
     // We are prepared to handle these kinds of "recoverable" traps:
     //
@@ -468,6 +478,8 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
 
     if (isVmSignal(localInstructionAddress, localNativeThreadAddress))
     {
+	printf("it's a VM signal.\n");
+	
         if (signo == SIGSEGV /*&& check the adddress TODO */)
             isRecoverable = 1;
 
@@ -613,6 +625,7 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
         {
             writeErr("invalid native thread address (not an address - high nibble %d)\n",
                      vp_hn);
+	    abort();
             signal(signo, SIG_DFL);
             raise(signo);
             // We should never get here.
@@ -634,6 +647,7 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
             writeErr("invalid frame address %x"
             " (not an address - high nibble %d)\n",
                                  localFrameAddress, fp_hn);
+	    abort();
             signal(signo, SIG_DFL);
             raise(signo);
             // We should never get here.
@@ -701,7 +715,9 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
         IA32_EIP(context) = dumpStack;
         *vmr_inuse = false;
 
+#if 0
         pthread_mutex_unlock( &exceptionLock );
+#endif
         return;
     }
 
@@ -817,7 +833,10 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
     /* setup to return to deliver hardware exception routine */
     IA32_EIP(context) = javaExceptionHandlerAddress;
 
+#if 0
     pthread_mutex_unlock( &exceptionLock );
+#endif
+    printf("exiting normally; the context will take care of the rest (or so we hope)\n");
 }
 
 

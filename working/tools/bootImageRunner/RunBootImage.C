@@ -407,6 +407,9 @@ main(int argc, const char **argv)
     ++argv, --argc;
     initialHeapSize = heap_default_initial_size;
     maximumHeapSize = heap_default_maximum_size;
+    
+    setvbuf(stdout,NULL,_IONBF,0);
+    setvbuf(stderr,NULL,_IONBF,0);
 
     /*
      * Debugging: print out command line arguments.

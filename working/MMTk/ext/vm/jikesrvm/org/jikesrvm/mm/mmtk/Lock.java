@@ -81,6 +81,7 @@ import org.mmtk.utility.Log;
   private int state;
 
   // Diagnosis Instance fields
+  @Untraced
   private RVMThread thread;   // if locked, who locked it?
   private int where = -1;     // how far along has the lock owner progressed?
   
