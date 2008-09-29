@@ -440,10 +440,10 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
       _exit(EXIT_STATUS_DYING_WITH_UNCAUGHT_EXCEPTION);
     }
     
-    printf("got the lock\n");
 #endif
     
-    printf("pthread = %p\n",pthread_self());
+    if (lib_verbose)
+	fprintf(SysTraceFile,"hardwareTrapHandler: pthread = %p\n",pthread_self());
 
     unsigned int localNativeThreadAddress;
     unsigned int localFrameAddress;
@@ -478,7 +478,7 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
 
     if (isVmSignal(localInstructionAddress, localNativeThreadAddress))
     {
-	printf("it's a VM signal.\n");
+	if (lib_verbose) fprintf(SysTraceFile,"it's a VM signal.\n");
 	
         if (signo == SIGSEGV /*&& check the adddress TODO */)
             isRecoverable = 1;
@@ -836,7 +836,9 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
 #if 0
     pthread_mutex_unlock( &exceptionLock );
 #endif
-    printf("exiting normally; the context will take care of the rest (or so we hope)\n");
+    if (lib_verbose)
+	fprintf(SysTraceFile,
+		"exiting normally; the context will take care of the rest (or so we hope)\n");
 }
 
 

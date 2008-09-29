@@ -42,20 +42,24 @@ final class Barrier {
     countIdx=0;
   }
   
-  public void arrive() {
+  public boolean arrive() {
     lock.lock();
     int myCountIdx=countIdx;
+    boolean result;
     counters[myCountIdx]++;
     if (counters[myCountIdx]==target) {
       counters[myCountIdx]=0;
       countIdx^=1;
       lock.broadcast();
+      result=true;
     } else {
       while (counters[myCountIdx]!=0) {
 	lock.await();
       }
+      result=false;
     }
     lock.unlock();
+    return result;
   }
 }
 /*

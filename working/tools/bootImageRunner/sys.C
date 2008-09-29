@@ -252,6 +252,8 @@ pthread_mutex_t DeathLock = PTHREAD_MUTEX_INITIALIZER;
 
 static bool systemExiting = false;
 
+static const bool debugging = true;
+
 // Exit with a return code.
 //
 extern "C" void
@@ -276,6 +278,9 @@ sysExit(int value)
     systemExiting = true;
 
     pthread_mutex_lock( &DeathLock );
+    if (debugging && value!=0) {
+	abort();
+    }
     exit(value);
 }
 

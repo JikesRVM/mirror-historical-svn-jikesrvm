@@ -60,7 +60,7 @@ public abstract class SysCall {
   // startup/shutdown
   @SysCallTemplate
   public abstract void sysExit(int value);
-
+    
   @SysCallTemplate
   public abstract int sysArg(int argno, byte[] buf, int buflen);
 
@@ -417,3 +417,9 @@ public abstract class SysCall {
   @SysCallTemplate
   public abstract int gcspySprintf(Address str, Address format, Address value);
 }
+
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

@@ -38,10 +38,12 @@ public final class ConcurrentCollectorThread extends RVMThread {
    * java.lang.Thread.  */
   private static final String myName = "ConcurrentCollectorThread";
 
+  private static Barrier barrier = new Barrier();
+  
 
   private static HeavyCondLock schedLock;
   private static boolean triggerRun;
-  private static int maxRunning = RVMThread.numProcessors;
+  private static int maxRunning;
   private static int running;
 
   /***********************************************************************
@@ -76,6 +78,8 @@ public final class ConcurrentCollectorThread extends RVMThread {
   }
   
   public static void boot() {
+    maxRunning=RVMThread.numProcessors;
+    barrier.boot(maxRunning);
     schedLock = new HeavyCondLock();
   }
 
@@ -91,6 +95,11 @@ public final class ConcurrentCollectorThread extends RVMThread {
   @Interruptible
   public static ConcurrentCollectorThread createConcurrentCollectorThread() {
     byte[] stack = MM_Interface.newStack(ArchitectureSpecific.StackframeLayoutConstants.STACK_SIZE_COLLECTOR, true);
+
+    schedLock.lock();
+    running++;
+    schedLock.unlock();
+
     return new ConcurrentCollectorThread(stack);
   }
 
@@ -124,14 +133,14 @@ public final class ConcurrentCollectorThread extends RVMThread {
 	schedLock.waitNicely();
       }
       running++;
-      if (running==maxRunning) {
-	schedLock.broadcast();
-      }
-      // wait for the trigger to reset
-      while (triggerRun) {
-	schedLock.waitNicely();
-      }
       schedLock.unlock();
+      
+      if (barrier.arrive()) {
+	schedLock.lock();
+	triggerRun=false;
+	schedLock.broadcast();
+	schedLock.unlock();
+      }
 
       if (verbose >= 1) VM.sysWriteln("GC Message: Concurrent collector awake");
       Selected.Collector.get().concurrentCollect();
@@ -142,20 +151,25 @@ public final class ConcurrentCollectorThread extends RVMThread {
   @Uninterruptible
   public static void scheduleConcurrentCollectorThreads() {
     schedLock.lock();
-    // wait for previous concurrent collection cycle to finish
-    while (running!=0) {
-      schedLock.waitNicely();
+    if (true) {
+      // this code is what is needed to make it work
+      // but this is dangerous ... do we know that the concurrent workers will go into
+      // quiescence before this is called?
+      if (!triggerRun && running==0) {
+	// now start a new cycle
+	triggerRun=true;
+	schedLock.broadcast();
+      }
+    } else {
+      // this is the code I'd much rather be using
+      // wait for previous concurrent collection cycle to finish
+      while (triggerRun || running!=0) {
+	schedLock.waitNicely();
+      }
+      // now start a new cycle
+      triggerRun=true;
+      schedLock.broadcast();
     }
-    // now start a new cycle
-    triggerRun=true;
-    schedLock.broadcast();
-    // wait for all of them to start running
-    while (running<maxRunning) {
-      schedLock.waitNicely();
-    }
-    // reset the trigger
-    triggerRun=false;
-    schedLock.broadcast();
     schedLock.unlock();
   }
 
@@ -171,3 +185,8 @@ public final class ConcurrentCollectorThread extends RVMThread {
 
 }
 
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/
