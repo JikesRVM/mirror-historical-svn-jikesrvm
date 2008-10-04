@@ -88,6 +88,7 @@ public class RVMThread extends MM_ThreadContext {
   protected static final boolean traceBlock = false;
   /** Trace when a thread is really blocked */
   protected static final boolean traceReallyBlock = false || traceBlock;
+  protected static final boolean dumpStackOnBlock = false;
   /** Trace thread start/stop */
   protected static final boolean traceAcct = false;
   /** Trace execution */
@@ -272,6 +273,9 @@ public class RVMThread extends MM_ThreadContext {
    * set.  The converse also holds.
    */
   private int disableGCDepth = 0;
+  
+  public int barriersEntered = 0;
+  public int barriersExited = 0;
 
   /**
    * Execution stack for this thread.
@@ -1038,6 +1042,8 @@ public class RVMThread extends MM_ThreadContext {
     }
     if (traceAcct) {
       VM.sysWriteln("Thread #",threadSlot," at ",Magic.objectAsAddress(this));
+      VM.sysWriteln("stack at ",Magic.objectAsAddress(stack)," up to ",
+		    Magic.objectAsAddress(stack).plus(stack.length));
     }
   }
   
@@ -1292,7 +1298,12 @@ public class RVMThread extends MM_ThreadContext {
 	break;
       }
       
-      if (traceReallyBlock) VM.sysWriteln("Thread #",threadSlot," is really blocked with status ",execStatus);
+      if (traceReallyBlock) {
+	VM.sysWriteln("Thread #",threadSlot," is really blocked with status ",execStatus);
+	if (dumpStackOnBlock) {
+	  dumpStack();
+	}
+      }
       
       // what if a GC request comes while we're here for a suspend()
       // request?

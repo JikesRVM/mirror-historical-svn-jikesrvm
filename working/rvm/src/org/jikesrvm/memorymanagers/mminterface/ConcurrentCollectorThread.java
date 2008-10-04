@@ -135,7 +135,7 @@ public final class ConcurrentCollectorThread extends RVMThread {
       running++;
       schedLock.unlock();
       
-      if (barrier.arrive()) {
+      if (barrier.arrive(1)) {
 	schedLock.lock();
 	triggerRun=false;
 	schedLock.broadcast();

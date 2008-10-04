@@ -175,3 +175,9 @@ public abstract class SimpleCollector extends CollectorContext {
     return sanityChecker;
   }
 }
+
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

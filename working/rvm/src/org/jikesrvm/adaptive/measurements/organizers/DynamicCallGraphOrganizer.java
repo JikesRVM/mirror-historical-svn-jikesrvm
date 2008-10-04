@@ -120,8 +120,10 @@ public class DynamicCallGraphOrganizer extends Organizer {
 
     // Install the edge listener
     if (Controller.options.cgTimer()) {
+      VM.sysWriteln("installing timer contex listener");
       RuntimeMeasurements.installTimerContextListener((EdgeListener) listener);
     } else if (Controller.options.cgCBS()) {
+      VM.sysWriteln("installing CBS contex listener");
       RuntimeMeasurements.installCBSContextListener((EdgeListener) listener);
     } else {
       if (VM.VerifyAssertions) VM._assert(false, "Unexpected value of call_graph_listener_trigger");
@@ -136,8 +138,20 @@ public class DynamicCallGraphOrganizer extends Organizer {
   void thresholdReached() {
     if (DEBUG) VM.sysWriteln("DCG_Organizer.thresholdReached()");
 
+    if (false) {
+      VM.sysWriteln("Dumping buffer in thresholdReached:");
+      for (int i=0;i<bufferSize;++i) {
+	VM.sysWriteln(buffer[i]);
+      }
+    }
+    
     for (int i = 0; i < bufferSize; i = i + 3) {
-      int calleeCMID = buffer[i + 0];
+      int calleeCMID=0;
+      // PMT: this is retarded beyond anything I've ever done.
+      while (calleeCMID==0) {
+	calleeCMID = buffer[i + 0];
+      }
+      
       CompiledMethod compiledMethod = CompiledMethods.getCompiledMethod(calleeCMID);
       if (compiledMethod == null) continue;
       RVMMethod callee = compiledMethod.getMethod();
@@ -246,3 +260,9 @@ public class DynamicCallGraphOrganizer extends Organizer {
     return thresholdReachedCount == 0;
   }
 }
+
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

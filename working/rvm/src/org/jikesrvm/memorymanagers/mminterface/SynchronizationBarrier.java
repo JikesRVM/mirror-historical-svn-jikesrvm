@@ -49,7 +49,11 @@ public final class SynchronizationBarrier {
   @Uninterruptible
   public int rendezvous(int where) {
 
-    barrier.arrive();
+    if (false) {
+      VM.sysWriteln("thread ",RVMThread.getCurrentThreadSlot()," rendezvousing at ",where);
+    }
+    
+    barrier.arrive(where);
 
     Magic.isync(); // so subsequent instructions won't see stale values
 
@@ -79,7 +83,7 @@ public final class SynchronizationBarrier {
     }
 
     if (myNumber > 1) {
-      barrier.arrive(); // wait for designated guy to do his job
+      barrier.arrive(100); // wait for designated guy to do his job
       Magic.isync();     // so subsequent instructions won't see stale values
       if (verbose > 0) VM.sysWriteln("GC Message: startupRendezvous  leaving as ", myNumber);
       return;               // leave barrier
@@ -90,7 +94,7 @@ public final class SynchronizationBarrier {
     if (verbose > 0) {
       VM.sysWriteln("GC Message: startupRendezvous  numParticipating = ", numParticipating);
     }
-    barrier.arrive();    // all setup now complete and we can proceed
+    barrier.arrive(100);    // all setup now complete and we can proceed
     Magic.sync();   // update main memory so other processors will see it in "while" loop
     Magic.isync();  // so subsequent instructions won't see stale values
     if (verbose > 0) {

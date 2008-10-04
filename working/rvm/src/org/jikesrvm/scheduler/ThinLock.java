@@ -248,7 +248,8 @@ public final class ThinLock implements ThinLockConstants {
   private static Lock inflate(Object o, Offset lockOffset) {
     if (VM.VerifyAssertions) {
       VM._assert(holdsLock(o, lockOffset, RVMThread.getCurrentThread()));
-      VM._assert((Magic.getWordAtOffset(o, lockOffset).and(TL_FAT_LOCK_MASK).isZero()));
+      // this assertions is just plain wrong.
+      //VM._assert((Magic.getWordAtOffset(o, lockOffset).and(TL_FAT_LOCK_MASK).isZero()));
     }
     Lock l = Lock.allocate();
     if (VM.VerifyAssertions) {

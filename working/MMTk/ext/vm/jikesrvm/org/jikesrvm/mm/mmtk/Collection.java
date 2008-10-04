@@ -247,6 +247,9 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    */
   public final void prepareCollector(CollectorContext c) {
     RVMThread t = ((Selected.Collector) c).getThread();
+    if (false) {
+      VM.sysWriteln("prepareCollector called for ",t.getThreadSlot());
+    }
     int execStatus = t.execStatus;
     if (VM.VerifyAssertions) VM._assert(execStatus == RVMThread.IN_JAVA);
     Address fp = Magic.getFramePointer();
@@ -261,6 +264,10 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
       Atom cls = method.getDeclaringClass().getDescriptor();
       Atom name = method.getName();
       if (name == runAtom && cls == collectorThreadAtom) {
+	if (false) {
+	  VM.sysWriteln("preparing GC thread ",RVMThread.getCurrentThreadSlot()," with ip = ",caller_ip);
+	  VM.sysWriteln("preparing GC thread ",RVMThread.getCurrentThreadSlot()," with fp = ",caller_fp);
+	}
         t.contextRegisters.setInnermost(caller_ip, caller_fp);
         break;
       }

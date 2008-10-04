@@ -409,7 +409,7 @@ public final class CollectorThread extends RVMThread {
        * non-participants */
       if (verbose >= 2) VM.sysWriteln("GC Message: CT.run  initializing rendezvous");
       gcBarrier.startupRendezvous();
-      do {
+      for (;;) {
         /* actually perform the GC... */
         if (verbose >= 2) VM.sysWriteln("GC Message: CT.run  starting collection");
         Selected.Collector.get().collect(); // gc
@@ -449,8 +449,10 @@ public final class CollectorThread extends RVMThread {
         }
 
         startTime = Time.nanoTime();
+	boolean cont=Selected.Plan.get().lastCollectionFailed() && !Plan.isEmergencyCollection();
         gcBarrier.rendezvous(5201);
-      } while (Selected.Plan.get().lastCollectionFailed() && !Plan.isEmergencyCollection());
+	if (!cont) break;
+      }
 
       if (gcOrdinal == GC_ORDINAL_BASE && !internalPhaseTriggered) {
         /* If the collection failed, we may need to throw OutOfMemory errors.

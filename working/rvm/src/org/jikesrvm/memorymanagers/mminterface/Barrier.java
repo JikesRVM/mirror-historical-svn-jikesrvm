@@ -14,6 +14,7 @@ package org.jikesrvm.memorymanagers.mminterface;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.scheduler.HeavyCondLock;
+import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Interruptible;
 
@@ -31,6 +32,7 @@ final class Barrier {
   private HeavyCondLock lock;
   private int target;
   private int[] counters=new int[2]; // are two counters enough?
+  private int[] modes=new int[2];
   private int countIdx;
   
   public Barrier() {}
@@ -42,15 +44,30 @@ final class Barrier {
     countIdx=0;
   }
   
-  public boolean arrive() {
+  public boolean arrive(int mode) {
+    if (false) {
+      VM.sysWriteln("thread ",RVMThread.getCurrentThreadSlot(),
+		    " entered ",RVMThread.getCurrentThread().barriersEntered++,
+		    " barriers");
+    }
     lock.lock();
     int myCountIdx=countIdx;
     boolean result;
+    if (VM.VerifyAssertions) {
+      if (counters[myCountIdx]==0) {
+	modes[myCountIdx]=mode;
+      } else {
+	VM._assert(modes[myCountIdx]==mode);
+      }
+    }
     counters[myCountIdx]++;
     if (counters[myCountIdx]==target) {
       counters[myCountIdx]=0;
       countIdx^=1;
       lock.broadcast();
+      if (false) {
+	VM.sysWriteln("waking everyone");
+      }
       result=true;
     } else {
       while (counters[myCountIdx]!=0) {
@@ -59,6 +76,11 @@ final class Barrier {
       result=false;
     }
     lock.unlock();
+    if (false) {
+      VM.sysWriteln("thread ",RVMThread.getCurrentThreadSlot(),
+		    " exited ",RVMThread.getCurrentThread().barriersExited++,
+		    " barriers");
+    }
     return result;
   }
 }

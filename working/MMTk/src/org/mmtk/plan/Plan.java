@@ -348,6 +348,18 @@ public abstract class Plan implements Constants {
    * @return True if we have run out of heap space.
    */
   public final boolean lastCollectionFailed() {
+    if (false) {
+      Log.write("in thread ");
+      Log.write(VM.activePlan.mutator().getId());
+      Log.write(" collection trigger = ");
+      Log.write(collectionTrigger);
+      Log.write(", getPagesAvail = ");
+      Log.write(getPagesAvail());
+      Log.write(", getHeapFullThreshold = ");
+      Log.write(getHeapFullThreshold());
+      Log.write(", requiredAtStart = ");
+      Log.writeln(requiredAtStart);
+    }
     return !(collectionTrigger == Collection.EXTERNAL_GC_TRIGGER ||
              collectionTrigger == Collection.INTERNAL_PHASE_GC_TRIGGER) &&
       (getPagesAvail() < getHeapFullThreshold() || getPagesAvail() < requiredAtStart);

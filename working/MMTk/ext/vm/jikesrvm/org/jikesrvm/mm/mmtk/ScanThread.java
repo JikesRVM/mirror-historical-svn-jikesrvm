@@ -231,6 +231,9 @@ import org.vmmagic.unboxed.Offset;
    * performing the scan.
    */
   private void scanThreadInternal(Address gprs, int verbosity) {
+    if (false) {
+      VM.sysWriteln("Scanning thread ",thread.getThreadSlot()," from thread ",RVMThread.getCurrentThreadSlot());
+    }
     if (verbosity >= 1) {
       Log.writeln("--- Start Of Stack Scan ---\n");
       Log.write("Thread #");
@@ -253,6 +256,9 @@ import org.vmmagic.unboxed.Offset;
          fp -> frame for method invocation being processed
          ip -> instruction pointer in the method (normally a call site) */
       while (Magic.getCallerFramePointer(fp).NE(ArchitectureSpecific.StackframeLayoutConstants.STACKFRAME_SENTINEL_FP)) {
+	if (false) {
+	  VM.sysWriteln("Thread ",RVMThread.getCurrentThreadSlot()," at fp = ",fp);
+	}
         prevFp = scanFrame(verbosity);
         ip = Magic.getReturnAddress(fp);
         fp = Magic.getCallerFramePointer(fp);
