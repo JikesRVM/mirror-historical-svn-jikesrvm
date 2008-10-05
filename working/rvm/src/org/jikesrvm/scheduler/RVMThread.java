@@ -87,10 +87,10 @@ public class RVMThread extends MM_ThreadContext {
   /** Trace thread blockage */
   protected static final boolean traceBlock = false;
   /** Trace when a thread is really blocked */
-  protected static final boolean traceReallyBlock = false || traceBlock;
+  protected static final boolean traceReallyBlock = true || traceBlock;
   protected static final boolean dumpStackOnBlock = false;
   /** Trace thread start/stop */
-  protected static final boolean traceAcct = false;
+  protected static final boolean traceAcct = true;
   /** Trace execution */
   protected static final boolean trace = false;
   /** Trace thread termination */

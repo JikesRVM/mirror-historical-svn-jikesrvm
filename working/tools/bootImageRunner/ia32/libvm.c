@@ -498,7 +498,7 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
         else
             writeErr("%s: WHOOPS.  Got a signal (%s; #%d) that the hardware signal handler wasn't prepared for.\n", Me,  strsignal(signo), signo);
     } else {
-        writeErr("%s: TROUBLE.  Got a signal (%s; #%d) from outside the VM's address space.\n", Me,  strsignal(signo), signo);
+        writeErr("%s: TROUBLE.  Got a signal (%s; #%d) from outside the VM's address space in thread %p.\n", Me,  strsignal(signo), signo, pthread_self());
     }
 
 

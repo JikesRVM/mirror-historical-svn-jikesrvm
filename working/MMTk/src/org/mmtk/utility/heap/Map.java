@@ -48,7 +48,7 @@ public class Map {
   private static final FreeListPageResource[] sharedFLMap;
   private static int totalAvailableDiscontiguousChunks = 0;
 
-  private static Lock lock = VM.newLock("Map lock");
+  public static Lock lock = VM.newLock("Map lock");
 
   /****************************************************************************
    *
@@ -105,7 +105,8 @@ public class Map {
   }
 
   /**
-   * Allocate some number of contiguous chunks within a discontiguous region
+   * Allocate some number of contiguous chunks within a discontiguous region.  Note: you <b>must</b>
+   * acquire the Map.lock before calling.
    *
    * @param descriptor The descriptor for the space to which these chunks will be assigned
    * @param space The space to which these chunks will be assigned
@@ -114,7 +115,10 @@ public class Map {
    * @return The address of the assigned memory.  This always succeeds.  If the request fails we fail right here.
    */
   public static Address allocateContiguousChunks(int descriptor, Space space, int chunks, Address previous) {
-    lock.acquire();
+    Log.write("Map: allocating ");
+    Log.write(chunks<<Space.LOG_BYTES_IN_CHUNK);
+    Log.write(" bytes for ");
+    Log.writeln(space.getName());
     int chunk = regionMap.alloc(chunks);
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(chunk != 0);
     if (chunk == -1) {
@@ -129,7 +133,12 @@ public class Map {
     Address rtn = reverseHashChunk(chunk);
     insert(rtn, Extent.fromIntZeroExtend(chunks<<Space.LOG_BYTES_IN_CHUNK), descriptor, space);
     linkageMap[chunk] = previous.isZero() ? 0 : hashAddress(previous);
-    lock.release();
+    
+    Log.write("Map: allocated ");
+    Log.write(getContiguousRegionSize(rtn));
+    Log.write(" bytes for ");
+    Log.writeln(space.getName());
+    
     return rtn;
   }
 
@@ -225,23 +234,23 @@ public class Map {
   public static void finalizeStaticSpaceMap() {
     /* establish bounds of discontiguous space */
     Address startAddress = Space.getDiscontigStart();
-    int start = hashAddress(startAddress);
-    int end = hashAddress(Space.getDiscontigEnd());
-    int pages = (end - start)*Space.PAGES_IN_CHUNK + 1;
+    int first = hashAddress(startAddress);
+    int last = hashAddress(Space.getDiscontigEnd().minus(1));
+    int pages = (1 + last - first)*Space.PAGES_IN_CHUNK + 1;
     globalPageMap.resizeFreeList(pages, pages);
     for (int pr = 0; pr < sharedDiscontigFLCount; pr++)
       sharedFLMap[pr].resizeFreeList(startAddress);
 
     /* set up the region map free list */
-    regionMap.alloc(start);                  // block out entire bottom of address range
-    for (int chunk = start; chunk < end; chunk++)
+    regionMap.alloc(first);                  // block out entire bottom of address range
+    for (int chunk = first; chunk <= last; chunk++)
       regionMap.alloc(1);                    // tentitively allocate all usable chunks
-    regionMap.alloc(Space.MAX_CHUNKS - end); // block out entire top of address range
+    regionMap.alloc(Space.MAX_CHUNKS - last); // block out entire top of address range
 
     /* set up the global page map and place chunks on free list */
     int firstPage = 0;
-    for (int chunk = start; chunk < end; chunk++) {
-      if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(VM.barriers.getArrayNoBarrier(spaceMap, chunk) == null);
+    for (int chunk = first; chunk <= last; chunk++) {
+      if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(spaceMap[chunk] == null);
       totalAvailableDiscontiguousChunks++;
       regionMap.free(chunk);  // put this chunk on the free list
       globalPageMap.setUncoalescable(firstPage);
@@ -294,7 +303,6 @@ public class Map {
    */
   @Inline
   public static int getDescriptorForAddress(Address object) {
-    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!object.isZero());
     int index = hashAddress(object);
     return descriptorMap[index];
   }
