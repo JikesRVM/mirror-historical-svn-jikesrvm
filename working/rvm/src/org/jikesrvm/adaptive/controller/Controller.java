@@ -32,6 +32,7 @@ import org.jikesrvm.adaptive.util.BlockingPriorityQueue;
 import org.jikesrvm.compilers.baseline.EdgeCounts;
 import org.jikesrvm.compilers.common.RecompilationManager;
 import org.jikesrvm.scheduler.RVMThread;
+import org.jikesrvm.scheduler.SoftLatch;
 
 /**
  * This class contains top level adaptive compilation subsystem functions.
@@ -249,14 +250,12 @@ public class Controller implements Callbacks.ExitMonitor,
 
   // Create the ControllerThread
   static void createControllerThread() {
-    Object sentinel = new Object();
+    SoftLatch sentinel = new SoftLatch(false);
     ControllerThread tt = new ControllerThread(sentinel);
     tt.start();
     // wait until controller threads are up and running.
     try {
-      synchronized (sentinel) {
-        sentinel.wait();
-      }
+      sentinel.waitAndClose();
     } catch (Exception e) {
       e.printStackTrace();
       VM.sysFail("Failed to start up controller subsystem");

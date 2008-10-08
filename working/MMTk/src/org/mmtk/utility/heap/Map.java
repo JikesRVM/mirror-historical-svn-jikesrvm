@@ -137,7 +137,9 @@ public class Map {
     Log.write("Map: allocated ");
     Log.write(getContiguousRegionSize(rtn));
     Log.write(" bytes for ");
-    Log.writeln(space.getName());
+    Log.write(space.getName());
+    Log.write(", returning ");
+    Log.writeln(rtn);
     
     return rtn;
   }
@@ -195,16 +197,15 @@ public class Map {
   }
 
   /**
-   * Free some set of contiguous chunks, given the chunk address
+   * Free some set of contiguous chunks, given the chunk address.  Call this
+   * after acquiring the Map.lock.
    *
    * @param start The start address of the first chunk in the series
    * @return The number of chunks which were contiguously allocated
    */
   public static int freeContiguousChunks(Address start) {
-    lock.acquire();
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(start.EQ(Space.chunkAlign(start, true)));
     int rtn = freeContiguousChunks(hashAddress(start));
-    lock.release();
     return rtn;
   }
 
@@ -215,6 +216,9 @@ public class Map {
    * @return The number of chunks freed
    */
   private static int freeContiguousChunks(int chunk) {
+    Log.write("Map: freed ");
+    Log.writeln(reverseHashChunk(chunk));
+    
     int chunks = regionMap.free(chunk);
     totalAvailableDiscontiguousChunks += chunks;
     for (int offset = 0; offset < chunks; offset++) {

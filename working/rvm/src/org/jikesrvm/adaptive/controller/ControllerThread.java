@@ -31,6 +31,7 @@ import org.jikesrvm.adaptive.util.AOSGenerator;
 import org.jikesrvm.adaptive.util.AOSLogging;
 import org.jikesrvm.adaptive.util.AOSOptions;
 import org.jikesrvm.scheduler.RVMThread;
+import org.jikesrvm.scheduler.SoftLatch;
 import org.vmmagic.pragma.NonMoving;
 
 /**
@@ -50,13 +51,13 @@ public final class ControllerThread extends RVMThread {
    * constructor
    * @param sentinel   An object to signal when up and running
    */
-  ControllerThread(Object sentinel) {
+  ControllerThread(SoftLatch sentinel) {
     super("ControllerThread");
     this.sentinel = sentinel;
     makeDaemon(true);
   }
 
-  private final Object sentinel;
+  private final SoftLatch sentinel;
 
   /**
    * There are several ways in which a dcg organizer might
@@ -70,6 +71,8 @@ public final class ControllerThread extends RVMThread {
    * the controllerThread is created.
    */
   public void run() {
+    VM.sysWriteln("in ControllerThread.run!");
+    
     // save this object so others can access it, if needed
     Controller.controllerThread = this;
 
@@ -162,15 +165,16 @@ public final class ControllerThread extends RVMThread {
   // Now that we're done initializing, Schedule all the organizer threads
   // and signal the sentinel object.
   private void controllerInitDone() {
+    VM.sysWriteln("controller init done!!");
     for (Enumeration<Organizer> e = Controller.organizers.elements(); e.hasMoreElements();) {
       Organizer o = e.nextElement();
       o.start();
     }
 
+    VM.sysWriteln("doing notification!!");
+
     try {
-      synchronized (sentinel) {
-        sentinel.notify();
-      }
+      sentinel.open();
     } catch (Exception e) {
       e.printStackTrace();
       VM.sysFail("Failed to start up controller subsystem");
@@ -277,3 +281,8 @@ public final class ControllerThread extends RVMThread {
   }
 
 }
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

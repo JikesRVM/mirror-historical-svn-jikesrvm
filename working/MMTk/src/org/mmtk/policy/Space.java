@@ -468,7 +468,13 @@ public abstract class Space implements Constants {
    */
   public int releaseDiscontiguousChunks(Address chunk) {
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(chunk.EQ(chunkAlign(chunk, true)));
-    return Map.freeContiguousChunks(chunk);
+    Map.lock.acquire();
+    if (chunk.EQ(lastDiscontiguousRegion)) {
+      lastDiscontiguousRegion = Map.getNextContiguousRegion(chunk);
+    }
+    int result=Map.freeContiguousChunks(chunk);
+    Map.lock.release();
+    return result;
   }
 
   /**
@@ -547,8 +553,13 @@ public abstract class Space implements Constants {
 	int cnt=0;
         for(Address a = space.lastDiscontiguousRegion; a != Address.zero();
             a = Map.getNextContiguousRegion(a)) {
-          Log.write(a); Log.write("->");
-          Log.write(a.plus(Map.getContiguousRegionSize(a).minus(1)));
+          Log.write(a);
+	  Log.write("->");
+	  Extent regionSize=Map.getContiguousRegionSize(a);
+          Log.write(a.plus(regionSize.minus(1)));
+	  Log.write(" (size = ");
+	  Log.write(regionSize);
+	  Log.write(")");
           if (Map.getNextContiguousRegion(a) != Address.zero())
             Log.write(", ");
 	  if (cnt++==10000) {

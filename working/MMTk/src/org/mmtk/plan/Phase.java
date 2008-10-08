@@ -16,6 +16,7 @@ import org.mmtk.utility.Constants;
 import org.mmtk.utility.Log;
 import org.mmtk.utility.options.Options;
 import org.mmtk.utility.statistics.Timer;
+import org.mmtk.policy.Space;
 import org.mmtk.vm.Collection;
 import org.mmtk.vm.Lock;
 import org.mmtk.vm.VM;
@@ -481,7 +482,15 @@ public abstract class Phase implements Constants {
           if (logDetails) {
 	    Log.writeln(" as Global...");
 	  }
-          if (primary) plan.collectionPhase(phaseId);
+	  if (primary) {
+	    if (Options.verbose.getValue() >= 6) {
+	      Space.printVMMap();
+	    }
+	    plan.collectionPhase(phaseId);
+	    if (Options.verbose.getValue() >= 6) {
+	      Space.printVMMap();
+	    }
+	  }
           break;
         }
 
