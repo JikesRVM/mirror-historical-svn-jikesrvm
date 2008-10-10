@@ -115,10 +115,12 @@ public class Map {
    * @return The address of the assigned memory.  This always succeeds.  If the request fails we fail right here.
    */
   public static Address allocateContiguousChunks(int descriptor, Space space, int chunks, Address previous) {
-    Log.write("Map: allocating ");
-    Log.write(chunks<<Space.LOG_BYTES_IN_CHUNK);
-    Log.write(" bytes for ");
-    Log.writeln(space.getName());
+    if (false) {
+      Log.write("Map: allocating ");
+      Log.write(chunks<<Space.LOG_BYTES_IN_CHUNK);
+      Log.write(" bytes for ");
+      Log.writeln(space.getName());
+    }
     int chunk = regionMap.alloc(chunks);
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(chunk != 0);
     if (chunk == -1) {
@@ -134,12 +136,14 @@ public class Map {
     insert(rtn, Extent.fromIntZeroExtend(chunks<<Space.LOG_BYTES_IN_CHUNK), descriptor, space);
     linkageMap[chunk] = previous.isZero() ? 0 : hashAddress(previous);
     
-    Log.write("Map: allocated ");
-    Log.write(getContiguousRegionSize(rtn));
-    Log.write(" bytes for ");
-    Log.write(space.getName());
-    Log.write(", returning ");
-    Log.writeln(rtn);
+    if (false) {
+      Log.write("Map: allocated ");
+      Log.write(getContiguousRegionSize(rtn));
+      Log.write(" bytes for ");
+      Log.write(space.getName());
+      Log.write(", returning ");
+      Log.writeln(rtn);
+    }
     
     return rtn;
   }
@@ -216,8 +220,10 @@ public class Map {
    * @return The number of chunks freed
    */
   private static int freeContiguousChunks(int chunk) {
-    Log.write("Map: freed ");
-    Log.writeln(reverseHashChunk(chunk));
+    if (false) {
+      Log.write("Map: freed ");
+      Log.writeln(reverseHashChunk(chunk));
+    }
     
     int chunks = regionMap.free(chunk);
     totalAvailableDiscontiguousChunks += chunks;

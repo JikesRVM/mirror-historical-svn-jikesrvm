@@ -192,7 +192,7 @@ public abstract class JNICompiler implements BaselineConstants {
     // reasons why the enterJNIBlockedMethod call above works.
     asm.emitCALL_Abs(
       Magic.getTocPointer().plus(
-	Entrypoints.leaveJNIBlockedMethod.getOffset()));
+	Entrypoints.leaveJNIBlockedFromCallIntoNativeMethod.getOffset()));
 
     // come here when done saying that we left JNI
     leftJNIRef.resolve(asm);
@@ -829,7 +829,7 @@ public abstract class JNICompiler implements BaselineConstants {
     // make the slow call
     asm.emitCALL_Abs(
       Magic.getTocPointer().plus(
-	Entrypoints.leaveJNIBlockedMethod.getOffset()));
+	Entrypoints.leaveJNIBlockedFromJNIFunctionCallMethod.getOffset()));
     
     // arrive here when we've switched to IN_JAVA
     doneLeaveJNIRef.resolve(asm);

@@ -227,8 +227,10 @@ public class Entrypoints {
   
   public static final NormalMethod enterJNIBlockedMethod =
       getMethod(org.jikesrvm.scheduler.RVMThread.class, "enterJNIBlocked", "()V");
-  public static final NormalMethod leaveJNIBlockedMethod =
-      getMethod(org.jikesrvm.scheduler.RVMThread.class, "leaveJNIBlocked", "()V");
+  public static final NormalMethod leaveJNIBlockedFromJNIFunctionCallMethod =
+      getMethod(org.jikesrvm.scheduler.RVMThread.class, "leaveJNIBlockedFromJNIFunctionCall", "()V");
+  public static final NormalMethod leaveJNIBlockedFromCallIntoNativeMethod =
+      getMethod(org.jikesrvm.scheduler.RVMThread.class, "leaveJNIBlockedFromCallIntoNative", "()V");
 
   public static final NormalMethod threadRunMethod = getMethod(org.jikesrvm.scheduler.RVMThread.class, "run", "()V");
   public static final NormalMethod threadStartoffMethod =

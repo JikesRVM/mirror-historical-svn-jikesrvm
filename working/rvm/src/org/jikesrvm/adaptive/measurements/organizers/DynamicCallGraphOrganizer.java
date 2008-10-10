@@ -120,10 +120,8 @@ public class DynamicCallGraphOrganizer extends Organizer {
 
     // Install the edge listener
     if (Controller.options.cgTimer()) {
-      VM.sysWriteln("installing timer contex listener");
       RuntimeMeasurements.installTimerContextListener((EdgeListener) listener);
     } else if (Controller.options.cgCBS()) {
-      VM.sysWriteln("installing CBS contex listener");
       RuntimeMeasurements.installCBSContextListener((EdgeListener) listener);
     } else {
       if (VM.VerifyAssertions) VM._assert(false, "Unexpected value of call_graph_listener_trigger");

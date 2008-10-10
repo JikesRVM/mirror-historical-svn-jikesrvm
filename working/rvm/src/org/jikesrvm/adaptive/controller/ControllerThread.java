@@ -71,8 +71,6 @@ public final class ControllerThread extends RVMThread {
    * the controllerThread is created.
    */
   public void run() {
-    VM.sysWriteln("in ControllerThread.run!");
-    
     // save this object so others can access it, if needed
     Controller.controllerThread = this;
 
@@ -165,13 +163,10 @@ public final class ControllerThread extends RVMThread {
   // Now that we're done initializing, Schedule all the organizer threads
   // and signal the sentinel object.
   private void controllerInitDone() {
-    VM.sysWriteln("controller init done!!");
     for (Enumeration<Organizer> e = Controller.organizers.elements(); e.hasMoreElements();) {
       Organizer o = e.nextElement();
       o.start();
     }
-
-    VM.sysWriteln("doing notification!!");
 
     try {
       sentinel.open();

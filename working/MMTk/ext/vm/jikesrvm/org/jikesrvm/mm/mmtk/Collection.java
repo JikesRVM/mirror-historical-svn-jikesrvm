@@ -228,7 +228,14 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
     RVMThread t = ((Selected.Mutator) m).getThread();
     t.monitor().lock();
     int execStatus = t.execStatus;
+    VM._assert(execStatus != RVMThread.IN_JNI);
+    VM._assert(execStatus != RVMThread.IN_NATIVE);
     if (execStatus == RVMThread.BLOCKED_IN_JNI) {
+      
+      if (false) {
+	VM.sysWriteln("for thread #",t.getThreadSlot()," setting up JNI stack scan");
+	VM.sysWriteln("thread #",t.getThreadSlot()," has top java fp = ",t.jniEnv.topJavaFP());
+      }
 
       /* thread is blocked in C for this GC.
        Its stack needs to be scanned, starting from the "top" java

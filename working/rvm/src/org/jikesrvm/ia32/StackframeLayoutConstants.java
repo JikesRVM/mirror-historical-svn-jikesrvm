@@ -194,17 +194,17 @@ public interface StackframeLayoutConstants {
   int STACK_SIZE_NORMAL =
       STACK_SIZE_GUARD +
       STACK_SIZE_GCDISABLED +
-      200 * 1024; // initial stack space to allocate for normal    thread (includes guard region)
+      400 * 1024; // initial stack space to allocate for normal    thread (includes guard region)
   int STACK_SIZE_BOOT =
       STACK_SIZE_GUARD +
       STACK_SIZE_GCDISABLED +
-      20 * 1024; // total   stack space to allocate for boot      thread (includes guard region)
+      40 * 1024; // total   stack space to allocate for boot      thread (includes guard region)
   int STACK_SIZE_COLLECTOR =
       STACK_SIZE_GUARD +
       STACK_SIZE_GCDISABLED +
-      20 * 1024; // total   stack space to allocate for collector thread (includes guard region)
+      40 * 1024; // total   stack space to allocate for collector thread (includes guard region)
   int STACK_SIZE_MAX =
-      STACK_SIZE_GUARD + STACK_SIZE_GCDISABLED + 200 * 1024; // upper limit on stack size (includes guard region)
+      STACK_SIZE_GUARD + STACK_SIZE_GCDISABLED + 400 * 1024; // upper limit on stack size (includes guard region)
 
   int STACK_SIZE_JNINATIVE_GROW = 0; // TODO!!;
 }
