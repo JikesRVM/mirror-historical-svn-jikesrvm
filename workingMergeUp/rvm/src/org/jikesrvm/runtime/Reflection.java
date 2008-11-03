@@ -21,15 +21,42 @@ import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.classloader.TypeReference;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.scheduler.RVMThread;
+import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.WordArray;
+import java.lang.reflect.InvocationTargetException;
+
+import static org.jikesrvm.Configuration.BuildForSSE2Full;
+ 
 
 /**
  * Arch-independent portion of reflective method invoker.
  */
 public class Reflection implements Constants {
-
+    
+  /** Perform reflection using bytecodes (true) or out-of-line machine code (false) */
+  public static boolean bytecodeReflection = false;
+  
+  /**
+   * Cache the reflective method invoker in JavaLangReflect? If this is true and
+   * bytecodeReflection is false, then bytecode reflection will only be used for
+   * java.lang.reflect objects.
+   */
+  public static boolean cacheInvokerInJavaLangReflect = true;
+  
+  /**
+   * Does the reflective method scheme need to check the arguments are valid?
+   * Bytecode reflection doesn't need arguments checking as they are checking as
+   * they are unwrapped
+   */
+  @Inline
+  public static boolean needsCheckArgs(ReflectionBase invoker) {
+    // Only need to check the arguments when the user may be packaging them and
+    // not using the bytecode based invoker (that checks them when they are unpacked)
+    return !bytecodeReflection && !cacheInvokerInJavaLangReflect;
+  }
+  
   /**
    * Call a method.
    * @param method method to be called
@@ -271,3 +298,8 @@ public class Reflection implements Constants {
 
   private static boolean firstUse = true;
 }
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

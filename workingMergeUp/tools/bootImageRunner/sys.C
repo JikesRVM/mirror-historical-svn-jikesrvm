@@ -937,7 +937,7 @@ sysNativeThreadStartup(void *args)
 	{
 	    *(Address *) (tr + Thread_framePointer_offset) = fp;
 	    Address sp = fp + Constants_STACKFRAME_BODY_OFFSET;
-	    bootThread(ip, tr, sp);
+	    bootThread((void*)ip, (void*)tr, (void*)sp);
 	}
 #else
 	bootThread((int)(Word)getJTOC(), tr, ip, fp);

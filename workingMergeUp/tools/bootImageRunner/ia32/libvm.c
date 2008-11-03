@@ -134,9 +134,33 @@ pageRoundUp(int size)
  * you can set a breakpoint here with gdb.
  */
 int
-boot (int ip, int tr, int sp)
+bootThread (void *ip, void *tr, void *sp)
 {
-    return bootThread (ip, tr, sp);
+   static void *saved_esp;
+   void *saved_ebp;
+   asm (
+ #ifndef __x86_64__
+     "mov   %%ebp, %0     \n"
+     "mov   %%esp, %%ebp  \n"
+     "mov   %4, %%esp     \n"
+     "push  %%ebp         \n"
+     "call  *%%eax        \n"
+     "pop   %%esp         \n"
+     "mov   %0, %%ebp     \n"
+ #else
+     "mov   %%rbp, %0     \n"
+     "mov   %%rsp, %1     \n"
+     "mov   %4, %%rsp     \n"
+     "call  *%%rax        \n"
+     "mov   %1, %%rsp     \n"
+     "mov   %0, %%rbp     \n"
+ #endif
+     : "=m"(saved_ebp),
+       "=m"(saved_esp)
+     : "a"(ip), // EAX = Instruction Pointer
+       "S"(tr), // ESI = Thread Register
+       "r"(sp)
+     );
 }
 
 #include <disasm.h>
@@ -445,19 +469,19 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
     if (lib_verbose)
 	fprintf(SysTraceFile,"hardwareTrapHandler: pthread = %p\n",pthread_self());
 
-    unsigned int localNativeThreadAddress;
-    unsigned int localFrameAddress;
-    unsigned int localJTOC = VmToc;
+    Address localNativeThreadAddress;
+    Address localFrameAddress;
+    Address localJTOC = VmToc;
 
     int isRecoverable;
 
-    unsigned int instructionFollowing;
+    Address instructionFollowing;
 
     /*
      * fill local working variables from context saved by OS trap handler
      * mechanism
      */
-    localInstructionAddress     = IA32_EIP(context);
+    localInstructionAddress  = IA32_EIP(context);
     localNativeThreadAddress = IA32_ESI(context);
 
     /* FOR DEBUG ONLY */
@@ -655,21 +679,21 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
     DumpStackAndDieOffset = bootRecord->dumpStackAndDieOffset;
 
     /* get the active thread id */
-    unsigned int threadObjectAddress = (unsigned int)localNativeThreadAddress;
+    Address threadObjectAddress = (Address)localNativeThreadAddress;
 
     /* then get its hardware exception registers */
-    unsigned int registers =
-        *(unsigned int *) (threadObjectAddress +
-                           RVMThread_exceptionRegisters_offset);
+    Address registers =
+        *(Address *) (threadObjectAddress +
+		      RVMThread_exceptionRegisters_offset);
 
     /* get the addresses of the gps and other fields in the Registers object */
-    unsigned *vmr_gprs  = *(unsigned **) ((char *) registers + Registers_gprs_offset);
-    unsigned *vmr_ip    =  (unsigned *)  ((char *) registers + Registers_ip_offset);
-    unsigned *vmr_fp    =  (unsigned *)  ((char *) registers + Registers_fp_offset);
-    unsigned *vmr_inuse =  (unsigned *)  ((char *) registers + Registers_inuse_offset);
+    Address *vmr_gprs  = *(Address **) (registers + Registers_gprs_offset);
+    Address vmr_ip     =  (unsigned *)  (registers + Registers_ip_offset);
+    Address vmr_fp     =  (unsigned *)  (registers + Registers_fp_offset);
+    Address *vmr_inuse =  (Address *)  (registers + Registers_inuse_offset);
 
-    long unsigned int *sp;
-    long unsigned int *fp;
+    Address *sp;
+    Address *fp;
 
     /* Test for recursive errors -- if so, take one final stacktrace and exit
      */
@@ -690,18 +714,22 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
         int dumpStack = *(int *) ((char *) localJTOC + DumpStackAndDieOffset);
 
         /* setup stack frame to contain the frame pointer */
-        sp = (long unsigned int *) IA32_ESP(context);
+        sp = IA32_ESP(context);
 
         /* put fp as a  parameter on the stack  */
         IA32_ESP(context) = IA32_ESP(context) - 4;
-        sp = (long unsigned int *) IA32_ESP(context);
-        *sp = localFrameAddress;
+        sp = IA32_ESP(context);
+        ((Address*)sp)[0] = localFrameAddress;
         IA32_EAX(context) = localFrameAddress; // must pass localFrameAddress in first param register!
 
-        /* put a return address of zero on the stack */
-        IA32_ESP(context) = IA32_ESP(context) - 4;
-        sp = (long unsigned int *) IA32_ESP(context);
-        *sp = 0;
+	/* put a return address of zero on the stack */
+#ifdef __x86_64__
+	IA32_ESP(context) = IA32_ESP(context) - 8;
+#else
+	IA32_ESP(context) = IA32_ESP(context) - 4;
+#endif
+	sp = IA32_ESP(context);
+	((Address *)sp)[0] = 0;
 
         /* set up to goto dumpStackAndDie routine ( in Scheduler) as if called */
         IA32_EIP(context) = dumpStack;
@@ -738,35 +766,35 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
      * Runtime.deliverHardwareException et al. in the guard region of the
      * stack to avoid bashing stuff in the bottom opt-frame.
      */
-    sp = (long unsigned int *) IA32_ESP(context);
-    uintptr_t stackLimit
-        = *(unsigned *)(threadObjectAddress + RVMThread_stackLimit_offset);
-    if ((uintptr_t) sp <= stackLimit - 384) {
-        writeErr("sp (0x%08" PRIxPTR ")too far below stackLimit (0x%08" PRIxPTR ")to recover\n", (uintptr_t) sp, stackLimit);
+    sp = IA32_ESP(context);
+    Address stackLimit
+        = *(Address *)(threadObjectAddress + RVMThread_stackLimit_offset);
+    if (sp <= stackLimit - 384) {
+        writeErr("sp (%p)too far below stackLimit (%p)to recover\n", sp, stackLimit);
         signal(signo, SIG_DFL);
         raise(signo);
         // We should never get here.
         _exit(EXIT_STATUS_DYING_WITH_UNCAUGHT_EXCEPTION);
     }
-    sp = (long unsigned int *)stackLimit - 384;
+    sp = stackLimit - 384;
     stackLimit -= Constants_STACK_SIZE_GUARD;
-    *(unsigned *)(threadObjectAddress + RVMThread_stackLimit_offset) = stackLimit;
+    *(Address *)(threadObjectAddress + RVMThread_stackLimit_offset) = stackLimit;
 
     /* Insert artificial stackframe at site of trap. */
     /* This frame marks the place where "hardware exception registers" were saved. */
-    sp = (long unsigned int *) ((char *) sp - Constants_STACKFRAME_HEADER_SIZE);
-    fp = (long unsigned int *) ((char *) sp - 4 - Constants_STACKFRAME_BODY_OFFSET); /*  4 = wordsize  */
-
+    sp = sp - Constants_STACKFRAME_HEADER_SIZE;
+#ifdef __x86_64__
+    fp = sp - 8 - Constants_STACKFRAME_BODY_OFFSET; /*  8 = wordsize  */
+#else
+    fp = sp - 4 - Constants_STACKFRAME_BODY_OFFSET; /*  4 = wordsize  */
+#endif
     /* fill in artificial stack frame */
-    *(int *) ((char *) fp + Constants_STACKFRAME_FRAME_POINTER_OFFSET)
-        = localFrameAddress;
-    *(int *) ((char *) fp + Constants_STACKFRAME_METHOD_ID_OFFSET)
-        = HardwareTrapMethodId;
-    *(int *) ((char *) fp + Constants_STACKFRAME_RETURN_ADDRESS_OFFSET)
-        = instructionFollowing;
+    ((Address*)(fp + Constants_STACKFRAME_FRAME_POINTER_OFFSET))[0]  = localFrameAddress;
+    ((int *)   (fp + Constants_STACKFRAME_METHOD_ID_OFFSET))[0]      = HardwareTrapMethodId;
+    ((Address*)(fp + Constants_STACKFRAME_RETURN_ADDRESS_OFFSET))[0] = instructionFollowing;
 
     /* fill in call to "deliverHardwareException" */
-    sp = (long unsigned int *) ((char *) sp - 4);       /* first parameter is type of trap */
+    sp-=4;
 
     if (signo == SIGSEGV) {
         *(int *) sp = Runtime_TRAP_NULL_POINTER;
@@ -799,28 +827,32 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
         *(int *) sp = Runtime_TRAP_UNKNOWN;
     }
 
-    IA32_EAX(context) = *(int *)sp; // also pass first param in EAX.
+    IA32_EAX(context) = *(Address *)sp; // also pass first param in EAX.
     if (lib_verbose)
         fprintf(SysTraceFile, "Trap code is 0x%x\n", IA32_EAX(context));
 
-    sp = (long unsigned int *) ((char *) sp - 4);       /* next parameter is info for array bounds trap */
+    sp-=4;       /* next parameter is info for array bounds trap */
     *(int *) sp = *(unsigned *) (localNativeThreadAddress + Thread_arrayIndexTrapParam_offset);
     IA32_EDX(context) = *(int *)sp; // also pass second param in EDX.
-    sp = (long unsigned int *) ((char *) sp - 4);       /* return address - looks like called from failing instruction */
-    *(int *) sp = instructionFollowing;
+#ifdef __x86_64__
+    sp = sp - 8;       /* return address - looks like called from failing instruction */
+#else
+    sp = sp - 4;       /* return address - looks like called from failing instruction */
+#endif
+    *(Address *) sp = instructionFollowing;
 
     /* store instructionFollowing and fp in Registers,ip and Registers.fp */
-    *vmr_ip = instructionFollowing;
-    *vmr_fp = localFrameAddress;
+    *(Address*)vmr_ip = instructionFollowing;
+    *(Address*)vmr_fp = localFrameAddress;
 
     if (lib_verbose)
         fprintf(SysTraceFile, "Set vmr_fp to 0x%x\n", localFrameAddress);
 
     /* set up context block to look like the artificial stack frame is
      * returning  */
-    IA32_ESP(context) = (int) sp;
-    IA32_EBP(context) = (int) fp;
-    *(unsigned int *) (localNativeThreadAddress + Thread_framePointer_offset) = (int) fp;
+    IA32_ESP(context) = sp;
+    IA32_EBP(context) = fp;
+    *(Address*) (localNativeThreadAddress + Thread_framePointer_offset) = fp;
 
     /* setup to return to deliver hardware exception routine */
     IA32_EIP(context) = javaExceptionHandlerAddress;
@@ -1179,19 +1211,19 @@ createVM(int UNUSED vmInSeparateThread)
     }
     
     /* set up initial stack frame */
-    int ip   = bootRecord->ipRegister;
-    int jtoc = bootRecord->tocRegister;
-    int tr;
-    int *sp  = (int *) bootRecord->spRegister;
+    Address ip   = bootRecord->ipRegister;
+    Address jtoc = bootRecord->tocRegister;
+    Address tr;
+    Address *sp  = (int *) bootRecord->spRegister;
 
-    tr = *(int *) (bootRecord->tocRegister
-		   + bootRecord->bootThreadOffset);
+    tr = *(Address *) (bootRecord->tocRegister
+		       + bootRecord->bootThreadOffset);
     
     /* initialize the thread id jtoc, and framepointer fields in the primordial
      * processor object.
      */
-    *(unsigned int *) (tr + Thread_framePointer_offset)
-	= (int)sp - 8;
+    *(Address *) (tr + Thread_framePointer_offset)
+	= (Address)sp - 8;
 	
     // setup place that we'll return to when we're done
     if (setjmp(primordial_jb)) {
@@ -1199,13 +1231,25 @@ createVM(int UNUSED vmInSeparateThread)
 	// cannot return or else the process will exit
 	for (;;) pause();
     } else {
-	*--sp = 0xdeadbabe;         /* STACKFRAME_RETURN_ADDRESS_OFFSET */
-	*--sp = Constants_STACKFRAME_SENTINEL_FP; /* STACKFRAME_FRAME_POINTER_OFFSET */
-	*--sp = Constants_INVISIBLE_METHOD_ID; /* STACKFRAME_METHOD_ID_OFFSET */
-	*--sp = 0; /* STACKFRAME_NEXT_INSTRUCTION_OFFSET (for AIX compatability) */
+	sp-=4;
+	*(uint32_t*)sp = 0xdeadbabe;         /* STACKFRAME_RETURN_ADDRESS_OFFSET */
+#ifdef __x86_64__
+	sp -= 8;
+#else
+	sp -= 4;
+#endif
+	*(Address*)sp = Constants_STACKFRAME_SENTINEL_FP; /* STACKFRAME_FRAME_POINTER_OFFSET */
+#ifdef __x86_64__
+	sp -= 8;
+#else
+	sp -= 4;
+#endif
+	*(Address*)sp = Constants_INVISIBLE_METHOD_ID; /* STACKFRAME_METHOD_ID_OFFSET */
+	sp-=4;
+	*(uint32_t*)sp = 0; /* STACKFRAME_NEXT_INSTRUCTION_OFFSET (for AIX compatability) */
 	
 	// fprintf(SysTraceFile, "%s: here goes...\n", Me);
-	int rc = boot (ip, tr, (int) sp);
+	int rc = boot ((void*)ip, (void*)tr, (void*) sp);
 	
 	fprintf(SysErrorFile, "%s: createVM(): boot() returned; failed to create a virtual machine.  rc=%d.  Bye.\n", Me, rc);
 	return 1;

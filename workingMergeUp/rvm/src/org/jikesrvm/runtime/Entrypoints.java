@@ -367,7 +367,7 @@ public class Entrypoints {
   static {
     if (VM.BuildForOptCompiler) {
       specializedMethodsField =
-          getField(org.jikesrvm.compilers.opt.SpecializedMethodPool.class,
+          getField(org.jikesrvm.compilers.opt.specialization.SpecializedMethodPool.class,
                    "specializedMethods",
                    org.jikesrvm.ArchitectureSpecific.CodeArray[].class);
       optThreadSwitchFromOsrOptMethod =

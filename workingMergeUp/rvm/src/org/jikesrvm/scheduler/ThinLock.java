@@ -212,7 +212,7 @@ public final class ThinLock implements ThinLockConstants {
         RVMThread.trace("Lock", "unlock error: thin lock word = ", old.toAddress());
         RVMThread.trace("Lock", "unlock error: thin lock word = ", Magic.objectAsAddress(o));
         // RVMThread.trace("Lock", RVMThread.getCurrentThread().toString(), 0);
-        raiseIllegalMonitorStateException("thin unlocking", o);
+        RVMThread.raiseIllegalMonitorStateException("thin unlocking", o);
       }
       if (old.and(TL_LOCK_COUNT_MASK).isZero()) { // get count, 0 is the last lock
         Word changed = old.and(TL_UNLOCK_MASK);

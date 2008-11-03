@@ -12,48 +12,68 @@
  */
 package org.jikesrvm.tools.bootImageWriter;
 
-import java.util.Hashtable;
-import java.util.SortedSet;
-import java.util.Iterator;
-import java.util.TreeSet;
-import java.util.Vector;
-import java.util.Stack;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Arrays;
-import java.util.BitSet;
-import java.util.concurrent.*;
-
-import java.io.*;
-
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.LineNumberReader;
+import java.io.PrintStream;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Comparator;
+import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.PriorityQueue;
+import java.util.Queue;
+import java.util.SortedSet;
+import java.util.Stack;
+import java.util.TreeSet;
+import java.util.Vector;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
-import org.jikesrvm.*;
-import org.jikesrvm.compilers.common.CompiledMethod;
-import org.jikesrvm.compilers.common.CompiledMethods;
-import org.jikesrvm.objectmodel.ObjectModel;
-import org.jikesrvm.objectmodel.MiscHeader;
-import org.jikesrvm.objectmodel.TIB;
-import org.jikesrvm.objectmodel.ITableArray;
-import org.jikesrvm.objectmodel.ITable;
-import org.jikesrvm.objectmodel.IMT;
-import org.jikesrvm.runtime.Statics;
-import org.jikesrvm.runtime.BootRecord;
-import org.jikesrvm.runtime.Magic;
-import org.jikesrvm.runtime.Entrypoints;
-import org.jikesrvm.scheduler.RVMThread;
+import org.jikesrvm.Callbacks;
+import org.jikesrvm.VM;
 import org.jikesrvm.ArchitectureSpecific.CodeArray;
 import org.jikesrvm.ArchitectureSpecific.LazyCompilationTrampoline;
 import org.jikesrvm.ArchitectureSpecific.OutOfLineMachineCode;
-import org.jikesrvm.jni.*;
-import org.jikesrvm.classloader.*;
-
-import org.vmmagic.unboxed.*;
+import org.jikesrvm.classloader.BootstrapClassLoader;
+import org.jikesrvm.classloader.RVMArray;
+import org.jikesrvm.classloader.RVMClass;
+import org.jikesrvm.classloader.RVMField;
+import org.jikesrvm.classloader.RVMMember;
+import org.jikesrvm.classloader.RVMMethod;
+import org.jikesrvm.classloader.RVMType;
+import org.jikesrvm.classloader.TypeDescriptorParsing;
+import org.jikesrvm.classloader.TypeReference;
+import org.jikesrvm.compilers.common.CompiledMethod;
+import org.jikesrvm.compilers.common.CompiledMethods;
+import org.jikesrvm.jni.FunctionTable;
+import org.jikesrvm.jni.JNIEnvironment;
+import org.jikesrvm.objectmodel.MiscHeader;
+import org.jikesrvm.objectmodel.ObjectModel;
+import org.jikesrvm.objectmodel.RuntimeTable;
+import org.jikesrvm.objectmodel.TIB;
+import org.jikesrvm.runtime.BootRecord;
+import org.jikesrvm.runtime.Entrypoints;
+import org.jikesrvm.runtime.Magic;
+import org.jikesrvm.runtime.Statics;
+import org.jikesrvm.scheduler.RVMThread;
+import org.vmmagic.unboxed.Address;
+import org.vmmagic.unboxed.Extent;
+import org.vmmagic.unboxed.ObjectReference;
+import org.vmmagic.unboxed.Offset;
+import org.vmmagic.unboxed.Word;
 
 /**
  * Construct an RVM virtual machine bootimage.
@@ -1870,355 +1890,66 @@ public class BootImageWriter extends BootImageWriterMessages
         return OBJECT_NOT_PRESENT; // object not part of bootimage
       }
 
-      //
       // copy object to image
-      //
       if (jdkType.isArray()) {
-        RVMArray rvmArrayType = rvmType.asArray();
-
-        //
-        // allocate space in image
-        //
+        // allocate space in image prior to recursing
         int arrayCount       = Array.getLength(jdkObject);
-        Address arrayImageAddress = (overwriteAddress.isMax()) ? bootImage.allocateArray(rvmArrayType, arrayCount) : overwriteAddress;
+        RVMArray rvmArrayType = rvmType.asArray();
+        boolean needsIdentityHash = mapEntry.requiresIdentityHashCode();
+        int identityHashValue = mapEntry.getIdentityHashCode();
+        Address arrayImageAddress = (overwriteAddress.isMax()) ? bootImage.allocateArray(rvmArrayType, arrayCount, needsIdentityHash, identityHashValue) : overwriteAddress;
         mapEntry.imageAddress = arrayImageAddress;
-
-        if (verbose >= 2) {
-          if (depth == depthCutoff)
-            say(SPACES.substring(0,depth+1), "TOO DEEP: cutting off");
-          else if (depth < depthCutoff) {
-            String tab = SPACES.substring(0,depth+1);
-            if (depth == 0 && jtocCount >= 0)
-              tab = tab + "jtoc #" + String.valueOf(jtocCount) + ": ";
-            int arraySize = rvmArrayType.getInstanceSize(arrayCount);
-            say(tab, "Copying array  ", jdkType.getName(),
-                "   length=", String.valueOf(arrayCount),
-                (arraySize >= LARGE_ARRAY_SIZE) ? " large object!!!" : "");
+        mapEntry.imageAddress = copyArrayToBootImage(arrayCount, arrayImageAddress, jdkObject, jdkType,
+            rvmArrayType, allocOnly, overwriteAddress, parentObject, untraced);
+        // copy object's type information block into image, if it's not there
+        // already
+        if (!allocOnly) {
+          if (verbose >= 2) traceContext.push("", jdkObject.getClass().getName(), "tib");
+          Address tibImageAddress = copyToBootImage(rvmType.getTypeInformationBlock(), allocOnly, Address.max(), jdkObject, false);
+          if (verbose >= 2) traceContext.pop();
+          if (tibImageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
+            fail("can't copy tib for " + jdkObject);
           }
+          ObjectModel.setTIB(bootImage, mapEntry.imageAddress, tibImageAddress, rvmType);
         }
+      } else if (rvmType == RVMType.ObjectReferenceArrayType || rvmType.getTypeRef().isRuntimeTable()) {
+        Object backing = ((RuntimeTable<?>)jdkObject).getBacking();
 
-        RVMType rvmElementType = rvmArrayType.getElementType();
+        /* Copy the backing array, and then replace its TIB */
+        mapEntry.imageAddress = copyToBootImage(backing, allocOnly, overwriteAddress, jdkObject, rvmType.getTypeRef().isRuntimeTable());
 
-        // Show info on reachability of int arrays
-        //
-        if (false && rvmElementType.equals(RVMType.IntType)) {
-          if (parentObject != null) {
-            Class parentObjectType = parentObject.getClass();
-            VM.sysWrite("Copying int array (", 4 * ((int []) jdkObject).length);
-            VM.sysWriteln(" bytes) from parent object of type ", parentObjectType.toString());
-          } else {
-            VM.sysWriteln("Copying int array from no parent object");
-          }
+        if (!allocOnly) {
+          copyTIBToBootImage(rvmType, jdkObject, mapEntry.imageAddress);
         }
-
-        //
-        // copy array elements from host jdk address space into image
-        // recurse on values that are references
-        //
-        if (rvmElementType.isPrimitiveType()) {
-          // array element is logical or numeric type
-          if (rvmElementType.equals(RVMType.BooleanType)) {
-            boolean[] values = (boolean[]) jdkObject;
-            for (int i = 0; i < arrayCount; ++i)
-              bootImage.setByte(arrayImageAddress.plus(i), values[i] ? 1 : 0);
-          } else if (rvmElementType.equals(RVMType.ByteType)) {
-            byte[] values = (byte[]) jdkObject;
-            for (int i = 0; i < arrayCount; ++i)
-              bootImage.setByte(arrayImageAddress.plus(i), values[i]);
-          } else if (rvmElementType.equals(RVMType.CharType)) {
-            char[] values = (char[]) jdkObject;
-            for (int i = 0; i < arrayCount; ++i)
-              bootImage.setHalfWord(arrayImageAddress.plus(i << LOG_BYTES_IN_CHAR), values[i]);
-          } else if (rvmElementType.equals(RVMType.ShortType)) {
-            short[] values = (short[]) jdkObject;
-            for (int i = 0; i < arrayCount; ++i)
-              bootImage.setHalfWord(arrayImageAddress.plus(i << LOG_BYTES_IN_SHORT), values[i]);
-          } else if (rvmElementType.equals(RVMType.IntType)) {
-            int[] values = (int[]) jdkObject;
-            for (int i = 0; i < arrayCount; ++i)
-              bootImage.setFullWord(arrayImageAddress.plus(i << LOG_BYTES_IN_INT), values[i]);
-          } else if (rvmElementType.equals(RVMType.LongType)) {
-            long[] values = (long[]) jdkObject;
-            for (int i = 0; i < arrayCount; ++i)
-              bootImage.setDoubleWord(arrayImageAddress.plus(i << LOG_BYTES_IN_LONG), values[i]);
-          } else if (rvmElementType.equals(RVMType.FloatType)) {
-            float[] values = (float[]) jdkObject;
-            for (int i = 0; i < arrayCount; ++i)
-              bootImage.setFullWord(arrayImageAddress.plus(i << LOG_BYTES_IN_FLOAT),
-                  Float.floatToIntBits(values[i]));
-          } else if (rvmElementType.equals(RVMType.DoubleType)) {
-            double[] values = (double[]) jdkObject;
-            for (int i = 0; i < arrayCount; ++i)
-              bootImage.setDoubleWord(arrayImageAddress.plus(i << LOG_BYTES_IN_DOUBLE),
-                  Double.doubleToLongBits(values[i]));
-          } else {
-            fail("unexpected primitive array type: " + rvmArrayType);
-          }
-        } else {
-          // array element is reference type
-          boolean isTIB = parentObject instanceof TIB;
-          Object[] values = (Object []) jdkObject;
-          Class jdkClass = jdkObject.getClass();
-          if (!allocOnly) {
-            for (int i = 0; i<arrayCount; ++i) {
-              if (values[i] != null) {
-                if (verbose >= 2) traceContext.push(values[i].getClass().getName(), jdkClass.getName(), i);
-                if (isTIB && values[i] instanceof Word) {
-                  bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), (Word)values[i], false, false);
-                } else if (isTIB && values[i] == LazyCompilationTrampoline.instructions) {
-                  Address codeAddress = arrayImageAddress.plus(((TIB)parentObject).lazyMethodInvokerTrampolineIndex() << LOG_BYTES_IN_ADDRESS);
-                  bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), codeAddress.toWord(), false, false);
-                } else {
-                  Address imageAddress = copyToBootImage(values[i], allocOnly, Address.max(), jdkObject, false);
-                  if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
-                    // object not part of bootimage: install null reference
-                    if (verbose >= 2) traceContext.traceObjectNotInBootImage();
-                    bootImage.setNullAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), !untraced, !untraced, false);
-                  } else {
-                    bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), imageAddress.toWord(), !untraced, !untraced);
-                  }
-                }
-                if (verbose >= 2) traceContext.pop();
-              } else {
-                bootImage.setNullAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), !untraced, !untraced, true);
-              }
-            }
-          }
-        }
+      } else if (jdkObject instanceof RuntimeTable) {
+        Object backing = ((RuntimeTable<?>)jdkObject).getBacking();
+        mapEntry.imageAddress = copyMagicArrayToBootImage(backing, rvmType.asArray(), allocOnly, overwriteAddress, parentObject);
+      }  else if (rvmType == RVMType.CodeArrayType) {
+        // Handle the code array that is represented as either byte or int arrays
+        if (verbose >= 2) depth--;
+        Object backing = ((CodeArray)jdkObject).getBacking();
+        mapEntry.imageAddress = copyMagicArrayToBootImage(backing, rvmType.asArray(), allocOnly, overwriteAddress, parentObject);
+      } else if (rvmType.getTypeRef().isMagicType()) {
+        say("Unhandled copying of magic type: " + rvmType.getDescriptor().toString() +
+            " in object of type " + parentObject.getClass().toString());
+        fail("incomplete boot image support");
       } else {
-        if (rvmType == RVMType.ObjectReferenceArrayType || rvmType.getTypeRef().isRuntimeTable()) {
-          if (verbose >= 2) depth--;
-          Object backing;
-          if (rvmType == RVMType.ObjectReferenceArrayType) {
-            backing = ((ObjectReferenceArray)jdkObject).getBacking();
-          } else if (rvmType == RVMType.TIBType) {
-            backing = ((TIB)jdkObject).getBacking();
-          } else if (rvmType == RVMType.IMTType) {
-            backing = ((IMT)jdkObject).getBacking();
-          } else if (rvmType == RVMType.ITableType) {
-            backing = ((ITable)jdkObject).getBacking();
-          } else if (rvmType == RVMType.ITableArrayType) {
-            backing = ((ITableArray)jdkObject).getBacking();
-          } else if (rvmType == RVMType.FunctionTableType) {
-            backing = ((FunctionTable)jdkObject).getBacking();
-          } else {
-            fail("unexpected runtime table type: " + rvmType);
-            backing = null;
-          }
-
-          /* Copy the backing array, and then replace its TIB */
-          mapEntry.imageAddress = copyToBootImage(backing, allocOnly, overwriteAddress, jdkObject, rvmType.getTypeRef().isRuntimeTable());
-
-          if (!allocOnly) {
-            if (verbose >= 2) traceContext.push("", jdkObject.getClass().getName(), "tib");
-            Address tibImageAddress = copyToBootImage(rvmType.getTypeInformationBlock(), allocOnly, Address.max(), jdkObject, false);
-            if (verbose >= 2) traceContext.pop();
-            if (tibImageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
-              fail("can't copy tib for " + jdkObject);
-            }
-            ObjectModel.setTIB(bootImage, mapEntry.imageAddress, tibImageAddress, rvmType);
-          }
-
-          return mapEntry.imageAddress;
-        }
-
-        if (rvmType == RVMType.AddressArrayType) {
-          if (verbose >= 2) depth--;
-          AddressArray addrArray = (AddressArray) jdkObject;
-          Object backing = addrArray.getBacking();
-          return copyMagicArrayToBootImage(backing, rvmType.asArray(), allocOnly, overwriteAddress, parentObject);
-        }
-
-        if (rvmType == RVMType.OffsetArrayType) {
-          if (verbose >= 2) depth--;
-          OffsetArray addrArray = (OffsetArray) jdkObject;
-          Object backing = addrArray.getBacking();
-          return copyMagicArrayToBootImage(backing, rvmType.asArray(), allocOnly, overwriteAddress, parentObject);
-        }
-
-        if (rvmType == RVMType.WordArrayType) {
-          if (verbose >= 2) depth--;
-          WordArray addrArray = (WordArray) jdkObject;
-          Object backing = addrArray.getBacking();
-          return copyMagicArrayToBootImage(backing, rvmType.asArray(), allocOnly, overwriteAddress, parentObject);
-        }
-
-        if (rvmType == RVMType.ExtentArrayType) {
-          if (verbose >= 2) depth--;
-          ExtentArray addrArray = (ExtentArray) jdkObject;
-          Object backing = addrArray.getBacking();
-          return copyMagicArrayToBootImage(backing, rvmType.asArray(), allocOnly, overwriteAddress, parentObject);
-        }
-
-        if (rvmType == RVMType.CodeArrayType) {
-          if (verbose >= 2) depth--;
-          CodeArray codeArray = (CodeArray) jdkObject;
-          Object backing = codeArray.getBacking();
-          return copyMagicArrayToBootImage(backing, rvmType.asArray(), allocOnly, overwriteAddress, parentObject);
-        }
-
-        if (rvmType.getTypeRef().isMagicType()) {
-          VM.sysWriteln("Unhandled copying of magic type: " + rvmType.getDescriptor().toString() +
-              " in object of type " + parentObject.getClass().toString());
-          VM.sysFail("incomplete boot image support");
-        }
-
-        //
         // allocate space in image
-        //
+        if (rvmType instanceof RVMArray) fail("This isn't a scalar " + rvmType);
         RVMClass rvmScalarType = rvmType.asClass();
-        Address scalarImageAddress = (overwriteAddress.isMax()) ? bootImage.allocateScalar(rvmScalarType) : overwriteAddress;
+        boolean needsIdentityHash = mapEntry.requiresIdentityHashCode();
+        int identityHashValue = mapEntry.getIdentityHashCode();
+        Address scalarImageAddress = (overwriteAddress.isMax()) ? bootImage.allocateScalar(rvmScalarType, needsIdentityHash, identityHashValue) : overwriteAddress;
         mapEntry.imageAddress = scalarImageAddress;
-
-        if (verbose >= 2) {
-          if (depth == depthCutoff)
-            say(SPACES.substring(0,depth+1), "TOO DEEP: cutting off");
-          else if (depth < depthCutoff) {
-            String tab = SPACES.substring(0,depth+1);
-            if (depth == 0 && jtocCount >= 0)
-              tab = tab + "jtoc #" + String.valueOf(jtocCount) + " ";
-            int scalarSize = rvmScalarType.getInstanceSize();
-            say(tab, "Copying object ", jdkType.getName(),
-                "   size=", String.valueOf(scalarSize),
-                (scalarSize >= LARGE_SCALAR_SIZE) ? " large object!!!" : "");
-          }
-        }
-
-        //
-        // copy object fields from host jdk address space into image
-        // recurse on values that are references
-        //
-        RVMField[] rvmFields = rvmScalarType.getInstanceFields();
-        for (int i = 0, n = rvmFields.length; i < n; ++i) {
-          RVMField rvmField       = rvmFields[i];
-          TypeReference rvmFieldType   = rvmField.getType();
-          Address rvmFieldAddress = scalarImageAddress.plus(rvmField.getOffset());
-          String  rvmFieldName    = rvmField.getName().toString();
-          Field   jdkFieldAcc     = getJdkFieldAccessor(jdkType, i, INSTANCE_FIELD);
-
-          boolean untracedField = rvmField.isUntraced() || untraced;
-
-          if (jdkFieldAcc == null) {
-            // Field not found via reflection
-            if (!copyKnownClasspathInstanceField(jdkObject, rvmFieldName, rvmFieldType, rvmFieldAddress)) {
-              // Field wasn't a known Classpath field so write null
-              if (verbose >= 2) traceContext.push(rvmFieldType.toString(),
-                  jdkType.getName(), rvmFieldName);
-              if (verbose >= 2) traceContext.traceFieldNotInHostJdk();
-              if (verbose >= 2) traceContext.pop();
-              if (rvmFieldType.isPrimitiveType()) {
-                switch (rvmField.getType().getMemoryBytes()) {
-                case 1: bootImage.setByte(rvmFieldAddress, 0);          break;
-                case 2: bootImage.setHalfWord(rvmFieldAddress, 0);      break;
-                case 4: bootImage.setFullWord(rvmFieldAddress, 0);      break;
-                case 8: bootImage.setDoubleWord(rvmFieldAddress, 0L);   break;
-                default:fail("unexpected field type: " + rvmFieldType); break;
-                }
-              } else {
-                bootImage.setNullAddressWord(rvmFieldAddress, !untracedField, !untracedField, false);
-              }
-            }
-            continue;
-          }
-
-          if (rvmFieldType.isPrimitiveType()) {
-            // field is logical or numeric type
-            if (rvmFieldType.isBooleanType()) {
-              bootImage.setByte(rvmFieldAddress,
-                  jdkFieldAcc.getBoolean(jdkObject) ? 1 : 0);
-            } else if (rvmFieldType.isByteType()) {
-              bootImage.setByte(rvmFieldAddress,
-                  jdkFieldAcc.getByte(jdkObject));
-            } else if (rvmFieldType.isCharType()) {
-              bootImage.setHalfWord(rvmFieldAddress,
-                  jdkFieldAcc.getChar(jdkObject));
-            } else if (rvmFieldType.isShortType()) {
-              bootImage.setHalfWord(rvmFieldAddress,
-                  jdkFieldAcc.getShort(jdkObject));
-            } else if (rvmFieldType.isIntType()) {
-              try {
-                bootImage.setFullWord(rvmFieldAddress,
-                    jdkFieldAcc.getInt(jdkObject));
-              } catch (IllegalArgumentException ex) {
-                // TODO: Harmony - clean this up
-                if (jdkObject instanceof java.util.WeakHashMap && rvmFieldName.equals("loadFactor")) {
-                  // the field load factor field in Sun/Classpath is a float but
-                  // in Harmony it has been "optimized" to an int
-                  bootImage.setFullWord(rvmFieldAddress, 7500);
-                } else if (jdkObject instanceof java.lang.ref.ReferenceQueue && rvmFieldName.equals("head")) {
-                  // Conflicting types between Harmony and Sun
-                  bootImage.setFullWord(rvmFieldAddress, 0);
-                } else {
-                  System.out.println("type " + rvmScalarType + ", field " + rvmField);
-                  throw ex;
-                }
-              }
-            } else if (rvmFieldType.isLongType()) {
-              bootImage.setDoubleWord(rvmFieldAddress,
-                  jdkFieldAcc.getLong(jdkObject));
-            } else if (rvmFieldType.isFloatType()) {
-              float f = jdkFieldAcc.getFloat(jdkObject);
-              bootImage.setFullWord(rvmFieldAddress,
-                  Float.floatToIntBits(f));
-            } else if (rvmFieldType.isDoubleType()) {
-              double d = jdkFieldAcc.getDouble(jdkObject);
-              bootImage.setDoubleWord(rvmFieldAddress,
-                  Double.doubleToLongBits(d));
-            } else if (rvmFieldType.equals(TypeReference.Address) ||
-                rvmFieldType.equals(TypeReference.Word) ||
-                rvmFieldType.equals(TypeReference.Extent) ||
-                rvmFieldType.equals(TypeReference.Offset)) {
-              Object o = jdkFieldAcc.get(jdkObject);
-              String msg = " instance field " + rvmField.toString();
-              boolean warn = rvmFieldType.equals(TypeReference.Address);
-              bootImage.setAddressWord(rvmFieldAddress, getWordValue(o, msg, warn), false, false);
-            } else {
-              fail("unexpected primitive field type: " + rvmFieldType);
-            }
-          } else {
-            // field is reference type
-            Object value = jdkFieldAcc.get(jdkObject);
-            if (!allocOnly) {
-              if (value != null) {
-                Class jdkClass = jdkFieldAcc.getDeclaringClass();
-                if (verbose >= 2) traceContext.push(value.getClass().getName(),
-                    jdkClass.getName(),
-                    jdkFieldAcc.getName());
-                Address imageAddress = copyToBootImage(value, allocOnly, Address.max(), jdkObject, false);
-                if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
-                  if (!copyKnownClasspathInstanceField(jdkObject, rvmFieldName, rvmFieldType, rvmFieldAddress)) {
-                    // object not part of bootimage: install null reference
-                    if (verbose >= 2) traceContext.traceObjectNotInBootImage();
-                    bootImage.setNullAddressWord(rvmFieldAddress, !untracedField, !untracedField, false);
-                  }
-                } else
-                  bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), !untracedField, !(untracedField || rvmField.isFinal()));
-                if (verbose >= 2) traceContext.pop();
-              } else {
-                bootImage.setNullAddressWord(rvmFieldAddress, !untracedField, !untracedField, true);
-              }
-            }
-          }
+        mapEntry.imageAddress = copyClassToBootImage(scalarImageAddress, jdkObject, jdkType, rvmScalarType,
+            allocOnly, overwriteAddress, parentObject, untraced);
+        // copy object's type information block into image, if it's not there
+        // already
+        if (!allocOnly) {
+          copyTIBToBootImage(rvmType, jdkObject, mapEntry.imageAddress);
         }
       }
-
-      //
-      // copy object's type information block into image, if it's not there
-      // already
-      //
-      if (!allocOnly) {
-
-        if (verbose >= 2) traceContext.push("", jdkObject.getClass().getName(), "tib");
-        Address tibImageAddress = copyToBootImage(rvmType.getTypeInformationBlock(), allocOnly, Address.max(), jdkObject, false);
-        if (verbose >= 2) traceContext.pop();
-        if (tibImageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
-          fail("can't copy tib for " + jdkObject);
-        }
-        ObjectModel.setTIB(bootImage, mapEntry.imageAddress, tibImageAddress, rvmType);
-      }
-
       if (verbose >= 2) depth--;
-
       return mapEntry.imageAddress;
     } catch (Error e) {
       e = new Error(e.getMessage()+ "\nwhile copying " +
@@ -2229,18 +1960,287 @@ public class BootImageWriter extends BootImageWriterMessages
     }
   }
 
+  /**
+   * Allocate and set TIB
+   *
+   * @param rvmType type for TIB
+   * @param jdkObject parent object
+   * @param imageAddress address of object to set TIB of
+   * @throws IllegalAccessException
+   */
+  private static void copyTIBToBootImage(RVMType rvmType, Object jdkObject, Address imageAddress) throws IllegalAccessException {
+    if (verbose >= 2) {
+      depth--;
+      traceContext.push("", jdkObject.getClass().getName(), "tib");
+    }
+    Address tibImageAddress = copyToBootImage(rvmType.getTypeInformationBlock(), false, Address.max(), jdkObject, false);
+    if (verbose >= 2) {
+      traceContext.pop();
+      depth++;
+    }
+    if (tibImageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
+      fail("can't copy tib for " + jdkObject);
+    }
+    ObjectModel.setTIB(bootImage, imageAddress, tibImageAddress, rvmType);
+  }
+
+  /**
+   * Write an object instantiating a class to the boot image
+   * @param scalarImageAddress address already allocated for object
+   * @param jdkObject object to write
+   * @param jdkType java.lang.Class of object
+   * @param rvmScalarType RVM class loader version of type
+   * @param allocOnly allocate the object only?
+   * @param overwriteAddress
+   * @param parentObject
+   * @param untraced
+   * @return
+   * @throws IllegalAccessException
+   */
+  private static Address copyClassToBootImage(Address scalarImageAddress, Object jdkObject, Class<?> jdkType,
+      RVMClass rvmScalarType, boolean allocOnly, Address overwriteAddress, Object parentObject, boolean  untraced)
+  throws IllegalAccessException {
+    if (verbose >= 2) {
+      if (depth == depthCutoff)
+        say(SPACES.substring(0,depth+1), "TOO DEEP: cutting off");
+      else if (depth < depthCutoff) {
+        String tab = SPACES.substring(0,depth+1);
+        if (depth == 0 && jtocCount >= 0)
+          tab = tab + "jtoc #" + String.valueOf(jtocCount) + " ";
+        int scalarSize = rvmScalarType.getInstanceSize();
+        say(tab, "Copying object ", jdkType.getName(),
+            "   size=", String.valueOf(scalarSize),
+            (scalarSize >= LARGE_SCALAR_SIZE) ? " large object!!!" : "");
+      }
+    }
+
+    // copy object fields from host jdk address space into image
+    // recurse on values that are references
+    RVMField[] rvmFields = rvmScalarType.getInstanceFields();
+    for (int i = 0; i < rvmFields.length; ++i) {
+      RVMField rvmField       = rvmFields[i];
+      TypeReference rvmFieldType   = rvmField.getType();
+      Address rvmFieldAddress = scalarImageAddress.plus(rvmField.getOffset());
+      String  rvmFieldName    = rvmField.getName().toString();
+      Field   jdkFieldAcc     = getJdkFieldAccessor(jdkType, i, INSTANCE_FIELD);
+
+      boolean untracedField = rvmField.isUntraced() || untraced;
+
+      if (jdkFieldAcc == null) {
+        // Field not found via reflection
+        if (!copyKnownClasspathInstanceField(jdkObject, rvmFieldName, rvmFieldType, rvmFieldAddress)) {
+          // Field wasn't a known Classpath field so write null
+          if (verbose >= 2) traceContext.push(rvmFieldType.toString(),
+              jdkType.getName(), rvmFieldName);
+          if (verbose >= 2) traceContext.traceFieldNotInHostJdk();
+          if (verbose >= 2) traceContext.pop();
+          if (rvmFieldType.isPrimitiveType()) {
+            switch (rvmField.getType().getMemoryBytes()) {
+            case 1: bootImage.setByte(rvmFieldAddress, 0);          break;
+            case 2: bootImage.setHalfWord(rvmFieldAddress, 0);      break;
+            case 4: bootImage.setFullWord(rvmFieldAddress, 0);      break;
+            case 8: bootImage.setDoubleWord(rvmFieldAddress, 0L);   break;
+            default:fail("unexpected field type: " + rvmFieldType); break;
+            }
+          } else {
+            bootImage.setNullAddressWord(rvmFieldAddress, !untracedField, !untracedField, false);
+          }
+        }
+        continue;
+      }
+
+      if (rvmFieldType.isPrimitiveType()) {
+        // field is logical or numeric type
+        if (rvmFieldType.isBooleanType()) {
+          bootImage.setByte(rvmFieldAddress,
+              jdkFieldAcc.getBoolean(jdkObject) ? 1 : 0);
+        } else if (rvmFieldType.isByteType()) {
+          bootImage.setByte(rvmFieldAddress,
+              jdkFieldAcc.getByte(jdkObject));
+        } else if (rvmFieldType.isCharType()) {
+          bootImage.setHalfWord(rvmFieldAddress,
+              jdkFieldAcc.getChar(jdkObject));
+        } else if (rvmFieldType.isShortType()) {
+          bootImage.setHalfWord(rvmFieldAddress,
+              jdkFieldAcc.getShort(jdkObject));
+        } else if (rvmFieldType.isIntType()) {
+          try {
+            bootImage.setFullWord(rvmFieldAddress, jdkFieldAcc.getInt(jdkObject));
+          } catch (IllegalArgumentException ex) {
+            // TODO: Harmony - clean this up
+            if (jdkObject instanceof java.util.WeakHashMap && rvmFieldName.equals("loadFactor")) {
+              // the field load factor field in Sun/Classpath is a float but
+              // in Harmony it has been "optimized" to an int
+              bootImage.setFullWord(rvmFieldAddress, 7500);
+            } else if (jdkObject instanceof java.lang.ref.ReferenceQueue && rvmFieldName.equals("head")) {
+              // Conflicting types between Harmony and Sun
+              bootImage.setFullWord(rvmFieldAddress, 0);
+            } else {
+              System.out.println("type " + rvmScalarType + ", field " + rvmField);
+              throw ex;
+            }
+          }
+        } else if (rvmFieldType.isLongType()) {
+          bootImage.setDoubleWord(rvmFieldAddress,
+              jdkFieldAcc.getLong(jdkObject));
+        } else if (rvmFieldType.isFloatType()) {
+          float f = jdkFieldAcc.getFloat(jdkObject);
+          bootImage.setFullWord(rvmFieldAddress,
+              Float.floatToIntBits(f));
+        } else if (rvmFieldType.isDoubleType()) {
+          double d = jdkFieldAcc.getDouble(jdkObject);
+          bootImage.setDoubleWord(rvmFieldAddress,
+              Double.doubleToLongBits(d));
+        } else if (rvmFieldType.equals(TypeReference.Address) ||
+            rvmFieldType.equals(TypeReference.Word) ||
+            rvmFieldType.equals(TypeReference.Extent) ||
+            rvmFieldType.equals(TypeReference.Offset)) {
+          Object o = jdkFieldAcc.get(jdkObject);
+          String msg = " instance field " + rvmField.toString();
+          boolean warn = rvmFieldType.equals(TypeReference.Address);
+          bootImage.setAddressWord(rvmFieldAddress, getWordValue(o, msg, warn), false, false);
+        } else {
+          fail("unexpected primitive field type: " + rvmFieldType);
+        }
+      } else {
+        // field is reference type
+        Object value = jdkFieldAcc.get(jdkObject);
+        if (!allocOnly) {
+          Class<?> jdkClass = jdkFieldAcc.getDeclaringClass();
+          if (verbose >= 2) traceContext.push(value.getClass().getName(),
+              jdkClass.getName(),
+              jdkFieldAcc.getName());
+          copyReferenceFieldToBootImage(rvmFieldAddress, value, jdkObject,
+              !untracedField, !(untracedField || rvmField.isFinal()), rvmFieldName, rvmFieldType);
+        }
+      }
+    }
+    return scalarImageAddress;
+  }
+
+  /**
+   * Write array to boot image
+   * @param arrayCount
+   * @param arrayImageAddress
+   * @param jdkObject
+   * @param jdkType
+   * @param rvmArrayType
+   * @param allocOnly
+   * @param overwriteAddress
+   * @param parentObject
+   * @param untraced
+   * @return
+   * @throws IllegalAccessException
+   */
+  private static Address copyArrayToBootImage(int arrayCount, Address arrayImageAddress, Object jdkObject, Class<?> jdkType, RVMArray rvmArrayType,
+      boolean allocOnly, Address overwriteAddress, Object parentObject, boolean  untraced)
+  throws IllegalAccessException {
+    if (verbose >= 2) {
+      if (depth == depthCutoff)
+        say(SPACES.substring(0,depth+1), "TOO DEEP: cutting off");
+      else if (depth < depthCutoff) {
+        String tab = SPACES.substring(0,depth+1);
+        if (depth == 0 && jtocCount >= 0)
+          tab = tab + "jtoc #" + String.valueOf(jtocCount) + ": ";
+        int arraySize = rvmArrayType.getInstanceSize(arrayCount);
+        say(tab, "Copying array  ", jdkType.getName(),
+            "   length=", String.valueOf(arrayCount),
+            (arraySize >= LARGE_ARRAY_SIZE) ? " large object!!!" : "");
+      }
+    }
+
+    RVMType rvmElementType = rvmArrayType.getElementType();
+
+    // copy array elements from host jdk address space into image
+    // recurse on values that are references
+    if (rvmElementType.isPrimitiveType()) {
+      // array element is logical or numeric type
+      if (rvmElementType.equals(RVMType.BooleanType)) {
+        boolean[] values = (boolean[]) jdkObject;
+        for (int i = 0; i < arrayCount; ++i)
+          bootImage.setByte(arrayImageAddress.plus(i), values[i] ? 1 : 0);
+      } else if (rvmElementType.equals(RVMType.ByteType)) {
+        byte[] values = (byte[]) jdkObject;
+        for (int i = 0; i < arrayCount; ++i)
+          bootImage.setByte(arrayImageAddress.plus(i), values[i]);
+      } else if (rvmElementType.equals(RVMType.CharType)) {
+        char[] values = (char[]) jdkObject;
+        for (int i = 0; i < arrayCount; ++i)
+          bootImage.setHalfWord(arrayImageAddress.plus(i << LOG_BYTES_IN_CHAR), values[i]);
+      } else if (rvmElementType.equals(RVMType.ShortType)) {
+        short[] values = (short[]) jdkObject;
+        for (int i = 0; i < arrayCount; ++i)
+          bootImage.setHalfWord(arrayImageAddress.plus(i << LOG_BYTES_IN_SHORT), values[i]);
+      } else if (rvmElementType.equals(RVMType.IntType)) {
+        int[] values = (int[]) jdkObject;
+        for (int i = 0; i < arrayCount; ++i)
+          bootImage.setFullWord(arrayImageAddress.plus(i << LOG_BYTES_IN_INT), values[i]);
+      } else if (rvmElementType.equals(RVMType.LongType)) {
+        long[] values = (long[]) jdkObject;
+        for (int i = 0; i < arrayCount; ++i)
+          bootImage.setDoubleWord(arrayImageAddress.plus(i << LOG_BYTES_IN_LONG), values[i]);
+      } else if (rvmElementType.equals(RVMType.FloatType)) {
+        float[] values = (float[]) jdkObject;
+        for (int i = 0; i < arrayCount; ++i)
+          bootImage.setFullWord(arrayImageAddress.plus(i << LOG_BYTES_IN_FLOAT),
+              Float.floatToIntBits(values[i]));
+      } else if (rvmElementType.equals(RVMType.DoubleType)) {
+        double[] values = (double[]) jdkObject;
+        for (int i = 0; i < arrayCount; ++i)
+          bootImage.setDoubleWord(arrayImageAddress.plus(i << LOG_BYTES_IN_DOUBLE),
+              Double.doubleToLongBits(values[i]));
+      } else {
+        fail("unexpected primitive array type: " + rvmArrayType);
+      }
+    } else {
+      // array element is reference type
+      boolean isTIB = parentObject instanceof TIB;
+      Object[] values = (Object []) jdkObject;
+      Class<?> jdkClass = jdkObject.getClass();
+      if (!allocOnly) {
+        for (int i = 0; i<arrayCount; ++i) {
+          if (values[i] != null) {
+            if (verbose >= 2) traceContext.push(values[i].getClass().getName(), jdkClass.getName(), i);
+            if (isTIB && values[i] instanceof Word) {
+              bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), (Word)values[i], false, false);
+            } else if (isTIB && values[i] == LazyCompilationTrampoline.instructions) {
+              Address codeAddress = arrayImageAddress.plus(((TIB)parentObject).lazyMethodInvokerTrampolineIndex() << LOG_BYTES_IN_ADDRESS);
+              bootImage.setAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), codeAddress.toWord(), false, false);
+            } else {
+              copyReferenceFieldToBootImage(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), values[i],
+                  jdkObject, !untraced, !untraced, null, null);
+            }
+            if (verbose >= 2) traceContext.pop();
+          } else {
+            bootImage.setNullAddressWord(arrayImageAddress.plus(i << LOG_BYTES_IN_ADDRESS), !untraced, !untraced, true);
+          }
+        }
+      }
+    }
+    return arrayImageAddress;
+  }
+
+  /**
+   * Copy a unboxed array type to the boot image
+   * @param jdkObject object representation
+   * @param rvmArrayType type of array
+   * @param allocOnly allocate object don't write to fields
+   * @param overwriteAddress addresss to write to if overwriting
+   * @param parentObject object containing array
+   * @return address of array
+   * @throws IllegalAccessException
+   */
   private static Address copyMagicArrayToBootImage(Object jdkObject,
                                                    RVMArray rvmArrayType,
                                                    boolean allocOnly,
                                                    Address overwriteAddress,
                                                    Object parentObject)
     throws IllegalAccessException {
-    //
     // Return object if it is already copied and not being overwritten
-    //
     BootImageMap.Entry mapEntry = BootImageMap.findOrCreateEntry(jdkObject);
-    if ((!mapEntry.imageAddress.EQ(OBJECT_NOT_ALLOCATED)) && overwriteAddress.isMax())
+    if ((!mapEntry.imageAddress.EQ(OBJECT_NOT_ALLOCATED)) && overwriteAddress.isMax()) {
       return mapEntry.imageAddress;
+    }
 
     if (verbose >= 2) depth++;
 

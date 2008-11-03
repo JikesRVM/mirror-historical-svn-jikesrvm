@@ -26,16 +26,17 @@ import org.jikesrvm.classloader.RVMType;
 import org.jikesrvm.classloader.TypeReference;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.objectmodel.TIB;
 import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
-import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Pure;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Unpreemptible;
+import org.vmmagic.pragma.UnpreemptibleNoWarn;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -979,9 +980,13 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
     }
     /* No appropriate catch block found. */
 
-    RVMThread.getCurrentThread().handleUncaughtException(exceptionObject);
+    handleUncaughtException(exceptionObject);
   }
 
+  @UnpreemptibleNoWarn("Uncaught exception handling that may cause preemption")
+  private static void handleUncaughtException(Throwable exceptionObject) {
+    RVMTHread.getCurrentThread().handleUncaughtException(exceptionObject);
+  }
 
   /**
    * Skip over all frames below currfp with saved code pointers outside of heap

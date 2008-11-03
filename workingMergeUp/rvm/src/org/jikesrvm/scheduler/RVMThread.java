@@ -26,17 +26,17 @@ import org.jikesrvm.VM;
 import org.jikesrvm.Configuration;
 import org.jikesrvm.Services;
 import org.jikesrvm.UnimplementedError;
-import org.jikesrvm.adaptive.OSR_OnStackReplacementEvent;
+import org.jikesrvm.adaptive.OnStackReplacementEvent;
 import org.jikesrvm.adaptive.measurements.RuntimeMeasurements;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.osr.OSR_ObjectHolder;
 import org.jikesrvm.adaptive.OSR_Listener;
 import org.jikesrvm.jni.JNIEnvironment;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
-import org.jikesrvm.memorymanagers.mminterface.MM_ThreadContext;
-import org.jikesrvm.memorymanagers.mminterface.CollectorThread;
-import org.jikesrvm.memorymanagers.mminterface.ConcurrentCollectorThread;
+import org.jikesrvm.mm.mminterface.MemoryManager;
+import org.jikesrvm.mm.mminterface.ThreadContext;
+import org.jikesrvm.mm.mminterface.CollectorThread;
+import org.jikesrvm.mm.mminterface.ConcurrentCollectorThread;
 import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.objectmodel.ThinLockConstants;
 import org.jikesrvm.runtime.Entrypoints;
@@ -50,12 +50,12 @@ import org.vmmagic.pragma.BaselineNoRegisters;
 import org.vmmagic.pragma.BaselineSaveLSRegisters;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Interruptible;
-import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.NoOptCompile;
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
-import org.vmmagic.pragma.UninterruptibleNoWarn;
+import org.vmmagic.pragma.Unpreemptible;
+import org.vmmagic.pragma.UnpreemptibleNoWarn;
 import org.vmmagic.pragma.Untraced;
 import org.vmmagic.pragma.NoCheckStore;
 import org.vmmagic.unboxed.Address;
@@ -68,6 +68,8 @@ import org.jikesrvm.compilers.opt.runtimesupport.OptMachineCodeMap;
 import org.jikesrvm.compilers.opt.runtimesupport.OptEncodedCallSiteTree;
 import org.jikesrvm.classloader.MemberReference;
 import org.jikesrvm.classloader.NormalMethod;
+import org.jikesrvm.tuningfork.TraceEngine;
+import org.jikesrvm.tuningfork.Feedlet;
 
 /**
  * A generic java thread's execution context.
@@ -877,6 +879,14 @@ public class RVMThread extends MM_ThreadContext {
    */
   private static int numActiveDaemons;
   
+  /*
+   * TuningFork instrumentation support
+   */
+  /**
+   * The Feedlet instance for this thread to use to make addEvent calls.
+   */
+  public Feedlet feedlet;
+ 
   /**
    * Get a NoYieldpointsCondLock for a given thread slot.
    */
@@ -961,7 +971,7 @@ public class RVMThread extends MM_ThreadContext {
     isAboutToTerminate=true;
     monitor().broadcast();
     flushRequested=true; /* hack!  we really want to call
-			    MM_Interface.flushMutatorContext() here, but
+			    MemoryManager.flushMutatorContext() here, but
 			    handleHandshakeRequest() will already call it
 			    if flushRequested is set.  so we do it by
 			    setting flushRequested to true. */
@@ -1088,10 +1098,14 @@ public class RVMThread extends MM_ThreadContext {
     this.daemon = daemon;
     this.priority = priority;
 
-    contextRegisters     = new Registers();
-    contextRegistersSave = new Registers();
-    exceptionRegisters   = new Registers();
+    Registers rtmp1 = contextRegisters     = new Registers();
+    Registers rtmp2 = contextRegistersSave = new Registers();
+    Registers rtmp3 = exceptionRegisters   = new Registers();
     
+    if (VM.runningVM) {
+      feedlet = TraceEngine.engine.makeFeedlet(name, name);
+    }
+ 
     if(VM.VerifyAssertions) VM._assert(stack != null);
     // put self in list of threads known to scheduler and garbage collector
     if (!VM.runningVM) {
@@ -1166,7 +1180,7 @@ public class RVMThread extends MM_ThreadContext {
    * Create a thread with default stack and with the given name.
    */
   public RVMThread(String name) {
-    this(MM_Interface.newStack(STACK_SIZE_NORMAL, false),
+    this(MemoryManager.newStack(STACK_SIZE_NORMAL, false),
         null, // java.lang.Thread
         name,
         true, // daemon
@@ -1193,7 +1207,7 @@ public class RVMThread extends MM_ThreadContext {
    * isn't set.
    */
   public RVMThread(Thread thread, long stacksize, String name, boolean daemon, int priority) {
-    this(MM_Interface.newStack((stacksize <= 0) ? STACK_SIZE_NORMAL : (int)stacksize, false),
+    this(MemoryManager.newStack((stacksize <= 0) ? STACK_SIZE_NORMAL : (int)stacksize, false),
         thread, name, daemon, false, priority);
   }
 
@@ -2631,7 +2645,7 @@ public class RVMThread extends MM_ThreadContext {
     
     // process memory management requests
     if (flushRequested) {
-      MM_Interface.flushMutatorContext();
+      MemoryManager.flushMutatorContext();
     }
     
     // not really a "soft handshake" request but we handle it here anyway
@@ -2813,10 +2827,10 @@ public class RVMThread extends MM_ThreadContext {
   @Interruptible
   public static void resizeCurrentStack(int newSize, Registers exceptionRegisters) {
     if (traceAdjustments) VM.sysWrite("Thread: resizeCurrentStack\n");
-    if (MM_Interface.gcInProgress()) {
+    if (MemoryManager.gcInProgress()) {
       VM.sysFail("system error: resizing stack while GC is in progress");
     }
-    byte[] newStack = MM_Interface.newStack(newSize, false);
+    byte[] newStack = MemoryManager.newStack(newSize, false);
     getCurrentThread().disableYieldpoints();
     transferExecutionToNewStack(newStack, exceptionRegisters);
     getCurrentThread().enableYieldpoints();
@@ -3830,7 +3844,7 @@ public class RVMThread extends MM_ThreadContext {
 
           // if code is outside of RVM heap, assume it to be native code,
           // skip to next frame
-          if (!MM_Interface.addressInVM(ip)) {
+          if (!MemoryManager.addressInVM(ip)) {
             showMethod("native frame", fp);
             ip = Magic.getReturnAddress(fp);
             fp = Magic.getCallerFramePointer(fp);
@@ -3916,7 +3930,7 @@ public class RVMThread extends MM_ThreadContext {
       return false; // Avoid hitting assertion failure in MMTk
     else
       return address.EQ(StackframeLayoutConstants.STACKFRAME_SENTINEL_FP) ||
-             MM_Interface.mightBeFP(address);
+             MemoryManager.mightBeFP(address);
   }
 
   private static void showPrologue(Address fp) {

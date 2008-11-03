@@ -43,13 +43,15 @@ import org.jikesrvm.scheduler.MainThread;
 import org.jikesrvm.scheduler.Synchronization;
 import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.runtime.FileSystem;
+import org.jikesrvm.tuningfork.TraceEngine;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
-import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.UninterruptibleNoWarn;
+import org.vmmagic.pragma.Unpreemptible;
+import org.vmmagic.pragma.UnpreemptibleNoWarn;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Extent;
 import org.vmmagic.unboxed.ObjectReference;
@@ -2259,6 +2261,7 @@ public class VM extends Properties implements Constants, ExitStatus {
 
     // print a traceback and die
     RVMThread.traceback(message, number);
+    bufReportMessage();
     if (VM.runningVM) {
       VM.shutdown(EXIT_STATUS_SYSFAIL);
     } else {
@@ -2447,7 +2450,7 @@ public class VM extends Properties implements Constants, ExitStatus {
     }
     RuntimeEntrypoints.init();
     RVMThread.init();
-    MM_Interface.init();
+    MemoryManager.init();
   }
 
   public static void disableYieldpoints() { RVMThread.getCurrentThread().disableYieldpoints(); }

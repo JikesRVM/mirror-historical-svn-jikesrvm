@@ -13,10 +13,8 @@
 package org.jikesrvm.scheduler;
 
 import org.jikesrvm.VM;
-import org.jikesrvm.classloader.RVMMethod;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.runtime.Magic;
-import org.jikesrvm.runtime.Reflection;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.NonMoving;
 
@@ -93,9 +91,7 @@ public class FinalizerThread extends RVMThread {
             VM.sysWriteln();
           }
           try {
-            RVMMethod method = Magic.getObjectType(o).asClass().getFinalizer();
-            if (VM.VerifyAssertions) VM._assert(method != null);
-            Reflection.invoke(method, o, none);
+	    java.lang.JikesRVMSupport.invokeFinalize(o);
           } catch (Throwable e) {
             if (verbose >= 1) VM.sysWriteln("Throwable exception caught for finalize call");
           }
