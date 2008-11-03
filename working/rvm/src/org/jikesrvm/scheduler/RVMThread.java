@@ -2109,7 +2109,8 @@ public class RVMThread extends MM_ThreadContext {
 	  execStatus!=IN_JAVA_TO_BLOCK &&
 	  execStatus!=IN_NATIVE &&
 	  execStatus!=BLOCKED_IN_NATIVE &&
-	  execStatus!=BLOCKED_IN_JNI) {
+	  execStatus!=BLOCKED_IN_JNI &&
+	  execStatus!=IN_JNI) {
 	throw new IllegalThreadStateException(
 	  "Cannot suspend a thread that is not running.");
       }
