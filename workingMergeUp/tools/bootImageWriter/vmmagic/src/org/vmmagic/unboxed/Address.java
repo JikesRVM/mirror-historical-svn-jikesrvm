@@ -12,10 +12,11 @@
  */
 package org.vmmagic.unboxed;
 
-import org.jikesrvm.VM;
 import org.jikesrvm.SizeConstants;
-
-import org.vmmagic.pragma.*;
+import org.jikesrvm.VM;
+import org.vmmagic.pragma.Interruptible;
+import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.UninterruptibleNoWarn;
 
 /**
  * The {@link Address} type is used by the runtime system and collector to
@@ -29,7 +30,8 @@ import org.vmmagic.pragma.*;
  * Address object is created run-time.
  *
  */
-@Uninterruptible public final class Address extends ArchitecturalWord implements SizeConstants {
+@Uninterruptible
+public final class Address extends ArchitecturalWord implements SizeConstants {
 
   Address(int value) {
     super(value, false);
@@ -42,6 +44,7 @@ import org.vmmagic.pragma.*;
   }
 
   /* Compensate for some java compilers helpfully defining this synthetically */
+  @Override
   @Interruptible
   public String toString() {
     return super.toString();
@@ -53,6 +56,9 @@ import org.vmmagic.pragma.*;
    * Special values
    */
 
+  /** Constant zero address */
+  private static final Address _zero = new Address(0);
+
   /**
    * Return an {@link Address} instance that reflects the value
    * zero.
@@ -62,7 +68,7 @@ import org.vmmagic.pragma.*;
   @UninterruptibleNoWarn
   public static Address zero() {
     if (VM.VerifyAssertions && VM.runningVM) VM._assert(VM.NOT_REACHED);
-    return new Address(0);
+    return _zero;
   }
 
   /**
@@ -75,6 +81,9 @@ import org.vmmagic.pragma.*;
     return EQ(zero());
   }
 
+  /** Constant zero address */
+  private static final Address _max = fromIntSignExtend(-1);
+
   /**
    * Return an {@link Address} instance that reflects the maximum
    * allowable {@link Address} value.
@@ -84,7 +93,7 @@ import org.vmmagic.pragma.*;
    */
   public static Address max() {
     if (VM.VerifyAssertions && VM.runningVM) VM._assert(VM.NOT_REACHED);
-    return fromIntSignExtend(-1);
+    return _max;
   }
 
   /**
@@ -155,6 +164,7 @@ import org.vmmagic.pragma.*;
    * instance
    * @return An address instance
    */
+  @Deprecated
   @UninterruptibleNoWarn
   public static Address fromInt(int address) {
     if (VM.VerifyAssertions && VM.runningVM) VM._assert(VM.NOT_REACHED);
@@ -631,7 +641,7 @@ import org.vmmagic.pragma.*;
    */
   public float loadFloat() {
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
-    return (float)0;
+    return 0;
   }
 
   /**
@@ -643,7 +653,7 @@ import org.vmmagic.pragma.*;
    */
   public float loadFloat(Offset offset) {
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
-    return (float)0;
+    return 0;
   }
 
   /**

@@ -19,7 +19,8 @@ import org.jikesrvm.classloader.RVMClassLoader;
 import org.jikesrvm.compilers.baseline.BaselineCompiler;
 import org.jikesrvm.compilers.baseline.BaselineOptions;
 import org.jikesrvm.compilers.common.RuntimeCompiler;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
+import org.jikesrvm.mm.mminterface.MemoryManager;
+
 import static org.jikesrvm.runtime.SysCall.sysCall;
 import org.jikesrvm.scheduler.RVMThread;
 
@@ -75,6 +76,8 @@ public class CommandLineArgs {
     VERIFY_ARG,
     GC_HELP_ARG,
     GC_ARG,
+    BOOTCLASSPATH_P_ARG,
+    BOOTCLASSPATH_A_ARG,
     BOOTSTRAP_CLASSES_ARG,
     PROCESSORS_ARG
   }
@@ -158,6 +161,8 @@ public class CommandLineArgs {
                                             new Prefix("-da:", PrefixType.DISABLE_ASSERTION_ARG),
                                             new Prefix("-disableassertions", PrefixType.DISABLE_ASSERTION_ARG),
                                             new Prefix("-da", PrefixType.DISABLE_ASSERTION_ARG),
+                                            new Prefix("-Xbootclasspath/p:", PrefixType.BOOTCLASSPATH_P_ARG),
+                                            new Prefix("-Xbootclasspath/a:", PrefixType.BOOTCLASSPATH_A_ARG),
                                             new Prefix("-X:vmClasses=", PrefixType.BOOTSTRAP_CLASSES_ARG),
                                             new Prefix("-X:processors=", PrefixType.PROCESSORS_ARG),
                                             new Prefix("-X:irc:help$", PrefixType.IRC_HELP_ARG),
@@ -425,17 +430,33 @@ public class CommandLineArgs {
   }
 
   /**
-   * Extract the -X:vmClasses command line argument and return it.
+   * Extract the classes that should go through bootstrap classloader.
    * @return null if no such command line argument is given.
    */
-  static String getBootstrapClasses() {
+  public static String getBootstrapClasses() {
     String[] vmClassesAll = getArgs(PrefixType.BOOTSTRAP_CLASSES_ARG);
+    String[] prependClasses = getArgs(PrefixType.BOOTCLASSPATH_P_ARG);
+    String[] appendClasses = getArgs(PrefixType.BOOTCLASSPATH_A_ARG);
+
+    // choose the latest definition of -X:vmClasses
     String vmClasses = null;
     // could be specified multiple times, use last specification
     if (vmClassesAll.length > 0) {
       vmClasses = vmClassesAll[vmClassesAll.length - 1];
     }
-    return vmClasses;
+
+    // concatenate all bootclasspath entries
+    String result = vmClasses;
+
+    for(int c = 0; c < prependClasses.length; c++) {
+      result = prependClasses[c] + ":" + result;
+    }
+
+    for(int c = 0; c < appendClasses.length; c++) {
+      result = result + ":" + appendClasses[c];
+    }
+
+    return result;
   }
 
   /**
@@ -507,10 +528,10 @@ public class CommandLineArgs {
           // GC options
           // -------------------------------------------------------------------
         case GC_HELP_ARG:  // -X:gc passed 'help' as an option
-          MM_Interface.processCommandLineArg("help");
+          MemoryManager.processCommandLineArg("help");
           break;
         case GC_ARG: // "-X:gc:arg" pass 'arg' as an option
-          MM_Interface.processCommandLineArg(arg);
+          MemoryManager.processCommandLineArg(arg);
           break;
 
           // ----------------------------------------------------

@@ -16,17 +16,22 @@ import java.security.ProtectionDomain;
 import java.lang.instrument.Instrumentation;
 
 import org.jikesrvm.classloader.RVMType;
-import org.jikesrvm.VM;
 
 import org.vmmagic.pragma.*;
 
-import org.jikesrvm.VM;              // for VerifyAssertions and _assert()
 import org.jikesrvm.scheduler.RVMThread;
 
 /**
  * Library support interface of Jikes RVM
  */
 public class JikesRVMSupport {
+
+  /**
+   * Call the Object finalize method on the given object
+   */
+  public static void invokeFinalize(Object o)  throws Throwable {
+    o.finalize();
+  }
 
   public static void initializeInstrumentation(Instrumentation instrumenter) {
     throw new Error("TODO");

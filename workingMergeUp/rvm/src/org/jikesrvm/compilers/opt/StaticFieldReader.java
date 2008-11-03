@@ -55,7 +55,7 @@ public abstract class StaticFieldReader implements SizeConstants {
 
     TypeReference type = field.getType();
     if (VM.runningVM) {
-      if (type.isReferenceType() && !type.isMagicType()) {
+      if (type.isReferenceType() && (!type.isMagicType() || type.isUnboxedArrayType())) {
         Object value = field.getObjectValueUnchecked(obj);
         if (value != null) {
           return new ObjectConstantOperand(value, Offset.zero());
@@ -89,7 +89,7 @@ public abstract class StaticFieldReader implements SizeConstants {
         String cn = field.getDeclaringClass().toString();
         Field f = Class.forName(cn).getDeclaredField(field.getName().toString());
         f.setAccessible(true);
-        if (type.isReferenceType() && !type.isMagicType()) {
+        if (type.isReferenceType() && (!type.isMagicType() || type.isUnboxedArrayType())) {
           Object value = f.get(obj);
           if (value != null) {
             return new ObjectConstantOperand(value, Offset.zero());
@@ -127,7 +127,7 @@ public abstract class StaticFieldReader implements SizeConstants {
         } else if (type.isShortType()) {
           return new IntConstantOperand(f.getShort(obj));
         } else {
-          OptimizingCompilerException.UNREACHABLE("Unknown type " + type);
+          OptimizingCompilerException.UNREACHABLE(cn + "." + f.getName() + " has unknown type " + type);
           return null;
         }
       } catch (IllegalArgumentException e) {
@@ -383,6 +383,12 @@ public abstract class StaticFieldReader implements SizeConstants {
   private static Field getJDKField(RVMField field) throws NoSuchFieldException {
     try {
       String cn = field.getDeclaringClass().toString();
+      if (VM.BuildForGnuClasspath &&
+          field.getDeclaringClass().getClassForType().equals(java.lang.reflect.Proxy.class) &&
+          field.getName().toString().equals("proxyClasses")) {
+        // Avoid confusing bootstrap JVM and classpath fields
+        throw new NoSuchFieldException(field.toString());
+      }
       Field f = Class.forName(cn).getDeclaredField(field.getName().toString());
       f.setAccessible(true);
       return f;
@@ -394,6 +400,12 @@ public abstract class StaticFieldReader implements SizeConstants {
       throw new NoSuchFieldException(field.toString());
     } catch (IllegalAccessError e) {
       throw new NoSuchFieldException(field.toString());
+    } catch (UnsatisfiedLinkError e) {
+      if (VM.BuildForHarmony) {
+        throw new NoSuchFieldException(field.toString());
+      } else {
+        throw e;
+      }
     }
   }
 }

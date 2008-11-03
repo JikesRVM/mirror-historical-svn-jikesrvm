@@ -12,6 +12,7 @@
  */
 package org.jikesrvm.util;
 
+import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.util.HashMapRVM.Bucket;
 
 /**
@@ -22,6 +23,15 @@ public final class IdentityHashMapRVM<K, V> extends AbstractHashMapRVM<K, V> {
   @Override
   boolean same(K k1, K k2) {
     return k1 == k2;
+  }
+
+  @Override
+  protected int hashTheKey(K key) {
+    if (!org.jikesrvm.VM.runningVM) {
+      return Magic.bootImageIdentityHashCode(key);
+    } else {
+      return System.identityHashCode(key);
+    }
   }
 
   @Override

@@ -16,10 +16,11 @@ import org.jikesrvm.ArchitectureSpecific.CodeArray;
 import org.jikesrvm.ArchitectureSpecific.InterfaceMethodConflictResolver;
 import org.jikesrvm.VM;
 import org.jikesrvm.SizeConstants;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.objectmodel.IMT;
 import org.jikesrvm.objectmodel.ITable;
 import org.jikesrvm.objectmodel.ITableArray;
+import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.objectmodel.TIB;
 import org.jikesrvm.objectmodel.TIBLayoutConstants;
 import org.jikesrvm.runtime.Entrypoints;
@@ -120,43 +121,35 @@ public class InterfaceInvocation implements TIBLayoutConstants, SizeConstants {
   }
 
   /**
-   * LHSclass is an interface that RHS class must implement.
-   * Raises an IncompatibleClassChangeError if RHStib does not
-   * implement LHSclass.
+   * <code>mid</code> is the dictionary id of an interface method we are trying to invoke
+   * <code>RHStib</code> is the TIB of an object on which we are attempting to invoke it.
    *
-   * @param LHSclass an class (should be an interface)
-   * @param RHStib the TIB of an object that must implement LHSclass
-   */
-  @Entrypoint
-  public static void invokeinterfaceImplementsTest(RVMClass LHSclass, TIB RHStib)
-      throws IncompatibleClassChangeError {
-    if (!LHSclass.isResolved()) {
-      LHSclass.resolve();
-    }
-    if (LHSclass.isInterface() && DynamicTypeCheck.instanceOfInterface(LHSclass, RHStib)) return;
-    // Raise an IncompatibleClassChangeError.
-    throw new IncompatibleClassChangeError();
-  }
-
-  /**
-   * <code>mid</code> is the dictionary id of an interface method we are
-   * trying to invoke
-   * <code>RHStib</code> is the TIB of an object on which we are attempting to
-   * invoke it
    * We were unable to resolve the member reference at compile time.
    * Therefore we must resolve it now and then call invokeinterfaceImplementsTest
    * with the right LHSclass.
    *
-   * @param mid     Dictionary id of the {@link MemberReference} for the
-   *            target interface method.
-   * @param RHStib  The TIB of the object on which we are attempting to
-   *            invoke the interface method
+   * @param mid     Dictionary id of the {@link MemberReference} for the target interface method.
+   * @param rhsObject  The object on which we are attempting to invoke the interface method
    */
   @Entrypoint
-  public static void unresolvedInvokeinterfaceImplementsTest(int mid, TIB RHStib)
+  public static void unresolvedInvokeinterfaceImplementsTest(int mid, Object rhsObject)
       throws IncompatibleClassChangeError {
     RVMMethod sought = MemberReference.getMemberRef(mid).asMethodReference().resolveInterfaceMethod();
-    invokeinterfaceImplementsTest(sought.getDeclaringClass(), RHStib);
+    RVMClass LHSclass = sought.getDeclaringClass();
+    if (!LHSclass.isResolved()) {
+      LHSclass.resolve();
+    }
+    /* If the object is not null, ensure that it implements the interface.
+     * If it is null, then we return to our caller and let them raise the
+     * null pointer exception when they attempt to get the object's TIB so
+     * they can actually make the interface call.
+     */
+    if (rhsObject != null) {
+      TIB RHStib = ObjectModel.getTIB(rhsObject);
+      if (LHSclass.isInterface() && DynamicTypeCheck.instanceOfInterface(LHSclass, RHStib)) return;
+      // Raise an IncompatibleClassChangeError.
+      throw new IncompatibleClassChangeError();
+    }
   }
 
   /*
@@ -223,7 +216,7 @@ public class InterfaceInvocation implements TIBLayoutConstants, SizeConstants {
    */
   private static void populateIMT(RVMClass klass, IMTDict d) {
     TIB tib = klass.getTypeInformationBlock();
-    IMT IMT = MM_Interface.newIMT();
+    IMT IMT = MemoryManager.newIMT();
     klass.setIMT(IMT);
     d.populateIMT(klass, tib, IMT);
     tib.setImt(IMT);
@@ -238,7 +231,7 @@ public class InterfaceInvocation implements TIBLayoutConstants, SizeConstants {
     ITableArray iTables = tib.getITableArray();
 
     if (iTables == null) {
-      iTables = MM_Interface.newITableArray(2);
+      iTables = MemoryManager.newITableArray(2);
       tib.setITableArray(iTables);
     } else {
       for(int i=0; i < iTables.length(); i++) {
@@ -246,7 +239,7 @@ public class InterfaceInvocation implements TIBLayoutConstants, SizeConstants {
           return; // some other thread just built the iTable
         }
       }
-      ITableArray tmp = MM_Interface.newITableArray(iTables.length() + 1);
+      ITableArray tmp = MemoryManager.newITableArray(iTables.length() + 1);
       for(int i=0; i < iTables.length(); i++) {
         tmp.set(i, iTables.get(i));
       }
@@ -267,7 +260,7 @@ public class InterfaceInvocation implements TIBLayoutConstants, SizeConstants {
   private static ITable buildITable(RVMClass C, RVMClass I) {
     RVMMethod[] interfaceMethods = I.getDeclaredMethods();
     TIB tib = C.getTypeInformationBlock();
-    ITable iTable = MM_Interface.newITable(interfaceMethods.length + 1);
+    ITable iTable = MemoryManager.newITable(interfaceMethods.length + 1);
     iTable.set(0, I);
     for (RVMMethod im : interfaceMethods) {
       if (im.isClassInitializer()) continue;

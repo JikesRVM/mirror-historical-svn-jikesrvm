@@ -512,6 +512,25 @@ public final class Magic {
   }
 
   /**
+   * Certain objects aren't replicated in the boot image to save space.
+   * @param object to intern
+   * @return interned object
+   */
+  public static int bootImageIdentityHashCode(Object object) {
+    if (VM.runningVM && VM.VerifyAssertions) {
+      VM._assert(VM.NOT_REACHED); // call site should have been hijacked by magic in compiler
+    }
+
+    if (objectAddressRemapper == null) {
+      // shouldn't create identity hash codes when we cannot record the effect, ignore if we're running a tool
+      if (VM.VerifyAssertions) VM._assert(VM.runningTool || VM.writingImage);
+      return System.identityHashCode(object);
+    }
+
+    return objectAddressRemapper.identityHashCode(object);
+  }
+
+  /**
    * Cast bits.
    * @param address object reference as bits
    * @return object reference
@@ -577,6 +596,17 @@ public final class Magic {
     if (VM.runningVM && VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
 
     return (RVMType)object;
+  }
+
+  /**
+   * Cast object.
+   * Note:     for use by gc to avoid checkcast during GC
+   * @param proc processor
+   * @return proc as green processor (no checking on cast)
+   */
+  public static GreenProcessor processorAsGreenProcessor(Processor proc) {
+    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+    return null;
   }
 
   /**

@@ -18,11 +18,11 @@ import org.jikesrvm.Constants;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
-import org.jikesrvm.memorymanagers.mminterface.DebugUtil;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
-import org.jikesrvm.memorymanagers.mminterface.Selected;
-import org.jikesrvm.memorymanagers.mminterface.GCMapIterator;
-import org.jikesrvm.memorymanagers.mminterface.GCMapIteratorGroup;
+import org.jikesrvm.mm.mminterface.Selected;
+import org.jikesrvm.mm.mminterface.DebugUtil;
+import org.jikesrvm.mm.mminterface.GCMapIterator;
+import org.jikesrvm.mm.mminterface.GCMapIteratorGroup;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.runtime.Entrypoints;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.RuntimeEntrypoints;
@@ -124,6 +124,15 @@ import org.vmmagic.unboxed.Offset;
     /* get the gprs associated with this thread */
     Address gprs = Magic.objectAsAddress(thread.getContextRegisters().gprs);
     scanThread(thread, trace, processCodeLocations, gprs, Address.zero());
+  }
+
+  /**
+   * Wrapper for {@link TraceLocal#reportDelayedRootEdge(Address)} that allows
+   * sanity checking of the address.
+   */
+  private static void reportDelayedRootEdge(TraceLocal trace, Address addr) {
+    if (VALIDATE_REFS) checkReference(addr);
+    trace.reportDelayedRootEdge(addr);
   }
 
   /**
@@ -431,7 +440,7 @@ import org.vmmagic.unboxed.Offset;
          refaddr = iterator.getNextReferenceAddress()) {
       if (VALIDATE_REFS) checkReference(refaddr, verbosity);
       if (verbosity >= 3) dumpRef(refaddr, verbosity);
-      trace.reportDelayedRootEdge(refaddr);
+      reportDelayedRootEdge(trace, refaddr);
     }
   }
 
@@ -550,7 +559,7 @@ import org.vmmagic.unboxed.Offset;
       GCMapIterator iterator = iteratorGroup.getJniIterator();
       Address refaddr =  iterator.getNextReferenceAddress();
       while(!refaddr.isZero()) {
-        trace.reportDelayedRootEdge(refaddr);
+        reportDelayedRootEdge(trace, refaddr);
         refaddr = iterator.getNextReferenceAddress();
       }
     }
@@ -613,7 +622,7 @@ import org.vmmagic.unboxed.Offset;
     ObjectReference ref = refaddr.loadObjectReference();
     VM.sysWrite(refaddr);
     if (verbosity >= 4) {
-      VM.sysWrite(":"); MM_Interface.dumpRef(ref);
+      VM.sysWrite(":"); MemoryManager.dumpRef(ref);
     } else
       VM.sysWriteln();
   }
@@ -628,11 +637,11 @@ import org.vmmagic.unboxed.Offset;
    */
   private void checkReference(Address refaddr, int verbosity) {
     ObjectReference ref = refaddr.loadObjectReference();
-    if (!MM_Interface.validRef(ref)) {
+    if (!MemoryManager.validRef(ref)) {
       Log.writeln();
       Log.writeln("Invalid ref reported while scanning stack");
       printMethodHeader();
-      Log.write(refaddr); Log.write(":"); Log.flush(); MM_Interface.dumpRef(ref);
+      Log.write(refaddr); Log.write(":"); Log.flush(); MemoryManager.dumpRef(ref);
       dumpStackFrame(verbosity);
       Log.writeln();
       Log.writeln("Dumping stack starting at frame with bad ref:");

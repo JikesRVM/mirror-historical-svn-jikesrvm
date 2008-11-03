@@ -14,13 +14,11 @@ package org.mmtk.harness;
 
 import java.util.ArrayList;
 
-import org.mmtk.harness.options.Collectors;
-import org.mmtk.harness.options.HarnessOptionSet;
-import org.mmtk.harness.options.InitHeap;
-import org.mmtk.harness.options.MaxHeap;
-import org.mmtk.harness.options.Plan;
+import org.mmtk.harness.options.*;
+import org.mmtk.harness.scheduler.AbstractPolicy;
 import org.mmtk.harness.vm.*;
 
+import org.mmtk.utility.Log;
 import org.mmtk.utility.heap.HeapGrowthManager;
 import org.mmtk.utility.options.Options;
 
@@ -30,19 +28,48 @@ import org.mmtk.utility.options.Options;
 public class Harness {
 
   /** Used for processing harness and MMTk options */
-  public static HarnessOptionSet options = new HarnessOptionSet();
+  public static final HarnessOptionSet options = new HarnessOptionSet();
 
   /** Option for the number of collector threads */
-  public static Collectors collectors = new Collectors();
+  public static final Collectors collectors = new Collectors();
 
   /** Option for the MMTk plan (prefix) to use */
-  public static Plan plan = new Plan();
+  public static final Plan plan = new Plan();
 
   /** Option for the initial heap size */
-  public static InitHeap initHeap = new InitHeap();
+  public static final InitHeap initHeap = new InitHeap();
 
   /** Option for the maximum heap size */
-  public static MaxHeap maxHeap = new MaxHeap();
+  public static final MaxHeap maxHeap = new MaxHeap();
+
+  /** Option for the maximum heap size */
+  public static final DumpPcode dumpPcode = new DumpPcode();
+
+  /** Trace options */
+  public static final Trace trace = new Trace();
+
+  /** GC stress options */
+  public static final GcEvery gcEvery = new GcEvery();
+
+  /** Scheduler */
+  public static final Scheduler scheduler = new Scheduler();
+
+  /** Scheduler policy */
+  public static final SchedulerPolicy policy = new SchedulerPolicy();
+
+  /** Interval for the fixed scheduler policies */
+  public static final YieldInterval yieldInterval = new YieldInterval();
+
+  /** Parameters for the random scheduler policy */
+  public static final RandomPolicyLength randomPolicyLength = new RandomPolicyLength();
+  public static final RandomPolicySeed randomPolicySeed = new RandomPolicySeed();
+  public static final RandomPolicyMin randomPolicyMin = new RandomPolicyMin();
+  public static final RandomPolicyMax randomPolicyMax = new RandomPolicyMax();
+
+  /** Print yield policy statistics on exit */
+  public static final PolicyStats policyStats = new PolicyStats();
+
+  private static boolean isInitialized = false;
 
   /**
    * Start up the harness, including creating the global plan and constraints,
@@ -50,39 +77,88 @@ public class Harness {
    *
    * After calling this it is possible to begin creating mutator threads.
    */
-  public static void init(String[] args) {
+  public static void init(String... args) {
+    if (isInitialized) {
+      return;
+    }
+    isInitialized = true;
+
     /* Always use the harness factory */
     System.setProperty("mmtk.hostjvm", Factory.class.getCanonicalName());
 
     /* Options used for configuring the plan to use */
-    ArrayList<String> newArgs = new ArrayList<String>();
+    final ArrayList<String> newArgs = new ArrayList<String>();
     for(String arg: args) {
       if (!options.process(arg)) newArgs.add(arg);
     }
+    trace.apply();
+    gcEvery.apply();
+    org.mmtk.harness.scheduler.Scheduler.init();
 
-    /* Get MMTk breathing */
-    ActivePlan.init(plan.getValue());
-    ActivePlan.plan.boot();
-    HeapGrowthManager.boot(initHeap.getBytes(), maxHeap.getBytes());
-    Collector.init(collectors.getValue());
+    /*
+     * Perform MMTk initialization in a minimal environment, specifically to
+     * give it a per-thread 'Log' object
+     */
+    MMTkThread m = new MMTkThread() {
+      public void run() {
 
-    /* Override some defaults */
-    Options.noFinalizer.setValue(true);
-    Options.noReferenceTypes.setValue(true);
+        /* Get MMTk breathing */
+        ActivePlan.init(plan.getValue());
+        ActivePlan.plan.boot();
+        HeapGrowthManager.boot(initHeap.getBytes(), maxHeap.getBytes());
+        Collector.init(collectors.getValue());
 
-    /* Process command line options */
-    for(String arg: newArgs) {
-      if (!options.process(arg)) {
-        throw new RuntimeException("Invalid option '" + arg + "'");
+        /* Override some defaults */
+        Options.noFinalizer.setValue(true);
+        Options.noReferenceTypes.setValue(true);
+        Options.variableSizeHeap.setValue(false);
+
+        /* Process command line options */
+        for(String arg: newArgs) {
+          if (!options.process(arg)) {
+            throw new RuntimeException("Invalid option '" + arg + "'");
+          }
+        }
+
+        /* Check options */
+        assert Options.noFinalizer.getValue(): "noFinalizer must be true";
+        assert Options.noReferenceTypes.getValue(): "noReferenceTypes must be true";
+
+        /* Finish starting up MMTk */
+        ActivePlan.plan.postBoot();
+        ActivePlan.plan.fullyBooted();
+        Log.flush();
       }
+    };
+    m.start();
+    try {
+      m.join();
+    } catch (InterruptedException e) {
     }
 
-    /* Check options */
-    assert Options.noFinalizer.getValue(): "noFinalizer must be true";
-    assert Options.noReferenceTypes.getValue(): "noReferenceTypes must be true";
+    org.mmtk.harness.scheduler.Scheduler.initCollectors();
 
-    /* Finish starting up MMTk */
-    ActivePlan.plan.postBoot();
-    ActivePlan.plan.fullyBooted();
+    /* Add exit handler to print yield stats */
+    if (policyStats.getValue()) {
+      Runtime.getRuntime().addShutdownHook(new Thread() {
+        public void run() {
+          AbstractPolicy.printStats();
+        }
+      });
+    }
+  }
+
+  /** GC stress - GC on every allocation */
+  private static boolean gcEveryAlloc = false;
+
+  /**
+   * GC stress - GC after every allocation
+   */
+  public static void setGcEveryAlloc() {
+    gcEveryAlloc = true;
+  }
+
+  public static boolean gcEveryAlloc() {
+    return gcEveryAlloc;
   }
 }

@@ -252,6 +252,7 @@ public abstract class ComplexLIR2MIRExpansion extends IRTools {
     // Move the maxlongFloat value and the value into x87 registers and compare and
     // branch if they are <= or unordered.
     RegisterOperand resultHi = Unary.getResult(s);
+    resultHi.setType(TypeReference.Int);
     RegisterOperand resultLo = new RegisterOperand(ir.regpool.getSecondReg(resultHi.getRegister()),
         TypeReference.Int);
     RegisterOperand value = Unary.getVal(s).asRegister();
@@ -430,6 +431,7 @@ public abstract class ComplexLIR2MIRExpansion extends IRTools {
     // Move the maxlongFloat value and the value into x87 registers and compare and
     // branch if they are <= or unordered.
     RegisterOperand resultHi = Unary.getResult(s);
+    resultHi.setType(TypeReference.Int);
     RegisterOperand resultLo = new RegisterOperand(ir.regpool.getSecondReg(resultHi.getRegister()),
         TypeReference.Int);
     RegisterOperand value = Unary.getVal(s).asRegister();
@@ -816,7 +818,7 @@ public abstract class ComplexLIR2MIRExpansion extends IRTools {
   private static Instruction long_mul(Instruction s, IR ir) {
     Instruction nextInstr = s.nextInstructionInCodeOrder();
     while(Label.conforms(nextInstr)||BBend.conforms(nextInstr)) {
-      nextInstr = s.nextInstructionInCodeOrder();
+      nextInstr = nextInstr.nextInstructionInCodeOrder();
     }
     // we need 4 basic blocks
     // 1: the current block and a test for 32bit or 64bit multiply
@@ -908,10 +910,10 @@ public abstract class ComplexLIR2MIRExpansion extends IRTools {
     mul64BB.insertOut(nextBB);
 
     // move result from edx:eax to lhsReg:lowlhsReg
-    nextInstr.insertBefore(CPOS(s, MIR_Move.create(IA32_MOV,
+    nextBB.prependInstruction(CPOS(s, MIR_Move.create(IA32_MOV,
         new RegisterOperand(lhsReg, TypeReference.Int),
         new RegisterOperand(edx, TypeReference.Int))));
-    nextInstr.insertBefore(CPOS(s, MIR_Move.create(IA32_MOV,
+    nextBB.prependInstruction(CPOS(s, MIR_Move.create(IA32_MOV,
         new RegisterOperand(lowlhsReg, TypeReference.Int),
         new RegisterOperand(eax, TypeReference.Int))));
     s.remove();
@@ -924,6 +926,7 @@ public abstract class ComplexLIR2MIRExpansion extends IRTools {
     Register xh = ((RegisterOperand) IfCmp.getVal1(s)).getRegister();
     Register xl = ir.regpool.getSecondReg(xh);
     RegisterOperand yh = (RegisterOperand) IfCmp.getClearVal2(s);
+    yh.setType(TypeReference.Int);
     RegisterOperand yl = new RegisterOperand(ir.regpool.getSecondReg(yh.getRegister()), TypeReference.Int);
     basic_long_ifcmp(s, ir, cond, xh, xl, yh, yl);
     return nextInstr;

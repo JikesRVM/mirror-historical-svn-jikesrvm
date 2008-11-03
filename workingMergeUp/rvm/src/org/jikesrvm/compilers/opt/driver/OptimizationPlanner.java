@@ -22,7 +22,6 @@ import org.jikesrvm.adaptive.recompilation.instrumentation.InsertYieldpointCount
 import org.jikesrvm.adaptive.recompilation.instrumentation.InstrumentationSamplingFramework;
 import org.jikesrvm.adaptive.recompilation.instrumentation.LowerInstrumentation;
 import org.jikesrvm.compilers.opt.AdjustBranchProbabilities;
-import org.jikesrvm.compilers.opt.EscapeTransformations;
 import org.jikesrvm.compilers.opt.FieldAnalysis;
 import org.jikesrvm.compilers.opt.LocalCSE;
 import org.jikesrvm.compilers.opt.LocalCastOptimization;
@@ -31,7 +30,7 @@ import org.jikesrvm.compilers.opt.LocalCopyProp;
 import org.jikesrvm.compilers.opt.OptOptions;
 import org.jikesrvm.compilers.opt.Simple;
 import org.jikesrvm.compilers.opt.bc2ir.ConvertBCtoHIR;
-import org.jikesrvm.compilers.opt.bc2ir.OSR_OsrPointConstructor;
+import org.jikesrvm.compilers.opt.bc2ir.OsrPointConstructor;
 import org.jikesrvm.compilers.opt.controlflow.BranchOptimizations;
 import org.jikesrvm.compilers.opt.controlflow.BuildLST;
 import org.jikesrvm.compilers.opt.controlflow.CFGTransformations;
@@ -43,8 +42,10 @@ import org.jikesrvm.compilers.opt.controlflow.ReorderingPhase;
 import org.jikesrvm.compilers.opt.controlflow.StaticSplitting;
 import org.jikesrvm.compilers.opt.controlflow.TailRecursionElimination;
 import org.jikesrvm.compilers.opt.controlflow.YieldPoints;
+import org.jikesrvm.compilers.opt.escape.EscapeTransformations;
 import org.jikesrvm.compilers.opt.hir2lir.ConvertHIRtoLIR;
 import org.jikesrvm.compilers.opt.hir2lir.ExpandRuntimeServices;
+import org.jikesrvm.compilers.opt.ir.IR;
 import org.jikesrvm.compilers.opt.regalloc.CoalesceMoves;
 import org.jikesrvm.compilers.opt.ssa.GCP;
 import org.jikesrvm.compilers.opt.ssa.LeaveSSA;
@@ -54,7 +55,7 @@ import org.jikesrvm.compilers.opt.ssa.LoopVersioning;
 import org.jikesrvm.compilers.opt.ssa.PiNodes;
 import org.jikesrvm.compilers.opt.ssa.RedundantBranchElimination;
 import org.jikesrvm.compilers.opt.ssa.SSATuneUp;
-import org.jikesrvm.osr.OSR_AdjustBCIndexes;
+import org.jikesrvm.osr.AdjustBCIndexes;
 
 /**
  * This class specifies the order in which CompilerPhases are
@@ -181,10 +182,25 @@ public class OptimizationPlanner {
         // Generate HIR from bytecodes
         new ConvertBCtoHIR(),
 
-        new OSR_AdjustBCIndexes(), new OSR_OsrPointConstructor(),
+        new AdjustBCIndexes(), new OsrPointConstructor(),
 
         // Always do initial wave of peephole branch optimizations
         new BranchOptimizations(0, true, false),
+
+        // ir now contains well formed HIR. Optionally do a verification pass.
+        new CompilerPhase() {
+          public String getName() {
+            return "HIR Verification";
+          }
+          public void perform(IR ir) {
+            if (IR.SANITY_CHECK) {
+              ir.verify("Initial HIR", true);
+            }
+          }
+          public CompilerPhase newExecution(IR ir) {
+            return this;
+          }
+        },
 
         // Adjust static branch probabilities to account for infrequent blocks
         new AdjustBranchProbabilities(),

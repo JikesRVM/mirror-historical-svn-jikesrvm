@@ -82,7 +82,7 @@ public abstract class Organizer extends RVMThread {
    * listener uses its own protocol to ensure that exactly 1
    * thread will attempt to activate the organizer.
    */
-  @Uninterruptible
+  @Unpreemptible
   private void passivate() {
     if (listener != null) {
       if (VM.VerifyAssertions) VM._assert(!listener.isActive());

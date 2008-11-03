@@ -30,7 +30,7 @@ public final class Word {
    * high order bit.
    *
    * @param val
-   * @return
+   * @return A word instance whose value is val, sign-extended on 64 bit machines
    */
   public static Word fromIntSignExtend(int val) {
     return null;
@@ -41,7 +41,7 @@ public final class Word {
    * high order bit.
    *
    * @param val
-   * @return
+   * @return A word instance whose value is val, zero-extended on 64 bit machines
    */
   public static Word fromIntZeroExtend(int val) {
     return null;
@@ -52,7 +52,7 @@ public final class Word {
    * TODO document behaviour on 32-bit.  Truncate ?
    *
    * @param val
-   * @return
+   * @return A word instance whose value is val on 32 bit machine this truncates the upper 32 bits.
    */
   public static Word fromLong(long val) {
     return null;
@@ -62,7 +62,7 @@ public final class Word {
    * The Word constant 0.
    * Equivalent to Word.fromIntSignExtend(0), but more readable.
    *
-   * @return
+   * @return the Word constant 0.
    */
   public static Word zero() {
     return null;
@@ -72,7 +72,7 @@ public final class Word {
    * The Word constant 1.
    * Equivalent to Word.fromIntSignExtend(1), but more readable.
    *
-   * @return
+   * @return the Word constant 1.
    */
   public static Word one() {
     return null;
@@ -82,7 +82,7 @@ public final class Word {
    * The maximum representable Word value.  Words are unsigned, so this is
    * a word full of 1s, 32/64-bit safe.
    *
-   * @return
+   * @return the maximum representable Word value
    */
   public static Word max() {
     return null;
@@ -91,7 +91,7 @@ public final class Word {
   /**
    * Type-cast to an int, truncating on 64-bit platforms.
    *
-   * @return
+   * @return an int, with the same value as the word on 32 bit platforms; truncates on 64 bit platforms.
    */
   public int toInt() {
     return 0;
@@ -99,7 +99,7 @@ public final class Word {
 
   /**
    * Type-cast to a long, zero-extending on a 32-bit platform.
-   * @return
+   * @return a long, with the same value as the word (zero extends on 32 bit platforms).
    */
   public long toLong() {
     return 0L;
@@ -124,7 +124,7 @@ public final class Word {
    * Add two words
    *
    * @param w2
-   * @return
+   * @return The word whose value is this+w2
    */
   public Word plus(Word w2) {
     return null;
@@ -133,7 +133,7 @@ public final class Word {
   /**
    * Add an offset to a word
    * @param w2
-   * @return
+   * @return The word whose value is this+w2
    */
   public Word plus(Offset w2) {
     return null;
@@ -142,7 +142,7 @@ public final class Word {
   /**
    * Add an extent to a word
    * @param w2
-   * @return
+   * @return The word whose value is this+w2
    */
   public Word plus(Extent w2) {
     return null;
@@ -151,7 +151,7 @@ public final class Word {
   /**
    * Subtract two words
    * @param w2
-   * @return
+   * @return The word whose value is this-w2
    */
   public Word minus(Word w2) {
     return null;
@@ -160,7 +160,7 @@ public final class Word {
   /**
    * Subtract an offset from a word
    * @param w2
-   * @return
+   * @return The word whose value is this-w2
    */
   public Word minus(Offset w2) {
     return null;
@@ -169,7 +169,7 @@ public final class Word {
   /**
    * Subtract an extent from a word.
    * @param w2
-   * @return
+   * @return The word whose value is this-w2
    */
   public Word minus(Extent w2) {
     return null;
@@ -177,7 +177,7 @@ public final class Word {
 
   /**
    * Test for zero.  Equivalent to .EQ(Word.zero())
-   * @return
+   * @return return true if this is equal to Word.zero(), false otherwise
    */
   public boolean isZero() {
     return false;
@@ -185,7 +185,7 @@ public final class Word {
 
   /**
    * Test for zero.  Equivalent to .EQ(Word.max())
-   * @return
+   * @return true if this is equal to Word.max(), false otherwise
    */
   public boolean isMax() {
     return false;
@@ -194,7 +194,7 @@ public final class Word {
   /**
    * Less-than comparison
    * @param addr2
-   * @return
+   * @return true if this <code>Word</code> instance is <i>less than</i> <code>addr2</code>
    */
   public boolean LT(Word addr2) {
     return false;
@@ -202,8 +202,8 @@ public final class Word {
 
   /**
    * Less-than or equal comparison
-   * @param addr2
-   * @return
+   * @param w2
+   * @return true if this <code>Word</code> instance is <i>less than or equal to</i> <code>w2</code>
    */
   public boolean LE(Word w2) {
     return false;
@@ -211,8 +211,8 @@ public final class Word {
 
   /**
    * Greater-than comparison
-   * @param addr2
-   * @return
+   * @param w2
+   * @return true if this <code>Word</code> instance is <i>greater than</i> <code>w2</code>
    */
   public boolean GT(Word w2) {
     return false;
@@ -220,8 +220,8 @@ public final class Word {
 
   /**
    * Greater-than or equal comparison
-   * @param addr2
-   * @return
+   * @param w2
+   * @return true if this <code>Word</code> instance is <i>greater than or equal to</i> <code>w2</code>
    */
   public boolean GE(Word w2) {
     return false;
@@ -230,7 +230,7 @@ public final class Word {
   /**
    * Equality comparison
    * @param w2
-   * @return
+   * @return true if this <code>Word</code> instance is <i>equal to</i> <code>w2</code>
    */
   public boolean EQ(Word w2) {
     return false;
@@ -239,7 +239,7 @@ public final class Word {
   /**
    * Not-equal comparison
    * @param w2
-   * @return
+   * @return true if this <code>Word</code> instance is <i>not equal to</i> <code>w2</code>
    */
   public boolean NE(Word w2) {
     return false;
@@ -248,7 +248,7 @@ public final class Word {
   /**
    * Bit-wise and of two words.
    * @param w2
-   * @return
+   * @return The word whose value is the bitwise and of this and w2
    */
   public Word and(Word w2) {
     return null;
@@ -257,7 +257,7 @@ public final class Word {
   /**
    * Bit-wise or of two words.
    * @param w2
-   * @return
+   * @return The word whose value is the bitwise not of this and w2
    */
   public Word or(Word w2) {
     return null;
@@ -265,8 +265,7 @@ public final class Word {
 
   /**
    * Bit-wise complement of a word.
-   * @param w2
-   * @return
+   * @return the bitwise complement of this
    */
   public Word not() {
     return null;
@@ -275,7 +274,7 @@ public final class Word {
   /**
    * Bit-wise exclusive or of two words.
    * @param w2
-   * @return
+   * @return The word whose value is the bitwise xor of this and w2
    */
   public Word xor(Word w2) {
     return null;
@@ -298,7 +297,7 @@ public final class Word {
 
   /**
    * Logical right-shift a word. Shifts of a size greater than the Word are undefined and
-   * have an architecture and compiler specific behaviour {@see #lsh(int)}.
+   * have an architecture and compiler specific behaviour see also {@link #lsh(int)}.
    *
    * @param amt the amount to shift by
    * @return new Word shifted by the given amount
@@ -309,7 +308,7 @@ public final class Word {
 
   /**
    * Arithmetic right-shift a word. Shifts of a size greater than the Word are undefined and
-   * have an architecture and compiler specific behaviour {@see #lsh(int)}.
+   * have an architecture and compiler specific behaviour see also {@link #lsh(int)}.
    * Arithmetic right-shift a word.  Equivalent to the integer <code>&gt;&gt;</code> operator
    *
    * @param amt the amount to shift by

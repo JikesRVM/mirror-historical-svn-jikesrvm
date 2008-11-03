@@ -20,10 +20,11 @@ import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.UninterruptibleNoWarn;
 
 /**
- * This class represents an instance of an interface method table.
+ * This class represents an instance of an interface method table, at runtime it
+ * is an array with CodeArray elements.
  */
 @NonMoving
-public final class IMT {
+public final class IMT implements RuntimeTable<CodeArray> {
 
   /**
    * The backing data used during boot image writing.
@@ -40,16 +41,15 @@ public final class IMT {
   /**
    * Return the backing array (for boot image writing)
    */
-  public Object[] getBacking() {
+  public CodeArray[] getBacking() {
     if (VM.VerifyAssertions) VM._assert(!VM.runningVM);
     return data;
   }
 
   /**
-   * Create a new TIB of the specified size.
+   * Create an IMT.
    *
-   * @param size The size of the TIB
-   * @return The created TIB instance.
+   * @return The created IMT instance.
    */
   public static IMT allocate() {
     if (VM.VerifyAssertions && VM.runningVM) VM._assert(VM.NOT_REACHED);
@@ -76,7 +76,7 @@ public final class IMT {
    * @param value The value to set the entry to.
    */
   @Intrinsic
-  @UninterruptibleNoWarn
+  @UninterruptibleNoWarn("Interruptible code not reachable at runtime")
   public void set(int index, CodeArray value) {
     if (VM.VerifyAssertions && VM.runningVM) VM._assert(VM.NOT_REACHED);
     data[index] = value;

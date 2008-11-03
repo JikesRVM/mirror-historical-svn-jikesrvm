@@ -13,8 +13,8 @@
 package org.mmtk.plan.generational;
 
 import org.mmtk.plan.*;
+import org.mmtk.policy.LargeObjectLocal;
 import org.mmtk.utility.deque.*;
-import org.mmtk.utility.sanitychecker.SanityCheckerLocal;
 
 import org.mmtk.vm.VM;
 
@@ -42,12 +42,12 @@ import org.vmmagic.pragma.*;
 
   protected final GenNurseryTraceLocal nurseryTrace;
 
+  protected final LargeObjectLocal los;
+
   // remembered set consumers
+  protected final ObjectReferenceDeque modbuf;
   protected final AddressDeque remset;
   protected final AddressPairDeque arrayRemset;
-
-  // Sanity checking
-  private GenSanityCheckerLocal sanityChecker;
 
   /****************************************************************************
    *
@@ -63,10 +63,11 @@ import org.vmmagic.pragma.*;
    * @see GenMutator
    */
   public GenCollector() {
+    los = new LargeObjectLocal(Plan.loSpace);
     arrayRemset = new AddressPairDeque(global().arrayRemsetPool);
     remset = new AddressDeque("remset", global().remsetPool);
+    modbuf = new ObjectReferenceDeque("modbuf", global().modbufPool);
     nurseryTrace = new GenNurseryTraceLocal(global().nurseryTrace, this);
-    sanityChecker = new GenSanityCheckerLocal();
   }
 
   /****************************************************************************
@@ -84,8 +85,10 @@ import org.vmmagic.pragma.*;
   public void collectionPhase(short phaseId, boolean primary) {
 
     if (phaseId == Gen.PREPARE) {
+      los.prepare(true);
       global().arrayRemsetPool.prepareNonBlocking();
       global().remsetPool.prepareNonBlocking();
+      global().modbufPool.prepareNonBlocking();
       nurseryTrace.prepare();
       return;
     }
@@ -109,10 +112,12 @@ import org.vmmagic.pragma.*;
     }
 
     if (phaseId == Gen.RELEASE) {
+      los.release(true);
       if (!global().traceFullHeap()) {
         nurseryTrace.release();
         global().arrayRemsetPool.reset();
         global().remsetPool.reset();
+        global().modbufPool.reset();
       }
       return;
     }
@@ -134,11 +139,6 @@ import org.vmmagic.pragma.*;
   public final TraceLocal getCurrentTrace() {
     if (global().traceFullHeap()) return getFullHeapTrace();
     return nurseryTrace;
-  }
-
-  /** @return Return the current sanity checker. */
-  public SanityCheckerLocal getSanityChecker() {
-    return sanityChecker;
   }
 
   /** @return The trace to use when collecting the mature space */

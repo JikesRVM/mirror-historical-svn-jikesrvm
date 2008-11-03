@@ -84,7 +84,7 @@ public class FinalizerThread extends RVMThread {
         }
 
         while (true) {
-          Object o = MM_Interface.getFinalizedObject();
+          Object o = MemoryManager.getFinalizedObject();
           if (o == null) break;
           if (verbose >= 2) {
             VM.sysWrite("FinalizerThread finalizing object at ", Magic.objectAsAddress(o));

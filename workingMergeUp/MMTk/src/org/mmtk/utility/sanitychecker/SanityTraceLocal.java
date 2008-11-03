@@ -25,14 +25,14 @@ import org.vmmagic.unboxed.*;
 @Uninterruptible
 public final class SanityTraceLocal extends TraceLocal {
 
-  private final SanityCheckerLocal sanityChecker;
+  private final SanityChecker sanityChecker;
 
   /**
    * Constructor
    */
-  public SanityTraceLocal(Trace trace, SanityCheckerLocal scl) {
+  public SanityTraceLocal(Trace trace, SanityChecker sanityChecker) {
     super(trace);
-    sanityChecker = scl;
+    this.sanityChecker = sanityChecker;
   }
 
   /****************************************************************************
@@ -64,7 +64,6 @@ public final class SanityTraceLocal extends TraceLocal {
     // We never move objects!
     return true;
   }
-
 }
 
 /*

@@ -19,7 +19,7 @@ import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.SaveVolatile;
-import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -35,7 +35,7 @@ import org.vmmagic.unboxed.Offset;
  * @see org.jikesrvm.compilers.opt.driver.OptimizingCompiler (hooks to recognize & specially compile this class)
  */
 @SaveVolatile
-@Uninterruptible
+@Unpreemptible("Yield methods shouldn't be preempted")
 public class OptSaveVolatile {
 
   /**

@@ -148,59 +148,92 @@ import org.vmmagic.unboxed.*;
    * Collection
    */
 
+  public static final boolean isRCObject(ObjectReference object) {
+    return !object.isNull() && !Space.isInSpace(VM_SPACE, object);
+  }
+
+  /**
+   * @return Whether last GC is a full GC.
+   */
+  public boolean lastCollectionFullHeap() {
+    return performCycleCollection;
+  }
+
   /**
    * Perform a (global) collection phase.
    *
-   * @param phaseId Collection phase to execute.
+   * @param phaseId Collection phase
    */
-  @Inline
   public void collectionPhase(short phaseId) {
+    if (phaseId == SET_COLLECTION_KIND) {
+      super.collectionPhase(phaseId);
+      if (CC_ENABLED) {
+        performCycleCollection = (collectionAttempt > 1) || emergencyCollection || CC_FORCE_FULL;
+        if (performCycleCollection && Options.verbose.getValue() > 0) Log.write(" [CC] ");
+      }
+      return;
+    }
+
     if (phaseId == PREPARE) {
-      rcTrace.prepare();
-      modPool.prepareNonBlocking();
-      decPool.prepare();
-      oldRootPool.prepare();
-      newRootPool.prepare();
+      VM.finalizableProcessor.clear();
+      VM.weakReferences.clear();
+      VM.softReferences.clear();
+      VM.phantomReferences.clear();
+      rootTrace.prepare();
+      rcSpace.prepare();
+      if (CC_BACKUP_TRACE && performCycleCollection) {
+        backupTrace.prepare();
+      }
       return;
     }
 
     if (phaseId == CLOSURE) {
-      rcTrace.prepare();
+      rootTrace.prepare();
       return;
     }
 
-    if (phaseId == ROOTS) {
-      oldRootPool.reset();
-      super.collectionPhase(phaseId);
+    if (phaseId == BT_CLOSURE) {
+      if (CC_BACKUP_TRACE && performCycleCollection) {
+        backupTrace.prepare();
+      }
+      return;
+    }
+
+    if (phaseId == PROCESS_OLDROOTBUFFER) {
+      oldRootPool.prepare();
+      return;
+    }
+
+    if (phaseId == PROCESS_NEWROOTBUFFER) {
+      newRootPool.prepare();
+      return;
+    }
+
+
+    if (phaseId == PROCESS_MODBUFFER) {
+      modPool.prepare();
+      return;
+    }
+
+    if (phaseId == PROCESS_DECBUFFER) {
+      decPool.prepare();
       return;
     }
 
     if (phaseId == RELEASE) {
-      newRootPool.reset();
-      decPool.reset();
-      modPool.reset();
-
-      rcTrace.release();
-      previousMetaDataPages = metaDataSpace.reservedPages();
+      rootTrace.release();
+      if (CC_BACKUP_TRACE && performCycleCollection) {
+        backupTrace.release();
+        rcSpace.sweepCells(rcSweeper);
+        rcloSpace.sweep(loScanSweeper);
+        rcloSpace.sweep(loFreeSweeper);
+      } else {
+        rcSpace.release();
+      }
       return;
     }
 
-    if (!cycleDetector().collectionPhase(phaseId)) {
-      super.collectionPhase(phaseId);
-    }
-  }
-
-  /**
-   * This method controls the triggering of a GC. It is called periodically
-   * during allocation. Returns true to trigger a collection.
-   *
-   * @param spaceFull Space request failed, must recover pages within 'space'.
-   * @return True if a collection is requested by the plan.
-   */
-  public boolean collectionRequired(boolean spaceFull) {
-    int newMetaDataPages = metaDataSpace.committedPages() - previousMetaDataPages;
-
-    return super.collectionRequired(spaceFull) || (newMetaDataPages > Options.metaDataLimit.getPages());
+    super.collectionPhase(phaseId);
   }
 
   /*****************************************************************************
@@ -209,90 +242,48 @@ import org.vmmagic.unboxed.*;
    */
 
   /**
-   * Return the number of pages reserved for use given the pending
-   * allocation.  The superclass accounts for its spaces, we just
-   * augment this with the mark-sweep space's contribution.
+   * Return the number of pages used given the pending
+   * allocation.
    *
    * @return The number of pages reserved given the pending
    * allocation, excluding space reserved for copying.
    */
   public int getPagesUsed() {
-    return (rcSpace.reservedPages() + super.getPagesUsed());
+    return (rcSpace.reservedPages() + rcloSpace.reservedPages() + super.getPagesUsed());
   }
 
   /**
-   * Calculate the number of pages a collection is required to free to satisfy
-   * outstanding allocation requests.
-   *
-   * @return the number of pages a collection is required to free to satisfy
-   * outstanding allocation requests.
+   * Perform a linear scan across all objects in the heap to check for leaks.
    */
-  public int getPagesRequired() {
-    return super.getPagesRequired() + rcSpace.requiredPages();
-  }
-
-  /****************************************************************************
-   *
-   * Miscellaneous
-   */
-
-  /**
-   * Determine if an object is in a reference counted space.
-   *
-   * @param object The object to check
-   * @return True if the object is in a reference counted space.
-   */
-  public static boolean isRCObject(ObjectReference object) {
-    return !object.isNull() && !Space.isInSpace(SPACE, object);
+  public void sanityLinearScan(LinearScan scan) {
+    //rcSpace.linearScan(scan);
   }
 
   /**
-   * Free a reference counted object.
+   * Return the expected reference count. For non-reference counting
+   * collectors this becomes a true/false relationship.
    *
-   * @param object The object to free.
+   * @param object The object to check.
+   * @param sanityRootRC The number of root references to the object.
+   * @return The expected (root excluded) reference count.
    */
-  public static void free(ObjectReference object) {
-    if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(isRCObject(object));
+  public int sanityExpectedRC(ObjectReference object, int sanityRootRC) {
+    if (RCBase.isRCObject(object)) {
+      int fullRC = RCHeader.getRC(object);
+      if (fullRC == 0) {
+        return SanityChecker.DEAD;
+      }
+      if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(fullRC >= sanityRootRC);
+      return fullRC - sanityRootRC;
     }
-
-    if (Space.isInSpace(REF_COUNT, object)) {
-      ExplicitFreeListSpace.free(object);
-    } else if (Space.isInSpace(LOS, object)){
-      ExplicitLargeObjectLocal.free(loSpace, object);
-    } else if (Space.isInSpace(RC_SMALL_CODE, object)) {
-      ExplicitFreeListSpace.free(object);
-    } else if (Space.isInSpace(LARGE_CODE, object)) {
-      ExplicitLargeObjectLocal.free(largeCodeSpace, object);
-    }
-  }
-
-  /** @return The active cycle detector instance */
-  @Inline
-  public final CD cycleDetector() {
-    switch (RCBase.CYCLE_DETECTOR) {
-    case RCBase.NO_CYCLE_DETECTOR:
-      return nullCD;
-    case RCBase.TRIAL_DELETION:
-      return trialDeletionCD;
-    }
-
-    VM.assertions.fail("No cycle detector instance found.");
-    return null;
+    return SanityChecker.ALIVE;
   }
 
   /**
-   * @see org.mmtk.plan.Plan#willNeverMove
-   *
-   * @param object Object in question
-   * @return True if the object will never move
+   * Register specialized methods.
    */
-  @Override
-  public boolean willNeverMove(ObjectReference object) {
-    if (Space.isInSpace(REF_COUNT, object))
-      return true;
-    else if (Space.isInSpace(RC_SMALL_CODE, object))
-      return true;
-    return super.willNeverMove(object);
+  @Interruptible
+  protected void registerSpecializedMethods() {
+    super.registerSpecializedMethods();
   }
 }

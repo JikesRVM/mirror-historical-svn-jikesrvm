@@ -73,7 +73,7 @@ import org.jikesrvm.classloader.NormalMethod;
  * A generic java thread's execution context.
  *
  * @see org.jikesrvm.scheduler.greenthreads.GreenThread
- * @see org.jikesrvm.memorymanagers.mminterface.CollectorThread
+ * @see org.jikesrvm.mm.mminterface.CollectorThread
  * @see DebuggerThread
  * @see FinalizerThread
  * @see org.jikesrvm.adaptive.measurements.organizers.Organizer
@@ -458,6 +458,11 @@ public class RVMThread extends MM_ThreadContext {
    * one lock! */
   public Lock cachedFreeLock;
 
+  /**
+   * A cached free lock.  Not a free list; this will only ever contain 0 or 1 locks!
+   */
+  public Lock cachedFreeLock;
+
   /*
    * Wait/notify fields
    */
@@ -669,7 +674,7 @@ public class RVMThread extends MM_ThreadContext {
    * Only used by OSR when VM.BuildForAdaptiveSystem. Declared as an
    * Object to cut link to adaptive system.  Ugh.
    */
-  public final Object /* OSR_OnStackReplacementEvent */ onStackReplacementEvent;
+  public final Object /* OnStackReplacementEvent */ onStackReplacementEvent;
 
   /**
    * The flag indicates whether this thread is waiting for on stack
@@ -1145,7 +1150,7 @@ public class RVMThread extends MM_ThreadContext {
       jniEnv = JNIEnvironment.allocateEnvironment();
 
       if (VM.BuildForAdaptiveSystem) {
-        onStackReplacementEvent = new OSR_OnStackReplacementEvent();
+        onStackReplacementEvent = new OnStackReplacementEvent();
       } else {
         onStackReplacementEvent = null;
       }
@@ -1735,15 +1740,14 @@ public class RVMThread extends MM_ThreadContext {
    * String representation of thread
    */
   @Override
-  @Interruptible
+  @Unpreemptible
   public String toString() {
-    return (name == null) ? "Thread-" + getIndex() : name;
+    return (name == null) ? Services.stringConcatenate("Thread-", getIndex()) : name;
   }
 
   /**
    * Get the current java.lang.Thread.
    */
-  @Interruptible
   public final Thread getJavaLangThread() {
     return thread;
   }
@@ -1913,6 +1917,8 @@ public class RVMThread extends MM_ThreadContext {
     // allow java.lang.Thread.exit() to remove this thread from ThreadGroup
     java.lang.JikesRVMSupport.threadDied(thread);
 
+    TraceEngine.engine.removeFeedlet(feedlet);
+
     if (VM.VerifyAssertions) {
       if (Lock.countLocksHeldByThread(getLockingId()) > 0) {
         VM.sysWriteln("Error, thread terminating holding a lock");
@@ -2054,6 +2060,7 @@ public class RVMThread extends MM_ThreadContext {
   // OSR_BaselineExecStateExtractor.java, should then restore all non-volatiles before stack replacement
   //todo fix this -- related to SaveVolatile
   @Entrypoint
+  @Unpreemptible("Becoming another thread interrupts the current thread, avoid preemption in the process")
   public static void yieldpointFromPrologue() {
     Address fp = Magic.getFramePointer();
     yieldpoint(PROLOGUE, fp);
@@ -2070,6 +2077,7 @@ public class RVMThread extends MM_ThreadContext {
   // OSR_BaselineExecStateExtractor.java, should then restore all non-volatiles before stack replacement
   // TODO fix this -- related to SaveVolatile
   @Entrypoint
+  @Unpreemptible("Becoming another thread interrupts the current thread, avoid preemption in the process")
   public static void yieldpointFromBackedge() {
     Address fp = Magic.getFramePointer();
     yieldpoint(BACKEDGE, fp);
@@ -2086,6 +2094,7 @@ public class RVMThread extends MM_ThreadContext {
   // OSR_BaselineExecStateExtractor.java, should then restore all non-volatiles before stack replacement
   // TODO fix this -- related to SaveVolatile
   @Entrypoint
+  @Unpreemptible("Becoming another thread interrupts the current thread, avoid preemption in the process")
   public static void yieldpointFromEpilogue() {
     Address fp = Magic.getFramePointer();
     yieldpoint(EPILOGUE, fp);
@@ -2099,7 +2108,7 @@ public class RVMThread extends MM_ThreadContext {
    * Suspend execution of current thread until it is resumed.
    * Call only if caller has appropriate security clearance.
    */
-  @LogicallyUninterruptible
+  @Unpreemptible("Exceptions may possibly cause yields")
   public final void suspend() {
     ObjectModel.genericUnlock(thread);
     Throwable rethrow=null;
@@ -2282,8 +2291,7 @@ public class RVMThread extends MM_ThreadContext {
    * @param o the object synchronized on
    * @param millis the number of milliseconds to wait for notification
    */
-  @LogicallyUninterruptible
-  /* only loses control at expected points -- I think -dave */
+  @Interruptible
   public static void wait(Object o, long millis) {
     long currentNanos = sysCall.sysNanoTime();
     getCurrentThread().waitImpl(o,true,currentNanos+millis*1000*1000);
@@ -2301,15 +2309,16 @@ public class RVMThread extends MM_ThreadContext {
     getCurrentThread().waitImpl(o,true,whenNanos);
   }
 
-  @LogicallyUninterruptible
-  private static void raiseIllegalMonitorStateException(String msg, Object o) {
-    throw new IllegalMonitorStateException(msg + o);
+  @UnpreemptibleNoWarn("Possible context when generating exception")
+  public static void raiseIllegalMonitorStateException(String msg, Object o) {
+    throw new IllegalMonitorStateException(Services.stringConcatenate(msg, o.toString()));
   }
   /**
    * Support for Java {@link java.lang.Object#notify()} synchronization primitive.
    *
    * @param o the object synchronized on
    */
+  @Interruptible
   public static void notify(Object o) {
     if (STATS) notifyOperations++;
     Lock l = ObjectModel.getHeavyLock(o, false);
@@ -2331,6 +2340,7 @@ public class RVMThread extends MM_ThreadContext {
    * @param o the object synchronized on
    * @see java.lang.Object#notifyAll
    */
+  @Interruptible
   public static void notifyAll(Object o) {
     if (STATS) notifyAllOperations++;
     Lock l = ObjectModel.getHeavyLock(o, false);
@@ -2353,6 +2363,21 @@ public class RVMThread extends MM_ThreadContext {
     takeYieldpoint = 1;
     monitor().broadcast();
     monitor().unlock();
+  }
+
+  /**
+   * Uninterruptible variant of Java synchronization primitive.
+   *
+   * @param o the object synchronized on
+   * @see java.lang.Object#notifyAll
+   */
+  public static void notifyAllUninterruptible(Object o) {
+    if (STATS) notifyAllOperations++;
+    Scheduler.LockModel l = (Scheduler.LockModel)ObjectModel.getHeavyLock(o, false);
+    if (l == null) return;
+    Processor proc = Processor.getCurrentProcessor();
+    if (VM.VerifyAssertions) VM._assert(l.getOwnerId() == proc.threadId);
+    Scheduler.getCurrentThread().notifyAllInternal(o, l);
   }
 
   /*
@@ -2405,7 +2430,6 @@ public class RVMThread extends MM_ThreadContext {
   /**
    * Get this thread's index in {@link threadBySlot}[].
    */
-  @LogicallyUninterruptible
   public final int getIndex() {
     if (VM.VerifyAssertions) VM._assert((execStatus == TERMINATED) || threadBySlot[threadSlot] == this);
     return threadSlot;
@@ -3349,7 +3373,7 @@ public class RVMThread extends MM_ThreadContext {
 
   /**
    * Get the thread to use for building stack traces.
-   * NB overridden by {@link org.jikesrvm.memorymanagers.mminterface.CollectorThread}
+   * NB overridden by {@link org.jikesrvm.mm.mminterface.CollectorThread}
    */
   @Uninterruptible
   public RVMThread getThreadForStackTrace() {

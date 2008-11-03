@@ -15,7 +15,7 @@ package org.jikesrvm.jni.ia32;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.ia32.BaselineConstants;
 import org.jikesrvm.jni.JNIEnvironment;
-import org.jikesrvm.memorymanagers.mminterface.GCMapIterator;
+import org.jikesrvm.mm.mminterface.GCMapIterator;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Uninterruptible;
@@ -39,7 +39,7 @@ public abstract class JNIGCMapIterator extends GCMapIterator implements Baseline
 
   // Java to Native C transition frame...(see JNICompiler)
   //
-  //  0         + saved FP   + <---- FP for Jave to Native C glue frame
+  //  0         + saved FP   + <---- FP for Java to Native C glue frame
   // -4         | methodID   |
   // -8         | saved EDI  |  non-volatile GPR
   // -C         | saved EBX  |  non-volatile GPR

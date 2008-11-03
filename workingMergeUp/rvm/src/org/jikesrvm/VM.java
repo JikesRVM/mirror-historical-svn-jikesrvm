@@ -28,7 +28,7 @@ import org.jikesrvm.compilers.baseline.BaselineCompiler;
 import org.jikesrvm.compilers.baseline.EdgeCounts;
 import org.jikesrvm.compilers.common.BootImageCompiler;
 import org.jikesrvm.compilers.common.RuntimeCompiler;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.runtime.BootRecord;
 import org.jikesrvm.runtime.DynamicLibrary;
 import org.jikesrvm.runtime.Entrypoints;
@@ -116,7 +116,7 @@ public class VM extends Properties implements Constants, ExitStatus {
    *    THREAD_ID_REGISTER  - required for method prolog (stack overflow check)
    * @exception Exception
    */
-  @UninterruptibleNoWarn
+  @UnpreemptibleNoWarn("No point threading until threading is booted")
   public static void boot() {
     writingBootImage = false;
     runningVM = true;
@@ -169,7 +169,7 @@ public class VM extends Properties implements Constants, ExitStatus {
       VM.sysWriteln("Setting up memory manager: bootrecord = ",
                     Magic.objectAsAddress(BootRecord.the_boot_record));
     }
-    MM_Interface.boot(BootRecord.the_boot_record);
+    MemoryManager.boot(BootRecord.the_boot_record);
 
     // Reset the options for the baseline compiler to avoid carrying
     // them over from bootimage writing time.
@@ -187,10 +187,13 @@ public class VM extends Properties implements Constants, ExitStatus {
     if (verboseBoot >= 1) VM.sysWriteln("Early stage processing of command line");
     CommandLineArgs.earlyProcessCommandLineArguments();
 
+    // Early initialization of TuningFork tracing engine.
+    TraceEngine.engine.earlyStageBooting();
+
     // Allow Memory Manager to respond to its command line arguments
     //
     if (verboseBoot >= 1) VM.sysWriteln("Collector processing rest of boot options");
-    MM_Interface.postBoot();
+    MemoryManager.postBoot();
 
     // Initialize class loader.
     //
@@ -281,6 +284,7 @@ public class VM extends Properties implements Constants, ExitStatus {
     if (VM.BuildForHarmony) {
       System.loadLibrary("hyluni");
       System.loadLibrary("hythr");
+      System.loadLibrary("hycharset");
     }
     runClassInitializer("java.io.File"); // needed for when we initialize the
     // system/application class loader.
@@ -347,14 +351,23 @@ public class VM extends Properties implements Constants, ExitStatus {
     }
     runClassInitializer("java.util.zip.ZipFile");
     if (VM.BuildForHarmony) {
+      runClassInitializer("java.util.Hashtable");
       runClassInitializer("java.util.jar.Manifest");
       runClassInitializer("java.util.jar.Attributes$Name");
+      runClassInitializer("java.util.BitSet");
+      runClassInitializer("java.util.regex.Matcher");
+      runClassInitializer("java.util.regex.Pattern");
       runClassInitializer("org.apache.harmony.luni.internal.net.www.protocol.jar.JarURLConnection");
       runClassInitializer("org.apache.harmony.luni.platform.OSMemory");
       runClassInitializer("org.apache.harmony.luni.platform.Platform");
       runClassInitializer("org.apache.harmony.luni.platform.AbstractMemorySpy");
       runClassInitializer("org.apache.harmony.luni.platform.PlatformAddress");
+      runClassInitializer("org.apache.harmony.nio.internal.FileChannelImpl");
       runClassInitializer("com.ibm.icu.util.ULocale");
+      runClassInitializer("java.io.ObjectStreamClass");
+      runClassInitializer("java.io.ObjectStreamClass$OSCThreadLocalCache");
+      runClassInitializer("java.io.ObjectInputStream");
+      runClassInitializer("java.security.MessageDigest");
     }
     if (VM.BuildForGnuClasspath) {
       runClassInitializer("java.lang.VMDouble");
@@ -378,14 +391,32 @@ public class VM extends Properties implements Constants, ExitStatus {
 
     // Inform interested subsystems that VM is fully booted.
     VM.fullyBooted = true;
-    MM_Interface.fullyBootedVM();
+    MemoryManager.fullyBootedVM();
     BaselineCompiler.fullyBootedVM();
+    TraceEngine.engine.fullyBootedVM();
 
     runClassInitializer("java.util.logging.Level");
     if (VM.BuildForGnuClasspath) {
       runClassInitializer("gnu.java.nio.charset.EncodingHelper");
+      runClassInitializer("java.lang.reflect.Proxy");
+      runClassInitializer("java.lang.reflect.Proxy$ProxySignature");
     }
     runClassInitializer("java.util.logging.Logger");
+    if (VM.BuildForHarmony) {
+      Entrypoints.luni1.setObjectValueUnchecked(null, null);
+      Entrypoints.luni2.setObjectValueUnchecked(null, null);
+      Entrypoints.luni3.setObjectValueUnchecked(null, null);
+      Entrypoints.luni4.setObjectValueUnchecked(null, null);
+      Entrypoints.luni5.setObjectValueUnchecked(null, null);
+      Entrypoints.luni6.setObjectValueUnchecked(null, null);
+      //runClassInitializer("java.lang.String$ConsolePrintStream");
+      runClassInitializer("org.apache.harmony.luni.util.Msg");
+      runClassInitializer("org.apache.harmony.archive.internal.nls.Messages");
+      runClassInitializer("org.apache.harmony.luni.internal.nls.Messages");
+      runClassInitializer("org.apache.harmony.nio.internal.nls.Messages");
+      runClassInitializer("org.apache.harmony.niochar.internal.nls.Messages");
+      runClassInitializer("java.util.logging.LogManager");
+    }
 
     // Initialize compiler that compiles dynamically loaded classes.
     //
@@ -431,19 +462,6 @@ public class VM extends Properties implements Constants, ExitStatus {
       runClassInitializer("java.lang.ClassLoader$StaticData");
     }
 
-    if (VM.BuildForHarmony) {
-      Entrypoints.luni1.setObjectValueUnchecked(null, null);
-      Entrypoints.luni2.setObjectValueUnchecked(null, null);
-      Entrypoints.luni3.setObjectValueUnchecked(null, null);
-      Entrypoints.luni4.setObjectValueUnchecked(null, null);
-      Entrypoints.luni5.setObjectValueUnchecked(null, null);
-      //runClassInitializer("java.lang.String$ConsolePrintStream");
-      runClassInitializer("org.apache.harmony.luni.util.Msg");
-      runClassInitializer("org.apache.harmony.archive.internal.nls.Messages");
-      runClassInitializer("org.apache.harmony.luni.internal.nls.Messages");
-      runClassInitializer("org.apache.harmony.nio.internal.nls.Messages");
-      runClassInitializer("org.apache.harmony.niochar.internal.nls.Messages");
-    }
     // Allow profile information to be read in from a file
     //
     EdgeCounts.boot(EdgeCounterFile);
@@ -549,7 +567,7 @@ public class VM extends Properties implements Constants, ExitStatus {
    * "if (VM.VerifyAssertions) VM._assert(xxx);"
    * @param b the assertion to verify
    */
-  @Inline
+  @Inline(value=Inline.When.AllArgumentsAreConstant)
   public static void _assert(boolean b) {
     _assert(b, null, null);
   }
@@ -561,12 +579,12 @@ public class VM extends Properties implements Constants, ExitStatus {
    * @param b the assertion to verify
    * @param message the message to print if the assertion is false
    */
-  @Inline
+  @Inline(value=Inline.When.ArgumentsAreConstant, arguments={0})
   public static void _assert(boolean b, String message) {
     _assert(b, message, null);
   }
 
-  @Inline
+  @Inline(value=Inline.When.ArgumentsAreConstant, arguments={0})
   public static void _assert(boolean b, String msg1, String msg2) {
     if (!VM.VerifyAssertions) {
       sysWriteln("vm: somebody forgot to conditionalize their call to assert with");
@@ -577,7 +595,7 @@ public class VM extends Properties implements Constants, ExitStatus {
   }
 
   @NoInline
-  @UninterruptibleNoWarn
+  @UninterruptibleNoWarn("Interruptible code not reachable at runtime")
   private static void _assertionFailure(String msg1, String msg2) {
     if (msg1 == null && msg2 == null) {
       msg1 = "vm internal error at:";
@@ -735,7 +753,7 @@ public class VM extends Properties implements Constants, ExitStatus {
       }
     }
   }
-  @UninterruptibleNoWarn
+  @UninterruptibleNoWarn("Interruptible code not reachable at runtime")
   private static void writeNotRunningVM(String value) {
     if (VM.VerifyAssertions) VM._assert(!VM.runningVM);
     System.err.print(value);
@@ -775,7 +793,7 @@ public class VM extends Properties implements Constants, ExitStatus {
       writeNotRunningVM(value);
     }
   }
-  @UninterruptibleNoWarn
+  @UninterruptibleNoWarn("Interruptible code not reachable at runtime")
   private static void writeNotRunningVM(char value) {
     if (VM.VerifyAssertions) VM._assert(!VM.runningVM);
     System.err.print(value);
@@ -796,7 +814,7 @@ public class VM extends Properties implements Constants, ExitStatus {
       writeNotRunningVM(value);
     }
   }
-  @UninterruptibleNoWarn
+  @UninterruptibleNoWarn("Interruptible code not reachable at runtime")
   private static void writeNotRunningVM(double value) {
     if (VM.VerifyAssertions) VM._assert(!VM.runningVM);
     System.err.print(value);
@@ -816,7 +834,7 @@ public class VM extends Properties implements Constants, ExitStatus {
       writeNotRunningVM(value);
     }
   }
-  @UninterruptibleNoWarn
+  @UninterruptibleNoWarn("Interruptible code not reachable at runtime")
   private static void writeNotRunningVM(int value) {
     if (VM.VerifyAssertions) VM._assert(!VM.runningVM);
     System.err.print(value);
@@ -835,7 +853,7 @@ public class VM extends Properties implements Constants, ExitStatus {
       writeHexNotRunningVM(value);
     }
   }
-  @UninterruptibleNoWarn
+  @UninterruptibleNoWarn("Interruptible code not reachable at runtime")
   private static void writeHexNotRunningVM(int value) {
     if (VM.VerifyAssertions) VM._assert(!VM.runningVM);
     System.err.print(Integer.toHexString(value));
@@ -854,7 +872,7 @@ public class VM extends Properties implements Constants, ExitStatus {
       writeHexNotRunningVM(value);
     }
   }
-  @UninterruptibleNoWarn
+  @UninterruptibleNoWarn("Interruptible code not reachable at runtime")
   private static void writeHexNotRunningVM(long value) {
     if (VM.VerifyAssertions) VM._assert(!VM.runningVM);
     System.err.print(Long.toHexString(value));
@@ -917,7 +935,7 @@ public class VM extends Properties implements Constants, ExitStatus {
       writeNotRunningVM(value);
     }
   }
-  @UninterruptibleNoWarn
+  @UninterruptibleNoWarn("Interruptible code not reachable at runtime")
   private static void writeNotRunningVM(long value) {
     if (VM.VerifyAssertions) VM._assert(!VM.runningVM);
     System.err.print(value);
@@ -949,15 +967,22 @@ public class VM extends Properties implements Constants, ExitStatus {
     }
   }
 
-  @LogicallyUninterruptible
   @NoInline
   /* don't waste code space inlining these --dave */
   public static void writeField(int fieldWidth, String s) {
     write(s);
-    int len = s.length();
+    int len = getStringLength(s);
     while (fieldWidth > len++) write(" ");
   }
 
+  @UninterruptibleNoWarn("Interruptible code not reachable at runtime")
+  private static int getStringLength(String s) {
+    if (VM.runningVM) {
+      return java.lang.JikesRVMSupport.getStringLength(s);
+    } else {
+      return s.length();
+    }
+  }
   /**
    * Low level print to console.
    * @param value       print value and left-fill with enough spaces to print at least fieldWidth characters
@@ -2181,6 +2206,20 @@ public class VM extends Properties implements Constants, ExitStatus {
   }
 
   /**
+   * Produce a message requesting a bug report be submitted
+   */
+  @NoInline
+  public static void bugReportMessage() {
+    VM.sysWriteln("********************************************************************************");
+    VM.sysWriteln("*                      Abnormal termination of Jikes RVM                       *\n"+
+                  "* Jikes RVM terminated abnormally indicating a problem in the virtual machine. *\n"+
+                  "* Jikes RVM relies on community support to get debug information. Help improve *\n"+
+                  "* Jikes RVM for everybody by reporting this error. Please see:                 *\n"+
+                  "*                      http://jikesrvm.org/Reporting+Bugs                      *");
+    VM.sysWriteln("********************************************************************************");
+  }
+
+  /**
    * Exit virtual machine due to internal failure of some sort.
    * @param message  error message describing the problem
    */
@@ -2197,6 +2236,7 @@ public class VM extends Properties implements Constants, ExitStatus {
       VM.sysWriteln("Virtual machine state:");
       RVMThread.dumpVirtualMachine();
     }
+    bugReportMessage();
     if (VM.runningVM) {
       VM.shutdown(EXIT_STATUS_SYSFAIL);
     } else {
@@ -2227,17 +2267,12 @@ public class VM extends Properties implements Constants, ExitStatus {
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
   }
 
-//   /* This could be made public. */
-//   private static boolean alreadyShuttingDown() {
-//     return (inSysExit != 0) || (inShutdown != 0);
-//   }
-
   /**
    * Exit virtual machine.
    * @param value  value to pass to host o/s
    */
-  @LogicallyUninterruptible /* TODO: This is completely wrong.  This method is very much Interruptible */
   @NoInline
+  @UnpreemptibleNoWarn("We need to do preemptible operations but are accessed from unpreemptible code")
   public static void sysExit(int value) {
     handlePossibleRecursiveCallToSysExit();
     if (Options.stackTraceAtExit) {
@@ -2247,7 +2282,6 @@ public class VM extends Properties implements Constants, ExitStatus {
       VM.enableGC();
       VM.sysWriteln("... END context of the call to VM.sysExit]");
     }
-
     if (runningVM) {
       Callbacks.notifyExit(value);
       VM.shutdown(value);
@@ -2262,6 +2296,7 @@ public class VM extends Properties implements Constants, ExitStatus {
    * Should only be called if the VM is running.
    * @param value  exit value
    */
+  @Uninterruptible
   public static void shutdown(int value) {
     handlePossibleRecursiveShutdown();
 
@@ -2448,7 +2483,7 @@ public class VM extends Properties implements Constants, ExitStatus {
    * they are never called while gc is disabled.
    */
   @Inline
-  @Interruptible
+  @Unpreemptible("We may boost the size of the stack with GC disabled and may get preempted doing this")
   public static void disableGC() {
     disableGC(false);           // Recursion is not allowed in this context.
   }
@@ -2460,7 +2495,7 @@ public class VM extends Properties implements Constants, ExitStatus {
    * enableGC().
    */
   @Inline
-  @Interruptible
+  @Unpreemptible("We may boost the size of the stack with GC disabled and may get preempted doing this")
   public static void disableGC(boolean recursiveOK) {
     // current (non-gc) thread is going to be holding raw addresses, therefore we must:
     //
@@ -2543,6 +2578,14 @@ public class VM extends Properties implements Constants, ExitStatus {
     myThread.enableYieldpoints();
   }
 
+  /**
+   * Is this a build for 32bit addressing? NB. this method is provided
+   * to give a hook to the IA32 assembler that won't be compiled away
+   * by javac
+   */
+  public static boolean buildFor32Addr() {
+    return BuildFor32Addr;
+  }
 }
 
 /*

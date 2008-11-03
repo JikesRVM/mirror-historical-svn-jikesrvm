@@ -22,7 +22,7 @@ import org.vmmagic.pragma.UninterruptibleNoWarn;
  * This class represents an instance of an array of interface tables.
  */
 @NonMoving
-public final class ITableArray {
+public final class ITableArray implements RuntimeTable<ITable> {
 
   /**
    * The backing data used during boot image writing.
@@ -39,7 +39,7 @@ public final class ITableArray {
   /**
    * Return the backing array (for boot image writing)
    */
-  public Object[] getBacking() {
+  public ITable[] getBacking() {
     if (VM.VerifyAssertions) VM._assert(!VM.runningVM);
     return backingData;
   }
@@ -75,7 +75,7 @@ public final class ITableArray {
    * @param value The value to set the entry to.
    */
   @Intrinsic
-  @UninterruptibleNoWarn
+  @UninterruptibleNoWarn("Interruptible code not reachable at runtime")
   public void set(int index, ITable value) {
     if (VM.VerifyAssertions && VM.runningVM) VM._assert(VM.NOT_REACHED);
     backingData[index] = value;

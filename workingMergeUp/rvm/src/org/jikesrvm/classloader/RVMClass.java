@@ -14,16 +14,15 @@ package org.jikesrvm.classloader;
 
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.io.UTFDataFormatException;
 import java.lang.annotation.Annotation;
 import java.lang.annotation.Inherited;
-import java.lang.reflect.Array;
-import org.jikesrvm.VM;
+
 import org.jikesrvm.Callbacks;
 import org.jikesrvm.Constants;
+import org.jikesrvm.VM;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.opt.inlining.ClassLoadingDependencyManager;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.objectmodel.FieldLayoutContext;
 import org.jikesrvm.objectmodel.IMT;
 import org.jikesrvm.objectmodel.ObjectModel;
@@ -32,8 +31,6 @@ import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.RuntimeEntrypoints;
 import org.jikesrvm.runtime.StackBrowser;
 import org.jikesrvm.runtime.Statics;
-import org.jikesrvm.util.ImmutableEntryHashMapRVM;
-import org.jikesrvm.util.LinkedListRVM;
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Pure;
 import org.vmmagic.pragma.Uninterruptible;
@@ -179,21 +176,12 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
   private RVMMethod[] virtualMethods;
 
   /**
-   * method that overrides java.lang.Object.finalize()
-   * null => class does not have a finalizer
+   * Do objects of this class have a finalizer method?
    */
-  private RVMMethod finalizeMethod;
+  private boolean hasFinalizer;
 
   /** type and virtual method dispatch table for class */
   private TIB typeInformationBlock;
-
-  // --- Annotation support --- //
-
-  /**
-   * Map from interfaces of annotations to the classes that implement them
-   */
-  private static final ImmutableEntryHashMapRVM<RVMClass, RVMClass> annotationClasses =
-    new ImmutableEntryHashMapRVM<RVMClass, RVMClass>();
 
   // --- Memory manager support --- //
 
@@ -218,9 +206,10 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
   private Annotation[] annotations;
 
   /** Set of objects that are cached here to ensure they are not collected by GC **/
-  private final LinkedListRVM<Object> objectCache;
+  private Object[] objectCache;
 
   /** The imt for this class **/
+  @SuppressWarnings("unused")
   private IMT imt;
 
   // --- Assertion support --- //
@@ -268,15 +257,6 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
   @Uninterruptible
   public int getMemoryBytes() {
     return BYTES_IN_ADDRESS;
-  }
-
-  /**
-   * If class is an annotation (which means its actually an
-   * interface), get the class that implements it
-   */
-  RVMClass getAnnotationClass() {
-    if (VM.VerifyAssertions) VM._assert(this.isAnnotation());
-    return annotationClasses.get(this);
   }
 
   /**
@@ -427,6 +407,16 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
   }
 
   /**
+   * Does this class directly define a final instance field (has implications for JMM).
+   */
+  public boolean declaresFinalInstanceField() {
+    for (RVMField f : declaredFields) {
+      if (f.isFinal() && !f.isStatic()) return true;
+    }
+    return false;
+  }
+
+  /**
    * Methods defined directly by this class (ie. not including superclasses).
    */
   @Uninterruptible
@@ -533,8 +523,7 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
    * @return description (null --> not found)
    */
   public RVMField findDeclaredField(Atom fieldName, Atom fieldDescriptor) {
-    for (int i = 0, n = declaredFields.length; i < n; ++i) {
-      RVMField field = declaredFields[i];
+    for (RVMField field : declaredFields) {
       if (field.getName() == fieldName && field.getDescriptor() == fieldDescriptor) {
         return field;
       }
@@ -548,8 +537,7 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
    * @return description (null --> not found)
    */
   public RVMField findDeclaredField(Atom fieldName) {
-    for (int i = 0, n = declaredFields.length; i < n; ++i) {
-      RVMField field = declaredFields[i];
+    for (RVMField field : declaredFields) {
       if (field.getName() == fieldName) {
         return field;
       }
@@ -564,8 +552,7 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
    * @return description (null --> not found)
    */
   public RVMMethod findDeclaredMethod(Atom methodName, Atom methodDescriptor) {
-    for (int i = 0, n = declaredMethods.length; i < n; ++i) {
-      RVMMethod method = declaredMethods[i];
+    for (RVMMethod method : declaredMethods) {
       if (method.getName() == methodName && method.getDescriptor() == methodDescriptor) {
         return method;
       }
@@ -579,8 +566,7 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
    * @return description (null --> not found)
    */
   public RVMMethod findDeclaredMethod(Atom methodName) {
-    for (int i = 0, n = declaredMethods.length; i < n; ++i) {
-      RVMMethod method = declaredMethods[i];
+    for (RVMMethod method : declaredMethods) {
       if (method.getName() == methodName) {
         return method;
       }
@@ -609,7 +595,17 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
    * Add the given cached object.
    */
   public synchronized void addCachedObject(Object o) {
-    objectCache.add(o);
+    Object[] newObjectCache;
+    if (objectCache == null) {
+      newObjectCache = new Object[1];
+    } else {
+      newObjectCache = new Object[objectCache.length + 1];
+      for (int i=0; i < objectCache.length; i++) {
+        newObjectCache[i] = objectCache[i];
+      }
+    }
+    newObjectCache[newObjectCache.length - 1] = o;
+    objectCache = newObjectCache;
   }
 
   /**
@@ -628,7 +624,7 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
   //
 
   @Uninterruptible
-  private static int packCPEntry(byte type, int value) {
+  static int packCPEntry(byte type, int value) {
     return (type << 29) | (value & 0x1fffffff);
   }
 
@@ -878,17 +874,7 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
   @Uninterruptible
   public boolean hasFinalizer() {
     if (VM.VerifyAssertions) VM._assert(isResolved());
-    return (finalizeMethod != null);
-  }
-
-  /**
-   * Get finalize method that overrides java.lang.Object.finalize(),
-   * if one exists
-   */
-  @Uninterruptible
-  public RVMMethod getFinalizer() {
-    if (VM.VerifyAssertions) VM._assert(isResolved());
-    return finalizeMethod;
+    return hasFinalizer;
   }
 
   /**
@@ -1205,7 +1191,6 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
     this.sourceName = sourceName;
     this.classInitializerMethod = classInitializerMethod;
     this.signature = signature;
-    this.objectCache = new LinkedListRVM<Object>();
 
     // non-final fields
     this.subClasses = emptyVMClass;
@@ -1621,6 +1606,10 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
       VM.sysWriteln("WARNING: movable " + this + " extends non-moving " + superClass);
     }
 
+    if (superClass != null && superClass.isNonMoving() && !isNonMoving()) {
+      VM.sysWriteln("WARNING: movable " + this + " extends non-moving " + superClass);
+    }
+
     if (VM.verboseClassLoading) VM.sysWrite("[Preparing " + this + "]\n");
 
     // build field and method lists for this class
@@ -1665,7 +1654,7 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
         RVMMethod method = methods[i];
 
         if (VM.VerifyUnint) {
-          if (method.isUninterruptible() && method.isSynchronized()) {
+          if (method.isSynchronized() && method.isUninterruptible()) {
             if (VM.ParanoidVerifyUnint || !method.hasLogicallyUninterruptibleAnnotation()) {
               VM.sysWriteln("WARNING: " + method + " cannot be both uninterruptible and synchronized");
             }
@@ -1789,7 +1778,7 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
     int referenceFieldCount = 0;
     for (int i = 0, n = instanceFields.length; i < n; ++i) {
       RVMField field = instanceFields[i];
-      if (field.isReferenceType() && !field.isUntraced()) {
+      if (field.isTraced()) {
         referenceFieldCount += 1;
       }
     }
@@ -1797,12 +1786,12 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
     // record offsets of those instance fields that contain references
     //
     if (typeRef.isRuntimeTable()) {
-      referenceOffsets = MM_Interface.newNonMovingIntArray(0);
+      referenceOffsets = MemoryManager.newNonMovingIntArray(0);
     } else {
-      referenceOffsets = MM_Interface.newNonMovingIntArray(referenceFieldCount);
+      referenceOffsets = MemoryManager.newNonMovingIntArray(referenceFieldCount);
       for (int i = 0, j = 0, n = instanceFields.length; i < n; ++i) {
         RVMField field = instanceFields[i];
-        if (field.isReferenceType() && !field.isUntraced()) {
+        if (field.isTraced()) {
           referenceOffsets[j++] = field.getOffset().toInt();
         }
       }
@@ -1852,15 +1841,17 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
     // allocate "type information block"
     TIB allocatedTib;
     if (isInterface()) {
-      allocatedTib = MM_Interface.newTIB(0);
+      allocatedTib = MemoryManager.newTIB(0);
     } else {
-      allocatedTib = MM_Interface.newTIB(virtualMethods.length);
+      allocatedTib = MemoryManager.newTIB(virtualMethods.length);
     }
 
     superclassIds = DynamicTypeCheck.buildSuperclassIds(this);
     doesImplement = DynamicTypeCheck.buildDoesImplement(this);
 
-    // can't move this beyond "finalize" code block
+    // can't move this beyond "finalize" code block as findVirtualMethod
+    // assumes state >= RESOLVED, no allocation occurs until
+    // state >= CLASS_INITIALIZING
     publishResolved(allocatedTib, superclassIds, doesImplement);
 
     // TODO: Make this into a more general listener interface
@@ -1869,26 +1860,19 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
     }
 
     Callbacks.notifyClassResolved(this);
-    MM_Interface.notifyClassResolved(this);
+    MemoryManager.notifyClassResolved(this);
 
     // check for a "finalize" method that overrides the one in java.lang.Object
     //
-    finalizeMethod = null;
     if (!isInterface()) {
       final RVMMethod method =
           findVirtualMethod(RVMClassLoader.StandardObjectFinalizerMethodName,
                             RVMClassLoader.StandardObjectFinalizerMethodDescriptor);
       if (!method.getDeclaringClass().isJavaLangObjectType()) {
-        finalizeMethod = method;
+        hasFinalizer = true;
       }
     }
 
-    // Check if this was an annotation, if so create the class that
-    // will implement the annotation interface
-    //
-    if (isAnnotation()) {
-      createAnnotationClass(this);
-    }
     if (VM.TraceClassLoading && VM.runningVM) VM.sysWriteln("RVMClass: (end)   resolve " + this);
   }
 
@@ -2039,6 +2023,31 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
   }
 
   /**
+   * Make the passed field a traced field by garbage collection. Also affects all
+   * subclasses.
+   */
+  public synchronized void makeFieldTraced(RVMField field) {
+    int[] oldOffsets = referenceOffsets;
+    int fieldOffset = field.getOffset().toInt();
+    referenceOffsets = MemoryManager.newNonMovingIntArray(oldOffsets.length + 1);
+    int i;
+    for(i=0; i < oldOffsets.length && oldOffsets[i] < fieldOffset; i++) {
+      referenceOffsets[i] = oldOffsets[i];
+    }
+    if (VM.VerifyAssertions) VM._assert(oldOffsets[i] != fieldOffset, "Field is already traced!");
+    referenceOffsets[i++] = fieldOffset;
+    while(i < referenceOffsets.length) {
+      referenceOffsets[i] = oldOffsets[i-1];
+      i++;
+    }
+    SpecializedMethodManager.refreshSpecializedMethods(this);
+
+    for(RVMClass klass: subClasses) {
+      klass.makeFieldTraced(field);
+    }
+  }
+
+  /**
    * Execute this class's static initializer, <clinit>.
    * Side effects: superclasses are initialized, static fields receive
    * initial values.
@@ -2083,7 +2092,11 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
         throw e;
       } catch (Throwable t) {
         ExceptionInInitializerError eieio = new ExceptionInInitializerError("While initializing " + this);
-        eieio.initCause(t);
+        if (VM.verboseClassLoading) {
+          VM.sysWriteln("[Exception in initializer error caused by:");
+          t.printStackTrace();
+          VM.sysWriteln("]");
+        }
         throw eieio;
       }
 
@@ -2313,203 +2326,6 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
     }
   }
 
-  //------------------------------------------------------------//
-  // Additional methods for annotation                          //
-  //------------------------------------------------------------//
-  /**
-   * Method to create a class representing an implementation of an
-   * annotation interface ({@link RVMAnnotation}). The created class
-   * must have:
-   * <ul>
-   * <li>a method for each in the interface</li>
-   * <li>a field backing store for the values to be returned by the
-   * methods</li>
-   * <li>a constructor that assigns default annotation values to each
-   * of the field backing store values (if they are given)</li>
-   * <li>an implementation of: annotationType, equals, hashCode and
-   * toString</li>
-   * </ul>
-   *
-   * @param annotationInterface the annotation interface this class
-   * will implement
-   * @return the implementing class
-   */
-  private static void createAnnotationClass(RVMClass annotationInterface) {
-    // Compute name of class based on the name of the annotation interface
-    Atom annotationClassName = annotationInterface.getDescriptor().annotationInterfaceToAnnotationClass();
-
-    // Create a handle to the new synthetic type
-    TypeReference annotationClass =
-        TypeReference.findOrCreateInternal(annotationInterface.getClassLoader(), annotationClassName);
-
-    if (VM.TraceClassLoading && VM.runningVM) {
-      VM.sysWrite("RVMClass: (begin) create (load) annotation " + annotationClass.getName() + "\n");
-    }
-
-    // Count the number of default values for this class
-    int numDefaultFields = 0;
-    for (RVMMethod declaredMethod : annotationInterface.declaredMethods) {
-      if (declaredMethod.getAnnotationDefault() != null) {
-        numDefaultFields++;
-      }
-    }
-    // The constant pool that will be used by bytecodes in our
-    // synthetic methods. The constant pool is laid out as:
-    // * 1 - the fields holding the annotation values
-    // * 2 - the methods implementing those in the interface
-    // * 3 - the default values to initialise the class fields to
-    // * 4 - the object initialiser method
-    int numFields = annotationInterface.declaredMethods.length;
-    int numMethods = annotationInterface.declaredMethods.length + 1;
-    int constantPoolSize = numFields + numMethods + numDefaultFields;
-    int[] constantPool = new int[constantPoolSize];
-
-    // Create fields for class
-    RVMField[] annotationFields = new RVMField[numFields];
-    for (int i = 0; i < numFields; i++) {
-      RVMMethod currentAnnotationValue = annotationInterface.declaredMethods[i];
-      Atom newFieldName = Atom.findOrCreateAsciiAtom(currentAnnotationValue.getName().toString() + "_field");
-      Atom newFieldDescriptor = currentAnnotationValue.getReturnType().getName();
-      MemberReference newFieldRef =
-          MemberReference.findOrCreate(annotationClass, newFieldName, newFieldDescriptor);
-      annotationFields[i] = RVMField.createAnnotationField(annotationClass, newFieldRef);
-      constantPool[i] = packCPEntry(CP_MEMBER, newFieldRef.getId());
-    }
-
-    // Create copy of methods from the annotation
-    RVMMethod[] annotationMethods = new RVMMethod[numMethods];
-    for (int i = 0; i < annotationInterface.declaredMethods.length; i++) {
-      RVMMethod currentAnnotationValue = annotationInterface.declaredMethods[i];
-      Atom newMethodName = currentAnnotationValue.getName();
-      Atom newMethodDescriptor = currentAnnotationValue.getDescriptor();
-      MemberReference newMethodRef =
-          MemberReference.findOrCreate(annotationClass, newMethodName, newMethodDescriptor);
-      annotationMethods[i] =
-          RVMMethod.createAnnotationMethod(annotationClass,
-                                           constantPool,
-                                           newMethodRef,
-                                           annotationInterface.declaredMethods[i],
-                                           i);
-      constantPool[numFields + i] = packCPEntry(CP_MEMBER, annotationMethods[i].getMemberRef().getId());
-    }
-    // Create default value constants
-    int nextFreeConstantPoolSlot = numFields + annotationInterface.declaredMethods.length;
-    int[] defaultConstants = new int[numDefaultFields];
-    for (int i = 0, j = 0; i < annotationInterface.declaredMethods.length; i++) {
-      Object value = annotationInterface.declaredMethods[i].getAnnotationDefault();
-      if (value != null) {
-        if (value instanceof Object[]) {
-          // Special case of 0 length arrays that can't have their type resolved early
-          if (VM.VerifyAssertions) VM._assert(((Object[])value).length == 0);
-          value = Array.newInstance(annotationInterface.declaredMethods[i].getReturnType().resolve().getClassForType(), 0);
-        }
-        if (value instanceof Integer) {
-          constantPool[nextFreeConstantPoolSlot] =
-              packCPEntry(CP_INT, Statics.findOrCreateIntSizeLiteral((Integer) value));
-          defaultConstants[j] = nextFreeConstantPoolSlot;
-          j++;
-          nextFreeConstantPoolSlot++;
-        } else if (value instanceof Boolean) {
-          constantPool[nextFreeConstantPoolSlot] =
-              packCPEntry(CP_INT, Statics.findOrCreateIntSizeLiteral((Boolean) value ? 1 : 0));
-          defaultConstants[j] = nextFreeConstantPoolSlot;
-          j++;
-          nextFreeConstantPoolSlot++;
-        } else if (value instanceof Byte) {
-          constantPool[nextFreeConstantPoolSlot] =
-              packCPEntry(CP_INT, Statics.findOrCreateIntSizeLiteral((Byte) value));
-          defaultConstants[j] = nextFreeConstantPoolSlot;
-          j++;
-          nextFreeConstantPoolSlot++;
-        } else if (value instanceof Short) {
-          constantPool[nextFreeConstantPoolSlot] =
-              packCPEntry(CP_INT, Statics.findOrCreateIntSizeLiteral((Short) value));
-          defaultConstants[j] = nextFreeConstantPoolSlot;
-          j++;
-          nextFreeConstantPoolSlot++;
-        } else if (value instanceof Character) {
-          constantPool[nextFreeConstantPoolSlot] =
-              packCPEntry(CP_INT, Statics.findOrCreateIntSizeLiteral((Character) value));
-          defaultConstants[j] = nextFreeConstantPoolSlot;
-          j++;
-          nextFreeConstantPoolSlot++;
-        } else if (value instanceof Float) {
-          constantPool[nextFreeConstantPoolSlot] =
-              packCPEntry(CP_FLOAT, Statics.findOrCreateIntSizeLiteral(Float.floatToIntBits(((Float)value).floatValue())));
-          defaultConstants[j] = nextFreeConstantPoolSlot;
-          j++;
-          nextFreeConstantPoolSlot++;
-        } else if (value instanceof Double) {
-          constantPool[nextFreeConstantPoolSlot] =
-              packCPEntry(CP_DOUBLE, Statics.findOrCreateLongSizeLiteral(Double.doubleToLongBits(((Double)value).doubleValue())));
-          defaultConstants[j] = nextFreeConstantPoolSlot;
-          j++;
-          nextFreeConstantPoolSlot++;
-        } else if (value instanceof Long) {
-          constantPool[nextFreeConstantPoolSlot] =
-              packCPEntry(CP_LONG, Statics.findOrCreateLongSizeLiteral((Long)value));
-          defaultConstants[j] = nextFreeConstantPoolSlot;
-          j++;
-          nextFreeConstantPoolSlot++;
-        } else if (value instanceof String) {
-          try {
-            constantPool[nextFreeConstantPoolSlot] =
-                packCPEntry(CP_STRING,
-                            Atom.findOrCreateUnicodeAtom((String) value).getStringLiteralOffset());
-          } catch (UTFDataFormatException e) {
-            throw new Error(e);
-          }
-          defaultConstants[j] = nextFreeConstantPoolSlot;
-          j++;
-          nextFreeConstantPoolSlot++;
-        } else { // Array/Enum/Annotation
-          constantPool[nextFreeConstantPoolSlot] =
-            packCPEntry(CP_STRING,
-                Statics.findOrCreateObjectLiteral(value));
-          defaultConstants[j] = nextFreeConstantPoolSlot;
-          j++;
-          nextFreeConstantPoolSlot++;
-        }
-      }
-    }
-    // Create initialiser
-    int objectInitIndex = nextFreeConstantPoolSlot;
-    MethodReference baInitMemRef = RVMAnnotation.getBaseAnnotationInitMemberReference();
-    constantPool[objectInitIndex] = packCPEntry(CP_MEMBER, baInitMemRef.getId());
-
-    MemberReference initMethodRef =
-        MemberReference.findOrCreate(annotationClass, baInitMemRef.getName(), baInitMemRef.getDescriptor());
-
-    annotationMethods[annotationInterface.declaredMethods.length] =
-        RVMMethod.createAnnotationInit(annotationClass,
-                                       constantPool,
-                                       initMethodRef,
-                                       objectInitIndex,
-                                       annotationFields,
-                                       annotationInterface.declaredMethods,
-                                       defaultConstants);
-
-    // Create class
-    RVMClass klass =
-        new RVMClass(annotationClass, constantPool, (short) (ACC_SYNTHETIC | ACC_PUBLIC | ACC_FINAL), // modifiers
-                     baInitMemRef.resolveMember().getDeclaringClass(), // superClass
-                     new RVMClass[]{annotationInterface}, // declaredInterfaces
-                     annotationFields, annotationMethods, null, null, null, null, null, null, null, null);
-    annotationClass.setType(klass);
-    annotationClasses.put(annotationInterface, klass);
-    // Now the class is set up, try to resolve any RVMAnnotation constants to Annotation constants
-    for (int cpSlot : defaultConstants) {
-      if (unpackCPType(constantPool[cpSlot]) == CP_STRING) {
-        Offset off = getLiteralOffset(constantPool, cpSlot);
-        Object value = Statics.getSlotContentsAsObject(off);
-        if (value instanceof RVMAnnotation) {
-          value = ((RVMAnnotation)value).getValue();
-          Statics.setSlotContents(off, value);
-        }
-      }
-    }
-  }
-
   /**
    * Number of [ in descriptor for arrays; -1 for primitives; 0 for
    * classes
@@ -2640,5 +2456,45 @@ public final class RVMClass extends RVMType implements Constants, ClassLoaderCon
   @Uninterruptible
   public boolean isReferenceType() {
     return true;
+  }
+
+  /**
+   * Create a synthetic class that extends ReflectionBase and invokes the given method
+   * @param methodToCall the method we wish to call reflectively
+   * @return the synthetic class
+   */
+  static Class<?> createReflectionClass(RVMMethod methodToCall) {
+    if (VM.VerifyAssertions) VM._assert(VM.runningVM);
+    if (DynamicTypeCheck.instanceOfResolved(TypeReference.baseReflectionClass.resolve(), methodToCall.getDeclaringClass())) {
+      // Avoid reflection on reflection base class
+      return null;
+    }
+    int[] constantPool = new int[methodToCall.getParameterTypes().length+3];
+    String reflectionClassName = "Lorg/jikesrvm/classloader/ReflectionBase$$Reflect"+methodToCall.getMemberRef().getId()+";";
+    TypeReference reflectionClass = TypeReference.findOrCreate(reflectionClassName);
+    RVMType klass = reflectionClass.peekType();
+    if (klass == null) {
+      MethodReference reflectionMethodRef = MethodReference.findOrCreate(reflectionClass,
+          Atom.findOrCreateUnicodeAtom("invokeInternal"),
+          Atom.findOrCreateUnicodeAtom("(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;")
+      ).asMethodReference();
+      MethodReference constructorMethodRef = MethodReference.findOrCreate(reflectionClass,
+          Atom.findOrCreateUnicodeAtom("<init>"),
+          Atom.findOrCreateUnicodeAtom("()V")
+      ).asMethodReference();
+
+      RVMMethod[] reflectionMethods = new RVMMethod[]{
+          methodToCall.createReflectionMethod(reflectionClass, constantPool, reflectionMethodRef),
+          RVMMethod.createDefaultConstructor(reflectionClass, constructorMethodRef)};
+      klass =
+        new RVMClass(reflectionClass, constantPool, (short) (ACC_SYNTHETIC | ACC_PUBLIC | ACC_FINAL), // modifiers
+            TypeReference.baseReflectionClass.resolve().asClass(), // superClass
+            emptyVMClass, // declaredInterfaces
+            emptyVMField, reflectionMethods,
+            null, null, null, null, null, null, null, null);
+      reflectionClass.setType(klass);
+      RuntimeEntrypoints.initializeClassForDynamicLink(klass.asClass());
+    }
+    return klass.getClassForType();
   }
 }

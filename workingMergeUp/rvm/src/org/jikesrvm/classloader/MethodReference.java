@@ -13,6 +13,7 @@
 package org.jikesrvm.classloader;
 
 import org.jikesrvm.VM;
+import org.vmmagic.pragma.Pure;
 import org.vmmagic.pragma.Uninterruptible;
 
 /**
@@ -35,6 +36,15 @@ public final class MethodReference extends MemberReference {
    * The RVMMethod that this method reference resolved to (null if not yet resolved).
    */
   private RVMMethod resolvedMember;
+
+  /**
+   * Find or create a method reference
+   * @see MemberReference#findOrCreate(TypeReference, Atom, Atom)
+   */
+  @Pure
+  public static MethodReference findOrCreate(TypeReference tRef, Atom mn, Atom md) {
+    return MemberReference.findOrCreate(tRef, mn, md).asMethodReference();
+  }
 
   /**
    * @param tr a type reference to the defining class in which this method
@@ -294,11 +304,13 @@ public final class MethodReference extends MemberReference {
       declaringClass.getDescriptor().sysWrite();
       if (VM.runningVM) {
         VM.sysWriteln(", while booting the VM");
+        VM.sysFail("MethodReference.resolveInternal(): Unable to resolve a method during VM booting");
+
       } else {
         VM.sysWriteln(", while writing the boot image");
+        Thread.dumpStack();
+        throw new Error("MethodReference.resolveInternal(): Unable to resolve a method during boot image writing");
       }
-      VM.sysFail(
-          "MethodReference.resolveInternal(): Unable to resolve a method during VM booting or boot image writing");
     }
     throw new NoSuchMethodError(this.toString());
   }

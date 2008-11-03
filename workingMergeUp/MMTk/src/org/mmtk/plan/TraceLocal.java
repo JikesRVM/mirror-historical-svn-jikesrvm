@@ -230,8 +230,6 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
     Space space = Space.getSpaceForObject(object);
     if (space == Plan.loSpace)
       return Plan.loSpace.isLive(object);
-    else if (space == Plan.ploSpace)
-      return Plan.ploSpace.isLive(object);
     else if (space == Plan.nonMovingSpace)
       return Plan.nonMovingSpace.isLive(object);
     else if (Plan.USE_CODE_SPACE && space == Plan.smallCodeSpace)
@@ -343,13 +341,11 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
   public boolean willNotMoveInCurrentCollection(ObjectReference object) {
     if (!VM.activePlan.constraints().movesObjects())
       return true;
-    if (Space.isInSpace(Plan.PLOS, object))
-      return true;
     if (Space.isInSpace(Plan.LOS, object))
       return true;
     if (Space.isInSpace(Plan.IMMORTAL, object))
       return true;
-    if (Space.isInSpace(Plan.SPACE, object))
+    if (Space.isInSpace(Plan.VM_SPACE, object))
       return true;
     if (Space.isInSpace(Plan.NON_MOVING, object))
       return true;

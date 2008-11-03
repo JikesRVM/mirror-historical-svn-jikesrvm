@@ -21,7 +21,7 @@ import org.jikesrvm.compilers.baseline.ReferenceMaps;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.ia32.BaselineConstants;
-import org.jikesrvm.memorymanagers.mminterface.GCMapIterator;
+import org.jikesrvm.mm.mminterface.GCMapIterator;
 import org.jikesrvm.runtime.DynamicLink;
 import org.jikesrvm.runtime.Magic;
 import org.vmmagic.pragma.Uninterruptible;
@@ -174,7 +174,7 @@ public abstract class BaselineGCMapIterator extends GCMapIterator implements Bas
    * given a index in the local area (biased : local0 has index 1)
    *   this routine determines the correspondig offset in the stack
    */
-  public int convertIndexToLocation(int index) {
+  public short convertIndexToLocation(int index) {
     if (index == 0) return 0;
     if (index <= currentNumLocals) { //index is biased by 1;
       return currentCompiledMethod.getGeneralLocalLocation(index - 1);

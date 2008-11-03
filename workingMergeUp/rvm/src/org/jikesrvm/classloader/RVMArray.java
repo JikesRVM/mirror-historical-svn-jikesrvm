@@ -15,8 +15,8 @@ package org.jikesrvm.classloader;
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.VM;
 import org.jikesrvm.Constants;
-import org.jikesrvm.memorymanagers.mminterface.MM_Constants;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
+import org.jikesrvm.mm.mminterface.MemoryManagerConstants;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.objectmodel.TIB;
 import org.jikesrvm.runtime.Magic;
@@ -470,12 +470,12 @@ public final class RVMArray extends RVMType implements Constants, ClassLoaderCon
     // virtual method fields and substituting an appropriate type field.
     //
     TIB javaLangObjectTIB = RVMType.JavaLangObjectType.getTypeInformationBlock();
-    TIB allocatedTib = MM_Interface.newTIB(javaLangObjectTIB.numVirtualMethods());
+    TIB allocatedTib = MemoryManager.newTIB(javaLangObjectTIB.numVirtualMethods());
     superclassIds = DynamicTypeCheck.buildSuperclassIds(this);
     doesImplement = DynamicTypeCheck.buildDoesImplement(this);
     publishResolved(allocatedTib, superclassIds, doesImplement);
 
-    MM_Interface.notifyClassResolved(this);
+    MemoryManager.notifyClassResolved(this);
   }
 
   /**
@@ -519,10 +519,15 @@ public final class RVMArray extends RVMType implements Constants, ClassLoaderCon
 
     // Initialize TIB slots for virtual methods (copy from superclass == Object)
     RVMType objectType = RVMType.JavaLangObjectType;
+    int retries=0;
     while(!objectType.isInstantiated()) {
       try {
-        Thread.sleep(10);
+        Thread.sleep(1);
       } catch (InterruptedException e) {}
+      retries++;
+      if (retries > 10) {
+        throw new Error("Failed waiting for java.lang.Object to be instantiated during instantiation of "+toString());
+      }
     }
     if (VM.VerifyAssertions) VM._assert(objectType.isInstantiated());
     TIB javaLangObjectTIB = objectType.getTypeInformationBlock();
@@ -588,7 +593,7 @@ public final class RVMArray extends RVMType implements Constants, ClassLoaderCon
    * @param dstIdx The starting destination index
    * @param len The number of array elements to be copied
    */
-  @Inline(value=Inline.When.ArgumentsAreConstant, arguments={1,3})
+  @Inline(value=Inline.When.ArgumentsAreConstant, arguments={1,3,4})
   public static void arraycopy(byte[] src, int srcIdx, byte[] dst, int dstIdx, int len) {
     // Don't do any of the assignments if the offsets and lengths
     // are in error
@@ -635,7 +640,7 @@ public final class RVMArray extends RVMType implements Constants, ClassLoaderCon
    * @param dstIdx The starting destination index
    * @param len The number of array elements to be copied
    */
-  @Inline(value=Inline.When.ArgumentsAreConstant, arguments={1,3})
+  @Inline(value=Inline.When.ArgumentsAreConstant, arguments={1,3,4})
   public static void arraycopy(boolean[] src, int srcIdx, boolean[] dst, int dstIdx, int len) {
     // Don't do any of the assignments if the offsets and lengths
     // are in error
@@ -682,7 +687,7 @@ public final class RVMArray extends RVMType implements Constants, ClassLoaderCon
    * @param dstIdx The starting destination index
    * @param len The number of array elements to be copied
    */
-  @Inline(value=Inline.When.ArgumentsAreConstant, arguments={1,3})
+  @Inline(value=Inline.When.ArgumentsAreConstant, arguments={1,3,4})
   public static void arraycopy(short[] src, int srcIdx, short[] dst, int dstIdx, int len) {
     // Don't do any of the assignments if the offsets and lengths
     // are in error
@@ -729,7 +734,7 @@ public final class RVMArray extends RVMType implements Constants, ClassLoaderCon
    * @param dstIdx The starting destination index
    * @param len The number of array elements to be copied
    */
-  @Inline(value=Inline.When.ArgumentsAreConstant, arguments={1,3})
+  @Inline(value=Inline.When.ArgumentsAreConstant, arguments={1,3,4})
   public static void arraycopy(char[] src, int srcIdx, char[] dst, int dstIdx, int len) {
     // Don't do any of the assignments if the offsets and lengths
     // are in error
@@ -776,7 +781,7 @@ public final class RVMArray extends RVMType implements Constants, ClassLoaderCon
    * @param dstIdx The starting destination index
    * @param len The number of array elements to be copied
    */
-  @Inline(value=Inline.When.ArgumentsAreConstant, arguments={1,3})
+  @Inline(value=Inline.When.ArgumentsAreConstant, arguments={1,3,4})
   public static void arraycopy(int[] src, int srcIdx, int[] dst, int dstIdx, int len) {
     // Don't do any of the assignments if the offsets and lengths
     // are in error
@@ -823,7 +828,7 @@ public final class RVMArray extends RVMType implements Constants, ClassLoaderCon
    * @param dstIdx The starting destination index
    * @param len The number of array elements to be copied
    */
-  @Inline(value=Inline.When.ArgumentsAreConstant, arguments={1,3})
+  @Inline(value=Inline.When.ArgumentsAreConstant, arguments={1,3,4})
   public static void arraycopy(float[] src, int srcIdx, float[] dst, int dstIdx, int len) {
     // Don't do any of the assignments if the offsets and lengths
     // are in error
@@ -870,7 +875,7 @@ public final class RVMArray extends RVMType implements Constants, ClassLoaderCon
    * @param dstIdx The starting destination index
    * @param len The number of array elements to be copied
    */
-  @Inline(value=Inline.When.ArgumentsAreConstant, arguments={1,3})
+  @Inline(value=Inline.When.ArgumentsAreConstant, arguments={1,3,4})
   public static void arraycopy(long[] src, int srcIdx, long[] dst, int dstIdx, int len) {
     // Don't do any of the assignments if the offsets and lengths
     // are in error
@@ -917,7 +922,7 @@ public final class RVMArray extends RVMType implements Constants, ClassLoaderCon
    * @param dstIdx The starting destination index
    * @param len The number of array elements to be copied
    */
-  @Inline(value=Inline.When.ArgumentsAreConstant, arguments={1,3})
+  @Inline(value=Inline.When.ArgumentsAreConstant, arguments={1,3,4})
   public static void arraycopy(double[] src, int srcIdx, double[] dst, int dstIdx, int len) {
     // Don't do any of the assignments if the offsets and lengths
     // are in error
@@ -1008,9 +1013,9 @@ public final class RVMArray extends RVMType implements Constants, ClassLoaderCon
     Offset dstOffset = Offset.fromIntZeroExtend(dstIdx << LOG_BYTES_IN_ADDRESS);
     int bytes = len << LOG_BYTES_IN_ADDRESS;
 
-    if (!MM_Constants.NEEDS_READ_BARRIER && ((src != dst) || loToHi)) {
-      if (!MM_Constants.NEEDS_WRITE_BARRIER ||
-          !MM_Interface.arrayCopyWriteBarrier(src, srcOffset, dst, dstOffset, bytes)) {
+    if (!MemoryManagerConstants.NEEDS_READ_BARRIER && ((src != dst) || loToHi)) {
+      if (!MemoryManagerConstants.NEEDS_WRITE_BARRIER ||
+          !MemoryManager.arrayCopyWriteBarrier(src, srcOffset, dst, dstOffset, bytes)) {
         Memory.alignedWordCopy(Magic.objectAsAddress(dst).plus(dstOffset),
                                   Magic.objectAsAddress(src).plus(srcOffset),
                                   bytes);
@@ -1029,13 +1034,13 @@ public final class RVMArray extends RVMType implements Constants, ClassLoaderCon
       // perform the copy
       while (len-- != 0) {
         Object value;
-        if (MM_Constants.NEEDS_READ_BARRIER) {
-          value = MM_Interface.arrayLoadReadBarrier(src, srcOffset.toInt() >> LOG_BYTES_IN_ADDRESS);
+        if (MemoryManagerConstants.NEEDS_READ_BARRIER) {
+          value = MemoryManager.arrayLoadReadBarrier(src, srcOffset.toInt() >> LOG_BYTES_IN_ADDRESS);
         } else {
           value = Magic.getObjectAtOffset(src, srcOffset);
         }
-        if (MM_Constants.NEEDS_WRITE_BARRIER) {
-          MM_Interface.arrayStoreWriteBarrier(dst, dstOffset.toInt() >> LOG_BYTES_IN_ADDRESS, value);
+        if (MemoryManagerConstants.NEEDS_WRITE_BARRIER) {
+          MemoryManager.arrayStoreWriteBarrier(dst, dstOffset.toInt() >> LOG_BYTES_IN_ADDRESS, value);
         } else {
           Magic.setObjectAtOffset(dst, dstOffset, value);
         }

@@ -120,8 +120,6 @@ public abstract class MutatorContext implements Constants {
   /** Per-mutator allocator into the non moving space */
   private MarkSweepLocal nonmove = new MarkSweepLocal(Plan.nonMovingSpace);
 
-  /** Per-mutator allocator into the primitive large object space */
-  protected LargeObjectLocal plos = new LargeObjectLocal(Plan.ploSpace);
 
   /****************************************************************************
    *
@@ -158,7 +156,7 @@ public abstract class MutatorContext implements Constants {
   public int checkAllocator(int bytes, int align, int allocator) {
     boolean large = Allocator.getMaximumAlignedSize(bytes, align) > Plan.LOS_SIZE_THRESHOLD;
     if (allocator == Plan.ALLOC_DEFAULT) {
-      return large ? Plan.ALLOC_LOS : allocator;
+      return (Plan.REQUIRES_LOS && large) ? Plan.ALLOC_LOS : allocator;
     }
 
     if (Plan.USE_CODE_SPACE && allocator == Plan.ALLOC_CODE) {
@@ -166,7 +164,7 @@ public abstract class MutatorContext implements Constants {
     }
 
     if (allocator == Plan.ALLOC_NON_REFERENCE) {
-      return large ? Plan.ALLOC_PRIMITIVE_LOS : Plan.ALLOC_DEFAULT;
+      return (Plan.REQUIRES_LOS && large) ? Plan.ALLOC_LOS : Plan.ALLOC_DEFAULT;
     }
 
     if (allocator == Plan.ALLOC_NON_MOVING) {
@@ -190,7 +188,6 @@ public abstract class MutatorContext implements Constants {
   public Address alloc(int bytes, int align, int offset, int allocator, int site) {
     switch (allocator) {
     case      Plan.ALLOC_LOS: return los.alloc(bytes, align, offset);
-    case      Plan.ALLOC_PRIMITIVE_LOS: return plos.alloc(bytes, align, offset);
     case      Plan.ALLOC_IMMORTAL: return immortal.alloc(bytes, align, offset);
     case      Plan.ALLOC_CODE: return smcode.alloc(bytes, align, offset);
     case      Plan.ALLOC_LARGE_CODE: return lgcode.alloc(bytes, align, offset);
@@ -214,8 +211,7 @@ public abstract class MutatorContext implements Constants {
   public void postAlloc(ObjectReference ref, ObjectReference typeRef,
       int bytes, int allocator) {
     switch (allocator) {
-    case           Plan.ALLOC_LOS: Plan.loSpace.initializeHeader(ref, false); return;
-    case Plan.ALLOC_PRIMITIVE_LOS: Plan.ploSpace.initializeHeader(ref, true); return;
+    case           Plan.ALLOC_LOS: Plan.loSpace.initializeHeader(ref, true); return;
     case      Plan.ALLOC_IMMORTAL: Plan.immortalSpace.initializeHeader(ref);  return;
     case          Plan.ALLOC_CODE: Plan.smallCodeSpace.initializeHeader(ref, true); return;
     case    Plan.ALLOC_LARGE_CODE: Plan.largeCodeSpace.initializeHeader(ref, true); return;
@@ -280,7 +276,6 @@ public abstract class MutatorContext implements Constants {
   public Space getSpaceFromAllocator(Allocator a) {
     if (a == immortal) return Plan.immortalSpace;
     if (a == los)      return Plan.loSpace;
-    if (a == plos)     return Plan.ploSpace;
     if (a == nonmove)  return Plan.nonMovingSpace;
     if (Plan.USE_CODE_SPACE && a == smcode)   return Plan.smallCodeSpace;
     if (Plan.USE_CODE_SPACE && a == lgcode)   return Plan.largeCodeSpace;
@@ -301,7 +296,6 @@ public abstract class MutatorContext implements Constants {
   public Allocator getAllocatorFromSpace(Space space) {
     if (space == Plan.immortalSpace)  return immortal;
     if (space == Plan.loSpace)        return los;
-    if (space == Plan.ploSpace)       return plos;
     if (space == Plan.nonMovingSpace) return nonmove;
     if (Plan.USE_CODE_SPACE && space == Plan.smallCodeSpace) return smcode;
     if (Plan.USE_CODE_SPACE && space == Plan.largeCodeSpace) return lgcode;
@@ -334,13 +328,13 @@ public abstract class MutatorContext implements Constants {
    * @param slot The address into which the new reference will be
    * stored.
    * @param tgt The target of the new reference
-   * @param metaDataA An int that assists the host VM in creating a store
-   * @param metaDataB An int that assists the host VM in creating a store
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
    * @param mode The context in which the store occured
    */
   public void writeBarrier(ObjectReference src, Address slot,
-      ObjectReference tgt, Offset metaDataA,
-      int metaDataB, int mode) {
+      ObjectReference tgt, Word metaDataA,
+      Word metaDataB, int mode) {
     // Either: write barriers are used and this is overridden, or
     // write barriers are not used and this is never called
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(false);
@@ -358,14 +352,14 @@ public abstract class MutatorContext implements Constants {
    * stored.
    * @param old The old reference to be swapped out
    * @param tgt The target of the new reference
-   * @param metaDataA An int that assists the host VM in creating a store
-   * @param metaDataB An int that assists the host VM in creating a store
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
    * @param mode The context in which the store occured
    * @return True if the swap was successful.
    */
   public boolean tryCompareAndSwapWriteBarrier(ObjectReference src, Address slot,
-      ObjectReference old, ObjectReference tgt, Offset metaDataA,
-      int metaDataB, int mode) {
+      ObjectReference old, ObjectReference tgt, Word metaDataA,
+      Word metaDataB, int mode) {
     // Either: write barriers are used and this is overridden, or
     // write barriers are not used and this is never called
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(false);
@@ -427,7 +421,7 @@ public abstract class MutatorContext implements Constants {
    * @return The reference that was read.
    */
   @Inline
-  public ObjectReference readBarrier(ObjectReference src, Address slot, Offset metaDataA, int metaDataB, int mode) {
+  public ObjectReference readBarrier(ObjectReference src, Address slot, Word metaDataA, Word metaDataB, int mode) {
     // Either: read barriers are used and this is overridden, or
     // read barriers are not used and this is never called
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(false);

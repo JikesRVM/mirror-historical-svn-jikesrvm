@@ -31,19 +31,18 @@ import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
 /**
- * This class represents an instance of a type information block.
- *
- * #see {@link TIBLayoutConstants}
+ * This class represents an instance of a type information block, at runtime it
+ * is an array with Object elements.
+ * @see TIBLayoutConstants
  */
 @Uninterruptible
 @NonMoving
-public final class TIB implements TIBLayoutConstants, SizeConstants {
+public final class TIB implements RuntimeTable<Object>, TIBLayoutConstants, SizeConstants {
   /**
-   * Calculate the number of words required to hold the lazy method invoker trampoline.
-   * @return
+   * @return the number of words required to hold the lazy method invoker trampoline.
    */
   public static int lazyMethodInvokerTrampolineWords() {
-    int codeWords = VM.BuildForIA32 ? 2 : (VM.BuildFor32Addr ? 3 : 2);
+    int codeWords = VM.BuildForIA32 ? (VM.BuildFor32Addr ? 2 : 1) : (VM.BuildFor32Addr ? 3 : 2);
     if (VM.runningVM && VM.VerifyAssertions) {
       int codeBytes = LazyCompilationTrampoline.instructions.length() << ArchConstants.LG_INSTRUCTION_WIDTH;
       VM._assert(codeWords == ((codeBytes + BYTES_IN_ADDRESS - 1) >>> LOG_BYTES_IN_ADDRESS));
@@ -140,8 +139,8 @@ public final class TIB implements TIBLayoutConstants, SizeConstants {
    * @param value The value to set the entry to.
    */
   @Intrinsic
-  @UninterruptibleNoWarn // hijacked at runtime
-  protected void set(int index, Object value) {
+  @UninterruptibleNoWarn("Interruptible code not reachable at runtime")
+  public void set(int index, Object value) {
     if (VM.VerifyAssertions && VM.runningVM) VM._assert(VM.NOT_REACHED);
     data[index] = value;
   }
@@ -159,7 +158,11 @@ public final class TIB implements TIBLayoutConstants, SizeConstants {
    */
   @Inline
   public RVMType getType() {
-    return Magic.objectAsType(get(TIB_TYPE_INDEX));
+    if (VM.runningVM) {
+      return Magic.objectAsType(get(TIB_TYPE_INDEX));
+    } else {
+      return (RVMType)get(TIB_TYPE_INDEX);
+    }
   }
 
   /**
@@ -306,7 +309,7 @@ public final class TIB implements TIBLayoutConstants, SizeConstants {
 
   /**
    * Calculate the address that is the call target for the lazy method invoker trampoline.
-   * @return
+   * @return the offset of the instruction that is the call target
    */
   public int lazyMethodInvokerTrampolineIndex() {
     return length() - lazyMethodInvokerTrampolineWords();

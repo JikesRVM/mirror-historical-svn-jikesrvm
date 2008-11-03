@@ -136,46 +136,6 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
   }
 
   /**
-   * Uninterruptible version for fully resolved proper classes.
-   * @param object object to be tested
-   * @param id type id corresponding to target class.
-   * @return true iff is object instance of target type?
-   */
-  @Uninterruptible
-  @Entrypoint
-  static boolean instanceOfResolvedClass(Object object, int id) {
-    if (object == null) {
-      return false; // null is not an instance of any type
-    }
-
-    RVMClass lhsType = RVMType.getType(id).asClass();
-    TIB rhsTIB = ObjectModel.getTIB(object);
-    return DynamicTypeCheck.instanceOfClass(lhsType, rhsTIB);
-  }
-
-  /**
-   * Quick version for final classes, array of final class or array of
-   * primitives
-   *
-   * @param object Object to be tested
-   * @param targetTibOffset  JTOC offset of TIB of target type
-   *
-   * @return <code>true</code> iff  <code>object</code> is instance of the
-   *         target type
-   */
-  @Uninterruptible
-  @Entrypoint
-  static boolean instanceOfFinal(Object object, Offset targetTibOffset) {
-    if (object == null) {
-      return false; // null is not an instance of any type
-    }
-
-    Object lhsTib = Magic.getObjectAtOffset(Magic.getJTOC(), targetTibOffset);
-    Object rhsTib = ObjectModel.getTIB(object);
-    return lhsTib == rhsTib;
-  }
-
-  /**
    * Throw exception unless object is instance of target
    * class/array or implements target interface.
    * @param object object to be tested
@@ -200,58 +160,8 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
     // not an exact match, do more involved lookups
     //
     if (!isAssignableWith(lhsType, rhsType)) {
-      raiseCheckcastException(lhsType, rhsType);
+      throw new ClassCastException("Cannot cast a(n) " + rhsType + " to a(n) " + lhsType);
     }
-  }
-
-  /**
-   * Throw exception unless object is instance of target resolved proper class.
-   * @param object object to be tested
-   * @param id of type corresponding to target class
-   */
-  @Uninterruptible
-  @Entrypoint
-  static void checkcastResolvedClass(Object object, int id) {
-    if (object == null) return; // null can be cast to any type
-
-    RVMClass lhsType = RVMType.getType(id).asClass();
-    TIB rhsTIB = ObjectModel.getTIB(object);
-    if (VM.VerifyAssertions) {
-      VM._assert(rhsTIB != null);
-    }
-    if (!DynamicTypeCheck.instanceOfClass(lhsType, rhsTIB)) {
-      RVMType rhsType = ObjectModel.getObjectType(object);
-      raiseCheckcastException(lhsType, rhsType);
-    }
-  }
-
-  /**
-   * quick version for final classes, array of final class or array of primitives
-   */
-  @Uninterruptible
-  @Entrypoint
-  static void checkcastFinal(Object object, Offset targetTibOffset) {
-    if (object == null) return; // null can be cast to any type
-
-    Object lhsTib = Magic.getObjectAtOffset(Magic.getJTOC(), targetTibOffset);
-    Object rhsTib = ObjectModel.getTIB(object);
-    if (lhsTib != rhsTib) {
-      RVMType lhsType =
-          Magic.objectAsType(Magic.getObjectAtOffset(lhsTib,
-                                                           Offset.fromIntZeroExtend(TIB_TYPE_INDEX <<
-                                                                                    LOG_BYTES_IN_ADDRESS)));
-      RVMType rhsType =
-          Magic.objectAsType(Magic.getObjectAtOffset(rhsTib,
-                                                           Offset.fromIntZeroExtend(TIB_TYPE_INDEX <<
-                                                                                    LOG_BYTES_IN_ADDRESS)));
-      raiseCheckcastException(lhsType, rhsType);
-    }
-  }
-
-  @LogicallyUninterruptible
-  @Uninterruptible
-  private static void raiseCheckcastException(RVMType lhsType, RVMType rhsType) {
-    throw new ClassCastException("Cannot cast a(n) " + rhsType + " to a(n) " + lhsType);
   }
 
   /**
@@ -328,9 +238,9 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
       initializeClassForDynamicLink(cls);
     }
 
-    int allocator = MM_Interface.pickAllocator(cls);
+    int allocator = MemoryManager.pickAllocator(cls);
     int align = ObjectModel.getAlignment(cls);
-    int offset = ObjectModel.getOffsetForAlignment(cls);
+    int offset = ObjectModel.getOffsetForAlignment(cls, false);
     return resolvedNewScalar(cls.getInstanceSize(),
                              cls.getTypeInformationBlock(),
                              cls.hasFinalizer(),
@@ -349,10 +259,10 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
    */
   public static Object resolvedNewScalar(RVMClass cls) {
 
-    int allocator = MM_Interface.pickAllocator(cls);
-    int site = MM_Interface.getAllocationSite(false);
+    int allocator = MemoryManager.pickAllocator(cls);
+    int site = MemoryManager.getAllocationSite(false);
     int align = ObjectModel.getAlignment(cls);
-    int offset = ObjectModel.getOffsetForAlignment(cls);
+    int offset = ObjectModel.getOffsetForAlignment(cls, false);
     return resolvedNewScalar(cls.getInstanceSize(),
                              cls.getTypeInformationBlock(),
                              cls.hasFinalizer(),
@@ -383,10 +293,10 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
     if (VM.ForceFrequentGC) checkAllocationCountDownToGC();
 
     // Allocate the object and initialize its header
-    Object newObj = MM_Interface.allocateScalar(size, tib, allocator, align, offset, site);
+    Object newObj = MemoryManager.allocateScalar(size, tib, allocator, align, offset, site);
 
     // Deal with finalization
-    if (hasFinalizer) MM_Interface.addFinalizer(newObj);
+    if (hasFinalizer) MemoryManager.addFinalizer(newObj);
 
     return newObj;
   }
@@ -425,7 +335,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
    */
   public static Object resolvedNewArray(int numElements, RVMArray array)
       throws OutOfMemoryError, NegativeArraySizeException {
-    return resolvedNewArray(numElements, array, MM_Interface.getAllocationSite(false));
+    return resolvedNewArray(numElements, array, MemoryManager.getAllocationSite(false));
   }
 
   public static Object resolvedNewArray(int numElements, RVMArray array, int site)
@@ -435,9 +345,9 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
                             array.getLogElementSize(),
                             ObjectModel.computeArrayHeaderSize(array),
                             array.getTypeInformationBlock(),
-                            MM_Interface.pickAllocator(array),
+                            MemoryManager.pickAllocator(array),
                             ObjectModel.getAlignment(array),
-                            ObjectModel.getOffsetForAlignment(array),
+                            ObjectModel.getOffsetForAlignment(array, false),
                             site);
   }
 
@@ -465,7 +375,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
     if (VM.ForceFrequentGC) checkAllocationCountDownToGC();
 
     // Allocate the array and initialize its header
-    return MM_Interface.allocateArray(numElements, logElementSize, headerSize, tib, allocator, align, offset, site);
+    return MemoryManager.allocateArray(numElements, logElementSize, headerSize, tib, allocator, align, offset, site);
   }
 
   /**
@@ -675,6 +585,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
    */
   @NoInline
   @Entrypoint
+  @Unpreemptible("Deliver exception possibly from unpreemptible code")
   public static void athrow(Throwable exceptionObject) {
     if (traceAthrow) {
       VM.sysWriteln("in athrow.");
@@ -945,7 +856,8 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
   /**
    * Build a two-dimensional array.
    * @param methodId  Apparently unused (!)
-   * @param numElements number of elements to allocate for each dimension
+   * @param dim0 the arraylength for arrays in dimension 0
+   * @param dim1 the arraylength for arrays in dimension 1
    * @param arrayType type of array that will result
    * @return array object
    */
@@ -1019,6 +931,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
    *  <li> <em> or </em> current thread is terminated if no catch block is found
    * </ul>
    */
+  @Unpreemptible("Deliver exception trying to avoid preemption")
   private static void deliverException(Throwable exceptionObject, Registers exceptionRegisters) {
     if (VM.TraceExceptionDelivery) {
       VM.sysWriteln("RuntimeEntrypoints.deliverException() entered; just got an exception object.");
@@ -1094,7 +1007,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
       callee_fp = fp;
       ip = Magic.getReturnAddress(fp);
       fp = Magic.getCallerFramePointer(fp);
-    } while (!MM_Interface.addressInVM(ip) && fp.NE(STACKFRAME_SENTINEL_FP));
+    } while (!MemoryManager.addressInVM(ip) && fp.NE(STACKFRAME_SENTINEL_FP));
 
     if (VM.BuildForPowerPC) {
       // We want to return fp, not callee_fp because we want the stack walkers
@@ -1129,6 +1042,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
    *  invokers save/restore any nonvolatiles, so we're probably ok.
    *  --dave 6/29/01
    */
+  @Uninterruptible
   private static void unwindInvisibleStackFrame(Registers registers) {
     registers.unwindStackFrame();
   }

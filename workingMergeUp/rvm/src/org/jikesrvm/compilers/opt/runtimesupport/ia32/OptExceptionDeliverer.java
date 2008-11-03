@@ -21,6 +21,7 @@ import org.jikesrvm.compilers.opt.runtimesupport.OptCompiledMethod;
 import org.jikesrvm.runtime.ExceptionDeliverer;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.RVMThread;
+import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -36,6 +37,7 @@ public abstract class OptExceptionDeliverer extends ExceptionDeliverer
   /**
    * Pass control to a catch block.
    */
+  @Unpreemptible("Deliver exception possibly from unpreemptible code")
   public void deliverException(CompiledMethod compiledMethod, Address catchBlockInstructionAddress,
                                Throwable exceptionObject, Registers registers) {
     OptCompiledMethod optMethod = (OptCompiledMethod) compiledMethod;
@@ -113,6 +115,7 @@ public abstract class OptExceptionDeliverer extends ExceptionDeliverer
   /**
    * Unwind a stackframe.
    */
+  @Unpreemptible("Unwind stack possibly from unpreemptible code")
   public void unwindStackFrame(CompiledMethod compiledMethod, Registers registers) {
     Address fp = registers.getInnermostFramePointer();
     OptCompiledMethod optMethod = (OptCompiledMethod) compiledMethod;
@@ -151,4 +154,3 @@ public abstract class OptExceptionDeliverer extends ExceptionDeliverer
     }
   }
 }
-

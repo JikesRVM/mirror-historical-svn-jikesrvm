@@ -22,6 +22,7 @@ import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.runtime.ExceptionDeliverer;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.RVMThread;
+import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -35,6 +36,7 @@ public abstract class BaselineExceptionDeliverer extends ExceptionDeliverer impl
    * Pass control to a catch block.
    */
   @Override
+  @Unpreemptible("Deliver exception possibly from unpreemptible code")
   public void deliverException(CompiledMethod compiledMethod, Address catchBlockInstructionAddress,
                                Throwable exceptionObject, ArchitectureSpecific.Registers registers) {
     Address fp = registers.getInnermostFramePointer();
@@ -75,6 +77,7 @@ public abstract class BaselineExceptionDeliverer extends ExceptionDeliverer impl
   /**
    * Unwind a stackframe.
    */
+  @Unpreemptible("Unwind stack possibly from unpreemptible code")
   public void unwindStackFrame(CompiledMethod compiledMethod, ArchitectureSpecific.Registers registers) {
     NormalMethod method = (NormalMethod) compiledMethod.getMethod();
     Address fp = registers.getInnermostFramePointer();
@@ -85,7 +88,7 @@ public abstract class BaselineExceptionDeliverer extends ExceptionDeliverer impl
       if (instr.sGT(lockOffset)) { // we actually have the lock, so must unlock it.
         Object lock;
         if (method.isStatic()) {
-          lock = method.getDeclaringClass().getClassForType();
+          lock = method.getDeclaringClass().getResolvedClassForType();
         } else {
           lock =
               Magic.addressAsObject(fp.plus(BaselineCompilerImpl.locationToOffset(((BaselineCompiledMethod) compiledMethod).getGeneralLocalLocation(

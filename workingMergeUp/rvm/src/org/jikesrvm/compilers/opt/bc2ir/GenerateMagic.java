@@ -504,6 +504,10 @@ public class GenerateMagic implements TIBLayoutConstants  {
       RegisterOperand reg = gc.temps.makeTemp(TypeReference.Type);
       bc2ir.appendInstruction(Move.create(REF_MOVE, reg, bc2ir.popRef()));
       bc2ir.push(reg.copyD2U());
+    } else if (methodName == MagicNames.processorAsGreenProcessor) {
+      RegisterOperand reg = gc.temps.makeTemp(TypeReference.findOrCreate(GreenProcessor.class));
+      bc2ir.appendInstruction(Move.create(REF_MOVE, reg, bc2ir.popRef()));
+      bc2ir.push(reg.copyD2U());
     } else if (methodName == MagicNames.objectAsThread) {
       RegisterOperand reg = gc.temps.makeTemp(TypeReference.Thread);
       bc2ir.appendInstruction(Move.create(REF_MOVE, reg, bc2ir.popRef()));

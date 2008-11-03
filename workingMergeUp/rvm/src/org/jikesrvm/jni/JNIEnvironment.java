@@ -27,7 +27,7 @@ import org.vmmagic.unboxed.ObjectReference;
 /**
  * A JNIEnvironment is created for each Java thread.
  */
-public class JNIEnvironment implements SizeConstants {
+public final class JNIEnvironment implements SizeConstants {
 
   /**
    * initial size for JNI refs, later grow as needed
@@ -54,7 +54,7 @@ public class JNIEnvironment implements SizeConstants {
    * a function pointer.
    * This is an array of such triples that matches JNIFunctions.
    */
-  private static AddressArray[] LinkageTriplets;
+  public static LinkageTripletTable LinkageTriplets;
 
   /**
    * This is the pointer to the shared JNIFunction table.
@@ -170,6 +170,7 @@ public class JNIEnvironment implements SizeConstants {
    * terminating a thread that has a JNI environment allocated to it.
    * @param env the JNIEnvironment to deallocate
    */
+  @Unpreemptible("Deallocate environment but may contend with environment being allocated")
   public static synchronized void deallocateEnvironment(JNIEnvironment env) {
     env.savedTRreg = null; /* make sure that we don't have a reference back to
 			      the thread, once the thread has died. */
@@ -181,27 +182,27 @@ public class JNIEnvironment implements SizeConstants {
    * accessor methods
    */
   @Uninterruptible
-  public final boolean hasNativeStackFrame() {
+  public boolean hasNativeStackFrame() {
     return alwaysHasNativeFrame || JNIRefsTop != 0;
   }
 
   @Uninterruptible
-  public final Address topJavaFP() {
+  public Address topJavaFP() {
     return JNITopJavaFP;
   }
 
   @Uninterruptible
-  public final AddressArray refsArray() {
+  public AddressArray refsArray() {
     return JNIRefs;
   }
 
   @Uninterruptible
-  public final int refsTop() {
+  public int refsTop() {
     return JNIRefsTop;
   }
 
   @Uninterruptible
-  public final int savedRefsFP() {
+  public int savedRefsFP() {
     return JNIRefsSavedFP;
   }
 
@@ -212,13 +213,13 @@ public class JNIEnvironment implements SizeConstants {
    * @param ref the object to put on stack
    * @return offset of entry in JNIRefs stack
    */
-  public final int pushJNIRef(Object ref) {
+  public int pushJNIRef(Object ref) {
     if (ref == null) {
       return 0;
     }
 
     if (VM.VerifyAssertions) {
-      VM._assert(MM_Interface.validRef(ObjectReference.fromObject(ref)));
+      VM._assert(MemoryManager.validRef(ObjectReference.fromObject(ref)));
     }
 
     if ((JNIRefsTop >>> LOG_BYTES_IN_ADDRESS) >= JNIRefs.length()) {
@@ -245,7 +246,7 @@ public class JNIEnvironment implements SizeConstants {
    * @param offset in JNIRefs stack
    * @return reference at that offset
    */
-  public final Object getJNIRef(int offset) {
+  public Object getJNIRef(int offset) {
     if (offset > JNIRefsTop) {
       VM.sysWrite("JNI ERROR: getJNIRef for illegal offset > TOP, ");
       VM.sysWrite(offset);
@@ -265,7 +266,7 @@ public class JNIEnvironment implements SizeConstants {
    * Remove a reference from the JNIRefs stack.
    * @param offset in JNIRefs stack
    */
-  public final void deleteJNIRef(int offset) {
+  public void deleteJNIRef(int offset) {
     if (offset > JNIRefsTop) {
       VM.sysWrite("JNI ERROR: getJNIRef for illegal offset > TOP, ");
       VM.sysWrite(offset);
@@ -283,7 +284,7 @@ public class JNIEnvironment implements SizeConstants {
    * Dump the JNIRefs stack to the sysWrite stream
    */
   @Uninterruptible
-  public final void dumpJniRefsStack() {
+  public void dumpJniRefsStack() {
     int jniRefOffset = JNIRefsTop;
     VM.sysWrite("\n* * dump of JNIEnvironment JniRefs Stack * *\n");
     VM.sysWrite("* JNIRefs = ");
@@ -298,7 +299,7 @@ public class JNIEnvironment implements SizeConstants {
       VM.sysWrite(" ");
       VM.sysWrite(Magic.objectAsAddress(JNIRefs).plus(jniRefOffset));
       VM.sysWrite(" ");
-      MM_Interface.dumpRef(JNIRefs.get(jniRefOffset >>> LOG_BYTES_IN_ADDRESS).toObjectReference());
+      MemoryManager.dumpRef(JNIRefs.get(jniRefOffset >>> LOG_BYTES_IN_ADDRESS).toObjectReference());
       jniRefOffset -= BYTES_IN_ADDRESS;
     }
     VM.sysWrite("\n* * end of dump * *\n");
@@ -309,7 +310,7 @@ public class JNIEnvironment implements SizeConstants {
    * to the Java caller;  clear the exception by recording null
    * @param e  An exception or error
    */
-  public final void recordException(Throwable e) {
+  public void recordException(Throwable e) {
     // don't overwrite the first exception except to clear it
     if (pendingException == null || e == null) {
       pendingException = e;
@@ -319,7 +320,7 @@ public class JNIEnvironment implements SizeConstants {
   /**
    * @return the pending exception
    */
-  public final Throwable getException() {
+  public Throwable getException() {
     return pendingException;
   }
 
@@ -331,9 +332,9 @@ public class JNIEnvironment implements SizeConstants {
     JNIFunctions = functions;
     if (VM.BuildForPowerOpenABI) {
       // Allocate the linkage triplets in the bootimage too (so they won't move)
-      LinkageTriplets = new AddressArray[functions.length()];
+      LinkageTriplets = LinkageTripletTable.allocate(functions.length());
       for (int i = 0; i < functions.length(); i++) {
-        LinkageTriplets[i] = AddressArray.create(3);
+        LinkageTriplets.set(i, AddressArray.create(3));
       }
     }
   }
@@ -346,7 +347,7 @@ public class JNIEnvironment implements SizeConstants {
     if (VM.BuildForPowerOpenABI) {
       // fill in the TOC and IP entries for each linkage triplet
       for (int i = 0; i < JNIFunctions.length(); i++) {
-        AddressArray triplet = LinkageTriplets[i];
+        AddressArray triplet = LinkageTriplets.get(i);
         triplet.set(1, Magic.getTocPointer());
         triplet.set(0, Magic.objectAsAddress(JNIFunctions.get(i)));
       }

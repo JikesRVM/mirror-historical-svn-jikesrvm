@@ -20,7 +20,7 @@ import org.vmmagic.pragma.*;
 import org.vmmagic.unboxed.*;
 
 import org.jikesrvm.VM;
-import org.jikesrvm.memorymanagers.mminterface.DebugUtil;
+import org.jikesrvm.mm.mminterface.DebugUtil;
 import org.jikesrvm.runtime.Entrypoints;
 import org.jikesrvm.scheduler.RVMThread;
 
@@ -53,7 +53,7 @@ public final class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
    * Class fields
    */
 
-  private static Lock lock = new Lock("ReferenceProcessor");
+  private static final Lock lock = new Lock("ReferenceProcessor");
 
   private static final ReferenceProcessor softReferenceProcessor =
     new ReferenceProcessor(Semantics.SOFT);
@@ -126,7 +126,7 @@ public final class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
   /**
    * Factory method.
    * Creates an instance of the appropriate reference type processor.
-   * @return
+   * @return the reference processor
    */
   @Interruptible
   public static ReferenceProcessor get(Semantics semantics) {
@@ -202,6 +202,7 @@ public final class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
    * @param ref The reference to add
    */
   @NoInline
+  @Unpreemptible("Non-preemptible but yield when table needs to be grown")
   private void addCandidate(Reference<?> ref, ObjectReference referent) {
     if (TRACE) {
       ObjectReference referenceAsAddress = ObjectReference.fromObject(ref);
@@ -273,6 +274,15 @@ public final class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
   }
 
   /**
+   * Clear the contents of the table. This is called when reference types are
+   * disabled to make it easier for VMs to change this setting at runtime.
+   */
+  @Override
+  public void clear() {
+    maxIndex = 0;
+  }
+
+  /**
    * Scan through the list of references. Calls ReferenceProcessor's
    * processReference method for each reference and builds a new
    * list of those references still active.
@@ -302,6 +312,9 @@ public final class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
       VM.sysWriteln(" references: ",maxIndex," -> ",toIndex);
     }
     nurseryIndex = maxIndex = toIndex;
+
+    /* flush out any remset entries generated during the above activities */
+    ActivePlan.flushRememberedSets();
   }
 
   /**
@@ -324,6 +337,7 @@ public final class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
    * @param addr the address of the Reference object
    * @return <code>true</code> if the reference was enqueued
    */
+  @Unpreemptible
   public boolean enqueueReference(ObjectReference addr) {
     Reference<?> reference = (Reference<?>)addr.toObject();
     return reference.enqueue();
@@ -368,6 +382,7 @@ public final class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
    * be the address of a heap object, depending on the VM.
    * @param trace the thread local trace element.
    */
+  @UnpreemptibleNoWarn("Call out to ReferenceQueue API")
   public ObjectReference processReference(TraceLocal trace, ObjectReference reference) {
     if (VM.VerifyAssertions) VM._assert(!reference.isNull());
 

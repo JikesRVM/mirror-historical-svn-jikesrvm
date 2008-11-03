@@ -14,11 +14,9 @@ package org.jikesrvm.classloader;
 
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Field;
 import org.jikesrvm.VM;
-import org.jikesrvm.memorymanagers.mminterface.MM_Constants;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
+import org.jikesrvm.mm.mminterface.MemoryManagerConstants;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.Statics;
 import org.vmmagic.pragma.Uninterruptible;
@@ -45,6 +43,11 @@ public final class RVMField extends RVMMember {
   private final boolean reference;
 
   /**
+   * Has the field been made traced?
+   */
+  private boolean madeTraced;
+
+  /**
    * Create a field.
    *
    * @param declaringClass the TypeReference object of the class
@@ -62,7 +65,8 @@ public final class RVMField extends RVMMember {
     TypeReference typeRef = memRef.asFieldReference().getFieldContentsType();
     this.size = (byte)typeRef.getMemoryBytes();
     this.reference = typeRef.isReferenceType();
-    if (isUntraced() && VM.runningVM) {
+    this.madeTraced = false;
+    if (VM.runningVM && isUntraced()) {
       VM.sysFail("Untraced field " + toString() + " created at runtime!");
     }
   }
@@ -143,6 +147,13 @@ public final class RVMField extends RVMMember {
   /**
    * Does the field hold a reference?
    */
+  public boolean isTraced() {
+    return (reference && !isUntraced()) || madeTraced;
+  }
+
+  /**
+   * Does the field hold a reference?
+   */
   public boolean isReferenceType() {
     return reference;
   }
@@ -210,6 +221,15 @@ public final class RVMField extends RVMMember {
   }
 
   /**
+   * Make this field a traced field by garbage collection. Affects all
+   * subclasses of the class in which this field is defined.
+   */
+  public void makeTraced() {
+    madeTraced = true;
+    getDeclaringClass().makeFieldTraced(this);
+  }
+
+  /**
    * Get the value from the runtime final field
    * @return whether the method has a pure annotation
    */
@@ -236,22 +256,6 @@ public final class RVMField extends RVMMember {
   @Uninterruptible
   int getConstantValueIndex() {
     return constantValueIndex;
-  }
-
-  /**
-   * Get the annotation implementing the specified class or null during boot
-   * image write time
-   */
-  protected <T extends Annotation> T getBootImageWriteTimeAnnotation(Class<T> annotationClass) {
-    T ann;
-    Field field = null;
-    try {
-      field = getDeclaringClass().getClassForType().getField(getName().toString());
-      ann = field.getAnnotation(annotationClass);
-    } catch (NoSuchFieldException e) {
-      throw new BootImageMemberLookupError(this, field, getDeclaringClass().getClassForType(), e);
-    }
-    return ann;
   }
 
   //-------------------------------------------------------------------//
@@ -291,14 +295,14 @@ public final class RVMField extends RVMMember {
    */
   public Object getObjectValueUnchecked(Object obj) {
     if (isStatic()) {
-      if (MM_Constants.NEEDS_GETSTATIC_READ_BARRIER && !isUntraced()) {
-        return MM_Interface.getstaticReadBarrier(getOffset(), getId());
+      if (MemoryManagerConstants.NEEDS_GETSTATIC_READ_BARRIER && !isUntraced()) {
+        return MemoryManager.getstaticReadBarrier(getOffset(), getId());
       } else {
         return Statics.getSlotContentsAsObject(getOffset());
       }
     } else {
-      if (MM_Constants.NEEDS_READ_BARRIER && !isUntraced()) {
-        return MM_Interface.getfieldReadBarrier(obj, getOffset(), getId());
+      if (MemoryManagerConstants.NEEDS_READ_BARRIER && !isUntraced()) {
+        return MemoryManager.getfieldReadBarrier(obj, getOffset(), getId());
       } else {
         return Magic.getObjectAtOffset(obj, getOffset());
       }
@@ -386,14 +390,14 @@ public final class RVMField extends RVMMember {
    */
   public void setObjectValueUnchecked(Object obj, Object ref) {
     if (isStatic()) {
-      if (MM_Constants.NEEDS_PUTSTATIC_WRITE_BARRIER && !isUntraced()) {
-        MM_Interface.putstaticWriteBarrier(getOffset(), ref, getId());
+      if (MemoryManagerConstants.NEEDS_PUTSTATIC_WRITE_BARRIER && !isUntraced()) {
+        MemoryManager.putstaticWriteBarrier(getOffset(), ref, getId());
       } else {
         Statics.setSlotContents(getOffset(), ref);
       }
     } else {
-      if (MM_Constants.NEEDS_WRITE_BARRIER && !isUntraced()) {
-        MM_Interface.putfieldWriteBarrier(obj, getOffset(), ref, getId());
+      if (MemoryManagerConstants.NEEDS_WRITE_BARRIER && !isUntraced()) {
+        MemoryManager.putfieldWriteBarrier(obj, getOffset(), ref, getId());
       } else {
         Magic.setObjectAtOffset(obj, getOffset(), ref);
       }

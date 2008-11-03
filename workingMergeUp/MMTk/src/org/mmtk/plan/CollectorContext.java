@@ -14,9 +14,9 @@ package org.mmtk.plan;
 
 import org.mmtk.policy.ImmortalLocal;
 import org.mmtk.utility.sanitychecker.SanityCheckerLocal;
+import org.mmtk.utility.alloc.Allocator;
 import org.mmtk.utility.alloc.BumpPointer;
 import org.mmtk.utility.Constants;
-import org.mmtk.utility.Log;
 
 import org.mmtk.vm.VM;
 
@@ -74,16 +74,16 @@ import org.vmmagic.unboxed.*;
    * Instance fields
    */
   /** Unique collector identifier */
-  protected int id = VM.activePlan.registerCollector(this);
-
-  /** Used for printing log information in a thread safe manner */
-  protected Log log = new Log();
+  protected final int id = VM.activePlan.registerCollector(this);
 
   /** Per-collector allocator into the immortal space */
-  protected BumpPointer immortal = new ImmortalLocal(Plan.immortalSpace);
+  protected final BumpPointer immortal = new ImmortalLocal(Plan.immortalSpace);
 
   /** Used for aborting concurrent phases pre-empted by stop the world collection */
   protected boolean resetConcurrentWork;
+
+  /** Used for sanity checking */
+  protected final SanityCheckerLocal sanityLocal = new SanityCheckerLocal();
 
   /****************************************************************************
    *
@@ -140,7 +140,8 @@ import org.vmmagic.unboxed.*;
   @Inline
   public int copyCheckAllocator(ObjectReference from, int bytes,
       int align, int allocator) {
-    return allocator;
+      boolean large = Allocator.getMaximumAlignedSize(bytes, align) > Plan.LOS_SIZE_THRESHOLD;
+      return large ? Plan.ALLOC_LOS : allocator;
   }
 
   /****************************************************************************
@@ -171,11 +172,6 @@ import org.vmmagic.unboxed.*;
 
   /** @return The current trace instance. */
   public abstract TraceLocal getCurrentTrace();
-
-  /** @return Return the current sanity checker. */
-  public SanityCheckerLocal getSanityChecker() {
-    return null;
-  }
 
   /**
    * Abort concurrent work due to pre-empt by stop the world collection.

@@ -15,9 +15,8 @@ package org.jikesrvm.runtime;
 import org.jikesrvm.VM;
 import org.jikesrvm.Constants;
 import org.jikesrvm.ArchitectureSpecific.CodeArray;
-import org.jikesrvm.classloader.RVMType;
-import org.jikesrvm.memorymanagers.mminterface.MM_Constants;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
+import org.jikesrvm.mm.mminterface.MemoryManagerConstants;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.objectmodel.TIB;
 import org.jikesrvm.util.BitVector;
 import org.jikesrvm.util.ImmutableEntryIdentityHashMapRVM;
@@ -86,12 +85,12 @@ public class Statics implements Constants {
   /**
    * How many 32bit slots do we want in the JTOC to hold numeric (non-reference) values?
    */
-  private static final int numNumericSlots =   0x10000; // 64k
+  private static final int numNumericSlots =   0x20000; // 128k
 
   /**
    * How many reference-sized slots do we want in the JTOC to hold reference values?
    */
-  private static final int numReferenceSlots = 0x10000; // 64k
+  private static final int numReferenceSlots = 0x20000; // 128k
 
   /**
    * Static data values (pointed to by jtoc register).
@@ -503,7 +502,7 @@ public class Statics implements Constants {
   /**
    * Fetch contents of a slot, as an Address.
    */
-  @UninterruptibleNoWarn
+  @UninterruptibleNoWarn("Interruptible code only reachable during boot image creation")
   public static Address getSlotContentsAsAddress(Offset offset) {
     if (VM.runningVM) {
       if (VM.BuildFor32Addr) {
@@ -563,15 +562,15 @@ public class Statics implements Constants {
   /**
    * Set contents of a slot, as an object.
    */
-  @UninterruptibleNoWarn
+  @UninterruptibleNoWarn("Interruptible code only reachable during boot image creation")
   public static void setSlotContents(Offset offset, Object object) {
     // NB uninterruptible warnings are disabled for this method due to
     // the array store which could cause a fault - this can't actually
     // happen as the fault would only ever occur when not running the
     // VM. We suppress the warning as we know the error can't happen.
 
-    if (VM.runningVM && MM_Constants.NEEDS_PUTSTATIC_WRITE_BARRIER) {
-      MM_Interface.putstaticWriteBarrier(offset, object, 0);
+    if (VM.runningVM && MemoryManagerConstants.NEEDS_PUTSTATIC_WRITE_BARRIER) {
+      MemoryManager.putstaticWriteBarrier(offset, object, 0);
     } else {
       setSlotContents(offset, Magic.objectAsAddress(object).toWord());
     }
@@ -635,20 +634,5 @@ public class Statics implements Constants {
    */
   public static void bootImageReportGeneration(Object slots) {
     objectSlots = (Object[])slots;
-  }
-
-  /**
-   * Search for a type that this TIB
-   * @param tibOff offset of TIB in JTOC
-   * @return type of TIB or null
-   */
-  public static RVMType findTypeOfTIBSlot(Offset tibOff) {
-    for (int i=0, n=RVMType.numTypes(); i < n; i++) {
-      RVMType type = RVMType.getType(i);
-      if (type != null && type.getTibOffset().EQ(tibOff)) {
-        return type;
-      }
-    }
-    return null;
   }
 }

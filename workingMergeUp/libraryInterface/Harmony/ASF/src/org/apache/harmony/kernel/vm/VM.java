@@ -20,6 +20,7 @@ package org.apache.harmony.kernel.vm;
 import org.jikesrvm.classloader.Atom;
 import org.jikesrvm.classloader.BootstrapClassLoader;
 import org.jikesrvm.classloader.RVMClass;
+import org.jikesrvm.runtime.StackBrowser;
 
 /**
  * This class must be implemented by the vm vendor. Represents the running
@@ -29,6 +30,9 @@ import org.jikesrvm.classloader.RVMClass;
  * represents the actively running VM.
  */
 public final class VM {
+
+  public static boolean closeJars = false;
+  public static boolean deleteOnExit = false;
 
     /*
      * kernelVersion has the format: aabbxxyy where: aa - major version of
@@ -86,8 +90,17 @@ public final class VM {
      * @return the first non-bootstrap ClassLoader on the stack
      */
     static public final ClassLoader getNonBootstrapClassLoader() {
-        throw new Error("TODO");
-    };
+      StackBrowser browser = new StackBrowser();
+      browser.init();
+      while (browser.hasMoreFrames()) {
+        ClassLoader cl = browser.getClassLoader();
+        if (cl != BootstrapClassLoader.getBootstrapClassLoader() && cl != null) {
+          return cl;
+        }
+        browser.up();
+      }
+      return null;
+    }
 
     /**
      * Initialize the classloader.
@@ -143,7 +156,7 @@ public final class VM {
      */
     public static ClassLoader callerClassLoader() {
 	if (org.jikesrvm.VM.runningVM) {
-	    ClassLoader ans = RVMClass.getClassLoaderFromStackFrame(1);
+	    ClassLoader ans = RVMClass.getClassLoaderFromStackFrame(2);
 	    if (ans == BootstrapClassLoader.getBootstrapClassLoader()) {
 		return null;
 	    } else {
@@ -231,7 +244,7 @@ public final class VM {
      * called on VM shutdown.
      */
     public static void closeJars() {
-	throw new Error("TODO");
+      closeJars = true;
     }
 
     /**
@@ -240,7 +253,7 @@ public final class VM {
      * DeleteOnExit.deleteOnExit() should be called on VM shutdown.
      */
     public static void deleteOnExit() {
-	throw new Error("TODO");
+      deleteOnExit = true;
     }
 
     // Constants used by getClassPathEntryType to indicate the class path entry

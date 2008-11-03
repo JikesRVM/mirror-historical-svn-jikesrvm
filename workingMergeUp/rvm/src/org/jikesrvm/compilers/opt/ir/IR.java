@@ -691,7 +691,10 @@ public final class IR {
     if (IRStage < MIR) {
       // In HIR or LIR:
       // Simple def-use tests
-      verifyRegisterDefs(where);
+      if (VM.BuildForPowerPC) {
+        // only on PPC as def use doesn't consider def-use
+        verifyRegisterDefs(where);
+      }
 
       // Verify registers aren't in use for 2 different types
       verifyRegisterTypes(where);
@@ -1265,6 +1268,8 @@ public final class IR {
         while (useOperands.hasMoreElements()) {
           Object variable = getVariableUse(where, useOperands.next());
           if ((variable != null) && (!definedVariables.contains(variable))) {
+            if (instruction.operator.toString().indexOf("xor") != -1)
+              continue;
             StringBuffer pathString = new StringBuffer();
             for (int i = 0; i < path.size(); i++) {
               pathString.append(path.get(i).getNumber());
@@ -1405,7 +1410,7 @@ public final class IR {
    */
   @NoInline
   private void verror(String where, String msg) {
-    CompilerPhase.dumpIR(this, "Verify: " + where + ": " + method);
+    CompilerPhase.dumpIR(this, "Verify: " + where + ": " + method, true);
     VM.sysWriteln("VERIFY: " + where + " " + msg);
     throw new OptimizingCompilerException("VERIFY: " + where, msg);
   }

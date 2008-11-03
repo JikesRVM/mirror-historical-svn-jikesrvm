@@ -12,14 +12,13 @@
  */
 package org.jikesrvm.classloader;
 
-import java.lang.annotation.Annotation;
-
 import org.jikesrvm.VM;
 import org.jikesrvm.Constants;
 import org.jikesrvm.SizeConstants;
 import org.jikesrvm.ArchitectureSpecific.CodeArray;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.objectmodel.TIB;
+import org.jikesrvm.runtime.RuntimeEntrypoints;
 import org.jikesrvm.runtime.Statics;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
@@ -103,6 +102,8 @@ public abstract class RVMType extends AnnotatedElement
   public static final RVMClass JavaLangStringType;
   public static final RVMClass JavaLangCloneableType;
   public static final RVMClass JavaIoSerializableType;
+  public static final RVMClass JavaLangRefReferenceType;
+  public static final RVMField JavaLangRefReferenceReferenceField;
   public static final RVMClass MagicType;
   public static final Primitive WordType;
   public static final RVMArray WordArrayType;
@@ -121,6 +122,7 @@ public abstract class RVMType extends AnnotatedElement
   public static final RVMClass ITableArrayType;
   public static final RVMClass IMTType;
   public static final RVMClass FunctionTableType;
+  public static final RVMClass LinkageTripletTableType;
 
   static {
     // Primitive types
@@ -155,6 +157,7 @@ public abstract class RVMType extends AnnotatedElement
     ITableArrayType = TypeReference.ITableArray.resolve().asClass();
     IMTType = TypeReference.IMT.resolve().asClass();
     FunctionTableType = TypeReference.FunctionTable.resolve().asClass();
+    LinkageTripletTableType = TypeReference.LinkageTripletTable.resolve().asClass();
     // Java clases
     JavaLangObjectType = TypeReference.JavaLangObject.resolve().asClass();
     JavaLangObjectArrayType = TypeReference.JavaLangObjectArray.resolve().asArray();
@@ -163,6 +166,8 @@ public abstract class RVMType extends AnnotatedElement
     JavaLangStringType = TypeReference.JavaLangString.resolve().asClass();
     JavaLangCloneableType = TypeReference.JavaLangCloneable.resolve().asClass();
     JavaIoSerializableType = TypeReference.JavaIoSerializable.resolve().asClass();
+    JavaLangRefReferenceType = TypeReference.JavaLangRefReference.resolve().asClass();
+    JavaLangRefReferenceReferenceField = JavaLangRefReferenceType.findDeclaredField(Atom.findAsciiAtom("_referent"));
   }
 
   /**
@@ -233,7 +238,7 @@ public abstract class RVMType extends AnnotatedElement
     this.dimension = dimension;
 
     /* install partial type information block (no method dispatch table) for use in type checking. */
-    TIB tib = MM_Interface.newTIB(0);
+    TIB tib = MemoryManager.newTIB(0);
     tib.setType(this);
     Statics.setSlotContents(getTibOffset(), tib);
   }
@@ -253,7 +258,7 @@ public abstract class RVMType extends AnnotatedElement
     this.dimension = dimension;
 
     /* install partial type information block (no method dispatch table) for use in type checking. */
-    TIB tib = MM_Interface.newTIB(0);
+    TIB tib = MemoryManager.newTIB(0);
     tib.setType(this);
     Statics.setSlotContents(getTibOffset(), tib);
   }
@@ -289,6 +294,18 @@ public abstract class RVMType extends AnnotatedElement
     } else {
       return createClassForType(this, getTypeRef());
     }
+  }
+
+  /**
+   * Instance of java.lang.Class corresponding to this type.
+   * This is commonly used for reflection.
+   */
+  @Uninterruptible
+  public final Class<?> getResolvedClassForType() {
+    // Resolve the class so that we don't need to resolve it
+    // in reflection code
+    if (VM.VerifyAssertions) VM._assert(VM.runningVM && isResolved());
+    return classForType;
   }
 
   /**
@@ -616,14 +633,6 @@ public abstract class RVMType extends AnnotatedElement
   // Methods implemented in Primitive, RVMArray or RVMClass
 
   /**
-   * Get the annotation implementing the specified class or null during boot
-   * image write time
-   */
-  protected <T extends Annotation> T getBootImageWriteTimeAnnotation(Class<T> annotationClass) {
-    return getClassForType().getAnnotation(annotationClass);
-  }
-
-  /**
    * Resolution status.
    * If the class/array has been "resolved", then size and offset information is
    * available by which the compiler can generate code to access this
@@ -697,6 +706,13 @@ public abstract class RVMType extends AnnotatedElement
    */
   @Uninterruptible
   public abstract boolean isReferenceType();
+
+  /**
+   * @return whether type can be assigned to things of this RVMType
+   */
+  public boolean isAssignableFrom(RVMType type) {
+    return this == type || RuntimeEntrypoints.isAssignableWith(this, type);
+  }
 
   /**
    * Space required when this type is stored on the stack
@@ -794,10 +810,9 @@ public abstract class RVMType extends AnnotatedElement
   private int mmAllocator;
 
   /**
-   * Record the allocator information the memory manager holds about this
-   * type.
+   * Record the allocator information the memory manager holds about this type.
    *
-   * @param mmType the type to record
+   * @param allocator the allocator to record
    */
   public final void setMMAllocator(int allocator) {
     this.mmAllocator = allocator;

@@ -19,16 +19,17 @@ import java.lang.annotation.ElementType;
 import org.vmmagic.Pragma;
 
 /**
- * A pragma that has the same direct effect as UninterruptiblePragma
+ * A pragma that has the same direct effect as {@link Uninterruptible}
  * but also suppresses checking of uninterruptibility violations for
- * the method.  This should be used with care and is only justified when
- * Uninterruptibility is ensured via some other mechansism.
- * For example, the method explicitly disables threadswitching
- * around the interruptible regions (VM.sysWrite on String).
- * Or the interruptible regions are not reachable when the VM is
- * running (various VM.sysWrite that check VM.runningVM).
+ * the method. This should be used with care and is only justified
+ * for code only executed when creating the boot image.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Pragma
-public @interface UninterruptibleNoWarn { }
+public @interface UninterruptibleNoWarn {
+  /**
+   * @return Explanation of why uninterruptible warnings are disabled
+   */
+  String value() default "";
+}

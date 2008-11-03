@@ -21,7 +21,7 @@ import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
-import org.jikesrvm.osr.OSR_BytecodeTraverser;
+import org.jikesrvm.osr.BytecodeTraverser;
 import org.jikesrvm.runtime.Time;
 import org.vmmagic.unboxed.Offset;
 
@@ -223,7 +223,7 @@ public abstract class BaselineCompiler extends TemplateCompilerFramework {
                          method.getBytecodeLength());   // NB: getBytecodeLength returns back the length of original bytecodes
 
         // compute stack height for prologue
-        new OSR_BytecodeTraverser().prologueStackHeights(method, method.getOsrPrologue(), stackHeights);
+        new BytecodeTraverser().prologueStackHeights(method, method.getOsrPrologue(), stackHeights);
       }
     } finally {
       if (VM.MeasureCompilationPhases) {
@@ -242,8 +242,7 @@ public abstract class BaselineCompiler extends TemplateCompilerFramework {
       }
 
       // determine if we are going to insert edge counters for this method
-      if (options
-          .EDGE_COUNTERS &&
+      if (options.EDGE_COUNTERS &&
           !method.getDeclaringClass().hasBridgeFromNativeAnnotation() &&
           (method.hasCondBranch() || method.hasSwitch())) {
         ((BaselineCompiledMethod) compiledMethod).setHasCounterArray(); // yes, we will inject counters for this method.
@@ -296,7 +295,7 @@ public abstract class BaselineCompiler extends TemplateCompilerFramework {
       if (method.isSynchronized()) {
         ((BaselineCompiledMethod) compiledMethod).setLockAcquisitionOffset(lockOffset);
       }
-      ((BaselineCompiledMethod) compiledMethod).encodeMappingInfo(refMaps, bcMap, instructions.length());
+      ((BaselineCompiledMethod) compiledMethod).encodeMappingInfo(refMaps, bcMap);
       compiledMethod.compileComplete(instructions);
       if (edgeCounterIdx > 0) {
         EdgeCounts.allocateCounters(method, edgeCounterIdx);

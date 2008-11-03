@@ -49,8 +49,8 @@ public abstract class Registers implements RegisterConstants {
   public boolean inuse; // do exception registers currently contain live values?
 
   public Registers() {
-    gprs = gprsShadow = MM_Interface.newNonMovingWordArray(NUM_GPRS);
-    fprs = fprsShadow = MM_Interface.newNonMovingDoubleArray(NUM_FPRS);
+    gprs = gprsShadow = MemoryManager.newNonMovingWordArray(NUM_GPRS);
+    fprs = fprsShadow = MemoryManager.newNonMovingDoubleArray(NUM_FPRS);
   }
     
   public final void copyFrom(Registers other) {

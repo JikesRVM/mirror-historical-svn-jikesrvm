@@ -58,6 +58,11 @@ import org.vmmagic.pragma.*;
     return Selected.Mutator.get();
   }
 
+  /** @return The log for the active thread */
+  public Log log() {
+    return Selected.Mutator.get().getLog();
+  }
+
   /** Flush the mutator remembered sets (if any) for this active plan */
   public static void flushRememberedSets() {
      Selected.Mutator.get().flushRememberedSets();

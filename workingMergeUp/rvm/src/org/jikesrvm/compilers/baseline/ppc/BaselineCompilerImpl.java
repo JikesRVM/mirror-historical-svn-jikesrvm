@@ -15,6 +15,7 @@ package org.jikesrvm.compilers.baseline.ppc;
 import org.jikesrvm.VM;
 import org.jikesrvm.adaptive.AosEntrypoints;
 import org.jikesrvm.adaptive.recompilation.InvocationCounts;
+import org.jikesrvm.classloader.DynamicTypeCheck;
 import org.jikesrvm.classloader.RVMArray;
 import org.jikesrvm.classloader.Atom;
 import org.jikesrvm.classloader.RVMClass;
@@ -38,10 +39,11 @@ import org.jikesrvm.compilers.common.assembler.ppc.Assembler;
 import org.jikesrvm.compilers.common.assembler.ppc.AssemblerConstants;
 import org.jikesrvm.jni.ppc.JNICompiler;
 import org.jikesrvm.jni.ppc.JNIStackframeLayoutConstants;
-import org.jikesrvm.memorymanagers.mminterface.MM_Constants;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
+import org.jikesrvm.mm.mminterface.MemoryManagerConstants;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.ppc.BaselineConstants;
+import org.jikesrvm.ppc.TrapConstants;
 import org.jikesrvm.runtime.ArchEntrypoints;
 import org.jikesrvm.runtime.Entrypoints;
 import org.jikesrvm.runtime.MagicNames;
@@ -64,31 +66,34 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
   private final int startLocalOffset;
   private int spillOffset;
 
-  // current offset of the sp from fp
+  /** Current offset of the sp from fp, also accessed by Assembler */
   public int spTopOffset;
 
-  // If we're doing a short forward jump of less than
-  // this number of bytecodes, then we can always use a short-form
-  // conditional branch (don't have to emit a nop & bc).
+  /**
+   * If we're doing a short forward jump of less than this number of
+   * bytecodes, then we can always use a short-form conditional branch
+   * (don't have to emit a nop & bc).
+   */
   private static final int SHORT_FORWARD_LIMIT = 500;
 
   private static final boolean USE_NONVOLATILE_REGISTERS = true;
 
-  private int firstFixedStackRegister; //after the fixed local registers !!
-  private int firstFloatStackRegister; //after the float local registers !!
+  private byte firstFixedStackRegister; //after the fixed local registers !!
+  private byte firstFloatStackRegister; //after the float local registers !!
 
-  private int lastFixedStackRegister;
-  private int lastFloatStackRegister;
+  private byte lastFixedStackRegister;
+  private byte lastFloatStackRegister;
 
-  private final int[] localFixedLocations;
-  private final int[] localFloatLocations;
+  private final short[] localFixedLocations;
+  private final short[] localFloatLocations;
 
+  /** Can non-volatile registers be used? */
   private final boolean use_nonvolatile_registers;
 
   /**
    * Create a Compiler object for the compilation of method.
    */
-  protected BaselineCompilerImpl(BaselineCompiledMethod cm, int[] genLocLoc, int[] floatLocLoc) {
+  protected BaselineCompilerImpl(BaselineCompiledMethod cm, short[] genLocLoc, short[] floatLocLoc) {
     super(cm);
     localFixedLocations = genLocLoc;
     localFloatLocations = floatLocLoc;
@@ -113,8 +118,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
   // more interface //
   //----------------//
 
-  // position of operand stack within method's stackframe.
-
+  /** position of operand stack within method's stackframe */
   @Uninterruptible
   public static int getEmptyStackOffset(NormalMethod m) {
     int params = m.getOperandWords() << LOG_BYTES_IN_STACKSLOT; // maximum parameter area
@@ -124,14 +128,14 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     return STACKFRAME_HEADER_SIZE + spill + stack;
   }
 
-  // start position of locals within method's stackframe.
+  /** start position of locals within method's stackframe */
   @Uninterruptible
   private static int getInternalStartLocalOffset(NormalMethod m) {
     int locals = m.getLocalWords() << LOG_BYTES_IN_STACKSLOT;       // input param words + pure locals
     return getEmptyStackOffset(m) + locals; // bottom-most local
   }
 
-  // size of method's stackframe.
+  /** size of method's stackframe. */
   @Uninterruptible
   private int getInternalFrameSize() {
     int size = startLocalOffset;
@@ -148,8 +152,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     return size;
   }
 
-  // size of method's stackframe.
-  // only valid on compiled methods
+  /** size of method's stackframe. NB only valid on compiled methods */
   @Uninterruptible
   public static int getFrameSize(BaselineCompiledMethod bcm) {
     NormalMethod m = (NormalMethod) bcm.getMethod();
@@ -171,15 +174,15 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
 
   private void defineStackAndLocalLocations() {
 
-    int nextFixedLocalRegister = FIRST_FIXED_LOCAL_REGISTER;
-    int nextFloatLocalRegister = FIRST_FLOAT_LOCAL_REGISTER;
+    short nextFixedLocalRegister = FIRST_FIXED_LOCAL_REGISTER;
+    short nextFloatLocalRegister = FIRST_FLOAT_LOCAL_REGISTER;
 
     //define local registers
     int nparam = method.getParameterWords();
     TypeReference[] types = method.getParameterTypes();
     int localIndex = 0;
     if (!method.isStatic()) {
-      if (localTypes[0] != ADDRESS_TYPE) VM._assert(false);
+      if (VM.VerifyAssertions) VM._assert(localTypes[0] == ADDRESS_TYPE);
       if (!use_nonvolatile_registers || (nextFixedLocalRegister > LAST_FIXED_LOCAL_REGISTER)) {
         localFixedLocations[localIndex] = offsetToLocation(localOffset(localIndex));
       } else {
@@ -275,13 +278,13 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
       //else unused, assign nothing, can be the case after long or double
     }
 
-    firstFixedStackRegister = nextFixedLocalRegister;
-    firstFloatStackRegister = nextFloatLocalRegister;
+    firstFixedStackRegister = (byte)nextFixedLocalRegister;
+    firstFloatStackRegister = (byte)nextFloatLocalRegister;
 
     //define stack registers
     //KV: TODO
-    lastFixedStackRegister = firstFixedStackRegister - 1;
-    lastFloatStackRegister = firstFloatStackRegister - 1;
+    lastFixedStackRegister = (byte)(firstFixedStackRegister - 1);
+    lastFloatStackRegister = (byte)(firstFloatStackRegister - 1);
 
     if (USE_NONVOLATILE_REGISTERS && method.hasBaselineSaveLSRegistersAnnotation()) {
       //methods with SaveLSRegisters pragma need to save/restore ALL registers in their prolog/epilog
@@ -290,11 +293,11 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     }
   }
 
-  public final int getLastFixedStackRegister() {
+  public final byte getLastFixedStackRegister() {
     return lastFixedStackRegister;
   }
 
-  public final int getLastFloatStackRegister() {
+  public final byte getLastFloatStackRegister() {
     return lastFloatStackRegister;
   }
 
@@ -310,43 +313,43 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     return 0 != (type & (LONG_TYPE));
   }
 
-  private int getGeneralLocalLocation(int index) {
+  private short getGeneralLocalLocation(int index) {
     return localFixedLocations[index];
   }
 
-  private int getFloatLocalLocation(int index) {
+  private short getFloatLocalLocation(int index) {
     return localFloatLocations[index];
   }
 
   @Uninterruptible
   @Inline
-  public static int getGeneralLocalLocation(int index, int[] localloc, NormalMethod m) {
+  public static short getGeneralLocalLocation(int index, short[] localloc, NormalMethod m) {
     return localloc[index];
   }
 
   @Uninterruptible
   @Inline
-  public static int getFloatLocalLocation(int index, int[] localloc, NormalMethod m) {
+  public static short getFloatLocalLocation(int index, short[] localloc, NormalMethod m) {
     return localloc[index];
   }
 
   /*
-  * implementation of abstract methods of BaselineCompiler
-  */
+   * implementation of abstract methods of BaselineCompiler
+   */
 
   /*
    * Misc routines not directly tied to a particular bytecode
    */
 
-  private int getSingleStackLocation(int index) {
+  private short getSingleStackLocation(int index) {
     return offsetToLocation(spTopOffset + BYTES_IN_STACKSLOT + (index << LOG_BYTES_IN_STACKSLOT));
   }
 
-  private int getDoubleStackLocation(int index) {
+  private short getDoubleStackLocation(int index) {
     return offsetToLocation(spTopOffset + 2 * BYTES_IN_STACKSLOT + (index << LOG_BYTES_IN_STACKSLOT));
   }
 
-  private int getTopOfStackLocationForPush() {
+  private short getTopOfStackLocationForPush() {
     return offsetToLocation(spTopOffset);
   }
 
@@ -766,7 +769,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    */
   @Override
   protected final void emit_iload(int index) {
-    int dstLoc = getTopOfStackLocationForPush();
+    short dstLoc = getTopOfStackLocationForPush();
     copyByLocation(INT_TYPE, getGeneralLocalLocation(index), INT_TYPE, dstLoc);
     spTopOffset -= BYTES_IN_STACKSLOT;
   }
@@ -777,7 +780,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    */
   @Override
   protected final void emit_lload(int index) {
-    int dstLoc = getTopOfStackLocationForPush();
+    short dstLoc = getTopOfStackLocationForPush();
     copyByLocation(LONG_TYPE, getGeneralLocalLocation(index), LONG_TYPE, dstLoc);
     spTopOffset -= 2 * BYTES_IN_STACKSLOT;
   }
@@ -788,7 +791,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    */
   @Override
   protected final void emit_fload(int index) {
-    int dstLoc = getTopOfStackLocationForPush();
+    short dstLoc = getTopOfStackLocationForPush();
     copyByLocation(FLOAT_TYPE, getFloatLocalLocation(index), FLOAT_TYPE, dstLoc);
     spTopOffset -= BYTES_IN_STACKSLOT;
   }
@@ -799,7 +802,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    */
   @Override
   protected final void emit_dload(int index) {
-    int dstLoc = getTopOfStackLocationForPush();
+    short dstLoc = getTopOfStackLocationForPush();
     copyByLocation(DOUBLE_TYPE, getFloatLocalLocation(index), DOUBLE_TYPE, dstLoc);
     spTopOffset -= 2 * BYTES_IN_STACKSLOT;
   }
@@ -810,14 +813,14 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    */
   @Override
   protected final void emit_aload(int index) {
-    int dstLoc = getTopOfStackLocationForPush();
+    short dstLoc = getTopOfStackLocationForPush();
     copyByLocation(ADDRESS_TYPE, getGeneralLocalLocation(index), ADDRESS_TYPE, dstLoc);
     spTopOffset -= BYTES_IN_STACKSLOT;
   }
 
   /*
-  * storing local variables
-  */
+   * storing local variables
+   */
 
   /**
    * Emit code to store an int to a local variable
@@ -825,7 +828,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    */
   @Override
   protected final void emit_istore(int index) {
-    int srcLoc = getSingleStackLocation(0);
+    short srcLoc = getSingleStackLocation(0);
     copyByLocation(INT_TYPE, srcLoc, INT_TYPE, getGeneralLocalLocation(index));
     discardSlot();
   }
@@ -846,7 +849,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    */
   @Override
   protected final void emit_fstore(int index) {
-    int srcLoc = getSingleStackLocation(0);
+    short srcLoc = getSingleStackLocation(0);
     copyByLocation(FLOAT_TYPE, srcLoc, FLOAT_TYPE, getFloatLocalLocation(index));
     discardSlot();
   }
@@ -857,7 +860,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    */
   @Override
   protected final void emit_dstore(int index) {
-    int srcLoc = getDoubleStackLocation(0);
+    short srcLoc = getDoubleStackLocation(0);
     copyByLocation(DOUBLE_TYPE, srcLoc, DOUBLE_TYPE, getFloatLocalLocation(index));
     discardSlots(2);
   }
@@ -868,7 +871,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    */
   @Override
   protected final void emit_astore(int index) {
-    int srcLoc = getSingleStackLocation(0);
+    short srcLoc = getSingleStackLocation(0);
     copyByLocation(ADDRESS_TYPE, srcLoc, ADDRESS_TYPE, getGeneralLocalLocation(index));
     discardSlot();
   }
@@ -929,7 +932,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
   @Override
   protected final void emit_aaload() {
     genBoundsCheck();
-    if (MM_Constants.NEEDS_READ_BARRIER) {
+    if (MemoryManagerConstants.NEEDS_READ_BARRIER) {
       Barriers.compileArrayLoadBarrier(this);
       pushAddr(T0);
     } else {
@@ -973,8 +976,8 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
   }
 
   /*
-  * array stores
-  */
+   * array stores
+   */
 
   /**
    * Emit code to store to an int array
@@ -1033,7 +1036,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     asm.emitBCCTRL();   // checkstore(arrayref, value)
     popAddr(T2);        // T2 is value to store
     genBoundsCheck();
-    if (MM_Constants.NEEDS_WRITE_BARRIER) {
+    if (MemoryManagerConstants.NEEDS_WRITE_BARRIER) {
       Barriers.compileArrayStoreBarrier(this);
     } else {
       asm.emitSLWI(T1, T1, LOG_BYTES_IN_ADDRESS);  // convert index to offset
@@ -1331,13 +1334,13 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    */
   @Override
   protected final void emit_iinc(int index, int val) {
-    int loc = getGeneralLocalLocation(index);
+    short loc = getGeneralLocalLocation(index);
     if (isRegister(loc)) {
       asm.emitADDI(loc, val, loc);
     } else {
-      copyMemToReg(INT_TYPE, locationToOffset(loc), T0);
+      copyMemToReg(INT_TYPE, locationToOffset(loc), (short)T0);
       asm.emitADDI(T0, val, T0);
-      copyRegToMem(INT_TYPE, T0, locationToOffset(loc));
+      copyRegToMem(INT_TYPE, (short)T0, locationToOffset(loc));
     }
   }
 
@@ -2252,10 +2255,10 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    * @param index local variable containing the return address
    */
   protected final void emit_ret(int index) {
-    int location = getGeneralLocalLocation(index);
+    short location = getGeneralLocalLocation(index);
 
     if (!isRegister(location)) {
-      copyMemToReg(ADDRESS_TYPE, locationToOffset(location), T0);
+      copyMemToReg(ADDRESS_TYPE, locationToOffset(location), (short)T0);
       location = T0;
     }
     asm.emitMTLR(location);
@@ -2274,6 +2277,13 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     int n = high - low + 1;       // n = number of normal cases (0..n-1)
     int firstCounter = edgeCounterIdx; // only used if options.EDGE_COUNTERS;
 
+    if (options.EDGE_COUNTERS) {
+      edgeCounterIdx += n + 1; // allocate n+1 counters
+
+      // Load counter array for this method
+      loadCounterArray(T2);
+    }
+
     popInt(T0);  // T0 is index
     if (Assembler.fits(-low, 16)) {
       asm.emitADDI(T0, -low, T0);
@@ -2281,14 +2291,10 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
       asm.emitLVAL(T1, low);
       asm.emitSUBFC(T0, T1, T0);
     }
-    asm.emitLVAL(T2, n);
-    asm.emitCMPL(T0, T2);
-    if (options.EDGE_COUNTERS) {
-      edgeCounterIdx += n + 1; // allocate n+1 counters
-      // Load counter array for this method
-      asm.emitLAddrToc(T2, Entrypoints.edgeCountersField.getOffset());
-      asm.emitLAddrOffset(T2, T2, getEdgeCounterOffset());
+    asm.emitLVAL(T3, n);
+    asm.emitCMPL(T0, T3);
 
+    if (options.EDGE_COUNTERS) {
       ForwardReference fr = asm.emitForwardBC(LT); // jump around jump to default target
       incEdgeCounter(T2, S0, firstCounter + n);
       asm.emitB(mTarget, bTarget);
@@ -2329,8 +2335,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
   protected final void emit_lookupswitch(int defaultval, int npairs) {
     if (options.EDGE_COUNTERS) {
       // Load counter array for this method
-      asm.emitLAddrToc(T2, Entrypoints.edgeCountersField.getOffset());
-      asm.emitLAddrOffset(T2, T2, getEdgeCounterOffset());
+      loadCounterArray(T2);
     }
 
     popInt(T0); // T0 is key
@@ -2423,6 +2428,10 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    */
   protected final void emit_return() {
     if (method.isSynchronized()) genSynchronizedMethodEpilogue();
+    if (method.isObjectInitializer() && method.getDeclaringClass().declaresFinalInstanceField()) {
+      /* JMM compliance. Emit StoreStore barrier */
+      asm.emitSYNC();
+    }
     genEpilogue();
   }
 
@@ -2437,7 +2446,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
   protected final void emit_unresolved_getstatic(FieldReference fieldRef) {
     emitDynamicLinkingSequence(T0, fieldRef, true);
     TypeReference fieldType = fieldRef.getFieldContentsType();
-    if (MM_Constants.NEEDS_GETSTATIC_READ_BARRIER && fieldType.isReferenceType()) {
+    if (MemoryManagerConstants.NEEDS_GETSTATIC_READ_BARRIER && fieldType.isReferenceType()) {
       Barriers.compileGetstaticBarrier(this, fieldType.getId());
       pushAddr(T0);
       return;
@@ -2467,7 +2476,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     RVMField field = fieldRef.peekResolvedField();
     Offset fieldOffset = field.getOffset();
     TypeReference fieldType = fieldRef.getFieldContentsType();
-    if (MM_Constants.NEEDS_GETSTATIC_READ_BARRIER && fieldType.isReferenceType() && !field.isUntraced()) {
+    if (MemoryManagerConstants.NEEDS_GETSTATIC_READ_BARRIER && fieldType.isReferenceType() && !field.isUntraced()) {
       Barriers.compileGetstaticBarrierImm(this, fieldOffset, fieldType.getId());
       pushAddr(T0);
       return;
@@ -2495,7 +2504,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    */
   protected final void emit_unresolved_putstatic(FieldReference fieldRef) {
     emitDynamicLinkingSequence(T0, fieldRef, true);
-    if (MM_Constants.NEEDS_PUTSTATIC_WRITE_BARRIER && !fieldRef.getFieldContentsType().isPrimitiveType()) {
+    if (MemoryManagerConstants.NEEDS_PUTSTATIC_WRITE_BARRIER && !fieldRef.getFieldContentsType().isPrimitiveType()) {
       Barriers.compilePutstaticBarrier(this, fieldRef.getId()); // NOTE: offset is in T0 from emitDynamicLinkingSequence
       discardSlots(1);
       return;
@@ -2524,7 +2533,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
   protected final void emit_resolved_putstatic(FieldReference fieldRef) {
     RVMField field = fieldRef.peekResolvedField();
     Offset fieldOffset = field.getOffset();
-    if (MM_Constants.NEEDS_PUTSTATIC_WRITE_BARRIER && !fieldRef.getFieldContentsType().isPrimitiveType() && !field.isUntraced()) {
+    if (MemoryManagerConstants.NEEDS_PUTSTATIC_WRITE_BARRIER && !fieldRef.getFieldContentsType().isPrimitiveType() && !field.isUntraced()) {
       Barriers.compilePutstaticBarrierImm(this, fieldOffset, fieldRef.getId());
       discardSlots(1);
       return;
@@ -2554,7 +2563,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     TypeReference fieldType = fieldRef.getFieldContentsType();
     // T1 = field offset from emitDynamicLinkingSequence()
     emitDynamicLinkingSequence(T1, fieldRef, true);
-    if (MM_Constants.NEEDS_READ_BARRIER && fieldType.isReferenceType()) {
+    if (MemoryManagerConstants.NEEDS_READ_BARRIER && fieldType.isReferenceType()) {
       Barriers.compileGetfieldBarrier(this, fieldType.getId());
       discardSlots(1);
       pushAddr(T0);
@@ -2604,7 +2613,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     RVMField field = fieldRef.peekResolvedField();
     TypeReference fieldType = fieldRef.getFieldContentsType();
     Offset fieldOffset = field.getOffset();
-    if (MM_Constants.NEEDS_READ_BARRIER && fieldType.isReferenceType() && !field.isUntraced()) {
+    if (MemoryManagerConstants.NEEDS_READ_BARRIER && fieldType.isReferenceType() && !field.isUntraced()) {
       Barriers.compileGetfieldBarrierImm(this, fieldOffset, fieldType.getId());
       discardSlots(1);
       pushAddr(T0);
@@ -2655,7 +2664,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     emitDynamicLinkingSequence(T1, fieldRef, true);
     if (fieldType.isReferenceType()) {
       // 32/64bit reference store
-      if (MM_Constants.NEEDS_WRITE_BARRIER) {
+      if (MemoryManagerConstants.NEEDS_WRITE_BARRIER) {
         // NOTE: offset is in T1 from emitDynamicLinkingSequence
         Barriers.compilePutfieldBarrier(this, fieldRef.getId());
         discardSlots(2);
@@ -2709,7 +2718,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     TypeReference fieldType = fieldRef.getFieldContentsType();
     if (fieldType.isReferenceType()) {
       // 32/64bit reference store
-      if (MM_Constants.NEEDS_WRITE_BARRIER && !field.isUntraced()) {
+      if (MemoryManagerConstants.NEEDS_WRITE_BARRIER && !field.isUntraced()) {
         Barriers.compilePutfieldBarrierImm(this, fieldOffset, fieldRef.getId());
         discardSlots(2);
       } else {
@@ -2872,19 +2881,37 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
           asm.emitMTCTR(T0);
           asm.emitLVAL(T0, methodRef.getId());            // id of method reference we are trying to call
           peekAddr(T1, count - 1);           // the "this" object
-          ObjectModel.baselineEmitLoadTIB(asm, T1, T1);
-          asm.emitBCCTRL();                 // throw exception, if link error
+          asm.emitBCCTRL();                  // throw exception, if link error
         } else {
-          // normal case.  Not a ghost ref.
-          asm.emitLAddrToc(T0, Entrypoints.invokeinterfaceImplementsTestMethod.getOffset());
-          asm.emitMTCTR(T0);
-          asm.emitLAddrToc(T0, resolvedMethod.getDeclaringClass().getTibOffset()); // tib of the interface method
-          asm.emitLAddr(T0,
-                        TIB_TYPE_INDEX << LOG_BYTES_IN_ADDRESS,
-                        T0);                   // type of the interface method
-          peekAddr(T1, count - 1);                        // the "this" object
-          ObjectModel.baselineEmitLoadTIB(asm, T1, T1);
-          asm.emitBCCTRL();                              // throw exception, if link error
+          RVMClass interfaceClass = resolvedMethod.getDeclaringClass();
+          int interfaceIndex = interfaceClass.getDoesImplementIndex();
+          int interfaceMask = interfaceClass.getDoesImplementBitMask();
+
+          peekAddr(T0, count - 1);                              // the "this" object
+          ObjectModel.baselineEmitLoadTIB(asm, T0, T0);         // TIB of "this" object
+          asm.emitLAddr(T0, TIB_DOES_IMPLEMENT_INDEX << LOG_BYTES_IN_ADDRESS, T0); // implements bit vector
+
+          if (DynamicTypeCheck.MIN_DOES_IMPLEMENT_SIZE <= interfaceIndex) {
+            // must do arraybounds check of implements bit vector
+            asm.emitLIntOffset(T1, T0, ObjectModel.getArrayLengthOffset()); // T1 gets array length
+            asm.emitLVAL(T2, interfaceIndex);
+            asm.emitCMPL(T2, T1);
+            ForwardReference fr1 = asm.emitForwardBC(LT);  // if in bounds, jump around trap.  TODO: would like to encode "y" bit that this branch is expected to be takem.
+            asm.emitTWI(31, 12, TrapConstants.MUST_IMPLEMENT_TRAP); // encoding of TRAP_ALWAYS MUST_IMPLEMENT_INTERFACE
+            fr1.resolve(asm);
+          }
+
+          // Test the appropriate bit and if set, branch around another trap imm
+          asm.emitLInt(T1, interfaceIndex << LOG_BYTES_IN_INT, T0);
+          if ((interfaceMask & 0xffff) == interfaceMask) {
+            asm.emitANDI(S0, T1, interfaceMask);
+          } else {
+            if (VM.VerifyAssertions) VM._assert((interfaceMask & 0xffff0000) == interfaceMask);
+            asm.emitANDIS(S0, T1, interfaceMask);
+          }
+          ForwardReference fr2 = asm.emitForwardBC(NE);     // TODO: encode "y" bit that branch is likely taken.
+          asm.emitTWI(31, 12, TrapConstants.MUST_IMPLEMENT_TRAP); // encoding of TRAP_ALWAYS MUST_IMPLEMENT_INTERFACE
+          fr2.resolve(asm);
         }
       }
     }
@@ -2949,10 +2976,10 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
   protected final void emit_resolved_new(RVMClass typeRef) {
     int instanceSize = typeRef.getInstanceSize();
     Offset tibOffset = typeRef.getTibOffset();
-    int whichAllocator = MM_Interface.pickAllocator(typeRef, method);
+    int whichAllocator = MemoryManager.pickAllocator(typeRef, method);
     int align = ObjectModel.getAlignment(typeRef);
-    int offset = ObjectModel.getOffsetForAlignment(typeRef);
-    int site = MM_Interface.getAllocationSite(true);
+    int offset = ObjectModel.getOffsetForAlignment(typeRef, false);
+    int site = MemoryManager.getAllocationSite(true);
     asm.emitLAddrToc(T0, Entrypoints.resolvedNewScalarMethod.getOffset());
     asm.emitMTCTR(T0);
     asm.emitLVAL(T0, instanceSize);
@@ -2971,7 +2998,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    * @param typeRef the type reference to dynamically link & instantiate
    */
   protected final void emit_unresolved_new(TypeReference typeRef) {
-    int site = MM_Interface.getAllocationSite(true);
+    int site = MemoryManager.getAllocationSite(true);
     asm.emitLAddrToc(T0, Entrypoints.unresolvedNewScalarMethod.getOffset());
     asm.emitMTCTR(T0);
     asm.emitLVAL(T0, typeRef.getId());
@@ -2988,10 +3015,10 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     int width = array.getLogElementSize();
     Offset tibOffset = array.getTibOffset();
     int headerSize = ObjectModel.computeArrayHeaderSize(array);
-    int whichAllocator = MM_Interface.pickAllocator(array, method);
-    int site = MM_Interface.getAllocationSite(true);
+    int whichAllocator = MemoryManager.pickAllocator(array, method);
+    int site = MemoryManager.getAllocationSite(true);
     int align = ObjectModel.getAlignment(array);
-    int offset = ObjectModel.getOffsetForAlignment(array);
+    int offset = ObjectModel.getOffsetForAlignment(array, false);
     asm.emitLAddrToc(T0, Entrypoints.resolvedNewArrayMethod.getOffset());
     asm.emitMTCTR(T0);
     peekInt(T0, 0);                    // T0 := number of elements
@@ -3011,7 +3038,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    * @param typeRef the type reference to dynamically link & instantiate
    */
   protected final void emit_unresolved_newarray(TypeReference typeRef) {
-    int site = MM_Interface.getAllocationSite(true);
+    int site = MemoryManager.getAllocationSite(true);
     asm.emitLAddrToc(T0, Entrypoints.unresolvedNewArrayMethod.getOffset());
     asm.emitMTCTR(T0);
     peekInt(T0, 0);                // T0 := number of elements
@@ -3072,14 +3099,80 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
 
   /**
    * Emit code to implement the checkcast bytecode
+   * @param type the LHS type
+   */
+  @Override
+  protected final void emit_checkcast_resolvedInterface(RVMClass type) {
+    int interfaceIndex = type.getDoesImplementIndex();
+    int interfaceMask = type.getDoesImplementBitMask();
+
+    peekAddr(T0, 0);            // load the object being checked
+    asm.emitCMPAddrI(T0, 0);    // check for null
+    ForwardReference isNull = asm.emitForwardBC(EQ);
+
+    ObjectModel.baselineEmitLoadTIB(asm, T0, T0);         // TIB of "this" object
+    asm.emitLAddr(T0, TIB_DOES_IMPLEMENT_INDEX << LOG_BYTES_IN_ADDRESS, T0); // implements bit vector
+
+    if (DynamicTypeCheck.MIN_DOES_IMPLEMENT_SIZE <= interfaceIndex) {
+      // must do arraybounds check of implements bit vector
+      asm.emitLIntOffset(T1, T0, ObjectModel.getArrayLengthOffset()); // T1 gets array length
+      asm.emitLVAL(T2, interfaceIndex);
+      asm.emitCMPL(T2, T1);
+      ForwardReference fr1 = asm.emitForwardBC(LT);      // if in bounds, jump around trap.  TODO: would like to encode "y" bit that this branch is expected to be takem.
+      asm.emitTWI(31, 12, TrapConstants.CHECKCAST_TRAP); // encoding of TRAP_ALWAYS CHECKCAST
+      fr1.resolve(asm);
+    }
+
+    // Test the appropriate bit and if set, branch around another trap imm
+    asm.emitLInt(T1, interfaceIndex << LOG_BYTES_IN_INT, T0);
+    if ((interfaceMask & 0xffff) == interfaceMask) {
+      asm.emitANDI(S0, T1, interfaceMask);
+    } else {
+      if (VM.VerifyAssertions) VM._assert((interfaceMask & 0xffff0000) == interfaceMask);
+      asm.emitANDIS(S0, T1, interfaceMask);
+    }
+    ForwardReference fr2 = asm.emitForwardBC(NE);      // TODO: encode "y" bit that branch is likely taken.
+    asm.emitTWI(31, 12, TrapConstants.CHECKCAST_TRAP); // encoding of TRAP_ALWAYS CHECKCAST
+    fr2.resolve(asm);
+    isNull.resolve(asm);
+  }
+
+  /**
+   * Emit code to implement the checkcast bytecode
    * @param type   The LHS type
    */
-  protected final void emit_checkcast_resolvedClass(RVMType type) {
-    asm.emitLAddrToc(T0, Entrypoints.checkcastResolvedClassMethod.getOffset());
-    asm.emitMTCTR(T0);
-    peekAddr(T0, 0); // checkcast(obj, klass) consumes obj
-    asm.emitLVAL(T1, type.getId());
-    asm.emitBCCTRL();               // but obj remains on stack afterwords
+  protected final void emit_checkcast_resolvedClass(RVMClass type) {
+    int LHSDepth = type.getTypeDepth();
+    int LHSId = type.getId();
+
+    peekAddr(T0, 0);            // load the object being checked
+    asm.emitCMPAddrI(T0, 0);    // check for null
+    ForwardReference isNull = asm.emitForwardBC(EQ);
+
+    ObjectModel.baselineEmitLoadTIB(asm, T0, T0);       // TIB of "this" object
+    asm.emitLAddr(T0, TIB_SUPERCLASS_IDS_INDEX << LOG_BYTES_IN_ADDRESS, T0); // superclass display
+    if (DynamicTypeCheck.MIN_SUPERCLASS_IDS_SIZE <= LHSDepth) {
+      // must do arraybounds check of superclass display
+      asm.emitLIntOffset(T1, T0, ObjectModel.getArrayLengthOffset()); // T1 gets array length
+      asm.emitLVAL(T2, LHSDepth);
+      asm.emitCMPL(T2, T1);
+      ForwardReference fr1 = asm.emitForwardBC(LT);      // if in bounds, jump around trap.  TODO: would like to encode "y" bit that this branch is expected to be takem.
+      asm.emitTWI(31, 12, TrapConstants.CHECKCAST_TRAP); // encoding of TRAP_ALWAYS CHECKCAST
+      fr1.resolve(asm);
+    }
+
+    // Load id from display at required depth and compare against target id.
+    asm.emitLHZ(T0, LHSDepth << LOG_BYTES_IN_CHAR, T0);
+    if (Assembler.fits(LHSId, 16)) {
+      asm.emitCMPI(T0, LHSId);
+    } else {
+      asm.emitLVAL(T1, LHSId);
+      asm.emitCMP(T0, T1);
+    }
+    ForwardReference fr2 = asm.emitForwardBC(EQ);      // TODO: encode "y" bit that branch is likely taken.
+    asm.emitTWI(31, 12, TrapConstants.CHECKCAST_TRAP); // encoding of TRAP_ALWAYS CHECKCAST
+    fr2.resolve(asm);
+    isNull.resolve(asm);
   }
 
   /**
@@ -3087,11 +3180,17 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    * @param type the LHS type
    */
   protected final void emit_checkcast_final(RVMType type) {
-    asm.emitLAddrToc(T0, Entrypoints.checkcastFinalMethod.getOffset());
-    asm.emitMTCTR(T0);
-    peekAddr(T0, 0); // checkcast(obj, klass) consumes obj
-    asm.emitLVALAddr(T1, type.getTibOffset());
-    asm.emitBCCTRL();               // but obj remains on stack afterwords
+    peekAddr(T0, 0);            // load the object being checked
+    asm.emitCMPAddrI(T0, 0);    // check for null
+    ForwardReference isNull = asm.emitForwardBC(EQ);
+
+    ObjectModel.baselineEmitLoadTIB(asm, T0, T0);       // TIB of "this" object
+    asm.emitLAddrToc(T1, type.getTibOffset());          // TIB of LHS type
+    asm.emitCMP(T0, T1);                                // TIBs equal?
+    ForwardReference fr = asm.emitForwardBC(EQ);       // TODO: encode "y" bit that branch is likely taken.
+    asm.emitTWI(31, 12, TrapConstants.CHECKCAST_TRAP); // encoding of TRAP_ALWAYS CHECKCAST
+    fr.resolve(asm);
+    isNull.resolve(asm);
   }
 
   /**
@@ -3111,13 +3210,99 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    * Emit code to implement the instanceof bytecode
    * @param type     The LHS type
    */
-  protected final void emit_instanceof_resolvedClass(RVMType type) {
-    asm.emitLAddrToc(T0, Entrypoints.instanceOfResolvedClassMethod.getOffset());
-    asm.emitMTCTR(T0);
-    peekAddr(T0, 0);
-    asm.emitLVAL(T1, type.getId());
-    asm.emitBCCTRL();
-    pokeInt(T0, 0);
+  protected final void emit_instanceof_resolvedInterface(RVMClass type) {
+    int interfaceIndex = type.getDoesImplementIndex();
+    int interfaceMask = type.getDoesImplementBitMask();
+
+    // load object from stack and check for null
+    popAddr(T0);
+    asm.emitCMPAddrI(T0, 0);
+    ForwardReference isNull = asm.emitForwardBC(EQ);
+
+    // get implements bit vector from object's TIB
+    ObjectModel.baselineEmitLoadTIB(asm, T0, T0);
+    asm.emitLAddr(T0, TIB_DOES_IMPLEMENT_INDEX << LOG_BYTES_IN_ADDRESS, T0);
+
+    ForwardReference outOfBounds = null;
+    if (DynamicTypeCheck.MIN_DOES_IMPLEMENT_SIZE <= interfaceIndex) {
+      // must do arraybounds check of implements bit vector
+      asm.emitLIntOffset(T1, T0, ObjectModel.getArrayLengthOffset()); // T1 gets array length
+      asm.emitLVAL(T2, interfaceIndex);
+      asm.emitCMPL(T1, T2);
+      outOfBounds = asm.emitForwardBC(LE);
+    }
+
+    // Test the appropriate bit and if set, set T0 to true (1)
+    asm.emitLInt(T1, interfaceIndex << LOG_BYTES_IN_INT, T0);
+    if ((interfaceMask & 0xffff) == interfaceMask) {
+      asm.emitANDI(S0, T1, interfaceMask);
+    } else {
+      if (VM.VerifyAssertions) VM._assert((interfaceMask & 0xffff0000) == interfaceMask);
+      asm.emitANDIS(S0, T1, interfaceMask);
+    }
+
+    ForwardReference notMatched = asm.emitForwardBC(EQ);
+    asm.emitLVAL(T0, 1);
+    ForwardReference done = asm.emitForwardB();
+
+    // set T1 to 0 (false)
+    isNull.resolve(asm);
+    if (outOfBounds != null) outOfBounds.resolve(asm);
+    notMatched.resolve(asm);
+    asm.emitLVAL(T0, 0);
+
+    // push T0, containing the result of the instanceof comparision, to the stack.
+    done.resolve(asm);
+    pushInt(T0);
+  }
+
+  /**
+   * Emit code to implement the instanceof bytecode
+   * @param type     The LHS type
+   */
+  protected final void emit_instanceof_resolvedClass(RVMClass type) {
+    int LHSDepth = type.getTypeDepth();
+    int LHSId = type.getId();
+
+    // load object from stack and check for null
+    popAddr(T0);
+    asm.emitCMPAddrI(T0, 0);
+    ForwardReference isNull = asm.emitForwardBC(EQ);
+
+    // get superclass display from object's TIB
+    ObjectModel.baselineEmitLoadTIB(asm, T0, T0);
+    asm.emitLAddr(T0, TIB_SUPERCLASS_IDS_INDEX << LOG_BYTES_IN_ADDRESS, T0);
+
+    ForwardReference outOfBounds = null;
+    if (DynamicTypeCheck.MIN_SUPERCLASS_IDS_SIZE <= LHSDepth) {
+      // must do arraybounds check of superclass display
+      asm.emitLIntOffset(T1, T0, ObjectModel.getArrayLengthOffset()); // T1 gets array length
+      asm.emitLVAL(T2, LHSDepth);
+      asm.emitCMPL(T1, T2);
+      outOfBounds = asm.emitForwardBC(LE);
+    }
+
+    // Load id from display at required depth and compare against target id; set T0 to 1 (true) if matched
+    asm.emitLHZ(T0, LHSDepth << LOG_BYTES_IN_CHAR, T0);
+    if (Assembler.fits(LHSId, 16)) {
+      asm.emitCMPI(T0, LHSId);
+    } else {
+      asm.emitLVAL(T1, LHSId);
+      asm.emitCMP(T0, T1);
+    }
+    ForwardReference notMatched = asm.emitForwardBC(NE);
+    asm.emitLVAL(T0, 1);
+    ForwardReference done = asm.emitForwardB();
+
+    // set T0 to 0 (false)
+    isNull.resolve(asm);
+    if (outOfBounds != null) outOfBounds.resolve(asm);
+    notMatched.resolve(asm);
+    asm.emitLVAL(T0, 0);
+
+    // push T0, containing the result of the instanceof comparision, to the stack.
+    done.resolve(asm);
+    pushInt(T0);
   }
 
   /**
@@ -3125,12 +3310,26 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    * @param type     The LHS type
    */
   protected final void emit_instanceof_final(RVMType type) {
-    asm.emitLAddrToc(T0, Entrypoints.instanceOfFinalMethod.getOffset());
-    asm.emitMTCTR(T0);
-    peekAddr(T0, 0);
-    asm.emitLVALAddr(T1, type.getTibOffset());
-    asm.emitBCCTRL();
-    pokeInt(T0, 0);
+    popAddr(T0);                // load object from stack
+    asm.emitCMPAddrI(T0, 0);    // check for null
+    ForwardReference isNull = asm.emitForwardBC(EQ);
+
+    // compare TIB of object to desired TIB and set T0 to 1 (true) if equal
+    ObjectModel.baselineEmitLoadTIB(asm, T0, T0);       // TIB of "this" object
+    asm.emitLAddrToc(T1, type.getTibOffset());          // TIB of LHS type
+    asm.emitCMP(T0, T1);                                // TIBs equal?
+    ForwardReference notMatched = asm.emitForwardBC(NE);
+    asm.emitLVAL(T0, 1);
+    ForwardReference done = asm.emitForwardB();
+
+    // set T1 to 0 (false)
+    isNull.resolve(asm);
+    notMatched.resolve(asm);
+    asm.emitLVAL(T0, 0);
+
+    // push T0, containing the result of the instanceof comparision, to the stack.
+    done.resolve(asm);
+    pushInt(T0);
   }
 
   /**
@@ -3164,22 +3363,22 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
   }
 
   @Uninterruptible
-  public static boolean isRegister(int location) {
+  public static boolean isRegister(short location) {
     return location > 0;
   }
 
   @Uninterruptible
-  public static int locationToOffset(int location) {
+  public static int locationToOffset(short location) {
     return -location;
   }
 
   @Uninterruptible
-  public static int offsetToLocation(int offset) {
-    return -offset;
+  public static short offsetToLocation(int offset) {
+    return (short)-offset;
   }
 
   @Inline
-  private void copyRegToReg(byte srcType, int src, int dest) {
+  private void copyRegToReg(byte srcType, short src, short dest) {
     if ((srcType == FLOAT_TYPE) || (srcType == DOUBLE_TYPE)) {
       asm.emitFMR(dest, src);
     } else {
@@ -3191,7 +3390,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
   }
 
   @Inline
-  private void copyRegToMem(byte srcType, int src, int dest) {
+  private void copyRegToMem(byte srcType, short src, int dest) {
     if (srcType == FLOAT_TYPE) {
       asm.emitSTFS(src, dest - BYTES_IN_FLOAT, FP);
     } else if (srcType == DOUBLE_TYPE) {
@@ -3207,7 +3406,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
   }
 
   @Inline
-  private void copyMemToReg(byte srcType, int src, int dest) {
+  private void copyMemToReg(byte srcType, int src, short dest) {
     if (srcType == FLOAT_TYPE) {
       asm.emitLFS(dest, src - BYTES_IN_FLOAT, FP);
     } else if (srcType == DOUBLE_TYPE) {
@@ -3264,16 +3463,13 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    * @param dest the destination location
    */
   @Inline
-  private void copyByLocation(byte srcType, int src, byte destType, int dest) {
+  private void copyByLocation(byte srcType, short src, byte destType, short dest) {
     if (src == dest && srcType == destType) {
       return;
     }
 
-    boolean srcIsRegister = isRegister(src);
-    boolean destIsRegister = isRegister(dest);
-
-    if (!srcIsRegister) src = locationToOffset(src);
-    if (!destIsRegister) dest = locationToOffset(dest);
+    final boolean srcIsRegister = isRegister(src);
+    final boolean destIsRegister = isRegister(dest);
 
     if (srcType == destType) {
       if (srcIsRegister) {
@@ -3282,37 +3478,37 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
           copyRegToReg(srcType, src, dest);
         } else {
           // register to memory move
-          copyRegToMem(srcType, src, dest);
+          copyRegToMem(srcType, src, locationToOffset(dest));
         }
       } else {
         if (destIsRegister) {
           // memory to register move
-          copyMemToReg(srcType, src, dest);
+          copyMemToReg(srcType, locationToOffset(src), dest);
         } else {
           // memory to memory move
-          copyMemToMem(srcType, src, dest);
+          copyMemToMem(srcType, locationToOffset(src), locationToOffset(dest));
         }
       }
 
     } else {// no matching types
       if ((srcType == DOUBLE_TYPE) && (destType == LONG_TYPE) && srcIsRegister && !destIsRegister) {
-        asm.emitSTFD(src, dest - BYTES_IN_DOUBLE, FP);
+        asm.emitSTFD(src, locationToOffset(dest) - BYTES_IN_DOUBLE, FP);
       } else if ((srcType == LONG_TYPE) && (destType == DOUBLE_TYPE) && destIsRegister && !srcIsRegister) {
-        asm.emitLFD(dest, src - BYTES_IN_LONG, FP);
+        asm.emitLFD(dest, locationToOffset(src) - BYTES_IN_LONG, FP);
       } else if ((srcType == INT_TYPE) && (destType == LONGHALF_TYPE) && srcIsRegister && VM.BuildFor32Addr) {
         //Used as Hack if 1 half of long is spilled
         if (destIsRegister) {
           asm.emitMR(dest, src);
         } else {
-          asm.emitSTW(src, dest - BYTES_IN_LONG, FP); // lo mem := lo register (== hi word)
+          asm.emitSTW(src, locationToOffset(dest) - BYTES_IN_LONG, FP); // lo mem := lo register (== hi word)
         }
       } else if ((srcType == LONGHALF_TYPE) && (destType == INT_TYPE) && !srcIsRegister && VM.BuildFor32Addr) {
         //Used as Hack if 1 half of long is spilled
         if (destIsRegister) {
-          asm.emitLWZ(dest + 1, src - BYTES_IN_INT, FP);
+          asm.emitLWZ(dest + 1, locationToOffset(src) - BYTES_IN_INT, FP);
         } else {
-          asm.emitLWZ(0, src - BYTES_IN_INT, FP);
-          asm.emitSTW(0, dest - BYTES_IN_INT, FP);
+          asm.emitLWZ(0, locationToOffset(src) - BYTES_IN_INT, FP);
+          asm.emitSTW(0, locationToOffset(dest) - BYTES_IN_INT, FP);
         }
       } else
         // implement me
@@ -3467,7 +3663,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
       Offset klassOffset = Offset.fromIntSignExtend(Statics.findOrCreateObjectLiteral(klass.getClassForType()));
       asm.emitLAddrToc(T0, klassOffset);
     } else { // first local is "this" pointer
-      copyByLocation(ADDRESS_TYPE, getGeneralLocalLocation(0), ADDRESS_TYPE, T0);
+      copyByLocation(ADDRESS_TYPE, getGeneralLocalLocation(0), ADDRESS_TYPE, (short)T0);
     }
     asm.emitLAddrOffset(S0, JTOC, Entrypoints.lockMethod.getOffset()); // call out...
     asm.emitMTCTR(S0);                                  // ...of line lock
@@ -3482,7 +3678,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
       Offset klassOffset = Offset.fromIntSignExtend(Statics.findOrCreateObjectLiteral(klass.getClassForType()));
       asm.emitLAddrToc(T0, klassOffset);
     } else { // first local is "this" pointer
-      copyByLocation(ADDRESS_TYPE, getGeneralLocalLocation(0), ADDRESS_TYPE, T0);
+      copyByLocation(ADDRESS_TYPE, getGeneralLocalLocation(0), ADDRESS_TYPE, (short)T0);
     }
     asm.emitLAddrOffset(S0, JTOC, Entrypoints.unlockMethod.getOffset());  // call out...
     asm.emitMTCTR(S0);                                     // ...of line lock
@@ -3517,6 +3713,27 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
   }
 
   /**
+   * Emit the code to load the counter array into the given register.
+   * May call a read barrier so will kill all temporaries.
+   *
+   * @param reg The register to hold the counter array.
+   */
+  private void loadCounterArray(int reg) {
+    if (MemoryManagerConstants.NEEDS_READ_BARRIER) {
+      asm.emitLAddrToc(T0, Entrypoints.edgeCountersField.getOffset());
+      asm.emitLVAL(T1, getEdgeCounterIndex());
+      Barriers.compileArrayLoadBarrier(this);
+      if (reg != T0) {
+        asm.emitORI(reg, T0, 0);
+      }
+    } else {
+      // Load counter array for this method
+      asm.emitLAddrToc(reg, Entrypoints.edgeCountersField.getOffset());
+      asm.emitLAddrOffset(reg, reg, getEdgeCounterOffset());
+    }
+  }
+
+  /**
    * Emit the code for a bytecode level conditional branch
    * @param cc the condition code to branch on
    * @param bTarget the target bytecode index
@@ -3528,8 +3745,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
       edgeCounterIdx += 2;
 
       // Load counter array for this method
-      asm.emitLAddrToc(T0, Entrypoints.edgeCountersField.getOffset());
-      asm.emitLAddrOffset(T0, T0, getEdgeCounterOffset());
+      loadCounterArray(T0);
 
       // Flip conditions so we can jump over the increment of the taken counter.
       ForwardReference fr = asm.emitForwardBC(Assembler.flipCode(cc));
@@ -3628,12 +3844,12 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
   private void genMoveParametersToLocals() {
     // AIX computation will differ
     int spillOff = frameSize + STACKFRAME_HEADER_SIZE;
-    int gp = FIRST_VOLATILE_GPR;
-    int fp = FIRST_VOLATILE_FPR;
+    short gp = FIRST_VOLATILE_GPR;
+    short fp = FIRST_VOLATILE_FPR;
 
     int localIndex = 0;
-    int srcLocation;
-    int dstLocation;
+    short srcLocation;
+    short dstLocation;
     byte type;
 
     if (!method.isStatic()) {
@@ -4589,6 +4805,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
                methodName == MagicNames.objectAsShortArray ||
                methodName == MagicNames.objectAsIntArray ||
                methodName == MagicNames.objectAsProcessor ||
+               methodName == MagicNames.processorAsGreenProcessor ||
                methodName == MagicNames.objectAsThread ||
                methodName == MagicNames.threadAsCollectorThread ||
                methodName == MagicNames.floatAsIntBits ||
@@ -4708,14 +4925,24 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
       generateAddrComparison(true, GE);
     } else if (methodName == MagicNames.wordIsZero || methodName == MagicNames.wordIsNull) {
       // unsigned comparison generating a boolean
-      asm.emitLVAL(T0, 0);
-      pushAddr(T0);
-      generateAddrComparison(false, EQ);
+      popAddr(T0);
+      asm.emitLVAL(T1, 0);
+      asm.emitLVAL(T2, 1);
+      asm.emitCMPLAddr(T0, T1);
+      ForwardReference fr = asm.emitForwardBC(EQ);
+      asm.emitLVAL(T2, 0);
+      fr.resolve(asm);
+      pushInt(T2);
     } else if (methodName == MagicNames.wordIsMax) {
       // unsigned comparison generating a boolean
-      asm.emitLVAL(T0, -1);
-      pushAddr(T0);
-      generateAddrComparison(false, EQ);
+      popAddr(T0);
+      asm.emitLVAL(T1, -1);
+      asm.emitLVAL(T2, 1);
+      asm.emitCMPLAddr(T0, T1);
+      ForwardReference fr = asm.emitForwardBC(EQ);
+      asm.emitLVAL(T2, 0);
+      fr.resolve(asm);
+      pushInt(T2);
     } else if (methodName == MagicNames.wordZero || methodName == MagicNames.wordNull) {
       asm.emitLVAL(T0, 0);
       pushAddr(T0);

@@ -20,6 +20,7 @@ package java.lang.reflect;
 import java.lang.annotation.Annotation;
 
 import org.apache.harmony.lang.reflect.ReflectPermissionCollection;
+import org.jikesrvm.classloader.Atom;
 import org.jikesrvm.classloader.RVMMember;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.classloader.TypeReference;
@@ -188,7 +189,7 @@ public class AccessibleObject implements AnnotatedElement {
    * @see java.lang.reflect.Modifier
    */
   int getModifiers() {
-    return getVMMethod().getModifiers();
+    return getVMMember().getModifiers();
   }
 
   /**
@@ -283,5 +284,12 @@ public class AccessibleObject implements AnnotatedElement {
 		  sb.append(objs[i].getName());
 		}
 	 }
+  }
+
+ /**
+  * Return a descriptor for the member
+  */
+  String getSignature() {
+    return getVMMember().getDescriptor().toString();
   }
 }

@@ -50,7 +50,10 @@ public abstract class JNIHelpers extends JNIGenericHelpers
                                          boolean isDotDotStyle) throws Exception {
 
     // get the parameter list as Java class
-    RVMMethod mth = MemberReference.getMemberRef(methodID).asMethodReference().resolve();
+    MemberReference mr = MemberReference.getMemberRef(methodID);
+    TypeReference tr = java.lang.JikesRVMSupport.getTypeForClass(cls).getTypeRef();
+    RVMMethod mth = MemberReference.findOrCreate(tr, mr.getName(), mr.getDescriptor()).asMethodReference().resolve();
+
     Constructor<?> constMethod = java.lang.reflect.JikesRVMSupport.createConstructor(mth);
     if (!mth.isPublic()) {
       constMethod.setAccessible(true);
@@ -532,7 +535,7 @@ public abstract class JNIHelpers extends JNIGenericHelpers
     }
 
     // now invoke the method
-    return Reflection.invoke(targetMethod, obj, argObjectArray, skip4Args);
+    return Reflection.invoke(targetMethod, null, obj, argObjectArray, skip4Args);
   }
 
   /* The method reads out parameters from registers saved in native->java glue stack frame (glueFP)

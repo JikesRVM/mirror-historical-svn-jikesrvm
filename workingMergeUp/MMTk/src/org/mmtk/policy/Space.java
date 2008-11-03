@@ -114,7 +114,6 @@ public abstract class Space implements Constants {
    * @param movable Are objects in this space movable?
    * @param immortal Are objects in this space immortal (uncollected)?
    * @param vmRequest An object describing the virtual memory requested.
-   * @param pr The page resource associated with this space
    */
   protected Space(String name, boolean movable, boolean immortal, VMRequest vmRequest) {
     this.name = name;
@@ -325,7 +324,7 @@ public abstract class Space implements Constants {
   public static boolean isInSpace(int descriptor, Address address) {
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!address.isZero());
     if (FORCE_SLOW_MAP_LOOKUP || !SpaceDescriptor.isContiguous(descriptor)) {
-      return getDescriptorForAddress(address) == descriptor;
+      return Map.getDescriptorForAddress(address) == descriptor;
     } else {
       Address start = SpaceDescriptor.getStart(descriptor);
       if (!VM.VERIFY_ASSERTIONS &&
@@ -350,19 +349,6 @@ public abstract class Space implements Constants {
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!object.isNull());
     return Map.getSpaceForAddress(VM.objectModel.refToAddress(object));
   }
-
-  /**
-   * Return the descriptor for a given address.
-   *
-   * @param address The address in question.
-   * @return The descriptor for the space containing the address.
-   */
-  @Inline
-  public static int getDescriptorForAddress(Address address) {
-    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!address.isZero());
-    return Map.getDescriptorForAddress(address);
-  }
-
 
   /****************************************************************************
    *
@@ -426,8 +412,7 @@ public abstract class Space implements Constants {
    * space.  This simply involves requesting a suitable number of chunks
    * from the pool of chunks available to discontiguous spaces.
    *
-   * @param bytes The amount by which the space needs to be extended
-   * (will be rounded up to chunks)
+   * @param chunks The number of chunks by which the space needs to be extended
    * @return The address of the new discontiguous space.
    */
   public Address growDiscontiguousSpace(int chunks) {
@@ -573,6 +558,25 @@ public abstract class Space implements Constants {
     Log.write("  AVAILABLE_END "); Log.writeln(AVAILABLE_END);
     Log.write("       HEAP_END "); Log.writeln(HEAP_END);
   }
+
+  /**
+   * Interface to use to implement the Visitor Pattern for Spaces.
+   */
+  public static interface SpaceVisitor {
+    void visit(Space s);
+  }
+
+  /**
+   * Implement the Visitor Pattern for Spaces.
+   * @param v The visitor to perform on each Space instance
+   */
+  @Interruptible
+  public static void visitSpaces(SpaceVisitor v) {
+    for (int i = 0; i < spaceCount; i++) {
+      v.visit(spaces[i]);
+    }
+  }
+
 
   /**
    * Ensure that all MMTk spaces (all spaces aside from the VM space)

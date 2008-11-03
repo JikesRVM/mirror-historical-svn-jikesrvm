@@ -18,7 +18,7 @@ import org.jikesrvm.SizeConstants;
 import org.jikesrvm.classloader.RVMArray;
 import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.RVMType;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.Lock;
 import org.jikesrvm.scheduler.RVMThread;
@@ -26,6 +26,7 @@ import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Extent;
 import org.vmmagic.unboxed.ObjectReference;
@@ -41,7 +42,7 @@ import org.vmmagic.unboxed.Word;
  * <li> The JavaHeader defined by {@link JavaHeader}. This portion of the
  *      object supports language-level functions such as locking, hashcodes,
  *      dynamic type checking, virtual function invocation, and array length.
- * <li> The GCHeader defined by {@link MM_Interface}. This portion
+ * <li> The GCHeader defined by {@link MemoryManager}. This portion
  *      of the object supports allocator-specific requirements such as
  *      mark/barrier bits, reference counts, etc.
  * <li> The MiscHeader defined by {@link MiscHeader}. This portion supports
@@ -121,7 +122,7 @@ import org.vmmagic.unboxed.Word;
  *
  * @see JavaHeader
  * @see MiscHeader
- * @see MM_Interface
+ * @see MemoryManager
  */
 @Uninterruptible
 public class ObjectModel implements JavaHeaderConstants, SizeConstants {
@@ -462,6 +463,7 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
    * Generic lock
    */
   @Entrypoint
+  @Unpreemptible("Become another thread when lock is contended, don't preempt in other cases")
   public static void genericLock(Object o) {
     JavaHeader.genericLock(o);
   }
@@ -470,6 +472,7 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
    * Generic unlock
    */
   @Entrypoint
+  @Unpreemptible("No preemption normally, but may raise exceptions")
   public static void genericUnlock(Object o) {
     JavaHeader.genericUnlock(o);
   }
@@ -678,8 +681,8 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
    * that must be aligned.
    * @param t RVMClass instance being created
    */
-  public static int getOffsetForAlignment(RVMClass t) {
-    return JavaHeader.getOffsetForAlignment(t);
+  public static int getOffsetForAlignment(RVMClass t, boolean needsIdentityHash) {
+    return JavaHeader.getOffsetForAlignment(t, needsIdentityHash);
   }
 
   /**
@@ -697,8 +700,8 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
    * be aligned.
    * @param t RVMArray instance being created
    */
-  public static int getOffsetForAlignment(RVMArray t) {
-    return JavaHeader.getOffsetForAlignment(t);
+  public static int getOffsetForAlignment(RVMArray t, boolean needsIdentityHash) {
+    return JavaHeader.getOffsetForAlignment(t, needsIdentityHash);
   }
 
   /**
@@ -734,17 +737,28 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
    *
    * @param bootImage the bootimage to put the object in
    * @param klass the RVMClass object of the instance to create.
+   * @param needsIdentityHash needs an identity hash value
+   * @param identityHashValue the value for the identity hash
    * @return the offset of object in bootimage (in bytes)
    */
   @Interruptible
-  public static Address allocateScalar(BootImageInterface bootImage, RVMClass klass) {
+  public static Address allocateScalar(BootImageInterface bootImage, RVMClass klass, boolean needsIdentityHash, int identityHashValue) {
     TIB tib = klass.getTypeInformationBlock();
     int size = klass.getInstanceSize();
+    if (needsIdentityHash) {
+      if (JavaHeader.ADDRESS_BASED_HASHING) {
+        size += JavaHeader.HASHCODE_BYTES;
+      } else {
+        // TODO: support rehashing or header initialisation for object models
+        // that don't support an extra word for the hash code
+        throw new Error("Unsupported allocation");
+      }
+    }
     int align = getAlignment(klass);
-    int offset = getOffsetForAlignment(klass);
+    int offset = getOffsetForAlignment(klass, needsIdentityHash);
     Address ptr = bootImage.allocateDataStorage(size, align, offset);
-    Address ref = JavaHeader.initializeScalarHeader(bootImage, ptr, tib, size);
-    MM_Interface.initializeHeader(bootImage, ref, tib, size, true);
+    Address ref = JavaHeader.initializeScalarHeader(bootImage, ptr, tib, size, needsIdentityHash, identityHashValue);
+    MemoryManager.initializeHeader(bootImage, ref, tib, size, true);
     MiscHeader.initializeHeader(bootImage, ref, tib, size, true);
     return ref;
   }
@@ -788,18 +802,29 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
    * @param bootImage the bootimage to put the object in
    * @param array RVMArray object of array being allocated.
    * @param numElements number of elements
+   * @param needsIdentityHash needs an identity hash value
+   * @param identityHashValue the value for the identity hash
    * @return Address of object in bootimage (in bytes)
    */
   @Interruptible
-  public static Address allocateArray(BootImageInterface bootImage, RVMArray array, int numElements) {
+  public static Address allocateArray(BootImageInterface bootImage, RVMArray array, int numElements, boolean needsIdentityHash, int identityHashValue) {
     TIB tib = array.getTypeInformationBlock();
     int size = array.getInstanceSize(numElements);
+    if (needsIdentityHash) {
+      if (JavaHeader.ADDRESS_BASED_HASHING) {
+        size += JavaHeader.HASHCODE_BYTES;
+      } else {
+        // TODO: support rehashing or header initialisation for object models
+        // that don't support an extra word for the hash code
+        throw new Error("Unsupported allocation");
+      }
+    }
     int align = getAlignment(array);
-    int offset = getOffsetForAlignment(array);
+    int offset = getOffsetForAlignment(array, needsIdentityHash);
     Address ptr = bootImage.allocateDataStorage(size, align, offset);
-    Address ref = JavaHeader.initializeArrayHeader(bootImage, ptr, tib, size);
+    Address ref = JavaHeader.initializeArrayHeader(bootImage, ptr, tib, size, numElements, needsIdentityHash, identityHashValue);
     bootImage.setFullWord(ref.plus(getArrayLengthOffset()), numElements);
-    MM_Interface.initializeHeader(bootImage, ref, tib, size, false);
+    MemoryManager.initializeHeader(bootImage, ref, tib, size, false);
     MiscHeader.initializeHeader(bootImage, ref, tib, size, false);
     return ref;
   }
@@ -819,11 +844,11 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
     TIB tib = array.getTypeInformationBlock();
     int size = array.getInstanceSize(numElements);
     int align = getAlignment(array);
-    int offset = getOffsetForAlignment(array);
+    int offset = getOffsetForAlignment(array, false);
     Address ptr = bootImage.allocateCodeStorage(size, align, offset);
-    Address ref = JavaHeader.initializeArrayHeader(bootImage, ptr, tib, size);
+    Address ref = JavaHeader.initializeArrayHeader(bootImage, ptr, tib, size, numElements, false, 0);
     bootImage.setFullWord(ref.plus(getArrayLengthOffset()), numElements);
-    MM_Interface.initializeHeader(bootImage, ref, tib, size, false);
+    MemoryManager.initializeHeader(bootImage, ref, tib, size, false);
     MiscHeader.initializeHeader(bootImage, ref, tib, size, false);
     return ref;
   }

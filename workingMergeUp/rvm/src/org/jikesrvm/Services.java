@@ -12,8 +12,8 @@
  */
 package org.jikesrvm;
 
-import org.jikesrvm.memorymanagers.mminterface.MM_Constants;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
+import org.jikesrvm.mm.mminterface.MemoryManagerConstants;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.runtime.Entrypoints;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.Synchronization;
@@ -21,6 +21,8 @@ import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.UninterruptibleNoWarn;
+import org.vmmagic.pragma.Unpreemptible;
+import org.vmmagic.pragma.UnpreemptibleNoWarn;
 import org.vmmagic.unboxed.Offset;
 
 /**
@@ -29,7 +31,7 @@ import org.vmmagic.unboxed.Offset;
 @Uninterruptible
 public class Services implements SizeConstants {
   /**
-   * Biggest buffer you would possibly need for {@link #dump(char[], int)}
+   * Biggest buffer you would possibly need for {@link org.jikesrvm.scheduler.RVMThread#dump(char[], int)}
    * Modify this if you modify that method.
    */
   public static final int MAX_DUMP_LEN =
@@ -330,11 +332,11 @@ public class Services implements SizeConstants {
    * @param index the index of the element to set
    * @param value the new value for the element
    */
-  @UninterruptibleNoWarn
+  @UninterruptibleNoWarn("Interruptible code not reachable at runtime")
   public static void setArrayUninterruptible(Object[] dst, int index, Object value) {
     if (VM.runningVM) {
-      if (MM_Constants.NEEDS_WRITE_BARRIER) {
-        MM_Interface.arrayStoreWriteBarrier(dst, index, value);
+      if (MemoryManagerConstants.NEEDS_WRITE_BARRIER) {
+        MemoryManager.arrayStoreWriteBarrier(dst, index, value);
       } else {
         Magic.setObjectAtOffset(dst, Offset.fromIntZeroExtend(index << LOG_BYTES_IN_ADDRESS), value);
       }
@@ -433,5 +435,24 @@ public class Services implements SizeConstants {
       return Magic.addressAsByteArray(Magic.objectAsAddress(Magic.getObjectAtOffset(src, Offset.fromIntZeroExtend(index << LOG_BYTES_IN_ADDRESS))));
     else
       return src[index];
+  }
+
+  @Unpreemptible("Call interruptible string API")
+  public static String stringConcatenator(String... args) {
+    String result="";
+    for (String s:args) {
+      result = stringConcatenate(result, s);
+    }
+    return result;
+  }
+
+  @UnpreemptibleNoWarn("Call interruptible string API")
+  public static String stringConcatenate(String a, String b) {
+    return a.concat(b);
+  }
+
+  @UnpreemptibleNoWarn("Call interruptible string API")
+  public static String stringConcatenate(String a, int b) {
+    return a + b;
   }
 }

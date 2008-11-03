@@ -59,11 +59,11 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    * the boot image.  Any objects referenced by those statics will be
    * transitively included in the boot image.
    *
-   * This is called from MM_Interface.
+   * This is called from MemoryManager.
    */
   @Interruptible
   public static void init() {
-    collectorThreadAtom = Atom.findOrCreateAsciiAtom("Lorg/jikesrvm/memorymanagers/mminterface/CollectorThread;");
+    collectorThreadAtom = Atom.findOrCreateAsciiAtom("Lorg/jikesrvm/mm/mminterface/CollectorThread;");
     runAtom = Atom.findOrCreateAsciiAtom("run");
   }
 
@@ -73,7 +73,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    * @param why the reason why a collection was triggered.  0 to
    * <code>TRIGGER_REASONS - 1</code>.
    */
-  @LogicallyUninterruptible
+  @Unpreemptible("Becoming another thread interrupts the current thread, avoid preemption in the process")
   public final void triggerCollection(int why) {
     triggerCollectionStatic(why);
   }
@@ -81,7 +81,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
   /**
    * Joins a collection.
    */
-  @LogicallyUninterruptible
+  @Unpreemptible("Becoming another thread interrupts the current thread, avoid preemption in the process")
   public final void joinCollection() {
     if (Options.verbose.getValue() >= 4) {
       VM.sysWriteln("Entered Collection.joinCollection().  Stack:");
@@ -100,7 +100,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    * @param why the reason why a collection was triggered.  0 to
    * <code>TRIGGER_REASONS - 1</code>.
    */
-  @LogicallyUninterruptible
+  @Unpreemptible("Change state of thread possibly context switching if generating exception")
   public static void triggerCollectionStatic(int why) {
     if (VM.VerifyAssertions) VM._assert((why >= 0) && (why < TRIGGER_REASONS));
 
@@ -133,7 +133,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    * Check if there is an out of memory error waiting.
    */
   @Inline
-  @LogicallyUninterruptible
+  @Unpreemptible("Exceptions may possibly cause yields")
   private static void checkForOutOfMemoryError(boolean afterCollection) {
     RVMThread myThread = RVMThread.getCurrentThread();
     OutOfMemoryError oome = myThread.getOutOfMemoryError();
@@ -191,6 +191,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    * Trigger an asynchronous collection, checking for memory
    * exhaustion first.
    */
+  @Unpreemptible("Becoming another thread interrupts the current thread, avoid preemption in the process")
   public final void triggerAsyncCollection(int why) {
     if (Options.verbose.getValue() >= 1) {
       if (why == INTERNAL_PHASE_GC_TRIGGER) {
@@ -346,6 +347,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    * true if yielded.
    */
   @Inline
+  @Unpreemptible("Becoming another thread interrupts the current thread, avoid preemption in the process")
   public boolean yieldpoint() {
     if (RVMThread.getCurrentThread().takeYieldpoint != 0) {
       RVMThread.yieldpointFromBackedge();
@@ -367,7 +369,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    */
   @Uninterruptible
   public static void scheduleFinalizerThread() {
-    int finalizedCount = Finalizer.countToBeFinalized();
+    int finalizedCount = FinalizableProcessor.countReadyForFinalize();
     if (finalizedCount > 0) {
       FinalizerThread.schedule();
     }

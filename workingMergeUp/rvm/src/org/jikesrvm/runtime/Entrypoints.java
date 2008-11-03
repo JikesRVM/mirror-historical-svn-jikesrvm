@@ -32,10 +32,6 @@ public class Entrypoints {
 
   public static final NormalMethod bootMethod = EntrypointHelper.getMethod(org.jikesrvm.VM.class, "boot", "()V");
 
-  public static final RVMMethod java_lang_Class_forName =
-    getMethod(java.lang.Class.class, "forName", "(Ljava/lang/String;)Ljava/lang/Class;");
-  public static final RVMMethod java_lang_Class_forName_withLoader =
-    getMethod(java.lang.Class.class, "forName", "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;");
   public static final RVMMethod java_lang_reflect_Method_invokeMethod =
       getMethod(java.lang.reflect.Method.class, "invoke",
           "(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;");
@@ -51,20 +47,8 @@ public class Entrypoints {
 
   public static final NormalMethod instanceOfMethod =
       getMethod(org.jikesrvm.runtime.RuntimeEntrypoints.class, "instanceOf", "(Ljava/lang/Object;I)Z");
-  public static final NormalMethod instanceOfResolvedClassMethod =
-      getMethod(org.jikesrvm.runtime.RuntimeEntrypoints.class, "instanceOfResolvedClass", "(Ljava/lang/Object;I)Z");
-  public static final NormalMethod instanceOfFinalMethod =
-      getMethod(org.jikesrvm.runtime.RuntimeEntrypoints.class,
-                "instanceOfFinal",
-                "(Ljava/lang/Object;Lorg/vmmagic/unboxed/Offset;)Z");
   public static final NormalMethod checkcastMethod =
       getMethod(org.jikesrvm.runtime.RuntimeEntrypoints.class, "checkcast", "(Ljava/lang/Object;I)V");
-  public static final NormalMethod checkcastResolvedClassMethod =
-      getMethod(org.jikesrvm.runtime.RuntimeEntrypoints.class, "checkcastResolvedClass", "(Ljava/lang/Object;I)V");
-  public static final NormalMethod checkcastFinalMethod =
-      getMethod(org.jikesrvm.runtime.RuntimeEntrypoints.class,
-                "checkcastFinal",
-                "(Ljava/lang/Object;Lorg/vmmagic/unboxed/Offset;)V");
   public static final NormalMethod checkstoreMethod =
       getMethod(org.jikesrvm.runtime.RuntimeEntrypoints.class, "checkstore", "(Ljava/lang/Object;Ljava/lang/Object;)V");
   public static final NormalMethod athrowMethod =
@@ -118,14 +102,10 @@ public class Entrypoints {
       getMethod(org.jikesrvm.classloader.InterfaceInvocation.class,
                 "findITable",
                 "(Lorg/jikesrvm/objectmodel/TIB;I)Lorg/jikesrvm/objectmodel/ITable;");
-  public static final NormalMethod invokeinterfaceImplementsTestMethod =
-      getMethod(org.jikesrvm.classloader.InterfaceInvocation.class,
-                "invokeinterfaceImplementsTest",
-                "(Lorg/jikesrvm/classloader/RVMClass;Lorg/jikesrvm/objectmodel/TIB;)V");
   public static final NormalMethod unresolvedInvokeinterfaceImplementsTestMethod =
       getMethod(org.jikesrvm.classloader.InterfaceInvocation.class,
                 "unresolvedInvokeinterfaceImplementsTest",
-                "(ILorg/jikesrvm/objectmodel/TIB;)V");
+                "(ILjava/lang/Object;)V");
 
   public static final NormalMethod lockMethod =
       getMethod(org.jikesrvm.objectmodel.ObjectModel.class, "genericLock", "(Ljava/lang/Object;)V");
@@ -280,21 +260,21 @@ public class Entrypoints {
       getField(org.jikesrvm.mm.mmtk.SynchronizedCounter.class, "count", int.class);
 
   public static final NormalMethod arrayStoreWriteBarrierMethod =
-      getMethod(org.jikesrvm.memorymanagers.mminterface.MM_Interface.class, "arrayStoreWriteBarrier", "(Ljava/lang/Object;ILjava/lang/Object;)V");
+      getMethod(org.jikesrvm.mm.mminterface.MemoryManager.class, "arrayStoreWriteBarrier", "(Ljava/lang/Object;ILjava/lang/Object;)V");
   public static final NormalMethod putfieldWriteBarrierMethod =
-      getMethod(org.jikesrvm.memorymanagers.mminterface.MM_Interface.class, "putfieldWriteBarrier", "(Ljava/lang/Object;Lorg/vmmagic/unboxed/Offset;Ljava/lang/Object;I)V");
+      getMethod(org.jikesrvm.mm.mminterface.MemoryManager.class, "putfieldWriteBarrier", "(Ljava/lang/Object;Lorg/vmmagic/unboxed/Offset;Ljava/lang/Object;I)V");
   public static final NormalMethod putstaticWriteBarrierMethod =
-      getMethod(org.jikesrvm.memorymanagers.mminterface.MM_Interface.class, "putstaticWriteBarrier", "(Lorg/vmmagic/unboxed/Offset;Ljava/lang/Object;I)V");
+      getMethod(org.jikesrvm.mm.mminterface.MemoryManager.class, "putstaticWriteBarrier", "(Lorg/vmmagic/unboxed/Offset;Ljava/lang/Object;I)V");
 
   public static final NormalMethod arrayLoadReadBarrierMethod =
-      getMethod(org.jikesrvm.memorymanagers.mminterface.MM_Interface.class, "arrayLoadReadBarrier", "(Ljava/lang/Object;I)Ljava/lang/Object;");
+      getMethod(org.jikesrvm.mm.mminterface.MemoryManager.class, "arrayLoadReadBarrier", "(Ljava/lang/Object;I)Ljava/lang/Object;");
   public static final NormalMethod getfieldReadBarrierMethod =
-      getMethod(org.jikesrvm.memorymanagers.mminterface.MM_Interface.class, "getfieldReadBarrier", "(Ljava/lang/Object;Lorg/vmmagic/unboxed/Offset;I)Ljava/lang/Object;");
+      getMethod(org.jikesrvm.mm.mminterface.MemoryManager.class, "getfieldReadBarrier", "(Ljava/lang/Object;Lorg/vmmagic/unboxed/Offset;I)Ljava/lang/Object;");
   public static final NormalMethod getstaticReadBarrierMethod =
-      getMethod(org.jikesrvm.memorymanagers.mminterface.MM_Interface.class, "getstaticReadBarrier", "(Lorg/vmmagic/unboxed/Offset;I)Ljava/lang/Object;");
+      getMethod(org.jikesrvm.mm.mminterface.MemoryManager.class, "getstaticReadBarrier", "(Lorg/vmmagic/unboxed/Offset;I)Ljava/lang/Object;");
 
   public static final NormalMethod modifyCheckMethod =
-      getMethod(org.jikesrvm.memorymanagers.mminterface.MM_Interface.class, "modifyCheck", "(Ljava/lang/Object;)V");
+      getMethod(org.jikesrvm.mm.mminterface.MemoryManager.class, "modifyCheck", "(Ljava/lang/Object;)V");
 
   // used in boot image writer
   public static final RVMField debugRequestedField =
@@ -315,7 +295,7 @@ public class Entrypoints {
   public static final RVMField JNIEnvSavedTRField =
       getField(org.jikesrvm.jni.JNIEnvironment.class, "savedTRreg", org.jikesrvm.scheduler.RVMThread.class);
   public static final RVMField JNIGlobalRefsField =
-    getField(org.jikesrvm.jni.JNIGlobalRefTable.class, "refs", java.lang.Object[].class);
+    getField(org.jikesrvm.jni.JNIGlobalRefTable.class, "JNIGlobalRefs", org.vmmagic.unboxed.AddressArray.class);
   public static final RVMField JNIRefsField =
       getField(org.jikesrvm.jni.JNIEnvironment.class, "JNIRefs", org.vmmagic.unboxed.AddressArray.class);
   public static final RVMField JNIRefsTopField = getField(org.jikesrvm.jni.JNIEnvironment.class, "JNIRefsTop", int.class);
@@ -433,6 +413,7 @@ public class Entrypoints {
   public static final RVMField luni3;
   public static final RVMField luni4;
   public static final RVMField luni5;
+  public static final RVMField luni6;
 
   static {
     if (VM.BuildForHarmony) {
@@ -441,12 +422,14 @@ public class Entrypoints {
       luni3 = getField("Lorg/apache/harmony/luni/internal/nls/Messages;", "bundle", java.util.ResourceBundle.class);
       luni4 = getField("Lorg/apache/harmony/nio/internal/nls/Messages;", "bundle", java.util.ResourceBundle.class);
       luni5 = getField("Lorg/apache/harmony/niochar/internal/nls/Messages;", "bundle", java.util.ResourceBundle.class);
+      luni6 = getField(java.util.logging.LogManager.class, "manager", java.util.logging.LogManager.class);
     } else {
       luni1 = null;
       luni2 = null;
       luni3 = null;
       luni4 = null;
       luni5 = null;
+      luni6 = null;
     }
   }
 }

@@ -19,6 +19,7 @@ import org.mmtk.policy.ImmortalSpace;
 import org.mmtk.policy.RawPageSpace;
 import org.mmtk.policy.LargeObjectSpace;
 import org.mmtk.utility.alloc.Allocator;
+import org.mmtk.utility.alloc.LinearScan;
 import org.mmtk.utility.Constants;
 import org.mmtk.utility.Conversions;
 import org.mmtk.utility.heap.HeapGrowthManager;
@@ -98,15 +99,15 @@ public abstract class Plan implements Constants {
 
   /* Miscellaneous Constants */
   public static final int LOS_SIZE_THRESHOLD = SegregatedFreeListSpace.MAX_CELL_SIZE;
-  public static final int PLOS_SIZE_THRESHOLD = SegregatedFreeListSpace.MAX_CELL_SIZE >> 1;
   public static final int NON_PARTICIPANT = 0;
   public static final boolean GATHER_WRITE_BARRIER_STATS = false;
   public static final int DEFAULT_MIN_NURSERY = (256 * 1024) >> LOG_BYTES_IN_PAGE;
   public static final int DEFAULT_MAX_NURSERY = (32 << 20) >> LOG_BYTES_IN_PAGE;
   public static final boolean SCAN_BOOT_IMAGE = true;  // scan it for roots rather than trace it
   public static final int MAX_COLLECTION_ATTEMPTS = 10;
+  public static final boolean REQUIRES_LOS = VM.activePlan.constraints().requiresLOS();
 
-/* Do we support a log bit in the object header?  Some write barries may use it */
+/* Do we support a log bit in the object header?  Some write barriers may use it */
   public static final boolean NEEDS_LOG_BIT_IN_HEADER = VM.activePlan.constraints().needsLogBitInHeader();
   public static final Word LOG_SET_MASK = VM.activePlan.constraints().unloggedBit();
   private static final Word LOG_CLEAR_MASK = LOG_SET_MASK.not();
@@ -128,10 +129,6 @@ public abstract class Plan implements Constants {
   /** Large objects are allocated into a special large object space. */
   public static final LargeObjectSpace loSpace = new LargeObjectSpace("los", DEFAULT_POLL_FREQUENCY, VMRequest.create());
 
-  /** Primitive (non-ref) large objects are allocated into a special primitive
-      large object space. */
-  public static final LargeObjectSpace ploSpace = new LargeObjectSpace("plos", DEFAULT_POLL_FREQUENCY, VMRequest.create(PLOS_FRAC, true));
-
   /** Space used by the sanity checker (used at runtime only if sanity checking enabled */
   public static final RawPageSpace sanitySpace = new RawPageSpace("sanity", Integer.MAX_VALUE, VMRequest.create());
 
@@ -143,10 +140,9 @@ public abstract class Plan implements Constants {
 
   /* Space descriptors */
   public static final int IMMORTAL = immortalSpace.getDescriptor();
-  public static final int SPACE = vmSpace.getDescriptor();
+  public static final int VM_SPACE = vmSpace.getDescriptor();
   public static final int META = metaDataSpace.getDescriptor();
   public static final int LOS = loSpace.getDescriptor();
-  public static final int PLOS = ploSpace.getDescriptor();
   public static final int SANITY = sanitySpace.getDescriptor();
   public static final int NON_MOVING = nonMovingSpace.getDescriptor();
   public static final int SMALL_CODE = USE_CODE_SPACE ? smallCodeSpace.getDescriptor() : 0;
@@ -163,6 +159,9 @@ public abstract class Plan implements Constants {
 
   /** Support for allocation-site identification */
   protected static int allocationSiteCount = 0;
+
+  /** Global sanity checking state **/
+  public static final SanityChecker sanityChecker = new SanityChecker();
 
   /****************************************************************************
    * Constructor.
@@ -380,10 +379,25 @@ public abstract class Plan implements Constants {
   private long lastStressPages = 0;
 
   /**
-   * @return The current sanity checker.
+   * Return the expected reference count. For non-reference counting
+   * collectors this becomes a true/false relationship.
+   *
+   * @param object The object to check.
+   * @param sanityRootRC The number of root references to the object.
+   * @return The expected (root excluded) reference count.
    */
-  public SanityChecker getSanityChecker() {
-    return null;
+  public int sanityExpectedRC(ObjectReference object, int sanityRootRC) {
+    Space space = Space.getSpaceForObject(object);
+    return space.isReachable(object) ? SanityChecker.ALIVE : SanityChecker.DEAD;
+  }
+
+  /**
+   * Perform a linear scan of all spaces to check for possible leaks.
+   * This is only called after a full-heap GC.
+   *
+   * @param scanner The scanner callback to use.
+   */
+  public void sanityLinearScan(LinearScan scanner) {
   }
 
   /**
@@ -798,7 +812,7 @@ public abstract class Plan implements Constants {
    * allocation, excluding space reserved for copying.
    */
   public int getPagesUsed() {
-    return loSpace.reservedPages() + ploSpace.reservedPages() +
+    return loSpace.reservedPages() +
            immortalSpace.reservedPages() + metaDataSpace.reservedPages() +
            nonMovingSpace.reservedPages();
   }
@@ -811,7 +825,7 @@ public abstract class Plan implements Constants {
    * outstanding allocation requests.
    */
   public int getPagesRequired() {
-    return loSpace.requiredPages() + ploSpace.requiredPages() +
+    return loSpace.requiredPages() +
       metaDataSpace.requiredPages() + immortalSpace.requiredPages() +
       nonMovingSpace.requiredPages();
   }
@@ -845,6 +859,32 @@ public abstract class Plan implements Constants {
    */
   public static long getTimeCap() {
     return timeCap;
+  }
+
+  /****************************************************************************
+   * Internal read/write barriers.
+   */
+
+  /**
+   * Store an object reference
+   *
+   * @param slot The location of the reference
+   * @param value The value to store
+   */
+  @Inline
+  public void storeObjectReference(Address slot, ObjectReference value) {
+    slot.store(value);
+  }
+
+  /**
+   * Load an object reference
+   *
+   * @param slot The location of the reference
+   * @return the object reference loaded from slot
+   */
+  @Inline
+  public ObjectReference loadObjectReference(Address slot) {
+    return slot.loadObjectReference();
   }
 
   /****************************************************************************
@@ -983,11 +1023,9 @@ public abstract class Plan implements Constants {
       return true;
     if (Space.isInSpace(LOS, object))
       return true;
-    if (Space.isInSpace(PLOS,object))
-      return true;
     if (Space.isInSpace(IMMORTAL, object))
       return true;
-    if (Space.isInSpace(SPACE, object))
+    if (Space.isInSpace(VM_SPACE, object))
       return true;
     if (Space.isInSpace(NON_MOVING, object))
       return true;
@@ -1002,45 +1040,45 @@ public abstract class Plan implements Constants {
     return false;
   }
 
-   /****************************************************************************
-    * Support for logging bits (this is cross-cutting).
-    */
+  /****************************************************************************
+   * Support for logging bits (this is cross-cutting).
+   */
 
-   /**
-    * Return true if the specified object needs to be logged.
-    *
-    * @param src The object in question
-    * @return True if the object in question needs to be logged (remembered).
-    */
-   public static final boolean logRequired(ObjectReference src) {
-     int value = VM.objectModel.readAvailableByte(src);
-     return !((value & LOG_SET_MASK.toInt()) == 0);
-   }
+  /**
+   * Return true if the specified object needs to be logged.
+   *
+   * @param src The object in question
+   * @return True if the object in question needs to be logged (remembered).
+   */
+  public static final boolean logRequired(ObjectReference src) {
+    int value = VM.objectModel.readAvailableByte(src);
+    return !((value & LOG_SET_MASK.toInt()) == 0);
+  }
 
-   /**
-    * Mark an object as logged.  Since duplicate logging does
-    * not raise any correctness issues, we do <i>not</i> worry
-    * about synchronization and allow threads to race to log the
-    * object, potentially including it twice (unlike reference
-    * counting where duplicates would lead to incorrect reference
-    * counts).
-    *
-    * @param src The object to be marked as logged
-    */
-   public static final void markAsLogged(ObjectReference object) {
-     int value = VM.objectModel.readAvailableByte(object);
-     VM.objectModel.writeAvailableByte(object, (byte) (value & LOG_CLEAR_MASK.toInt()));
-   }
+  /**
+   * Mark an object as logged.  Since duplicate logging does
+   * not raise any correctness issues, we do <i>not</i> worry
+   * about synchronization and allow threads to race to log the
+   * object, potentially including it twice (unlike reference
+   * counting where duplicates would lead to incorrect reference
+   * counts).
+   *
+   * @param object The object to be marked as logged
+   */
+  public static final void markAsLogged(ObjectReference object) {
+    int value = VM.objectModel.readAvailableByte(object);
+    VM.objectModel.writeAvailableByte(object, (byte) (value & LOG_CLEAR_MASK.toInt()));
+  }
 
-   /**
-    * Mark an object as unlogged.
-    *
-    * @param src The object to be marked as unlogged
-    */
-   public static final void markAsUnlogged(ObjectReference object) {
-     int value = VM.objectModel.readAvailableByte(object);
-     VM.objectModel.writeAvailableByte(object, (byte) (value | UNLOGGED_BIT.toInt()));
-   }
+  /**
+   * Mark an object as unlogged.
+   *
+   * @param object The object to be marked as unlogged
+   */
+  public static final void markAsUnlogged(ObjectReference object) {
+    int value = VM.objectModel.readAvailableByte(object);
+    VM.objectModel.writeAvailableByte(object, (byte) (value | UNLOGGED_BIT.toInt()));
+  }
 
   /****************************************************************************
    * Specialized Methods

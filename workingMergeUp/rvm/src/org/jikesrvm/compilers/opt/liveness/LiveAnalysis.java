@@ -13,8 +13,8 @@
 package org.jikesrvm.compilers.opt.liveness;
 
 import static org.jikesrvm.compilers.opt.ir.Operators.PHI;
-import static org.jikesrvm.osr.OSR_Constants.LongTypeCode;
-import static org.jikesrvm.osr.OSR_Constants.VoidTypeCode;
+import static org.jikesrvm.osr.OSRConstants.LongTypeCode;
+import static org.jikesrvm.osr.OSRConstants.VoidTypeCode;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
@@ -47,10 +47,10 @@ import org.jikesrvm.compilers.opt.ir.operand.RegisterOperand;
 import org.jikesrvm.compilers.opt.regalloc.LiveIntervalElement;
 import org.jikesrvm.compilers.opt.util.EmptyIterator;
 import org.jikesrvm.compilers.opt.util.SortedGraphIterator;
-import org.jikesrvm.osr.OSR_Constants;
-import org.jikesrvm.osr.OSR_LocalRegPair;
-import org.jikesrvm.osr.OSR_MethodVariables;
-import org.jikesrvm.osr.OSR_VariableMap;
+import org.jikesrvm.osr.OSRConstants;
+import org.jikesrvm.osr.LocalRegPair;
+import org.jikesrvm.osr.MethodVariables;
+import org.jikesrvm.osr.VariableMap;
 
 /**
  * This class performs a flow-sensitive iterative live variable analysis.
@@ -98,7 +98,7 @@ public final class LiveAnalysis extends CompilerPhase {
    */
   private GCIRMap map;
 
-  private OSR_VariableMap osrMap;
+  private VariableMap osrMap;
 
   /**
    * For each register, the set of live interval elements describing the
@@ -106,18 +106,11 @@ public final class LiveAnalysis extends CompilerPhase {
    */
   private ArrayList<LiveIntervalElement>[] registerMap;
 
-  // Debugging information
-  // Live Intervals, GC Maps, and fixed-point results
-  private static final boolean dumpFinalLiveIntervals = false;
-  private static final boolean dumpFinalMaps = false;
-  private static final boolean dumpFixedPointResults = false;
-
-  // used for debugging. make it nonfinal to accept the argument from the input
+  /** Debugging info */
   private static final boolean debug = false;
 
-  // even more debugging info
+  /** Even more debugging info */
   private static final boolean verbose = false;
-  // End debugging information
 
   public String getName() {
     return "Live Analysis";
@@ -196,9 +189,19 @@ public final class LiveAnalysis extends CompilerPhase {
    */
   public void perform(IR ir) {
 
+    // Debugging information
+    // Live Intervals, GC Maps, and fixed-point results
+    final boolean dumpFinalLiveIntervals = debug ||
+      ir.options.PRINT_GC_MAPS &&
+         (!ir.options.hasMETHOD_TO_PRINT() ||
+          (ir.options.hasMETHOD_TO_PRINT() && ir.options.fuzzyMatchMETHOD_TO_PRINT(ir.method.toString()))
+         );
+    final boolean dumpFinalMaps = dumpFinalLiveIntervals;
+    final boolean dumpFixedPointResults = dumpFinalLiveIntervals;
+
     // make sure IR info is up-to-date
     DefUse.recomputeSpansBasicBlock(ir);
-    debugBegining(ir, createGCMaps);
+    debugBegining(ir, createGCMaps, dumpFinalLiveIntervals, dumpFinalMaps, dumpFixedPointResults);
     bbLiveInfo = new BBLiveElement[ir.cfg.numberOfNodes()];
 
     for (int i = 0; i < ir.cfg.numberOfNodes(); i++) {
@@ -211,7 +214,7 @@ public final class LiveAnalysis extends CompilerPhase {
       //  map, which is called OptReferenceMap.
       map = new GCIRMap();
 
-      osrMap = new OSR_VariableMap();
+      osrMap = new VariableMap();
     }
 
     // allocate the "currentSet" which is used to cache the current results
@@ -222,7 +225,7 @@ public final class LiveAnalysis extends CompilerPhase {
     // currentBlock is the first node in the list
     BasicBlock currentBlock = (BasicBlock) ir.cfg.buildRevTopSort();
 
-    // 2nd parm: true means forward analysis; false means backward analysis
+    // 2nd param: true means forward analysis; false means backward analysis
     SortedGraphIterator bbIter = new SortedGraphIterator(currentBlock, false);
     while (currentBlock != null) {
       boolean changed = processBlock(currentBlock, reuseCurrentSet, ir);
@@ -235,7 +238,7 @@ public final class LiveAnalysis extends CompilerPhase {
       reuseCurrentSet = nextBlock != null && bbIter.isSinglePredecessor(currentBlock, nextBlock);
       currentBlock = nextBlock;
     }
-    debugPostGlobal(ir);
+    debugPostGlobal(ir, dumpFinalLiveIntervals, dumpFinalMaps, dumpFixedPointResults);
 
     // Now compute live ranges, using results from the fixed point computation
     // Also, optionally create GC maps
@@ -379,6 +382,7 @@ public final class LiveAnalysis extends CompilerPhase {
 
     // Tells whether we've seen the first PEI
     boolean seenFirstPEI = false;
+
     // Because control flow may emanate from a potentially excepting
     // instruction (PEI) out of the basic block, care must be taken
     // when computing what can be killed by a basic block.
@@ -589,8 +593,15 @@ public final class LiveAnalysis extends CompilerPhase {
       block.printExtended();
     }
 
-    // Used in processBlock as a summary of the IN sets of all
-    // exception handlers for the block
+    // We compute Gen and Kill the first time we process the block.
+    // This computation must happen early iun this method because it also computes
+    // summary information about the block (eg getContainsPEIWithHandler).
+    if (bbLiveInfo[block.getNumber()].BBKillSet() == null) {
+      bbLiveInfo[block.getNumber()].createKillAndGen();
+      computeBlockGenAndKill(block, ir);
+    }
+
+    // A summary of the IN sets of all exception handlers for the block
     LiveSet exceptionBlockSummary = new LiveSet();
 
     boolean blockHasHandlers = bbLiveInfo[block.getNumber()].getContainsPEIWithHandler();
@@ -641,11 +652,6 @@ public final class LiveAnalysis extends CompilerPhase {
     //
     // If there are no handlers than exceptionBlockSummary is empty and
     // we don't need to perform line (1)
-    // We compute Gen and Kill on demand
-    if (bbLiveInfo[block.getNumber()].BBKillSet() == null) {
-      bbLiveInfo[block.getNumber()].createKillAndGen();
-      computeBlockGenAndKill(block, ir);
-    }
 
     // currentSet = currentSet - BBKillSet
     // first kill off variables that are killed anywhere in the block
@@ -911,9 +917,12 @@ public final class LiveAnalysis extends CompilerPhase {
    * that is performed at the beginning of the perform method
    * @param ir  the IR
    * @param createGCMaps are we creating GC maps?
+   * @param dumpFixedPointResults debug info
+   * @param dumpFinalMaps debug info
+   * @param dumpFinalLiveIntervals debug info
    */
-  private void debugBegining(IR ir, boolean createGCMaps) {
-    if (debug || dumpFixedPointResults || dumpFinalMaps || dumpFinalLiveIntervals) {
+  private void debugBegining(IR ir, boolean createGCMaps, boolean dumpFixedPointResults, boolean dumpFinalMaps, boolean dumpFinalLiveIntervals) {
+    if (dumpFixedPointResults || dumpFinalMaps || dumpFinalLiveIntervals) {
       System.out.print("\n ====>  Performing liveness analysis ");
       if (createGCMaps) {
         System.out.print("and GC Maps ");
@@ -921,7 +930,7 @@ public final class LiveAnalysis extends CompilerPhase {
       System.out.println("for method: " + ir.method.getName() + " in class: " + ir.method.getDeclaringClass() + "\n");
       System.out.println("  method has " + ir.cfg.numberOfNodes() + " basic blocks");
     }
-    if (debug || dumpFinalMaps) {
+    if (dumpFinalMaps) {
       System.out.println("**** START OF IR for method: " +
                          ir.method.getName() +
                          " in class: " +
@@ -936,16 +945,17 @@ public final class LiveAnalysis extends CompilerPhase {
    * that is performed after the global propagation step of "perform"
    *
    * @param ir the IR
+   * @param dumpFixedPointResults debug info
+   * @param dumpFinalMaps debug info
+   * @param dumpFinalLiveIntervals debug info
    */
-  private void debugPostGlobal(IR ir) {
+  private void debugPostGlobal(IR ir, boolean dumpFixedPointResults, boolean dumpFinalMaps, boolean dumpFinalLiveIntervals) {
     if (debug) {
       System.out.println(" .... Completed global live computation ....");
       if (verbose) {
         // Print the basic blocks
         System.out.println(" .... CFG:");
         System.out.println(ir.cfg);
-        // Print the results for basic blocks
-        printFixedPointResults(ir);
       }
     }
     if (dumpFixedPointResults) {
@@ -981,16 +991,6 @@ public final class LiveAnalysis extends CompilerPhase {
                        ir.method.getName());
     map.dump();
     System.out.println("  =-=-=-=-=- End Final IR-based GC Maps\n");
-  }
-
-  /**
-   *  Dumps the GC map, see printFinalMaps
-   */
-  public void dumpMap() {
-    if (VM.VerifyAssertions) {
-      VM._assert(map != null);
-    }
-    map.dump();
   }
 
   /**
@@ -1063,7 +1063,7 @@ public final class LiveAnalysis extends CompilerPhase {
     private LiveSet gen;
     private LiveSet BBKillSet;
     private LiveSet firstPEIKillSet;
-    private LiveSet in;
+    private final LiveSet in;
     private boolean containsPEIWithHandler = false;
 
     /**
@@ -1130,20 +1130,6 @@ public final class LiveAnalysis extends CompilerPhase {
     }
 
     /**
-     * DEPRECIATED: Don't Use
-     */
-    public LiveSet gen() {
-      return gen;
-    }
-
-    /**
-     * DEPRECIATED: Don't Use
-     */
-    public LiveSet in() {
-      return in;
-    }
-
-    /**
      * creates a string representation of this object
      * @return string representation of this object
      */
@@ -1162,6 +1148,9 @@ public final class LiveAnalysis extends CompilerPhase {
    * A simple class used just in this file when creating GC maps
    */
   static final class MapElement {
+
+    private final Instruction inst;
+    private final List<RegSpillListElement> list;
 
     /**
      * constructor
@@ -1188,15 +1177,12 @@ public final class LiveAnalysis extends CompilerPhase {
     public List<RegSpillListElement> getList() {
       return list;
     }
-
-    private Instruction inst;
-    private List<RegSpillListElement> list;
   }
 
   /* collect osr info according to live information */
   private void collectOsrInfo(Instruction inst, LiveSet lives) {
     // create an entry to the OSRIRMap, order: callee => caller
-    LinkedList<OSR_MethodVariables> mvarList = new LinkedList<OSR_MethodVariables>();
+    LinkedList<MethodVariables> mvarList = new LinkedList<MethodVariables>();
 
     // get the type info for locals and stacks
     InlinedOsrTypeInfoOperand typeInfo = OsrPoint.getInlinedTypeInfo(inst);
@@ -1215,7 +1201,7 @@ public final class LiveAnalysis extends CompilerPhase {
     int snd_long_idx = typeInfo.validOps;
     for (int midx = 0; midx < nummeth; midx++) {
 
-      LinkedList<OSR_LocalRegPair> tupleList = new LinkedList<OSR_LocalRegPair>();
+      LinkedList<LocalRegPair> tupleList = new LinkedList<LocalRegPair>();
 
       byte[] ls = ltypes[midx];
       byte[] ss = stypes[midx];
@@ -1225,14 +1211,14 @@ public final class LiveAnalysis extends CompilerPhase {
         if (ls[i] != VoidTypeCode) {
           // check liveness
           Operand op = OsrPoint.getElement(inst, elm_idx++);
-          OSR_LocalRegPair tuple = new OSR_LocalRegPair(OSR_Constants.LOCAL, i, ls[i], op);
+          LocalRegPair tuple = new LocalRegPair(OSRConstants.LOCAL, i, ls[i], op);
           // put it in the list
           tupleList.add(tuple);
 
           // get another half of a long type operand
           if (VM.BuildFor32Addr && (ls[i] == LongTypeCode)) {
             Operand other_op = OsrPoint.getElement(inst, snd_long_idx++);
-            tuple._otherHalf = new OSR_LocalRegPair(OSR_Constants.LOCAL, i, ls[i], other_op);
+            tuple._otherHalf = new LocalRegPair(OSRConstants.LOCAL, i, ls[i], other_op);
 
           }
         }
@@ -1241,20 +1227,20 @@ public final class LiveAnalysis extends CompilerPhase {
       /* record maps for stack slots */
       for (int i = 0, n = ss.length; i < n; i++) {
         if (ss[i] != VoidTypeCode) {
-          OSR_LocalRegPair tuple =
-              new OSR_LocalRegPair(OSR_Constants.STACK, i, ss[i], OsrPoint.getElement(inst, elm_idx++));
+          LocalRegPair tuple =
+              new LocalRegPair(OSRConstants.STACK, i, ss[i], OsrPoint.getElement(inst, elm_idx++));
 
           tupleList.add(tuple);
 
           if (VM.BuildFor32Addr && (ss[i] == LongTypeCode)) {
             tuple._otherHalf =
-                new OSR_LocalRegPair(OSR_Constants.STACK, i, ss[i], OsrPoint.getElement(inst, snd_long_idx++));
+                new LocalRegPair(OSRConstants.STACK, i, ss[i], OsrPoint.getElement(inst, snd_long_idx++));
           }
         }
       }
 
-      // create OSR_MethodVariables
-      OSR_MethodVariables mvar = new OSR_MethodVariables(typeInfo.methodids[midx], typeInfo.bcindexes[midx], tupleList);
+      // create MethodVariables
+      MethodVariables mvar = new MethodVariables(typeInfo.methodids[midx], typeInfo.bcindexes[midx], tupleList);
       mvarList.add(mvar);
     }
 

@@ -21,12 +21,17 @@ import org.jikesrvm.VM;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.runtime.Entrypoints;
+import org.jikesrvm.runtime.Reflection;
+import org.jikesrvm.runtime.ReflectionBase;
 import org.jikesrvm.runtime.Statics;
+import org.jikesrvm.util.HashMapRVM;
 import org.jikesrvm.util.ImmutableEntryHashMapRVM;
 import org.vmmagic.pragma.Pure;
+import org.vmmagic.pragma.RuntimePure;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.unboxed.Offset;
+import static org.jikesrvm.classloader.TypeReference.baseReflectionClass;
 
 /**
  * A method of a java class corresponding to a method_info structure
@@ -55,8 +60,8 @@ public abstract class RVMMethod extends RVMMember implements BytecodeConstants {
    * A table mapping to values present in the method info tables of annotation
    * types. It represents the default result from an annotation method.
    */
-  private static final ImmutableEntryHashMapRVM<RVMMethod, Object> annotationDefaults =
-    new ImmutableEntryHashMapRVM<RVMMethod, Object>();
+  private static final HashMapRVM<RVMMethod, Object> annotationDefaults =
+    new HashMapRVM<RVMMethod, Object>();
   /**
    * The offsets of virtual methods in the jtoc, if it's been placed
    * there by constant propagation.
@@ -102,7 +107,7 @@ public abstract class RVMMethod extends RVMMember implements BytecodeConstants {
   }
 
   /**
-   * Get the paramemter annotations for this method
+   * Get the parameter annotations for this method
    */
   @Pure
   private RVMAnnotation[][] getParameterAnnotations() {
@@ -117,7 +122,12 @@ public abstract class RVMMethod extends RVMMember implements BytecodeConstants {
   @Pure
   public Object getAnnotationDefault() {
     synchronized(annotationDefaults) {
-      return annotationDefaults.get(this);
+      Object value = annotationDefaults.get(this);
+      if (value instanceof TypeReference || value instanceof Object[]) {
+        value = RVMAnnotation.firstUse(value);
+        annotationDefaults.put(this, value);
+      }
+      return value;
     }
   }
 
@@ -567,6 +577,7 @@ public abstract class RVMMethod extends RVMMember implements BytecodeConstants {
     if (hasUninterruptibleNoWarnAnnotation()) return false;
     if (hasUninterruptibleAnnotation()) return false;
     if (hasUnpreemptibleAnnotation()) return false;
+    if (hasUnpreemptibleNoWarnAnnotation()) return false;
     if (getDeclaringClass().hasUnpreemptibleAnnotation()) return false;
     return !getDeclaringClass().hasUninterruptibleAnnotation();
   }
@@ -582,6 +593,7 @@ public abstract class RVMMethod extends RVMMember implements BytecodeConstants {
     if (hasUninterruptibleAnnotation()) return false;
     if (hasUninterruptibleNoWarnAnnotation()) return false;
     if (hasUnpreemptibleAnnotation()) return true;
+    if (hasUnpreemptibleNoWarnAnnotation()) return true;
     return getDeclaringClass().hasUnpreemptibleAnnotation();
   }
 
@@ -606,7 +618,17 @@ public abstract class RVMMethod extends RVMMember implements BytecodeConstants {
    * @return whether the method has a pure annotation
    */
   public final boolean isPure() {
-    return hasPureAnnotation();
+    return hasPureAnnotation() || hasRuntimePureAnnotation();
+  }
+
+  /**
+   * Is the method RuntimePure? This is the same as Pure at runtime but has a
+   * special return value at boot image writing time
+   *
+   * @return whether the method has a pure annotation
+   */
+  public final boolean isRuntimePure() {
+   return hasRuntimePureAnnotation();
   }
 
   /**
@@ -635,18 +657,10 @@ public abstract class RVMMethod extends RVMMember implements BytecodeConstants {
   }
 
   /**
-   * Get the annotation implementing the specified class or null during boot
-   * image write time
+   * Should all allocation from this method go to a non-moving space?
    */
-  protected <T extends Annotation> T getBootImageWriteTimeAnnotation(Class<T> annotationClass) {
-    T ann;
-    try {
-      ann = getDeclaringClass().getClassForType().
-      getMethod(getName().toString(), getDescriptor().parseForParameterClasses(getDeclaringClass().getClassLoader())).getAnnotation(annotationClass);
-    } catch (NoSuchMethodException e) {
-      throw new BootImageMemberLookupError(this, null, annotationClass, e);
-    }
-    return ann;
+  public boolean isNonMovingAllocation() {
+    return hasNonMovingAllocationAnnotation();
   }
 
   //------------------------------------------------------------------//
@@ -824,6 +838,241 @@ public abstract class RVMMethod extends RVMMember implements BytecodeConstants {
       }
     }
     return result;
+  }
+
+  /** Map from a method to a reflective method capable of invoking it */
+  private static final ImmutableEntryHashMapRVM<RVMMethod, ReflectionBase> invokeMethods =
+    Reflection.bytecodeReflection || Reflection.cacheInvokerInJavaLangReflect ?
+      new ImmutableEntryHashMapRVM<RVMMethod, ReflectionBase>(30) : null;
+
+  /**
+   * Get an instance of an object capable of reflectively invoking this method
+   */
+  @RuntimePure
+  @SuppressWarnings("unchecked")
+  public synchronized ReflectionBase getInvoker() {
+    if (!VM.runningVM) {
+      return null;
+    }
+    ReflectionBase invoker;
+    if (invokeMethods != null) {
+      synchronized(RVMMethod.class) {
+        invoker = invokeMethods.get(this);
+      }
+    } else {
+      invoker = null;
+    }
+    if (invoker == null) {
+      Class<ReflectionBase> reflectionClass = (Class<ReflectionBase>)RVMClass.createReflectionClass(this);
+      if (reflectionClass != null) {
+        try {
+          invoker = reflectionClass.newInstance();
+        } catch (Throwable e) {
+          throw new Error(e);
+        }
+      } else {
+        invoker = ReflectionBase.nullInvoker;
+      }
+      if (invokeMethods != null) {
+        synchronized(RVMMethod.class) {
+          invokeMethods.put(this, invoker);
+        }
+      }
+    }
+    return invoker;
+  }
+
+  /**
+   * Create a method to act as a default constructor (just return)
+   * @param klass class for method
+   * @param memRef reference for default constructor
+   * @return method normal (bytecode containing) method that just returns
+   */
+  static RVMMethod createDefaultConstructor(TypeReference klass, MemberReference memRef) {
+    return new NormalMethod(klass,
+                               memRef,
+                               (short) (ACC_PUBLIC | ACC_FINAL | ACC_SYNTHETIC),
+                               null,
+                               (short) 1,
+                               (short) 0,
+                               new byte[]{(byte)JBC_return},
+                               null,
+                               null,
+                               new int[0],
+                               null,
+                               null,
+                               null,
+                               null);
+  }
+
+  /**
+   * Create a method for reflectively invoking this method
+   *
+   * @param reflectionClass the class this method will belong to
+   * @param constantPool for the class
+   * @param memRef the member reference corresponding to this method
+   * @return the created method
+   */
+  RVMMethod createReflectionMethod(TypeReference reflectionClass, int[] constantPool,
+                                   MethodReference memRef) {
+    TypeReference[] parameters = getParameterTypes();
+    int numParams = parameters.length;
+    byte[] bytecodes;
+    int curBC = 0;
+    if (!isStatic()) {
+      bytecodes = new byte[8 * numParams + 8];
+      bytecodes[curBC] = JBC_aload_1;
+      curBC++;
+    } else {
+      bytecodes = new byte[8 * numParams + 7];
+    }
+    for (int i=0; i < numParams; i++) {
+      if (parameters[i].isVoidType()) {
+        bytecodes[curBC] =
+          bytecodes[curBC+1] =
+          bytecodes[curBC+2] =
+          bytecodes[curBC+3] =
+          bytecodes[curBC+4] =
+          bytecodes[curBC+5] =
+          bytecodes[curBC+6] =
+          bytecodes[curBC+7] =
+            (byte)JBC_nop;
+        continue;
+      }
+      bytecodes[curBC] = (byte)JBC_aload_2;
+      bytecodes[curBC+1] = (byte)JBC_sipush;
+      bytecodes[curBC+2] = (byte)(i >>> 8);
+      bytecodes[curBC+3] = (byte)i;
+      bytecodes[curBC+4] = (byte)JBC_aaload;
+      if (!parameters[i].isPrimitiveType()) {
+        bytecodes[curBC+5] = (byte)JBC_checkcast;
+        if (VM.VerifyAssertions) VM._assert(parameters[i].getId() != 0);
+        constantPool[i+1] = RVMClass.packCPEntry(RVMClass.CP_CLASS, parameters[i].getId());
+        bytecodes[curBC+6] = (byte)((i+1) >>> 8);
+        bytecodes[curBC+7] = (byte)(i+1);
+      } else if (parameters[i].isWordType()) {
+        bytecodes[curBC+5] =
+          bytecodes[curBC+6] =
+          bytecodes[curBC+7] =
+            (byte)JBC_nop;
+      } else {
+        bytecodes[curBC+5] = (byte)JBC_invokestatic;
+        MemberReference unboxMethod;
+        if (parameters[i].isBooleanType()) {
+          unboxMethod = MethodReference.findOrCreate(baseReflectionClass,
+                                                        Atom.findOrCreateUnicodeAtom("unboxAsBoolean"),
+                                                        Atom.findOrCreateUnicodeAtom("(Ljava/lang/Object;)Z"));
+        } else if (parameters[i].isByteType()) {
+          unboxMethod = MethodReference.findOrCreate(baseReflectionClass,
+                                                        Atom.findOrCreateUnicodeAtom("unboxAsByte"),
+                                                        Atom.findOrCreateUnicodeAtom("(Ljava/lang/Object;)B"));
+        } else if (parameters[i].isShortType()) {
+          unboxMethod = MethodReference.findOrCreate(baseReflectionClass,
+                                                        Atom.findOrCreateUnicodeAtom("unboxAsShort"),
+                                                        Atom.findOrCreateUnicodeAtom("(Ljava/lang/Object;)S"));
+        } else if (parameters[i].isCharType()) {
+          unboxMethod = MethodReference.findOrCreate(baseReflectionClass,
+                                                        Atom.findOrCreateUnicodeAtom("unboxAsChar"),
+                                                        Atom.findOrCreateUnicodeAtom("(Ljava/lang/Object;)C"));
+        } else if (parameters[i].isIntType()) {
+          unboxMethod = MethodReference.findOrCreate(baseReflectionClass,
+                                                        Atom.findOrCreateUnicodeAtom("unboxAsInt"),
+                                                        Atom.findOrCreateUnicodeAtom("(Ljava/lang/Object;)I"));
+        } else if (parameters[i].isLongType()) {
+          unboxMethod = MethodReference.findOrCreate(baseReflectionClass,
+                                                        Atom.findOrCreateUnicodeAtom("unboxAsLong"),
+                                                        Atom.findOrCreateUnicodeAtom("(Ljava/lang/Object;)J"));
+        } else if (parameters[i].isFloatType()) {
+          unboxMethod = MethodReference.findOrCreate(baseReflectionClass,
+                                                        Atom.findOrCreateUnicodeAtom("unboxAsFloat"),
+                                                        Atom.findOrCreateUnicodeAtom("(Ljava/lang/Object;)F"));
+        } else {
+          if (VM.VerifyAssertions) VM._assert(parameters[i].isDoubleType());
+          unboxMethod = MethodReference.findOrCreate(baseReflectionClass,
+                                                        Atom.findOrCreateUnicodeAtom("unboxAsDouble"),
+                                                        Atom.findOrCreateUnicodeAtom("(Ljava/lang/Object;)D"));
+        }
+        constantPool[i+1] = RVMClass.packCPEntry(RVMClass.CP_MEMBER, unboxMethod.getId());
+        bytecodes[curBC+6] = (byte)((i+1) >>> 8);
+        bytecodes[curBC+7] = (byte)(i+1);
+      }
+      curBC+=8;
+    }
+    if (isStatic()) {
+      bytecodes[curBC] = (byte)JBC_invokestatic;
+    } else if (isObjectInitializer() || isPrivate()) {
+      bytecodes[curBC] = (byte)JBC_invokespecial;
+    } else {
+      bytecodes[curBC] = (byte)JBC_invokevirtual;
+    }
+    constantPool[numParams+1] = RVMClass.packCPEntry(RVMClass.CP_MEMBER, getId());
+    bytecodes[curBC+1] = (byte)((numParams+1) >>> 8);
+    bytecodes[curBC+2] = (byte)(numParams+1);
+    TypeReference returnType = getReturnType();
+    if (!returnType.isPrimitiveType() || returnType.isWordType()) {
+      bytecodes[curBC+3] = (byte)JBC_nop;
+      bytecodes[curBC+4] = (byte)JBC_nop;
+      bytecodes[curBC+5] = (byte)JBC_nop;
+    } else if (returnType.isVoidType()) {
+      bytecodes[curBC+3] = (byte)JBC_aconst_null;
+      bytecodes[curBC+4] = (byte)JBC_nop;
+      bytecodes[curBC+5] = (byte)JBC_nop;
+    } else {
+      MemberReference boxMethod;
+      if (returnType.isBooleanType()) {
+        boxMethod = MethodReference.findOrCreate(baseReflectionClass,
+                                                    Atom.findOrCreateUnicodeAtom("boxAsBoolean"),
+                                                    Atom.findOrCreateUnicodeAtom("(Z)Ljava/lang/Object;"));
+      } else if (returnType.isByteType()) {
+        boxMethod = MethodReference.findOrCreate(baseReflectionClass,
+                                                    Atom.findOrCreateUnicodeAtom("boxAsByte"),
+                                                    Atom.findOrCreateUnicodeAtom("(B)Ljava/lang/Object;"));
+      } else if (returnType.isShortType()) {
+        boxMethod = MethodReference.findOrCreate(baseReflectionClass,
+                                                    Atom.findOrCreateUnicodeAtom("boxAsShort"),
+                                                    Atom.findOrCreateUnicodeAtom("(S)Ljava/lang/Object;"));
+      } else if (returnType.isCharType()) {
+        boxMethod = MethodReference.findOrCreate(baseReflectionClass,
+                                                    Atom.findOrCreateUnicodeAtom("boxAsChar"),
+                                                    Atom.findOrCreateUnicodeAtom("(C)Ljava/lang/Object;"));
+      } else if (returnType.isIntType()) {
+        boxMethod = MethodReference.findOrCreate(baseReflectionClass,
+                                                    Atom.findOrCreateUnicodeAtom("boxAsInt"),
+                                                    Atom.findOrCreateUnicodeAtom("(I)Ljava/lang/Object;"));
+      } else if (returnType.isLongType()) {
+        boxMethod = MethodReference.findOrCreate(baseReflectionClass,
+                                                    Atom.findOrCreateUnicodeAtom("boxAsLong"),
+                                                    Atom.findOrCreateUnicodeAtom("(J)Ljava/lang/Object;"));
+      } else if (returnType.isFloatType()) {
+        boxMethod = MethodReference.findOrCreate(baseReflectionClass,
+                                                    Atom.findOrCreateUnicodeAtom("boxAsFloat"),
+                                                    Atom.findOrCreateUnicodeAtom("(F)Ljava/lang/Object;"));
+      } else {
+        if (VM.VerifyAssertions) VM._assert(returnType.isDoubleType());
+        boxMethod = MethodReference.findOrCreate(baseReflectionClass,
+                                                    Atom.findOrCreateUnicodeAtom("boxAsDouble"),
+                                                    Atom.findOrCreateUnicodeAtom("(D)Ljava/lang/Object;"));
+      }
+      constantPool[numParams+2] = RVMClass.packCPEntry(RVMClass.CP_MEMBER, boxMethod.getId());
+      bytecodes[curBC+3] = (byte)JBC_invokestatic;
+      bytecodes[curBC+4] = (byte)((numParams+2) >>> 8);
+      bytecodes[curBC+5] = (byte)(numParams+2);
+    }
+    bytecodes[curBC+6] = (byte)JBC_areturn;
+    return new NormalMethod(reflectionClass,
+                               memRef,
+                               (short) (ACC_PUBLIC | ACC_FINAL | ACC_SYNTHETIC),
+                               null,
+                               (short) 3,
+                               (short) (getParameterWords() + 2),
+                               bytecodes,
+                               null,
+                               null,
+                               constantPool,
+                               null,
+                               null,
+                               null,
+                               null);
   }
 }
 

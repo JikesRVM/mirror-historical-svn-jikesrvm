@@ -70,8 +70,8 @@ import org.jikesrvm.compilers.opt.ir.operand.MethodOperand;
 import org.jikesrvm.compilers.opt.ir.operand.Operand;
 import org.jikesrvm.compilers.opt.ir.operand.RegisterOperand;
 import org.jikesrvm.compilers.opt.ir.operand.TypeOperand;
-import org.jikesrvm.memorymanagers.mminterface.MM_Constants;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
+import org.jikesrvm.mm.mminterface.MemoryManagerConstants;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.runtime.Entrypoints;
 
@@ -138,9 +138,9 @@ public final class ExpandRuntimeServices extends CompilerPhase {
           RVMClass cls = (RVMClass) Type.getVMType();
           IntConstantOperand hasFinalizer = IRTools.IC(cls.hasFinalizer() ? 1 : 0);
           RVMMethod callSite = inst.position.getMethod();
-          IntConstantOperand allocator = IRTools.IC(MM_Interface.pickAllocator(cls, callSite));
+          IntConstantOperand allocator = IRTools.IC(MemoryManager.pickAllocator(cls, callSite));
           IntConstantOperand align = IRTools.IC(ObjectModel.getAlignment(cls));
-          IntConstantOperand offset = IRTools.IC(ObjectModel.getOffsetForAlignment(cls));
+          IntConstantOperand offset = IRTools.IC(ObjectModel.getOffsetForAlignment(cls, false));
           Operand tib = ConvertToLowLevelIR.getTIB(inst, ir, Type);
           if (VM.BuildForIA32 && VM.runningVM) {
             // shield BC2IR from address constants
@@ -148,7 +148,7 @@ public final class ExpandRuntimeServices extends CompilerPhase {
             inst.insertBefore(Move.create(REF_MOVE, tmp, tib));
             tib = tmp.copyRO();
           }
-          IntConstantOperand site = IRTools.IC(MM_Interface.getAllocationSite(true));
+          IntConstantOperand site = IRTools.IC(MemoryManager.getAllocationSite(true));
           RVMMethod target = Entrypoints.resolvedNewScalarMethod;
           Call.mutate7(inst,
                        CALL,
@@ -176,7 +176,7 @@ public final class ExpandRuntimeServices extends CompilerPhase {
         case NEW_UNRESOLVED_opcode: {
           int typeRefId = New.getType(inst).getTypeRef().getId();
           RVMMethod target = Entrypoints.unresolvedNewScalarMethod;
-          IntConstantOperand site = IRTools.IC(MM_Interface.getAllocationSite(true));
+          IntConstantOperand site = IRTools.IC(MemoryManager.getAllocationSite(true));
           Call.mutate2(inst,
                        CALL,
                        New.getClearResult(inst),
@@ -195,9 +195,9 @@ public final class ExpandRuntimeServices extends CompilerPhase {
           Operand width = IRTools.IC(array.getLogElementSize());
           Operand headerSize = IRTools.IC(ObjectModel.computeArrayHeaderSize(array));
           RVMMethod callSite = inst.position.getMethod();
-          IntConstantOperand allocator = IRTools.IC(MM_Interface.pickAllocator(array, callSite));
+          IntConstantOperand allocator = IRTools.IC(MemoryManager.pickAllocator(array, callSite));
           IntConstantOperand align = IRTools.IC(ObjectModel.getAlignment(array));
-          IntConstantOperand offset = IRTools.IC(ObjectModel.getOffsetForAlignment(array));
+          IntConstantOperand offset = IRTools.IC(ObjectModel.getOffsetForAlignment(array, false));
           Operand tib = ConvertToLowLevelIR.getTIB(inst, ir, Array);
           if (VM.BuildForIA32 && VM.runningVM) {
             // shield BC2IR from address constants
@@ -205,7 +205,7 @@ public final class ExpandRuntimeServices extends CompilerPhase {
             inst.insertBefore(Move.create(REF_MOVE, tmp, tib));
             tib = tmp.copyRO();
           }
-          IntConstantOperand site = IRTools.IC(MM_Interface.getAllocationSite(true));
+          IntConstantOperand site = IRTools.IC(MemoryManager.getAllocationSite(true));
           RVMMethod target = Entrypoints.resolvedNewArrayMethod;
           Call.mutate8(inst,
                        CALL,
@@ -235,7 +235,7 @@ public final class ExpandRuntimeServices extends CompilerPhase {
           int typeRefId = NewArray.getType(inst).getTypeRef().getId();
           Operand numberElements = NewArray.getClearSize(inst);
           RVMMethod target = Entrypoints.unresolvedNewArrayMethod;
-          IntConstantOperand site = IRTools.IC(MM_Interface.getAllocationSite(true));
+          IntConstantOperand site = IRTools.IC(MemoryManager.getAllocationSite(true));
           Call.mutate3(inst,
                        CALL,
                        NewArray.getClearResult(inst),
@@ -372,7 +372,7 @@ public final class ExpandRuntimeServices extends CompilerPhase {
         break;
 
         case REF_ASTORE_opcode: {
-          if (MM_Constants.NEEDS_WRITE_BARRIER) {
+          if (MemoryManagerConstants.NEEDS_WRITE_BARRIER) {
             RVMMethod target = Entrypoints.arrayStoreWriteBarrierMethod;
             Instruction wb =
                 Call.create3(CALL,
@@ -395,7 +395,7 @@ public final class ExpandRuntimeServices extends CompilerPhase {
         break;
 
         case REF_ALOAD_opcode: {
-          if (MM_Constants.NEEDS_READ_BARRIER) {
+          if (MemoryManagerConstants.NEEDS_READ_BARRIER) {
             RVMMethod target = Entrypoints.arrayLoadReadBarrierMethod;
             Instruction rb =
               Call.create2(CALL,
@@ -415,7 +415,7 @@ public final class ExpandRuntimeServices extends CompilerPhase {
         break;
 
         case PUTFIELD_opcode: {
-          if (MM_Constants.NEEDS_WRITE_BARRIER) {
+          if (MemoryManagerConstants.NEEDS_WRITE_BARRIER) {
             LocationOperand loc = PutField.getLocation(inst);
             FieldReference fieldRef = loc.getFieldRef();
             if (!fieldRef.getFieldContentsType().isPrimitiveType()) {
@@ -446,7 +446,7 @@ public final class ExpandRuntimeServices extends CompilerPhase {
         break;
 
         case GETFIELD_opcode: {
-          if (MM_Constants.NEEDS_READ_BARRIER) {
+          if (MemoryManagerConstants.NEEDS_READ_BARRIER) {
             LocationOperand loc = GetField.getLocation(inst);
             FieldReference fieldRef = loc.getFieldRef();
             if (GetField.getResult(inst).getType().isReferenceType()) {
@@ -474,7 +474,7 @@ public final class ExpandRuntimeServices extends CompilerPhase {
         break;
 
         case PUTSTATIC_opcode: {
-          if (MM_Constants.NEEDS_PUTSTATIC_WRITE_BARRIER) {
+          if (MemoryManagerConstants.NEEDS_PUTSTATIC_WRITE_BARRIER) {
             LocationOperand loc = PutStatic.getLocation(inst);
             FieldReference field = loc.getFieldRef();
             if (!field.getFieldContentsType().isPrimitiveType()) {
@@ -500,7 +500,7 @@ public final class ExpandRuntimeServices extends CompilerPhase {
         break;
 
         case GETSTATIC_opcode: {
-          if (MM_Constants.NEEDS_GETSTATIC_READ_BARRIER) {
+          if (MemoryManagerConstants.NEEDS_GETSTATIC_READ_BARRIER) {
             LocationOperand loc = GetStatic.getLocation(inst);
             FieldReference field = loc.getFieldRef();
             if (!field.getFieldContentsType().isPrimitiveType()) {

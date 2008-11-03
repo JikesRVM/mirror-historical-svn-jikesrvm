@@ -66,6 +66,11 @@ Ljava/lang/reflect/Member;
 Ljava/lang/reflect/VMConstructor;
 Ljava/lang/reflect/Constructor;
 Ljava/lang/reflect/AccessibleObject;
+Ljava/lang/reflect/Proxy;
+Ljava/lang/reflect/Proxy$ClassFactory;
+Ljava/lang/reflect/Proxy$ProxyData;
+Ljava/lang/reflect/Proxy$ProxySignature;
+Ljava/lang/reflect/Proxy$ProxyType;
 
 # annotation support
 Ljava/lang/reflect/AnnotatedElement;
@@ -108,6 +113,7 @@ Ljava/lang/IllegalArgumentException;
 Ljava/lang/IllegalAccessException;
 Ljava/lang/IllegalMonitorStateException;
 Ljava/lang/IllegalStateException;
+Ljava/lang/IllegalThreadStateException;
 Ljava/lang/IncompatibleClassChangeError;
 Ljava/lang/InstantiationException;
 Ljava/lang/InternalError;
@@ -525,7 +531,6 @@ Lgnu/java/security/provider/DefaultPolicy;
 [[Ljava/lang/Object;
 [Ljava/lang/Class;
 Ljava/lang/Class$1;
-Ljava/lang/Class$Collector;
 Ljava/lang/Class$MethodKey;
 Ljava/lang/Class$StaticData;
 Ljava/lang/Enum;

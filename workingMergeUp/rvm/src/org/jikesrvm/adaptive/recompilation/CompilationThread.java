@@ -54,8 +54,8 @@ public final class CompilationThread extends RVMThread {
       Object plan = Controller.compilationQueue.deleteMin();
       if (plan instanceof ControllerPlan) {
         ((ControllerPlan) plan).doRecompile();
-      } else if (plan instanceof OSR_OnStackReplacementPlan) {
-        ((OSR_OnStackReplacementPlan) plan).execute();
+      } else if (plan instanceof OnStackReplacementPlan) {
+        ((OnStackReplacementPlan) plan).execute();
       }
     }
   }

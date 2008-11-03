@@ -63,7 +63,7 @@ typedef unsigned int u_int32_t;
 #define NEED_EXIT_STATUS_CODES
 #define NEED_BOOT_RECORD_DECLARATIONS
 #define NEED_VIRTUAL_MACHINE_DECLARATIONS
-#define NEED_MM_INTERFACE_DECLARATIONS
+#define NEED_MEMORY_MANAGER_DECLARATIONS
 #include <InterfaceDeclarations.h>
 
 extern "C" void setLinkage(BootRecord*);
@@ -96,7 +96,7 @@ const char *bootRMapFilename = 0;
 int lib_verbose = 0;
 
 /* Location of jtoc within virtual machine image. */
-static unsigned VmToc;
+static Address VmToc;
 
 /* TOC offset of Scheduler.dumpStackAndDie */
 static Offset DumpStackAndDieOffset;
@@ -211,7 +211,7 @@ inRVMAddressSpace(Address addr)
 }
 
 static int
-isVmSignal(unsigned int ip, unsigned int vpAddress)
+isVmSignal(Address ip, Address vpAddress)
 {
     return inRVMAddressSpace(ip) && inRVMAddressSpace(vpAddress);
 }
@@ -510,40 +510,40 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
                  isRecoverable? "" : " UNRECOVERABLE",
                  signo, strsignal(signo));
 
-        writeErr("handler stack 0x%08x\n",
-                 (unsigned) &localInstructionAddress);
+        writeErr("handler stack %p\n", localInstructionAddress);
         if (signo == SIGSEGV)
-            writeErr("si->si_addr   0x%08x\n", (unsigned) si->si_addr);
-        writeErr("gs            0x%08x\n", IA32_GS(context));
-        writeErr("fs            0x%08x\n", IA32_FS(context));
-        writeErr("es            0x%08x\n", IA32_ES(context));
+            writeErr("si->si_addr   %p\n", si->si_addr);
+#ifndef __x86_64__
+        writeErr("cs            0x%08x\n", IA32_CS(context));
         writeErr("ds            0x%08x\n", IA32_DS(context));
-        writeErr("edi -- JTOC?  0x%08x\n", IA32_EDI(context));
+        writeErr("es            0x%08x\n", IA32_ES(context));
+        writeErr("fs            0x%08x\n", IA32_FS(context));
+        writeErr("gs            0x%08x\n", IA32_GS(context));
+        writeErr("ss            0x%08x\n", IA32_SS(context));
+#endif
+        writeErr("edi           0x%08x\n", IA32_EDI(context));
         writeErr("esi -- PR/VP  0x%08x\n", IA32_ESI(context));
-        writeErr("ebp -- FP?    0x%08x\n", IA32_EBP(context));
+        writeErr("ebp           0x%08x\n", IA32_EBP(context));
         writeErr("esp -- SP     0x%08x\n", IA32_ESP(context));
         writeErr("ebx           0x%08x\n", IA32_EBX(context));
-        writeErr("edx -- T1?    0x%08x\n", IA32_EDX(context));
-        writeErr("ecx -- S0?    0x%08x\n", IA32_ECX(context));
-        writeErr("eax -- T0?    0x%08x\n", IA32_EAX(context));
-        writeErr("ss            0x%08x\n", IA32_SS(context));
+        writeErr("edx           0x%08x\n", IA32_EDX(context));
+        writeErr("ecx           0x%08x\n", IA32_ECX(context));
+        writeErr("eax           0x%08x\n", IA32_EAX(context));
         writeErr("eip           0x%08x\n", IA32_EIP(context));
-        writeErr("cs            0x%08x\n", IA32_CS(context));
         writeErr("trapno        0x%08x\n", IA32_TRAPNO(context));
         writeErr("err           0x%08x\n", IA32_ERR(context));
         writeErr("eflags        0x%08x\n", IA32_EFLAGS(context));
         // writeErr("esp_at_signal 0x%08x\n", IA32_UESP(context));
-/* null if fp registers haven't been used yet */
-        writeErr("fpstate       0x%08x\n",
-                                        (unsigned) IA32_FPSTATE(context));
-        writeErr("oldmask       0x%08lx\n",
-                                        (unsigned long) IA32_OLDMASK(context));
+        /* null if fp registers haven't been used yet */
+        writeErr("fpregs        %p\n", IA32_FPREGS(context));
+#ifndef __x86_64__
+        writeErr("oldmask       0x%08lx\n", (unsigned long) IA32_OLDMASK(context));
         writeErr("cr2           0x%08lx\n",
                                         /* seems to contain mem address that
                                          * faulting instruction was trying to
                                          * access */
                                         (unsigned long) IA32_FPFAULTDATA(context));
-
+#endif
         /*
          * There are 8 floating point registers, each 10 bytes wide.
          * See /usr/include/asm/sigcontext.h
@@ -552,63 +552,55 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
 //Solaris doesn't seem to support these
 #if !(defined (__SVR4) && defined (__sun)) 
 	if (IA32_FPREGS(context)) {
-                writeErr("fp%d 0x%04x%04x%04x%04x%04x\n",
-                                0,
-                                IA32_STMM(context, 0, 0) & 0xffff,
-                                IA32_STMM(context, 0, 1) & 0xffff,
-                                IA32_STMM(context, 0, 2) & 0xffff,
-                                IA32_STMM(context, 0, 3) & 0xffff,
-                                IA32_STMMEXP(context, 0) & 0xffff);
-                writeErr("fp%d 0x%04x%04x%04x%04x%04x\n",
-                                1,
-                                IA32_STMM(context, 1, 0) & 0xffff,
-                                IA32_STMM(context, 1, 1) & 0xffff,
-                                IA32_STMM(context, 1, 2) & 0xffff,
-                                IA32_STMM(context, 1, 3) & 0xffff,
-                                IA32_STMMEXP(context, 1) & 0xffff);
-                writeErr("fp%d 0x%04x%04x%04x%04x%04x\n",
-                                2,
-                                IA32_STMM(context, 2, 0) & 0xffff,
-                                IA32_STMM(context, 2, 1) & 0xffff,
-                                IA32_STMM(context, 2, 2) & 0xffff,
-                                IA32_STMM(context, 2, 3) & 0xffff,
-                                IA32_STMMEXP(context, 2) & 0xffff);
-                writeErr("fp%d 0x%04x%04x%04x%04x%04x\n",
-                                3,
-                                IA32_STMM(context, 3, 0) & 0xffff,
-                                IA32_STMM(context, 3, 1) & 0xffff,
-                                IA32_STMM(context, 3, 2) & 0xffff,
-                                IA32_STMM(context, 3, 3) & 0xffff,
-                                IA32_STMMEXP(context, 3) & 0xffff);
-                writeErr("fp%d 0x%04x%04x%04x%04x%04x\n",
-                                4,
-                                IA32_STMM(context, 4, 0) & 0xffff,
-                                IA32_STMM(context, 4, 1) & 0xffff,
-                                IA32_STMM(context, 4, 2) & 0xffff,
-                                IA32_STMM(context, 4, 3) & 0xffff,
-                                IA32_STMMEXP(context, 4) & 0xffff);
-                writeErr("fp%d 0x%04x%04x%04x%04x%04x\n",
-                                5,
-                                IA32_STMM(context, 5, 0) & 0xffff,
-                                IA32_STMM(context, 5, 1) & 0xffff,
-                                IA32_STMM(context, 5, 2) & 0xffff,
-                                IA32_STMM(context, 5, 3) & 0xffff,
-                                IA32_STMMEXP(context, 5) & 0xffff);
-                writeErr("fp%d 0x%04x%04x%04x%04x%04x\n",
-                                6,
-                                IA32_STMM(context, 6, 0) & 0xffff,
-                                IA32_STMM(context, 6, 1) & 0xffff,
-                                IA32_STMM(context, 6, 2) & 0xffff,
-                                IA32_STMM(context, 6, 3) & 0xffff,
-                                IA32_STMMEXP(context, 6) & 0xffff);
-                writeErr("fp%d 0x%04x%04x%04x%04x%04x\n",
-                                7,
-                                IA32_STMM(context, 7, 0) & 0xffff,
-                                IA32_STMM(context, 7, 1) & 0xffff,
-                                IA32_STMM(context, 7, 2) & 0xffff,
-                                IA32_STMM(context, 7, 3) & 0xffff,
-                                IA32_STMMEXP(context, 7) & 0xffff);
-        }
+		writeErr("fp0 0x%04x%04x%04x%04x%04x\n",
+				IA32_STMM(context, 0, 0) & 0xffff,
+				IA32_STMM(context, 0, 1) & 0xffff,
+				IA32_STMM(context, 0, 2) & 0xffff,
+				IA32_STMM(context, 0, 3) & 0xffff,
+				IA32_STMMEXP(context, 0) & 0xffff);
+		writeErr("fp1 0x%04x%04x%04x%04x%04x\n",
+				IA32_STMM(context, 1, 0) & 0xffff,
+				IA32_STMM(context, 1, 1) & 0xffff,
+				IA32_STMM(context, 1, 2) & 0xffff,
+				IA32_STMM(context, 1, 3) & 0xffff,
+				IA32_STMMEXP(context, 1) & 0xffff);
+		writeErr("fp2 0x%04x%04x%04x%04x%04x\n",
+				IA32_STMM(context, 2, 0) & 0xffff,
+				IA32_STMM(context, 2, 1) & 0xffff,
+				IA32_STMM(context, 2, 2) & 0xffff,
+				IA32_STMM(context, 2, 3) & 0xffff,
+				IA32_STMMEXP(context, 2) & 0xffff);
+		writeErr("fp3 0x%04x%04x%04x%04x%04x\n",
+				IA32_STMM(context, 3, 0) & 0xffff,
+				IA32_STMM(context, 3, 1) & 0xffff,
+				IA32_STMM(context, 3, 2) & 0xffff,
+				IA32_STMM(context, 3, 3) & 0xffff,
+				IA32_STMMEXP(context, 3) & 0xffff);
+		writeErr("fp4 0x%04x%04x%04x%04x%04x\n",
+				IA32_STMM(context, 4, 0) & 0xffff,
+				IA32_STMM(context, 4, 1) & 0xffff,
+				IA32_STMM(context, 4, 2) & 0xffff,
+				IA32_STMM(context, 4, 3) & 0xffff,
+				IA32_STMMEXP(context, 4) & 0xffff);
+		writeErr("fp5 0x%04x%04x%04x%04x%04x\n",
+				IA32_STMM(context, 5, 0) & 0xffff,
+				IA32_STMM(context, 5, 1) & 0xffff,
+				IA32_STMM(context, 5, 2) & 0xffff,
+				IA32_STMM(context, 5, 3) & 0xffff,
+				IA32_STMMEXP(context, 5) & 0xffff);
+		writeErr("fp6 0x%04x%04x%04x%04x%04x\n",
+				IA32_STMM(context, 6, 0) & 0xffff,
+				IA32_STMM(context, 6, 1) & 0xffff,
+				IA32_STMM(context, 6, 2) & 0xffff,
+				IA32_STMM(context, 6, 3) & 0xffff,
+				IA32_STMMEXP(context, 6) & 0xffff);
+		writeErr("fp7 0x%04x%04x%04x%04x%04x\n",
+				IA32_STMM(context, 7, 0) & 0xffff,
+				IA32_STMM(context, 7, 1) & 0xffff,
+				IA32_STMM(context, 7, 2) & 0xffff,
+				IA32_STMM(context, 7, 3) & 0xffff,
+				IA32_STMMEXP(context, 7) & 0xffff);
+	}
 #endif
         if (isRecoverable) {
             fprintf(SysTraceFile, "%s: normal trap\n", Me);
@@ -926,7 +918,7 @@ softwareSignalHandler(int signo,
 }
 
 static void*
-mapImageFile(const char *fileName, const void *targetAddress, bool isCode,
+mapImageFile(const char *fileName, const void *targetAddress, int prot,
              unsigned *roundedImageSize) {
 
     /* open and mmap the image file.
@@ -948,7 +940,7 @@ mapImageFile(const char *fileName, const void *targetAddress, bool isCode,
 
     void *bootRegion = 0;
     bootRegion = mmap((void*)targetAddress, *roundedImageSize,
-		      PROT_READ | PROT_WRITE | PROT_EXEC,
+		      prot,
 		      MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE,
 		      fileno(fin), 0);
     if (bootRegion == (void *) MAP_FAILED) {
@@ -992,7 +984,7 @@ createVM(int UNUSED vmInSeparateThread)
     unsigned roundedDataRegionSize;
     void *bootDataRegion = mapImageFile(bootDataFilename,
                                         bootImageDataAddress,
-                                        false,
+                                        PROT_READ | PROT_WRITE | PROT_EXEC,
                                         &roundedDataRegionSize);
     if (bootDataRegion != bootImageDataAddress)
         return 1;
@@ -1000,7 +992,7 @@ createVM(int UNUSED vmInSeparateThread)
     unsigned roundedCodeRegionSize;
     void *bootCodeRegion = mapImageFile(bootCodeFilename,
                                         bootImageCodeAddress,
-                                        true,
+                                        PROT_READ | PROT_WRITE | PROT_EXEC,
                                         &roundedCodeRegionSize);
     if (bootCodeRegion != bootImageCodeAddress)
         return 1;
@@ -1008,7 +1000,7 @@ createVM(int UNUSED vmInSeparateThread)
     unsigned roundedRMapRegionSize;
     void *bootRMapRegion = mapImageFile(bootRMapFilename,
                                         bootImageRMapAddress,
-                                        true,
+                                        PROT_READ,
                                         &roundedRMapRegionSize);
     if (bootRMapRegion != bootImageRMapAddress)
         return 1;
@@ -1017,41 +1009,41 @@ createVM(int UNUSED vmInSeparateThread)
     /* validate contents of boot record */
     bootRecord = (BootRecord *) bootDataRegion;
 
-    if (bootRecord->bootImageDataStart != (unsigned) bootDataRegion) {
-        fprintf(SysErrorFile, "%s: image load error: built for 0x%08x but loaded at 0x%08x\n",
-                Me, bootRecord->bootImageDataStart, (unsigned) bootDataRegion);
-        return 1;
+    if (bootRecord->bootImageDataStart != (Address) bootDataRegion) {
+      fprintf(SysErrorFile, "%s: image load error: built for %p but loaded at %p\n",
+              Me, bootRecord->bootImageDataStart, bootDataRegion);
+      return 1;
     }
 
-    if (bootRecord->bootImageCodeStart != (unsigned) bootCodeRegion) {
-        fprintf(SysErrorFile, "%s: image load error: built for 0x%08x but loaded at 0x%08x\n",
-                Me, bootRecord->bootImageCodeStart, (unsigned) bootCodeRegion);
-        return 1;
+    if (bootRecord->bootImageCodeStart != (Address) bootCodeRegion) {
+      fprintf(SysErrorFile, "%s: image load error: built for %p but loaded at %p\n",
+              Me, bootRecord->bootImageCodeStart, bootCodeRegion);
+      return 1;
     }
 
-    if (bootRecord->bootImageRMapStart != (unsigned) bootRMapRegion) {
-        fprintf(SysErrorFile, "%s: image load error: built for 0x%08x but loaded at 0x%08x\n",
-                Me, bootRecord->bootImageRMapStart, (unsigned) bootRMapRegion);
-        return 1;
+    if (bootRecord->bootImageRMapStart != (Address) bootRMapRegion) {
+      fprintf(SysErrorFile, "%s: image load error: built for %p but loaded at %p\n",
+              Me, bootRecord->bootImageRMapStart, bootRMapRegion);
+      return 1;
     }
 
     if ((bootRecord->spRegister % 4) != 0) {
-        fprintf(SysErrorFile, "%s: image format error: sp (0x%08x) is not word aligned\n",
-                 Me, bootRecord->spRegister);
-        return 1;
+      fprintf(SysErrorFile, "%s: image format error: sp (%p) is not word aligned\n",
+               Me, bootRecord->spRegister);
+      return 1;
     }
 
     if ((bootRecord->ipRegister % 4) != 0) {
-        fprintf(SysErrorFile, "%s: image format error: ip (0x%08x) is not word aligned\n",
-                 Me, bootRecord->ipRegister);
-        return 1;
+      fprintf(SysErrorFile, "%s: image format error: ip (%p) is not word aligned\n",
+              Me, bootRecord->ipRegister);
+      return 1;
     }
 
     if (((u_int32_t *) bootRecord->spRegister)[-1] != 0xdeadbabe) {
-        fprintf(SysErrorFile,
-                 "%s: image format error: missing stack sanity check marker (0x%08x)\n",
-                 Me, ((int *) bootRecord->spRegister)[-1]);
-        return 1;
+      fprintf(SysErrorFile,
+              "%s: image format error: missing stack sanity check marker (0x%08x)\n",
+               Me, ((int *) bootRecord->spRegister)[-1]);
+      return 1;
     }
 
     /* remember jtoc location for later use by trap handler */
@@ -1064,12 +1056,12 @@ createVM(int UNUSED vmInSeparateThread)
     /* write freespace information into boot record */
     bootRecord->initialHeapSize  = initialHeapSize;
     bootRecord->maximumHeapSize  = maximumHeapSize;
-    bootRecord->bootImageDataStart   = (int) bootDataRegion;
-    bootRecord->bootImageDataEnd     = (int) bootDataRegion + roundedDataRegionSize;
-    bootRecord->bootImageCodeStart   = (int) bootCodeRegion;
-    bootRecord->bootImageCodeEnd     = (int) bootCodeRegion + roundedCodeRegionSize;
-    bootRecord->bootImageRMapStart   = (int) bootRMapRegion;
-    bootRecord->bootImageRMapEnd     = (int) bootRMapRegion + roundedRMapRegionSize;
+    bootRecord->bootImageDataStart   = (Address) bootDataRegion;
+    bootRecord->bootImageDataEnd     = (Address) bootDataRegion + roundedDataRegionSize;
+    bootRecord->bootImageCodeStart   = (Address) bootCodeRegion;
+    bootRecord->bootImageCodeEnd     = (Address) bootCodeRegion + roundedCodeRegionSize;
+    bootRecord->bootImageRMapStart   = (Address) bootRMapRegion;
+    bootRecord->bootImageRMapEnd     = (Address) bootRMapRegion + roundedRMapRegionSize;
     bootRecord->verboseBoot      = verboseBoot;
 
     /* write sys.C linkage information into boot record */

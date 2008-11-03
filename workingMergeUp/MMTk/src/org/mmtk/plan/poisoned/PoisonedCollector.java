@@ -14,9 +14,7 @@ package org.mmtk.plan.poisoned;
 
 import org.mmtk.plan.marksweep.MSCollector;
 
-import org.vmmagic.pragma.*;
-import org.vmmagic.unboxed.Address;
-import org.vmmagic.unboxed.ObjectReference;
+import org.vmmagic.pragma.Uninterruptible;
 
 /**
  * This class implements a poisoned collector, that is essentially a test

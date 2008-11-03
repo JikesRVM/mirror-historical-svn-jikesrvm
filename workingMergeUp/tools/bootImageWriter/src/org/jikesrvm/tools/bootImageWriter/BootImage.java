@@ -14,11 +14,15 @@ package org.jikesrvm.tools.bootImageWriter;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.FileChannel.MapMode;
 import org.jikesrvm.VM;
 import org.jikesrvm.SizeConstants;
 import org.jikesrvm.classloader.RVMArray;
 import org.jikesrvm.classloader.RVMClass;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.mm.mmtk.ScanBootImage;
 import org.jikesrvm.objectmodel.BootImageInterface;
 import org.jikesrvm.objectmodel.JavaHeader;
@@ -38,27 +42,22 @@ public class BootImage extends BootImageWriterMessages
   /**
    * Talk while we work?
    */
-  private boolean trace = false;
-
-  /**
-   * Write words low-byte first?
-   */
-  private boolean littleEndian;
+  private final boolean trace;
 
   /**
    * The data portion of the actual boot image
    */
-  private byte[] bootImageData;
+  private final ByteBuffer bootImageData;
 
   /**
    * The code portion of the actual boot image
    */
-  private byte[] bootImageCode;
+  private final ByteBuffer bootImageCode;
 
   /**
    * The reference map for the boot image
    */
-  private byte[] referenceMap;
+  private final byte[] referenceMap;
   private int referenceMapReferences = 0;
   private int referenceMapLimit = 0;
   private byte[] bootImageRMap;
@@ -91,21 +90,66 @@ public class BootImage extends BootImageWriterMessages
   private int numNulledReferences;
 
   /**
+   * Data output file
+   */
+  private final RandomAccessFile dataOut;
+
+  /**
+   * Code output file
+   */
+  private final RandomAccessFile codeOut;
+
+
+  /**
+   * Code map file name
+   */
+  private final String imageCodeFileName;
+
+  /**
+   * Data map file name
+   */
+  private final String imageDataFileName;
+
+  /**
+   * Root map file name
+   */
+  private final String imageRMapFileName;
+
+  /**
+   * Use mapped byte buffers? We need to truncate the byte buffer
+   * before writing it to disk. This operation is support on UNIX but
+   * not Windows.
+   */
+  private static final boolean mapByteBuffers = false;
+
+  /**
    * @param ltlEndian write words low-byte first?
    * @param t turn tracing on?
    */
-  BootImage(boolean ltlEndian, boolean t) {
-    bootImageData = new byte[BOOT_IMAGE_DATA_SIZE];
-    bootImageCode = new byte[BOOT_IMAGE_CODE_SIZE];
-    referenceMap = new byte[BOOT_IMAGE_DATA_SIZE>>LOG_BYTES_IN_ADDRESS];
-    littleEndian = ltlEndian;
+  BootImage(boolean ltlEndian, boolean t, String imageCodeFileName, String imageDataFileName, String imageRMapFileName) throws IOException {
+    this.imageCodeFileName = imageCodeFileName;
+    this.imageDataFileName = imageDataFileName;
+    this.imageRMapFileName = imageRMapFileName;
+    dataOut = new RandomAccessFile(imageDataFileName,"rw");
+    codeOut = new RandomAccessFile(imageCodeFileName,"rw");
+    if (mapByteBuffers) {
+      bootImageData = dataOut.getChannel().map(MapMode.READ_WRITE, 0, BOOT_IMAGE_DATA_SIZE);
+      bootImageCode = codeOut.getChannel().map(MapMode.READ_WRITE, 0, BOOT_IMAGE_CODE_SIZE);
+    } else {
+      bootImageData = ByteBuffer.allocate(BOOT_IMAGE_DATA_SIZE);
+      bootImageCode = ByteBuffer.allocate(BOOT_IMAGE_CODE_SIZE);
+    }
+    ByteOrder endian = ltlEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN;
+    bootImageData.order(endian);
+    bootImageCode.order(endian);
+    referenceMap = new byte[BOOT_IMAGE_DATA_SIZE >> LOG_BYTES_IN_ADDRESS];
     trace = t;
   }
 
   /**
    * Write boot image to disk.
    */
-  public void write(String imageCodeFileName, String imageDataFileName, String imageRMapFileName) throws IOException {
+  public void write() throws IOException {
     if (trace) {
       say((numObjects / 1024)   + "k objects");
       say((numAddresses / 1024) + "k non-null object references");
@@ -116,28 +160,26 @@ public class BootImage extends BootImageWriterMessages
       say((getCodeSize() / 1024) + "k code in image");
       say("writing " + imageDataFileName);
     }
-    FileOutputStream dataOut = new FileOutputStream(imageDataFileName);
-    dataOut.write(bootImageData, 0, getDataSize());
-    dataOut.flush();
+    if (!mapByteBuffers) {
+      dataOut.write(bootImageData.array(), 0, getDataSize());
+    } else {
+      dataOut.getChannel().truncate(getDataSize());
+    }
     dataOut.close();
+
     if (trace) {
       say("writing " + imageCodeFileName);
     }
-    FileOutputStream codeOut = new FileOutputStream(imageCodeFileName);
-    codeOut.write(bootImageCode, 0, getCodeSize());
-    codeOut.flush();
+    if (!mapByteBuffers) {
+      codeOut.write(bootImageCode.array(), 0, getCodeSize());
+    } else {
+      codeOut.getChannel().truncate(getCodeSize());
+    }
     codeOut.close();
+
     if (trace) {
       say("writing " + imageRMapFileName);
     }
-
-    // Kludge around problems with older (pre 5.0) IBM JVMs being unable
-    // compact, thus failing to allocate large objects after the heap becomes
-    // fragmented.
-    bootImageData = null;
-    bootImageCode = null;
-    System.gc();
-    // end IBM JVM kludge
 
     /* Now we generate a compressed reference map.  Typically we get 4 bits/address, but
        we'll create the in-memory array assuming worst case 1:1 compression.  Only the
@@ -182,12 +224,14 @@ public class BootImage extends BootImageWriterMessages
    * Allocate a scalar object.
    *
    * @param klass RVMClass object of scalar being allocated
+   * @param needsIdentityHash needs an identity hash value
+   * @param identityHashValue the value for the identity hash
    * @return address of object within bootimage
    */
-  public Address allocateScalar(RVMClass klass) {
+  public Address allocateScalar(RVMClass klass, boolean needsIdentityHash, int identityHashValue) {
     numObjects++;
     BootImageWriter.logAllocation(klass, klass.getInstanceSize());
-    return ObjectModel.allocateScalar(this, klass);
+    return ObjectModel.allocateScalar(this, klass, needsIdentityHash, identityHashValue);
   }
 
   /**
@@ -195,12 +239,14 @@ public class BootImage extends BootImageWriterMessages
    *
    * @param array RVMArray object of array being allocated.
    * @param numElements number of elements
+   * @param needsIdentityHash needs an identity hash value
+   * @param identityHashValue the value for the identity hash
    * @return address of object within bootimage
    */
-  public Address allocateArray(RVMArray array, int numElements) {
+  public Address allocateArray(RVMArray array, int numElements, boolean needsIdentityHash, int identityHashValue) {
     numObjects++;
     BootImageWriter.logAllocation(array, array.getInstanceSize(numElements));
-    return ObjectModel.allocateArray(this, array, numElements);
+    return ObjectModel.allocateArray(this, array, numElements, needsIdentityHash, identityHashValue);
   }
 
   /**
@@ -227,7 +273,7 @@ public class BootImage extends BootImageWriterMessages
   public Address allocateDataStorage(int size, int align, int offset) {
     size = roundAllocationSize(size);
     Offset unalignedOffset = freeDataOffset;
-    freeDataOffset = MM_Interface.alignAllocation(freeDataOffset, align, offset);
+    freeDataOffset = MemoryManager.alignAllocation(freeDataOffset, align, offset);
     if (VM.ExtremeAssertions) {
       VM._assert(freeDataOffset.plus(offset).toWord().and(Word.fromIntSignExtend(align -1)).isZero());
       VM._assert(freeDataOffset.toWord().and(Word.fromIntSignExtend(3)).isZero());
@@ -260,7 +306,7 @@ public class BootImage extends BootImageWriterMessages
   public Address allocateCodeStorage(int size, int align, int offset) {
     size = roundAllocationSize(size);
     Offset unalignedOffset = freeCodeOffset;
-    freeCodeOffset = MM_Interface.alignAllocation(freeCodeOffset, align, offset);
+    freeCodeOffset = MemoryManager.alignAllocation(freeCodeOffset, align, offset);
     if (VM.ExtremeAssertions) {
       VM._assert(freeCodeOffset.plus(offset).toWord().and(Word.fromIntSignExtend(align -1)).isZero());
       VM._assert(freeCodeOffset.toWord().and(Word.fromIntSignExtend(3)).isZero());
@@ -295,7 +341,7 @@ public class BootImage extends BootImageWriterMessages
    */
   public void setByte(Address address, int value) {
     int idx;
-    byte[] data;
+    ByteBuffer data;
     if (address.GE(BOOT_IMAGE_CODE_START) && address.LE(BOOT_IMAGE_CODE_END)) {
       idx = address.diff(BOOT_IMAGE_CODE_START).toInt();
       data = bootImageCode;
@@ -303,7 +349,7 @@ public class BootImage extends BootImageWriterMessages
       idx = address.diff(BOOT_IMAGE_DATA_START).toInt();
       data = bootImageData;
     }
-    data[idx] = (byte) value;
+    data.put(idx, (byte)value);
   }
 
 
@@ -332,13 +378,7 @@ public class BootImage extends BootImageWriterMessages
    */
   public void setHalfWord(Address address, int value) {
     int idx = address.diff(BOOT_IMAGE_DATA_START).toInt();
-    if (littleEndian) {
-      bootImageData[idx++] = (byte) (value);
-      bootImageData[idx  ] = (byte) (value >>  8);
-    } else {
-      bootImageData[idx++] = (byte) (value >>  8);
-      bootImageData[idx  ] = (byte) (value);
-    }
+    bootImageData.putChar(idx, (char)value);
   }
 
   /**
@@ -349,7 +389,7 @@ public class BootImage extends BootImageWriterMessages
    */
   public void setFullWord(Address address, int value) {
     int idx;
-    byte[] data;
+    ByteBuffer data;
     if (address.GE(BOOT_IMAGE_CODE_START) && address.LE(BOOT_IMAGE_CODE_END)) {
       idx = address.diff(BOOT_IMAGE_CODE_START).toInt();
       data = bootImageCode;
@@ -357,17 +397,7 @@ public class BootImage extends BootImageWriterMessages
       idx = address.diff(BOOT_IMAGE_DATA_START).toInt();
       data = bootImageData;
     }
-    if (littleEndian) {
-      data[idx++] = (byte) (value);
-      data[idx++] = (byte) (value >>  8);
-      data[idx++] = (byte) (value >> 16);
-      data[idx  ] = (byte) (value >> 24);
-    } else {
-      data[idx++] = (byte) (value >> 24);
-      data[idx++] = (byte) (value >> 16);
-      data[idx++] = (byte) (value >>  8);
-      data[idx  ] = (byte) (value);
-    }
+    data.putInt(idx, value);
   }
 
   /**
@@ -381,7 +411,7 @@ public class BootImage extends BootImageWriterMessages
    */
   public void setAddressWord(Address address, Word value, boolean objField, boolean root) {
     if (VM.VerifyAssertions) VM._assert(!root || objField);
-    if (objField) value = MM_Interface.bootTimeWriteBarrier(value);
+    if (objField) value = MemoryManager.bootTimeWriteBarrier(value);
     if (root) markReferenceMap(address);
     if (VM.BuildFor32Addr)
       setFullWord(address, value.toInt());
@@ -425,7 +455,7 @@ public class BootImage extends BootImageWriterMessages
    */
   public void setDoubleWord(Address address, long value) {
     int idx;
-    byte[] data;
+    ByteBuffer data;
     if (address.GE(BOOT_IMAGE_CODE_START) && address.LE(BOOT_IMAGE_CODE_END)) {
       idx = address.diff(BOOT_IMAGE_CODE_START).toInt();
       data = bootImageCode;
@@ -433,25 +463,7 @@ public class BootImage extends BootImageWriterMessages
       idx = address.diff(BOOT_IMAGE_DATA_START).toInt();
       data = bootImageData;
     }
-    if (littleEndian) {
-      data[idx++] = (byte) (value);
-      data[idx++] = (byte) (value >>  8);
-      data[idx++] = (byte) (value >> 16);
-      data[idx++] = (byte) (value >> 24);
-      data[idx++] = (byte) (value >> 32);
-      data[idx++] = (byte) (value >> 40);
-      data[idx++] = (byte) (value >> 48);
-      data[idx  ] = (byte) (value >> 56);
-    } else {
-      data[idx++] = (byte) (value >> 56);
-      data[idx++] = (byte) (value >> 48);
-      data[idx++] = (byte) (value >> 40);
-      data[idx++] = (byte) (value >> 32);
-      data[idx++] = (byte) (value >> 24);
-      data[idx++] = (byte) (value >> 16);
-      data[idx++] = (byte) (value >>  8);
-      data[idx  ] = (byte) (value);
-    }
+    data.putLong(idx, value);
   }
 
   /**

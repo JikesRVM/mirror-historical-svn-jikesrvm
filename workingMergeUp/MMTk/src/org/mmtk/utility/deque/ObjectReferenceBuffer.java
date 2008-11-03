@@ -107,10 +107,22 @@ public abstract class ObjectReferenceBuffer extends TransitiveClosure implements
     return values.pop();
   }
 
+  @Inline
+  public final boolean isEmpty() {
+    return values.isEmpty();
+  }
+
   /**
    * Flushes all local state back to the shared queue.
    */
   public final void flushLocal() {
     values.flushLocal();
+  }
+
+  /**
+   * Return true if this buffer is locally empty
+   */
+  public final boolean isFlushed() {
+    return values.isFlushed();
   }
 }

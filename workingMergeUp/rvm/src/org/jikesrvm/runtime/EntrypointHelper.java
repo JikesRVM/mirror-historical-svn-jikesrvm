@@ -19,6 +19,8 @@ import org.jikesrvm.classloader.BootstrapClassLoader;
 import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.RVMField;
 import org.jikesrvm.classloader.RVMMember;
+import org.jikesrvm.classloader.RVMMethod;
+import org.jikesrvm.classloader.MethodReference;
 import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.classloader.TypeReference;
 
@@ -83,6 +85,55 @@ public class EntrypointHelper {
     return getMethod(klass, member, descriptor, true);
   }
 
+  private static String makeDescriptor(Class<?>... argTypes) {
+    Class<?> lastClass = null;
+    StringBuilder result = new StringBuilder("(");
+    for (Class<?> c: argTypes) {
+      if (lastClass != null) {
+        result.append(TypeReference.findOrCreate(lastClass).getName().toString());
+      }
+      lastClass = c;
+    }
+    result.append(")").append(TypeReference.findOrCreate(lastClass).getName().toString());
+    return result.toString();
+  }
+
+  public static RVMMethod getMethod(Class<?> klass, Atom member, Class<?>... argTypes) {
+    if (!VM.runningVM) { // avoid compiling this code into the boot image
+      try {
+        TypeReference tRef = TypeReference.findOrCreate(klass);
+        RVMClass cls = tRef.resolve().asClass();
+        cls.resolve();
+
+        Atom descriptor = Atom.findOrCreateAsciiAtom(makeDescriptor(argTypes));
+
+        RVMMethod method = cls.findDeclaredMethod(member, descriptor);
+        if (method != null) {
+          return method;
+        }
+      } catch(Throwable t) {
+        throw new Error("Entrypoints.getMethod: can't resolve class=" +
+            klass + " member=" + member + " desc=" + makeDescriptor(argTypes), t);
+      }
+    }
+    throw new Error("Entrypoints.getMethod: can't resolve class=" +
+        klass + " member=" + member + " desc=" + makeDescriptor(argTypes));
+  }
+
+  public static MethodReference getMethodReference(Class<?> klass, Atom member, Class<?>... argTypes) {
+    if (!VM.runningVM) { // avoid compiling this code into the boot image
+      TypeReference tRef = TypeReference.findOrCreate(klass);
+      if (tRef.resolve().isClassType()) {
+        return getMethod(klass, member, argTypes).getMemberRef().asMethodReference();
+      } else { // handle method references to unboxed types
+        Atom descriptor = Atom.findOrCreateAsciiAtom(makeDescriptor(argTypes));
+        return MethodReference.findOrCreate(tRef, member, descriptor);
+      }
+    }
+    throw new Error("Entrypoints.getMethod: can't resolve class=" +
+        klass + " member=" + member + " desc=" + makeDescriptor(argTypes));
+  }
+
   public static RVMField getField(String klass, String member, String descriptor) {
     return (RVMField) getMember(klass, member, descriptor);
   }
@@ -90,11 +141,11 @@ public class EntrypointHelper {
   /**
    * Get description of virtual machine field.
    * @param klass class containing field
-   * @param memberName member name - something like "invokestatic"
+   * @param member member name - something like "invokestatic"
    * @param type of field
    * @return corresponding RVMField
    */
-  static RVMField getField(Class<?> klass, String member, Class<?> type) {
+  public static RVMField getField(Class<?> klass, String member, Class<?> type) {
     if (!VM.runningVM) { // avoid compiling this code into the boot image
       try {
         TypeReference klassTRef = TypeReference.findOrCreate(klass);
@@ -120,16 +171,14 @@ public class EntrypointHelper {
   /**
    * Get description of virtual machine field.
    * @param klass class containing field
-   * @param memberName member name - something like "invokestatic"
+   * @param member member name - something like "invokestatic"
    * @param type of field
    * @return corresponding RVMField
    */
   static RVMField getField(String klass, String member, Class<?> type) {
     if (!VM.runningVM) { // avoid compiling this code into the boot image
-      Atom clsDescriptor = Atom.findOrCreateAsciiAtom(klass);
       try {
-        TypeReference tRef =
-          TypeReference.findOrCreate(BootstrapClassLoader.getBootstrapClassLoader(), clsDescriptor);
+        TypeReference tRef = TypeReference.findOrCreate(klass);
         RVMClass cls = tRef.resolve().asClass();
         cls.resolve();
 
@@ -152,11 +201,11 @@ public class EntrypointHelper {
   /**
    * Get description of virtual machine method.
    * @param klass class  containing method
-   * @param memberName member name - something like "invokestatic"
-   * @param memberDescriptor member descriptor - something like "()V"
+   * @param member member name - something like "invokestatic"
+   * @param descriptor member descriptor - something like "()V"
    * @return corresponding RVMMethod
    */
-  static NormalMethod getMethod(Class<?> klass, String member, String descriptor) {
+  public static NormalMethod getMethod(Class<?> klass, String member, String descriptor) {
     if (!VM.runningVM) { // avoid compiling this code into the boot image
       try {
         TypeReference klassTRef = TypeReference.findOrCreate(klass);

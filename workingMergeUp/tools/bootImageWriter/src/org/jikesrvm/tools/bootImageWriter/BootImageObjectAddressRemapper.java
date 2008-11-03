@@ -50,6 +50,7 @@ final class BootImageObjectAddressRemapper implements ObjectAddressRemapper {
   /**
    * Avoid duplicates of certain objects
    */
+  @SuppressWarnings("unchecked")
   public <T> T intern(T obj) {
     if (obj instanceof String) {
       obj = (T)(((String)obj).intern());
@@ -62,5 +63,18 @@ final class BootImageObjectAddressRemapper implements ObjectAddressRemapper {
       }
     }
     return obj;
+  }
+
+  /**
+   * Identity hash code of an object
+   *
+   * @param obj the object to generate the identity hash code for
+   * @return the identity hash code
+   */
+  public int identityHashCode(Object obj) {
+    BootImageMap.Entry entry = BootImageMap.findOrCreateEntry(obj);
+    int identityHashCode = System.identityHashCode(obj);
+    entry.setHashed(identityHashCode);
+    return identityHashCode;
   }
 }

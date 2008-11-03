@@ -13,6 +13,7 @@
 package org.jikesrvm.compilers.baseline.ia32;
 
 import org.jikesrvm.Configuration;
+import org.jikesrvm.VM;
 import org.jikesrvm.ArchitectureSpecific.Assembler;
 import org.jikesrvm.ia32.BaselineConstants;
 import org.jikesrvm.runtime.Entrypoints;
@@ -28,69 +29,64 @@ class Barriers implements BaselineConstants {
 
   static void compileArrayStoreBarrier(Assembler asm) {
     // on entry java stack contains ...|target_array_ref|array_index|ref_to_store|
-    // SP -> ref_to_store, SP+8 -> target_ref
-    Offset of8 = Offset.fromIntSignExtend(8);
-    asm.emitPUSH_RegDisp(SP, of8);
-    asm.emitPUSH_RegDisp(SP, of8);  // Push what was originally (SP, 4)
-    asm.emitPUSH_RegDisp(SP, of8);  // Push what was originally (SP, 0)
-    genParameterRegisterLoad(asm, 3);
+    BaselineCompilerImpl.genParameterRegisterLoad(asm, 3);
     asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.arrayStoreWriteBarrierMethod.getOffset()));
   }
 
   static void compilePutfieldBarrier(Assembler asm, GPR reg, int locationMetadata) {
     //  on entry java stack contains ...|target_ref|ref_to_store|
-    //  SP -> ref_to_store, SP+4 -> target_ref
-    Offset of4 = Offset.fromIntSignExtend(4);
-    Offset of8 = Offset.fromIntSignExtend(8);
-    genNullCheck(asm, 4);
-    asm.emitPUSH_RegDisp(SP, of4);
+    //  SP[0] -> ref_to_store, SP[1] -> target_ref
+    Offset of1W = Offset.fromIntSignExtend(WORDSIZE);
+    Offset of2W = Offset.fromIntSignExtend(2*WORDSIZE);
+    genNullCheck(asm, WORDSIZE);
+    asm.emitPUSH_RegDisp(SP, of1W);
     asm.emitPUSH_Reg(reg);
-    asm.emitPUSH_RegDisp(SP, of8);  // Push what was originally (SP, 0)
+    asm.emitPUSH_RegDisp(SP, of2W);  // Push what was originally (SP, 0)
     asm.emitPUSH_Imm(locationMetadata);
-    genParameterRegisterLoad(asm, 4);
+    BaselineCompilerImpl.genParameterRegisterLoad(asm, 4);
     asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.putfieldWriteBarrierMethod.getOffset()));
   }
 
   static void compilePutfieldBarrierImm(Assembler asm, Offset fieldOffset, int locationMetadata) {
     //  on entry java stack contains ...|target_ref|ref_to_store|
     //  SP -> ref_to_store, SP+4 -> target_ref
-    Offset of4 = Offset.fromIntSignExtend(4);
-    Offset of8 = Offset.fromIntSignExtend(8);
-    genNullCheck(asm, 4);
-    asm.emitPUSH_RegDisp(SP, of4);
+    Offset of1W = Offset.fromIntSignExtend(WORDSIZE);
+    Offset of2W = Offset.fromIntSignExtend(2*WORDSIZE);
+    genNullCheck(asm, WORDSIZE);
+    asm.emitPUSH_RegDisp(SP, of1W);
     asm.emitPUSH_Imm(fieldOffset.toInt());
-    asm.emitPUSH_RegDisp(SP, of8);  // Push what was originally (SP, 0)
+    asm.emitPUSH_RegDisp(SP, of2W);  // Push what was originally (SP, 0)
     asm.emitPUSH_Imm(locationMetadata);
-    genParameterRegisterLoad(asm, 4);
+    BaselineCompilerImpl.genParameterRegisterLoad(asm, 4);
     asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.putfieldWriteBarrierMethod.getOffset()));
   }
 
   static void compilePutstaticBarrier(Assembler asm, GPR reg, int locationMetadata) {
     //  on entry java stack contains ...|ref_to_store|
     //  SP -> ref_to_store
-    Offset of4 = Offset.fromIntSignExtend(4);
+    Offset of1W = Offset.fromIntSignExtend(WORDSIZE);
     asm.emitPUSH_Reg(reg);
-    asm.emitPUSH_RegDisp(SP, of4);
+    asm.emitPUSH_RegDisp(SP, of1W);
     asm.emitPUSH_Imm(locationMetadata);
-    genParameterRegisterLoad(asm, 3);
+    BaselineCompilerImpl.genParameterRegisterLoad(asm, 3);
     asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.putstaticWriteBarrierMethod.getOffset()));
   }
 
   static void compilePutstaticBarrierImm(Assembler asm, Offset fieldOffset, int locationMetadata) {
     //  on entry java stack contains ...|ref_to_store|
     //  SP -> ref_to_store
-    Offset of4 = Offset.fromIntSignExtend(4);
+    Offset of1W = Offset.fromIntSignExtend(WORDSIZE);
     asm.emitPUSH_Imm(fieldOffset.toInt());
-    asm.emitPUSH_RegDisp(SP, of4);
+    asm.emitPUSH_RegDisp(SP, of1W);
     asm.emitPUSH_Imm(locationMetadata);
-    genParameterRegisterLoad(asm, 3);
+    BaselineCompilerImpl.genParameterRegisterLoad(asm, 3);
     asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.putstaticWriteBarrierMethod.getOffset()));
   }
 
   static void compileArrayLoadBarrier(Assembler asm, boolean pushResult) {
     // on entry java stack contains ...|target_array_ref|array_index|
     // SP -> index, SP+4 -> target_ref
-    genParameterRegisterLoad(asm, 2);
+    BaselineCompilerImpl.genParameterRegisterLoad(asm, 2);
     asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.arrayLoadReadBarrierMethod.getOffset()));
     if (pushResult) asm.emitPUSH_Reg(T0);
   }
@@ -101,7 +97,7 @@ class Barriers implements BaselineConstants {
     genNullCheck(asm, 0);
     asm.emitPUSH_Reg(reg);
     asm.emitPUSH_Imm(locationMetadata);
-    genParameterRegisterLoad(asm, 3);
+    BaselineCompilerImpl.genParameterRegisterLoad(asm, 3);
     asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.getfieldReadBarrierMethod.getOffset()));
     asm.emitPUSH_Reg(T0);
   }
@@ -110,7 +106,7 @@ class Barriers implements BaselineConstants {
     genNullCheck(asm, 0);
     asm.emitPUSH_Imm(fieldOffset.toInt());
     asm.emitPUSH_Imm(locationMetadata);
-    genParameterRegisterLoad(asm, 3);
+    BaselineCompilerImpl.genParameterRegisterLoad(asm, 3);
     asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.getfieldReadBarrierMethod.getOffset()));
     asm.emitPUSH_Reg(T0);
   }
@@ -118,7 +114,7 @@ class Barriers implements BaselineConstants {
   static void compileGetstaticBarrier(Assembler asm, GPR reg, int locationMetadata) {
     asm.emitPUSH_Reg(reg);
     asm.emitPUSH_Imm(locationMetadata);
-    genParameterRegisterLoad(asm, 2);
+    BaselineCompilerImpl.genParameterRegisterLoad(asm, 2);
     asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.getstaticReadBarrierMethod.getOffset()));
     asm.emitPUSH_Reg(T0);
   }
@@ -126,7 +122,7 @@ class Barriers implements BaselineConstants {
   static void compileGetstaticBarrierImm(Assembler asm, Offset fieldOffset, int locationMetadata) {
     asm.emitPUSH_Imm(fieldOffset.toInt());
     asm.emitPUSH_Imm(locationMetadata);
-    genParameterRegisterLoad(asm, 2);
+    BaselineCompilerImpl.genParameterRegisterLoad(asm, 2);
     asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.getstaticReadBarrierMethod.getOffset()));
     asm.emitPUSH_Reg(T0);
   }
@@ -136,7 +132,11 @@ class Barriers implements BaselineConstants {
    * at the given offset to SP.
    */
   private static void genNullCheck(Assembler asm, int offset) {
-    asm.emitMOV_Reg_RegDisp(T1, SP, Offset.fromIntZeroExtend(offset));
+    if (VM.BuildFor32Addr) {
+      asm.emitMOV_Reg_RegDisp(T1, SP, Offset.fromIntZeroExtend(offset));
+    } else {
+      asm.emitMOV_Reg_RegDisp_Quad(T1, SP, Offset.fromIntZeroExtend(offset));
+    }
     BaselineCompilerImpl.baselineEmitLoadTIB(asm, T1, T1);
   }
 
@@ -145,26 +145,7 @@ class Barriers implements BaselineConstants {
     // on entry java stack contains ... [SP+offset] -> target_ref
     // on exit: stack is the same
     asm.emitPUSH_RegDisp(SP, Offset.fromIntSignExtend(offset));   // dup
-    genParameterRegisterLoad(asm, 1);
+    BaselineCompilerImpl.genParameterRegisterLoad(asm, 1);
     asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.modifyCheckMethod.getOffset()));
-  }
-
-  /**
-   * (Taken from BaselineCompilerImpl.java)
-   *
-   * Copy parameters from operand stack into registers.
-   * Assumption: parameters are layed out on the stack in order
-   * with SP pointing to the last parameter.
-   * Also, this method is called before the generation of a helper method call.
-   * Assumption: no floating-point parameters.
-   * @param params number of parameter words (including "this" if any).
-   */
-  private static void genParameterRegisterLoad(Assembler asm, int params) {
-    if (0 < NUM_PARAMETER_GPRS) {
-      asm.emitMOV_Reg_RegDisp(T0, SP, Offset.fromIntZeroExtend((params - 1) << LG_WORDSIZE));
-    }
-    if (1 < params && 1 < NUM_PARAMETER_GPRS) {
-      asm.emitMOV_Reg_RegDisp(T1, SP, Offset.fromIntZeroExtend((params - 2) << LG_WORDSIZE));
-    }
   }
 }

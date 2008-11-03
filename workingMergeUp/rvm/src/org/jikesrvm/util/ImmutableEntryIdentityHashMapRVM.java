@@ -13,6 +13,7 @@
 package org.jikesrvm.util;
 
 import org.jikesrvm.util.ImmutableEntryHashMapRVM.Bucket;
+import org.jikesrvm.runtime.Magic;
 
 /**
  * A hash map with entirely immutable buckets. It doesn't correctly support
@@ -36,5 +37,14 @@ public final class ImmutableEntryIdentityHashMapRVM<K, V> extends AbstractHashMa
   @Override
   protected boolean same(K k1, K k2) {
     return k1 == k2;
+  }
+
+  @Override
+  protected int hashTheKey(K key) {
+    if (!org.jikesrvm.VM.runningVM) {
+      return Magic.bootImageIdentityHashCode(key);
+    } else {
+      return System.identityHashCode(key);
+    }
   }
 }

@@ -12,12 +12,12 @@
  */
 package java.lang.ref;
 
-import org.jikesrvm.memorymanagers.mminterface.MM_Constants;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
+import org.jikesrvm.mm.mminterface.MemoryManagerConstants;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.runtime.Magic;
 import org.vmmagic.pragma.Inline;
-import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.UnpreemptibleNoWarn;
 import org.vmmagic.unboxed.Address;
 
 /**
@@ -43,7 +43,7 @@ public abstract class Reference<T> {
    * classpath release.
    * @see java.lang.ref.ReferenceQueue
  */
-  Reference<?> nextOnQueue;
+  Reference nextOnQueue;
 
 
   /**
@@ -88,8 +88,8 @@ public abstract class Reference<T> {
   private Object getInternal(Address tmp) {
     Object ref = Magic.addressAsObject(tmp);
 
-    if (MM_Constants.NEEDS_REFTYPE_READ_BARRIER) {
-      ref = MM_Interface.referenceTypeReadBarrier(ref);
+    if (MemoryManagerConstants.NEEDS_REFTYPE_READ_BARRIER) {
+      ref = MemoryManager.referenceTypeReadBarrier(ref);
     }
 
     return ref;
@@ -110,8 +110,7 @@ public abstract class Reference<T> {
    * that users might find confusing. We think the problem is actually
    * not a 'real' problem...
    */
-  @LogicallyUninterruptible
-  @Uninterruptible
+  @UnpreemptibleNoWarn("Call out to ReferenceQueue API")
   public boolean enqueue() {
     if (nextOnQueue == null && queue != null) {
       queue.enqueue(this);

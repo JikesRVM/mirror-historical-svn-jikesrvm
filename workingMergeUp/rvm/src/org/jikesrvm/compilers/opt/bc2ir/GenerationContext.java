@@ -146,9 +146,9 @@ public final class GenerationContext implements org.jikesrvm.compilers.opt.drive
 
   /**
    * The exit node of the outermost CFG
-   * (only used by BC2IR for not-definitely caught athrows)
+   * (used by BC2IR for not-definitely caught athrows and by OSR_Yieldpoints)
    */
-  BasicBlock exit;
+  public BasicBlock exit;
 
   /**
    * A catch, unlock, and rethrow exception handler used for
@@ -359,7 +359,8 @@ public final class GenerationContext implements org.jikesrvm.compilers.opt.drive
     int argIdx = 0;
     int localNum = 0;
     if (!child.method.isStatic()) {
-      Operand receiver = child.arguments[argIdx++];
+      Operand receiver = child.arguments[argIdx];
+      argIdx++;
       RegisterOperand local = null;
       if (receiver.isRegister()) {
         RegisterOperand objPtr = receiver.asRegister();
@@ -369,11 +370,13 @@ public final class GenerationContext implements org.jikesrvm.compilers.opt.drive
           objPtr.clearPreciseType(); // Can be precise but not assignable if enough classes aren't loaded
           objPtr.setDeclaredType();
         }
-        local = child.makeLocal(localNum++, objPtr);
+        local = child.makeLocal(localNum, objPtr);
+        localNum++;
         child.arguments[0] = local; // Avoid confusion in BC2IR of callee
         // when objPtr is a local in the caller.
       } else if (receiver.isConstant()) {
-        local = child.makeLocal(localNum++, receiver.getType());
+        local = child.makeLocal(localNum, receiver.getType());
+        localNum++;
         local.setPreciseType();
         // Constants trivially non-null
         RegisterOperand guard = child.makeNullCheckGuard(local.getRegister());
@@ -400,11 +403,13 @@ public final class GenerationContext implements org.jikesrvm.compilers.opt.drive
           rActual.setDeclaredType();
           rActual.setType(argType);
         }
-        formal = child.makeLocal(localNum++, rActual);
+        formal = child.makeLocal(localNum, rActual);
+        localNum++;
         child.arguments[argIdx] = formal;  // Avoid confusion in BC2IR of
         // callee when arg is a local in the caller.
       } else {
-        formal = child.makeLocal(localNum++, argType);
+        formal = child.makeLocal(localNum, argType);
+        localNum++;
       }
       Instruction s = Move.create(IRTools.getMoveOp(argType), formal, actual);
       s.bcIndex = PROLOGUE_BCI;

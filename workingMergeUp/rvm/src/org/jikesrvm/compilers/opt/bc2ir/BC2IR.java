@@ -108,8 +108,8 @@ import org.jikesrvm.compilers.opt.ir.operand.RegisterOperand;
 import org.jikesrvm.compilers.opt.ir.operand.TrapCodeOperand;
 import org.jikesrvm.compilers.opt.ir.operand.TrueGuardOperand;
 import org.jikesrvm.compilers.opt.ir.operand.TypeOperand;
-import org.jikesrvm.osr.OSR_Constants;
-import org.jikesrvm.osr.OSR_ObjectHolder;
+import org.jikesrvm.osr.OSRConstants;
+import org.jikesrvm.osr.ObjectHolder;
 import org.jikesrvm.runtime.Entrypoints;
 import org.jikesrvm.runtime.Magic;
 import org.vmmagic.pragma.NoInline;
@@ -148,7 +148,7 @@ import org.vmmagic.unboxed.Offset;
  * @see ConvertBCtoHIR
  */
 public final class BC2IR
-    implements IRGenOptions, Operators, BytecodeConstants, OptConstants, OSR_Constants {
+    implements IRGenOptions, Operators, BytecodeConstants, OptConstants, OSRConstants {
   /**
    * Dummy slot.
    * Used to deal with the fact the longs/doubles take
@@ -204,7 +204,7 @@ public final class BC2IR
   // OSR field
   private boolean osrGuardedInline = false;
 
-  /*
+  /**
    * OSR field: TODO rework this mechanism!
    * adjustment of bcIndex of instructions because of
    * specialized bytecode.
@@ -1806,7 +1806,8 @@ public final class BC2IR
               // Attempt to inline virtualized call.
               if (maybeInlineMethod(shouldInline(s,
                                                  receiver.isConstant() ||
-                                                 (receiver.isRegister() && receiver.asRegister().isExtant())), s)) {
+                                                 (receiver.isRegister() && receiver.asRegister().isExtant()),
+                                                 instrIndex - bciAdjustment), s)) {
                 return;
               }
             }
@@ -1877,7 +1878,7 @@ public final class BC2IR
             }
 
             // Consider inlining it.
-            if (maybeInlineMethod(shouldInline(s, isExtant), s)) {
+            if (maybeInlineMethod(shouldInline(s, isExtant, instrIndex - bciAdjustment), s)) {
               return;
             }
           }
@@ -1924,7 +1925,7 @@ public final class BC2IR
           Call.setGuard(s, getCurrentGuard());
 
           // Consider inlining it.
-          if (maybeInlineMethod(shouldInline(s, false), s)) {
+          if (maybeInlineMethod(shouldInline(s, false, instrIndex - bciAdjustment), s)) {
             return;
           }
 
@@ -1972,7 +1973,7 @@ public final class BC2IR
               }
 
               // Consider inlining it.
-              if (maybeInlineMethod(shouldInline(s, false), s)) {
+              if (maybeInlineMethod(shouldInline(s, false, instrIndex - bciAdjustment), s)) {
                 return;
               }
             }
@@ -2001,17 +2002,6 @@ public final class BC2IR
 
           Operand receiver = Call.getParam(s, 0);
           RVMClass receiverType = (RVMClass) receiver.getType().peekType();
-          // null check on this parameter of call
-          // TODO: Strictly speaking we need to do dynamic linking of the
-          //       interface type BEFORE we do the null check. FIXME.
-          clearCurrentGuard();
-          if (do_NullCheck(receiver)) {
-            // call will always raise null pointer exception
-            s = null;
-            break;
-          }
-          Call.setGuard(s, getCurrentGuard());
-
           boolean requiresImplementsTest = VM.BuildForIMTInterfaceInvocation;
 
           // Invokeinterface requires a dynamic type check
@@ -2022,43 +2012,47 @@ public final class BC2IR
           // we are using, we may have to make this test explicit
           // in the calling sequence if we can't prove at compile time
           // that it is not needed.
+          if (requiresImplementsTest && resolvedMethod == null) {
+            // Sigh.  Can't even resolve the reference to figure out what interface
+            // method we are trying to call. Therefore we must make generate a call
+            // to an out-of-line typechecking routine to handle it at runtime.
+            RVMMethod target = Entrypoints.unresolvedInvokeinterfaceImplementsTestMethod;
+            Instruction callCheck =
+              Call.create2(CALL,
+                           null,
+                           new AddressConstantOperand(target.getOffset()),
+                           MethodOperand.STATIC(target),
+                           new IntConstantOperand(ref.getId()),
+                           receiver.copy());
+            if (gc.options.NO_CALLEE_EXCEPTIONS) {
+              callCheck.markAsNonPEI();
+            }
+
+            appendInstruction(callCheck);
+            callCheck.bcIndex = RUNTIME_SERVICES_BCI;
+
+            requiresImplementsTest = false; // the above call subsumes the test
+            rectifyStateWithErrorHandler(); // Can raise incompatible class change error.
+          }
+
+          // null check on this parameter of call. Must be done after dynamic linking!
+          clearCurrentGuard();
+          if (do_NullCheck(receiver)) {
+            // call will always raise null pointer exception
+            s = null;
+            break;
+          }
+          Call.setGuard(s, getCurrentGuard());
+
           if (requiresImplementsTest) {
-            if (resolvedMethod == null) {
-              // Sigh.  Can't even resolve the reference to figure out what interface
-              // method we are trying to call. Therefore we must make generate a call
-              // to an out-of-line typechecking routine to handle it at runtime.
-              RegisterOperand tibPtr = gc.temps.makeTemp(TypeReference.TIB);
-              Instruction getTib = GuardedUnary.create(GET_OBJ_TIB, tibPtr, receiver.copy(), getCurrentGuard());
-              appendInstruction(getTib);
-              getTib.bcIndex = RUNTIME_SERVICES_BCI;
-
-              RVMMethod target = Entrypoints.unresolvedInvokeinterfaceImplementsTestMethod;
-              Instruction callCheck =
-                  Call.create2(CALL,
-                               null,
-                               new AddressConstantOperand(target.getOffset()),
-                               MethodOperand.STATIC(target),
-                               new IntConstantOperand(ref.getId()),
-                               tibPtr.copyD2U());
-              if (gc.options.NO_CALLEE_EXCEPTIONS) {
-                callCheck.markAsNonPEI();
-              }
-
-              appendInstruction(callCheck);
-              callCheck.bcIndex = RUNTIME_SERVICES_BCI;
-
-              requiresImplementsTest = false; // the above call subsumes the test
-              rectifyStateWithErrorHandler(); // Can raise incompatible class change error.
-            } else {
-              // We know what interface method the program wants to invoke.
-              // Attempt to avoid inserting the type check by seeing if the
-              // known static type of the receiver implements the desired interface.
-              RVMType interfaceType = resolvedMethod.getDeclaringClass();
-              if (receiverType != null && receiverType.isResolved() && !receiverType.isInterface()) {
-                byte doesImplement =
-                    ClassLoaderProxy.includesType(interfaceType.getTypeRef(), receiverType.getTypeRef());
-                requiresImplementsTest = doesImplement != YES;
-              }
+            // We know what interface method the program wants to invoke.
+            // Attempt to avoid inserting the type check by seeing if the
+            // known static type of the receiver implements the desired interface.
+            RVMType interfaceType = resolvedMethod.getDeclaringClass();
+            if (receiverType != null && receiverType.isResolved() && !receiverType.isInterface()) {
+              byte doesImplement =
+                ClassLoaderProxy.includesType(interfaceType.getTypeRef(), receiverType.getTypeRef());
+              requiresImplementsTest = doesImplement != YES;
             }
           }
 
@@ -2104,14 +2098,17 @@ public final class BC2IR
             }
 
             // Attempt to inline virtualized call.
-            if (maybeInlineMethod(shouldInline(s, receiver.isConstant() || receiver.asRegister().isExtant()), s)) {
+            if (maybeInlineMethod(shouldInline(s,
+                receiver.isConstant() || receiver.asRegister().isExtant(),
+                instrIndex - bciAdjustment), s)) {
               return;
             }
           } else {
             // We can't virtualize the call;
             // try to inline a predicted target for the interface invocation
             // inline code will include DTC to ensure receiver implements the interface.
-            if (resolvedMethod != null && maybeInlineMethod(shouldInline(s, false), s)) {
+            if (resolvedMethod != null &&
+                maybeInlineMethod(shouldInline(s, false, instrIndex - bciAdjustment), s)) {
               return;
             } else {
               if (requiresImplementsTest) {
@@ -2238,14 +2235,36 @@ public final class BC2IR
               break;
             }
             TypeReference type = getRefTypeOf(op2);  // non-null, null case above
-            if (ClassLoaderProxy.includesType(typeRef, type) == YES) {
+            byte typeTestResult = ClassLoaderProxy.includesType(typeRef, type);
+            if (typeTestResult == YES) {
               push(op2);
               if (DBG_CF) {
                 db("skipped gen of checkcast of " + op2 + " from " + typeRef + " to " + type);
               }
               break;
             }
+            if (typeTestResult == NO) {
+              if (isNonNull(op2)) {
+                // Definite class cast exception
+                endOfBasicBlock = true;
+                appendInstruction(Trap.create(TRAP, gc.temps.makeTempValidation(), TrapCodeOperand.CheckCast()));
+                rectifyStateWithExceptionHandler(TypeReference.JavaLangClassCastException);
+                if (DBG_CF) db("Converted checkcast into unconditional trap");
+                break;
+              } else {
+                // At runtime either it is null and the checkcast succeeds or it is non-null
+                // and a class cast exception is raised
+                RegisterOperand refinedOp2 = gc.temps.makeTemp(op2);
+                s = TypeCheck.create(CHECKCAST, refinedOp2, op2.copy(), makeTypeOperand(typeRef.peekType()));
+                refinedOp2.refine(TypeReference.NULL_TYPE);
+                push(refinedOp2.copyRO());
+                rectifyStateWithExceptionHandler(TypeReference.JavaLangClassCastException);
+                if (DBG_CF) db("Narrowed type downstream of checkcast to NULL");
+                break;
+              }
+            }
           }
+
           RegisterOperand refinedOp2 = gc.temps.makeTemp(op2);
           if (!gc.options.NO_CHECKCAST) {
             if (classLoading) {
@@ -2556,7 +2575,7 @@ public final class BC2IR
 
               /* try to set the type of return register */
               if (targetidx == GETREFAT) {
-                Object realObj = OSR_ObjectHolder.getRefAt(param1, param2);
+                Object realObj = ObjectHolder.getRefAt(param1, param2);
 
                 if (VM.VerifyAssertions) VM._assert(realObj != null);
 
@@ -2802,8 +2821,10 @@ public final class BC2IR
     }
     Call.setMethod(s, methOp);
 
-    /* need to set it up early because inlining oracle use it */
+    // need to set it up early because the inlining oracle use it
     s.position = gc.inlineSequence;
+    // no longer used by the inline oracle as it is incorrectly adjusted by OSR,
+    // can't adjust it here as it will effect the exception handler maps
     s.bcIndex = instrIndex;
 
     TypeReference rtype = meth.getReturnType();
@@ -2848,6 +2869,10 @@ public final class BC2IR
         if (VM.VerifyAssertions) VM._assert(meet != null);
         gc.result = meet;
       }
+    }
+    if (VM.BuildForPowerPC && gc.method.isObjectInitializer() && gc.method.getDeclaringClass().declaresFinalInstanceField()) {
+      /* JMM Compliance.  Must insert StoreStore barrier before returning from constructor of class with final instance fields */
+      appendInstruction(Empty.create(WRITE_FLOOR));
     }
     appendInstruction(gc.epilogue.makeGOTO());
     currentBBLE.block.insertOut(gc.epilogue);
@@ -4578,12 +4603,13 @@ public final class BC2IR
    *
    * @param call the call instruction being considered for inlining
    * @param isExtant is the receiver of a virtual method an extant object?
+   * @param realBCI the real bytecode index of the call instruction, not adjusted because of OSR
    */
-  private InlineDecision shouldInline(Instruction call, boolean isExtant) {
+  private InlineDecision shouldInline(Instruction call, boolean isExtant, int realBCI) {
     if (Call.getMethod(call).getTarget() == null) {
       return InlineDecision.NO("Target method is null");
     }
-    CompilationState state = new CompilationState(call, isExtant, gc.options, gc.original_cm);
+    CompilationState state = new CompilationState(call, isExtant, gc.options, gc.original_cm, realBCI);
     InlineDecision d = gc.inlinePlan.shouldInline(state);
     return d;
   }

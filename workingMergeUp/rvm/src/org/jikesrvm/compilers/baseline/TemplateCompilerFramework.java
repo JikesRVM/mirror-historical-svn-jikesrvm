@@ -1588,11 +1588,12 @@ public abstract class TemplateCompilerFramework
           if (shouldPrint) asm.noteBytecode(biStart, "new", typeRef);
           // Forbidden from uninterruptible code as new causes calls into MMTk
           // that are interruptible
-          if (VM.VerifyUnint && !isInterruptible) forbiddenBytecode("new ", typeRef, bcodes.index());
+          if (VM.VerifyUnint && isUninterruptible) forbiddenBytecode("new ", typeRef, bcodes.index());
           RVMType type = typeRef.peekType();
           if (type != null && (type.isInitialized() || type.isInBootImage())) {
             emit_resolved_new(type.asClass());
           } else {
+            if (VM.VerifyUnint && isUnpreemptible) forbiddenBytecode("unresolved new ", typeRef, bcodes.index());
             emit_unresolved_new(typeRef);
           }
           break;
@@ -1605,7 +1606,7 @@ public abstract class TemplateCompilerFramework
           // Forbidden from uninterruptible code as new causes calls into MMTk
           // that are interruptible
           if (shouldPrint) asm.noteBytecode(biStart, "newarray", array.getTypeRef());
-          if (VM.VerifyUnint && !isInterruptible) forbiddenBytecode("new ", array, bcodes.index());
+          if (VM.VerifyUnint && isUninterruptible) forbiddenBytecode("newarray ", array, bcodes.index());
           emit_resolved_newarray(array);
           break;
         }
@@ -1617,7 +1618,7 @@ public abstract class TemplateCompilerFramework
           if (shouldPrint) asm.noteBytecode(biStart, "anewarray new", arrayRef);
           // Forbidden from uninterruptible code as new causes calls into MMTk
           // that are interruptible
-          if (VM.VerifyUnint && !isInterruptible) forbiddenBytecode("new ", arrayRef, bcodes.index());
+          if (VM.VerifyUnint && !isInterruptible) forbiddenBytecode("anewarray ", arrayRef, bcodes.index());
 
           if (VM.VerifyAssertions && elementTypeRef.isUnboxedType()) {
             VM._assert(false,
@@ -1660,7 +1661,7 @@ public abstract class TemplateCompilerFramework
           if (VM.UseEpilogueYieldPoints) emit_threadSwitchTest(RVMThread.EPILOGUE);
           // Forbidden from uninterruptible code as athrow causes calls into runtime
           // that are interruptible
-          if (VM.VerifyUnint && !isInterruptible) forbiddenBytecode("athrow", bcodes.index());
+          if (VM.VerifyUnint && isUninterruptible) forbiddenBytecode("athrow", bcodes.index());
           emit_athrow();
           break;
         }
@@ -1671,11 +1672,16 @@ public abstract class TemplateCompilerFramework
           RVMType type = typeRef.peekType();
           if (type != null) {
             if (type.isClassType()) {
-              if (type.asClass().isFinal()) {
-                emit_checkcast_final(type);
+              RVMClass cType = type.asClass();
+              if (cType.isFinal()) {
+                emit_checkcast_final(cType);
                 break;
-              } else if (type.isResolved() && !type.asClass().isInterface()) {
-                emit_checkcast_resolvedClass(type);
+              } else if (cType.isResolved()) {
+                if (cType.isInterface()) {
+                  emit_checkcast_resolvedInterface(cType);
+                } else {
+                  emit_checkcast_resolvedClass(cType);
+                }
                 break;
               } // else fall through to emit_checkcast
             } else if (type.isArrayType()) {
@@ -1703,11 +1709,16 @@ public abstract class TemplateCompilerFramework
           RVMType type = typeRef.peekType();
           if (type != null) {
             if (type.isClassType()) {
-              if (type.asClass().isFinal()) {
+              RVMClass cType = type.asClass();
+              if (cType.isFinal()) {
                 emit_instanceof_final(type);
                 break;
-              } else if (type.isResolved() && !type.asClass().isInterface()) {
-                emit_instanceof_resolvedClass(type);
+              } else if (cType.isResolved()) {
+                if (cType.isInterface()) {
+                  emit_instanceof_resolvedInterface(cType);
+                } else {
+                  emit_instanceof_resolvedClass(cType);
+                }
                 break;
               }
             } else if (type.isArrayType()) {
@@ -1729,7 +1740,7 @@ public abstract class TemplateCompilerFramework
           if (shouldPrint) asm.noteBytecode(biStart, "monitorenter");
           // Forbidden from uninterruptible code as calls interruptible object model
           // for its implementation
-          if (VM.VerifyUnint && !isInterruptible) forbiddenBytecode("monitorenter", bcodes.index());
+          if (VM.VerifyUnint && isUninterruptible) forbiddenBytecode("monitorenter", bcodes.index());
           emit_monitorenter();
           break;
         }
@@ -1738,7 +1749,7 @@ public abstract class TemplateCompilerFramework
           if (shouldPrint) asm.noteBytecode(biStart, "monitorexit");
           // Forbidden from uninterruptible code as calls interruptible object model
           // for its implementation
-          if (VM.VerifyUnint && !isInterruptible) forbiddenBytecode("monitorexit", bcodes.index());
+          if (VM.VerifyUnint && isUninterruptible) forbiddenBytecode("monitorexit", bcodes.index());
           emit_monitorexit();
           break;
         }
@@ -1860,15 +1871,15 @@ public abstract class TemplateCompilerFramework
           break;
         }
 
-        /* CAUTION: can not use JBC_impdep1, which is 0xfffffffe ( signed ),
-        * this is not consistant with OPT compiler.
-        */
+        /* CAUTION: cannot use JBC_impdep1, which is 0xfffffffe (signed),
+         * this is not consistent with OPT compiler.
+         */
         case JBC_impdep1: /* --- pseudo bytecode --- */ {
           if (VM.BuildForAdaptiveSystem) {
             int pseudo_opcode = bcodes.nextPseudoInstruction();
             // pseudo instruction
             switch (pseudo_opcode) {
-              case org.jikesrvm.osr.OSR_Constants.PSEUDO_LoadIntConst: {
+              case org.jikesrvm.osr.OSRConstants.PSEUDO_LoadIntConst: {
                 int value = bcodes.readIntConst();
 
                 if (shouldPrint) asm.noteBytecode(biStart, "pseudo_load_int", value);
@@ -1878,7 +1889,7 @@ public abstract class TemplateCompilerFramework
 
                 break;
               }
-              case org.jikesrvm.osr.OSR_Constants.PSEUDO_LoadLongConst: {
+              case org.jikesrvm.osr.OSRConstants.PSEUDO_LoadLongConst: {
                 long value = bcodes.readLongConst();  // fetch8BytesUnsigned();
 
                 if (shouldPrint) asm.noteBytecode(biStart, "pseudo_load_long", value);
@@ -1888,7 +1899,7 @@ public abstract class TemplateCompilerFramework
 
                 break;
               }
-              case org.jikesrvm.osr.OSR_Constants.PSEUDO_LoadWordConst: {
+              case org.jikesrvm.osr.OSRConstants.PSEUDO_LoadWordConst: {
                 if (VM.BuildFor32Addr) {
                   int value = bcodes.readIntConst();
 
@@ -1907,7 +1918,7 @@ public abstract class TemplateCompilerFramework
                 }
                 break;
               }
-              case org.jikesrvm.osr.OSR_Constants.PSEUDO_LoadFloatConst: {
+              case org.jikesrvm.osr.OSRConstants.PSEUDO_LoadFloatConst: {
                 int ibits = bcodes.readIntConst(); // fetch4BytesSigned();
 
                 if (shouldPrint) asm.noteBytecode(biStart, "pseudo_load_float", ibits);
@@ -1917,7 +1928,7 @@ public abstract class TemplateCompilerFramework
 
                 break;
               }
-              case org.jikesrvm.osr.OSR_Constants.PSEUDO_LoadDoubleConst: {
+              case org.jikesrvm.osr.OSRConstants.PSEUDO_LoadDoubleConst: {
                 long lbits = bcodes.readLongConst(); // fetch8BytesUnsigned();
 
                 if (shouldPrint) asm.noteBytecode(biStart, "pseudo_load_double", lbits);
@@ -1927,7 +1938,7 @@ public abstract class TemplateCompilerFramework
 
                 break;
               }
-              case org.jikesrvm.osr.OSR_Constants.PSEUDO_LoadRetAddrConst: {
+              case org.jikesrvm.osr.OSRConstants.PSEUDO_LoadRetAddrConst: {
                 int bcIndex = bcodes.readIntConst(); // fetch4BytesSigned();
 
                 if (shouldPrint) asm.noteBytecode(biStart, "pseudo_load_retaddr", bcIndex);
@@ -1937,14 +1948,14 @@ public abstract class TemplateCompilerFramework
 
                 break;
               }
-              case org.jikesrvm.osr.OSR_Constants.PSEUDO_InvokeStatic: {
+              case org.jikesrvm.osr.OSRConstants.PSEUDO_InvokeStatic: {
                 RVMMethod methodRef = null;
                 int targetidx = bcodes.readIntConst(); // fetch4BytesSigned();
                 switch (targetidx) {
-                  case org.jikesrvm.osr.OSR_Constants.GETREFAT:
+                  case org.jikesrvm.osr.OSRConstants.GETREFAT:
                     methodRef = AosEntrypoints.osrGetRefAtMethod;
                     break;
-                  case org.jikesrvm.osr.OSR_Constants.CLEANREFS:
+                  case org.jikesrvm.osr.OSRConstants.CLEANREFS:
                     methodRef = AosEntrypoints.osrCleanRefsMethod;
                     break;
                   default:
@@ -1960,7 +1971,7 @@ public abstract class TemplateCompilerFramework
                 break;
               }
               /*
-                case org.jikesrvm.osr.OSR_Constants.PSEUDO_CheckCast: {
+                case org.jikesrvm.osr.OSRConstants.PSEUDO_CheckCast: {
 
                 if (shouldPrint) asm.noteBytecode(biStart, "pseudo_checkcast");
 
@@ -1970,7 +1981,7 @@ public abstract class TemplateCompilerFramework
                 break;
                 }
               */
-              case org.jikesrvm.osr.OSR_Constants.PSEUDO_InvokeCompiledMethod: {
+              case org.jikesrvm.osr.OSRConstants.PSEUDO_InvokeCompiledMethod: {
                 int cmid = bcodes.readIntConst(); // fetch4BytesSigned();    // callee's cmid
                 int origIdx =
                     bcodes.readIntConst(); // fetch4BytesSigned(); // orginal bytecode index of this call (for build gc map)
@@ -1987,7 +1998,7 @@ public abstract class TemplateCompilerFramework
                 */
                 break;
               }
-              case org.jikesrvm.osr.OSR_Constants.PSEUDO_ParamInitEnd: {
+              case org.jikesrvm.osr.OSRConstants.PSEUDO_ParamInitEnd: {
                 if (shouldPrint) asm.noteBytecode(biStart, "pseudo_paraminitend");
                 // now we can inserted stack overflow check,
                 emit_deferred_prologue();
@@ -2067,6 +2078,7 @@ public abstract class TemplateCompilerFramework
       // Respect programmer overrides of uninterruptibility checking
       if (method.hasLogicallyUninterruptibleAnnotation()) return;
       if (method.hasUninterruptibleNoWarnAnnotation()) return;
+      if (method.hasUnpreemptibleNoWarnAnnotation()) return;
     }
     // NB generate as a single string to avoid threads splitting output
     VM.sysWriteln("WARNING: UNINTERRUPTIBLE VIOLATION\n   "+ method + " at line " + method.getLineNumberForBCIndex(bci) +
@@ -2084,6 +2096,7 @@ public abstract class TemplateCompilerFramework
       // Respect programmer overrides of uninterruptibility checking
       if (method.hasLogicallyUninterruptibleAnnotation()) return;
       if (method.hasUninterruptibleNoWarnAnnotation()) return;
+      if (method.hasUnpreemptibleNoWarnAnnotation()) return;
     }
     if (isUninterruptible && !target.isUninterruptible()) {
       // NB generate as a single string to avoid threads splitting output
@@ -3041,7 +3054,12 @@ public abstract class TemplateCompilerFramework
    * Emit code to implement the checkcast bytecode
    * @param type the LHS type
    */
-  protected abstract void emit_checkcast_resolvedClass(RVMType type);
+  protected abstract void emit_checkcast_resolvedInterface(RVMClass type);
+  /**
+   * Emit code to implement the checkcast bytecode
+   * @param type the LHS type
+   */
+  protected abstract void emit_checkcast_resolvedClass(RVMClass type);
 
   /**
    * Emit code to implement the checkcast bytecode
@@ -3059,7 +3077,13 @@ public abstract class TemplateCompilerFramework
    * Emit code to implement the instanceof bytecode
    * @param type the LHS type
    */
-  protected abstract void emit_instanceof_resolvedClass(RVMType type);
+  protected abstract void emit_instanceof_resolvedInterface(RVMClass type);
+
+  /**
+   * Emit code to implement the instanceof bytecode
+   * @param type the LHS type
+   */
+  protected abstract void emit_instanceof_resolvedClass(RVMClass type);
 
   /**
    * Emit code to implement the instanceof bytecode

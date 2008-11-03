@@ -78,16 +78,19 @@ public class GenRC extends RCBase {
   /**
    * Perform a (global) collection phase.
    *
-   * @param phaseId Collection phase to execute.
+   * @param phaseId Collection phase
    */
-  @NoInline
-  public void collectionPhase(short phaseId) {
-    if (phaseId == PREPARE) {
+  public final void collectionPhase(short phaseId) {
+   if (phaseId == PREPARE) {
       nurserySpace.prepare(true);
+      super.collectionPhase(phaseId);
+      return;
     }
 
     if (phaseId == RELEASE) {
+      super.collectionPhase(phaseId);
       nurserySpace.release();
+      return;
     }
 
     super.collectionPhase(phaseId);
@@ -102,9 +105,13 @@ public class GenRC extends RCBase {
    */
   public final boolean collectionRequired(boolean spaceFull) {
     boolean nurseryFull = nurserySpace.reservedPages() > Options.nurserySize.getMaxNursery();
-
     return super.collectionRequired(spaceFull) || nurseryFull;
   }
+
+  /*****************************************************************************
+   *
+   * Accounting
+   */
 
   /**
    * Return the number of pages available for allocation, <i>assuming
@@ -128,19 +135,6 @@ public class GenRC extends RCBase {
   }
 
   /**
-   * Return the number of pages in use given the pending
-   * allocation.  Simply add the nursery's contribution to that of
-   * the superclass.
-   *
-   * @return The number of pages reserved given the pending
-   * allocation, excluding space reserved for copying.
-   */
-
-  public final int getPagesUsed() {
-    return super.getPagesUsed() + nurserySpace.reservedPages();
-  }
-
-  /**
    * Calculate the number of pages a collection is required to free to satisfy
    * outstanding allocation requests.
    *
@@ -159,8 +153,12 @@ public class GenRC extends RCBase {
    */
   @Override
   public boolean willNeverMove(ObjectReference object) {
-    if (Space.isInSpace(NS, object))
+    if (Space.isInSpace(NURSERY, object)) {
       return false;
+    }
+    if (Space.isInSpace(REF_COUNT_LOS, object)) {
+      return true;
+    }
     return super.willNeverMove(object);
   }
 }

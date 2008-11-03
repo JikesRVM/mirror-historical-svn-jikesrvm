@@ -15,6 +15,7 @@ package org.jikesrvm.classloader;
 import org.jikesrvm.VM;
 import static org.jikesrvm.SizeConstants.BYTES_IN_ADDRESS;
 
+import org.jikesrvm.runtime.ReflectionBase;
 import org.jikesrvm.util.ImmutableEntryHashSetRVM;
 
 // TODO: The following is due to a bug in checkstyle 4.3
@@ -123,12 +124,14 @@ public final class TypeReference {
   public static final TypeReference IMT = findOrCreate(org.jikesrvm.objectmodel.IMT.class);
   public static final TypeReference Thread = findOrCreate(org.jikesrvm.scheduler.RVMThread.class);
   public static final TypeReference FunctionTable = findOrCreate(org.jikesrvm.jni.FunctionTable.class);
+  public static final TypeReference LinkageTripletTable = findOrCreate(org.jikesrvm.jni.LinkageTripletTable.class);
 
   public static final TypeReference JavaLangObject = findOrCreate(java.lang.Object.class);
   public static final TypeReference JavaLangClass = findOrCreate(java.lang.Class.class);
   public static final TypeReference JavaLangString = findOrCreate(java.lang.String.class);
   public static final TypeReference JavaLangCloneable = findOrCreate(java.lang.Cloneable.class);
   public static final TypeReference JavaIoSerializable = findOrCreate(java.io.Serializable.class);
+  public static final TypeReference JavaLangRefReference = findOrCreate(java.lang.ref.Reference.class);
 
   public static final TypeReference JavaLangObjectArray = findOrCreate(java.lang.Object[].class);
 
@@ -204,6 +207,7 @@ public final class TypeReference {
   /**
    * Hash value based on name, used for canonical type dictionary
    */
+  @Override
   public int hashCode() {
     return name.hashCode();
   }
@@ -212,6 +216,7 @@ public final class TypeReference {
    * Are two keys equivalent? Used for canonical type dictionary.
    * NB ignores id value
    */
+  @Override
   public boolean equals(Object other) {
     if (other instanceof TypeReference) {
       TypeReference that = (TypeReference) other;
@@ -816,6 +821,7 @@ public final class TypeReference {
     return type;
   }
 
+  @Override
   public String toString() {
     return "< " + classloader + ", " + name + " >";
   }

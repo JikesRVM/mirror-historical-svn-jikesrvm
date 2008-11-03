@@ -27,7 +27,7 @@ import org.vmmagic.pragma.UninterruptibleNoWarn;
  * This class represents an instance of an interface table.
  */
 @NonMoving
-public final class ITable {
+public final class ITable implements RuntimeTable<Object> {
 
   /**
    * The backing data used during boot image writing.
@@ -68,7 +68,7 @@ public final class ITable {
    */
   @Intrinsic
   @Uninterruptible
-  protected Object get(int index) {
+  public Object get(int index) {
     if (VM.VerifyAssertions && VM.runningVM) VM._assert(VM.NOT_REACHED);
     return data[index];
   }
@@ -86,10 +86,7 @@ public final class ITable {
   }
 
   /**
-   * Does this ITable correspond to the given interface?
-   *
-   * @param I The interface
-   * @return True if this ITable is for the given interface
+   * @return The interface class for this ITable
    */
   @Inline
   @Interruptible
@@ -117,7 +114,7 @@ public final class ITable {
    * @param value The value to set the entry to.
    */
   @Intrinsic
-  @UninterruptibleNoWarn
+  @UninterruptibleNoWarn("Interruptible code not reachable at runtime")
   public void set(int index, Object value) {
     if (VM.VerifyAssertions && VM.runningVM) VM._assert(VM.NOT_REACHED);
     data[index] = value;

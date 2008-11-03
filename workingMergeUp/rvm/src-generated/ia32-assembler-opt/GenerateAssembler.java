@@ -169,6 +169,8 @@ public class GenerateAssembler {
     opcodeArgTables.put("CALL", new int[] { 2 });
     opcodeArgTables.put("INT", new int[] { 1 });
     opcodeArgTables.put("CDQ", new int[] { 0 });
+    opcodeArgTables.put("CDO", new int[] { 0 });
+    opcodeArgTables.put("CDQE", new int[] { 0 });
     opcodeArgTables.put("DIV", new int[] { 1, 2 });
     opcodeArgTables.put("IDIV", new int[] { 1, 2 });
     opcodeArgTables.put("MUL", new int[] { 1, 2 });
@@ -1183,7 +1185,7 @@ public class GenerateAssembler {
     emitTab(1);
     emit("/**\n");
     emitTab(1);
-    emit(" * @see Assembler\n");
+    emit(" * @see org.jikesrvm.ArchitectureSpecific.Assembler\n");
     emitTab(1);
     emit(" */\n");
     emitTab(1);
@@ -1246,7 +1248,9 @@ public class GenerateAssembler {
     emitTab(1);
     emit("public void doInst(Instruction inst) {\n");
     emitTab(2);
-    emit("resolveForwardReferences(++instructionCount);\n");
+    emit("instructionCount++;\n");
+    emitTab(2);
+    emit("resolveForwardReferences(instructionCount);\n");
     emitTab(2);
     emit("switch (inst.getOpcode()) {\n");
 
@@ -1302,6 +1306,18 @@ public class GenerateAssembler {
     emit("case IG_PATCH_POINT_opcode:\n");
     emitTab(4);
     emit("emitPatchPoint();\n");
+    emitTab(4);
+    emit("break;\n");
+
+    // Kludge for LOWTABLESWITCH
+    emitTab(3);
+    emit("case MIR_LOWTABLESWITCH_opcode:\n");
+    emitTab(4);
+    emit("doLOWTABLESWITCH(inst);\n");
+    emitTab(4);
+    emit("// kludge table switches that are unusually long instructions\n");
+    emitTab(4);
+    emit("instructionCount += MIR_LowTableSwitch.getNumberOfTargets(inst);\n");
     emitTab(4);
     emit("break;\n");
 

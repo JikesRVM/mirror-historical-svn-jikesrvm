@@ -14,7 +14,7 @@ package org.jikesrvm.ppc;
 
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.VM;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.vmmagic.pragma.Uninterruptible;
 
 /**
@@ -57,6 +57,9 @@ public abstract class CodeArray {
    * on the 'class' CodeArray.
    */
   public static class Factory {
+    static {
+      Code x = null; // force compilation of Code wrapper class
+    }
     /**
      * Allocate a code array big enough to contain numInstrs instructions.
      * @param numInstrs the number of instructions to copy from instrs
@@ -65,7 +68,7 @@ public abstract class CodeArray {
      */
     public static ArchitectureSpecific.CodeArray create(int numInstrs, boolean isHot) {
       if (VM.runningVM) {
-        return MM_Interface.allocateCode(numInstrs, isHot);
+        return MemoryManager.allocateCode(numInstrs, isHot);
       } else {
         return ArchitectureSpecific.CodeArray.create(numInstrs);
       }

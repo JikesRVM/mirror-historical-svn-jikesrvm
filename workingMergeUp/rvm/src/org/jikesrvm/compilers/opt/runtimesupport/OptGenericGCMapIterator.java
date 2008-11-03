@@ -18,8 +18,8 @@ import org.jikesrvm.Constants;
 import org.jikesrvm.ArchitectureSpecificOpt.OptGCMapIteratorConstants;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
-import org.jikesrvm.memorymanagers.mminterface.MM_Interface;
-import org.jikesrvm.memorymanagers.mminterface.GCMapIterator;
+import org.jikesrvm.mm.mminterface.GCMapIterator;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.runtime.Magic;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
@@ -30,7 +30,7 @@ import org.vmmagic.unboxed.WordArray;
  * This class contains its architecture-independent code for iteration
  * across the references represented by a frame built by the OPT compiler.
  *
- * @see org.jikesrvm.ArchitectureSpecific.OptGCMapIterator
+ * @see org.jikesrvm.ArchitectureSpecificOpt.OptGCMapIterator
  */
 @Uninterruptible
 public abstract class OptGenericGCMapIterator extends GCMapIterator
@@ -414,7 +414,7 @@ public abstract class OptGenericGCMapIterator extends GCMapIterator
     for (int i = firstReg; i <= lastReg; i++) {
       Address regLocation = registerLocations.get(i).toAddress();
       Address regValue = regLocation.loadAddress();
-      if (MM_Interface.addressInVM(regValue)) {
+      if (MemoryManager.addressInVM(regValue)) {
         VM.sysWrite("  reg#", getCurrentRegister());
         VM.sysWrite(", location ==>", regLocation);
         VM.sysWriteln(", suspicious value ==>", regValue);
@@ -469,7 +469,7 @@ public abstract class OptGenericGCMapIterator extends GCMapIterator
         VM.sysWrite("\n");
       }
 
-      if (MM_Interface.addressInVM(ptr)) {
+      if (MemoryManager.addressInVM(ptr)) {
         VM.sysWrite("  spill location:");
         VM.sysWrite(i);
         VM.sysWrite(" contains a suspicious value ==>");

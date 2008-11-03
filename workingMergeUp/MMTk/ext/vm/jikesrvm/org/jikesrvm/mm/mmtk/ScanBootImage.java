@@ -139,10 +139,32 @@ public class ScanBootImage implements Constants {
           if (DEBUG) refs++;
           if (!FILTER || slot.loadAddress().GT(mapEnd)) {
             if (DEBUG) roots++;
+            if (ScanThread.VALIDATE_REFS) checkReference(slot);
             trace.processRootEdge(slot, false);
           }
         }
       }
+    }
+  }
+
+  /**
+   * Check that a reference encountered during scanning is valid.  If
+   * the reference is invalid, dump stack and die.
+   *
+   * @param refaddr The address of the reference in question.
+   */
+  @Uninterruptible
+  private static void checkReference(Address refaddr) {
+    ObjectReference ref = org.mmtk.vm.VM.activePlan.global().loadObjectReference(refaddr);
+    if (!MemoryManager.validRef(ref)) {
+      Log.writeln();
+      Log.writeln("Invalid ref reported while scanning boot image");
+      Log.writeln();
+      Log.write(refaddr); Log.write(":"); Log.flush(); MemoryManager.dumpRef(ref);
+      Log.writeln();
+      Log.writeln("Dumping stack:");
+      Scheduler.dumpStack();
+      VM.sysFail("\n\nScanStack: Detected bad GC map; exiting RVM with fatal error");
     }
   }
 
@@ -157,9 +179,9 @@ public class ScanBootImage implements Constants {
   }
 
   /**
-   * Return true if the given offset is address-aligned
-   * @param offset the offset to be check
-   * @return true if the offset is address aligned.
+   * Return true if the given address is address-aligned
+   * @param address the address to be check
+   * @return true if the address is address aligned.
    */
   @Uninterruptible
   private static boolean isAddressAligned(Address address) {

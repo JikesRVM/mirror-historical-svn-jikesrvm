@@ -29,7 +29,7 @@ import org.jikesrvm.compilers.common.ExceptionTable;
 import org.jikesrvm.compilers.opt.ir.IR;
 import org.jikesrvm.compilers.opt.ir.InlineGuard;
 import org.jikesrvm.compilers.opt.ir.Instruction;
-import org.jikesrvm.osr.OSR_EncodedOSRMap;
+import org.jikesrvm.osr.EncodedOSRMap;
 import org.jikesrvm.runtime.DynamicLink;
 import org.jikesrvm.runtime.ExceptionDeliverer;
 import org.jikesrvm.runtime.Magic;
@@ -39,6 +39,7 @@ import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.SynchronizedObject;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.unboxed.Offset;
 
 /**
@@ -82,7 +83,7 @@ public final class OptCompiledMethod extends CompiledMethod {
   /**
    * Find "catch" block for a machine instruction of this method.
    */
-  @Interruptible
+  @Unpreemptible
   public int findCatchBlockForInstruction(Offset instructionOffset, RVMType exceptionType) {
     if (eTable == null) {
       return -1;
@@ -110,7 +111,7 @@ public final class OptCompiledMethod extends CompiledMethod {
   /**
    * Return whether or not the instruction offset corresponds to an uninterruptible context.
    *
-   * @param offset of addr from start of instructions in bytes
+   * @param instructionOffset offset of addr from start of instructions in bytes
    * @return true if the IP is within an Uninterruptible method, false otherwise.
    */
   @Interruptible
@@ -249,14 +250,14 @@ public final class OptCompiledMethod extends CompiledMethod {
   private static final ArchitectureSpecificOpt.OptExceptionDeliverer exceptionDeliverer =
       new ArchitectureSpecificOpt.OptExceptionDeliverer();
 
-  private OSR_EncodedOSRMap _osrMap;
+  private EncodedOSRMap _osrMap;
 
   @Interruptible
   public void createFinalOSRMap(IR ir) {
-    this._osrMap = OSR_EncodedOSRMap.makeMap(ir.MIRInfo.osrVarMap);
+    this._osrMap = EncodedOSRMap.makeMap(ir.MIRInfo.osrVarMap);
   }
 
-  public OSR_EncodedOSRMap getOSRMap() {
+  public EncodedOSRMap getOSRMap() {
     return this._osrMap;
   }
 

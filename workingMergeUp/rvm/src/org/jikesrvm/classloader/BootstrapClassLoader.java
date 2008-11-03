@@ -110,7 +110,7 @@ public final class BootstrapClassLoader extends java.lang.ClassLoader {
    */
   synchronized RVMType loadVMClass(String className) throws NoClassDefFoundError {
     try {
-      InputStream is = getResourceAsStream(className.replace('.', '/') + ".class");
+      InputStream is = getResourceAsStream(className.replace('.', File.separatorChar) + ".class");
       if (is == null) throw new NoClassDefFoundError(className);
       DataInputStream dataInputStream = new DataInputStream(is);
       RVMType type = null;
@@ -137,6 +137,9 @@ public final class BootstrapClassLoader extends java.lang.ClassLoader {
   }
 
   public synchronized Class<?> loadClass(String className, boolean resolveClass) throws ClassNotFoundException {
+    if (!VM.runningVM) {
+      return super.loadClass(className, resolveClass);
+    }
     if (className.startsWith("L") && className.endsWith(";")) {
       className = className.substring(1, className.length() - 2);
     }
@@ -161,6 +164,9 @@ public final class BootstrapClassLoader extends java.lang.ClassLoader {
    * @exception ClassNotFoundException if the class was not found, or was invalid
    */
   public Class<?> findClass(String className) throws ClassNotFoundException {
+    if (!VM.runningVM) {
+      return super.findClass(className);
+    }
     if (className.startsWith("[")) {
       TypeReference typeRef =
           TypeReference.findOrCreate(this, Atom.findOrCreateAsciiAtom(className.replace('.', '/')));
@@ -180,7 +186,7 @@ public final class BootstrapClassLoader extends java.lang.ClassLoader {
         if (className.startsWith("L") && className.endsWith(";")) {
           className = className.substring(1, className.length() - 2);
         }
-        InputStream is = getResourceAsStream(className.replace('.', '/') + ".class");
+        InputStream is = getResourceAsStream(className.replace('.', File.separatorChar) + ".class");
         if (is == null) throw new ClassNotFoundException(className);
         DataInputStream dataInputStream = new DataInputStream(is);
         Class<?> cls = null;
@@ -303,7 +309,10 @@ public final class BootstrapClassLoader extends java.lang.ClassLoader {
               zipFileCache.put(path, zf);
             }
           }
-
+          // Zip spec. states that separator must be '/' in the path
+          if (File.separatorChar != '/') {
+            name = name.replace(File.separatorChar, '/');
+          }
           ZipEntry ze = zf.getEntry(name);
           if (ze == null) continue;
 

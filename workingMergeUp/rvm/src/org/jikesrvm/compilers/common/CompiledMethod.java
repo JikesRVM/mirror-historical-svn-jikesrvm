@@ -27,6 +27,7 @@ import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.SynchronizedObject;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
@@ -426,6 +427,7 @@ public abstract class CompiledMethod implements SizeConstants {
    * gc disabled when called by RuntimeEntrypoints.deliverException().
    * </ul>
    */
+  @Unpreemptible
   public abstract int findCatchBlockForInstruction(Offset instructionOffset, RVMType exceptionType);
 
   /**
@@ -486,8 +488,8 @@ public abstract class CompiledMethod implements SizeConstants {
    * Return whether or not the given address (which is purported to be inside
    * of the compiled method's code array) corresponds to an uninterruptible context.
    *
-   * @param ip a Address (should be an interior pointer to instructions)
-   * @return offset of addr from start of instructions in bytes
+   * @param instructionOffset of addr from start of instructions in bytes
+   * @return true if the IP is within an Uninterruptible method, false otherwise.
    */
   @Interruptible
   public abstract boolean isWithinUninterruptibleCode(Offset instructionOffset);

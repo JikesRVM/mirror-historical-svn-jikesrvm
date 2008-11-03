@@ -21,9 +21,8 @@ import org.jikesrvm.objectmodel.ThinLockConstants;
 import org.jikesrvm.runtime.Magic;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
-import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.Uninterruptible;
-import org.vmmagic.pragma.UninterruptibleNoWarn;
+import org.vmmagic.pragma.UnpreemptibleNoWarn;
 import org.vmmagic.unboxed.Word;
 import org.vmmagic.unboxed.Offset;
 
@@ -70,7 +69,7 @@ java.lang.Object#notifyAll}, and {@link java.lang.Object#wait()}.
 
  <p><STRONG>Section 3:</STRONG>
  Allocates (and frees) heavy weight locks consistent with Requirement
- 1.  Also, distributes them among the virtual processors.
+ 1.
  </p>
 
  <p><STRONG>Section 4:</STRONG>
@@ -618,9 +617,11 @@ public class Lock implements Constants {
    *
    * @param l The lock object
    */
-  @UninterruptibleNoWarn // aastore is ok in this case
+  @Uninterruptible
   public static void addLock(Lock l) {
-    locks[l.index >> LOG_LOCK_CHUNK_SIZE][l.index & LOCK_CHUNK_MASK] = l;
+    Lock[] chunk = locks[l.index >> LOG_LOCK_CHUNK_SIZE];
+    int index = l.index & LOCK_CHUNK_MASK;
+    Services.setArrayUninterruptible(chunk, index, l);
   }
 
   /**
@@ -723,6 +724,15 @@ public class Lock implements Constants {
       VM.sysWrite(" deflations\n");
 
       ThinLock.notifyExit(totalLocks);
+      VM.sysWriteln();
+
+      VM.sysWrite("lock availability stats: ");
+      VM.sysWriteInt(globalLocksAllocated);
+      VM.sysWrite(" locks allocated, ");
+      VM.sysWriteInt(globalLocksFreed);
+      VM.sysWrite(" locks freed, ");
+      VM.sysWriteInt(globalFreeLocks);
+      VM.sysWrite(" free locks\n");
     }
   }
 }

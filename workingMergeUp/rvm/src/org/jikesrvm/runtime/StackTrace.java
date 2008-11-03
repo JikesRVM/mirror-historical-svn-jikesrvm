@@ -443,7 +443,7 @@ public class StackTrace {
      * and an OutOfMemoryError to look like:
      * ???
      * ...
-     * at org.jikesrvm.memorymanagers.mminterface.MM_Interface.allocateSpace(MM_Interface.java:613)
+     * at org.jikesrvm.mm.mminterface.MemoryManager.allocateSpace(MemoryManager.java:613)
      * ...
      * at org.jikesrvm.runtime.RuntimeEntrypoints.unresolvedNewArray(RuntimeEntrypoints.java:401)
      */

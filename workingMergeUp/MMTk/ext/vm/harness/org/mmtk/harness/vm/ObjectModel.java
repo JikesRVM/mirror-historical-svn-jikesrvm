@@ -12,7 +12,12 @@
  */
 package org.mmtk.harness.vm;
 
+import java.util.Stack;
+
 import org.mmtk.harness.Collector;
+import org.mmtk.harness.Mutator;
+import org.mmtk.harness.lang.Trace;
+import org.mmtk.harness.lang.Trace.Item;
 import org.mmtk.plan.CollectorContext;
 import org.mmtk.plan.MutatorContext;
 import org.mmtk.plan.Plan;
@@ -20,12 +25,13 @@ import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.*;
 
 @Uninterruptible
-public class ObjectModel extends org.mmtk.vm.ObjectModel {
+public final class ObjectModel extends org.mmtk.vm.ObjectModel {
 
   /*
    * The object model for the harness stores:
    *
    *    Object id (age in allocations);        (Word)
+   *    Allocation site                        (Word)
    *    The size of the data section in words. (UInt16)
    *    The number of reference words.         (UInt16)
    *    Status Word (includes GC)
@@ -36,7 +42,7 @@ public class ObjectModel extends org.mmtk.vm.ObjectModel {
    */
 
   /** The total header size (including any requested GC words) */
-  public static final int HEADER_WORDS = 3 + ActivePlan.constraints.gcHeaderWords();
+  public static final int HEADER_WORDS = 4 + ActivePlan.constraints.gcHeaderWords();
   /** The number of bytes in the header */
   public static final int HEADER_SIZE = HEADER_WORDS << SimulatedMemory.LOG_BYTES_IN_WORD;
   /** The number of bytes requested for GC in the header */
@@ -46,14 +52,19 @@ public class ObjectModel extends org.mmtk.vm.ObjectModel {
   private static final Offset GC_OFFSET        = Offset.zero();
   /** The offset of the object ID */
   private static final Offset ID_OFFSET        = GC_OFFSET.plus(GC_HEADER_BYTES);
+  /** The offset of the allocation site */
+  private static final Offset SITE_OFFSET      = ID_OFFSET.plus(SimulatedMemory.BYTES_IN_WORD);
   /** The offset of the UInt16 storing the number of data fields */
-  private static final Offset DATACOUNT_OFFSET = ID_OFFSET.plus(SimulatedMemory.BYTES_IN_WORD);
+  private static final Offset DATACOUNT_OFFSET = SITE_OFFSET.plus(SimulatedMemory.BYTES_IN_WORD);
   /** The offset of the UInt16 storing the number of reference fields */
   private static final Offset REFCOUNT_OFFSET  = DATACOUNT_OFFSET.plus(SimulatedMemory.BYTES_IN_SHORT);
   /** The offset of the status word */
   private static final Offset STATUS_OFFSET    = DATACOUNT_OFFSET.plus(SimulatedMemory.BYTES_IN_WORD);
   /** The offset of the first reference field. */
   public  static final Offset REFS_OFFSET      = STATUS_OFFSET.plus(SimulatedMemory.BYTES_IN_WORD);
+
+  public static final short MAX_DATA_FIELDS = Short.MAX_VALUE;
+  public static final short MAX_REF_FIELDS = Short.MAX_VALUE;
 
   /** Has this object been hashed? */
   private static final int HASHED           = 0x1 << (3 * SimulatedMemory.BITS_IN_BYTE);
@@ -82,7 +93,7 @@ public class ObjectModel extends org.mmtk.vm.ObjectModel {
    * @param doubleAlign Align the object at an 8 byte boundary?
    * @return The new ObjectReference.
    */
-  public static ObjectReference allocateObject(MutatorContext context, int refCount, int dataCount, boolean doubleAlign) {
+  public static ObjectReference allocateObject(MutatorContext context, int refCount, int dataCount, boolean doubleAlign, int site) {
     int bytes = (HEADER_WORDS + refCount + dataCount) << SimulatedMemory.LOG_BYTES_IN_WORD;
     int align = (doubleAlign ? 2 : 1) * SimulatedMemory.BYTES_IN_WORD;
     int allocator = context.checkAllocator(bytes, align, Plan.ALLOC_DEFAULT);
@@ -94,6 +105,7 @@ public class ObjectModel extends org.mmtk.vm.ObjectModel {
     ObjectReference ref = region.toObjectReference();
     if (doubleAlign) region.store(DOUBLE_ALIGN, STATUS_OFFSET);
     setId(ref, allocateObjectId());
+    setSite(ref, site);
     setRefCount(ref, refCount);
     setDataCount(ref, dataCount);
 
@@ -113,21 +125,35 @@ public class ObjectModel extends org.mmtk.vm.ObjectModel {
    * Get the object identifier.
    */
   public static int getId(ObjectReference object) {
-    return object.toAddress().loadInt(ID_OFFSET);
+    return object.toAddress().loadInt(ID_OFFSET) >>> 2;
   }
 
   /**
    * Get the object identifier as a string.
    */
   public static String idString(ObjectReference object) {
-    return Address.formatInt(object.toAddress().loadInt(ID_OFFSET));
+    return Address.formatInt(getId(object));
   }
 
   /**
    * Set the object identifier.
    */
-  public static void setId(ObjectReference object, int value) {
-    object.toAddress().store(value, ID_OFFSET);
+  private static void setId(ObjectReference object, int value) {
+    object.toAddress().store(value << 2, ID_OFFSET);
+  }
+
+  /**
+   * Set the call site identifier.
+   */
+  private static void setSite(ObjectReference object, int site) {
+    object.toAddress().store(site, SITE_OFFSET);
+  }
+
+  /**
+   * Get the call site identifier.
+   */
+  public static int getSite(ObjectReference object) {
+    return object.toAddress().loadInt(SITE_OFFSET);
   }
 
   /**
@@ -140,7 +166,8 @@ public class ObjectModel extends org.mmtk.vm.ObjectModel {
   /**
    * Set the number of data words in the object.
    */
-  public static void setDataCount(ObjectReference object, int count) {
+  private static void setDataCount(ObjectReference object, int count) {
+    assert count < Short.MAX_VALUE && count >= 0 : "Too many data fields, "+count;
     object.toAddress().store((short)count, DATACOUNT_OFFSET);
   }
 
@@ -148,7 +175,8 @@ public class ObjectModel extends org.mmtk.vm.ObjectModel {
   /**
    * Set the number of references in the object.
    */
-  public static void setRefCount(ObjectReference object, int count) {
+  private static void setRefCount(ObjectReference object, int count) {
+    assert count < Short.MAX_VALUE && count >= 0 : "Too many reference fields, "+count;
     object.toAddress().store((short)count, REFCOUNT_OFFSET);
   }
 
@@ -201,6 +229,46 @@ public class ObjectModel extends org.mmtk.vm.ObjectModel {
     return (HEADER_WORDS + refs + data) << SimulatedMemory.LOG_BYTES_IN_WORD;
   }
 
+
+  /**
+   * Dump (logical) information for an object.
+   *
+   * @param object The object whose information is to be dumped
+   */
+  public static void dumpLogicalObject(int width, ObjectReference object, Stack<ObjectReference> workStack) {
+    int refCount = getRefs(object);
+    int dataCount = getDataCount(object);
+    boolean hashed = (object.toAddress().loadInt(STATUS_OFFSET) & HASHED) == HASHED;
+    System.err.printf("  Object %s <%d %d %1s> [", Mutator.formatObject(width, object), refCount, dataCount, (hashed ? "H" : ""));
+    if (refCount > 0) {
+      for(int i=0; i < refCount; i++) {
+        ObjectReference ref = getRefSlot(object, i).loadObjectReference();
+        System.err.print(" ");
+        System.err.print(Mutator.formatObject(width, ref));
+        if (!ref.isNull()) {
+          workStack.push(ref);
+        }
+      }
+    }
+    System.err.println(" ]");
+  }
+
+  /**
+   * Print an object's header
+   */
+  public static void dumpObjectHeader(ObjectReference object) {
+    int gcWord = object.toAddress().loadInt(GC_OFFSET);
+    int statusWord = object.toAddress().loadInt(STATUS_OFFSET);
+    System.err.printf("Object %s[%d@%s]<%x,%x>%n",object,getId(object),Mutator.getSiteName(object),gcWord,statusWord);
+  }
+
+  /**
+   * Return the next object id to be allocated.
+   */
+  public static int nextObjectId() {
+    return nextObjectId;
+  }
+
   /**
    * Return the hash code for this object.
    *
@@ -236,6 +304,7 @@ public class ObjectModel extends org.mmtk.vm.ObjectModel {
    * @return the address of the new object
    */
   public ObjectReference copy(ObjectReference from, int allocator) {
+    Trace.trace(Item.COLLECT,"Copying object %s[%d@%s]",from,getId(from),Mutator.getSiteName(from));
     int oldBytes = getSize(from);
     int newBytes = getCopiedSize(from);
     int align = getAlignWhenCopied(from);
@@ -273,9 +342,13 @@ public class ObjectModel extends org.mmtk.vm.ObjectModel {
    * @return Address The address past the end of the copied object
    */
   public Address copyTo(ObjectReference from, ObjectReference to, Address toRegion) {
+    Trace.trace(Item.COLLECT,"Copying object %s[%d@%s] to %s",from,getId(from),Mutator.getSiteName(from),to);
+    if (Trace.isEnabled(Item.COLLECT)) {
+      dumpObjectHeader(from);
+    }
     int bytes = getSize(from);
     Address fromRegion = from.toAddress();
-    for(int i=0; i < (bytes >>> SimulatedMemory.LOG_BYTES_IN_WORD); i++) {
+    for(int i=0; i < bytes; i += SimulatedMemory.BYTES_IN_WORD) {
       SimulatedMemory.setInt(toRegion.plus(i), SimulatedMemory.getInt(fromRegion.plus(i)));
     }
 
@@ -283,9 +356,12 @@ public class ObjectModel extends org.mmtk.vm.ObjectModel {
     if ((status & HASHED_AND_MOVED) == HASHED) {
       toRegion.store(status | HASHED_AND_MOVED, STATUS_OFFSET);
       toRegion.store(getHashCode(from), Offset.fromIntZeroExtend(bytes));
-      return toRegion.plus(bytes + SimulatedMemory.BYTES_IN_WORD);
+      bytes += SimulatedMemory.BYTES_IN_WORD;
     }
 
+    if (Trace.isEnabled(Item.COLLECT)) {
+      dumpObjectHeader(to);
+    }
     return toRegion.plus(bytes);
   }
 
@@ -362,7 +438,7 @@ public class ObjectModel extends org.mmtk.vm.ObjectModel {
    * Return an object reference from knowledge of the low order word
    */
   public ObjectReference getObjectFromStartAddress(Address start) {
-    if (start.loadInt() == ALIGNMENT_VALUE) {
+    if ((start.loadInt() & ALIGNMENT_VALUE) != 0) {
       start = start.plus(SimulatedMemory.BYTES_IN_WORD);
     }
     return start.toObjectReference();
@@ -466,6 +542,10 @@ public class ObjectModel extends org.mmtk.vm.ObjectModel {
    * @param val the new value of the byte
    */
   public void writeAvailableByte(ObjectReference object, byte val) {
+    if (Trace.isEnabled(Item.AVBYTE)) {
+      byte old = object.toAddress().loadByte(STATUS_OFFSET);
+      Trace.trace(Item.AVBYTE,"%s.gcbyte:%d->%d", object,old,val);
+    }
     object.toAddress().store(val, STATUS_OFFSET);
   }
 
@@ -486,6 +566,10 @@ public class ObjectModel extends org.mmtk.vm.ObjectModel {
    * @param val the new value of the bits
    */
   public void writeAvailableBitsWord(ObjectReference object, Word val) {
+    if (Trace.isEnabled(Item.AVBYTE)) {
+      byte old = object.toAddress().loadByte(STATUS_OFFSET);
+      Trace.trace(Item.AVBYTE,"%s.gcbyte:%d->%d", object,old,val.and(Word.fromIntZeroExtend(0xFF)).toInt());
+    }
     object.toAddress().store(val, STATUS_OFFSET);
   }
 

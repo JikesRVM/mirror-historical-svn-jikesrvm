@@ -12,15 +12,11 @@
  */
 package org.mmtk.plan.generational.immix;
 
-import static org.mmtk.policy.immix.ImmixConstants.TMP_DEFRAG_TO_IMMORTAL;
-
 import org.mmtk.plan.Plan;
 import org.mmtk.plan.TraceLocal;
 import org.mmtk.plan.generational.*;
-import org.mmtk.policy.immix.ImmixConstants;
-import org.mmtk.policy.ImmortalLocal;
 import org.mmtk.policy.Space;
-import org.mmtk.utility.alloc.BumpPointer;
+import org.mmtk.utility.alloc.Allocator;
 import org.mmtk.utility.alloc.ImmixAllocator;
 import org.mmtk.utility.statistics.Stats;
 
@@ -61,7 +57,6 @@ public class GenImmixCollector extends GenCollector {
 
   private final ImmixAllocator copy = new ImmixAllocator(GenImmix.immixSpace, true, false);
   private final ImmixAllocator defragCopy = new ImmixAllocator(GenImmix.immixSpace, true, true);
-  private final BumpPointer immortal = new ImmortalLocal(Plan.immortalSpace);
 
   /****************************************************************************
    *
@@ -82,21 +77,24 @@ public class GenImmixCollector extends GenCollector {
   @Inline
   public final Address allocCopy(ObjectReference original, int bytes,
                                  int align, int offset, int allocator) {
-    if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(bytes <= Plan.LOS_SIZE_THRESHOLD);
-      VM.assertions._assert((!GenImmix.immixSpace.inImmixCollection() && allocator == GenImmix.ALLOC_MATURE_MINORGC) ||
-          (GenImmix.immixSpace.inImmixCollection() && allocator == GenImmix.ALLOC_MATURE_MAJORGC));
-    }
+
     if (Stats.GATHER_MARK_CONS_STATS) {
       if (Space.isInSpace(GenImmix.NURSERY, original)) GenImmix.nurseryMark.inc(bytes);
     }
-    if (GenImmix.immixSpace.inImmixDefragCollection()) {
-      if (TMP_DEFRAG_TO_IMMORTAL)
-        return immortal.alloc(bytes, align, offset);
-      else
+    if (allocator == Plan.ALLOC_LOS) {
+      if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(Allocator.getMaximumAlignedSize(bytes, align) > Plan.LOS_SIZE_THRESHOLD);
+      return los.alloc(bytes, align, offset);
+    } else {
+      if (VM.VERIFY_ASSERTIONS) {
+        VM.assertions._assert(bytes <= Plan.LOS_SIZE_THRESHOLD);
+        VM.assertions._assert((!GenImmix.immixSpace.inImmixCollection() && allocator == GenImmix.ALLOC_MATURE_MINORGC) ||
+            (GenImmix.immixSpace.inImmixCollection() && allocator == GenImmix.ALLOC_MATURE_MAJORGC));
+      }
+      if (GenImmix.immixSpace.inImmixDefragCollection()) {
         return defragCopy.alloc(bytes, align, offset);
-    } else
-      return copy.alloc(bytes, align, offset);
+      } else
+        return copy.alloc(bytes, align, offset);
+    }
   }
 
   /**
@@ -108,15 +106,18 @@ public class GenImmixCollector extends GenCollector {
    */
   @Inline
   public final void postCopy(ObjectReference object, ObjectReference typeRef,
-                             int bytes, int allocator) {
-    if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert((!GenImmix.immixSpace.inImmixCollection() && allocator == GenImmix.ALLOC_MATURE_MINORGC) ||
-          (GenImmix.immixSpace.inImmixCollection() && allocator == GenImmix.ALLOC_MATURE_MAJORGC));
+      int bytes, int allocator) {
+    if (allocator == Plan.ALLOC_LOS)
+      Plan.loSpace.initializeHeader(object, false);
+    else {
+      if (VM.VERIFY_ASSERTIONS) {
+        VM.assertions._assert((!GenImmix.immixSpace.inImmixCollection() && allocator == GenImmix.ALLOC_MATURE_MINORGC) ||
+            (GenImmix.immixSpace.inImmixCollection() && allocator == GenImmix.ALLOC_MATURE_MAJORGC));
+      }
+      GenImmix.immixSpace.postCopy(object, bytes, allocator == GenImmix.ALLOC_MATURE_MAJORGC);
     }
-    if (TMP_DEFRAG_TO_IMMORTAL)
-      GenImmix.immortalSpace.initializeHeader(object);
-    else
-      GenImmix.immixSpace.postCopy(object, bytes, allocator == GenImmix.ALLOC_MATURE_MAJORGC, ImmixConstants.TMP_EXACT_ALLOC_TIME_STRADDLE_CHECK ? copy.getLastAllocLineStraddle() : false);
+    if (Gen.USE_OBJECT_BARRIER)
+      Plan.markAsUnlogged(object);
   }
 
   /*****************************************************************************
@@ -141,10 +142,7 @@ public class GenImmixCollector extends GenCollector {
         copy.reset();
         if (global().gcFullHeap) {
           immix.prepare(true);
-          if (TMP_DEFRAG_TO_IMMORTAL)
-            immortal.reset();
-          else
-            defragCopy.reset();
+          defragCopy.reset();
         }
         return;
       }

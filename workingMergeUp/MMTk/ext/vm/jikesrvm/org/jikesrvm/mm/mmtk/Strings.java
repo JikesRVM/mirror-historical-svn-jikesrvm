@@ -18,7 +18,8 @@ import org.jikesrvm.scheduler.RVMThread;
 
 import org.vmmagic.pragma.*;
 
-@Uninterruptible public final class Strings extends org.mmtk.vm.Strings {
+@Uninterruptible
+public final class Strings extends org.mmtk.vm.Strings {
   /**
    * Log a message.
    *

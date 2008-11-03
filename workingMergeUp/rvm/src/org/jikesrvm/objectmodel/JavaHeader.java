@@ -19,7 +19,7 @@ import org.jikesrvm.SizeConstants;
 import org.jikesrvm.classloader.RVMArray;
 import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.RVMType;
-import org.jikesrvm.memorymanagers.mminterface.MM_Constants;
+import org.jikesrvm.mm.mminterface.MemoryManagerConstants;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.Memory;
 import org.jikesrvm.scheduler.Lock;
@@ -29,6 +29,7 @@ import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.ObjectReference;
 import org.vmmagic.unboxed.Offset;
@@ -98,7 +99,7 @@ public class JavaHeader implements JavaHeaderConstants {
 
   static {
     if (VM.VerifyAssertions) {
-      VM._assert(MiscHeader.REQUESTED_BITS + MM_Constants.GC_HEADER_BITS <= NUM_AVAILABLE_BITS);
+      VM._assert(MiscHeader.REQUESTED_BITS + MemoryManagerConstants.GC_HEADER_BITS <= NUM_AVAILABLE_BITS);
     }
   }
 
@@ -218,7 +219,7 @@ public class JavaHeader implements JavaHeaderConstants {
    */
   public static int bytesUsed(Object obj, RVMClass type) {
     int size = type.getInstanceSize();
-    if (MM_Constants.MOVES_OBJECTS) {
+    if (MemoryManagerConstants.MOVES_OBJECTS) {
       if (ADDRESS_BASED_HASHING) {
         Word hashState = Magic.getWordAtOffset(obj, STATUS_OFFSET).and(HASH_STATE_MASK);
         if (hashState.EQ(HASH_STATE_HASHED_AND_MOVED)) {
@@ -248,7 +249,7 @@ public class JavaHeader implements JavaHeaderConstants {
    */
   public static int bytesUsed(Object obj, RVMArray type, int numElements) {
     int size = type.getInstanceSize(numElements);
-    if (MM_Constants.MOVES_OBJECTS) {
+    if (MemoryManagerConstants.MOVES_OBJECTS) {
       if (ADDRESS_BASED_HASHING) {
         Word hashState = Magic.getWordAtOffset(obj, STATUS_OFFSET).and(HASH_STATE_MASK);
         if (hashState.EQ(HASH_STATE_HASHED_AND_MOVED)) {
@@ -265,7 +266,7 @@ public class JavaHeader implements JavaHeaderConstants {
    */
   @Inline
   public static Address objectStartRef(ObjectReference obj) {
-    if (MM_Constants.MOVES_OBJECTS) {
+    if (MemoryManagerConstants.MOVES_OBJECTS) {
       if (ADDRESS_BASED_HASHING && !DYNAMIC_HASH_OFFSET) {
         Word hashState = obj.toAddress().loadWord(STATUS_OFFSET).and(HASH_STATE_MASK);
         if (hashState.EQ(HASH_STATE_HASHED_AND_MOVED)) {
@@ -323,7 +324,7 @@ public class JavaHeader implements JavaHeaderConstants {
    * Get the next object in the heap under contiguous
    * allocation. Handles alignment issues only when there are no GC or
    * Misc header words. In the case there are we probably have to ask
-   * MM_Interface to distinguish this for us.
+   * MemoryManager to distinguish this for us.
    */
   protected static ObjectReference getNextObject(ObjectReference obj, int size) {
     if (VM.VerifyAssertions) VM._assert(OTHER_HEADER_BYTES == 0);
@@ -493,7 +494,7 @@ public class JavaHeader implements JavaHeaderConstants {
   @Inline
   public static int getObjectHashCode(Object o) {
     if (ADDRESS_BASED_HASHING) {
-      if (MM_Constants.MOVES_OBJECTS) {
+      if (MemoryManagerConstants.MOVES_OBJECTS) {
         Word hashState = Magic.getWordAtOffset(o, STATUS_OFFSET).and(HASH_STATE_MASK);
         if (hashState.EQ(HASH_STATE_HASHED)) {
           // HASHED, NOT MOVED
@@ -576,6 +577,7 @@ public class JavaHeader implements JavaHeaderConstants {
   /**
    * Generic lock
    */
+  @Unpreemptible("Become another thread when lock is contended, don't preempt in other cases")
   public static void genericLock(Object o) {
     ThinLock.lock(o, STATUS_OFFSET);
   }
@@ -583,6 +585,7 @@ public class JavaHeader implements JavaHeaderConstants {
   /**
    * Generic unlock
    */
+  @Unpreemptible("No interruption unless of exceptions")
   public static void genericUnlock(Object o) {
     ThinLock.unlock(o, STATUS_OFFSET);
   }
@@ -764,9 +767,12 @@ public class JavaHeader implements JavaHeaderConstants {
    * that must be aligned.
    * @param t RVMClass instance being created
    */
-  public static int getOffsetForAlignment(RVMClass t) {
+  public static int getOffsetForAlignment(RVMClass t, boolean needsIdentityHash) {
     /* Align the first field - note that this is one word off from
        the reference. */
+    if (ADDRESS_BASED_HASHING && !DYNAMIC_HASH_OFFSET && needsIdentityHash) {
+      return SCALAR_HEADER_SIZE + HASHCODE_BYTES;
+    }
     return SCALAR_HEADER_SIZE;
   }
 
@@ -791,9 +797,12 @@ public class JavaHeader implements JavaHeaderConstants {
    * be aligned.
    * @param t RVMArray instance being created
    */
-  public static int getOffsetForAlignment(RVMArray t) {
+  public static int getOffsetForAlignment(RVMArray t, boolean needsIdentityHash) {
     /* although array_header_size == object_ref_offset we say this
        because the whole point is to align the object ref */
+    if (ADDRESS_BASED_HASHING && !DYNAMIC_HASH_OFFSET && needsIdentityHash) {
+        return OBJECT_REF_OFFSET + HASHCODE_BYTES;
+    }
     return OBJECT_REF_OFFSET;
   }
 
@@ -833,10 +842,27 @@ public class JavaHeader implements JavaHeaderConstants {
    * @param ptr  The object ref to the storage to be initialized
    * @param tib  The TIB of the instance being created
    * @param size The number of bytes allocated by the GC system for this object.
+   * @param needsIdentityHash needs an identity hash value
+   * @param identityHashValue the value for the identity hash
+   * @return the address used for a reference to this object
    */
   @Interruptible
-  public static Address initializeScalarHeader(BootImageInterface bootImage, Address ptr, TIB tib, int size) {
+  public static Address initializeScalarHeader(BootImageInterface bootImage, Address ptr, TIB tib, int size, boolean needsIdentityHash, int identityHashValue) {
     Address ref = ptr.plus(OBJECT_REF_OFFSET);
+    if (needsIdentityHash) {
+      bootImage.setFullWord(ref.plus(STATUS_OFFSET), HASH_STATE_HASHED_AND_MOVED.toInt());
+      if (DYNAMIC_HASH_OFFSET) {
+        // Read the size of this object.
+        RVMType t = tib.getType();
+        bootImage.setFullWord(ptr.plus(t.asClass().getInstanceSize()), identityHashValue);
+      } else {
+        ref = ref.plus(HASHCODE_BYTES);
+        bootImage.setFullWord(ref.plus(HASHCODE_OFFSET), (identityHashValue << 1) | ALIGNMENT_MASK);
+      }
+    } else {
+      // As boot image objects can't move there is no benefit in lazily setting them to hashed
+      bootImage.setFullWord(ref.plus(STATUS_OFFSET), HASH_STATE_HASHED.toInt());
+    }
     return ref;
   }
 
@@ -854,18 +880,32 @@ public class JavaHeader implements JavaHeaderConstants {
 
   /**
    * Perform any required initialization of the JAVA portion of the header.
-   * XXX This documentation probably needs fixing TODO
    *
    * @param bootImage the bootimage being written
    * @param ptr  the object ref to the storage to be initialized
    * @param tib the TIB of the instance being created
    * @param size the number of bytes allocated by the GC system for this object.
-   * @return Document ME TODO XXX
+   * @param numElements the number of elements in the array
+   * @return the address used for a reference to this object
    */
   @Interruptible
-  public static Address initializeArrayHeader(BootImageInterface bootImage, Address ptr, TIB tib, int size) {
+  public static Address initializeArrayHeader(BootImageInterface bootImage, Address ptr, TIB tib, int size, int numElements, boolean needsIdentityHash, int identityHashValue) {
     Address ref = ptr.plus(OBJECT_REF_OFFSET);
     // (TIB set by BootImageWriter; array length set by ObjectModel)
+    if (needsIdentityHash) {
+      bootImage.setFullWord(ref.plus(STATUS_OFFSET), HASH_STATE_HASHED_AND_MOVED.toInt());
+      if (DYNAMIC_HASH_OFFSET) {
+        // Read the size of this object.
+        RVMType t = tib.getType();
+        bootImage.setFullWord(ptr.plus(t.asArray().getInstanceSize(numElements)), identityHashValue);
+      } else {
+        ref = ref.plus(HASHCODE_BYTES);
+        bootImage.setFullWord(ref.plus(HASHCODE_OFFSET), (identityHashValue << 1) | ALIGNMENT_MASK);
+      }
+    } else {
+      // As boot image objects can't move there is no benefit in lazily setting them to hashed
+      bootImage.setFullWord(ref.plus(STATUS_OFFSET), HASH_STATE_HASHED.toInt());
+    }
     return ref;
   }
 

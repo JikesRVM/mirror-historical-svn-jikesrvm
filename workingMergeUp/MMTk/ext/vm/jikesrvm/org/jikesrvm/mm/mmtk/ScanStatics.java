@@ -65,7 +65,30 @@ public final class ScanStatics implements Constants {
     // Process region
     for (int slot=start; slot < end; slot+=refSlotSize) {
       Offset slotOffset = Offset.fromIntSignExtend(slot << LOG_BYTES_IN_INT);
+      if (ScanThread.VALIDATE_REFS) checkReference(slots.plus(slotOffset), slot);
       trace.processRootEdge(slots.plus(slotOffset), true);
+    }
+  }
+
+  /**
+   * Check that a reference encountered during scanning is valid.  If
+   * the reference is invalid, dump stack and die.
+   *
+   * @param refaddr The address of the reference in question.
+   */
+  @Uninterruptible
+  private static void checkReference(Address refaddr, int slot) {
+    ObjectReference ref = refaddr.loadObjectReference();
+    if (!MemoryManager.validRef(ref)) {
+      Log.writeln();
+      Log.writeln("Invalid ref reported while scanning statics");
+      Log.write("Static slot: "); Log.writeln(slot);
+      Log.writeln();
+      Log.write(refaddr); Log.write(":"); Log.flush(); MemoryManager.dumpRef(ref);
+      Log.writeln();
+      Log.writeln("Dumping stack:");
+      Scheduler.dumpStack();
+      VM.sysFail("\n\nScanStack: Detected bad GC map; exiting RVM with fatal error");
     }
   }
 }
