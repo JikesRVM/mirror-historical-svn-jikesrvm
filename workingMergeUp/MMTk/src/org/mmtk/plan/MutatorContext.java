@@ -469,32 +469,4 @@ public abstract class MutatorContext implements Constants {
   @Inline
   public int getId() { return id; }
 
-  /****************************************************************************
-   * Runtime read/write barriers.  The point being that these barriers
-   * contain only the actions necessary to get the representation of
-   * reference fields right, rather than updating the collector about
-   * the read or write action.
-   */
-
-  /**
-   * Store an object reference
-   *
-   * @param slot The location of the reference
-   * @param value The value to store
-   */
-  @Inline
-  public void storeObjectReference(Address slot, ObjectReference value) {
-    slot.store(value);
-  }
-
-  /**
-   * Load an object reference
-   *
-   * @param slot The location of the reference
-   * @param value The value to store
-   */
-  @Inline
-  public ObjectReference loadObjectReference(Address slot) {
-    return slot.loadObjectReference();
-  }
 }

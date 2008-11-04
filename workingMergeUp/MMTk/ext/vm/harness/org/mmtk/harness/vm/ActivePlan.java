@@ -136,6 +136,7 @@ public final class ActivePlan extends org.mmtk.vm.ActivePlan {
    * @param mutator The <code>MutatorContext</code> to register.
    */
   @Interruptible
+  @Override
   public void registerMutator(MutatorContext mutator) {
     Mutator.register(mutator);
   }

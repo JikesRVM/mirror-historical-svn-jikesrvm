@@ -18,21 +18,25 @@ import org.mmtk.plan.MutatorContext;
 import org.mmtk.utility.Finalizer;
 import org.mmtk.utility.options.Options;
 
-import org.jikesrvm.VM;
-import org.jikesrvm.compilers.common.CompiledMethod;
-import org.jikesrvm.compilers.common.CompiledMethods;
-import org.jikesrvm.runtime.Magic;
-import org.jikesrvm.scheduler.RVMThread;
-import org.jikesrvm.scheduler.FinalizerThread;
 import org.jikesrvm.ArchitectureSpecific;
+import org.jikesrvm.VM;
 import org.jikesrvm.classloader.Atom;
 import org.jikesrvm.classloader.RVMMethod;
-import org.jikesrvm.memorymanagers.mminterface.CollectorThread;
-import org.jikesrvm.memorymanagers.mminterface.ConcurrentCollectorThread;
-import org.jikesrvm.memorymanagers.mminterface.Selected;
-
-import org.vmmagic.unboxed.*;
-import org.vmmagic.pragma.*;
+import org.jikesrvm.compilers.common.CompiledMethod;
+import org.jikesrvm.compilers.common.CompiledMethods;
+import org.jikesrvm.mm.mminterface.Selected;
+import org.jikesrvm.mm.mminterface.CollectorThread;
+import org.jikesrvm.runtime.Magic;
+import org.jikesrvm.scheduler.RVMThread;
+import org.mmtk.plan.CollectorContext;
+import org.mmtk.plan.MutatorContext;
+import org.mmtk.plan.Plan;
+import org.mmtk.utility.options.Options;
+import org.vmmagic.pragma.Inline;
+import org.vmmagic.pragma.Interruptible;
+import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Unpreemptible;
+import org.vmmagic.unboxed.Address;
 
 @Uninterruptible
 public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utility.Constants,

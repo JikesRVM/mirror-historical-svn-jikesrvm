@@ -191,11 +191,6 @@ import org.vmmagic.unboxed.*;
    * Miscellaneous.
    */
 
-  /** @return the <code>Log</code> instance for this PlanLocal */
-  public final Log getLog() {
-    return log;
-  }
-
   /** @return the unique identifier for this collector context. */
   @Inline
   public int getId() { return id; }

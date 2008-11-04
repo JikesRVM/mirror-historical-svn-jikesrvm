@@ -65,6 +65,15 @@ public class GenCopyMutator extends GenMutator {
     mature = new CopyLocal();
   }
 
+  /**
+   * Called before the MutatorContext is used, but after the context has been
+   * fully registered and is visible to collection.
+   */
+  public void initMutator() {
+    super.initMutator();
+    mature.rebind(GenCopy.toSpace());
+  }
+ 
   /****************************************************************************
    *
    * Mutator-time allocation
@@ -174,3 +183,8 @@ public class GenCopyMutator extends GenMutator {
   }
 
 }
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

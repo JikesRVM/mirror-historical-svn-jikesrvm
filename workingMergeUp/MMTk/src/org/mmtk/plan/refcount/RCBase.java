@@ -12,135 +12,145 @@
  */
 package org.mmtk.plan.refcount;
 
+import org.mmtk.plan.Phase;
 import org.mmtk.plan.StopTheWorld;
 import org.mmtk.plan.Trace;
-import org.mmtk.plan.refcount.cd.CD;
-import org.mmtk.plan.refcount.cd.NullCD;
-import org.mmtk.plan.refcount.cd.TrialDeletion;
+import org.mmtk.plan.refcount.backuptrace.BTFreeLargeObjectSweeper;
+import org.mmtk.plan.refcount.backuptrace.BTScanLargeObjectSweeper;
+import org.mmtk.plan.refcount.backuptrace.BTSweeper;
 import org.mmtk.policy.ExplicitFreeListSpace;
-import org.mmtk.policy.ExplicitLargeObjectLocal;
+import org.mmtk.policy.ExplicitLargeObjectSpace;
 import org.mmtk.policy.Space;
+import org.mmtk.utility.Log;
+import org.mmtk.utility.alloc.LinearScan;
 import org.mmtk.utility.deque.SharedDeque;
 import org.mmtk.utility.heap.VMRequest;
 import org.mmtk.utility.options.Options;
-import org.mmtk.utility.statistics.EventCounter;
-
+import org.mmtk.utility.sanitychecker.SanityChecker;
 import org.mmtk.vm.VM;
 
 import org.vmmagic.pragma.*;
-import org.vmmagic.unboxed.*;
+import org.vmmagic.unboxed.ObjectReference;
 
 /**
- * This class implements the global state of a simple reference counting
- * collector.
- *
- * All plans make a clear distinction between <i>global</i> and
- * <i>thread-local</i> activities, and divides global and local state
- * into separate class hierarchies.  Global activities must be
- * synchronized, whereas no synchronization is required for
- * thread-local activities.  There is a single instance of Plan (or the
- * appropriate sub-class), and a 1:1 mapping of PlanLocal to "kernel
- * threads" (aka CPUs).  Thus instance
- * methods of PlanLocal allow fast, unsychronized access to functions such as
- * allocation and collection.
- *
- * The global instance defines and manages static resources
- * (such as memory and virtual memory resources).  This mapping of threads to
- * instances is crucial to understanding the correctness and
- * performance properties of MMTk plans.
+ * This class implements the global state of a a simple reference counting collector.
  */
-@Uninterruptible public abstract class RCBase extends StopTheWorld {
+@Uninterruptible
+public class RCBase extends StopTheWorld {
+  public static final short PROCESS_OLDROOTBUFFER  = Phase.createSimple("old-root");
+  public static final short PROCESS_NEWROOTBUFFER  = Phase.createSimple("new-root");
+  public static final short PROCESS_MODBUFFER      = Phase.createSimple("mods");
+  public static final short PROCESS_DECBUFFER      = Phase.createSimple("decs");
 
-  /****************************************************************************
-   * Constants
-   */
-  public static final boolean WITH_COALESCING_RC         = true;
-  public static final boolean INC_DEC_ROOT               = true;
-  public static final boolean INLINE_WRITE_BARRIER       = WITH_COALESCING_RC;
-  public static final boolean GATHER_WRITE_BARRIER_STATS = false;
-  public static final boolean FORCE_FULL_CD              = false;
+  /** Is cycle collection enabled? */
+  public static final boolean CC_ENABLED           = true;
+  /** Force full cycle collection at each GC? */
+  public static final boolean CC_FORCE_FULL        = false;
+  /** Use backup tracing for cycle collection (currently the only option) */
+  public static final boolean CC_BACKUP_TRACE      = true;
 
-  // Cycle detection selection
-  public static final int     NO_CYCLE_DETECTOR = 0;
-  public static final int     TRIAL_DELETION    = 1;
-  public static final int     CYCLE_DETECTOR    = TRIAL_DELETION;
+  public static boolean performCycleCollection;
+  public static final short BT_CLOSURE             = Phase.createSimple("closure-bt");
 
-  /****************************************************************************
-   * Class variables
-   */
-  public static final ExplicitFreeListSpace rcSpace = new ExplicitFreeListSpace("rc", DEFAULT_POLL_FREQUENCY, VMRequest.create(0.5f));
-  public static final int REF_COUNT = rcSpace.getDescriptor();
-  public static final ExplicitFreeListSpace smallCodeSpace = new ExplicitFreeListSpace("rc-sm-code", DEFAULT_POLL_FREQUENCY, VMRequest.create());
-  public static final int RC_SMALL_CODE = smallCodeSpace.getDescriptor();
-
-  // Counters
-  public static EventCounter wbFast;
-  public static EventCounter wbSlow;
-
-  // Allocators
-  public static final int ALLOC_RC = StopTheWorld.ALLOCATORS;
-  public static final int ALLOCATORS = ALLOC_RC + 1;
-
-  // Cycle Detectors
-  private NullCD nullCD;
-  private TrialDeletion trialDeletionCD;
-
-  /****************************************************************************
-   * Instance variables
-   */
-
-  public final Trace rcTrace;
-  public final SharedDeque decPool;
-  public final SharedDeque modPool;
-  public final SharedDeque newRootPool;
-  public final SharedDeque oldRootPool;
-  protected int previousMetaDataPages;
+  // CHECKSTYLE:OFF
 
   /**
-   * Constructor.
- */
+   * Reference counting specific collection steps.
+   */
+  protected static final short refCountCollectionPhase = Phase.createComplex("release", null,
+      Phase.scheduleGlobal     (PROCESS_OLDROOTBUFFER),
+      Phase.scheduleCollector  (PROCESS_OLDROOTBUFFER),
+      Phase.scheduleGlobal     (PROCESS_NEWROOTBUFFER),
+      Phase.scheduleCollector  (PROCESS_NEWROOTBUFFER),
+      Phase.scheduleMutator    (PROCESS_DECBUFFER),
+      Phase.scheduleGlobal     (PROCESS_DECBUFFER),
+      Phase.scheduleCollector  (PROCESS_DECBUFFER),
+      Phase.scheduleGlobal     (BT_CLOSURE),
+      Phase.scheduleCollector  (BT_CLOSURE));
+
+  /**
+   * Perform the initial determination of liveness from the roots.
+   */
+  protected static final short rootClosurePhase = Phase.createComplex("initial-closure", null,
+      Phase.scheduleMutator    (PREPARE),
+      Phase.scheduleGlobal     (PREPARE),
+      Phase.scheduleCollector  (PREPARE),
+      Phase.scheduleComplex    (prepareStacks),
+      Phase.scheduleCollector  (PRECOPY),
+      Phase.scheduleCollector  (STACK_ROOTS),
+      Phase.scheduleCollector  (ROOTS),
+      Phase.scheduleGlobal     (ROOTS),
+      Phase.scheduleMutator    (PROCESS_MODBUFFER),
+      Phase.scheduleGlobal     (PROCESS_MODBUFFER),
+      Phase.scheduleCollector  (PROCESS_MODBUFFER),
+      Phase.scheduleGlobal     (CLOSURE),
+      Phase.scheduleCollector  (CLOSURE));
+
+  /**
+   * This is the phase that is executed to perform a collection.
+   */
+  public short collection = Phase.createComplex("collection", null,
+      Phase.scheduleComplex(initPhase),
+      Phase.scheduleComplex(rootClosurePhase),
+      Phase.scheduleComplex(refCountCollectionPhase),
+      Phase.scheduleComplex(completeClosurePhase),
+      Phase.scheduleComplex(finishPhase));
+
+  // CHECKSTYLE:ON
+
+  /*****************************************************************************
+   *
+   * Class fields
+   */
+  public static final ExplicitFreeListSpace rcSpace = new ExplicitFreeListSpace("rc", DEFAULT_POLL_FREQUENCY, VMRequest.create());
+  public static final ExplicitLargeObjectSpace rcloSpace = new ExplicitLargeObjectSpace("rclos", DEFAULT_POLL_FREQUENCY, VMRequest.create());
+
+  public static final int REF_COUNT = rcSpace.getDescriptor();
+  public static final int REF_COUNT_LOS = rcloSpace.getDescriptor();
+
+  public final SharedDeque modPool = new SharedDeque("mod", metaDataSpace, 1);
+  public final SharedDeque decPool = new SharedDeque("dec", metaDataSpace, 1);
+  public final SharedDeque newRootPool = new SharedDeque("newRoot", metaDataSpace, 1);
+  public final SharedDeque oldRootPool = new SharedDeque("oldRoot", metaDataSpace, 1);
+
+  /*****************************************************************************
+   *
+   * Instance fields
+   */
+  public final Trace rootTrace;
+  public final Trace backupTrace;
+  private final BTSweeper rcSweeper;
+  private final BTScanLargeObjectSweeper loScanSweeper;
+  private final BTFreeLargeObjectSweeper loFreeSweeper;
+
+  /**
+   * Constructor
+   */
   public RCBase() {
-    if (!SCAN_BOOT_IMAGE) {
-      VM.assertions.fail("RC currently requires scan boot image");
-    }
-    if (GATHER_WRITE_BARRIER_STATS) {
-      wbFast = new EventCounter("wbFast");
-      wbSlow = new EventCounter("wbSlow");
-    }
-    previousMetaDataPages = 0;
-    rcTrace = new Trace(metaDataSpace);
-    decPool = new SharedDeque("decPool",metaDataSpace, 1);
-    modPool = new SharedDeque("modPool",metaDataSpace, 1);
-    newRootPool = new SharedDeque("newRootPool",metaDataSpace, 1);
-    oldRootPool = new SharedDeque("oldRootPool",metaDataSpace, 1);
-    switch (RCBase.CYCLE_DETECTOR) {
-    case RCBase.NO_CYCLE_DETECTOR:
-      nullCD = new NullCD();
-      break;
-    case RCBase.TRIAL_DELETION:
-      trialDeletionCD = new TrialDeletion(this);
-      break;
-    }
+    Options.noReferenceTypes.setDefaultValue(true);
+    Options.noFinalizer.setDefaultValue(true);
+
+    rootTrace = new Trace(metaDataSpace);
+    backupTrace = new Trace(metaDataSpace);
+    rcSweeper = new BTSweeper();
+    loScanSweeper = new BTScanLargeObjectSweeper();
+    loFreeSweeper = new BTFreeLargeObjectSweeper();
   }
 
   /**
-   * Perform any required initialization of the GC portion of the header.
-   * Called for objects created at boot time.
-   *
-   * @param ref the object ref to the storage to be initialized
-   * @param typeRef the type reference for the instance being created
-   * @param size the number of bytes allocated by the GC system for
-   * this object.
-   * @param status the initial value of the status word
-   * @return The new value of the status word
+   * The boot method is called early in the boot process before any
+   * allocation.
    */
-  @Inline
-  public Word setBootTimeGCBits(Address ref, ObjectReference typeRef,
-                                int size, Word status) {
-    if (WITH_COALESCING_RC) {
-      status = status.or(SCAN_BOOT_IMAGE ? RCHeader.LOGGED : RCHeader.UNLOGGED);
+  @Interruptible
+  public void postBoot() {
+    super.postBoot();
+
+    if (!Options.noReferenceTypes.getValue()) {
+      VM.assertions.fail("Reference Types are not supported by RC");
     }
-    return status;
+    if (!Options.noFinalizer.getValue()) {
+      VM.assertions.fail("Finalizers are not supported by RC");
+    }
   }
 
   /*****************************************************************************

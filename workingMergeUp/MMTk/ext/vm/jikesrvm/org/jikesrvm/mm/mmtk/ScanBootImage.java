@@ -19,7 +19,8 @@ import org.jikesrvm.VM;
 import org.jikesrvm.runtime.BootRecord;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.RVMThread;
-import org.jikesrvm.memorymanagers.mminterface.CollectorThread;
+import org.jikesrvm.mm.mminterface.CollectorThread;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 
 import org.vmmagic.unboxed.*;
 import org.vmmagic.pragma.*;

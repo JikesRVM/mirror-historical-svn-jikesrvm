@@ -169,15 +169,15 @@ import org.vmmagic.unboxed.Offset;
     }
 
     /* Registers */
-    trace.reportDelayedRootEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadContextRegistersField.getOffset()));
-    trace.reportDelayedRootEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadContextRegistersSaveField.getOffset()));
-    trace.reportDelayedRootEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadExceptionRegistersField.getOffset()));
+    reportDelayedRootEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadContextRegistersField.getOffset()));
+    reportDelayedRootEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadContextRegistersSaveField.getOffset()));
+    reportDelayedRootEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadExceptionRegistersField.getOffset()));
 
     /* Scan the JNI Env field */
     if (thread.getJNIEnv() != null) {
-      trace.reportDelayedRootEdge(Magic.objectAsAddress(thread).plus(Entrypoints.jniEnvField.getOffset()));
-      trace.reportDelayedRootEdge(Magic.objectAsAddress(thread.getJNIEnv()).plus(Entrypoints.JNIRefsField.getOffset()));
-      trace.reportDelayedRootEdge(Magic.objectAsAddress(thread.getJNIEnv()).plus(Entrypoints.JNIPendingExceptionField.getOffset()));
+      reportDelayedRootEdge(Magic.objectAsAddress(thread).plus(Entrypoints.jniEnvField.getOffset()));
+      reportDelayedRootEdge(Magic.objectAsAddress(thread.getJNIEnv()).plus(Entrypoints.JNIRefsField.getOffset()));
+      reportDelayedRootEdge(Magic.objectAsAddress(thread.getJNIEnv()).plus(Entrypoints.JNIPendingExceptionField.getOffset()));
     }
 
     /* Grab the ScanThread instance associated with this thread */
@@ -650,10 +650,41 @@ import org.vmmagic.unboxed.Offset;
       Address top_ip = thread.getContextRegisters().getInnermostInstructionAddress();
       Address top_fp = thread.getContextRegisters().getInnermostFramePointer();
       RVMThread.dumpStack(top_ip, top_fp);
+      Log.writeln("Failing iterators:");
+      Offset offset = compiledMethod.getInstructionOffset(ip);
+      iterator = iteratorGroup.selectIterator(compiledMethod);
+      iterator.setupIterator(compiledMethod, offset, fp);
+      int i=0;
+      for (Address addr = iterator.getNextReferenceAddress();
+	   !addr.isZero();
+	   addr = iterator.getNextReferenceAddress()) {
+	ObjectReference ref2 = addr.loadObjectReference();
+	Log.write("Iterator "); Log.write(i++); Log.write(": "); Log.write(addr);
+	Log.write(": "); Log.flush(); MemoryManager.dumpRef(ref2);
+      }
       VM.sysFail("\n\nScanStack: Detected bad GC map; exiting RVM with fatal error");
     }
   }
 
+  /**
+   * Check that a reference encountered during scanning is valid.  If
+   * the reference is invalid, dump stack and die.
+   *
+   * @param refaddr The address of the reference in question.
+   */
+  private static void checkReference(Address refaddr) {
+    ObjectReference ref = refaddr.loadObjectReference();
+    if (!MemoryManager.validRef(ref)) {
+      Log.writeln();
+      Log.writeln("Invalid ref reported while scanning stack");
+      Log.write(refaddr); Log.write(":"); Log.flush(); MemoryManager.dumpRef(ref);
+      Log.writeln();
+      Log.writeln("Dumping stack:");
+      Scheduler.dumpStack();
+      VM.sysFail("\n\nScanStack: Detected bad GC map; exiting RVM with fatal error");
+    }
+  }
+  
   /**
    * Print out the name of a method
    *
@@ -722,12 +753,12 @@ import org.vmmagic.unboxed.Offset;
       Log.write(loc); Log.write(" (");
       Log.write(loc.diff(start));
       Log.write("):   ");
-      ObjectReference value = Selected.Mutator.get().loadObjectReference(loc);
+      ObjectReference value = Selected.Plan.get().loadObjectReference(loc);
       Log.write(value);
       Log.write(" ");
       Log.flush();
-      if (verbosity >= 3 && MM_Interface.objectInVM(value) && loc.NE(start) && loc.NE(end))
-        MM_Interface.dumpRef(value);
+      if (verbosity >= 3 && MemoryManager.objectInVM(value) && loc.NE(start) && loc.NE(end))
+        MemoryManager.dumpRef(value);
       else
         Log.writeln();
     }

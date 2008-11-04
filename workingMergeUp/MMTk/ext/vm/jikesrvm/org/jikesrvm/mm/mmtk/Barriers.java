@@ -218,83 +218,9 @@ public class Barriers extends org.mmtk.vm.Barriers implements SizeConstants {
     if (org.jikesrvm.VM.runningVM) {
       Address base = ObjectReference.fromObject(dst).toAddress();
       Address slot = base.plus(Offset.fromIntZeroExtend(index << LOG_BYTES_IN_ADDRESS));
-      VM.activePlan.mutator().storeObjectReference(slot, ObjectReference.fromObject(value));
+      VM.activePlan.global().storeObjectReference(slot, ObjectReference.fromObject(value));
     } else {
       dst[index] = value;
     }
-  }
-
-  /**
-   * Sets an element of a char array without invoking any write
-   * barrier.  This method is called by the Log method, as it will be
-   * used during garbage collection and needs to manipulate character
-   * arrays without causing a write barrier operation.
-   *
-   * @param dst the destination array
-   * @param index the index of the element to set
-   * @param value the new value for the element
-   */
-  public final void setArrayNoBarrier(char [] dst, int index, char value) {
-    Services.setArrayNoBarrier(dst, index, value);
-  }
-
-  /**
-   * Gets an element of a char array without invoking any read barrier
-   * or performing bounds check.
-   *
-   * @param src the source array
-   * @param index the natural array index of the element to get
-   * @return the new value of element
-   */
-  public final char getArrayNoBarrier(char [] src, int index) {
-    return Services.getArrayNoBarrier(src, index);
-  }
-
-  /**
-   * Gets an element of a byte array without invoking any read barrier
-   * or bounds check.
-   *
-   * @param src the source array
-   * @param index the natural array index of the element to get
-   * @return the new value of element
-   */
-  public final byte getArrayNoBarrier(byte [] src, int index) {
-    return Services.getArrayNoBarrier(src, index);
-  }
-  /**
-   * Gets an element of an int array without invoking any read barrier
-   * or performing bounds checks.
-   *
-   * @param src the source array
-   * @param index the natural array index of the element to get
-   * @return the new value of element
-   */
-  public final int getArrayNoBarrier(int [] src, int index) {
-    return Services.getArrayNoBarrier(src, index);
-  }
-
-  /**
-   * Gets an element of an Object array without invoking any read
-   * barrier or performing bounds checks.
-   *
-   * @param src the source array
-   * @param index the natural array index of the element to get
-   * @return the new value of element
-   */
-  public final Object getArrayNoBarrier(Object [] src, int index) {
-    return Services.getArrayNoBarrier(src, index);
-  }
-
-
-  /**
-   * Gets an element of an array of byte arrays without causing the potential
-   * thread switch point that array accesses normally cause.
-   *
-   * @param src the source array
-   * @param index the index of the element to get
-   * @return the new value of element
-   */
-  public final byte[] getArrayNoBarrier(byte[][] src, int index) {
-    return Services.getArrayNoBarrier(src, index);
   }
 }

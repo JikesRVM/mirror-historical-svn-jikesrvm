@@ -17,58 +17,22 @@ import org.mmtk.policy.CopySpace;
 import org.mmtk.policy.Space;
 import org.mmtk.utility.heap.VMRequest;
 import org.mmtk.utility.options.Options;
-import org.mmtk.vm.VM;
-
 import org.vmmagic.pragma.*;
-import org.vmmagic.unboxed.*;
+import org.vmmagic.unboxed.ObjectReference;
 
 /**
- * This class implements the global state of a simple reference counting
- * collector.
- *
- * All plans make a clear distinction between <i>global</i> and
- * <i>thread-local</i> activities, and divides global and local state
- * into separate class hierarchies.  Global activities must be
- * synchronized, whereas no synchronization is required for
- * thread-local activities.  There is a single instance of Plan (or the
- * appropriate sub-class), and a 1:1 mapping of PlanLocal to "kernel
- * threads" (aka CPUs).  Thus instance
- * methods of PlanLocal allow fast, unsychronized access to functions such as
- * allocation and collection.
- *
- * The global instance defines and manages static resources
- * (such as memory and virtual memory resources).  This mapping of threads to
- * instances is crucial to understanding the correctness and
- * performance properties of MMTk plans.
+ * This class implements the global state of a a simple reference counting collector.
  */
 @Uninterruptible
 public class GenRC extends RCBase {
 
-  /****************************************************************************
-   *
-   * Class variables
-   */
-
-  /** The nursery space, where all new objects are allocated by default. */
-  public static CopySpace nurserySpace = new CopySpace("nursery", DEFAULT_POLL_FREQUENCY, false, VMRequest.create(0.15f, true));
-
-  public static final int NS = nurserySpace.getDescriptor();
-
-  // Allocators
   public static final int ALLOC_NURSERY = ALLOC_DEFAULT;
+  public static final int ALLOC_RC      = RCBase.ALLOCATORS + 1;
 
-  /****************************************************************************
-   * Instance variables
-   */
+  /** The nursery space is where all new objects are allocated by default */
+  public static final CopySpace nurserySpace = new CopySpace("nursery", DEFAULT_POLL_FREQUENCY, false, VMRequest.create(0.15f, true));
 
-  /**
-   * Constructor.
-   */
-  public GenRC() {
-    if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(WITH_COALESCING_RC);
-    }
-  }
+  public static final int NURSERY = nurserySpace.getDescriptor();
 
   /*****************************************************************************
    *
