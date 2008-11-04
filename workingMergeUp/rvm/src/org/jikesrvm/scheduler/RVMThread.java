@@ -82,7 +82,7 @@ import org.jikesrvm.tuningfork.Feedlet;
  */
 @Uninterruptible
 @NonMoving
-public class RVMThread extends MM_ThreadContext {
+public class RVMThread extends ThreadContext {
   /*
    *  debug and statistics
    */

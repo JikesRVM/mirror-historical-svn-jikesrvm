@@ -10,14 +10,14 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.jikesrvm.memorymanagers.mminterface;
+package org.jikesrvm.mm.mminterface;
 
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.VM;
 import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.scheduler.HeavyCondLock;
 import org.vmmagic.pragma.Interruptible;
-import org.vmmagic.pragma.LogicallyUninterruptible;
+import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.NonMoving;
 
@@ -60,7 +60,6 @@ public final class ConcurrentCollectorThread extends RVMThread {
    * Constructor
    *
    * @param stack The stack this thread will run on
-   * @param isActive Whether or not this thread will participate in GC
    * @param processorAffinity The processor with which this thread is
    * associated.
    */
@@ -94,7 +93,7 @@ public final class ConcurrentCollectorThread extends RVMThread {
    */
   @Interruptible
   public static ConcurrentCollectorThread createConcurrentCollectorThread() {
-    byte[] stack = MM_Interface.newStack(ArchitectureSpecific.StackframeLayoutConstants.STACK_SIZE_COLLECTOR, true);
+    byte[] stack = MemoryManager.newStack(ArchitectureSpecific.StackframeLayoutConstants.STACK_SIZE_COLLECTOR, true);
 
     schedLock.lock();
     running++;
@@ -116,8 +115,7 @@ public final class ConcurrentCollectorThread extends RVMThread {
   /**
    * Run method for concurrent collector thread.
    */
-  @LogicallyUninterruptible
-  @Uninterruptible
+  @Unpreemptible
   public void run() {
     if (verbose >= 1) VM.sysWriteln("GC Message: Concurrent collector thread entered run...");
 

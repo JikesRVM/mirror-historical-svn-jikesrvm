@@ -10,7 +10,7 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.jikesrvm.memorymanagers.mminterface;
+package org.jikesrvm.mm.mminterface;
 
 import java.lang.ref.PhantomReference;
 import java.lang.ref.SoftReference;
@@ -25,6 +25,7 @@ import org.jikesrvm.classloader.SpecializedMethod;
 import org.jikesrvm.classloader.RVMType;
 import org.jikesrvm.classloader.TypeReference;
 import org.jikesrvm.mm.mmtk.Collection;
+import org.jikesrvm.mm.mmtk.FinalizableProcessor;
 import org.jikesrvm.mm.mmtk.ReferenceProcessor;
 import org.jikesrvm.mm.mmtk.SynchronizedCounter;
 import org.jikesrvm.objectmodel.BootImageInterface;
@@ -41,18 +42,20 @@ import org.jikesrvm.runtime.Magic;
 import org.mmtk.plan.Plan;
 import org.mmtk.policy.Space;
 import org.mmtk.utility.Constants;
-import org.mmtk.utility.Finalizer;
 import org.mmtk.utility.Memory;
 import org.mmtk.utility.alloc.Allocator;
 import org.mmtk.utility.gcspy.GCspy;
 import org.mmtk.utility.heap.HeapGrowthManager;
 import org.mmtk.utility.heap.Mmapper;
+import org.mmtk.utility.options.Options;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Pure;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Unpreemptible;
+import org.vmmagic.pragma.UnpreemptibleNoWarn;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Extent;
 import org.vmmagic.unboxed.ObjectReference;
@@ -65,7 +68,7 @@ import org.vmmagic.unboxed.WordArray;
  * research virtual machine.
  */
 @Uninterruptible
-public final class MM_Interface implements HeapLayoutConstants, Constants {
+public final class MemoryManager implements HeapLayoutConstants, Constants {
 
   /***********************************************************************
    *
@@ -80,6 +83,11 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
   
   private static final boolean traceAllocator = false;
 
+  /**
+   * Hash the interface been booted yet?
+   */
+  private static boolean booted = false;
+
   /***********************************************************************
    *
    * Initialization
@@ -88,7 +96,7 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
   /**
    * Suppress default constructor to enforce noninstantiability.
    */
-  private MM_Interface() {} // This constructor will never be invoked.
+  private MemoryManager() {} // This constructor will never be invoked.
 
   /**
    * Initialization that occurs at <i>build</i> time.  The value of
@@ -122,6 +130,7 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
     Selected.Plan.get().boot();
     SynchronizedCounter.boot();
     Monitor.boot();
+    booted = true;
   }
 
   /**
@@ -132,11 +141,15 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
   @Interruptible
   public static void postBoot() {
     Selected.Plan.get().postBoot();
-    if (VM.BuildWithGCSpy) {
-      // start the GCSpy interpreter server
-      MM_Interface.startGCspyServer();
+
+    if (Options.noReferenceTypes.getValue()) {
+      RVMType.JavaLangRefReferenceReferenceField.makeTraced();
     }
 
+    if (VM.BuildWithGCSpy) {
+      // start the GCSpy interpreter server
+      MemoryManager.startGCspyServer();
+    }
   }
 
   /**
@@ -178,8 +191,8 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
     Selected.Mutator.get().writeBarrier(src,
                                         src.toAddress().plus(offset),
                                         ObjectReference.fromObject(value),
-                                        offset,
-                                        locationMetadata,
+                                        offset.toWord(),
+                                        Word.fromIntZeroExtend(locationMetadata),
                                         PUTFIELD_WRITE_BARRIER);
   }
 
@@ -198,8 +211,8 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
                                         src.toAddress().plus(offset),
                                         ObjectReference.fromObject(old),
                                         ObjectReference.fromObject(value),
-                                        offset,
-                                        0, // do not have location metadata
+                                        offset.toWord(),
+                                        Word.zero(), // do not have location metadata
                                         PUTFIELD_WRITE_BARRIER);
   }
 
@@ -217,8 +230,8 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
     Selected.Mutator.get().writeBarrier(src,
                                         src.toAddress().plus(offset),
                                         ObjectReference.fromObject(value),
-                                        offset,
-                                        locationMetadata,
+                                        offset.toWord(),
+                                        Word.fromIntZeroExtend(locationMetadata),
                                         PUTSTATIC_WRITE_BARRIER);
   }
 
@@ -227,7 +240,7 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
    * reference by an aastore bytecode.
    *
    * @param ref the array containing the source of the new reference.
-   * @param index the index into the array were the new referece
+   * @param index the index into the array where the new reference
    * resides.  The index is the "natural" index into the array, for
    * example a[index].
    * @param value the object that is the target of the new reference.
@@ -240,8 +253,8 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
     Selected.Mutator.get().writeBarrier(array,
                                         array.toAddress().plus(offset),
                                         ObjectReference.fromObject(value),
-                                        offset,
-                                        0,
+                                        offset.toWord(),
+                                        Word.zero(),
                                         // don't know metadata
                                         AASTORE_WRITE_BARRIER);
   }
@@ -290,8 +303,8 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
     ObjectReference src = ObjectReference.fromObject(ref);
     return Selected.Mutator.get().readBarrier(src,
                                               src.toAddress().plus(offset),
-                                              offset,
-                                              locationMetadata,
+                                              offset.toWord(),
+                                              Word.fromIntZeroExtend(locationMetadata),
                                               GETFIELD_READ_BARRIER).toObject();
   }
 
@@ -310,8 +323,8 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
     Offset offset = Offset.fromIntZeroExtend(index << LOG_BYTES_IN_ADDRESS);
     return Selected.Mutator.get().readBarrier(array,
                                               array.toAddress().plus(offset),
-                                              offset,
-                                              0, // don't know metadata
+                                              offset.toWord(),
+                                              Word.zero(), // don't know metadata
                                               AALOAD_READ_BARRIER).toObject();
   }
 
@@ -328,8 +341,8 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
     ObjectReference src = ObjectReference.fromObject(Magic.getJTOC());
     return Selected.Mutator.get().readBarrier(src,
                                               src.toAddress().plus(offset),
-                                              offset,
-                                              locationMetadata,
+                                              offset.toWord(),
+                                              Word.fromIntZeroExtend(locationMetadata),
                                               GETSTATIC_READ_BARRIER).toObject();
   }
 
@@ -447,7 +460,11 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
    */
   @Inline
   public static boolean validRef(ObjectReference ref) {
-    return DebugUtil.validRef(ref);
+    if (booted) {
+      return DebugUtil.validRef(ref);
+    } else {
+      return true;
+    }
   }
 
   /**
@@ -484,9 +501,10 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
    * @return true if the address is within a space which may contain stacks
    */
   public static boolean mightBeFP(Address address) {
-    return Space.isInSpace(Plan.LOS, address) ||
-    Space.isInSpace(Plan.IMMORTAL, address) ||
-    Space.isInSpace(Plan.SPACE, address);
+    // In general we don't know which spaces may hold allocated stacks.
+    // If we want to be more specific than the space being mapped we
+    // will need to add a check in Plan that can be overriden.
+    return Space.isMappedAddress(address);
   }
   /***********************************************************************
    *
@@ -588,6 +606,9 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
 	}
         return Plan.ALLOC_IMMORTAL;
       }
+      if (method.isNonMovingAllocation()) {
+        return Plan.ALLOC_NON_MOVING;
+      }
     }
     if (traceAllocator) {
       VM.sysWriteln(type.getMMAllocator());
@@ -672,7 +693,7 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
    * See also: bytecode 0xbc ("newarray") and 0xbd ("anewarray")
    */
   @Inline
-  @Interruptible
+  @Unpreemptible
   public static Object allocateArray(int numElements, int logElementSize, int headerSize, TIB tib, int allocator,
                                      int align, int offset, int site) {
     int elemBytes = numElements << logElementSize;
@@ -691,7 +712,7 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
    * so it can be forced out of line.
    */
   @NoInline
-  @Interruptible
+  @UnpreemptibleNoWarn
   private static void throwLargeArrayOutOfMemoryError() {
     throw new OutOfMemoryError();
   }
@@ -807,7 +828,7 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
     RVMArray type = RVMType.CodeArrayType;
     int headerSize = ObjectModel.computeArrayHeaderSize(type);
     int align = ObjectModel.getAlignment(type);
-    int offset = ObjectModel.getOffsetForAlignment(type);
+    int offset = ObjectModel.getOffsetForAlignment(type, false);
     int width = type.getLogElementSize();
     TIB tib = type.getTypeInformationBlock();
     int allocator = isHot ? Plan.ALLOC_HOT_CODE : Plan.ALLOC_COLD_CODE;
@@ -822,7 +843,7 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
    * @return The stack
    */
   @Inline
-  @Interruptible
+  @Unpreemptible
   public static byte[] newStack(int bytes, boolean immortal) {
     if (!VM.runningVM) {
       return new byte[bytes];
@@ -830,7 +851,7 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
       RVMArray stackType = RVMArray.ByteArray;
       int headerSize = ObjectModel.computeArrayHeaderSize(stackType);
       int align = ObjectModel.getAlignment(stackType);
-      int offset = ObjectModel.getOffsetForAlignment(stackType);
+      int offset = ObjectModel.getOffsetForAlignment(stackType, false);
       int width = stackType.getLogElementSize();
       TIB stackTib = stackType.getTypeInformationBlock();
 
@@ -860,7 +881,7 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
     RVMArray arrayType = RVMType.WordArrayType;
     int headerSize = ObjectModel.computeArrayHeaderSize(arrayType);
     int align = ObjectModel.getAlignment(arrayType);
-    int offset = ObjectModel.getOffsetForAlignment(arrayType);
+    int offset = ObjectModel.getOffsetForAlignment(arrayType, false);
     int width = arrayType.getLogElementSize();
     TIB arrayTib = arrayType.getTypeInformationBlock();
 
@@ -890,7 +911,7 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
     RVMArray arrayType = RVMArray.DoubleArray;
     int headerSize = ObjectModel.computeArrayHeaderSize(arrayType);
     int align = ObjectModel.getAlignment(arrayType);
-    int offset = ObjectModel.getOffsetForAlignment(arrayType);
+    int offset = ObjectModel.getOffsetForAlignment(arrayType, false);
     int width = arrayType.getLogElementSize();
     TIB arrayTib = arrayType.getTypeInformationBlock();
 
@@ -920,7 +941,7 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
     RVMArray arrayType = RVMArray.IntArray;
     int headerSize = ObjectModel.computeArrayHeaderSize(arrayType);
     int align = ObjectModel.getAlignment(arrayType);
-    int offset = ObjectModel.getOffsetForAlignment(arrayType);
+    int offset = ObjectModel.getOffsetForAlignment(arrayType, false);
     int width = arrayType.getLogElementSize();
     TIB arrayTib = arrayType.getTypeInformationBlock();
 
@@ -950,7 +971,7 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
     RVMArray arrayType = RVMArray.ShortArray;
     int headerSize = ObjectModel.computeArrayHeaderSize(arrayType);
     int align = ObjectModel.getAlignment(arrayType);
-    int offset = ObjectModel.getOffsetForAlignment(arrayType);
+    int offset = ObjectModel.getOffsetForAlignment(arrayType, false);
     int width = arrayType.getLogElementSize();
     TIB arrayTib = arrayType.getTypeInformationBlock();
 
@@ -1046,7 +1067,7 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
     TIB fakeTib = fakeType.getTypeInformationBlock();
     int headerSize = ObjectModel.computeArrayHeaderSize(fakeType);
     int align = ObjectModel.getAlignment(fakeType);
-    int offset = ObjectModel.getOffsetForAlignment(fakeType);
+    int offset = ObjectModel.getOffsetForAlignment(fakeType, false);
     int width = fakeType.getLogElementSize();
 
     /* Allocate a word array */
@@ -1093,7 +1114,7 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
    */
   @Interruptible
   public static void addFinalizer(Object object) {
-    Finalizer.addCandidate(ObjectReference.fromObject(object));
+    FinalizableProcessor.addCandidate(object);
   }
 
   /**
@@ -1102,8 +1123,9 @@ public final class MM_Interface implements HeapLayoutConstants, Constants {
    *
    * @return the object needing to be finialized
    */
+  @Unpreemptible("Non-preemptible but may yield if finalizable table is being grown")
   public static Object getFinalizedObject() {
-    return Finalizer.get().toObject();
+    return FinalizableProcessor.getForFinalize();
   }
 
   /***********************************************************************

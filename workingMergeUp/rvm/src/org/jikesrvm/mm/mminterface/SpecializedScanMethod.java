@@ -10,7 +10,7 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.jikesrvm.memorymanagers.mminterface;
+package org.jikesrvm.mm.mminterface;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.SizeConstants;
@@ -159,15 +159,14 @@ public final class SpecializedScanMethod extends SpecializedMethod implements Si
   }
 
   /**
-   * Return the method signature of the specialized method's invoke.
+   * @return the method signature of the specialized method's invoke.
    */
   public TypeReference[] getSignature() {
     return signature;
   }
 
   /**
-   * Return the return type of the specialized method's invoke.
-   * @return
+   * @return the return type of the specialized method's invoke
    */
   public TypeReference getReturnType() {
     return returnType;

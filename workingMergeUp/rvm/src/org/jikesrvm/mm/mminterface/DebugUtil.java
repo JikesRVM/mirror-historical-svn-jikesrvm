@@ -10,7 +10,7 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.jikesrvm.memorymanagers.mminterface;
+package org.jikesrvm.mm.mminterface;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.classloader.RVMArray;
@@ -91,7 +91,7 @@ public class DebugUtil implements org.mmtk.utility.Constants, org.jikesrvm.Const
       Space.printVMMap();
       return false;
     }
-    if (MM_Constants.MOVES_OBJECTS) {
+    if (MemoryManagerConstants.MOVES_OBJECTS) {
       /*
       TODO: Work out how to check if forwarded
       if (Plan.isForwardedOrBeingForwarded(ref)) {
@@ -110,12 +110,14 @@ public class DebugUtil implements org.mmtk.utility.Constants, org.jikesrvm.Const
       VM.sysWrite(" tib = ");
       VM.sysWrite(tibAddr);
       VM.sysWrite("\n");
+      ObjectModel.dumpHeader(ref);
       return false;
     }
     if (tibAddr.isZero()) {
       VM.sysWrite("validRef: TIB is Zero! ");
       VM.sysWrite(ref);
       VM.sysWrite("\n");
+      ObjectModel.dumpHeader(ref);
       return false;
     }
     if (tib.length() == 0) {
@@ -124,6 +126,7 @@ public class DebugUtil implements org.mmtk.utility.Constants, org.jikesrvm.Const
       VM.sysWrite(" tib = ");
       VM.sysWrite(tibAddr);
       VM.sysWrite("\n");
+      ObjectModel.dumpHeader(ref);
       return false;
     }
 
@@ -136,6 +139,7 @@ public class DebugUtil implements org.mmtk.utility.Constants, org.jikesrvm.Const
       VM.sysWrite(" type = ");
       VM.sysWrite(type);
       VM.sysWrite("\n");
+      ObjectModel.dumpHeader(ref);
       return false;
     }
     return true;
@@ -160,7 +164,7 @@ public class DebugUtil implements org.mmtk.utility.Constants, org.jikesrvm.Const
     }
     ObjectModel.dumpHeader(ref);
     ObjectReference tib = ObjectReference.fromObject(ObjectModel.getTIB(ref));
-    if (!MM_Interface.mightBeTIB(tib)) {
+    if (!MemoryManager.mightBeTIB(tib)) {
       VM.sysWrite(" (INVALID TIB: CLASS NOT ACCESSIBLE)\n");
       return;
     }

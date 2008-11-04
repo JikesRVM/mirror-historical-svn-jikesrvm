@@ -10,12 +10,13 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.jikesrvm.memorymanagers.mminterface;
+package org.jikesrvm.mm.mminterface;
 
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.VM;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.mm.mmtk.Collection;
+import org.jikesrvm.mm.mmtk.MMTk_Events;
 import org.jikesrvm.mm.mmtk.ScanThread;
 import org.jikesrvm.mm.mmtk.Scanning;
 import org.jikesrvm.runtime.Magic;
@@ -28,10 +29,11 @@ import org.mmtk.utility.options.Options;
 import org.vmmagic.pragma.BaselineNoRegisters;
 import org.vmmagic.pragma.BaselineSaveLSRegisters;
 import org.vmmagic.pragma.Interruptible;
-import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.NoOptCompile;
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Unpreemptible;
+import org.vmmagic.pragma.UnpreemptibleNoWarn;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -53,7 +55,7 @@ import org.vmmagic.unboxed.Offset;
  * Between collections, the collector threads are parked on a pthread
  * condition variable.  A collection in initiated by a call to the static
  * {@link #collect()} method, which calls
- * {@link Handshake#requestAndAwaitCompletion()} to signal the threads.
+ * {@link Handshake#requestAndAwaitCompletion} to signal the threads.
  * The collection commences when all
  * scheduled collector threads arrive at the first "rendezvous" in the run
  * methods run loop.
@@ -228,7 +230,7 @@ public final class CollectorThread extends RVMThread {
    */
   @Interruptible
   public static CollectorThread createActiveCollectorThread() {
-    byte[] stack = MM_Interface.newStack(ArchitectureSpecific.StackframeLayoutConstants.STACK_SIZE_COLLECTOR, true);
+    byte[] stack = MemoryManager.newStack(ArchitectureSpecific.StackframeLayoutConstants.STACK_SIZE_COLLECTOR, true);
     return new CollectorThread(stack);
   }
 
@@ -240,10 +242,11 @@ public final class CollectorThread extends RVMThread {
    *
    * @param handshake Handshake for the requested collection
    */
-  @LogicallyUninterruptible
-  @Uninterruptible
+  @Unpreemptible("Becoming another thread interrupts the current thread, avoid preemption in the process")
   public static void collect(Handshake handshake, int why) {
+    Processor.getCurrentFeedlet().addEvent(MMTk_Events.events.gcStart, why);
     handshake.requestAndAwaitCompletion(why);
+    Processor.getCurrentFeedlet().addEvent(MMTk_Events.events.gcStop);
   }
   
   /**
@@ -254,7 +257,7 @@ public final class CollectorThread extends RVMThread {
    *
    * @param handshake Handshake for the requested collection
    */
-  @Uninterruptible
+  @Unpreemptible("Becoming another thread interrupts the current thread, avoid preemption in the process")
   public static void asyncCollect(Handshake handshake, int why) {
     handshake.requestAndContinue(why);
   }
@@ -311,15 +314,13 @@ public final class CollectorThread extends RVMThread {
    * different for the different allocators/collectors that the RVM
    * can be configured to use.
    */
-  @LogicallyUninterruptible
-  // due to call to snipObsoleteCompiledMethods
   @NoOptCompile
   // refs stored in registers by opt compiler will not be relocated by GC
   @BaselineNoRegisters
   // refs stored in registers by baseline compiler will not be relocated by GC, so use stack only
   @BaselineSaveLSRegisters
   // and store all registers from previous method in prologue, so that we can stack access them while scanning this thread.
-  @Uninterruptible
+  @Unpreemptible
   public void run() {
     // this is kind of stupid.
     gcOrdinal = Synchronization.fetchAndAdd(participantCount, Offset.zero(), 1) + GC_ORDINAL_BASE;
@@ -558,8 +559,7 @@ public final class CollectorThread extends RVMThread {
    * Allocate an OutOfMemoryError for a given thread.
    * @param thread
    */
-  @LogicallyUninterruptible
-  @Uninterruptible
+  @UnpreemptibleNoWarn("Calls out to interruptible OOME constructor")
   public void allocateOOMEForThread(RVMThread thread) {
     /* We are running inside a gc thread, so we will allocate if physically possible */
     this.setThreadForStackTrace(thread);

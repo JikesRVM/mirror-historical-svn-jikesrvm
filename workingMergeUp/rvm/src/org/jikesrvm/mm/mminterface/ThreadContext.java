@@ -10,12 +10,12 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.jikesrvm.memorymanagers.mminterface;
+package org.jikesrvm.mm.mminterface;
 
 /**
  * RVMThread must extend this class to associate appropriate context with processor.
  */
-public abstract class MM_ThreadContext extends Selected.Mutator {
+public abstract class ThreadContext extends Selected.Mutator {
   /**
    * The collector context to be used by the given thread.  Only collector
    * threads have collector contexts.

@@ -10,17 +10,17 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.jikesrvm.memorymanagers.mminterface;
+package org.jikesrvm.mm.mminterface;
 
 import org.jikesrvm.SizeConstants;
 
 /**
  * This class merely exposes the MMTk constants into the Jikes RVM
  * package space so that they can be accessed by the VM in an
- * MM-neutral way.  It is separate from MM_Interface to break
+ * MM-neutral way.  It is separate from MemoryManager to break
  * cyclic class-loading dependencies.
  */
-public class MM_Constants implements SizeConstants {
+public class MemoryManagerConstants implements SizeConstants {
   /** True if the selected plan needs support for linearly scanning the heap */
   public static final boolean NEEDS_LINEAR_SCAN = Selected.Constraints.get().needsLinearScan();
   /** Number of bits in the GC header required by the selected plan */

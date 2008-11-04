@@ -10,7 +10,7 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.jikesrvm.memorymanagers.mminterface;
+package org.jikesrvm.mm.mminterface;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.mm.mmtk.Collection;
@@ -66,7 +66,7 @@ public class Handshake {
    * GC safe point between when you realize that there is already a GC request and
    * when you call this method!
    */
-  @Uninterruptible
+  @Unpreemptible
   public void waitForGCToFinish() {
     if (verbose >= 1) VM.sysWriteln("GC Message: Handshake.requestAndAwaitCompletion - yielding");
     /* allow a gc thread to run */
@@ -82,8 +82,7 @@ public class Handshake {
    * collector thread, which will disable further thread switching on
    * the processor until it has completed the collection.
    */
-  @LogicallyUninterruptible
-  @Uninterruptible
+  @Unpreemptible
   public void requestAndAwaitCompletion(int why) {
     request(why);
     waitForGCToFinish();
@@ -95,12 +94,12 @@ public class Handshake {
    * caller continues until it yields to the GC.  It may thus make
    * this call at an otherwise unsafe point.
    */
-  @Uninterruptible
+  @Unpreemptible("Change state of thread possibly context switching if generating exception")
   public void requestAndContinue(int why) {
     request(why);
   }
 
-  @Uninterruptible
+  @Unpreemptible
   public void reset() {
     if (lock!=null) {
       lock.lock();
@@ -131,7 +130,7 @@ public class Handshake {
    *
    * @return true if the completion flag is not already set.
    */
-  @Uninterruptible
+  @Unpreemptible("Becoming another thread interrupts the current thread, avoid preemption in the process")
   private boolean request(int why) {
     if (verbose>=1) VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot()," is trying to make a GC request");
     lock.lock();
