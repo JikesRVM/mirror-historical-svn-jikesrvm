@@ -163,6 +163,8 @@ public final class TypeReference {
   public static final TypeReference Preemptible = findOrCreate(org.vmmagic.pragma.Preemptible.class);
   public static final TypeReference UninterruptibleNoWarn =
       findOrCreate(org.vmmagic.pragma.UninterruptibleNoWarn.class);
+  public static final TypeReference UnpreemptibleNoWarn =
+      findOrCreate(org.vmmagic.pragma.UnpreemptibleNoWarn.class);
   public static final TypeReference Uninterruptible = findOrCreate(org.vmmagic.pragma.Uninterruptible.class);
   public static final TypeReference NoCheckStore = findOrCreate(org.vmmagic.pragma.NoCheckStore.class);
   public static final TypeReference Unpreemptible = findOrCreate(org.vmmagic.pragma.Unpreemptible.class);
@@ -180,6 +182,7 @@ public final class TypeReference {
   public static final TypeReference SpecializedMethodInvoke = findOrCreate(org.vmmagic.pragma.SpecializedMethodInvoke.class);
   public static final TypeReference Untraced = findOrCreate(org.vmmagic.pragma.Untraced.class);
   public static final TypeReference NonMoving = findOrCreate(org.vmmagic.pragma.NonMoving.class);
+  public static final TypeReference NonMovingAllocation = findOrCreate(org.vmmagic.pragma.NonMovingAllocation.class);
 
   public static final TypeReference BaseAnnotation =
       findOrCreate(org.jikesrvm.classloader.RVMAnnotation.BaseAnnotation.class);
@@ -188,10 +191,13 @@ public final class TypeReference {
   public static final TypeReference JNIFunctions = findOrCreate(org.jikesrvm.jni.JNIFunctions.class);
 
   public static final TypeReference CollectorThread =
-      findOrCreate(org.jikesrvm.memorymanagers.mminterface.CollectorThread.class);
+      findOrCreate(org.jikesrvm.mm.mminterface.CollectorThread.class);
 
   public static final TypeReference RVMArray = findOrCreate(org.jikesrvm.classloader.RVMArray.class);
 
+  /** Abstract base of reflective method invoker classes */
+  static final TypeReference baseReflectionClass = TypeReference.findOrCreate(ReflectionBase.class);
+    
   // Synthetic types used by the opt compiler
   public static final TypeReference NULL_TYPE =
       (VM.BuildForOptCompiler) ? findOrCreate("Lorg/jikesrvm/classloader/TypeReference$NULL;") : null;
@@ -543,7 +549,8 @@ public final class TypeReference {
    */
   @Uninterruptible
   public boolean isRuntimeTable() {
-    return this == IMT || this == TIB || this == ITable || this == ITableArray || this == FunctionTable;
+    return this == IMT || this == TIB || this == ITable || this == ITableArray
+        || this == FunctionTable;
   }
 
   /**
@@ -826,3 +833,8 @@ public final class TypeReference {
     return "< " + classloader + ", " + name + " >";
   }
 }
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

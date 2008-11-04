@@ -329,11 +329,22 @@ public interface RegisterConstants {
   int NUM_RETURN_GPRS = 2;
   int NUM_RETURN_FPRS = 1;
 
-  // Dedicated registers.
-  //
+  /** General purpose registers to pass arguments to syscalls in */
+  GPR[] SYSCALL_PARAM_GPRS = VM.buildFor32Addr() ? new GPR[0] : new GPR[]{R7 /*RDI*/, R6 /*RSI*/, R2 /*RDX*/, R1 /*RCX*/, R8, R9};
+  /** Floating point registers to pass arguments to syscalls in */
+  XMM[] SYSCALL_PARAM_FPRS = VM.buildFor32Addr() ? new XMM[0] : new XMM[]{XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7};
+  
+  /*
+   * Dedicated registers.
+   */
   GPR STACK_POINTER = ESP;
   GPR THREAD_REGISTER = ESI;
 
-  byte NUM_GPRS = 8;
+  byte NUM_GPRS = (byte)(VM.buildFor32Addr() ? 8 : 16);
   byte NUM_FPRS = 8;
 }
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/

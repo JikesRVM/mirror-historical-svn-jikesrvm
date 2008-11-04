@@ -27,10 +27,10 @@ import org.vmmagic.pragma.NonMoving;
  * scans the threads array and collect requests.
  */
 @NonMoving
-public final class OSR_OrganizerThread extends RVMThread {
+public final class OSROrganizerThread extends RVMThread {
   /** Constructor */
-  public OSR_OrganizerThread() {
-    super("OSR_Organizer");
+  public OSROrganizerThread() {
+    super("OSROrganizer");
     makeDaemon(true);
   }
 

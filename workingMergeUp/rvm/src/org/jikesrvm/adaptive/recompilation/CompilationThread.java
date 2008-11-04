@@ -12,7 +12,7 @@
  */
 package org.jikesrvm.adaptive.recompilation;
 
-import org.jikesrvm.adaptive.OSR_OnStackReplacementPlan;
+import org.jikesrvm.adaptive.OnStackReplacementPlan;
 import org.jikesrvm.adaptive.controller.Controller;
 import org.jikesrvm.adaptive.controller.ControllerPlan;
 import org.jikesrvm.adaptive.util.AOSLogging;

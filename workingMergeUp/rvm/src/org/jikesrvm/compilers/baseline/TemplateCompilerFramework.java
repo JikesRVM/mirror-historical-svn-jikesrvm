@@ -750,7 +750,7 @@ public abstract class TemplateCompilerFramework
           if (shouldPrint) asm.noteBytecode(biStart, "aastore");
           // Forbidden from uninterruptible code as may cause an {@link
           // ArrayStoreException}
-          if (VM.VerifyUnint && !isInterruptible && doesCheckStore) forbiddenBytecode("aastore", bcodes.index());
+          if (VM.VerifyUnint && isUninterruptible && doesCheckStore) forbiddenBytecode("aastore", bcodes.index());
           emit_aastore();
           break;
         }
