@@ -16,8 +16,9 @@ import org.mmtk.plan.Plan;
 import org.mmtk.plan.CollectorContext;
 import org.mmtk.plan.MutatorContext;
 import org.mmtk.plan.PlanConstraints;
+import org.mmtk.utility.Log;
 
-import org.jikesrvm.memorymanagers.mminterface.Selected;
+import org.jikesrvm.mm.mminterface.Selected;
 import org.jikesrvm.scheduler.RVMThread;
 
 import org.vmmagic.pragma.*;

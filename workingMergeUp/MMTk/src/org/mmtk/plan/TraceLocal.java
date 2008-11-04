@@ -94,13 +94,13 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
       Log.write(slot);
       Log.write(" to ");
     }
-    ObjectReference object = VM.activePlan.mutator().loadObjectReference(slot);
+    ObjectReference object = VM.activePlan.global().loadObjectReference(slot);
     if (false) {
       Log.write(object);
       Log.writeln();
     }
     ObjectReference newObject = traceObject(object, false);
-    VM.activePlan.mutator().storeObjectReference(slot, newObject);
+    VM.activePlan.global().storeObjectReference(slot, newObject);
   }
 
   /**
@@ -143,10 +143,10 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
     }
     ObjectReference object;
     if (untraced) object = slot.loadObjectReference();
-    else     object = VM.activePlan.mutator().loadObjectReference(slot);
+    else     object = VM.activePlan.global().loadObjectReference(slot);
     ObjectReference newObject = traceObject(object, true);
     if (untraced) slot.store(newObject);
-    else     VM.activePlan.mutator().storeObjectReference(slot, newObject);
+    else     VM.activePlan.global().storeObjectReference(slot, newObject);
   }
 
   /**
@@ -589,11 +589,11 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
   public final void processPrecopyEdge(Address slot, boolean untraced) {
     ObjectReference child;
     if (untraced) child = slot.loadObjectReference();
-    else          child = VM.activePlan.mutator().loadObjectReference(slot);
+    else          child = VM.activePlan.global().loadObjectReference(slot);
     if (!child.isNull()) {
       child = precopyObject(child);
       if (untraced) slot.store(child);
-      else          VM.activePlan.mutator().storeObjectReference(slot, child);
+      else          VM.activePlan.global().storeObjectReference(slot, child);
     }
   }
 }

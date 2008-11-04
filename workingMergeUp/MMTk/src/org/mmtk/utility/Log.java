@@ -759,7 +759,7 @@ public class Log implements Constants {
 
   private static Log getLog() {
     if (VM.assertions.runningVM())
-      return VM.activePlan.mutator().getLog();
+      return VM.activePlan.log();
     else
       return log;
   }

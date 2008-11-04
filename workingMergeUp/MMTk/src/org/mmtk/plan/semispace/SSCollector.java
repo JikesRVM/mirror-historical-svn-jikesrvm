@@ -67,6 +67,7 @@ public class SSCollector extends StopTheWorldCollector {
    */
   protected SSCollector(SSTraceLocal tr) {
     ss = new CopyLocal();
+    los = new LargeObjectLocal(Plan.loSpace);
     trace = tr;
   }
 
