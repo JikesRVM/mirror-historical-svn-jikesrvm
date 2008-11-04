@@ -22,8 +22,8 @@ import static org.jikesrvm.runtime.EntrypointHelper.getMethod;
  */
 public interface AosEntrypoints {
   NormalMethod osrGetRefAtMethod =
-      getMethod("Lorg/jikesrvm/osr/OSR_ObjectHolder;", "getRefAt", "(II)Ljava/lang/Object;");
-  NormalMethod osrCleanRefsMethod = getMethod("Lorg/jikesrvm/osr/OSR_ObjectHolder;", "cleanRefs", "(I)V");
+      getMethod("Lorg/jikesrvm/osr/ObjectHolder;", "getRefAt", "(II)Ljava/lang/Object;");
+  NormalMethod osrCleanRefsMethod = getMethod("Lorg/jikesrvm/osr/ObjectHolder;", "cleanRefs", "(I)V");
   RVMField methodListenerNumSamplesField =
       getField("Lorg/jikesrvm/adaptive/measurements/listeners/MethodListener;", "numSamples", "I");
   RVMField edgeListenerUpdateCalledField =

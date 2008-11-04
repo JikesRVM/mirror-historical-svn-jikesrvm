@@ -14,7 +14,7 @@ package org.jikesrvm.scheduler;
 
 import org.jikesrvm.ArchitectureSpecific.CodeArray;
 import org.jikesrvm.ArchitectureSpecific.Registers;
-import org.jikesrvm.ArchitectureSpecificOpt.OSR_PostThreadSwitch;
+import org.jikesrvm.ArchitectureSpecificOpt.PostThreadSwitch;
 import static org.jikesrvm.ArchitectureSpecific.StackframeLayoutConstants.STACK_SIZE_NORMAL;
 import static org.jikesrvm.ArchitectureSpecific.StackframeLayoutConstants.INVISIBLE_METHOD_ID;
 import static org.jikesrvm.ArchitectureSpecific.StackframeLayoutConstants.STACKFRAME_SENTINEL_FP;

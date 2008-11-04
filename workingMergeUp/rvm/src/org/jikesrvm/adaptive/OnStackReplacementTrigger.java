@@ -25,7 +25,7 @@ import org.vmmagic.unboxed.Offset;
 /**
  * Trigger an OSR from a running thread.
  */
-public class OSR_OnStackReplacementTrigger {
+public class OnStackReplacementTrigger {
 
   /**
    * Trigger an OSR from a running thread.
@@ -40,7 +40,7 @@ public class OSR_OnStackReplacementTrigger {
     boolean isInBootImage = ypTakenInMethod.getDeclaringClass().isInBootImage();
 
     if (isInBootImage) return;
-    OSR_OnStackReplacementEvent event = (OSR_OnStackReplacementEvent) thread.onStackReplacementEvent;
+    OnStackReplacementEvent event = (OnStackReplacementEvent) thread.onStackReplacementEvent;
     event.suspendedThread = thread;
     event.whereFrom = whereFrom;
     event.CMID = ypTakenInCMID;

@@ -14,19 +14,19 @@ package org.jikesrvm.adaptive;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.Constants;
-import org.jikesrvm.ArchitectureSpecificOpt.OSR_BaselineExecStateExtractor;
-import org.jikesrvm.ArchitectureSpecificOpt.OSR_CodeInstaller;
-import org.jikesrvm.ArchitectureSpecificOpt.OSR_OptExecStateExtractor;
+import org.jikesrvm.ArchitectureSpecificOpt.BaselineExecStateExtractor;
+import org.jikesrvm.ArchitectureSpecificOpt.CodeInstaller;
+import org.jikesrvm.ArchitectureSpecificOpt.OptExecStateExtractor;
 import org.jikesrvm.adaptive.controller.Controller;
 import org.jikesrvm.adaptive.controller.ControllerPlan;
 import org.jikesrvm.adaptive.util.AOSLogging;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.compilers.opt.driver.CompilationPlan;
-import org.jikesrvm.osr.OSR_ExecStateExtractor;
-import org.jikesrvm.osr.OSR_ExecutionState;
-import org.jikesrvm.osr.OSR_Profiler;
-import org.jikesrvm.osr.OSR_SpecialCompiler;
+import org.jikesrvm.osr.ExecutionStateExtractor;
+import org.jikesrvm.osr.ExecutionState;
+import org.jikesrvm.osr.OSRProfiler;
+import org.jikesrvm.osr.SpecialCompiler;
 import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.unboxed.Offset;
 
@@ -40,7 +40,7 @@ import org.vmmagic.unboxed.Offset;
  * The execution of this plan compiles the method, installs the new
  * code, and reschedule the thread.
  */
-public class OSR_OnStackReplacementPlan implements Constants {
+public class OnStackReplacementPlan implements Constants {
   private final int CMID;
   private final Offset tsFromFPoff;
   private final Offset ypTakenFPoff;
@@ -57,8 +57,8 @@ public class OSR_OnStackReplacementPlan implements Constants {
   private int timeInitiated = 0;
   private int timeCompleted = 0;
 
-  public OSR_OnStackReplacementPlan(RVMThread thread, CompilationPlan cp, int cmid, int source, Offset tsoff,
-                                    Offset ypoff, double priority) {
+  public OnStackReplacementPlan(RVMThread thread, CompilationPlan cp, int cmid, int source, Offset tsoff,
+				Offset ypoff, double priority) {
     this.suspendedThread = thread;
     this.compPlan = cp;
     this.CMID = cmid;
@@ -90,17 +90,17 @@ public class OSR_OnStackReplacementPlan implements Constants {
     setTimeInitiated(Controller.controllerClock);
 
     {
-      OSR_ExecStateExtractor extractor = null;
+      ExecutionStateExtractor extractor = null;
 
       CompiledMethod cm = CompiledMethods.getCompiledMethod(this.CMID);
 
       boolean invalidate = true;
       if (cm.getCompilerType() == CompiledMethod.BASELINE) {
-        extractor = new OSR_BaselineExecStateExtractor();
+        extractor = new BaselineExecStateExtractor();
         // don't need to invalidate when transitioning from baseline
         invalidate = false;
       } else if (cm.getCompilerType() == CompiledMethod.OPT) {
-        extractor = new OSR_OptExecStateExtractor();
+        extractor = new OptExecStateExtractor();
       } else {
         if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
         return;
@@ -108,15 +108,15 @@ public class OSR_OnStackReplacementPlan implements Constants {
 
       ////////
       // states is a list of state: callee -> caller -> caller
-      OSR_ExecutionState state = extractor.extractState(suspendedThread, this.tsFromFPoff, this.ypTakenFPoff, CMID);
+      ExecutionState state = extractor.extractState(suspendedThread, this.tsFromFPoff, this.ypTakenFPoff, CMID);
 
       if (invalidate) {
         AOSLogging.debug("Invalidate cmid " + CMID);
-        OSR_Profiler.notifyInvalidation(state);
+        OSRProfiler.notifyInvalidation(state);
       }
 
       // compile from callee to caller
-      CompiledMethod newCM = OSR_SpecialCompiler.recompileState(state, invalidate);
+      CompiledMethod newCM = SpecialCompiler.recompileState(state, invalidate);
 
       setTimeCompleted(Controller.controllerClock);
 
@@ -127,7 +127,7 @@ public class OSR_OnStackReplacementPlan implements Constants {
         setStatus(ControllerPlan.COMPLETED);
         // now let OSR_CodeInstaller generate a code stub,
         // and OSR_PostThreadSwitch will install the stub to run.
-        OSR_CodeInstaller.install(state, newCM);
+        CodeInstaller.install(state, newCM);
         AOSLogging.logOsrEvent("OSR compilation succeeded! " + compPlan.method);
       }
     }

@@ -17,6 +17,7 @@ import org.jikesrvm.adaptive.measurements.listeners.Listener;
 import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.scheduler.Latch;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.pragma.NonMoving;
 
 /**
