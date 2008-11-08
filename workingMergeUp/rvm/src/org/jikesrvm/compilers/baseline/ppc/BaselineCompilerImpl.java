@@ -1751,17 +1751,17 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     } else {
       popInt(T0);               // TO is X  (an int)
       asm.emitLFDtoc(F0, Entrypoints.IEEEmagicField.getOffset(), T1);  // F0 is MAGIC
-      asm.emitSTFDoffset(F0, PROCESSOR_REGISTER, Entrypoints.scratchStorageField.getOffset());
-      asm.emitSTWoffset(T0, PROCESSOR_REGISTER, Entrypoints.scratchStorageField.getOffset().plus(4));
+      asm.emitSTFDoffset(F0, THREAD_REGISTER, Entrypoints.scratchStorageField.getOffset());
+      asm.emitSTWoffset(T0, THREAD_REGISTER, Entrypoints.scratchStorageField.getOffset().plus(4));
       asm.emitCMPI(T0, 0);                // is X < 0
       ForwardReference fr = asm.emitForwardBC(GE);
-      asm.emitLIntOffset(T0, PROCESSOR_REGISTER, Entrypoints.scratchStorageField.getOffset());
+      asm.emitLIntOffset(T0, THREAD_REGISTER, Entrypoints.scratchStorageField.getOffset());
       asm.emitADDI(T0, -1, T0);            // decrement top of MAGIC
       asm.emitSTWoffset(T0,
-                        PROCESSOR_REGISTER,
+                        THREAD_REGISTER,
                         Entrypoints.scratchStorageField.getOffset()); // MAGIC + X in scratch field
       fr.resolve(asm);
-      asm.emitLFDoffset(F1, PROCESSOR_REGISTER, Entrypoints.scratchStorageField.getOffset()); // F1 is MAGIC + X
+      asm.emitLFDoffset(F1, THREAD_REGISTER, Entrypoints.scratchStorageField.getOffset()); // F1 is MAGIC + X
       asm.emitFSUB(F1, F1, F0);            // F1 is X
       pushFloat(F1);                         // float(X) is on stack
     }
@@ -1836,8 +1836,8 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     if (VM.BuildFor64Addr) {
       pushLowDoubleAsInt(F0);
     } else {
-      asm.emitSTFDoffset(F0, PROCESSOR_REGISTER, Entrypoints.scratchStorageField.getOffset());
-      asm.emitLIntOffset(T0, PROCESSOR_REGISTER, Entrypoints.scratchStorageField.getOffset().plus(4));
+      asm.emitSTFDoffset(F0, THREAD_REGISTER, Entrypoints.scratchStorageField.getOffset());
+      asm.emitLIntOffset(T0, THREAD_REGISTER, Entrypoints.scratchStorageField.getOffset().plus(4));
       pushInt(T0);
     }
     ForwardReference fr2 = asm.emitForwardB();
@@ -3800,7 +3800,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     if (isInterruptible) {
       ForwardReference fr;
       // yield if takeYieldpoint is non-zero.
-      asm.emitLIntOffset(S0, PROCESSOR_REGISTER, Entrypoints.takeYieldpointField.getOffset());
+      asm.emitLIntOffset(S0, THREAD_REGISTER, Entrypoints.takeYieldpointField.getOffset());
       asm.emitCMPI(S0, 0);
       if (whereFrom == RVMThread.PROLOGUE) {
         // Take yieldpoint if yieldpoint flag is non-zero (either 1 or -1)
@@ -4526,10 +4526,10 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
       pushAddr(T2);                                  // push frame pointer of caller frame
     } else if (methodName == MagicNames.getTocPointer || methodName == MagicNames.getJTOC) {
       pushAddr(JTOC);
-    } else if (methodName == MagicNames.getProcessorRegister) {
-      pushAddr(PROCESSOR_REGISTER);
-    } else if (methodName == MagicNames.setProcessorRegister) {
-      popAddr(PROCESSOR_REGISTER);
+    } else if (methodName == MagicNames.getThreadRegister) {
+      pushAddr(THREAD_REGISTER);
+    } else if (methodName == MagicNames.setThreadRegister) {
+      popAddr(THREAD_REGISTER);
     } else if (methodName == MagicNames.getTimeBase) {
       if (VM.BuildFor64Addr) {
         asm.emitMFTB(T1);      // T1 := time base
@@ -4686,7 +4686,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
         (VM.BuildFor32Addr && (methodName == MagicNames.prepareWord))) {
       popInt(T1); // pop offset
       popAddr(T0); // pop object
-      asm.emitLWARX(T0, T1, T0); // *(object+offset), setting processor's reservation address
+      asm.emitLWARX(T0, T1, T0); // *(object+offset), setting thread's reservation address
       // this Integer is not sign extended !!
       pushInt(T0); // push *(object+offset)
     } else if ((methodName == MagicNames.prepareLong) ||
@@ -4696,7 +4696,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
       popInt(T1); // pop offset
       popAddr(T0); // pop object
       if (VM.BuildFor64Addr) {
-        asm.emitLDARX(T0, T1, T0); // *(object+offset), setting processor's reservation address
+        asm.emitLDARX(T0, T1, T0); // *(object+offset), setting thread's reservation address
       } else {
         // TODO: handle 64bit prepares in 32bit environment
       }
@@ -4781,7 +4781,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
         asm.emitLAddr(i, offset -= BYTES_IN_ADDRESS, FP);
       }
 
-      // skip saved thread-id, processor, and scratch registers
+      // skip saved thread-id, thread, and scratch registers
       offset -= (FIRST_NONVOLATILE_GPR - LAST_VOLATILE_GPR - 1) * BYTES_IN_ADDRESS;
 
       // restore volatile gprs
@@ -4804,8 +4804,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
                methodName == MagicNames.objectAsType ||
                methodName == MagicNames.objectAsShortArray ||
                methodName == MagicNames.objectAsIntArray ||
-               methodName == MagicNames.objectAsProcessor ||
-               methodName == MagicNames.processorAsGreenProcessor ||
+               methodName == MagicNames.objectAsThread ||
                methodName == MagicNames.objectAsThread ||
                methodName == MagicNames.threadAsCollectorThread ||
                methodName == MagicNames.floatAsIntBits ||

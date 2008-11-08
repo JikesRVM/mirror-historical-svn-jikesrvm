@@ -308,7 +308,7 @@ public abstract class OutOfLineMachineCode
   //
   // Side effects at runtime:
   //   all registers are restored except condition registers, count register,
-  //   JTOC_POINTER, and PROCESSOR_REGISTER with execution resuming at "registers.ip"
+  //   JTOC_POINTER, and THREAD_REGISTER with execution resuming at "registers.ip"
   //
   private static ArchitectureSpecific.CodeArray generateRestoreHardwareExceptionStateInstructions() {
     Assembler asm = new ArchitectureSpecific.Assembler(0);

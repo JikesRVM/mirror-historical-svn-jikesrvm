@@ -81,7 +81,7 @@ public final class Magic {
     return null;
   }
 
-  /** Set contents of ESI to hold a reference to a processor object. NOTE: IA-specific */
+  /** Set contents of ESI to hold a reference to a thread object. NOTE: IA-specific */
   public static void setESIAsThread(RVMThread p) {
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
   }
@@ -778,7 +778,7 @@ public final class Magic {
    * Restores virtually all registers (details vary by architecutre).
    * But, the following are _NOT_ restored
    *        - JTOC_POINTER
-   *        - PROCESSOR_REGISTER
+   *        - THREAD_REGISTER
    * does not return (execution resumes at new IP)
    * @param registers register values to be used
    */
