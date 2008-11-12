@@ -2350,7 +2350,7 @@ public class RVMThread extends ThreadContext {
    * @param o the object synchronized on
    * @see java.lang.Object#notifyAll
    */
-  @Interruptible
+  // NOTE: this was @Interruptible
   public static void notifyAll(Object o) {
     if (STATS) notifyAllOperations++;
     Lock l = ObjectModel.getHeavyLock(o, false);
@@ -2373,21 +2373,6 @@ public class RVMThread extends ThreadContext {
     takeYieldpoint = 1;
     monitor().broadcast();
     monitor().unlock();
-  }
-
-  /**
-   * Uninterruptible variant of Java synchronization primitive.
-   *
-   * @param o the object synchronized on
-   * @see java.lang.Object#notifyAll
-   */
-  public static void notifyAllUninterruptible(Object o) {
-    if (STATS) notifyAllOperations++;
-    Scheduler.LockModel l = (Scheduler.LockModel)ObjectModel.getHeavyLock(o, false);
-    if (l == null) return;
-    Processor proc = Processor.getCurrentProcessor();
-    if (VM.VerifyAssertions) VM._assert(l.getOwnerId() == proc.threadId);
-    Scheduler.getCurrentThread().notifyAllInternal(o, l);
   }
 
   /*
@@ -2781,7 +2766,7 @@ public class RVMThread extends ThreadContext {
 
       if (VM.BuildForAdaptiveSystem && t.yieldToOSRRequested) {
 	t.yieldToOSRRequested = false;
-	Listener.handleOSRFromOpt(yieldpointServiceMethodFP);
+	OSRListener.handleOSRFromOpt(yieldpointServiceMethodFP);
       }
 
       // what is the reason for this?  and what was the reason for doing

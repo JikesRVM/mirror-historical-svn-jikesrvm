@@ -169,15 +169,15 @@ import org.vmmagic.unboxed.Offset;
     }
 
     /* Registers */
-    reportDelayedRootEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadContextRegistersField.getOffset()));
-    reportDelayedRootEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadContextRegistersSaveField.getOffset()));
-    reportDelayedRootEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadExceptionRegistersField.getOffset()));
+    reportDelayedRootEdge(trace,Magic.objectAsAddress(thread).plus(Entrypoints.threadContextRegistersField.getOffset()));
+    reportDelayedRootEdge(trace,Magic.objectAsAddress(thread).plus(Entrypoints.threadContextRegistersSaveField.getOffset()));
+    reportDelayedRootEdge(trace,Magic.objectAsAddress(thread).plus(Entrypoints.threadExceptionRegistersField.getOffset()));
 
     /* Scan the JNI Env field */
     if (thread.getJNIEnv() != null) {
-      reportDelayedRootEdge(Magic.objectAsAddress(thread).plus(Entrypoints.jniEnvField.getOffset()));
-      reportDelayedRootEdge(Magic.objectAsAddress(thread.getJNIEnv()).plus(Entrypoints.JNIRefsField.getOffset()));
-      reportDelayedRootEdge(Magic.objectAsAddress(thread.getJNIEnv()).plus(Entrypoints.JNIPendingExceptionField.getOffset()));
+      reportDelayedRootEdge(trace,Magic.objectAsAddress(thread).plus(Entrypoints.jniEnvField.getOffset()));
+      reportDelayedRootEdge(trace,Magic.objectAsAddress(thread.getJNIEnv()).plus(Entrypoints.JNIRefsField.getOffset()));
+      reportDelayedRootEdge(trace,Magic.objectAsAddress(thread.getJNIEnv()).plus(Entrypoints.JNIPendingExceptionField.getOffset()));
     }
 
     /* Grab the ScanThread instance associated with this thread */

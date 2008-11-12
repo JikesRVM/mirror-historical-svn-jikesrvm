@@ -59,8 +59,8 @@ final class GenArch_ia32 extends GenArch {
   }
 
   public void emitArchAssemblerDeclarations() {
-    if (BaselineConstants.PR != BaselineConstants.ESI) {
-      throw new Error("Unexpected PR value");
+    if (BaselineConstants.TR != BaselineConstants.ESI) {
+      throw new Error("Unexpected TR value");
     }
     p("#define TR %ESI;\n");
   }

@@ -14,7 +14,7 @@ package org.jikesrvm.adaptive;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.Constants;
-import org.jikesrvm.ArchitectureSpecificOpt.BaselineExecuctionStateExtractor;
+import org.jikesrvm.ArchitectureSpecificOpt.BaselineExecutionStateExtractor;
 import org.jikesrvm.ArchitectureSpecificOpt.CodeInstaller;
 import org.jikesrvm.ArchitectureSpecificOpt.OptExecutionStateExtractor;
 import org.jikesrvm.adaptive.controller.Controller;

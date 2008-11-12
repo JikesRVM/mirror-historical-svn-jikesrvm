@@ -90,7 +90,7 @@ public final class ScanStatics implements Constants {
       Log.write(refaddr); Log.write(":"); Log.flush(); MemoryManager.dumpRef(ref);
       Log.writeln();
       Log.writeln("Dumping stack:");
-      Scheduler.dumpStack();
+      RVMThread.dumpStack();
       VM.sysFail("\n\nScanStack: Detected bad GC map; exiting RVM with fatal error");
     }
   }
