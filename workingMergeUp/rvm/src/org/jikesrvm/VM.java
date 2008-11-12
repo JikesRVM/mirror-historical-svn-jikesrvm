@@ -382,6 +382,8 @@ public class VM extends Properties implements Constants, ExitStatus {
     if (VM.BuildForGnuClasspath) {
       runClassInitializer("java.lang.VMClassLoader");
     }
+
+    if (verboseBoot >= 1) VM.sysWriteln("initializing standard streams");
     // Initialize java.lang.System.out, java.lang.System.err, java.lang.System.in
     FileSystem.initializeStandardStreams();
 

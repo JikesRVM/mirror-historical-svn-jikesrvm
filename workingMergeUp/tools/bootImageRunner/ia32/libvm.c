@@ -1214,7 +1214,7 @@ createVM(int UNUSED vmInSeparateThread)
     Address ip   = bootRecord->ipRegister;
     Address jtoc = bootRecord->tocRegister;
     Address tr;
-    Address *sp  = (Address *) bootRecord->spRegister;
+    Address sp  = bootRecord->spRegister;
 
     tr = *(Address *) (bootRecord->tocRegister
 		       + bootRecord->bootThreadOffset);
