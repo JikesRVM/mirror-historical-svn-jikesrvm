@@ -3782,7 +3782,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
       int savedRegistersSize;
 
       if (method.hasBaselineSaveLSRegistersAnnotation()) {
-	if (VM.VerifyAssertions) VM._assert(EBX_SAVE_OFFSET.toInt() == -4*WORDSIZE);
+	if (VM.VerifyAssertions) VM._assert(EBP_SAVE_OFFSET.toInt() == -4*WORDSIZE);
 	asm.emitPUSH_Reg(EBP);
 	savedRegistersSize = SAVED_GPRS_FOR_SAVE_LS_REGISTERS << LG_WORDSIZE;
       } else {
