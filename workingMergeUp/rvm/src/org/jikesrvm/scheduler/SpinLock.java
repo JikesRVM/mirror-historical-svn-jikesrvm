@@ -116,6 +116,7 @@ public final class SpinLock implements Constants {
    * Acquire a processor lock.
    */
   public void lock() {
+    if (!VM.runningVM) return;
     VM.disableYieldpoints();
     RVMThread i = RVMThread.getCurrentThread();
     RVMThread p;
@@ -159,6 +160,7 @@ public final class SpinLock implements Constants {
    * @return whether acquisition succeeded
    */
   public boolean tryLock() {
+    if (!VM.runningVM) return true;
     VM.disableYieldpoints();
     Offset latestContenderOffset = Entrypoints.latestContenderField.getOffset();
     if (Magic.prepareAddress(this, latestContenderOffset).isZero()) {
@@ -176,6 +178,7 @@ public final class SpinLock implements Constants {
    * Release a processor lock.
    */
   public void unlock() {
+    if (!VM.runningVM) return true;
     Magic.sync(); // commit changes while lock was held so they are visiable to the next processor that acquires the lock
     Offset latestContenderOffset = Entrypoints.latestContenderField.getOffset();
     RVMThread i = RVMThread.getCurrentThread();
