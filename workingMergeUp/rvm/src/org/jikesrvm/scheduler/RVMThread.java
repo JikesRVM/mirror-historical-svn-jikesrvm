@@ -2805,7 +2805,7 @@ public class RVMThread extends ThreadContext {
    * @param exceptionRegisters register state at which stack overflow trap
    * was encountered (null --> normal method call, not a trap)
    */
-  @Interruptible
+  @Unpreemptible
   public static void resizeCurrentStack(int newSize, Registers exceptionRegisters) {
     if (traceAdjustments) VM.sysWrite("Thread: resizeCurrentStack\n");
     if (MemoryManager.gcInProgress()) {
