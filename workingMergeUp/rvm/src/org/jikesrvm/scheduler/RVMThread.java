@@ -4017,6 +4017,7 @@ public class RVMThread extends ThreadContext {
     byte[] stack = new byte[ArchConstants.STACK_SIZE_BOOT];
     if (VM.VerifyAssertions) VM._assert(bootThread == null);
     bootThread = new RVMThread(stack, "Jikes_RBoot_Thread");
+    bootThread.feedlet = TraceEngine.engine.makeFeedlet("Jikes RVM boot thread", "Thread used to execute the initial boot sequence of Jikes RVM");
     numActiveThreads++;
     numActiveDaemons++;
     return bootThread;
