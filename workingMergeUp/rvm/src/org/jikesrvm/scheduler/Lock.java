@@ -259,7 +259,7 @@ public class Lock implements Constants {
     return true;
   }
 
-  @LogicallyUninterruptible
+  @UninterruptibleNoWarn
   private static void raiseIllegalMonitorStateException(String msg, Object o) {
     throw new IllegalMonitorStateException(msg + o);
   }
@@ -461,7 +461,7 @@ public class Lock implements Constants {
    *
    * @return a free Lock; or <code>null</code>, if garbage collection is not enabled
    */
-  @LogicallyUninterruptible // The caller is prepared to lose control when it allocates a lock -- dave
+  @UninterruptibleNoWarn("The caller is prepared to lose control when it allocates a lock")
   static Lock allocate() {
     RVMThread me=RVMThread.getCurrentThread();
     if (me.cachedFreeLock != null) {
@@ -568,7 +568,7 @@ public class Lock implements Constants {
   /**
    * Grow the locks table by allocating a new spine chunk.
    */
-  @LogicallyUninterruptible // The caller is prepared to lose control when it allocates a lock -- dave
+  @Uninterruptible("The caller is prepared to lose control when it allocates a lock")
   static void growLocks(int id) {
     int spineId = id >> LOG_LOCK_CHUNK_SIZE;
     if (spineId >= LOCK_SPINE_SIZE) {

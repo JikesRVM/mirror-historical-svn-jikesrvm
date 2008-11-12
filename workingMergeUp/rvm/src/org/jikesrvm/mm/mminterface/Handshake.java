@@ -17,8 +17,8 @@ import org.jikesrvm.mm.mmtk.Collection;
 import org.jikesrvm.mm.mmtk.Lock;
 import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.scheduler.HeavyCondLock;
-import org.vmmagic.pragma.LogicallyUninterruptible;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Unpreemptible;
 import org.mmtk.plan.Plan;
 
 /**

@@ -14,9 +14,9 @@ package org.jikesrvm.adaptive;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.Constants;
-import org.jikesrvm.ArchitectureSpecificOpt.BaselineExecStateExtractor;
+import org.jikesrvm.ArchitectureSpecificOpt.BaselineExecuctionStateExtractor;
 import org.jikesrvm.ArchitectureSpecificOpt.CodeInstaller;
-import org.jikesrvm.ArchitectureSpecificOpt.OptExecStateExtractor;
+import org.jikesrvm.ArchitectureSpecificOpt.OptExecutionStateExtractor;
 import org.jikesrvm.adaptive.controller.Controller;
 import org.jikesrvm.adaptive.controller.ControllerPlan;
 import org.jikesrvm.adaptive.util.AOSLogging;
@@ -96,11 +96,11 @@ public class OnStackReplacementPlan implements Constants {
 
       boolean invalidate = true;
       if (cm.getCompilerType() == CompiledMethod.BASELINE) {
-        extractor = new BaselineExecStateExtractor();
+        extractor = new BaselineExecutionStateExtractor();
         // don't need to invalidate when transitioning from baseline
         invalidate = false;
       } else if (cm.getCompilerType() == CompiledMethod.OPT) {
-        extractor = new OptExecStateExtractor();
+        extractor = new OptExecutionStateExtractor();
       } else {
         if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
         return;

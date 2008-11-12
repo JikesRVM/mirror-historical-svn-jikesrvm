@@ -2261,7 +2261,7 @@ public class VM extends Properties implements Constants, ExitStatus {
 
     // print a traceback and die
     RVMThread.traceback(message, number);
-    bufReportMessage();
+    bugReportMessage();
     if (VM.runningVM) {
       VM.shutdown(EXIT_STATUS_SYSFAIL);
     } else {

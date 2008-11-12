@@ -54,6 +54,7 @@ import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.NoOptCompile;
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.UninterruptibleNoWarn;
 import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.pragma.UnpreemptibleNoWarn;
 import org.vmmagic.pragma.Untraced;
@@ -936,7 +937,7 @@ public class RVMThread extends ThreadContext {
     tt.start();
     
     if (VM.BuildForAdaptiveSystem) {
-      OSR_ObjectHolder.boot();
+      ObjectHolder.boot();
     }
     
     CollectorThread.boot();
@@ -2067,7 +2068,7 @@ public class RVMThread extends ThreadContext {
   @NoOptCompile
   @NoInline
   //We should also have a pragma that saves all non-volatiles in opt compiler,
-  // OSR_BaselineExecStateExtractor.java, should then restore all non-volatiles before stack replacement
+  // BaselineExecuctionStateExtractor.java, should then restore all non-volatiles before stack replacement
   //todo fix this -- related to SaveVolatile
   @Entrypoint
   @Unpreemptible("Becoming another thread interrupts the current thread, avoid preemption in the process")
@@ -2084,7 +2085,7 @@ public class RVMThread extends ThreadContext {
   @NoOptCompile
   @NoInline
   // We should also have a pragma that saves all non-volatiles in opt compiler,
-  // OSR_BaselineExecStateExtractor.java, should then restore all non-volatiles before stack replacement
+  // BaselineExecuctionStateExtractor.java, should then restore all non-volatiles before stack replacement
   // TODO fix this -- related to SaveVolatile
   @Entrypoint
   @Unpreemptible("Becoming another thread interrupts the current thread, avoid preemption in the process")
@@ -2101,7 +2102,7 @@ public class RVMThread extends ThreadContext {
   @NoOptCompile
   @NoInline
   //We should also have a pragma that saves all non-volatiles in opt compiler,
-  // OSR_BaselineExecStateExtractor.java, should then restore all non-volatiles before stack replacement
+  // BaselineExecutionStateExtractor.java, should then restore all non-volatiles before stack replacement
   // TODO fix this -- related to SaveVolatile
   @Entrypoint
   @Unpreemptible("Becoming another thread interrupts the current thread, avoid preemption in the process")
@@ -2313,8 +2314,7 @@ public class RVMThread extends ThreadContext {
    * @param o the object synchronized on
    * @param whenNanos the absolute time in nanoseconds when we should wake up
    */
-  @LogicallyUninterruptible
-  /* only loses control at expected points -- I think -dave */
+  @Uninterruptible
   public static void waitAbsoluteNanos(Object o, long whenNanos) {
     getCurrentThread().waitImpl(o,true,whenNanos);
   }
@@ -2739,7 +2739,7 @@ public class RVMThread extends ThreadContext {
 	  RuntimeMeasurements.takeTimerSample(whereFrom, yieldpointServiceMethodFP);
 	}
 	if (VM.BuildForAdaptiveSystem) {
-	  OSR_Listener.checkForOSRPromotion(whereFrom, yieldpointServiceMethodFP);
+	  OSRListener.checkForOSRPromotion(whereFrom, yieldpointServiceMethodFP);
 	}
       }
 
@@ -2781,7 +2781,7 @@ public class RVMThread extends ThreadContext {
 
       if (VM.BuildForAdaptiveSystem && t.yieldToOSRRequested) {
 	t.yieldToOSRRequested = false;
-	OSR_Listener.handleOSRFromOpt(yieldpointServiceMethodFP);
+	Listener.handleOSRFromOpt(yieldpointServiceMethodFP);
       }
 
       // what is the reason for this?  and what was the reason for doing
@@ -2792,7 +2792,7 @@ public class RVMThread extends ThreadContext {
       // be no interleaved GC; obviously if we did this before the thread
       // switch then there would be the possibility of interleaved GC.
       if (VM.BuildForAdaptiveSystem && t.isWaitingForOsr) {
-	OSR_PostThreadSwitch.postProcess(t);
+	PostThreadSwitch.postProcess(t);
       }
       
       if (t.asyncThrowable != null) {
@@ -3779,7 +3779,7 @@ public class RVMThread extends ThreadContext {
   /**
    * Dump stack of calling thread, starting at callers frame
    */
-  @LogicallyUninterruptible
+  @UninterruptibleNoWarn
   public static void dumpStack() {
     if (VM.runningVM) {
       VM.sysWriteln("Dumping stack for Thread #",getCurrentThreadSlot());
