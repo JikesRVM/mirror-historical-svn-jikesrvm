@@ -456,10 +456,6 @@ public class RVMThread extends ThreadContext {
   /** Count of recursive uncaught exceptions, we need to bail out at some point */
   private int uncaughtExceptionCount = 0;
   
-  /** A cached free lock.  Not a free list; this will only ever contain
-   * one lock! */
-  public Lock cachedFreeLock;
-
   /**
    * A cached free lock.  Not a free list; this will only ever contain 0 or 1 locks!
    */
@@ -4081,6 +4077,10 @@ public class RVMThread extends ThreadContext {
     HeavyCondLock.unlock(b,dumpLock);
   }
 
+  public static Feedlet getCurrentFeedlet() {
+    return getCurrentThread().feedlet;
+  }
+  
 }
 
 /*

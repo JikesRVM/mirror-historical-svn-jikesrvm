@@ -279,14 +279,12 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    */
   @Inline
   public ObjectReference traceObject(ObjectReference object) {
-    if (Space.isInSpace(Plan.SPACE, object))
+    if (Space.isInSpace(Plan.VM_SPACE, object))
       return (Plan.SCAN_BOOT_IMAGE) ? object : Plan.vmSpace.traceObject(this, object);
     if (Space.isInSpace(Plan.IMMORTAL, object))
       return Plan.immortalSpace.traceObject(this, object);
     if (Space.isInSpace(Plan.LOS, object))
       return Plan.loSpace.traceObject(this, object);
-    if (Space.isInSpace(Plan.PLOS, object))
-      return Plan.ploSpace.traceObject(this, object);
     if (Space.isInSpace(Plan.NON_MOVING, object))
       return Plan.nonMovingSpace.traceObject(this, object);
     if (Plan.USE_CODE_SPACE && Space.isInSpace(Plan.SMALL_CODE, object))

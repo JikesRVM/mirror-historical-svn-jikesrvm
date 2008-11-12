@@ -42,10 +42,4 @@ import org.vmmagic.pragma.*;
     super(null, true);
   }
 
-  /**
-   * Constructor
-   */
-  public CopyLocal() {
-    super(null, true);
-  }
 }

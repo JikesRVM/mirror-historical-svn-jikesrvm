@@ -107,6 +107,11 @@ public final class SpinLock implements Constants {
   
   public boolean lockHeld() { return latestContender!=null; }
   
+  // FIXME: save the string somewhere.
+  public void lock(String s) {
+    lock();
+  }
+  
   /**
    * Acquire a processor lock.
    */

@@ -15,7 +15,6 @@ package org.jikesrvm.mm.mmtk;
 import org.mmtk.plan.Plan;
 import org.mmtk.plan.CollectorContext;
 import org.mmtk.plan.MutatorContext;
-import org.mmtk.utility.Finalizer;
 import org.mmtk.utility.options.Options;
 
 import org.jikesrvm.ArchitectureSpecific;
