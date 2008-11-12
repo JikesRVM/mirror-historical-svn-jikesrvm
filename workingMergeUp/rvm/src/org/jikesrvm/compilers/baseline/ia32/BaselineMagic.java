@@ -1496,9 +1496,9 @@ final class BaselineMagic {
     }
   }
   static {
-    generators.put(getMethodReference(Magic.class, MagicNames.setESIAsThread, Thread.class, void.class),
+    generators.put(getMethodReference(Magic.class, MagicNames.setESIAsThread, RVMThread.class, void.class),
         new SetRegister(ESI));
-    generators.put(getMethodReference(Magic.class, MagicNames.setThreadRegister, Thread.class, void.class),
+    generators.put(getMethodReference(Magic.class, MagicNames.setThreadRegister, RVMThread.class, void.class),
         new SetRegister(TR));
   }
 
