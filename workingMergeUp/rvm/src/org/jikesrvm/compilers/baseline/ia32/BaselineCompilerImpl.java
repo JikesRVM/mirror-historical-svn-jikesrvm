@@ -3923,11 +3923,15 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
       asm.emitINT_Imm(0xFF);
     } else {
       // normal method
-      int spaceToRelease = fp2spOffset(NO_SLOT).toInt() - bytesPopped - (3 * WORDSIZE);
-      adjustStack(spaceToRelease, true);
       if (method.hasBaselineSaveLSRegistersAnnotation()) {
+	// NASTY!!!!!
+	int spaceToRelease = fp2spOffset(NO_SLOT).toInt() - bytesPopped - (4 * WORDSIZE);
+	adjustStack(spaceToRelease, true);
 	if (VM.VerifyAssertions) VM._assert(EBP_SAVE_OFFSET.toInt() == -(4 * WORDSIZE));
 	asm.emitPOP_Reg(EBP);             // restore nonvolatile EBP register
+      } else {
+	int spaceToRelease = fp2spOffset(NO_SLOT).toInt() - bytesPopped - (3 * WORDSIZE);
+	adjustStack(spaceToRelease, true);
       }
       if (VM.VerifyAssertions) VM._assert(EBX_SAVE_OFFSET.toInt() == -(3 * WORDSIZE));
       asm.emitPOP_Reg(EBX);  // restore non-volatile EBX register
