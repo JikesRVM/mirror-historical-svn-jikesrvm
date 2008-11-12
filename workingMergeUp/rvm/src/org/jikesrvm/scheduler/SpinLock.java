@@ -178,7 +178,7 @@ public final class SpinLock implements Constants {
    * Release a processor lock.
    */
   public void unlock() {
-    if (!VM.runningVM) return true;
+    if (!VM.runningVM) return;
     Magic.sync(); // commit changes while lock was held so they are visiable to the next processor that acquires the lock
     Offset latestContenderOffset = Entrypoints.latestContenderField.getOffset();
     RVMThread i = RVMThread.getCurrentThread();
