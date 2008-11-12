@@ -244,9 +244,9 @@ public final class CollectorThread extends RVMThread {
    */
   @Unpreemptible("Becoming another thread interrupts the current thread, avoid preemption in the process")
   public static void collect(Handshake handshake, int why) {
-    Processor.getCurrentFeedlet().addEvent(MMTk_Events.events.gcStart, why);
+    RVMThread.getCurrentFeedlet().addEvent(MMTk_Events.events.gcStart, why);
     handshake.requestAndAwaitCompletion(why);
-    Processor.getCurrentFeedlet().addEvent(MMTk_Events.events.gcStop);
+    RVMThread.getCurrentFeedlet().addEvent(MMTk_Events.events.gcStop);
   }
   
   /**

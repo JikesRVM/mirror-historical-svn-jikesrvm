@@ -985,7 +985,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
 
   @UnpreemptibleNoWarn("Uncaught exception handling that may cause preemption")
   private static void handleUncaughtException(Throwable exceptionObject) {
-    RVMTHread.getCurrentThread().handleUncaughtException(exceptionObject);
+    RVMThread.getCurrentThread().handleUncaughtException(exceptionObject);
   }
 
   /**
