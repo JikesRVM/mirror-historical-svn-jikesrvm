@@ -111,6 +111,7 @@ public class Handshake {
     }
   }
   
+  @Unpreemptible
   void parkCollectorThread() {
     lock.lock();
     collectorThreadsParked++;

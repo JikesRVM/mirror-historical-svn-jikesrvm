@@ -2119,7 +2119,7 @@ public class RVMThread extends ThreadContext {
    * Suspend execution of current thread until it is resumed.
    * Call only if caller has appropriate security clearance.
    */
-  @Unpreemptible("Exceptions may possibly cause yields")
+  @UnpreemptibleNoWarn("Exceptions may possibly cause yields")
   public final void suspend() {
     ObjectModel.genericUnlock(thread);
     Throwable rethrow=null;
@@ -2314,7 +2314,7 @@ public class RVMThread extends ThreadContext {
    * @param o the object synchronized on
    * @param whenNanos the absolute time in nanoseconds when we should wake up
    */
-  @Uninterruptible
+  @Interruptible
   public static void waitAbsoluteNanos(Object o, long whenNanos) {
     getCurrentThread().waitImpl(o,true,whenNanos);
   }
