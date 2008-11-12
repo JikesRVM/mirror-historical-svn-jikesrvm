@@ -688,12 +688,12 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
 
     /* get the addresses of the gps and other fields in the Registers object */
     Address *vmr_gprs  = *(Address **) (registers + Registers_gprs_offset);
-    Address vmr_ip     =  (unsigned *)  (registers + Registers_ip_offset);
-    Address vmr_fp     =  (unsigned *)  (registers + Registers_fp_offset);
+    Address vmr_ip     =  (Address)    (registers + Registers_ip_offset);
+    Address vmr_fp     =  (Address)    (registers + Registers_fp_offset);
     Address *vmr_inuse =  (Address *)  (registers + Registers_inuse_offset);
 
-    Address *sp;
-    Address *fp;
+    Address sp;
+    Address fp;
 
     /* Test for recursive errors -- if so, take one final stacktrace and exit
      */
@@ -729,7 +729,7 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
 	IA32_ESP(context) = IA32_ESP(context) - 4;
 #endif
 	sp = IA32_ESP(context);
-	((Address *)sp)[0] = 0;
+	((Address*)sp)[0] = 0;
 
         /* set up to goto dumpStackAndDie routine ( in Scheduler) as if called */
         IA32_EIP(context) = dumpStack;
@@ -832,7 +832,7 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
         fprintf(SysTraceFile, "Trap code is 0x%x\n", IA32_EAX(context));
 
     sp-=4;       /* next parameter is info for array bounds trap */
-    *(int *) sp = *(unsigned *) (localNativeThreadAddress + Thread_arrayIndexTrapParam_offset);
+    *(int *) sp = (Address)*(unsigned *) (localNativeThreadAddress + Thread_arrayIndexTrapParam_offset);
     IA32_EDX(context) = *(int *)sp; // also pass second param in EDX.
 #ifdef __x86_64__
     sp = sp - 8;       /* return address - looks like called from failing instruction */
@@ -1214,7 +1214,7 @@ createVM(int UNUSED vmInSeparateThread)
     Address ip   = bootRecord->ipRegister;
     Address jtoc = bootRecord->tocRegister;
     Address tr;
-    Address *sp  = (int *) bootRecord->spRegister;
+    Address *sp  = (Address *) bootRecord->spRegister;
 
     tr = *(Address *) (bootRecord->tocRegister
 		       + bootRecord->bootThreadOffset);
@@ -1249,7 +1249,7 @@ createVM(int UNUSED vmInSeparateThread)
 	*(uint32_t*)sp = 0; /* STACKFRAME_NEXT_INSTRUCTION_OFFSET (for AIX compatability) */
 	
 	// fprintf(SysTraceFile, "%s: here goes...\n", Me);
-	int rc = boot ((void*)ip, (void*)tr, (void*) sp);
+	int rc = bootThread ((void*)ip, (void*)tr, (void*) sp);
 	
 	fprintf(SysErrorFile, "%s: createVM(): boot() returned; failed to create a virtual machine.  rc=%d.  Bye.\n", Me, rc);
 	return 1;
