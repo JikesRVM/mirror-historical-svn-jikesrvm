@@ -84,7 +84,7 @@ import org.vmmagic.unboxed.Offset;
    * Class variables
    */
   /** quietly validates each ref reported by map iterators */
-  static final boolean VALIDATE_REFS = VM.VerifyAssertions;
+  static final boolean VALIDATE_REFS = true;
 
   /**
    * debugging options to produce printout during scanStack
