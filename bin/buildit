@@ -342,17 +342,17 @@ if (! -e $localRoot . "/rvm") {
 if ($config{"$host.host-type"} ne "") {
   $hostConfig = $config{"$host.host-type"};
 } else {
-  @host_info = split(" ", `$sshHostCmd 'uname -mo'`);
+  @host_info = split(" ", `$sshHostCmd 'uname -ms'`);
   chomp(@host_info);
-  $hostConfig = $config{"global.arch.".$host_info[0]}."-".$config{"global.os.".$host_info[1]};
+  $hostConfig = $config{"global.arch.".$host_info[1]}."-".$config{"global.os.".$host_info[0]};
 }
 
 if ($config{"$target.host-type"} ne "") {
   $targetConfig = $config{"$target.host-type"};
 } else {
-  @target_info = split(" ", `$sshTargetCmd 'uname -mo'`);
+  @target_info = split(" ", `$sshTargetCmd 'uname -ms'`);
   chomp(@target_info);
-  $targetConfig = $config{"global.arch.".$target_info[0]}."-".$config{"global.os.".$target_info[1]};
+  $targetConfig = $config{"global.arch.".$target_info[1]}."-".$config{"global.os.".$target_info[0]};
 }
 
 if ($config{"$local.home"} eq "") {
@@ -511,7 +511,7 @@ $sourcedirs = "";
 # The files that need to be transferred to a host in order to do a build
 #
 @dirs = ("rvm", "MMTk", "bin", "build", "testing", "tools", "tools-external", 
-         "include", "common", "build.xml", "libraryInterface", "test.xml");
+         "include", "common", "build.xml", "libraryInterface", "external", "test.xml");
 
 #
 # The files needed to be transferred to a host in order to complete a
@@ -597,11 +597,13 @@ if ($ok) {
     }
     $rsync .= "rsync -azvLe ssh --delete --exclude=.svn --exclude=\*.class ".$sourcedirs." $sshHost:$hostRoot";
     if ($host ne $target) {
-      $rsync .= ";\nssh $sshTarget -t mkdir -p $targetRoot";
-      $rsync .= ";\nrsync -azvLe ssh --delete --exclude=.svn --exclude=\*.class ".$sourcedirs." $sshTarget:$targetRoot";
-      if ($compcachedir ne "") {
-        $rsync .= ";\nssh $sshTarget -t mkdir -p $targetCompCache;\n";
-        $rsync .= "rsync -azvLe ssh --delete $localCompCache/ $sshTarget:$targetCompCache;\n";
+      $rsync .= ";\nssh $sshTarget -t mkdir -p $targetRoot/dist";
+      if ($hostConfig ne $targetConfig) {
+        $rsync .= ";\nrsync -azvLe ssh --delete --exclude=.svn --exclude=\*.class ".$sourcedirs." $sshTarget:$targetRoot";
+        if ($compcachedir ne "") {
+          $rsync .= ";\nssh $sshTarget -t mkdir -p $targetCompCache;\n";
+          $rsync .= "rsync -azvLe ssh --delete $localCompCache/ $sshTarget:$targetCompCache;\n";
+        }
       }
     }
     print "$rsync\n\n";

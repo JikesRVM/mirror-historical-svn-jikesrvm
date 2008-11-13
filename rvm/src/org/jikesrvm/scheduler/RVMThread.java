@@ -22,7 +22,6 @@ import org.jikesrvm.Configuration;
 import org.jikesrvm.Services;
 import org.jikesrvm.UnimplementedError;
 import org.jikesrvm.adaptive.OnStackReplacementEvent;
-import org.jikesrvm.adaptive.measurements.RuntimeMeasurements;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.jni.JNIEnvironment;
@@ -34,6 +33,8 @@ import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.Memory;
 import org.jikesrvm.runtime.RuntimeEntrypoints;
 import org.jikesrvm.runtime.Time;
+import org.jikesrvm.tuningfork.TraceEngine;
+import org.jikesrvm.tuningfork.Feedlet;
 import org.vmmagic.pragma.BaselineNoRegisters;
 import org.vmmagic.pragma.BaselineSaveLSRegisters;
 import org.vmmagic.pragma.Entrypoint;
@@ -404,6 +405,15 @@ public abstract class RVMThread {
    */
   private static boolean systemShuttingDown = false;
 
+
+  /*
+   * TuningFork instrumentation support
+   */
+  /**
+   * The Feedlet instance for this thread to use to make addEvent calls.
+   */
+  public Feedlet feedlet;
+
   /**
    * @param stack stack in which to execute the thread
    */
@@ -415,6 +425,10 @@ public abstract class RVMThread {
 
     Registers contextRegisters   = new Registers();
     Registers exceptionRegisters = new Registers();
+
+    if (VM.runningVM) {
+      feedlet = TraceEngine.engine.makeFeedlet(name, name);
+    }
 
     if(VM.VerifyAssertions) VM._assert(stack != null);
     // put self in list of threads known to scheduler and garbage collector
@@ -689,12 +703,10 @@ public abstract class RVMThread {
       VM.enableGC();
     }
 
-    if (VM.BuildForAdaptiveSystem) {
-      RuntimeMeasurements.monitorThreadExit();
-    }
-
     // allow java.lang.Thread.exit() to remove this thread from ThreadGroup
     java.lang.JikesRVMSupport.threadDied(thread);
+
+    TraceEngine.engine.removeFeedlet(feedlet);
 
     if (VM.VerifyAssertions) {
       if (Lock.countLocksHeldByThread(getLockingId()) > 0) {

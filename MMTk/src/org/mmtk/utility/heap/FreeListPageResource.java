@@ -124,8 +124,11 @@ public final class FreeListPageResource extends PageResource implements Constant
   @Override
   public int getAvailablePhysicalPages() {
     int rtn = pagesCurrentlyOnFreeList;
-    if (!contiguous)
-      rtn += Map.getAvailableDiscontiguousChunks()*(Space.PAGES_IN_CHUNK-metaDataPagesPerRegion);
+    if (!contiguous) {
+      int chunks = Map.getAvailableDiscontiguousChunks()-Map.getChunkConsumerCount();
+      if (chunks < 0) chunks = 0;
+      rtn += chunks*(Space.PAGES_IN_CHUNK-metaDataPagesPerRegion);
+    }
     return rtn;
   }
 
@@ -172,6 +175,7 @@ public final class FreeListPageResource extends PageResource implements Constant
       unlock();
       Mmapper.ensureMapped(rtn, pages);
       VM.memory.zero(rtn, bytes);
+      VM.events.tracePageAcquired(space, rtn, pages);
       return rtn;
     }
   }
@@ -210,6 +214,8 @@ public final class FreeListPageResource extends PageResource implements Constant
       releaseFreeChunks(first, freed);
 
     unlock();
+
+    VM.events.tracePageReleased(space, first, pages);
   }
 
   /**

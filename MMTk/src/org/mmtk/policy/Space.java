@@ -194,7 +194,7 @@ public abstract class Space implements Constants {
   public static Address getDiscontigStart() { return heapCursor; }
 
   /** End of discontig getter @return The end of the discontiguous space */
-  public static Address getDiscontigEnd() { return heapLimit; }
+  public static Address getDiscontigEnd() { return heapLimit.minus(1); }
 
   /** Name getter @return The name of this space */
   public final String getName() { return name; }
@@ -542,6 +542,25 @@ public abstract class Space implements Constants {
     Log.write("  AVAILABLE_END "); Log.writeln(AVAILABLE_END);
     Log.write("       HEAP_END "); Log.writeln(HEAP_END);
   }
+
+  /**
+   * Interface to use to implement the Visitor Pattern for Spaces.
+   */
+  public static interface SpaceVisitor {
+    void visit(Space s);
+  }
+
+  /**
+   * Implement the Visitor Pattern for Spaces.
+   * @param v The visitor to perform on each Space instance
+   */
+  @Interruptible
+  public static void visitSpaces(SpaceVisitor v) {
+    for (int i = 0; i < spaceCount; i++) {
+      v.visit(spaces[i]);
+    }
+  }
+
 
   /**
    * Ensure that all MMTk spaces (all spaces aside from the VM space)

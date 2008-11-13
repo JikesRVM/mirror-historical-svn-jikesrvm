@@ -14,14 +14,15 @@ package org.jikesrvm.ia32;
 
 import org.jikesrvm.Constants;
 import org.vmmagic.unboxed.Offset;
+import org.jikesrvm.VM;
 
 /**
  * Registers used by baseline compiler implementation of virtual machine.
  */
 public interface BaselineConstants extends Constants, ArchConstants {
 
-  int WORDSIZE = 4; // bytes
-  int LG_WORDSIZE = 2;
+  int WORDSIZE = VM.BuildFor64Addr ? 8 : 4; // bytes
+  int LG_WORDSIZE = VM.BuildFor64Addr ? 3 : 2;
 
   // Dedicated registers.
   //
@@ -37,11 +38,6 @@ public interface BaselineConstants extends Constants, ArchConstants {
   RegisterConstants.GPR S0 = ECX;
   RegisterConstants.GPR S1 = EDI;
 
-  // Mnemonics corresponding to the above constants.
-  // These are some alternate names that can be used in the debugger
-  //
-  String[] RVM_GPR_NAMES = {"eax", "ecx", "edx", "ebx", "esp", "ebp", "PR", "JT"};
-
   // Constants describing baseline compiler conventions for
   // saving registers in stackframes.
   //
@@ -50,15 +46,15 @@ public interface BaselineConstants extends Constants, ArchConstants {
   // Some registers are saved in all baseline
   // frames, and most register as saved in the
   // dynamic bridge frames.
-  int STACKFRAME_FIRST_PARAMETER_OFFSET = STACKFRAME_REG_SAVE_OFFSET - 8;
+  int STACKFRAME_FIRST_PARAMETER_OFFSET = STACKFRAME_REG_SAVE_OFFSET - (2 * WORDSIZE);
   // bridge frames save 3 additional GPRs
   int BRIDGE_FRAME_EXTRA_SIZE = (SSE2_FULL ? XMM_STATE_SIZE : FPU_STATE_SIZE) + 8;
 
   int SAVED_GPRS = 2; // EDI and EBX are nonvolatile registers used by baseline compiler
   Offset EDI_SAVE_OFFSET = Offset.fromIntSignExtend(STACKFRAME_REG_SAVE_OFFSET);
-  Offset EBX_SAVE_OFFSET = Offset.fromIntSignExtend(STACKFRAME_REG_SAVE_OFFSET).minus(4);
+  Offset EBX_SAVE_OFFSET = Offset.fromIntSignExtend(STACKFRAME_REG_SAVE_OFFSET).minus(WORDSIZE);
   Offset T0_SAVE_OFFSET = Offset.fromIntSignExtend(STACKFRAME_FIRST_PARAMETER_OFFSET);
-  Offset T1_SAVE_OFFSET = Offset.fromIntSignExtend(STACKFRAME_FIRST_PARAMETER_OFFSET).minus(4);
+  Offset T1_SAVE_OFFSET = Offset.fromIntSignExtend(STACKFRAME_FIRST_PARAMETER_OFFSET).minus(WORDSIZE);
   Offset FPU_SAVE_OFFSET = T1_SAVE_OFFSET.minus(FPU_STATE_SIZE);
   Offset XMM_SAVE_OFFSET = T1_SAVE_OFFSET.minus(XMM_STATE_SIZE);
 

@@ -388,4 +388,12 @@ public class Factory extends org.mmtk.vm.Factory {
     Assert.notImplemented();
     return null;
   }
+
+  /**
+   * TuningFork support
+   */
+  @Override
+  public org.mmtk.vm.MMTk_Events newEvents() {
+    return new MMTkEvents();
+  }
 }
