@@ -43,6 +43,7 @@ public final class YieldCounterListener extends NullListener {
    *             EPILOGUE?
    */
   public void update(int whereFrom) {
+    if (VM.VerifyAssertions) VM._assert(AosEntrypoints.yieldCountListenerNumYieldsField!=null);
     int yp = Synchronization.fetchAndAdd(this, AosEntrypoints.yieldCountListenerNumYieldsField.getOffset(), 1) + 1;
     if (yp == yieldThreshold) {
       totalYields += yp;
@@ -62,3 +63,8 @@ public final class YieldCounterListener extends NullListener {
   private int numYields = 0;
   private int totalYields = 0;
 }
+/*
+Local Variables:
+   c-basic-offset: 2
+End:
+*/
