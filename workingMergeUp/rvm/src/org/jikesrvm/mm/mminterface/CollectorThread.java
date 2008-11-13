@@ -450,10 +450,14 @@ public final class CollectorThread extends RVMThread {
         }
 
         startTime = Time.nanoTime();
-	boolean cont=Selected.Plan.get().lastCollectionFailed() && !Plan.isEmergencyCollection();
         gcBarrier.rendezvous(5201);
+	boolean cont=Selected.Plan.get().lastCollectionFailed() && !Plan.isEmergencyCollection();
 	if (!cont) break;
       }
+
+      /* wait for other collector threads to arrive here */
+      rendezvous(5210);
+      if (verbose > 2) VM.sysWriteln("CollectorThread: past rendezvous 1 after collection");
 
       if (gcOrdinal == GC_ORDINAL_BASE && !internalPhaseTriggered) {
         /* If the collection failed, we may need to throw OutOfMemory errors.
@@ -524,10 +528,6 @@ public final class CollectorThread extends RVMThread {
         /* schedule the FinalizerThread, if there is work to do & it is idle */
         Collection.scheduleFinalizerThread();
       }
-
-      /* wait for other collector threads to arrive here */
-      rendezvous(5210);
-      if (verbose > 2) VM.sysWriteln("CollectorThread: past rendezvous 1 after collection");
 
       /* final cleanup for initial collector thread */
       if (gcOrdinal == GC_ORDINAL_BASE) {

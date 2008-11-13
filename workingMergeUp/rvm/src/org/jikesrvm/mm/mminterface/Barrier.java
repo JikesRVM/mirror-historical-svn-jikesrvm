@@ -57,7 +57,15 @@ final class Barrier {
       if (counters[myCountIdx]==0) {
 	modes[myCountIdx]=mode;
       } else {
-	VM._assert(modes[myCountIdx]==mode);
+	int oldMode=modes[myCountIdx];
+	if (oldMode!=mode) {
+	  VM.sysWriteln("Thread ",RVMThread.getCurrentThreadSlot()," encountered "+
+			"incorrect mode entering barrier.");
+	  VM.sysWriteln("Thread ",RVMThread.getCurrentThreadSlot(),"'s mode: ",mode);
+	  VM.sysWriteln("Thread ",RVMThread.getCurrentThreadSlot()," saw others in mode: ",oldMode);
+	  VM._assert(modes[myCountIdx]==mode);
+	  VM._assert(oldMode==mode);
+	}
       }
     }
     counters[myCountIdx]++;
