@@ -2381,6 +2381,16 @@ public class RVMThread extends ThreadContext {
   
   @Interruptible
   public final void park(boolean isAbsolute, long time) throws Throwable {
+    if (parkingPermit) {
+      // fast path
+      parkingPermit=false;
+      return;
+    }
+    
+    // massive retardation.  someone might be holding the java.lang.Thread lock.
+    boolean holdsLock=holdsLock(thread);
+    if (holdsLock) ObjectModel.genericUnlock(thread);
+    
     boolean hasTimeout;
     long whenWakeupNanos;
     hasTimeout=(time!=0);
@@ -2409,6 +2419,9 @@ public class RVMThread extends ThreadContext {
       asyncThrowable=null;
     }
     monitor().unlock();
+
+    if (holdsLock) ObjectModel.genericLock(thread);
+
     if (throwThis!=null) {
       throw throwThis;
     }
