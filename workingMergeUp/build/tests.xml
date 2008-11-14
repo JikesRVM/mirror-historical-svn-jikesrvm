@@ -543,15 +543,6 @@
           </not>
         </conditions>
         <sequential>
- 	  <echo message="executable: ${test.@{tag}.rvm-wrapper.exe}"/>
-	  <echo message="line: ${test.@{tag}.rvm.wrapper-args}"/>
-	  <echo message="line: -t ${test.@{tag}.time.limit}"/>
-          <echo message="line: -e 200"/>
-          <echo message="line: -o ${test.@{tag}.@{execution}.output.file}"/>
-          <echo message="line: ${rvm.exe} ${test.@{tag}.rvm.args}"/>
-          <echo message="value: -classpath"/>
-          <echo message="value: ${test.@{tag}.class.path}"/>
-          <echo message="line: ${test.@{tag}.class} ${test.@{tag}.args}"/>
           <exec executable="${test.@{tag}.rvm-wrapper.exe}"
                  failonerror="false"
                  dir="${test.@{tag}.dir}"

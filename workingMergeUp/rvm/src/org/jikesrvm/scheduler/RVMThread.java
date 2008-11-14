@@ -2384,6 +2384,7 @@ public class RVMThread extends ThreadContext {
     if (parkingPermit) {
       // fast path
       parkingPermit=false;
+      Magic.sync();
       return;
     }
     
