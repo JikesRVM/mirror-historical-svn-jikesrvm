@@ -3924,7 +3924,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
     } else {
       // normal method
       if (method.hasBaselineSaveLSRegistersAnnotation()) {
-	// NASTY!!!!!
+	// There is one more word out of the total that is for callee-saves, hense 4 * WORDSIZE here rather than 3 * WORDSIZE below.
 	int spaceToRelease = fp2spOffset(NO_SLOT).toInt() - bytesPopped - (4 * WORDSIZE);
 	adjustStack(spaceToRelease, true);
 	if (VM.VerifyAssertions) VM._assert(EBP_SAVE_OFFSET.toInt() == -(4 * WORDSIZE));
