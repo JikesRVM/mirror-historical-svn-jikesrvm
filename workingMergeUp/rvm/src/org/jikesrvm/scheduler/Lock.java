@@ -24,6 +24,7 @@ import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.UninterruptibleNoWarn;
 import org.vmmagic.pragma.UnpreemptibleNoWarn;
+import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.unboxed.Word;
 import org.vmmagic.unboxed.Offset;
 
@@ -218,6 +219,7 @@ public class Lock implements Constants {
    * @param o the object to be locked
    * @return true, if the lock succeeds; false, otherwise
    */
+  @Unpreemptible
   public boolean lockHeavy(Object o) {
     if (tentativeMicrolocking) {
       if (!mutex.tryLock()) {
@@ -231,6 +233,7 @@ public class Lock implements Constants {
   
   /** Complete the task of acquiring the heavy lock, assuming that the mutex
       is already acquired (locked). */
+  @Unpreemptible
   public boolean lockHeavyLocked(Object o) {
     if (lockedObject != o) { // lock disappeared before we got here
       mutex.unlock(); // thread switching benign
@@ -260,7 +263,7 @@ public class Lock implements Constants {
     return true;
   }
 
-  @UninterruptibleNoWarn
+  @UnpreemptibleNoWarn
   private static void raiseIllegalMonitorStateException(String msg, Object o) {
     throw new IllegalMonitorStateException(msg + o);
   }
@@ -462,7 +465,7 @@ public class Lock implements Constants {
    *
    * @return a free Lock; or <code>null</code>, if garbage collection is not enabled
    */
-  @UninterruptibleNoWarn("The caller is prepared to lose control when it allocates a lock")
+  @UnpreemptibleNoWarn("The caller is prepared to lose control when it allocates a lock")
   static Lock allocate() {
     RVMThread me=RVMThread.getCurrentThread();
     if (me.cachedFreeLock != null) {
@@ -569,7 +572,7 @@ public class Lock implements Constants {
   /**
    * Grow the locks table by allocating a new spine chunk.
    */
-  @UninterruptibleNoWarn("The caller is prepared to lose control when it allocates a lock")
+  @UnpreemptibleNoWarn("The caller is prepared to lose control when it allocates a lock")
   static void growLocks(int id) {
     int spineId = id >> LOG_LOCK_CHUNK_SIZE;
     if (spineId >= LOCK_SPINE_SIZE) {

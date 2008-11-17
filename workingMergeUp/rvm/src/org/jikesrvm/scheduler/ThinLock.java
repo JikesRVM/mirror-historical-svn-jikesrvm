@@ -244,6 +244,7 @@ public final class ThinLock implements ThinLockConstants {
    * @param lockOffset the offset of the thin lock word in the object.
    * @return the heavy-weight lock on this object
    */
+  @Unpreemptible
   private static Lock inflate(Object o, Offset lockOffset) {
     if (VM.VerifyAssertions) {
       VM._assert(holdsLock(o, lockOffset, RVMThread.getCurrentThread()));
@@ -270,6 +271,7 @@ public final class ThinLock implements ThinLockConstants {
    * @param lockOffset the offset of the thin lock word in the object.
    * @return whether the object was successfully locked
    */
+  @Unpreemptible
   private static boolean inflateAndLock(Object o, Offset lockOffset) {
     Lock l = Lock.allocate();
     if (l == null) return false; // can't allocate locks during GC
@@ -367,6 +369,7 @@ public final class ThinLock implements ThinLockConstants {
    * @param create if true, create heavy lock if none found
    * @return the heavy-weight lock on the object (if any)
    */
+  @Unpreemptible
   public static Lock getHeavyLock(Object o, Offset lockOffset, boolean create) {
     Word old = Magic.getWordAtOffset(o, lockOffset);
     if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // already a fat lock in place

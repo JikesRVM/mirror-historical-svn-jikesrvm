@@ -17,6 +17,7 @@ import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.VM;
 
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.NoOptCompile;
@@ -133,6 +134,7 @@ public class HeavyCondLock {
    * It is usually not necessary to call this method instead of lock(),
    * since most VM locks are held for short periods of time.
    */
+  @Unpreemptible
   public void lockNicely() {
     RVMThread t = RVMThread.getCurrentThread();
     if (t != holder) {
@@ -146,12 +148,14 @@ public class HeavyCondLock {
   @NoInline
   @NoOptCompile
   @BaselineSaveLSRegisters
+  @Unpreemptible
   private void lockNicelyNoRec() {
     Magic.saveThreadState(RVMThread.getCurrentThread().contextRegisters);
     lockNicelyNoRecImpl();
   }
     
   @NoInline
+  @Unpreemptible
   private void lockNicelyNoRecImpl() {
     for (;;) {
       RVMThread.enterNative();
@@ -171,12 +175,14 @@ public class HeavyCondLock {
   @NoInline
   @NoOptCompile
   @BaselineSaveLSRegisters
+  @Unpreemptible
   public void relockNicely(int recCount) {
     Magic.saveThreadState(RVMThread.getCurrentThread().contextRegisters);
     relockNicelyImpl(recCount);
   }
   
   @NoInline
+  @Unpreemptible
   private void relockNicelyImpl(int recCount) {
     for (;;) {
       RVMThread.enterNative();
@@ -285,6 +291,7 @@ public class HeavyCondLock {
   @NoInline
   @NoOptCompile
   @BaselineSaveLSRegisters
+  @Unpreemptible
   public void waitNicely() {
     RVMThread t=RVMThread.getCurrentThread();
     Magic.saveThreadState(t.contextRegisters);
@@ -296,6 +303,7 @@ public class HeavyCondLock {
   }
   
   @NoInline
+  @Unpreemptible
   private void waitNicelyImpl() {
     RVMThread.enterNative();
     await();
@@ -322,12 +330,14 @@ public class HeavyCondLock {
   @NoInline
   @NoOptCompile
   @BaselineSaveLSRegisters
+  @Unpreemptible
   public void timedWaitAbsoluteNicely(long whenWakeupNanos) {
     Magic.saveThreadState(RVMThread.getCurrentThread().contextRegisters);
     timedWaitAbsoluteNicelyImpl(whenWakeupNanos);
   }
   
   @NoInline
+  @Unpreemptible
   private void timedWaitAbsoluteNicelyImpl(long whenWakeupNanos) {
     RVMThread.enterNative();
     timedWaitAbsolute(whenWakeupNanos);
@@ -354,12 +364,14 @@ public class HeavyCondLock {
   @NoInline
   @NoOptCompile
   @BaselineSaveLSRegisters
+  @Unpreemptible
   public void timedWaitRelativeNicely(long delayNanos) {
     Magic.saveThreadState(RVMThread.getCurrentThread().contextRegisters);
     timedWaitRelativeNicelyImpl(delayNanos);
   }
   
   @NoInline
+  @Unpreemptible
   private void timedWaitRelativeNicelyImpl(long delayNanos) {
     RVMThread.enterNative();
     timedWaitRelative(delayNanos);
@@ -396,6 +408,7 @@ public class HeavyCondLock {
   // methods here because they may potentially be useful again, but it
   // might be a good idea to ax them if they are truly without a use.
   
+  @NoInline
   public static void lock(HeavyCondLock m1,Word priority1,
 			  HeavyCondLock m2,Word priority2) {
     if (priority1.LE(priority2)) {
@@ -407,12 +420,14 @@ public class HeavyCondLock {
     }
   }
   
+  @NoInline
   public static void lock(HeavyCondLock m1,
 			  HeavyCondLock m2) {
     lock(m1,m1.mutex,
 	 m2,m2.mutex);
   }
   
+  @NoInline
   public static void lock(HeavyCondLock m1,Word priority1,
 			  HeavyCondLock m2,Word priority2,
 			  HeavyCondLock m3,Word priority3) {
@@ -433,6 +448,7 @@ public class HeavyCondLock {
     }
   }
   
+  @NoInline
   public static void lock(HeavyCondLock m1,
 			  HeavyCondLock m2,
 			  HeavyCondLock m3) {
@@ -441,6 +457,7 @@ public class HeavyCondLock {
 	 m3,m3.mutex);
   }
   
+  @NoInline
   public static boolean lock(HeavyCondLock l) {
     if (l==null) {
       return false;
@@ -450,6 +467,7 @@ public class HeavyCondLock {
     }
   }
   
+  @NoInline
   public static void unlock(boolean b,HeavyCondLock l) {
     if (b) l.unlock();
   }

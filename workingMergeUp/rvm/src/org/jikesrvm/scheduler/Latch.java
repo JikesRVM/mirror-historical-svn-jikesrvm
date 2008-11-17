@@ -12,6 +12,7 @@
  */
 package org.jikesrvm.scheduler;
 
+import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.pragma.Uninterruptible;
 
 /**
@@ -27,7 +28,7 @@ import org.vmmagic.pragma.Uninterruptible;
  * ManualResetEvent example: use open() to set, close() to reset, and
  * wait() to wait.
  */
-@Uninterruptible
+@Unpreemptible
 public class Latch {
   private final HeavyCondLock schedLock = new HeavyCondLock();
   private boolean open;
@@ -54,8 +55,9 @@ public class Latch {
    * could potentially block.  This is faster, and better for use in
    * interrupt handlers.
    */
+  @Uninterruptible
   public void openDangerously() {
-    schedLock.lockNicely();
+    schedLock.lock();
     open=true;
     schedLock.broadcast();
     schedLock.unlock();

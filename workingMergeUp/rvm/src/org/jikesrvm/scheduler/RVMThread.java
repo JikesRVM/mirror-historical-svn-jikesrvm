@@ -1271,6 +1271,7 @@ public class RVMThread extends ThreadContext {
   
   /** A variant of checkBlock() that does not save the thread state. */
   @NoInline
+  @Unpreemptible
   final void checkBlockNoSaveContext() {
     if (traceBlock) VM.sysWriteln("Thread #",threadSlot," in checkBlockNoSaveContext");
     // NB: anything this method calls CANNOT change the contextRegisters
@@ -1416,6 +1417,7 @@ public class RVMThread extends ThreadContext {
   @NoInline
   @NoOptCompile
   @BaselineSaveLSRegisters
+  @Unpreemptible
   final void checkBlock() {
     Magic.saveThreadState(contextRegisters);
     checkBlockNoSaveContext();
@@ -1453,6 +1455,7 @@ public class RVMThread extends ThreadContext {
   }
   
   @Entrypoint
+  @Unpreemptible
   static final void leaveJNIBlockedFromJNIFunctionCall() {
     RVMThread t=getCurrentThread();
     if (traceReallyBlock) {
@@ -1462,6 +1465,7 @@ public class RVMThread extends ThreadContext {
   }
   
   @Entrypoint
+  @Unpreemptible
   static final void leaveJNIBlockedFromCallIntoNative() {
     RVMThread t=getCurrentThread();
     if (traceReallyBlock) {
@@ -1494,6 +1498,7 @@ public class RVMThread extends ThreadContext {
       If the thread signals to us the intention to die as we are trying to
       block it, this will return TERMINATED.  NOTE: the thread's execStatus
       will not actually be TERMINATED at that point yet. */
+  @Unpreemptible
   final int block(BlockAdapter ba,boolean asynchronous) {
     int result;
     if (traceBlock) VM.sysWriteln("Thread #",getCurrentThread().threadSlot," is requesting that thread #",threadSlot," blocks.");
@@ -1575,10 +1580,13 @@ public class RVMThread extends ThreadContext {
     return result;
   }
   
+  @UninterruptibleNoWarn
   public final int asyncBlock(BlockAdapter ba) {
+    if (VM.VerifyAssertions) VM._assert(getCurrentThread()!=this);
     return block(ba,true);
   }
   
+  @Unpreemptible
   public final int block(BlockAdapter ba) {
     return block(ba,false);
   }
@@ -1623,7 +1631,8 @@ public class RVMThread extends ThreadContext {
     } while (!(Magic.attemptInt(t,offset,oldState,newState)));
     return true;
   }
-  
+
+  @Unpreemptible
   public static void leaveNative() {
     if (!attemptLeaveNativeNoBlock()) {
       if (traceReallyBlock) {
@@ -1678,7 +1687,7 @@ public class RVMThread extends ThreadContext {
 
 	VM.sysWriteln("Timer ticks = ",timerTicks);
 	
-	doProfileReport.open();
+	doProfileReport.openDangerously();
 	
 	// snapshot the threads
 	acctLock.lock();
@@ -2350,7 +2359,7 @@ public class RVMThread extends ThreadContext {
    * @param o the object synchronized on
    * @see java.lang.Object#notifyAll
    */
-  // NOTE: this was @Interruptible
+  @Unpreemptible
   public static void notifyAll(Object o) {
     if (STATS) notifyAllOperations++;
     Lock l = ObjectModel.getHeavyLock(o, false);
@@ -2511,6 +2520,7 @@ public class RVMThread extends ThreadContext {
    * PPC, but this mechanism is powerful enough to be used by sliding-views
    * style concurrent GC. */
   @NoCheckStore
+  @Unpreemptible
   public static void softHandshake(SoftHandshakeVisitor v) {
     handshakeLock.lockNicely(); /* prevent multiple (soft or hard) handshakes
 				   from proceeding concurrently */
@@ -2658,6 +2668,7 @@ public class RVMThread extends ThreadContext {
   /**
    * Process a taken yieldpoint.
    */
+  @Unpreemptible
   public static void yieldpoint(int whereFrom, Address yieldpointServiceMethodFP) {
     boolean cbsOverrun = false;
     RVMThread t = getCurrentThread();
@@ -2808,7 +2819,7 @@ public class RVMThread extends ThreadContext {
     }
   }
   
-  @UninterruptibleNoWarn
+  @Unpreemptible
   private static void throwFromUninterruptible(Throwable e) {
     RuntimeEntrypoints.athrow(e);
   }
@@ -4082,9 +4093,3 @@ public class RVMThread extends ThreadContext {
   }
   
 }
-
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

@@ -36,6 +36,7 @@ import org.mmtk.utility.options.Options;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.UninterruptibleNoWarn;
 import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.unboxed.Address;
 
@@ -337,6 +338,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    * will trigger the flush and then yield until all processors have
    * flushed.
    */
+  @UninterruptibleNoWarn("This method is really unpreemptible, since it involves blocking")
   public void requestMutatorFlush() {
     Selected.Mutator.get().flush();
     RVMThread.softHandshake(mutatorFlushVisitor);

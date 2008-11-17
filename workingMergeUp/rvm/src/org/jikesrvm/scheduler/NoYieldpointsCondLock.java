@@ -13,6 +13,7 @@
 package org.jikesrvm.scheduler;
 
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.pragma.NonMoving;
 import org.jikesrvm.VM;
 
@@ -42,6 +43,7 @@ public class NoYieldpointsCondLock extends HeavyCondLock {
   }
   
   // This method is strange
+  @Unpreemptible
   public void lockNicely() {
     VM.disableYieldpoints();
     super.lockNicely();
