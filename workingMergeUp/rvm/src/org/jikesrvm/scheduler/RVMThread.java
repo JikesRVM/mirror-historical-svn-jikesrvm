@@ -1271,7 +1271,7 @@ public class RVMThread extends ThreadContext {
   
   /** A variant of checkBlock() that does not save the thread state. */
   @NoInline
-  @Unpreemptible
+  @Unpreemptible("May block if the thread was asked to do so, but otherwise does no actions that would cause blocking")
   final void checkBlockNoSaveContext() {
     if (traceBlock) VM.sysWriteln("Thread #",threadSlot," in checkBlockNoSaveContext");
     // NB: anything this method calls CANNOT change the contextRegisters
@@ -1417,7 +1417,7 @@ public class RVMThread extends ThreadContext {
   @NoInline
   @NoOptCompile
   @BaselineSaveLSRegisters
-  @Unpreemptible
+  @Unpreemptible("May block if asked to do so, but otherwise does not actions that would block")
   final void checkBlock() {
     Magic.saveThreadState(contextRegisters);
     checkBlockNoSaveContext();
@@ -1455,7 +1455,7 @@ public class RVMThread extends ThreadContext {
   }
   
   @Entrypoint
-  @Unpreemptible
+  @Unpreemptible("May block if the thread was asked to do so, but otherwise will not block")
   static final void leaveJNIBlockedFromJNIFunctionCall() {
     RVMThread t=getCurrentThread();
     if (traceReallyBlock) {
@@ -1465,7 +1465,7 @@ public class RVMThread extends ThreadContext {
   }
   
   @Entrypoint
-  @Unpreemptible
+  @Unpreemptible("May block if the thread was asked to do so, but otherwise will not block")
   static final void leaveJNIBlockedFromCallIntoNative() {
     RVMThread t=getCurrentThread();
     if (traceReallyBlock) {
@@ -1498,7 +1498,7 @@ public class RVMThread extends ThreadContext {
       If the thread signals to us the intention to die as we are trying to
       block it, this will return TERMINATED.  NOTE: the thread's execStatus
       will not actually be TERMINATED at that point yet. */
-  @Unpreemptible
+  @Unpreemptible("Only blocks if the receiver is the current thread, or if asynchronous is set to false and the thread is not already blocked")
   final int block(BlockAdapter ba,boolean asynchronous) {
     int result;
     if (traceBlock) VM.sysWriteln("Thread #",getCurrentThread().threadSlot," is requesting that thread #",threadSlot," blocks.");
@@ -1580,13 +1580,13 @@ public class RVMThread extends ThreadContext {
     return result;
   }
   
-  @UninterruptibleNoWarn
+  @UninterruptibleNoWarn("Never blocks; only asynchronously notifies the receiver to do so")
   public final int asyncBlock(BlockAdapter ba) {
     if (VM.VerifyAssertions) VM._assert(getCurrentThread()!=this);
     return block(ba,true);
   }
   
-  @Unpreemptible
+  @Unpreemptible("May block if the receiver is the current thread or if the receiver is not yet blocked; otherwise does not perform actions that lead to blocking")
   public final int block(BlockAdapter ba) {
     return block(ba,false);
   }
@@ -1632,7 +1632,7 @@ public class RVMThread extends ThreadContext {
     return true;
   }
 
-  @Unpreemptible
+  @Unpreemptible("May block if the thread was asked to do so; otherwise does no actions that would lead to blocking")
   public static void leaveNative() {
     if (!attemptLeaveNativeNoBlock()) {
       if (traceReallyBlock) {
@@ -1760,7 +1760,7 @@ public class RVMThread extends ThreadContext {
    * String representation of thread
    */
   @Override
-  @Unpreemptible
+  @Unpreemptible("May block due to allocation but otherwise avoids blocking")
   public String toString() {
     return (name == null) ? Services.stringConcatenate("Thread-", getIndex()) : name;
   }
@@ -2359,7 +2359,7 @@ public class RVMThread extends ThreadContext {
    * @param o the object synchronized on
    * @see java.lang.Object#notifyAll
    */
-  @Unpreemptible
+  @UninterruptibleNoWarn("Never blocks except if there was an error")
   public static void notifyAll(Object o) {
     if (STATS) notifyAllOperations++;
     Lock l = ObjectModel.getHeavyLock(o, false);
@@ -2520,7 +2520,7 @@ public class RVMThread extends ThreadContext {
    * PPC, but this mechanism is powerful enough to be used by sliding-views
    * style concurrent GC. */
   @NoCheckStore
-  @Unpreemptible
+  @Unpreemptible("Does not perform actions that lead to blocking, but may wait for threads to rendezvous with the soft handshake")
   public static void softHandshake(SoftHandshakeVisitor v) {
     handshakeLock.lockNicely(); /* prevent multiple (soft or hard) handshakes
 				   from proceeding concurrently */
@@ -2668,7 +2668,7 @@ public class RVMThread extends ThreadContext {
   /**
    * Process a taken yieldpoint.
    */
-  @Unpreemptible
+  @Unpreemptible("May block if the thread was asked to do so but otherwise does not perform actions that may lead to blocking")
   public static void yieldpoint(int whereFrom, Address yieldpointServiceMethodFP) {
     boolean cbsOverrun = false;
     RVMThread t = getCurrentThread();
@@ -2830,7 +2830,7 @@ public class RVMThread extends ThreadContext {
    * @param exceptionRegisters register state at which stack overflow trap
    * was encountered (null --> normal method call, not a trap)
    */
-  @Unpreemptible
+  @Unpreemptible("May block due to allocation")
   public static void resizeCurrentStack(int newSize, Registers exceptionRegisters) {
     if (traceAdjustments) VM.sysWrite("Thread: resizeCurrentStack\n");
     if (MemoryManager.gcInProgress()) {
@@ -3395,7 +3395,6 @@ public class RVMThread extends ThreadContext {
    * Get the thread to use for building stack traces.
    * NB overridden by {@link org.jikesrvm.mm.mminterface.CollectorThread}
    */
-  @Uninterruptible
   public RVMThread getThreadForStackTrace() {
     return this;
   }
@@ -3789,7 +3788,7 @@ public class RVMThread extends ThreadContext {
   /**
    * Dump stack of calling thread, starting at callers frame
    */
-  @UninterruptibleNoWarn
+  @UninterruptibleNoWarn("Never blocks")
   public static void dumpStack() {
     if (VM.runningVM) {
       VM.sysWriteln("Dumping stack for Thread #",getCurrentThreadSlot());

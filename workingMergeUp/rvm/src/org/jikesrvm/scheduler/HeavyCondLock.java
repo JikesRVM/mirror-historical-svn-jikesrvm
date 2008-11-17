@@ -134,7 +134,7 @@ public class HeavyCondLock {
    * It is usually not necessary to call this method instead of lock(),
    * since most VM locks are held for short periods of time.
    */
-  @Unpreemptible
+  @Unpreemptible("If the lock cannot be acquired, this method will allow the thread to be asynchronously blocked")
   public void lockNicely() {
     RVMThread t = RVMThread.getCurrentThread();
     if (t != holder) {
@@ -175,7 +175,7 @@ public class HeavyCondLock {
   @NoInline
   @NoOptCompile
   @BaselineSaveLSRegisters
-  @Unpreemptible
+  @Unpreemptible("If the lock cannot be reacquired, this method may allow the thread to be asynchronously blocked")
   public void relockNicely(int recCount) {
     Magic.saveThreadState(RVMThread.getCurrentThread().contextRegisters);
     relockNicelyImpl(recCount);
@@ -291,7 +291,7 @@ public class HeavyCondLock {
   @NoInline
   @NoOptCompile
   @BaselineSaveLSRegisters
-  @Unpreemptible
+  @Unpreemptible("While the thread is waiting, this method may allow the thread to be asynchronously blocked")
   public void waitNicely() {
     RVMThread t=RVMThread.getCurrentThread();
     Magic.saveThreadState(t.contextRegisters);
@@ -330,7 +330,7 @@ public class HeavyCondLock {
   @NoInline
   @NoOptCompile
   @BaselineSaveLSRegisters
-  @Unpreemptible
+  @Unpreemptible("While the thread is waiting, this method may allow the thread to be asynchronously blocked")
   public void timedWaitAbsoluteNicely(long whenWakeupNanos) {
     Magic.saveThreadState(RVMThread.getCurrentThread().contextRegisters);
     timedWaitAbsoluteNicelyImpl(whenWakeupNanos);
@@ -364,7 +364,7 @@ public class HeavyCondLock {
   @NoInline
   @NoOptCompile
   @BaselineSaveLSRegisters
-  @Unpreemptible
+  @Unpreemptible("While the thread is waiting, this method may allow the thread to be asynchronously blocked")
   public void timedWaitRelativeNicely(long delayNanos) {
     Magic.saveThreadState(RVMThread.getCurrentThread().contextRegisters);
     timedWaitRelativeNicelyImpl(delayNanos);
