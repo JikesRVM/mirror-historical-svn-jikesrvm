@@ -13,7 +13,6 @@
 package org.jikesrvm.mm.mmtk;
 
 import org.jikesrvm.VM;
-import org.jikesrvm.Services;
 
 import org.vmmagic.unboxed.*;
 import org.vmmagic.pragma.*;
@@ -22,10 +21,6 @@ import org.jikesrvm.runtime.Entrypoints;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.scheduler.ThreadQueue;
-import org.jikesrvm.scheduler.Latch;
-
-import org.mmtk.utility.Log;
-
 
 /**
  * Adaptive mutex with a spinlock fast path.  Designed for good performance

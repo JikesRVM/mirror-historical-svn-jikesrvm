@@ -101,7 +101,6 @@ import org.jikesrvm.compilers.opt.ir.operand.TrueGuardOperand;
 import org.jikesrvm.objectmodel.TIBLayoutConstants;
 import org.jikesrvm.runtime.ArchEntrypoints;
 import org.jikesrvm.runtime.MagicNames;
-import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;

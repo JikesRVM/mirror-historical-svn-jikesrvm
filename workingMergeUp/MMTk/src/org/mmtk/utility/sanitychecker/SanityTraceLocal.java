@@ -14,7 +14,6 @@ package org.mmtk.utility.sanitychecker;
 
 import org.mmtk.plan.TraceLocal;
 import org.mmtk.plan.Trace;
-import org.mmtk.utility.Log;
 
 import org.vmmagic.pragma.*;
 import org.vmmagic.unboxed.*;

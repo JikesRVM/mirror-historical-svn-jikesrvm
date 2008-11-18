@@ -13,7 +13,6 @@
 package org.mmtk.plan;
 
 import org.mmtk.vm.VM;
-import org.mmtk.utility.Log;
 import org.vmmagic.pragma.*;
 import org.vmmagic.unboxed.*;
 

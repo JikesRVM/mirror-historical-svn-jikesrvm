@@ -17,7 +17,6 @@ import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.RVMThread;
-import org.jikesrvm.VM;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;

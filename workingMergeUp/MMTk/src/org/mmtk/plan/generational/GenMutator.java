@@ -15,7 +15,6 @@ package org.mmtk.plan.generational;
 import org.mmtk.plan.*;
 import org.mmtk.policy.CopyLocal;
 import org.mmtk.policy.Space;
-import org.mmtk.utility.Log;
 import org.mmtk.utility.deque.*;
 import org.mmtk.utility.alloc.Allocator;
 import org.mmtk.utility.statistics.Stats;

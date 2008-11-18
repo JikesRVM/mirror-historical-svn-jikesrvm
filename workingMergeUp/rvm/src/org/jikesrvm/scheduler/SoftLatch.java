@@ -12,8 +12,6 @@
  */
 package org.jikesrvm.scheduler;
 
-import org.vmmagic.pragma.Uninterruptible;
-
 /**
  * An implementation of a latch using monitors.
  * This essentially gives you park/unpark functionality.  It can also

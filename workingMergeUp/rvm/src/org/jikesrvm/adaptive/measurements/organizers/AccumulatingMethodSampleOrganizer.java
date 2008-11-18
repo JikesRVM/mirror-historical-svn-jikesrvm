@@ -19,9 +19,7 @@ import org.jikesrvm.adaptive.measurements.RuntimeMeasurements;
 import org.jikesrvm.adaptive.measurements.listeners.MethodListener;
 import org.jikesrvm.adaptive.util.AOSLogging;
 import org.jikesrvm.scheduler.RVMThread;
-import org.jikesrvm.scheduler.Latch;
 import org.vmmagic.pragma.NonMoving;
-import org.vmmagic.pragma.Uninterruptible;
 
 /**
  * An organizer for method listener information that

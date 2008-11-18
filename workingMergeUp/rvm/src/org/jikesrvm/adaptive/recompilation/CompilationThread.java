@@ -17,7 +17,6 @@ import org.jikesrvm.adaptive.controller.Controller;
 import org.jikesrvm.adaptive.controller.ControllerPlan;
 import org.jikesrvm.adaptive.util.AOSLogging;
 import org.jikesrvm.scheduler.RVMThread;
-import org.jikesrvm.VM;
 import org.vmmagic.pragma.NonMoving;
 
 /**

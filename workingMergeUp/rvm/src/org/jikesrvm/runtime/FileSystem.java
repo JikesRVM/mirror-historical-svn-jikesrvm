@@ -20,12 +20,8 @@ import java.io.FileOutputStream;
 import java.io.PrintStream;
 import org.jikesrvm.VM;
 import org.jikesrvm.Callbacks;
-import org.jikesrvm.runtime.Magic;
 import static org.jikesrvm.runtime.SysCall.sysCall;
-import org.jikesrvm.runtime.Time;
-import org.jikesrvm.runtime.TimeoutException;
 import org.jikesrvm.util.StringUtilities;
-import org.vmmagic.pragma.Inline;
 
 /**
  * Interface to filesystem of underlying operating system.  Historically

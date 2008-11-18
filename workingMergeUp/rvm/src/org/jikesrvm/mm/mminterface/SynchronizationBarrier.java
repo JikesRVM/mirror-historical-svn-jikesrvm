@@ -14,7 +14,6 @@ package org.jikesrvm.mm.mminterface;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.runtime.Magic;
-import static org.jikesrvm.runtime.SysCall.sysCall;
 import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Uninterruptible;
 

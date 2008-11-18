@@ -13,7 +13,6 @@
 package org.jikesrvm.adaptive;
 
 import org.jikesrvm.adaptive.controller.Controller;
-import org.jikesrvm.runtime.Entrypoints;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Uninterruptible;

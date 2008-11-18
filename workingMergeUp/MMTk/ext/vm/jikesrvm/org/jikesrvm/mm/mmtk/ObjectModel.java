@@ -14,7 +14,6 @@ package org.jikesrvm.mm.mmtk;
 
 import org.mmtk.utility.alloc.Allocator;
 
-import org.jikesrvm.VM;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.objectmodel.JavaHeaderConstants;
 import org.jikesrvm.objectmodel.TIB;

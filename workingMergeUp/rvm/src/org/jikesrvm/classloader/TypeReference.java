@@ -546,8 +546,8 @@ public final class TypeReference {
    */
   @Uninterruptible
   public boolean isRuntimeTable() {
-    return this == IMT || this == TIB || this == ITable || this == ITableArray
-        || this == FunctionTable;
+    return this == IMT || this == TIB || this == ITable || this == ITableArray ||
+           this == FunctionTable;
   }
 
   /**

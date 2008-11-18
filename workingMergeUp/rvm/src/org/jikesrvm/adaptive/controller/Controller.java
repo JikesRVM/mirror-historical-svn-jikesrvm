@@ -23,7 +23,6 @@ import org.jikesrvm.adaptive.database.methodsamples.MethodCountData;
 import org.jikesrvm.adaptive.measurements.RuntimeMeasurements;
 import org.jikesrvm.adaptive.measurements.instrumentation.Instrumentation;
 import org.jikesrvm.adaptive.measurements.organizers.Organizer;
-import org.jikesrvm.adaptive.measurements.organizers.AccumulatingMethodSampleOrganizer;
 import org.jikesrvm.adaptive.recompilation.CompilationThread;
 import org.jikesrvm.adaptive.recompilation.instrumentation.CounterBasedSampling;
 import org.jikesrvm.adaptive.util.AOSLogging;

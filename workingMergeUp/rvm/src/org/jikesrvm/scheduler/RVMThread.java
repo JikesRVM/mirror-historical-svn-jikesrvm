@@ -474,7 +474,7 @@ public class RVMThread extends ThreadContext {
   boolean isBlockedForGC;
   @Uninterruptible
   @NonMoving
-  public static abstract class BlockAdapter {
+  public abstract static class BlockAdapter {
     abstract boolean isBlocked(RVMThread t);
     abstract void setBlocked(RVMThread t,boolean value);
     abstract int requestBlock(RVMThread t);
@@ -1176,9 +1176,9 @@ public class RVMThread extends ThreadContext {
    * @return if the thread is running Java
    */
   public final boolean isInJava() {
-    return !isBlocking
-      && !isAboutToTerminate
-      && (execStatus==IN_JAVA || execStatus==IN_JAVA_TO_BLOCK);
+    return !isBlocking &&
+           !isAboutToTerminate &&
+           (execStatus==IN_JAVA || execStatus==IN_JAVA_TO_BLOCK);
   }
   /** A variant of checkBlock() that does not save the thread state. */
   @NoInline
@@ -1535,7 +1535,7 @@ public class RVMThread extends ThreadContext {
     monitor().unlock();
     if (traceBlock) VM.sysWriteln("Thread #",getCurrentThread().threadSlot," is done requesting that thread #",threadSlot," unblocks.");
   }
-  private final void handleDebugRequestForThread() {
+  private void handleDebugRequestForThread() {
     monitor().lock();
     dumpLock.lock();
     extDump();
