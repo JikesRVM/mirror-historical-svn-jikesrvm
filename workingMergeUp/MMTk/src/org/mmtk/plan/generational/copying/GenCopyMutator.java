@@ -73,7 +73,6 @@ public class GenCopyMutator extends GenMutator {
     super.initMutator();
     mature.rebind(GenCopy.toSpace());
   }
- 
   /****************************************************************************
    *
    * Mutator-time allocation

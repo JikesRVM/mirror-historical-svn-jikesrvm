@@ -195,7 +195,6 @@ public final class TypeReference {
 
   /** Abstract base of reflective method invoker classes */
   static final TypeReference baseReflectionClass = TypeReference.findOrCreate(ReflectionBase.class);
-    
   // Synthetic types used by the opt compiler
   public static final TypeReference NULL_TYPE =
       (VM.BuildForOptCompiler) ? findOrCreate("Lorg/jikesrvm/classloader/TypeReference$NULL;") : null;

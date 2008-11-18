@@ -41,14 +41,12 @@ public class NoYieldpointsCondLock extends HeavyCondLock {
     VM.disableYieldpoints();
     super.lock();
   }
-  
   // This method is strange
   @Unpreemptible
   public void lockNicely() {
     VM.disableYieldpoints();
     super.lockNicely();
   }
-  
   public void unlock() {
     super.unlock();
     VM.enableYieldpoints();

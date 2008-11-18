@@ -39,7 +39,6 @@ public final class SanityTraceLocal extends TraceLocal {
    *
    * Object processing and tracing
    */
-  
   /**
    * This method is the core method during the trace of the object graph.
    * The role of this method is to:

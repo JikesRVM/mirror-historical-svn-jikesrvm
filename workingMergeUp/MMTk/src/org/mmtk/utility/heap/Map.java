@@ -135,7 +135,6 @@ public class Map {
     Address rtn = reverseHashChunk(chunk);
     insert(rtn, Extent.fromIntZeroExtend(chunks<<Space.LOG_BYTES_IN_CHUNK), descriptor, space);
     linkageMap[chunk] = previous.isZero() ? 0 : hashAddress(previous);
-    
     if (false) {
       Log.write("Map: allocated ");
       Log.write(getContiguousRegionSize(rtn));
@@ -144,7 +143,6 @@ public class Map {
       Log.write(", returning ");
       Log.writeln(rtn);
     }
-    
     return rtn;
   }
 
@@ -224,7 +222,6 @@ public class Map {
       Log.write("Map: freed ");
       Log.writeln(reverseHashChunk(chunk));
     }
-    
     int chunks = regionMap.free(chunk);
     totalAvailableDiscontiguousChunks += chunks;
     for (int offset = 0; offset < chunks; offset++) {

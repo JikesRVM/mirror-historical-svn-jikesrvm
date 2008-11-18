@@ -41,10 +41,10 @@ public final class OSROrganizerThread extends RVMThread {
     while (true) {
       monitor().lock();
       if (!this.osr_flag) {
-	monitor().waitNicely();
+        monitor().waitNicely();
       }
       this.osr_flag=false; /* if we get another activation after here
-			      then we should rescan the threads array */
+                              then we should rescan the threads array */
       monitor().unlock();
 
       processOsrRequest();
@@ -69,17 +69,17 @@ public final class OSROrganizerThread extends RVMThread {
       Magic.sync();
       RVMThread t=RVMThread.threads[i];
       if (t!=null) {
-	boolean go=false;
-	t.monitor().lock();
-	// NOTE: if threads are being removed, we may see a thread twice
-	if (t.requesting_osr) {
-	  t.requesting_osr=false;
-	  go=true;
-	}
-	t.monitor().unlock();
-	if (go) {
+        boolean go=false;
+        t.monitor().lock();
+        // NOTE: if threads are being removed, we may see a thread twice
+        if (t.requesting_osr) {
+          t.requesting_osr=false;
+          go=true;
+        }
+        t.monitor().unlock();
+        if (go) {
           Controller.controllerInputQueue.insert(5.0, t.onStackReplacementEvent);
-	}
+        }
       }
     }
   }

@@ -65,7 +65,6 @@ public class HeavyCondLock {
   RVMThread holder;
   int recCount;
   public int acquireCount;
-  
   /**
    * Allocate a heavy condition variable and lock.  This involves
    * allocating stuff in C that never gets deallocated.  Thus, don't
@@ -75,7 +74,6 @@ public class HeavyCondLock {
     mutex=sysCall.sysPthreadMutexCreate();
     cond=sysCall.sysPthreadCondCreate();
   }
-  
   /**
    * Wait until it is possible to acquire the lock and then acquire it.
    * There is no bound on how long you might wait, if someone else is
@@ -100,7 +98,6 @@ public class HeavyCondLock {
     recCount++;
     acquireCount++;
   }
-  
   /**
    * Relock the mutex after using unlockCompletely.
    */
@@ -110,7 +107,6 @@ public class HeavyCondLock {
     this.recCount=recCount;
     acquireCount++;
   }
-  
   /**
    * Wait until it is possible to acquire the lock and then acquire it.
    * There is no bound on how long you might wait, if someone else is
@@ -144,7 +140,6 @@ public class HeavyCondLock {
     recCount++;
     acquireCount++;
   }
-  
   @NoInline
   @NoOptCompile
   @BaselineSaveLSRegisters
@@ -153,7 +148,6 @@ public class HeavyCondLock {
     Magic.saveThreadState(RVMThread.getCurrentThread().contextRegisters);
     lockNicelyNoRecImpl();
   }
-    
   @NoInline
   @Unpreemptible
   private void lockNicelyNoRecImpl() {
@@ -161,14 +155,13 @@ public class HeavyCondLock {
       RVMThread.enterNative();
       sysCall.sysPthreadMutexLock(mutex);
       if (RVMThread.attemptLeaveNativeNoBlock()) {
-	return;
+        return;
       } else {
-	sysCall.sysPthreadMutexUnlock(mutex);
-	RVMThread.leaveNative();
+        sysCall.sysPthreadMutexUnlock(mutex);
+        RVMThread.leaveNative();
       }
     }
   }
-  
   /**
    * Relock the mutex after using unlockCompletely, but do so "nicely".
    */
@@ -180,7 +173,6 @@ public class HeavyCondLock {
     Magic.saveThreadState(RVMThread.getCurrentThread().contextRegisters);
     relockNicelyImpl(recCount);
   }
-  
   @NoInline
   @Unpreemptible
   private void relockNicelyImpl(int recCount) {
@@ -188,16 +180,15 @@ public class HeavyCondLock {
       RVMThread.enterNative();
       sysCall.sysPthreadMutexLock(mutex);
       if (RVMThread.attemptLeaveNativeNoBlock()) {
-	break;
+        break;
       } else {
-	sysCall.sysPthreadMutexUnlock(mutex);
-	RVMThread.leaveNative();
+        sysCall.sysPthreadMutexUnlock(mutex);
+        RVMThread.leaveNative();
       }
     }
     holder=RVMThread.getCurrentThread();
     this.recCount=recCount;
   }
-  
   /**
    * Release the lock.  This method should (in principle) be non-blocking,
    * and, as such, it does not notify the threading subsystem that it is
@@ -209,7 +200,6 @@ public class HeavyCondLock {
       sysCall.sysPthreadMutexUnlock(mutex);
     }
   }
-  
   /**
    * Completely release the lock, ignoring recursion.  Returns the
    * recursion count.
@@ -221,7 +211,6 @@ public class HeavyCondLock {
     sysCall.sysPthreadMutexUnlock(mutex);
     return result;
   }
-  
   /**
    * Wait until someone calls broadcast.
    * <p>
@@ -239,7 +228,6 @@ public class HeavyCondLock {
     this.recCount=recCount;
     holder=RVMThread.getCurrentThread();
   }
-  
   /**
    * Wait until someone calls broadcast, or until the clock reaches the
    * given time.
@@ -258,7 +246,6 @@ public class HeavyCondLock {
     this.recCount=recCount;
     holder=RVMThread.getCurrentThread();
   }
-  
   /**
    * Wait until someone calls broadcast, or until at least the given
    * number of nanoseconds pass.
@@ -273,7 +260,6 @@ public class HeavyCondLock {
     long now=sysCall.sysNanoTime();
     timedWaitAbsolute(now+delayNanos);
   }
-  
   /**
    * Wait until someone calls broadcast.
    * <p>
@@ -301,7 +287,6 @@ public class HeavyCondLock {
     // indicate that we failed to save that register on the stack.
     if (VM.VerifyAssertions) t.contextRegistersSave.assertSame(t.contextRegisters);
   }
-  
   @NoInline
   @Unpreemptible
   private void waitNicelyImpl() {
@@ -311,7 +296,6 @@ public class HeavyCondLock {
     RVMThread.leaveNative();
     relockNicelyImpl(recCount);
   }
-  
   /**
    * Wait until someone calls broadcast, or until the clock reaches the
    * given time.
@@ -335,7 +319,6 @@ public class HeavyCondLock {
     Magic.saveThreadState(RVMThread.getCurrentThread().contextRegisters);
     timedWaitAbsoluteNicelyImpl(whenWakeupNanos);
   }
-  
   @NoInline
   @Unpreemptible
   private void timedWaitAbsoluteNicelyImpl(long whenWakeupNanos) {
@@ -345,7 +328,6 @@ public class HeavyCondLock {
     RVMThread.leaveNative();
     relockNicelyImpl(recCount);
   }
-  
   /**
    * Wait until someone calls broadcast, or until at least the given
    * number of nanoseconds pass.
@@ -369,7 +351,6 @@ public class HeavyCondLock {
     Magic.saveThreadState(RVMThread.getCurrentThread().contextRegisters);
     timedWaitRelativeNicelyImpl(delayNanos);
   }
-  
   @NoInline
   @Unpreemptible
   private void timedWaitRelativeNicelyImpl(long delayNanos) {
@@ -389,7 +370,6 @@ public class HeavyCondLock {
   public void broadcast() {
     sysCall.sysPthreadCondBroadcast(cond);
   }
-  
   /**
    * Send a broadcast after first acquiring the lock.  Release the lock
    * after sending the broadacst.  In most cases where you want to send
@@ -402,15 +382,13 @@ public class HeavyCondLock {
     broadcast();
     unlock();
   }
-  
   // NOTE: these methods below used to have a purpose but that purpose
   // disappeared as I was switching around designs.  I'm keeping these
   // methods here because they may potentially be useful again, but it
   // might be a good idea to ax them if they are truly without a use.
-  
   @NoInline
   public static void lock(HeavyCondLock m1,Word priority1,
-			  HeavyCondLock m2,Word priority2) {
+                          HeavyCondLock m2,Word priority2) {
     if (priority1.LE(priority2)) {
       m1.lock();
       m2.lock();
@@ -419,44 +397,40 @@ public class HeavyCondLock {
       m1.lock();
     }
   }
-  
   @NoInline
   public static void lock(HeavyCondLock m1,
-			  HeavyCondLock m2) {
+                          HeavyCondLock m2) {
     lock(m1,m1.mutex,
-	 m2,m2.mutex);
+         m2,m2.mutex);
   }
-  
   @NoInline
   public static void lock(HeavyCondLock m1,Word priority1,
-			  HeavyCondLock m2,Word priority2,
-			  HeavyCondLock m3,Word priority3) {
+                          HeavyCondLock m2,Word priority2,
+                          HeavyCondLock m3,Word priority3) {
     if (priority1.LE(priority2) &&
-	priority1.LE(priority3)) {
+        priority1.LE(priority3)) {
       m1.lock();
       lock(m2,priority2,
-	   m3,priority3);
+           m3,priority3);
     } else if (priority2.LE(priority1) &&
-	       priority2.LE(priority3)) {
+               priority2.LE(priority3)) {
       m2.lock();
       lock(m1,priority1,
-	   m3,priority3);
+           m3,priority3);
     } else {
       m3.lock();
       lock(m1,priority1,
-	   m2,priority2);
+           m2,priority2);
     }
   }
-  
   @NoInline
   public static void lock(HeavyCondLock m1,
-			  HeavyCondLock m2,
-			  HeavyCondLock m3) {
+                          HeavyCondLock m2,
+                          HeavyCondLock m3) {
     lock(m1,m1.mutex,
-	 m2,m2.mutex,
-	 m3,m3.mutex);
+         m2,m2.mutex,
+         m3,m3.mutex);
   }
-  
   @NoInline
   public static boolean lock(HeavyCondLock l) {
     if (l==null) {
@@ -466,7 +440,6 @@ public class HeavyCondLock {
       return true;
     }
   }
-  
   @NoInline
   public static void unlock(boolean b,HeavyCondLock l) {
     if (b) l.unlock();

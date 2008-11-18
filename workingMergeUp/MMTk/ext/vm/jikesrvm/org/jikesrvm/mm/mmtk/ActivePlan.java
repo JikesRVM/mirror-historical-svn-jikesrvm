@@ -79,7 +79,6 @@ import org.vmmagic.pragma.*;
   public CollectorContext collector(int id) {
     return collectors[id];
   }
-  
   /**
    * Return the MutatorContext instance given its unique identifier.
    *
@@ -151,12 +150,12 @@ import org.vmmagic.pragma.*;
     for (;;) {
       int idx = mutatorCounter.increment();
       if (idx >= RVMThread.numThreads) {
-	return null;
+        return null;
       } else {
-	RVMThread t=RVMThread.threads[idx];
-	if (t.registeredMutator) {
-	  return t;
-	}
+        RVMThread t=RVMThread.threads[idx];
+        if (t.registeredMutator) {
+          return t;
+        }
       }
     }
   }

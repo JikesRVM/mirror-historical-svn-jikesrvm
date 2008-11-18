@@ -123,7 +123,6 @@ public class Lock implements Constants {
 
   /** do debug tracing? */
   protected static final boolean trace = false;
-   
   /** Control the gathering of statistics */
   public static final boolean STATS = false;
 
@@ -196,10 +195,8 @@ public class Lock implements Constants {
   private Lock nextFreeLock;
   /** This lock's index in the lock table*/
   protected int index;
-  
   /** Queue for entering the lock, guarded by mutex. */
   ThreadQueue entering;
-  
   /** Queue for waiting on a notify, guarded by mutex as well. */
   ThreadQueue waiting;
 
@@ -230,7 +227,6 @@ public class Lock implements Constants {
     }
     return lockHeavyLocked(o);
   }
-  
   /** Complete the task of acquiring the heavy lock, assuming that the mutex
       is already acquired (locked). */
   @Unpreemptible
@@ -250,13 +246,11 @@ public class Lock implements Constants {
     } else {
       entering.enqueue(me);
       mutex.unlock();
-      
       me.monitor().lock();
       while (entering.isQueued(me)) {
-	me.monitor().waitNicely(); // this may spuriously return
+        me.monitor().waitNicely(); // this may spuriously return
       }
       me.monitor().unlock();
-      
       return false;
     }
     mutex.unlock(); // thread-switching benign
@@ -298,7 +292,6 @@ public class Lock implements Constants {
       }
     }
     mutex.unlock(); // does a Magic.sync();  (thread-switching benign)
-    
     if (toAwaken != null) {
       toAwaken.monitor().lockedBroadcast();
     }
@@ -472,8 +465,8 @@ public class Lock implements Constants {
       Lock l = me.cachedFreeLock;
       me.cachedFreeLock = null;
       if (trace) {
-	VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
-		      ", a cached free lock from Thread #",me.getThreadSlot());
+        VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
+                      ", a cached free lock from Thread #",me.getThreadSlot());
       }
       return l;
     }
@@ -481,50 +474,50 @@ public class Lock implements Constants {
     Lock l = null;
     while (l == null) {
       if (globalFreeLock != null) {
-	lockAllocationMutex.lock();
-	l = globalFreeLock;
-	if (l != null) {
-	  globalFreeLock = l.nextFreeLock;
-	  l.nextFreeLock = null;
-	  l.active = true;
-	  globalFreeLocks--;
-	}
-	lockAllocationMutex.unlock();
-	if (trace && l!=null) {
-	  VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
-			" from the global freelist for Thread #",me.getThreadSlot());
-	}
+        lockAllocationMutex.lock();
+        l = globalFreeLock;
+        if (l != null) {
+          globalFreeLock = l.nextFreeLock;
+          l.nextFreeLock = null;
+          l.active = true;
+          globalFreeLocks--;
+        }
+        lockAllocationMutex.unlock();
+        if (trace && l!=null) {
+          VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
+                        " from the global freelist for Thread #",me.getThreadSlot());
+        }
       } else {
-	l = new Lock(); // may cause thread switch (and processor loss)
-	lockAllocationMutex.lock();
-	if (globalFreeLock == null) {
-	  // ok, it's still correct for us to be adding a new lock
-	  if (nextLockIndex >= MAX_LOCKS) {
-	    VM.sysWriteln("Too many fat locks"); // make MAX_LOCKS bigger? we can keep going??
-	    VM.sysFail("Exiting VM with fatal error");
-	  }
-	  l.index = nextLockIndex++;
-	  globalLocksAllocated++;
-	} else {
-	  l = null; // someone added to the freelist, try again
-	}
-	lockAllocationMutex.unlock();
-	if (l != null) {
-	  if (l.index >= numLocks()) {
-	    /* We need to grow the table */
-	    growLocks(l.index);
-	  }
-	  addLock(l);
-	  l.active = true;
-	  /* make sure other processors see lock initialization.
-	   * Note: Derek and I BELIEVE that an isync is not required in the other processor because the lock is newly allocated - Bowen */
-	  Magic.sync();
-	}
-	if (trace && l!=null) {
-	  VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
-			", a freshly allocated lock for Thread #",
-			me.getThreadSlot());
-	}
+        l = new Lock(); // may cause thread switch (and processor loss)
+        lockAllocationMutex.lock();
+        if (globalFreeLock == null) {
+          // ok, it's still correct for us to be adding a new lock
+          if (nextLockIndex >= MAX_LOCKS) {
+            VM.sysWriteln("Too many fat locks"); // make MAX_LOCKS bigger? we can keep going??
+            VM.sysFail("Exiting VM with fatal error");
+          }
+          l.index = nextLockIndex++;
+          globalLocksAllocated++;
+        } else {
+          l = null; // someone added to the freelist, try again
+        }
+        lockAllocationMutex.unlock();
+        if (l != null) {
+          if (l.index >= numLocks()) {
+            /* We need to grow the table */
+            growLocks(l.index);
+          }
+          addLock(l);
+          l.active = true;
+          /* make sure other processors see lock initialization.
+           * Note: Derek and I BELIEVE that an isync is not required in the other processor because the lock is newly allocated - Bowen */
+          Magic.sync();
+        }
+        if (trace && l!=null) {
+          VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
+                        ", a freshly allocated lock for Thread #",
+                        me.getThreadSlot());
+        }
       }
     }
     return l;
@@ -540,26 +533,25 @@ public class Lock implements Constants {
     RVMThread me = RVMThread.getCurrentThread();
     if (me.cachedFreeLock == null) {
       if (trace) {
-	VM.sysWriteln("Lock.free: setting ",Magic.objectAsAddress(l),
-		      " as the cached free lock for Thread #",
-		      me.getThreadSlot());
+        VM.sysWriteln("Lock.free: setting ",Magic.objectAsAddress(l),
+                      " as the cached free lock for Thread #",
+                      me.getThreadSlot());
       }
       me.cachedFreeLock = l;
     } else {
       if (trace) {
-	VM.sysWriteln("Lock.free: returning ",Magic.objectAsAddress(l),
-		      " to the global freelist for Thread #",
-		      me.getThreadSlot());
+        VM.sysWriteln("Lock.free: returning ",Magic.objectAsAddress(l),
+                      " to the global freelist for Thread #",
+                      me.getThreadSlot());
       }
       returnLock(l);
     }
   }
-    
   static void returnLock(Lock l) {
     if (trace) {
       VM.sysWriteln("Lock.returnLock: returning ",Magic.objectAsAddress(l),
-		    " to the global freelist for Thread #",
-		    RVMThread.getCurrentThreadSlot());
+                    " to the global freelist for Thread #",
+                    RVMThread.getCurrentThreadSlot());
     }
     lockAllocationMutex.lock();
     l.nextFreeLock = globalFreeLock;
@@ -639,7 +631,6 @@ public class Lock implements Constants {
       }
     }
     VM.sysWrite("\n");
-    
     VM.sysWrite("lock availability stats: ");
     VM.sysWriteInt(globalLocksAllocated);
     VM.sysWrite(" locks allocated, ");

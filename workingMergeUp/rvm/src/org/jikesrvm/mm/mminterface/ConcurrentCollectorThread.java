@@ -39,7 +39,6 @@ public final class ConcurrentCollectorThread extends RVMThread {
   private static final String myName = "ConcurrentCollectorThread";
 
   private static Barrier barrier = new Barrier();
-  
 
   private static HeavyCondLock schedLock;
   private static boolean triggerRun;
@@ -75,7 +74,6 @@ public final class ConcurrentCollectorThread extends RVMThread {
   @Interruptible
   public static void init() {
   }
-  
   public static void boot() {
     maxRunning=RVMThread.numProcessors;
     barrier.boot(maxRunning);
@@ -125,19 +123,18 @@ public final class ConcurrentCollectorThread extends RVMThread {
       schedLock.lock();
       running--;
       if (running==0) {
-	schedLock.broadcast();
+        schedLock.broadcast();
       }
       while (!triggerRun) {
-	schedLock.waitNicely();
+        schedLock.waitNicely();
       }
       running++;
       schedLock.unlock();
-      
       if (barrier.arrive(1)) {
-	schedLock.lock();
-	triggerRun=false;
-	schedLock.broadcast();
-	schedLock.unlock();
+        schedLock.lock();
+        triggerRun=false;
+        schedLock.broadcast();
+        schedLock.unlock();
       }
 
       if (verbose >= 1) VM.sysWriteln("GC Message: Concurrent collector awake");
@@ -145,7 +142,6 @@ public final class ConcurrentCollectorThread extends RVMThread {
       if (verbose >= 1) VM.sysWriteln("GC Message: Concurrent collector finished");
     }
   }
-  
   @Uninterruptible
   public static void scheduleConcurrentCollectorThreads() {
     schedLock.lock();
@@ -154,15 +150,15 @@ public final class ConcurrentCollectorThread extends RVMThread {
       // but this is dangerous ... do we know that the concurrent workers will go into
       // quiescence before this is called?
       if (!triggerRun && running==0) {
-	// now start a new cycle
-	triggerRun=true;
-	schedLock.broadcast();
+        // now start a new cycle
+        triggerRun=true;
+        schedLock.broadcast();
       }
     } else {
       // this is the code I'd much rather be using
       // wait for previous concurrent collection cycle to finish
       while (triggerRun || running!=0) {
-	schedLock.waitNicely();
+        schedLock.waitNicely();
       }
       // now start a new cycle
       triggerRun=true;

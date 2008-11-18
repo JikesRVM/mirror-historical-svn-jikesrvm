@@ -411,7 +411,6 @@ public abstract class Phase implements Constants {
   private static boolean processPhaseStack(boolean resume) {
     int order = VM.collection.rendezvous(1001);
     final boolean primary = order == 1;
-    
     if (false && primary) {
       Log.write("thread ");
       Log.write(VM.activePlan.mutator().getId());
@@ -449,8 +448,8 @@ public abstract class Phase implements Constants {
     int scheduledPhase;
     while((scheduledPhase = getCurrentPhase(isEvenPhase)) > 0) {
       if (false) {
-	Log.write("got scheduled phase for thread ");
-	Log.writeln(VM.activePlan.mutator().getId());
+        Log.write("got scheduled phase for thread ");
+        Log.writeln(VM.activePlan.mutator().getId());
       }
       short schedule = getSchedule(scheduledPhase);
       short phaseId = getPhaseId(scheduledPhase);
@@ -469,8 +468,8 @@ public abstract class Phase implements Constants {
       }
 
       if (log) {
-	Log.write("in thread ");
-	Log.write(VM.activePlan.mutator().getId());
+        Log.write("in thread ");
+        Log.write(VM.activePlan.mutator().getId());
         Log.write(" Execute ");
         p.logPhase();
       }
@@ -480,25 +479,25 @@ public abstract class Phase implements Constants {
         /* Global phase */
         case SCHEDULE_GLOBAL: {
           if (logDetails) {
-	    Log.writeln(" as Global...");
-	  }
-	  if (primary) {
-	    if (Options.verbose.getValue() >= 6) {
-	      Space.printVMMap();
-	    }
-	    plan.collectionPhase(phaseId);
-	    if (Options.verbose.getValue() >= 6) {
-	      Space.printVMMap();
-	    }
-	  }
+            Log.writeln(" as Global...");
+          }
+          if (primary) {
+            if (Options.verbose.getValue() >= 6) {
+              Space.printVMMap();
+            }
+            plan.collectionPhase(phaseId);
+            if (Options.verbose.getValue() >= 6) {
+              Space.printVMMap();
+            }
+          }
           break;
         }
 
         /* Collector phase */
         case SCHEDULE_COLLECTOR: {
           if (logDetails) {
-	    Log.writeln(" as Collector...");
-	  }
+            Log.writeln(" as Collector...");
+          }
           collector.collectionPhase(phaseId, primary);
           break;
         }
@@ -506,16 +505,16 @@ public abstract class Phase implements Constants {
         /* Mutator phase */
         case SCHEDULE_MUTATOR: {
           if (logDetails) {
-	    Log.writeln(" as Mutator...");
-	  }
+            Log.writeln(" as Mutator...");
+          }
           /* Iterate through all mutator contexts */
           MutatorContext mutator;
           while ((mutator = VM.activePlan.getNextMutator()) != null) {
-	    if (false) {
-	      Log.write("dealing with mutator ");
-	      Log.write(mutator.id);
-	      Log.writeln();
-	    }
+            if (false) {
+              Log.write("dealing with mutator ");
+              Log.write(mutator.id);
+              Log.writeln();
+            }
             mutator.collectionPhase(phaseId, primary);
           }
           break;
@@ -525,8 +524,8 @@ public abstract class Phase implements Constants {
         case SCHEDULE_CONCURRENT: {
           /* We are yielding to a concurrent collection phase */
           if (logDetails) {
-	    Log.writeln(" as Concurrent, yielding...");
-	  }
+            Log.writeln(" as Concurrent, yielding...");
+          }
           if (primary) {
             concurrentPhaseId = phaseId;
             scheduleConcurrentWorkers();
@@ -551,11 +550,10 @@ public abstract class Phase implements Constants {
         /* Set the next phase by processing the stack */
         int next = getNextPhase();
         boolean needsResetRendezvous = (next > 0) && (schedule == SCHEDULE_MUTATOR && getSchedule(next) == SCHEDULE_MUTATOR);
-	if (false) {
-	  Log.write("setting phase in thread ");
-	  Log.writeln(VM.activePlan.mutator().getId());
-	}
-	  
+        if (false) {
+          Log.write("setting phase in thread ");
+          Log.writeln(VM.activePlan.mutator().getId());
+        }
         setNextPhase(isEvenPhase, next, needsResetRendezvous);
       }
 
@@ -582,14 +580,13 @@ public abstract class Phase implements Constants {
           stopComplexTimer = 0;
         }
       }
-      
       /* Flip the even / odd phase sense */
       isEvenPhase = !isEvenPhase;
       resume = false;
 
       if (false) {
-	Log.write("getting scheduled phase for thread ");
-	Log.writeln(VM.activePlan.mutator().getId());
+        Log.write("getting scheduled phase for thread ");
+        Log.writeln(VM.activePlan.mutator().getId());
       }
     }
 

@@ -107,7 +107,6 @@ public abstract class TemplateCompilerFramework
    * Is the method currently being compiled interruptible?
    */
   protected final boolean isInterruptible;
-  
   /**
    * Does this method do checkstore?
    */
@@ -148,7 +147,6 @@ public abstract class TemplateCompilerFramework
       isUninterruptible = method.isUninterruptible();
       isUnpreemptible = method.isUnpreemptible();
     }
-    
     doesCheckStore = !method.hasNoCheckStoreAnnotation();
 
     // Double check logically uninterruptible methods have been annotated as

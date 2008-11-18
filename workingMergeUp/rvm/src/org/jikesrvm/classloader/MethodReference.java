@@ -132,7 +132,7 @@ public final class MethodReference extends MemberReference {
    */
   void setResolvedMember(RVMMethod it) {
     if (VM.VerifyAssertions) VM._assert(resolvedMember == null ||
-					resolvedMember == it);
+                                        resolvedMember == it);
     resolvedMember = it;
   }
 

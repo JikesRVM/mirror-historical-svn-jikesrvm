@@ -52,13 +52,12 @@ public final class Strings extends org.mmtk.vm.Strings {
    * @return the number of characters copied.
    */
   public int copyStringToChars(String str, char [] dst,
-			       int dstBegin, int dstEnd) {
+                               int dstBegin, int dstEnd) {
     if (!VM.runningVM)
       return naiveCopyStringToChars(str, dst, dstBegin, dstEnd);
     else
       return safeCopyStringToChars(str, dst, dstBegin, dstEnd);
   }
- 
   /**
    * Copies characters from the string into the character array.
    * Thread switching is disabled during this method's execution.
@@ -88,7 +87,6 @@ public final class Strings extends org.mmtk.vm.Strings {
     RVMThread.getCurrentThread().enableYieldpoints();
     return n;
   }
- 
   /**
    * Copies characters from the string into the character array.
    * Thread switching is disabled during this method's execution.
@@ -102,7 +100,7 @@ public final class Strings extends org.mmtk.vm.Strings {
    */
   @UninterruptibleNoWarn
   private int naiveCopyStringToChars(String str, char [] dst,
-				     int dstBegin, int dstEnd) {
+                                     int dstBegin, int dstEnd) {
     if (VM.VerifyAssertions) VM._assert(!VM.runningVM);
     int len = str.length();
     int n = (dstBegin + len <= dstEnd) ? len : (dstEnd - dstBegin);

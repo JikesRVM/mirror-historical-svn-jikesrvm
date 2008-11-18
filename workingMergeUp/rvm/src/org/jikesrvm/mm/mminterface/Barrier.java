@@ -28,44 +28,40 @@ import org.vmmagic.pragma.Interruptible;
 final class Barrier {
 
   public static final int VERBOSE = 0;
-    
   private HeavyCondLock lock;
   private int target;
   private int[] counters=new int[2]; // are two counters enough?
   private int[] modes=new int[2];
   private int countIdx;
-  
   public Barrier() {}
-  
   @Interruptible
   public void boot(int target) {
     lock=new HeavyCondLock();
     this.target=target;
     countIdx=0;
   }
-  
   public boolean arrive(int mode) {
     if (false) {
       VM.sysWriteln("thread ",RVMThread.getCurrentThreadSlot(),
-		    " entered ",RVMThread.getCurrentThread().barriersEntered++,
-		    " barriers");
+                    " entered ",RVMThread.getCurrentThread().barriersEntered++,
+                    " barriers");
     }
     lock.lock();
     int myCountIdx=countIdx;
     boolean result;
     if (VM.VerifyAssertions) {
       if (counters[myCountIdx]==0) {
-	modes[myCountIdx]=mode;
+        modes[myCountIdx]=mode;
       } else {
-	int oldMode=modes[myCountIdx];
-	if (oldMode!=mode) {
-	  VM.sysWriteln("Thread ",RVMThread.getCurrentThreadSlot()," encountered "+
-			"incorrect mode entering barrier.");
-	  VM.sysWriteln("Thread ",RVMThread.getCurrentThreadSlot(),"'s mode: ",mode);
-	  VM.sysWriteln("Thread ",RVMThread.getCurrentThreadSlot()," saw others in mode: ",oldMode);
-	  VM._assert(modes[myCountIdx]==mode);
-	  VM._assert(oldMode==mode);
-	}
+        int oldMode=modes[myCountIdx];
+        if (oldMode!=mode) {
+          VM.sysWriteln("Thread ",RVMThread.getCurrentThreadSlot()," encountered "+
+                        "incorrect mode entering barrier.");
+          VM.sysWriteln("Thread ",RVMThread.getCurrentThreadSlot(),"'s mode: ",mode);
+          VM.sysWriteln("Thread ",RVMThread.getCurrentThreadSlot()," saw others in mode: ",oldMode);
+          VM._assert(modes[myCountIdx]==mode);
+          VM._assert(oldMode==mode);
+        }
       }
     }
     counters[myCountIdx]++;
@@ -74,20 +70,20 @@ final class Barrier {
       countIdx^=1;
       lock.broadcast();
       if (false) {
-	VM.sysWriteln("waking everyone");
+        VM.sysWriteln("waking everyone");
       }
       result=true;
     } else {
       while (counters[myCountIdx]!=0) {
-	lock.await();
+        lock.await();
       }
       result=false;
     }
     lock.unlock();
     if (false) {
       VM.sysWriteln("thread ",RVMThread.getCurrentThreadSlot(),
-		    " exited ",RVMThread.getCurrentThread().barriersExited++,
-		    " barriers");
+                    " exited ",RVMThread.getCurrentThread().barriersExited++,
+                    " barriers");
     }
     return result;
   }

@@ -236,7 +236,7 @@ public final class ControllerThread extends RVMThread {
 
     if (opts.GATHER_PROFILE_DATA) {
       Controller.organizers.addElement(
-	  new AccumulatingMethodSampleOrganizer());
+          new AccumulatingMethodSampleOrganizer());
 
       createDynamicCallGraphOrganizer();
     }

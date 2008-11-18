@@ -542,8 +542,7 @@ public final class OptCompiledMethod extends CompiledMethod {
         // forced the data caches to be in synch), but we need the icbi instructions
         Memory.sync(Magic.objectAsAddress(instructions),
                        instructions.length() << ArchitectureSpecific.RegisterConstants.LG_INSTRUCTION_WIDTH);
-	
-	RVMThread.softHandshake(codePatchSyncRequestVisitor);
+        RVMThread.softHandshake(codePatchSyncRequestVisitor);
 
         if (DEBUG_CODE_PATCH) {
           VM.sysWrite("all processors get synchronized!\n");
@@ -553,13 +552,12 @@ public final class OptCompiledMethod extends CompiledMethod {
     }
   }
 
-  
   private static RVMThread.SoftHandshakeVisitor codePatchSyncRequestVisitor =
     new RVMThread.SoftHandshakeVisitor() {
       @Uninterruptible
       public boolean checkAndSignal(RVMThread t) {
-	t.codePatchSyncRequested = true;
-	return true; // handshake with everyone but ourselves.
+        t.codePatchSyncRequested = true;
+        return true; // handshake with everyone but ourselves.
       }
     };
 }

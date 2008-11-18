@@ -260,7 +260,6 @@ public class BootRecord {
   public Address sysPthreadJoinIP;
   public Address sysStashVmThreadInPthreadIP;
   public Address sysTerminatePthreadIP;
-  
   // mutexes and conds
   public Address sysPthreadMutexCreateIP;
   public Address sysPthreadMutexDestroyIP;

@@ -107,7 +107,7 @@ public class CompiledMethods implements SizeConstants {
       if (!(0 < compiledMethodId && compiledMethodId <= currentCompiledMethodId)) {
         VM.sysWriteln("WARNING: attempt to get compiled method #", compiledMethodId);
         VM.sysFail("attempt to get an invalid compiled method ID");
-	return null;
+        return null;
       }
     }
 

@@ -277,7 +277,6 @@ public abstract class BaselineGCMapIterator extends GCMapIterator implements Bas
           VM.sysWrite(bridgeRegisterLocation.plus(4));
           VM.sysWrite(".\n");
         }
-	
         return bridgeRegisterLocation.plus(4);
       }
 
@@ -331,7 +330,7 @@ public abstract class BaselineGCMapIterator extends GCMapIterator implements Bas
       registerLocations.set(EDI.value(), framePtr.plus(EDI_SAVE_OFFSET).toWord());
       registerLocations.set(EBX.value(), framePtr.plus(EBX_SAVE_OFFSET).toWord());
       if (currentMethod.hasBaselineSaveLSRegistersAnnotation()) {
-	registerLocations.set(EBP.value(), framePtr.plus(EBP_SAVE_OFFSET).toWord());
+        registerLocations.set(EBP.value(), framePtr.plus(EBP_SAVE_OFFSET).toWord());
       }
     }
 

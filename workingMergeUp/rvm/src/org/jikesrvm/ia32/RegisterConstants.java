@@ -333,7 +333,6 @@ public interface RegisterConstants {
   GPR[] SYSCALL_PARAM_GPRS = VM.buildFor32Addr() ? new GPR[0] : new GPR[]{R7 /*RDI*/, R6 /*RSI*/, R2 /*RDX*/, R1 /*RCX*/, R8, R9};
   /** Floating point registers to pass arguments to syscalls in */
   XMM[] SYSCALL_PARAM_FPRS = VM.buildFor32Addr() ? new XMM[0] : new XMM[]{XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7};
-  
   /*
    * Dedicated registers.
    */

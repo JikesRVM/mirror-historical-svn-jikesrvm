@@ -51,31 +51,24 @@ import org.mmtk.utility.Log;
   private String name;        // logical name of lock
   private final int id;       // lock id (based on a non-resetting counter)
   private static int lockCount;
-  
   private static final int SPIN_LIMIT = 1000;
-  
   /** Lock is not held and the queue is empty.  When the lock is in this
    * state, there <i>may</i> be a thread that just got dequeued and is
    * about to enter into contention on the lock. */
   private static final int CLEAR = 0;
-  
   /** Lock is held and the queue is empty. */
   private static final int LOCKED = 1;
-  
   /** Lock is not held but the queue is non-empty.  This state guarantees
    * that there is a thread that got dequeued and is about to contend on
    * the lock. */
   private static final int CLEAR_QUEUED = 2;
-  
   /** Lock is held and the queue is non-empty. */
   private static final int LOCKED_QUEUED = 3;
-  
   /** Some thread is currently engaged in an enqueue or dequeue operation,
    * and will return the lock to whatever it was in previously once that
    * operation is done.  During this states any lock/unlock attempts will
    * spin until the lock reverts to some other state. */
   private static final int QUEUEING = 4;
-  
   private ThreadQueue queue;
   @Entrypoint
   private int state;
@@ -84,7 +77,6 @@ import org.mmtk.utility.Log;
   @Untraced
   private RVMThread thread;   // if locked, who locked it?
   private int where = -1;     // how far along has the lock owner progressed?
-  
   public Lock(String name) {
     this();
     this.name = name;
@@ -99,7 +91,6 @@ import org.mmtk.utility.Log;
   public void setName(String str) {
     name = str;
   }
-  
   public void acquire() {
     RVMThread me = RVMThread.getCurrentThread();
     Offset offset=Entrypoints.lockStateField.getOffset();
@@ -111,35 +102,35 @@ import org.mmtk.utility.Log;
       // check the queue directly and see if there is anything on it; this
       // would make the lock slightly more fair.
       if ((oldState==CLEAR &&
-	   Magic.attemptInt(this,offset,CLEAR,LOCKED)) ||
-	  (oldState==CLEAR_QUEUED &&
-	   Magic.attemptInt(this,offset,CLEAR_QUEUED,LOCKED_QUEUED))) {
-	acquired=true;
-	break;
+           Magic.attemptInt(this,offset,CLEAR,LOCKED)) ||
+          (oldState==CLEAR_QUEUED &&
+           Magic.attemptInt(this,offset,CLEAR_QUEUED,LOCKED_QUEUED))) {
+        acquired=true;
+        break;
       }
     }
     if (!acquired) {
       for (;;) {
-	int oldState=Magic.prepareInt(this,offset);
-	if ((oldState==CLEAR &&
-	     Magic.attemptInt(this,offset,CLEAR,LOCKED)) ||
-	    (oldState==CLEAR_QUEUED &&
-	     Magic.attemptInt(this,offset,CLEAR_QUEUED,LOCKED_QUEUED))) {
-	  break;
-	} else if ((oldState==LOCKED &&
-		    Magic.attemptInt(this,offset,LOCKED,QUEUEING)) ||
-		   (oldState==LOCKED_QUEUED &&
-		    Magic.attemptInt(this,offset,LOCKED_QUEUED,QUEUEING))) {
-	  queue.enqueue(me);
-	  Magic.sync();
-	  state=LOCKED_QUEUED;
-	  me.monitor().lock();
-	  while (queue.isQueued(me)) {
-	    // use await instead of waitNicely because this is NOT a GC point!
-	    me.monitor().await();
-	  }
-	  me.monitor().unlock();
-	}
+        int oldState=Magic.prepareInt(this,offset);
+        if ((oldState==CLEAR &&
+             Magic.attemptInt(this,offset,CLEAR,LOCKED)) ||
+            (oldState==CLEAR_QUEUED &&
+             Magic.attemptInt(this,offset,CLEAR_QUEUED,LOCKED_QUEUED))) {
+          break;
+        } else if ((oldState==LOCKED &&
+                    Magic.attemptInt(this,offset,LOCKED,QUEUEING)) ||
+                   (oldState==LOCKED_QUEUED &&
+                    Magic.attemptInt(this,offset,LOCKED_QUEUED,QUEUEING))) {
+          queue.enqueue(me);
+          Magic.sync();
+          state=LOCKED_QUEUED;
+          me.monitor().lock();
+          while (queue.isQueued(me)) {
+            // use await instead of waitNicely because this is NOT a GC point!
+            me.monitor().await();
+          }
+          me.monitor().unlock();
+        }
       }
     }
     thread = me;
@@ -160,24 +151,24 @@ import org.mmtk.utility.Log;
     for (;;) {
       int oldState=Magic.prepareInt(this,offset);
       if (VM.VerifyAssertions) VM._assert(oldState==LOCKED ||
-					  oldState==LOCKED_QUEUED ||
-					  oldState==QUEUEING);
+                                          oldState==LOCKED_QUEUED ||
+                                          oldState==QUEUEING);
       if (oldState==LOCKED &&
-	  Magic.attemptInt(this,offset,LOCKED,CLEAR)) {
-	break;
+          Magic.attemptInt(this,offset,LOCKED,CLEAR)) {
+        break;
       } else if (oldState==LOCKED_QUEUED &&
-		 Magic.attemptInt(this,offset,LOCKED_QUEUED,QUEUEING)) {
-	RVMThread toAwaken=queue.dequeue();
-	if (VM.VerifyAssertions) VM._assert(toAwaken!=null);
-	boolean queueEmpty=queue.isEmpty();
-	Magic.sync();
-	if (queueEmpty) {
-	  state=CLEAR;
-	} else {
-	  state=CLEAR_QUEUED;
-	}
-	toAwaken.monitor().lockedBroadcast();
-	break;
+                 Magic.attemptInt(this,offset,LOCKED_QUEUED,QUEUEING)) {
+        RVMThread toAwaken=queue.dequeue();
+        if (VM.VerifyAssertions) VM._assert(toAwaken!=null);
+        boolean queueEmpty=queue.isEmpty();
+        Magic.sync();
+        if (queueEmpty) {
+          state=CLEAR;
+        } else {
+          state=CLEAR_QUEUED;
+        }
+        toAwaken.monitor().lockedBroadcast();
+        break;
       }
     }
   }

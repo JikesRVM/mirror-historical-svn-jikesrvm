@@ -77,7 +77,6 @@ import org.vmmagic.unboxed.Offset;
 public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.StackframeLayoutConstants {
 
   private static final boolean traceAthrow = false;
-  
   // Trap codes for communication with C trap handler.
   //
   public static final int TRAP_UNKNOWN = -1;
@@ -592,7 +591,6 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
       VM.sysWriteln("in athrow.");
       RVMThread.dumpStack();
     }
-    
     RVMThread myThread = RVMThread.getCurrentThread();
     Registers exceptionRegisters = myThread.getExceptionRegisters();
     VM.disableGC();              // VM.enableGC() is called when the exception is delivered.
@@ -623,7 +621,6 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
    */
   @Entrypoint
   static void deliverHardwareException(int trapCode, int trapInfo) {
-    
     RVMThread myThread = RVMThread.getCurrentThread();
     Registers exceptionRegisters = myThread.getExceptionRegisters();
 
@@ -937,7 +934,6 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
     if (VM.TraceExceptionDelivery) {
       VM.sysWriteln("RuntimeEntrypoints.deliverException() entered; just got an exception object.");
     }
-    
     //VM.sysWriteln("throwing exception!");
     //RVMThread.dumpStack();
 

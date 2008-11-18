@@ -78,18 +78,16 @@ public final class AccumulatingMethodSampleOrganizer extends Organizer {
     VM.sysWrite("\nMethod sampler report");
     if (data != null) data.report();
   }
-  
   @NonMoving
   class AsyncReporter extends RVMThread {
     public AsyncReporter() {
       super("Async Profile Reporter");
       makeDaemon(true);
     }
-    
     public void run() {
       for (;;) {
-	RVMThread.doProfileReport.waitAndClose();
-	report();
+        RVMThread.doProfileReport.waitAndClose();
+        report();
       }
     }
   }

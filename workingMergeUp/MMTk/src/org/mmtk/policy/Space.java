@@ -535,22 +535,22 @@ public abstract class Space implements Constants {
         Log.writeln();
       } else {
         Log.write("D [");
-	int cnt=0;
+        int cnt=0;
         for(Address a = space.lastDiscontiguousRegion; !a.isZero();
             a = Map.getNextContiguousRegion(a)) {
           Log.write(a);
-	  Log.write("->");
-	  Extent regionSize=Map.getContiguousRegionSize(a);
+          Log.write("->");
+          Extent regionSize=Map.getContiguousRegionSize(a);
           Log.write(a.plus(regionSize.minus(1)));
-	  Log.write(" (size = ");
-	  Log.write(regionSize);
-	  Log.write(")");
+          Log.write(" (size = ");
+          Log.write(regionSize);
+          Log.write(")");
           if (Map.getNextContiguousRegion(a) != Address.zero())
             Log.write(", ");
-	  if (cnt++==10000) {
-	    Log.writeln();
-	    VM.assertions.fail("more than 10000 regions; probably this means that something got corrupted.");
-	  }
+          if (cnt++==10000) {
+            Log.writeln();
+            VM.assertions.fail("more than 10000 regions; probably this means that something got corrupted.");
+          }
         }
         Log.writeln("]");
       }

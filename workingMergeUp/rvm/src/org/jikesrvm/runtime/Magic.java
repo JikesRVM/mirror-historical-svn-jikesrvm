@@ -608,7 +608,6 @@ public final class Magic {
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
     return null;
   }
-  
   /**
    * Cast bits.
    * @param number A floating point number

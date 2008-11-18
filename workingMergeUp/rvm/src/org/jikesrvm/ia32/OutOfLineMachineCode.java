@@ -426,7 +426,6 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
 
     return asm.getMachineCodes();
   }
-  
   // PNT: time for the epic fun!  Oh yay!
 
   /**
@@ -552,26 +551,26 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
     }
     // TR.framePointer = restoreRegs.fp
     ThreadLocalState.emitMoveRegToField(asm,
-					ArchEntrypoints.framePointerField.getOffset(),
-					S0);
+                                        ArchEntrypoints.framePointerField.getOffset(),
+                                        S0);
     if (VM.BuildFor32Addr) {
       asm.emitMOV_Reg_RegDisp(S0, T1, gprsOffset);      // S0 := restoreRegs.gprs[]
       asm.emitMOV_Reg_RegDisp(SP, S0, Offset.fromIntZeroExtend(SP.value() << LG_WORDSIZE)); // SP := restoreRegs.gprs[#SP]
       for (int i = 0; i < NUM_NONVOLATILE_GPRS; i++) {
-	// i'th register := restoreRegs.gprs[i]
-	asm.emitMOV_Reg_RegDisp(NONVOLATILE_GPRS[i],
-				S0,
-				Offset.fromIntZeroExtend(NONVOLATILE_GPRS[i].value() <<
-							 LG_WORDSIZE));
+        // i'th register := restoreRegs.gprs[i]
+        asm.emitMOV_Reg_RegDisp(NONVOLATILE_GPRS[i],
+                                S0,
+                                Offset.fromIntZeroExtend(NONVOLATILE_GPRS[i].value() <<
+                                                         LG_WORDSIZE));
       }
     } else {
       asm.emitMOV_Reg_RegDisp_Quad(S0, T1, gprsOffset); // S0 := restoreRegs.gprs[]
       asm.emitMOV_Reg_RegDisp_Quad(SP, S0, Offset.fromIntZeroExtend(SP.value() << LG_WORDSIZE)); // SP := restoreRegs.gprs[#SP]
       for (int i = 0; i < NUM_NONVOLATILE_GPRS; i++) {
-	// i'th register := restoreRegs.gprs[i]
-	asm.emitMOV_Reg_RegDisp_Quad(NONVOLATILE_GPRS[i],
-				     S0,
-				     Offset.fromIntZeroExtend(NONVOLATILE_GPRS[i].value() << LG_WORDSIZE));
+        // i'th register := restoreRegs.gprs[i]
+        asm.emitMOV_Reg_RegDisp_Quad(NONVOLATILE_GPRS[i],
+                                     S0,
+                                     Offset.fromIntZeroExtend(NONVOLATILE_GPRS[i].value() << LG_WORDSIZE));
       }
     }
     asm.emitJMP_RegDisp(T1, ipOffset);            // return to (save) return address

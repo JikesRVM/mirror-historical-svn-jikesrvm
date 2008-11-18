@@ -88,10 +88,10 @@ public abstract class ConcurrentCollector extends SimpleCollector {
       if (VM.VERIFY_ASSERTIONS) {
         VM.assertions._assert(!Plan.gcInProgress());
         for(int i=0; i < VM.activePlan.mutatorCount(); i++) {
-	  MutatorContext mc=VM.activePlan.mutator(i);
-	  if (mc!=null) {
-	    VM.assertions._assert(((ConcurrentMutator)mc).barrierActive);
-	  }
+          MutatorContext mc=VM.activePlan.mutator(i);
+          if (mc!=null) {
+            VM.assertions._assert(((ConcurrentMutator)mc).barrierActive);
+          }
         }
       }
       TraceLocal trace = getCurrentTrace();

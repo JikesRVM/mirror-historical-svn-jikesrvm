@@ -52,7 +52,6 @@ public abstract class Registers implements RegisterConstants {
     gprs = gprsShadow = MemoryManager.newNonMovingWordArray(NUM_GPRS);
     fprs = fprsShadow = MemoryManager.newNonMovingDoubleArray(NUM_FPRS);
   }
-    
   public final void copyFrom(Registers other) {
     for (int i=0;i<NUM_GPRS;++i) {
       gprs.set(i,other.gprs.get(i));
@@ -63,19 +62,18 @@ public abstract class Registers implements RegisterConstants {
     ip=other.ip;
     fp=other.fp;
   }
-  
   public final void assertSame(Registers other) {
     boolean fail=false;
     for (int i=0;i<NUM_GPRS;++i) {
       if (gprs.get(i).NE(other.gprs.get(i))) {
-	VM.sysWriteln("Registers not equal: GPR #",i);
-	fail=true;
+        VM.sysWriteln("Registers not equal: GPR #",i);
+        fail=true;
       }
     }
     for (int i=0;i<NUM_FPRS;++i) {
       if (fprs[i]!=other.fprs[i]) {
-	VM.sysWriteln("Registers not equal: FPR #",i);
-	fail=true;
+        VM.sysWriteln("Registers not equal: FPR #",i);
+        fail=true;
       }
     }
     if (ip.NE(other.ip)) {
@@ -139,7 +137,6 @@ public abstract class Registers implements RegisterConstants {
     Offset ipOffset = ArchEntrypoints.registersIPField.getOffset();
     return Magic.objectAsAddress(this).plus(ipOffset);
   }
-  
   public final void dump() {
     for (int i=0;i<NUM_GPRS;++i) {
       VM.sysWriteln("gprs[",i,"] = ",gprs.get(i));

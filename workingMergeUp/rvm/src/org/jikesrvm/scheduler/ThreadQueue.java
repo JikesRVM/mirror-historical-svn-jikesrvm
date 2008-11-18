@@ -27,14 +27,11 @@ public class ThreadQueue {
 
   RVMThread head;
   RVMThread tail;
-  
   public ThreadQueue() {
   }
-  
   public boolean isEmpty() {
     return head==null;
   }
-  
   public void enqueue(RVMThread t) {
     if (trace) {
       VM.sysWriteln("enqueueing ",t.getThreadSlot()," onto ",Magic.objectAsAddress(this));
@@ -49,17 +46,15 @@ public class ThreadQueue {
     tail=t;
     t.queuedOn=this;
   }
-  
   public RVMThread peek() {
     return head;
   }
-  
   public RVMThread dequeue() {
     RVMThread result=head;
     if (result!=null) {
       head=result.next;
       if (head==null) {
-	tail=null;
+        tail=null;
       }
       if (VM.VerifyAssertions) VM._assert(result.queuedOn==this);
       result.next=null;
@@ -67,14 +62,13 @@ public class ThreadQueue {
     }
     if (trace) {
       if (result==null) {
-	VM.sysWriteln("dequeueing null from ",Magic.objectAsAddress(this));
+        VM.sysWriteln("dequeueing null from ",Magic.objectAsAddress(this));
       } else {
-	VM.sysWriteln("dequeueing ",result.getThreadSlot()," from ",Magic.objectAsAddress(this));
+        VM.sysWriteln("dequeueing ",result.getThreadSlot()," from ",Magic.objectAsAddress(this));
       }
     }
     return result;
   }
-  
   /** Private helper.  Gets the next pointer of cur unless cur is null,
       in which case it returns head. */
   private RVMThread getNext(RVMThread cur) {
@@ -84,23 +78,21 @@ public class ThreadQueue {
       return cur.next;
     }
   }
-  
   /** Private helper.  Sets the next pointer of cur to value unless cur
       is null, in which case it sets head.  Also sets tail as appropraite. */
   private void setNext(RVMThread cur,RVMThread value) {
     if (cur==null) {
       if (tail==head) {
-	tail=value;
+        tail=value;
       }
       head=value;
     } else {
       if (cur==tail) {
-	tail=value;
+        tail=value;
       }
       cur.next=value;
     }
   }
-  
   /** Remove the given thread from the queue if the thread is still
       on the queue.  Does nothing (and returns in O(1)) if the thread
       is not on the queue.  Also does nothing (and returns in O(1)) if
@@ -112,21 +104,21 @@ public class ThreadQueue {
     }
     for (RVMThread cur=null;cur!=tail;cur=getNext(cur)) {
       if (getNext(cur)==t) {
-	if (trace) {
-	  VM.sysWriteln("found!  before:");
-	  dump();
-	}
-	setNext(cur,t.next);
-	if (tail==t) {
-	  tail=cur;
-	}
-	if (trace) {
-	  VM.sysWriteln("after:");
-	  dump();
-	}
-	t.next=null;
-	t.queuedOn=null;
-	return true;
+        if (trace) {
+          VM.sysWriteln("found!  before:");
+          dump();
+        }
+        setNext(cur,t.next);
+        if (tail==t) {
+          tail=cur;
+        }
+        if (trace) {
+          VM.sysWriteln("after:");
+          dump();
+        }
+        t.next=null;
+        t.queuedOn=null;
+        return true;
       }
     }
     VM.sysWriteln("Could not remove Thread #",t.getThreadSlot()," from queue!");
@@ -134,11 +126,9 @@ public class ThreadQueue {
     VM._assert(VM.NOT_REACHED);
     return false; // make javac happy
   }
-  
   public boolean isQueued(RVMThread t) {
     return t.queuedOn==this;
   }
-  
   public void dump() {
     boolean pastFirst = false;
     for (RVMThread t = head; t != null; t = t.next) {

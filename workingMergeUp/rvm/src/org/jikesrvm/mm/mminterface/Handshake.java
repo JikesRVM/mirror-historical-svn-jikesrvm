@@ -54,7 +54,6 @@ public class Handshake {
   public Handshake() {
     reset();
   }
-  
   public void boot() {
     lock = new HeavyCondLock();
   }
@@ -110,7 +109,6 @@ public class Handshake {
       lock.unlock();
     }
   }
-  
   @Unpreemptible
   void parkCollectorThread() {
     lock.lock();
@@ -147,16 +145,14 @@ public class Handshake {
       if (verbose >= 1) VM.sysWriteln("GC Message: Handshake - mutator: initiating collection");
 
       if (!RVMThread.threadingInitialized) {
-	VM.sysWrite("GC required before system fully initialized");
-	VM.sysWriteln("Specify larger than default heapsize on command line");
-	RVMThread.dumpStack();
-	VM.shutdown(VM.EXIT_STATUS_MISC_TROUBLE);
+        VM.sysWrite("GC required before system fully initialized");
+        VM.sysWriteln("Specify larger than default heapsize on command line");
+        RVMThread.dumpStack();
+        VM.shutdown(VM.EXIT_STATUS_MISC_TROUBLE);
       }
 
       requestFlag = true;
-      
       Plan.setCollectionTriggered();
-      
       lock.broadcast();
     }
     lock.unlock();

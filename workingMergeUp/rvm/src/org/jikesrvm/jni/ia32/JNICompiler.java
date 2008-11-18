@@ -128,11 +128,9 @@ public abstract class JNICompiler implements BaselineConstants {
     // skip the slow path if we succeeded
     ForwardReference enteredJNIRef=
       asm.forwardJcc(Assembler.EQ);
-    
     // NOTE: ESI (THREAD_REGISTER, or TR) should still have the thread
     // pointer, since up to this point we would have saved it but not
     // overwritten it.
-    
     // call into our friendly slow path function.  note that this should
     // work because:
     // 1) we're not calling from C so we don't care what registers are
@@ -148,8 +146,7 @@ public abstract class JNICompiler implements BaselineConstants {
     // environment instead (see Collection.prepareMutator)...
     asm.emitCALL_Abs(
       Magic.getTocPointer().plus(
-	Entrypoints.enterJNIBlockedMethod.getOffset()));
-    
+        Entrypoints.enterJNIBlockedMethod.getOffset()));
     // come here when we're done
     enteredJNIRef.resolve(asm);
 
@@ -180,11 +177,9 @@ public abstract class JNICompiler implements BaselineConstants {
       asm,
       Entrypoints.execStatusField.getOffset(),
       T1);
-    
     // if we succeed, skip the slow path
     ForwardReference leftJNIRef=
       asm.forwardJcc(Assembler.EQ);
-    
     // NOTE: ESI already has the thread pointer because we just reloaded
     // it!
 
@@ -192,7 +187,7 @@ public abstract class JNICompiler implements BaselineConstants {
     // reasons why the enterJNIBlockedMethod call above works.
     asm.emitCALL_Abs(
       Magic.getTocPointer().plus(
-	Entrypoints.leaveJNIBlockedFromCallIntoNativeMethod.getOffset()));
+        Entrypoints.leaveJNIBlockedFromCallIntoNativeMethod.getOffset()));
 
     // come here when done saying that we left JNI
     leftJNIRef.resolve(asm);
@@ -807,13 +802,11 @@ public abstract class JNICompiler implements BaselineConstants {
     // get the JNI env and TR
     asm.emitMOV_Reg_RegDisp(EBX, EBP, Offset.fromIntSignExtend(2 * WORDSIZE));   // pick up arg 0 (from callers frame)
     ThreadLocalState.emitLoadThread(asm, EBX, Entrypoints.JNIEnvSavedTRField.getOffset());
-    
     // what we need to keep in mind at this point:
     // - EBX has JNI env (but it's nonvolatile)
     // - EBP has the FP (but it's nonvolatile)
     // - stack has the args but not the locals
     // - TR has been restored
-    
     // attempt to change the thread state to IN_JAVA
     asm.emitMOV_Reg_Imm(T0, RVMThread.IN_JNI);
     asm.emitMOV_Reg_Imm(T1, RVMThread.IN_JAVA);
@@ -821,19 +814,15 @@ public abstract class JNICompiler implements BaselineConstants {
       asm,
       Entrypoints.execStatusField.getOffset(),
       T1);
-    
     // if we succeeded, move on, else go into slow path
     ForwardReference doneLeaveJNIRef=
       asm.forwardJcc(Assembler.EQ);
-    
     // make the slow call
     asm.emitCALL_Abs(
       Magic.getTocPointer().plus(
-	Entrypoints.leaveJNIBlockedFromJNIFunctionCallMethod.getOffset()));
-    
+        Entrypoints.leaveJNIBlockedFromJNIFunctionCallMethod.getOffset()));
     // arrive here when we've switched to IN_JAVA
     doneLeaveJNIRef.resolve(asm);
-    
     // status is now IN_JAVA. GC can not occur while we execute in a thread
     // in this state, so it is safe to access fields of objects.
     // RVM TR register has been restored and EBX contains a pointer to
@@ -887,9 +876,8 @@ public abstract class JNICompiler implements BaselineConstants {
         }
       }
     }
-    
     ThreadLocalState.emitMoveFieldToReg(
-	asm, S0, Entrypoints.jniEnvField.getOffset());
+        asm, S0, Entrypoints.jniEnvField.getOffset());
 
     // set jniEnv TopJavaFP using value saved in frame in prolog
     asm.emitMOV_Reg_RegDisp(EDI, EBP, SAVED_JAVA_FP_OFFSET);      // EDI<-saved TopJavaFP (offset)
@@ -898,16 +886,13 @@ public abstract class JNICompiler implements BaselineConstants {
 
     // NOTE: we could save the TR in the JNI env, but no need, that would have
     // already been done.
-  
     // what's going on here:
     // - SP and EBP have important stuff in them, but that's fine, since
     //   a call will restore SP and EBP is non-volatile for RVM code
     // - TR still refers to the thread
-    
     // save return values
     asm.emitPUSH_Reg(T0);
     asm.emitPUSH_Reg(T1);
-    
     // attempt to change the thread state to IN_JNI
     asm.emitMOV_Reg_Imm(T0, RVMThread.IN_JAVA);
     asm.emitMOV_Reg_Imm(T1, RVMThread.IN_JNI);
@@ -915,7 +900,6 @@ public abstract class JNICompiler implements BaselineConstants {
       asm,
       Entrypoints.execStatusField.getOffset(),
       T1);
-    
     // if success, skip the slow path call
     ForwardReference doneEnterJNIRef=
       asm.forwardJcc(Assembler.EQ);
@@ -923,8 +907,7 @@ public abstract class JNICompiler implements BaselineConstants {
     // fast path failed, make the call
     asm.emitCALL_Abs(
       Magic.getTocPointer().plus(
-	Entrypoints.enterJNIBlockedMethod.getOffset()));
-    
+        Entrypoints.enterJNIBlockedMethod.getOffset()));
     // OK - we reach here when we have set the state to IN_JNI
     doneEnterJNIRef.resolve(asm);
 

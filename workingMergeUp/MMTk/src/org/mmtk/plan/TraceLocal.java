@@ -552,10 +552,10 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
   private void assertMutatorRemsetsFlushed() {
     if (VM.VERIFY_ASSERTIONS) {
       for (int m = 0; m < VM.activePlan.mutatorCount(); m++) {
-	MutatorContext mc=VM.activePlan.mutator(m);
-	if (mc!=null) {
-	  mc.assertRemsetsFlushed();
-	}
+        MutatorContext mc=VM.activePlan.mutator(m);
+        if (mc!=null) {
+          mc.assertRemsetsFlushed();
+        }
       }
     }
   }

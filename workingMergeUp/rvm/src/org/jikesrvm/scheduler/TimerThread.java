@@ -38,47 +38,42 @@ import org.vmmagic.pragma.UninterruptibleNoWarn;
 @NonMoving
 public class TimerThread extends RVMThread {
   private static final int verbose = 0;
-  
   public TimerThread() {
     super("TimerThread");
   }
-  
   // NOTE: this runs concurrently with stop-the-world GC
   @Override
   public void run() {
     if (verbose>=1) trace("TimerThread","run routine entered");
-    
     try {
       for (;;) {
-	sysCall.sysNanosleep(1000L*1000L*(long)VM.interruptQuantum);
-	RVMThread.timerTicks++;
-	for (int i=0;i<RVMThread.numThreads;++i) {
-	  RVMThread candidate=RVMThread.threads[i];
-	  if (candidate!=null) {
-	    for (;;) {
-	      Offset offset=Entrypoints.timeSliceExpiredField.getOffset();
-	      int oldValue=Magic.prepareInt(candidate,offset);
-	      if (Magic.attemptInt(candidate,offset,oldValue,oldValue+1)) {
-		break;
-	      }
-	    }
-	    candidate.takeYieldpoint=1;
-	  }
-	}
-	RVMThread.checkDebugRequest();
+        sysCall.sysNanosleep(1000L*1000L*(long)VM.interruptQuantum);
+        RVMThread.timerTicks++;
+        for (int i=0;i<RVMThread.numThreads;++i) {
+          RVMThread candidate=RVMThread.threads[i];
+          if (candidate!=null) {
+            for (;;) {
+              Offset offset=Entrypoints.timeSliceExpiredField.getOffset();
+              int oldValue=Magic.prepareInt(candidate,offset);
+              if (Magic.attemptInt(candidate,offset,oldValue,oldValue+1)) {
+                break;
+              }
+            }
+            candidate.takeYieldpoint=1;
+          }
+        }
+        RVMThread.checkDebugRequest();
       }
     } catch (Throwable e) {
       printExceptionAndDie(e);
     }
   }
-  
   @UninterruptibleNoWarn
   private static void printExceptionAndDie(Throwable e) {
     VM.sysWriteln("Unexpected exception thrown in timer thread: ",e.toString());
     e.printStackTrace();
     VM._assert(VM.NOT_REACHED);
   }
-  
   public boolean ignoreHandshakesAndGC() { return true; }
 }
 

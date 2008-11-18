@@ -71,7 +71,6 @@ public abstract class SysCall {
   // startup/shutdown
   @SysCallTemplate
   public abstract void sysExit(int value);
-    
   @SysCallTemplate
   public abstract int sysArg(int argno, byte[] buf, int buflen);
 
@@ -191,10 +190,8 @@ public abstract class SysCall {
   // pthread key value gets moved.  (hence RVMThread is @NonMoving)
   @SysCallTemplate
   public abstract int sysStashVmThreadInPthread(RVMThread vmThread);
-  
   @SysCallTemplate
   public abstract void sysTerminatePthread();
-  
   /**
    * Allocate the space for a pthread_mutex (using malloc) and initialize
    * it using pthread_mutex_init with the recursive mutex options.  Note:
@@ -205,44 +202,35 @@ public abstract class SysCall {
    */
   @SysCallTemplate
   public abstract Word sysPthreadMutexCreate();
-  
   /**
    * Destroy the mutex pointed to by the argument and free its memory
    * by calling free.
    */
   @SysCallTemplate
   public abstract void sysPthreadMutexDestroy(Word mutex);
-  
   @SysCallTemplate
   public abstract void sysPthreadMutexLock(Word mutex);
-  
   @SysCallTemplate
   public abstract void sysPthreadMutexUnlock(Word mutex);
-  
   /**
    * Allocate the space for a pthread_cond (using malloc) and initialize
    * it using pthread_cond_init with the default options.
    */
   @SysCallTemplate
   public abstract Word sysPthreadCondCreate();
-  
   /**
    * Destroy the condition variable pointed to by the argument and free
    * its memory by calling free.
    */
   @SysCallTemplate
   public abstract void sysPthreadCondDestroy(Word cond);
-  
   @SysCallTemplate
   public abstract void sysPthreadCondTimedWait(Word cond,Word mutex,
-					       long whenWakeupNanos);
-  
+                                               long whenWakeupNanos);
   @SysCallTemplate
   public abstract void sysPthreadCondWait(Word cond,Word mutex);
-  
   @SysCallTemplate
   public abstract void sysPthreadCondBroadcast(Word cond);
-  
   // arithmetic
   @SysCallTemplate
   public abstract long sysLongDivide(long x, long y);

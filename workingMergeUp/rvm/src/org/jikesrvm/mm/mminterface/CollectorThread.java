@@ -214,7 +214,6 @@ public final class CollectorThread extends RVMThread {
   public static void init() {
     gcBarrier = new SynchronizationBarrier();
   }
-  
   public static void boot() {
     handshake.boot();
     gcBarrier.boot();
@@ -248,7 +247,6 @@ public final class CollectorThread extends RVMThread {
     handshake.requestAndAwaitCompletion(why);
     RVMThread.getCurrentFeedlet().addEvent(MMTk_Events.events.gcStop);
   }
-  
   /**
    * Initiate a garbage collection at next GC safe point.  Called by a
    * mutator thread at any time.  The caller should pass the
@@ -324,20 +322,16 @@ public final class CollectorThread extends RVMThread {
   public void run() {
     // this is kind of stupid.
     gcOrdinal = Synchronization.fetchAndAdd(participantCount, Offset.zero(), 1) + GC_ORDINAL_BASE;
-    
     RVMThread.getCurrentThread().disableYieldpoints();
-    
     for (int count = 0; ; count++) {
       // wait for collection to start
 
       RVMThread.getCurrentThread().enableYieldpoints();
-      
       /* suspend this thread: it will resume when scheduled by
        * Handshake.request(). */
       handshake.parkCollectorThread();
 
       RVMThread.getCurrentThread().disableYieldpoints();
-      
       if (verbose >= 2) VM.sysWriteln("GC Message: CT.run waking up");
 
       long startTime = Time.nanoTime();
@@ -349,61 +343,58 @@ public final class CollectorThread extends RVMThread {
       if (gcOrdinal == GC_ORDINAL_BASE) {
         Plan.setCollectionTrigger(handshake.gcTrigger);
       }
-      
       /* block all threads.  note that some threads will have already blocked
-	 themselves (if they had made their own GC requests). */
+         themselves (if they had made their own GC requests). */
       if (gcOrdinal == GC_ORDINAL_BASE) {
-	if (verbose>=2) VM.sysWriteln("Thread #",getThreadSlot()," is about to block a bunch of threads.");
-	RVMThread.handshakeLock.lock();
-	// fixpoint until there are no threads that we haven't blocked.
-	// fixpoint is needed in case some thread spawns another thread
-	// while we're waiting.  that is unlikely but possible.
-	for (;;) {
-	  RVMThread.acctLock.lock();
-	  RVMThread.processAboutToTerminate(); // community service
-	  int numToHandshake=0;
-	  for (int i=0;i<RVMThread.numThreads;++i) {
-	    RVMThread t=threads[i];
-	    if (!(t.isGCThread() && !t.isConcurrentGCThread()) &&
-		!t.ignoreHandshakesAndGC()) {
-	      RVMThread.handshakeThreads[numToHandshake++]=t;
-	    }
-	  }
-	  RVMThread.acctLock.unlock();
+        if (verbose>=2) VM.sysWriteln("Thread #",getThreadSlot()," is about to block a bunch of threads.");
+        RVMThread.handshakeLock.lock();
+        // fixpoint until there are no threads that we haven't blocked.
+        // fixpoint is needed in case some thread spawns another thread
+        // while we're waiting.  that is unlikely but possible.
+        for (;;) {
+          RVMThread.acctLock.lock();
+          RVMThread.processAboutToTerminate(); // community service
+          int numToHandshake=0;
+          for (int i=0;i<RVMThread.numThreads;++i) {
+            RVMThread t=threads[i];
+            if (!(t.isGCThread() && !t.isConcurrentGCThread()) &&
+                !t.ignoreHandshakesAndGC()) {
+              RVMThread.handshakeThreads[numToHandshake++]=t;
+            }
+          }
+          RVMThread.acctLock.unlock();
 
-	  for (int i=0;i<numToHandshake;++i) {
-	    RVMThread t=RVMThread.handshakeThreads[i];
-	    t.monitor().lock();
-	    if (t.blockedFor(RVMThread.gcBlockAdapter) ||
-		RVMThread.notRunning(t.asyncBlock(RVMThread.gcBlockAdapter))) {
-	      // already blocked or not running, remove
-	      RVMThread.handshakeThreads[i--]=
-		RVMThread.handshakeThreads[--numToHandshake];
-	      RVMThread.handshakeThreads[numToHandshake]=null; // help GC
-	    }
-	    t.monitor().unlock();
-	  }
-	  
-	  // quit trying to block threads if all threads are either blocked
-	  // or not running (a thread is "not running" if it is NEW or TERMINATED;
-	  // in the former case it means that the thread has not had start()
-	  // called on it while in the latter case it means that the thread
-	  // is either in the TERMINATED state or is about to be in that state
-	  // real soon now, and will not perform any heap-related stuff before
-	  // terminating).
-	  if (numToHandshake==0) break;
-	  
-	  for (int i=0;i<numToHandshake;++i) {
-	    if (verbose>=2) VM.sysWriteln("waiting for ",RVMThread.handshakeThreads[i].getThreadSlot()," to block");
-	    RVMThread.handshakeThreads[i].block(RVMThread.gcBlockAdapter);
-	    RVMThread.handshakeThreads[i]=null; // help GC
-	  }
-	}
-	RVMThread.handshakeLock.unlock();
-	if (verbose>=2) {
-	  VM.sysWriteln("Thread #",getThreadSlot()," just blocked a bunch of threads.");
-	  RVMThread.dumpAcct();
-	}
+          for (int i=0;i<numToHandshake;++i) {
+            RVMThread t=RVMThread.handshakeThreads[i];
+            t.monitor().lock();
+            if (t.blockedFor(RVMThread.gcBlockAdapter) ||
+                RVMThread.notRunning(t.asyncBlock(RVMThread.gcBlockAdapter))) {
+              // already blocked or not running, remove
+              RVMThread.handshakeThreads[i--]=
+                RVMThread.handshakeThreads[--numToHandshake];
+              RVMThread.handshakeThreads[numToHandshake]=null; // help GC
+            }
+            t.monitor().unlock();
+          }
+          // quit trying to block threads if all threads are either blocked
+          // or not running (a thread is "not running" if it is NEW or TERMINATED;
+          // in the former case it means that the thread has not had start()
+          // called on it while in the latter case it means that the thread
+          // is either in the TERMINATED state or is about to be in that state
+          // real soon now, and will not perform any heap-related stuff before
+          // terminating).
+          if (numToHandshake==0) break;
+          for (int i=0;i<numToHandshake;++i) {
+            if (verbose>=2) VM.sysWriteln("waiting for ",RVMThread.handshakeThreads[i].getThreadSlot()," to block");
+            RVMThread.handshakeThreads[i].block(RVMThread.gcBlockAdapter);
+            RVMThread.handshakeThreads[i]=null; // help GC
+          }
+        }
+        RVMThread.handshakeLock.unlock();
+        if (verbose>=2) {
+          VM.sysWriteln("Thread #",getThreadSlot()," just blocked a bunch of threads.");
+          RVMThread.dumpAcct();
+        }
       }
 
       /* wait for other collector threads to arrive or be made
@@ -451,8 +442,8 @@ public final class CollectorThread extends RVMThread {
 
         startTime = Time.nanoTime();
         gcBarrier.rendezvous(5201);
-	boolean cont=Selected.Plan.get().lastCollectionFailed() && !Plan.isEmergencyCollection();
-	if (!cont) break;
+        boolean cont=Selected.Plan.get().lastCollectionFailed() && !Plan.isEmergencyCollection();
+        if (!cont) break;
       }
 
       /* wait for other collector threads to arrive here */
@@ -492,38 +483,36 @@ public final class CollectorThread extends RVMThread {
        * handshake object: it's safe to replace it with a new one. */
       if (gcOrdinal == GC_ORDINAL_BASE) {
 
-	// reset the handshake.  this ensures that once threads are awakened,
-	// any new GC requests that they make actually result in GC activity.
-	handshake.reset();
-	if (verbose>=2) VM.sysWriteln("Thread #",getThreadSlot()," just reset the handshake.");
+        // reset the handshake.  this ensures that once threads are awakened,
+        // any new GC requests that they make actually result in GC activity.
+        handshake.reset();
+        if (verbose>=2) VM.sysWriteln("Thread #",getThreadSlot()," just reset the handshake.");
 
         Plan.collectionComplete();
-	
-	if (verbose>=2) VM.sysWriteln("Marked the collection as complete.");
+        if (verbose>=2) VM.sysWriteln("Marked the collection as complete.");
 
         collectionAttemptBase = 0;
 
-	if (verbose>=2) VM.sysWriteln("Thread #",getThreadSlot()," is unblocking a bunch of threads.");
-	// and now unblock all threads
-	RVMThread.handshakeLock.lock();
-	RVMThread.acctLock.lock();
-	RVMThread.processAboutToTerminate(); // community service
-	int numToHandshake=0;
-	for (int i=0;i<RVMThread.numThreads;++i) {
-	  RVMThread t=threads[i];
-	  if (!(t.isGCThread() && !t.isConcurrentGCThread()) &&
-	      !t.ignoreHandshakesAndGC()) {
-	    RVMThread.handshakeThreads[numToHandshake++]=t;
-	  }
-	}
-	RVMThread.acctLock.unlock();
-	
-	for (int i=0;i<numToHandshake;++i) {
-	  RVMThread.handshakeThreads[i].unblock(RVMThread.gcBlockAdapter);
-	  RVMThread.handshakeThreads[i]=null; // help GC
-	}
-	RVMThread.handshakeLock.unlock();
-	if (verbose>=2) VM.sysWriteln("Thread #",getThreadSlot()," just unblocked a bunch of threads.");
+        if (verbose>=2) VM.sysWriteln("Thread #",getThreadSlot()," is unblocking a bunch of threads.");
+        // and now unblock all threads
+        RVMThread.handshakeLock.lock();
+        RVMThread.acctLock.lock();
+        RVMThread.processAboutToTerminate(); // community service
+        int numToHandshake=0;
+        for (int i=0;i<RVMThread.numThreads;++i) {
+          RVMThread t=threads[i];
+          if (!(t.isGCThread() && !t.isConcurrentGCThread()) &&
+              !t.ignoreHandshakesAndGC()) {
+            RVMThread.handshakeThreads[numToHandshake++]=t;
+          }
+        }
+        RVMThread.acctLock.unlock();
+        for (int i=0;i<numToHandshake;++i) {
+          RVMThread.handshakeThreads[i].unblock(RVMThread.gcBlockAdapter);
+          RVMThread.handshakeThreads[i]=null; // help GC
+        }
+        RVMThread.handshakeLock.unlock();
+        if (verbose>=2) VM.sysWriteln("Thread #",getThreadSlot()," just unblocked a bunch of threads.");
 
         /* schedule the FinalizerThread, if there is work to do & it is idle */
         Collection.scheduleFinalizerThread();
@@ -532,7 +521,6 @@ public final class CollectorThread extends RVMThread {
       /* final cleanup for initial collector thread */
       if (gcOrdinal == GC_ORDINAL_BASE) {
         /* clear the GC flags */
-	
         gcThreadRunning = false;
       } // if designated thread
       rendezvous(9999);

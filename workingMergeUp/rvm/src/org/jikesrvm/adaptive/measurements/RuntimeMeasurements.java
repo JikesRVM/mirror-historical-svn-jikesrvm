@@ -135,26 +135,26 @@ public abstract class RuntimeMeasurements {
     //    Caller is a native method
     CompiledMethod ypTakenInCM = CompiledMethods.getCompiledMethod(ypTakenInCMID);
     if (ypTakenInCallerCMID == StackframeLayoutConstants.INVISIBLE_METHOD_ID ||
-	ypTakenInCM.getMethod().getDeclaringClass().hasBridgeFromNativeAnnotation()) {
+        ypTakenInCM.getMethod().getDeclaringClass().hasBridgeFromNativeAnnotation()) {
       ypTakenInCallerCMID = -1;
     }
 
     // Notify all registered listeners
     for (NullListener aNl : timerNullListeners) {
       if (aNl.isActive()) {
-	aNl.update(whereFrom);
+        aNl.update(whereFrom);
       }
     }
     for (MethodListener aMl : timerMethodListeners) {
       if (aMl.isActive()) {
-	aMl.update(ypTakenInCMID, ypTakenInCallerCMID, whereFrom);
+        aMl.update(ypTakenInCMID, ypTakenInCallerCMID, whereFrom);
       }
     }
     if (ypTakenInCallerCMID != -1) {
       for (ContextListener aCl : timerContextListeners) {
-	if (aCl.isActive()) {
-	  aCl.update(ypTakenInFP, whereFrom);
-	}
+        if (aCl.isActive()) {
+          aCl.update(ypTakenInFP, whereFrom);
+        }
       }
     }
   }
@@ -221,14 +221,14 @@ public abstract class RuntimeMeasurements {
     //    Caller is a native method
     CompiledMethod ypTakenInCM = CompiledMethods.getCompiledMethod(ypTakenInCMID);
     if (ypTakenInCallerCMID == StackframeLayoutConstants.INVISIBLE_METHOD_ID ||
-	ypTakenInCM.getMethod().getDeclaringClass().hasBridgeFromNativeAnnotation()) {
+        ypTakenInCM.getMethod().getDeclaringClass().hasBridgeFromNativeAnnotation()) {
       ypTakenInCallerCMID = -1;
     }
 
     // Notify all registered listeners
     for (MethodListener methodListener : cbsMethodListeners) {
       if (methodListener.isActive()) {
-	methodListener.update(ypTakenInCMID, ypTakenInCallerCMID, whereFrom);
+        methodListener.update(ypTakenInCMID, ypTakenInCallerCMID, whereFrom);
       }
     }
   }
@@ -253,14 +253,14 @@ public abstract class RuntimeMeasurements {
     //    Caller is a native method
     CompiledMethod ypTakenInCM = CompiledMethods.getCompiledMethod(ypTakenInCMID);
     if (ypTakenInCallerCMID == StackframeLayoutConstants.INVISIBLE_METHOD_ID ||
-	ypTakenInCM.getMethod().getDeclaringClass().hasBridgeFromNativeAnnotation()) {
+        ypTakenInCM.getMethod().getDeclaringClass().hasBridgeFromNativeAnnotation()) {
       // drop sample
     } else {
       // Notify all registered listeners
       for (ContextListener listener : cbsContextListeners) {
-	if (listener.isActive()) {
-	  listener.update(ypTakenInFP, whereFrom);
-	}
+        if (listener.isActive()) {
+          listener.update(ypTakenInFP, whereFrom);
+        }
       }
     }
   }

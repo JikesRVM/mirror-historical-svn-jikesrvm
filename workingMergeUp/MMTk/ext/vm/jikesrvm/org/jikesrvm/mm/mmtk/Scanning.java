@@ -169,7 +169,7 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
       for (threadIndex = start; threadIndex < end; threadIndex++) {
         RVMThread thread = RVMThread.threads[threadIndex];
         if (thread != null) {
-	  // FIXME: is this even remotely needed?
+          // FIXME: is this even remotely needed?
           /* Copy the thread object - use address arithmetic to get the address
            * of the array entry */
           if (TRACE_PRECOPY) {
@@ -185,8 +185,8 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
             VM._assert(a.EQ(b), "Thread table address arithmetic is wrong!");
           }
           trace.processPrecopyEdge(threadTableSlot, false);
-	  // don't need to reload thread from thread table slot because threads
-	  // are non-moving
+          // don't need to reload thread from thread table slot because threads
+          // are non-moving
           if (TRACE_PRECOPY) {
             VM.sysWrite(ct.getGCOrdinal()," New address ");
             VM.sysWriteln(ObjectReference.fromObject(thread).toAddress());
@@ -194,14 +194,14 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
           precopyChildren(trace, ObjectReference.fromObject(thread));
 
           /* Registers */
-	  if (TRACE_PRECOPY) {
-	    VM.sysWriteln(ct.getGCOrdinal()," old cr address: ",Magic.objectAsAddress(thread.getContextRegisters()));
-	  }
+          if (TRACE_PRECOPY) {
+            VM.sysWriteln(ct.getGCOrdinal()," old cr address: ",Magic.objectAsAddress(thread.getContextRegisters()));
+          }
           trace.processPrecopyEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadContextRegistersField.getOffset()), true);
-	  if (TRACE_PRECOPY) {
-	    VM.sysWriteln(ct.getGCOrdinal()," for thread ",Magic.objectAsAddress(thread));
-	    VM.sysWriteln(ct.getGCOrdinal()," new cr address: ",Magic.objectAsAddress(thread.getContextRegisters()));
-	  }
+          if (TRACE_PRECOPY) {
+            VM.sysWriteln(ct.getGCOrdinal()," for thread ",Magic.objectAsAddress(thread));
+            VM.sysWriteln(ct.getGCOrdinal()," new cr address: ",Magic.objectAsAddress(thread.getContextRegisters()));
+          }
 
           trace.processPrecopyEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadContextRegistersSaveField.getOffset()), true);
           trace.processPrecopyEdge(Magic.objectAsAddress(thread).plus(Entrypoints.threadExceptionRegistersField.getOffset()), true);

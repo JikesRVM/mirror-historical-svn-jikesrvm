@@ -69,7 +69,6 @@ public abstract class BaselineExceptionDeliverer extends ExceptionDeliverer impl
     // the stacklimit should be harmless, since the stacklimit should already have exactly
     // the value we are setting it too.
     myThread.stackLimit = Magic.objectAsAddress(myThread.getStack()).plus(STACK_SIZE_GUARD);
-    
     Magic.restoreHardwareExceptionState(registers);
     if (VM.VerifyAssertions) VM._assert(NOT_REACHED);
   }

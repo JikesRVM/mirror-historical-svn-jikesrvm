@@ -222,16 +222,16 @@ public class StackTrace {
           instructionOffsets[stackFrameCount] =
             compiledMethod.getInstructionOffset(ip).toInt();
           if (compiledMethod.hasBridgeFromNativeAnnotation()) {
-	    //VM.sysWriteln("native!");
+            //VM.sysWriteln("native!");
             // skip native frames, stopping at last native frame preceeding the
             // Java To C transition frame
             fp = RuntimeEntrypoints.unwindNativeStackFrame(fp);
           }
         } else {
-	  //VM.sysWriteln("trap!");
-	}
+          //VM.sysWriteln("trap!");
+        }
       } else {
-	//VM.sysWriteln("invisible method!");
+        //VM.sysWriteln("invisible method!");
       }
       stackFrameCount++;
       ip = Magic.getReturnAddress(fp);

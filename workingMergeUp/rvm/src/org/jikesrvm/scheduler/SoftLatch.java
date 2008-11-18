@@ -32,12 +32,10 @@ import org.vmmagic.pragma.Uninterruptible;
 public class SoftLatch {
 
   private boolean open;
-  
   /** Create a new latch, with the given open/closed state. */
   public SoftLatch(boolean open) {
     this.open = open;
   }
-  
   /**
    * Open the latch and let all of the thread(s) waiting on it through.
    * But - if any of the threads is using waitAndClose(), then as soon
@@ -47,7 +45,6 @@ public class SoftLatch {
     open=true;
     notifyAll();
   }
-  
   /**
    * Close the latch, causing future calls to wait() or waitAndClose()
    * to block.
@@ -55,7 +52,6 @@ public class SoftLatch {
   public synchronized void close() {
     open=false;
   }
-  
   /**
    * Wait for the latch to become open.  If it is already open, don't
    * wait at all.
@@ -63,13 +59,12 @@ public class SoftLatch {
   public synchronized void await() {
     while (!open) {
       try {
-	wait();
+        wait();
       } catch (InterruptedException e) {
-	throw new Error(e);
+        throw new Error(e);
       }
     }
   }
-  
   /**
    * Wait for the latch to become open, and then close it and return.
    * If the latch is already open, don't wait at all, just close it
@@ -78,9 +73,9 @@ public class SoftLatch {
   public synchronized void waitAndClose() {
     while (!open) {
       try {
-	wait();
+        wait();
       } catch (InterruptedException e) {
-	throw new Error(e);
+        throw new Error(e);
       }
     }
     open=false;

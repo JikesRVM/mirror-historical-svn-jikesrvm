@@ -126,7 +126,6 @@ public class Controller implements Callbacks.ExitMonitor,
    * The main hot method raw data object.
    */
   public static MethodCountData methodSamples;
-    
   /**
    * The dynamic call graph
    */

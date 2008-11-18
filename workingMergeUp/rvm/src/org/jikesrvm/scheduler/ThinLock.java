@@ -144,7 +144,7 @@ public final class ThinLock implements ThinLockConstants {
           Word changed = old.toAddress().plus(TL_LOCK_COUNT_UNIT).toWord(); // update count
           if (changed.and(TL_LOCK_COUNT_MASK).isZero()) { // count wrapped around (most unlikely), make heavy lock
             while (!inflateAndLock(o, lockOffset)) { // wait for a lock to become available
-	      RVMThread.yield();
+              RVMThread.yield();
             }
             break major;  // lock succeeds (note that lockHeavy has issued an isync)
           }
@@ -162,7 +162,7 @@ public final class ThinLock implements ThinLockConstants {
             break major; // lock succeeds (note that lockHeavy has issued an isync)
           }
           // heavy lock failed (deflated or contention for system lock)
-	  RVMThread.yield();
+          RVMThread.yield();
           continue major;    // try again
         }
         // real contention: wait (hope other thread unlocks o), try again
@@ -297,11 +297,11 @@ public final class ThinLock implements ThinLockConstants {
       old = Magic.prepareWord(o, lockOffset);
       // check to see if another thread has already created a fat lock
       if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // already a fat lock in place
-	if (Lock.trace) {
-	  VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot(),
-			": freeing lock ",Magic.objectAsAddress(l),
-			" because we had a double-inflate");
-	}
+        if (Lock.trace) {
+          VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot(),
+                        ": freeing lock ",Magic.objectAsAddress(l),
+                        " because we had a double-inflate");
+        }
         Lock.free(l);
         l.mutex.unlock();
         l = Lock.getLock(getLockIndex(old));

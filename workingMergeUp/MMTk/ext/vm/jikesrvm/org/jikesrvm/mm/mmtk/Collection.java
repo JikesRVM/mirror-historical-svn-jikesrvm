@@ -238,10 +238,9 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
     VM._assert(execStatus != RVMThread.IN_JNI);
     VM._assert(execStatus != RVMThread.IN_NATIVE);
     if (execStatus == RVMThread.BLOCKED_IN_JNI) {
-      
       if (false) {
-	VM.sysWriteln("for thread #",t.getThreadSlot()," setting up JNI stack scan");
-	VM.sysWriteln("thread #",t.getThreadSlot()," has top java fp = ",t.jniEnv.topJavaFP());
+        VM.sysWriteln("for thread #",t.getThreadSlot()," setting up JNI stack scan");
+        VM.sysWriteln("thread #",t.getThreadSlot()," has top java fp = ",t.jniEnv.topJavaFP());
       }
 
       /* thread is blocked in C for this GC.
@@ -278,10 +277,10 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
       Atom cls = method.getDeclaringClass().getDescriptor();
       Atom name = method.getName();
       if (name == runAtom && cls == collectorThreadAtom) {
-	if (false) {
-	  VM.sysWriteln("preparing GC thread ",RVMThread.getCurrentThreadSlot()," with ip = ",caller_ip);
-	  VM.sysWriteln("preparing GC thread ",RVMThread.getCurrentThreadSlot()," with fp = ",caller_fp);
-	}
+        if (false) {
+          VM.sysWriteln("preparing GC thread ",RVMThread.getCurrentThreadSlot()," with ip = ",caller_ip);
+          VM.sysWriteln("preparing GC thread ",RVMThread.getCurrentThreadSlot()," with fp = ",caller_fp);
+        }
         t.contextRegisters.setInnermost(caller_ip, caller_fp);
         break;
       }
@@ -322,14 +321,14 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
     new RVMThread.SoftHandshakeVisitor() {
       @Uninterruptible
       public boolean checkAndSignal(RVMThread t) {
-	// PNT: maybe we should return false if it's a GC thread?
-	t.flushRequested=true;
-	return true;
+        // PNT: maybe we should return false if it's a GC thread?
+        t.flushRequested=true;
+        return true;
       }
       @Uninterruptible
       public void notifyStuckInNative(RVMThread t) {
-	t.flush();
-	t.flushRequested=false;
+        t.flush();
+        t.flushRequested=false;
       }
     };
 

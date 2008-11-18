@@ -38,7 +38,6 @@ public final class SynchronizationBarrier {
    */
   public SynchronizationBarrier() {
   }
-    
   public void boot() {
     barrier.boot(RVMThread.numProcessors);
   }
@@ -52,7 +51,6 @@ public final class SynchronizationBarrier {
     if (false) {
       VM.sysWriteln("thread ",RVMThread.getCurrentThreadSlot()," rendezvousing at ",where);
     }
-    
     barrier.arrive(where);
 
     Magic.isync(); // so subsequent instructions won't see stale values

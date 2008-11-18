@@ -2229,7 +2229,7 @@ public class JNIFunctions implements SizeConstants {
 
     try {
       if (traceJNI)
-	VM.sysWriteln("called GetFieldID with classJREF = ",classJREF);
+        VM.sysWriteln("called GetFieldID with classJREF = ",classJREF);
       Class<?> cls = (Class<?>) env.getJNIRef(classJREF);
       if (VM.VerifyAssertions) VM._assert(cls!=null);
       String fieldString = JNIHelpers.createStringFromC(fieldNameAddress);

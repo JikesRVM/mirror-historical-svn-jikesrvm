@@ -139,17 +139,15 @@ public class DynamicCallGraphOrganizer extends Organizer {
     if (false) {
       VM.sysWriteln("Dumping buffer in thresholdReached:");
       for (int i=0;i<bufferSize;++i) {
-	VM.sysWriteln(buffer[i]);
+        VM.sysWriteln(buffer[i]);
       }
     }
-    
     for (int i = 0; i < bufferSize; i = i + 3) {
       int calleeCMID=0;
       // PMT: this is retarded beyond anything I've ever done.
       while (calleeCMID==0) {
-	calleeCMID = buffer[i + 0];
+        calleeCMID = buffer[i + 0];
       }
-      
       CompiledMethod compiledMethod = CompiledMethods.getCompiledMethod(calleeCMID);
       if (compiledMethod == null) continue;
       RVMMethod callee = compiledMethod.getMethod();

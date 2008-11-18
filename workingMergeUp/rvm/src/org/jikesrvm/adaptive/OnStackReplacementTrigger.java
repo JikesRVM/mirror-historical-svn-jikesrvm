@@ -52,7 +52,6 @@ public class OnStackReplacementTrigger {
     thread.monitor().unlock();
 
     Controller.osrOrganizer.activate();
-    
     // PNT: make sure there isn't anything funny going on with the context regs
     thread.monitor().lock();
     while (!thread.osr_done) {

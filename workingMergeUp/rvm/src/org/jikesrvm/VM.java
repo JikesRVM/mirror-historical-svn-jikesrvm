@@ -2109,7 +2109,6 @@ public class VM extends Properties implements Constants, ExitStatus {
     writeln();
     swUnlock();
   }
-  
   @NoInline
   public static void tsysWrite(char[] c, int l) {
     swLock();

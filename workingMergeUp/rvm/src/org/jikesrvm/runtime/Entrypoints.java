@@ -181,7 +181,7 @@ public class Entrypoints {
 
   public static final RVMField bootThreadField =
     getField(org.jikesrvm.scheduler.RVMThread.class, "bootThread",
-	     org.jikesrvm.scheduler.RVMThread.class);
+             org.jikesrvm.scheduler.RVMThread.class);
 
   public static final RVMField scratchStorageField =
       getField(org.jikesrvm.scheduler.RVMThread.class, "scratchStorage", double.class);
@@ -204,7 +204,6 @@ public class Entrypoints {
       getMethod(org.jikesrvm.scheduler.RVMThread.class, "yieldpointFromBackedge", "()V");
   public static final NormalMethod yieldpointFromEpilogueMethod =
       getMethod(org.jikesrvm.scheduler.RVMThread.class, "yieldpointFromEpilogue", "()V");
-  
   public static final NormalMethod enterJNIBlockedMethod =
       getMethod(org.jikesrvm.scheduler.RVMThread.class, "enterJNIBlocked", "()V");
   public static final NormalMethod leaveJNIBlockedFromJNIFunctionCallMethod =

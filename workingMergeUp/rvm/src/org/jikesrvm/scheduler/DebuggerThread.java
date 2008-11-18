@@ -142,7 +142,7 @@ public class DebuggerThread extends RVMThread {
         return;
 
       case'c': // continue execution of virtual machine (make debugger dormant until next debug request)
-	// PNT: do something else here
+        // PNT: do something else here
         //RVMThread.suspendDebuggerThread();
         return;
 
@@ -153,7 +153,7 @@ public class DebuggerThread extends RVMThread {
 
       case EOF: // got a signal without a stdin; dump VM and continue
           RVMThread.dumpVirtualMachine();
-	  // PNT: do something else here
+          // PNT: do something else here
           //RVMThread.suspendDebuggerThread();
           return;
 

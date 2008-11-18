@@ -35,17 +35,14 @@ public class FinalizerThread extends RVMThread {
   private static final int verbose = 0; // currently goes up to 2
 
   private final Object[] none = new Object[0];
-  
   private static boolean shouldRun;
   private static HeavyCondLock schedLock;
-  
   public static void boot() {
     schedLock=new HeavyCondLock();
     FinalizerThread ft=new FinalizerThread();
     ft.makeDaemon(true);
     ft.start();
   }
-  
   @Uninterruptible
   public static void schedule() {
     schedLock.lock();
@@ -71,11 +68,11 @@ public class FinalizerThread extends RVMThread {
         // suspend this thread: it will resume when the garbage collector
         // places objects on the finalizer queue and notifies.
         schedLock.lock();
-	if (!shouldRun) {
-	  schedLock.waitNicely();
-	}
-	shouldRun=false;
-	schedLock.unlock();
+        if (!shouldRun) {
+          schedLock.waitNicely();
+        }
+        shouldRun=false;
+        schedLock.unlock();
 
         if (verbose >= 1) {
           VM.sysWriteln("FinalizerThread starting finalization");
@@ -91,7 +88,7 @@ public class FinalizerThread extends RVMThread {
             VM.sysWriteln();
           }
           try {
-	    java.lang.JikesRVMSupport.invokeFinalize(o);
+            java.lang.JikesRVMSupport.invokeFinalize(o);
           } catch (Throwable e) {
             if (verbose >= 1) VM.sysWriteln("Throwable exception caught for finalize call");
           }

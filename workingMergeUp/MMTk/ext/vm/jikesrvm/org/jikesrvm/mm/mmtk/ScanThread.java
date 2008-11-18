@@ -155,7 +155,6 @@ import org.vmmagic.unboxed.Offset;
     if (thread.execStatus==RVMThread.NEW || thread.isAboutToTerminate) {
       return;
     }
-    
     /* establish ip and fp for the stack to be scanned */
     Address ip, fp, initialIPLoc;
     if (topFrame.isZero()) { /* implicit top of stack, inferred from thread */
@@ -265,9 +264,9 @@ import org.vmmagic.unboxed.Offset;
          fp -> frame for method invocation being processed
          ip -> instruction pointer in the method (normally a call site) */
       while (Magic.getCallerFramePointer(fp).NE(ArchitectureSpecific.StackframeLayoutConstants.STACKFRAME_SENTINEL_FP)) {
-	if (false) {
-	  VM.sysWriteln("Thread ",RVMThread.getCurrentThreadSlot()," at fp = ",fp);
-	}
+        if (false) {
+          VM.sysWriteln("Thread ",RVMThread.getCurrentThreadSlot()," at fp = ",fp);
+        }
         prevFp = scanFrame(verbosity);
         ip = Magic.getReturnAddress(fp);
         fp = Magic.getCallerFramePointer(fp);
@@ -656,11 +655,11 @@ import org.vmmagic.unboxed.Offset;
       iterator.setupIterator(compiledMethod, offset, fp);
       int i=0;
       for (Address addr = iterator.getNextReferenceAddress();
-	   !addr.isZero();
-	   addr = iterator.getNextReferenceAddress()) {
-	ObjectReference ref2 = addr.loadObjectReference();
-	Log.write("Iterator "); Log.write(i++); Log.write(": "); Log.write(addr);
-	Log.write(": "); Log.flush(); MemoryManager.dumpRef(ref2);
+           !addr.isZero();
+           addr = iterator.getNextReferenceAddress()) {
+        ObjectReference ref2 = addr.loadObjectReference();
+        Log.write("Iterator "); Log.write(i++); Log.write(": "); Log.write(addr);
+        Log.write(": "); Log.flush(); MemoryManager.dumpRef(ref2);
       }
       VM.sysFail("\n\nScanStack: Detected bad GC map; exiting RVM with fatal error");
     }
@@ -684,7 +683,6 @@ import org.vmmagic.unboxed.Offset;
       VM.sysFail("\n\nScanStack: Detected bad GC map; exiting RVM with fatal error");
     }
   }
-  
   /**
    * Print out the name of a method
    *

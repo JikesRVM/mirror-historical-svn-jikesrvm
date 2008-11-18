@@ -174,7 +174,7 @@ public final class JNIEnvironment implements SizeConstants {
   @Unpreemptible("Deallocate environment but may contend with environment being allocated")
   public static synchronized void deallocateEnvironment(JNIEnvironment env) {
     env.savedTRreg = null; /* make sure that we don't have a reference back to
-			      the thread, once the thread has died. */
+                              the thread, once the thread has died. */
     env.next = pool;
     pool = env;
   }

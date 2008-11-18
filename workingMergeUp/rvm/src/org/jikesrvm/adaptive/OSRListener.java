@@ -47,7 +47,6 @@ public class OSRListener {
     int ypTakenInCMID = Magic.getCompiledMethodID(fp);
     CompiledMethod ypTakenInCM = CompiledMethods.getCompiledMethod(ypTakenInCMID);
     if (ypTakenInCM.isOutdated() && ypTakenInCM.getCompilerType() == CompiledMethod.BASELINE) {
-      
       Address tsFromFP = yieldpointServiceMethodFP;
       Address realFP = Magic.getCallerFramePointer(tsFromFP);
 

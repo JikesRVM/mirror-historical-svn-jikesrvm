@@ -32,12 +32,10 @@ import org.vmmagic.pragma.Uninterruptible;
 public class Latch {
   private final HeavyCondLock schedLock = new HeavyCondLock();
   private boolean open;
-  
   /** Create a new latch, with the given open/closed state. */
   public Latch(boolean open) {
     this.open = open;
   }
-  
   /**
    * Open the latch and let all of the thread(s) waiting on it through.
    * But - if any of the threads is using waitAndClose(), then as soon
@@ -49,7 +47,6 @@ public class Latch {
     schedLock.broadcast();
     schedLock.unlock();
   }
-  
   /**
    * Like open(), but does it without letting the system know that we
    * could potentially block.  This is faster, and better for use in
@@ -62,7 +59,6 @@ public class Latch {
     schedLock.broadcast();
     schedLock.unlock();
   }
-  
   /**
    * Close the latch, causing future calls to wait() or waitAndClose()
    * to block.
@@ -72,7 +68,6 @@ public class Latch {
     open=false;
     schedLock.unlock();
   }
-  
   /**
    * Wait for the latch to become open.  If it is already open, don't
    * wait at all.
@@ -84,7 +79,6 @@ public class Latch {
     }
     schedLock.unlock();
   }
-  
   /**
    * Wait for the latch to become open, and then close it and return.
    * If the latch is already open, don't wait at all, just close it

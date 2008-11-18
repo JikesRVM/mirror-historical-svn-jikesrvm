@@ -89,7 +89,6 @@ public abstract class MutatorContext implements Constants {
    */
   public void initMutator() {
   }
-    
   public void registerMutator() {
     // don't register the mutator until we're initialized
     VM.activePlan.registerMutator(this);

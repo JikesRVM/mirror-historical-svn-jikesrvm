@@ -223,7 +223,6 @@ public abstract class JNICompiler
     // NOTE: THREAD_REGISTER should still have the thread
     // pointer, since up to this point we would have saved it but not
     // overwritten it.
-    
     // call into our friendly slow path function.  note that this should
     // work because:
     // 1) we're not calling from C so we don't care what registers are

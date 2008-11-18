@@ -80,7 +80,6 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
    * zeroed is desired.
    */
   private static final boolean CHECK_MEMORY_IS_ZEROED = false;
-  
   private static final boolean traceAllocator = false;
 
   /**
@@ -586,24 +585,24 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
       byte[] clsBA = cls.getDescriptor().toByteArray();
       if (Selected.Constraints.get().withGCspy()) {
         if (isPrefix("Lorg/mmtk/vm/gcspy/", clsBA) || isPrefix("[Lorg/mmtk/vm/gcspy/", clsBA)) {
-	  if (traceAllocator) {
-	    VM.sysWriteln("GCSPY");
-	  }
+          if (traceAllocator) {
+            VM.sysWriteln("GCSPY");
+          }
           return Plan.ALLOC_GCSPY;
         }
       }
       if (isPrefix("Lorg/jikesrvm/mm/mmtk/ReferenceProcessor", clsBA)) {
-	if (traceAllocator) {
-	  VM.sysWriteln("DEFAULT");
-	}
+        if (traceAllocator) {
+          VM.sysWriteln("DEFAULT");
+        }
         return Plan.ALLOC_DEFAULT;
       }
       if (isPrefix("Lorg/mmtk/", clsBA) ||
           isPrefix("Lorg/jikesrvm/mm/", clsBA) ||
           isPrefix("Lorg/jikesrvm/memorymanagers/mminterface/GCMapIteratorGroup", clsBA)) {
-	if (traceAllocator) {
-	  VM.sysWriteln("IMMORTAL");
-	}
+        if (traceAllocator) {
+          VM.sysWriteln("IMMORTAL");
+        }
         return Plan.ALLOC_IMMORTAL;
       }
       if (method.isNonMovingAllocation()) {
