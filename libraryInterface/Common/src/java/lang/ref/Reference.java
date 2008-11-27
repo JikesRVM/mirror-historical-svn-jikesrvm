@@ -68,12 +68,7 @@ public abstract class Reference<T> {
    */
   @SuppressWarnings("unchecked") // This method requires an unchecked cast
   public T get() {
-    Address tmp = _referent;
-
-    if (tmp.isZero())
-        return null;
-
-    return (T)getInternal(tmp);
+    return (T)getInternal();
   }
 
   /**
@@ -85,14 +80,18 @@ public abstract class Reference<T> {
    */
   @Uninterruptible
   @Inline
-  private Object getInternal(Address tmp) {
-    Object ref = Magic.addressAsObject(tmp);
+  Object getInternal() {
+    Address tmp = _referent;
+    if (tmp.isZero()) {
+      return null;
+    } else {
+      Object ref = Magic.addressAsObject(tmp);
 
-    if (MemoryManagerConstants.NEEDS_REFTYPE_READ_BARRIER) {
-      ref = MemoryManager.referenceTypeReadBarrier(ref);
+      if (MemoryManagerConstants.NEEDS_REFTYPE_READ_BARRIER) {
+        ref = MemoryManager.referenceTypeReadBarrier(ref);
+      }
+      return ref;
     }
-
-    return ref;
   }
 
   public void clear() {

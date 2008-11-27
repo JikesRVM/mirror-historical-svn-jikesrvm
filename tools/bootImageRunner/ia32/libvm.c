@@ -59,6 +59,14 @@ typedef unsigned int u_int32_t;
 
 #include <pthread.h>
 
+#ifndef __SIZEOF_POINTER__
+#  ifdef __x86_64__
+#    define __SIZEOF_POINTER__ 8
+#  else
+#    define __SIZEOF_POINTER__ 4
+#  endif
+#endif
+
 /* Interface to virtual machine data structures. */
 #define NEED_EXIT_STATUS_CODES
 #define NEED_BOOT_RECORD_DECLARATIONS
@@ -706,17 +714,13 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
       sp = IA32_ESP(context);
 
       /* put fp as a  parameter on the stack  */
-      IA32_ESP(context) = IA32_ESP(context) - 4;
+      IA32_ESP(context) = IA32_ESP(context) - __SIZEOF_POINTER__;
       sp = IA32_ESP(context);
       ((Address *)sp)[0] = localFrameAddress;
       IA32_EAX(context) = localFrameAddress; // must pass localFrameAddress in first param register!
 
       /* put a return address of zero on the stack */
-#ifdef __x86_64__
-      IA32_ESP(context) = IA32_ESP(context) - 8;
-#else
-      IA32_ESP(context) = IA32_ESP(context) - 4;
-#endif
+      IA32_ESP(context) = IA32_ESP(context) - __SIZEOF_POINTER__;
       sp = IA32_ESP(context);
       ((Address *)sp)[0] = 0;
 
@@ -770,18 +774,14 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
     /* Insert artificial stackframe at site of trap. */
     /* This frame marks the place where "hardware exception registers" were saved. */
     sp = sp - Constants_STACKFRAME_HEADER_SIZE;
-#ifdef __x86_64__
-    fp = sp - 8 - Constants_STACKFRAME_BODY_OFFSET; /*  8 = wordsize  */
-#else
-    fp = sp - 4 - Constants_STACKFRAME_BODY_OFFSET; /*  4 = wordsize  */
-#endif
+    fp = sp - __SIZEOF_POINTER__ - Constants_STACKFRAME_BODY_OFFSET;
     /* fill in artificial stack frame */
     ((Address*)(fp + Constants_STACKFRAME_FRAME_POINTER_OFFSET))[0]  = localFrameAddress;
     ((int *)   (fp + Constants_STACKFRAME_METHOD_ID_OFFSET))[0]      = HardwareTrapMethodId;
     ((Address*)(fp + Constants_STACKFRAME_RETURN_ADDRESS_OFFSET))[0] = instructionFollowing;
 
     /* fill in call to "deliverHardwareException" */
-    sp = sp - 4; /* first parameter is type of trap */
+    sp = sp - __SIZEOF_POINTER__; /* first parameter is type of trap */
 
     if (signo == SIGSEGV) {
       ((int *)sp)[0] = Runtime_TRAP_NULL_POINTER;
@@ -811,14 +811,10 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
     if (lib_verbose) {
       fprintf(SysTraceFile, "Trap code is 0x%x\n", IA32_EAX(context));
     }
-    sp = sp - 4;       /* next parameter is info for array bounds trap */
+    sp = sp - __SIZEOF_POINTER__; /* next parameter is info for array bounds trap */
     ((int *)sp)[0] = ((unsigned *)(localVirtualProcessorAddress + Processor_arrayIndexTrapParam_offset))[0];
     IA32_EDX(context) = ((int *)sp)[0]; // also pass second param in EDX.
-#ifdef __x86_64__
-    sp = sp - 8;       /* return address - looks like called from failing instruction */
-#else
-    sp = sp - 4;       /* return address - looks like called from failing instruction */
-#endif
+    sp = sp - __SIZEOF_POINTER__; /* return address - looks like called from failing instruction */
     ((Address *)sp)[0] = instructionFollowing;
 
     /* store instructionFollowing and fp in Registers,ip and Registers.fp */
@@ -900,14 +896,14 @@ softwareSignalHandler(int signo,
         long unsigned int *sp = (long unsigned int *) IA32_ESP(context);
 
         /* put fp as a  parameter on the stack  */
-        IA32_ESP(context) = IA32_ESP(context) - 4;
+        IA32_ESP(context) = IA32_ESP(context) - __SIZEOF_POINTER__;
         sp = (long unsigned int *) IA32_ESP(context);
         *sp = localFrameAddress;
         // must pass localFrameAddress in first param register!
         IA32_EAX(context) = localFrameAddress;
 
         /* put a return address of zero on the stack */
-        IA32_ESP(context) = IA32_ESP(context) - 4;
+        IA32_ESP(context) = IA32_ESP(context) - __SIZEOF_POINTER__;
         sp = (long unsigned int *) IA32_ESP(context);
         *sp = 0;
 
@@ -976,9 +972,6 @@ mapImageFile(const char *fileName, const void *targetAddress, int prot,
     }
     return bootRegion;
 }
-
-
-
 
 /* Returns 1 upon any errors.   Never returns except to report an error. */
 int
@@ -1205,25 +1198,15 @@ createVM(int UNUSED vmInSeparateThread)
             = Scheduler_PRIMORDIAL_THREAD_INDEX
                 << ThinLockConstants_TL_THREAD_ID_SHIFT;
         *(unsigned int *) (pr + Processor_framePointer_offset)
-            = (int)sp - 8;
+            = (int)sp - (2*__SIZEOF_POINTER__);
     }
 
-    sp -= 4;
-    ((uint32_t *)sp)[0] = 0xdeadbabe;         /* STACKFRAME_RETURN_ADDRESS_OFFSET */
-#ifdef __x86_64__
-    sp -= 8;
-#else
-    sp -= 4;
-#endif
+    sp -= __SIZEOF_POINTER__;
+    ((Address *)sp)[0] = 0xdeadbabe;                       /* STACKFRAME_RETURN_ADDRESS_OFFSET */
+    sp -= __SIZEOF_POINTER__;
     ((Address *)sp)[0] = Constants_STACKFRAME_SENTINEL_FP; /* STACKFRAME_FRAME_POINTER_OFFSET */
-#ifdef __x86_64__
-    sp -= 8;
-#else
-    sp -= 4;
-#endif
-    ((Address *)sp)[0] = Constants_INVISIBLE_METHOD_ID; /* STACKFRAME_METHOD_ID_OFFSET */
-    sp -= 4;
-    ((uint32_t *)sp)[0] = 0; /* STACKFRAME_NEXT_INSTRUCTION_OFFSET (for AIX compatability) */
+    sp -= __SIZEOF_POINTER__;
+    ((Address *)sp)[0] = Constants_INVISIBLE_METHOD_ID;    /* STACKFRAME_METHOD_ID_OFFSET */
 
     // fprintf(SysTraceFile, "%s: here goes...\n", Me);
     int rc = bootThread ((void*)ip, (void*)pr, (void*)sp);

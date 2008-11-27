@@ -71,19 +71,22 @@ public class JNIGlobalRefTable {
     deleteGlobalRef(gref);
   }
 
+  @Uninterruptible
   static Object globalRef(int index) {
     if (VM.VerifyAssertions) VM._assert(!isWeakRef(index));
 
     return Magic.addressAsObject(JNIGlobalRefs.get(-index));
   }
 
+  @Uninterruptible
   static Object weakRef(int index) {
     if (VM.VerifyAssertions) VM._assert(isWeakRef(index));
     @SuppressWarnings("unchecked") // yes, we're being bad.
     WeakReference<Object> ref = (WeakReference<Object>) globalRef(index | STRONG_REF_BIT);
-    return ref.get();
+    return java.lang.ref.JikesRVMSupport.uninterruptibleReferenceGet(ref);
   }
 
+  @Uninterruptible
   static Object ref(int index) {
     if (isWeakRef(index)) {
       return weakRef(index);
@@ -92,6 +95,7 @@ public class JNIGlobalRefTable {
     }
   }
 
+  @Uninterruptible
   static boolean isWeakRef(int index) {
     return (index & STRONG_REF_BIT) == 0;
   }

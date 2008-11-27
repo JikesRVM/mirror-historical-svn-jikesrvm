@@ -1189,7 +1189,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
       asm.emitPOP_Reg(EAX);  // EAX is dividend
       asm.emitCDO();         // sign extend EAX into EDX
       asm.emitIDIV_Reg_Reg_Quad(EAX, ECX);
-      asm.emitPUSH_Reg(EAX); // push result
+      asm.emitPUSH_Reg(EDX); // push result
     } else {
       // (1) zero check
       asm.emitMOV_Reg_RegDisp(T0, SP, NO_SLOT);
@@ -4457,38 +4457,38 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
         for (int i=1; i < args.length; i++) {
           TypeReference arg = args[i];
           if (arg.isFloatType()) {
-            if (fpRegistersInUse < SYSCALL_PARAM_FPRS.length) {
+            if (fpRegistersInUse < NATIVE_PARAMETER_FPRS.length) {
               inRegister[i] = true;
               offsetToJavaArg = offsetToJavaArg.minus(WORDSIZE);
-              asm.emitMOVSS_Reg_RegDisp(SYSCALL_PARAM_FPRS[fpRegistersInUse], SP, offsetToJavaArg);
+              asm.emitMOVSS_Reg_RegDisp((XMM)NATIVE_PARAMETER_FPRS[fpRegistersInUse], SP, offsetToJavaArg);
               fpRegistersInUse++;
             }
           } else if (arg.isDoubleType()) {
-            if (fpRegistersInUse < SYSCALL_PARAM_FPRS.length) {
+            if (fpRegistersInUse < NATIVE_PARAMETER_FPRS.length) {
               inRegister[i] = true;
               offsetToJavaArg = offsetToJavaArg.minus(2*WORDSIZE);
-              asm.emitMOVSD_Reg_RegDisp(SYSCALL_PARAM_FPRS[fpRegistersInUse], SP, offsetToJavaArg);
+              asm.emitMOVSD_Reg_RegDisp((XMM)NATIVE_PARAMETER_FPRS[fpRegistersInUse], SP, offsetToJavaArg);
               fpRegistersInUse++;
             }
           } else if (arg.isLongType()) {
-            if (gpRegistersInUse < SYSCALL_PARAM_GPRS.length) {
+            if (gpRegistersInUse < NATIVE_PARAMETER_GPRS.length) {
               inRegister[i] = true;
               offsetToJavaArg = offsetToJavaArg.minus(2*WORDSIZE);
-              asm.emitMOV_Reg_RegDisp_Quad(SYSCALL_PARAM_GPRS[gpRegistersInUse], SP, offsetToJavaArg);
+              asm.emitMOV_Reg_RegDisp_Quad(NATIVE_PARAMETER_GPRS[gpRegistersInUse], SP, offsetToJavaArg);
               gpRegistersInUse++;
             }
           } else if (arg.isWordType() || arg.isReferenceType()) {
-            if (gpRegistersInUse < SYSCALL_PARAM_GPRS.length) {
+            if (gpRegistersInUse < NATIVE_PARAMETER_GPRS.length) {
               inRegister[i] = true;
               offsetToJavaArg = offsetToJavaArg.minus(WORDSIZE);
-              asm.emitMOV_Reg_RegDisp_Quad(SYSCALL_PARAM_GPRS[gpRegistersInUse], SP, offsetToJavaArg);
+              asm.emitMOV_Reg_RegDisp_Quad(NATIVE_PARAMETER_GPRS[gpRegistersInUse], SP, offsetToJavaArg);
               gpRegistersInUse++;
             }
           } else {
-            if (gpRegistersInUse < SYSCALL_PARAM_GPRS.length) {
+            if (gpRegistersInUse < NATIVE_PARAMETER_GPRS.length) {
               inRegister[i] = true;
               offsetToJavaArg = offsetToJavaArg.minus(WORDSIZE);
-              asm.emitMOV_Reg_RegDisp(SYSCALL_PARAM_GPRS[gpRegistersInUse], SP, offsetToJavaArg);
+              asm.emitMOV_Reg_RegDisp(NATIVE_PARAMETER_GPRS[gpRegistersInUse], SP, offsetToJavaArg);
               gpRegistersInUse++;
             }
           }
