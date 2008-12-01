@@ -252,7 +252,7 @@ pthread_mutex_t DeathLock = PTHREAD_MUTEX_INITIALIZER;
 
 static bool systemExiting = false;
 
-static const bool debugging = true;
+static const bool debugging = false;
 
 // Exit with a return code.
 //
