@@ -168,7 +168,6 @@ public class EnterSSA extends CompilerPhase {
    * @param ir the governing IR
    */
   public final void perform(IR ir) {
-
     // Exit if we don't have to recompute SSA.
     if (ir.desiredSSAOptions.getAbort()) return;
     if (ir.actualSSAOptions != null) {

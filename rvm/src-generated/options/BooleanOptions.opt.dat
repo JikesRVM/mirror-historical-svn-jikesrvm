@@ -79,8 +79,8 @@ Eliminate redundant conditional branches
 PREEX_INLINE 0 true
 Pre-existence based inlining
 
-SSA 3 false
-Should SSA form be constructed on the HIR?
+SSA 2 false
+Should SSA form be constructed on the HIR and LIR?
 
 LOAD_ELIMINATION 3 false
 Should we perform redundant load elimination during SSA pass?
