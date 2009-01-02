@@ -1590,8 +1590,7 @@ public final class BC2IR
                   t.setPreciseType();
                 } else {
                   fieldType = concreteType;
-                  t.setType(concreteType);
-                  t.setPreciseType();
+                  t.setPreciseType(concreteType);
                 }
               }
             }
@@ -1600,7 +1599,7 @@ public final class BC2IR
             // initialized or we're writing the bootimage and in an
             // RVM bootimage class, then get the value at compile
             // time.
-            if (field.isFinal()) {
+            if (gc.options.SIMPLIFY_CHASE_FINAL_FIELDS && field.isFinal()) {
               RVMClass declaringClass = field.getDeclaringClass();
               if (declaringClass.isInitialized() || declaringClass.isInBootImage()) {
                 try {
@@ -2024,7 +2023,7 @@ public final class BC2IR
                            MethodOperand.STATIC(target),
                            new IntConstantOperand(ref.getId()),
                            receiver.copy());
-            if (gc.options.NO_CALLEE_EXCEPTIONS) {
+            if (gc.options.H2L_NO_CALLEE_EXCEPTIONS) {
               callCheck.markAsNonPEI();
             }
 
@@ -2266,16 +2265,14 @@ public final class BC2IR
           }
 
           RegisterOperand refinedOp2 = gc.temps.makeTemp(op2);
-          if (!gc.options.NO_CHECKCAST) {
-            if (classLoading) {
-              s = TypeCheck.create(CHECKCAST_UNRESOLVED, refinedOp2, op2.copy(), makeTypeOperand(typeRef));
+          if (classLoading) {
+            s = TypeCheck.create(CHECKCAST_UNRESOLVED, refinedOp2, op2.copy(), makeTypeOperand(typeRef));
+          } else {
+            TypeOperand typeOp = makeTypeOperand(typeRef.peekType());
+            if (isNonNull(op2)) {
+              s = TypeCheck.create(CHECKCAST_NOTNULL, refinedOp2, op2.copy(), typeOp, getGuard(op2));
             } else {
-              TypeOperand typeOp = makeTypeOperand(typeRef.peekType());
-              if (isNonNull(op2)) {
-                s = TypeCheck.create(CHECKCAST_NOTNULL, refinedOp2, op2.copy(), typeOp, getGuard(op2));
-              } else {
-                s = TypeCheck.create(CHECKCAST, refinedOp2, op2.copy(), typeOp);
-              }
+              s = TypeCheck.create(CHECKCAST, refinedOp2, op2.copy(), typeOp);
             }
           }
           refinedOp2.refine(typeRef);
@@ -2337,11 +2334,7 @@ public final class BC2IR
             break;
           }
           if (VM.VerifyAssertions) VM._assert(op0.isRef());
-          if (gc.options.MONITOR_NOP) {
-            s = null;
-          } else {
-            s = MonitorOp.create(MONITORENTER, op0, getCurrentGuard());
-          }
+          s = MonitorOp.create(MONITORENTER, op0, getCurrentGuard());
         }
         break;
 
@@ -2351,11 +2344,7 @@ public final class BC2IR
           if (do_NullCheck(op0)) {
             break;
           }
-          if (gc.options.MONITOR_NOP) {
-            s = null;
-          } else {
-            s = MonitorOp.create(MONITOREXIT, op0, getCurrentGuard());
-          }
+          s = MonitorOp.create(MONITOREXIT, op0, getCurrentGuard());
           rectifyStateWithExceptionHandler(TypeReference.JavaLangIllegalMonitorStateException);
         }
         break;
@@ -2677,7 +2666,7 @@ public final class BC2IR
   private Instruction _unaryHelper(Operator operator, Operand val, TypeReference type) {
     RegisterOperand t = gc.temps.makeTemp(type);
     Instruction s = Unary.create(operator, t, val);
-    Simplifier.DefUseEffect simp = Simplifier.simplify(true, gc.temps, s);
+    Simplifier.DefUseEffect simp = Simplifier.simplify(true, gc.temps, gc.options, s);
     if ((simp == Simplifier.DefUseEffect.MOVE_FOLDED) || (simp == Simplifier.DefUseEffect.MOVE_REDUCED)) {
       gc.temps.release(t);
       push(Move.getClearVal(s));
@@ -2691,7 +2680,7 @@ public final class BC2IR
   private Instruction _unaryDualHelper(Operator operator, Operand val, TypeReference type) {
     RegisterOperand t = gc.temps.makeTemp(type);
     Instruction s = Unary.create(operator, t, val);
-    Simplifier.DefUseEffect simp = Simplifier.simplify(true, gc.temps, s);
+    Simplifier.DefUseEffect simp = Simplifier.simplify(true, gc.temps, gc.options, s);
     if ((simp == Simplifier.DefUseEffect.MOVE_FOLDED) || (simp == Simplifier.DefUseEffect.MOVE_REDUCED)) {
       gc.temps.release(t);
       pushDual(Move.getClearVal(s));
@@ -2706,7 +2695,7 @@ public final class BC2IR
                                         TypeReference type) {
     RegisterOperand t = gc.temps.makeTemp(type);
     Instruction s = Binary.create(operator, t, op1, op2);
-    Simplifier.DefUseEffect simp = Simplifier.simplify(true, gc.temps, s);
+    Simplifier.DefUseEffect simp = Simplifier.simplify(true, gc.temps, gc.options, s);
     if ((simp == Simplifier.DefUseEffect.MOVE_FOLDED) || (simp == Simplifier.DefUseEffect.MOVE_REDUCED)) {
       gc.temps.release(t);
       push(Move.getClearVal(s));
@@ -2721,7 +2710,7 @@ public final class BC2IR
                                                Operand guard, TypeReference type) {
     RegisterOperand t = gc.temps.makeTemp(type);
     Instruction s = GuardedBinary.create(operator, t, op1, op2, guard);
-    Simplifier.DefUseEffect simp = Simplifier.simplify(true, gc.temps, s);
+    Simplifier.DefUseEffect simp = Simplifier.simplify(true, gc.temps, gc.options, s);
     if ((simp == Simplifier.DefUseEffect.MOVE_FOLDED) || (simp == Simplifier.DefUseEffect.MOVE_REDUCED)) {
       gc.temps.release(t);
       push(Move.getClearVal(s));
@@ -2736,7 +2725,7 @@ public final class BC2IR
                                             TypeReference type) {
     RegisterOperand t = gc.temps.makeTemp(type);
     Instruction s = Binary.create(operator, t, op1, op2);
-    Simplifier.DefUseEffect simp = Simplifier.simplify(true, gc.temps, s);
+    Simplifier.DefUseEffect simp = Simplifier.simplify(true, gc.temps, gc.options, s);
     if ((simp == Simplifier.DefUseEffect.MOVE_FOLDED) || (simp == Simplifier.DefUseEffect.MOVE_REDUCED)) {
       gc.temps.release(t);
       pushDual(Move.getClearVal(s));
@@ -2751,7 +2740,7 @@ public final class BC2IR
                                                    Operand guard, TypeReference type) {
     RegisterOperand t = gc.temps.makeTemp(type);
     Instruction s = GuardedBinary.create(operator, t, op1, op2, guard);
-    Simplifier.DefUseEffect simp = Simplifier.simplify(true, gc.temps, s);
+    Simplifier.DefUseEffect simp = Simplifier.simplify(true, gc.temps, gc.options, s);
     if ((simp == Simplifier.DefUseEffect.MOVE_FOLDED) || (simp == Simplifier.DefUseEffect.MOVE_REDUCED)) {
       gc.temps.release(t);
       pushDual(Move.getClearVal(s));
@@ -2805,7 +2794,7 @@ public final class BC2IR
     int numHiddenParams = methOp.isStatic() ? 0 : 1;
     TypeReference[] params = meth.getParameterTypes();
     Instruction s = Call.create(CALL, null, null, null, null, params.length + numHiddenParams);
-    if (gc.options.NO_CALLEE_EXCEPTIONS) {
+    if (gc.options.H2L_NO_CALLEE_EXCEPTIONS) {
       s.markAsNonPEI();
     }
     for (int i = params.length - 1; i >= 0; i--) {
@@ -2833,7 +2822,7 @@ public final class BC2IR
     } else {
       RegisterOperand t = gc.temps.makeTemp(rtype);
       Call.setResult(s, t);
-      Simplifier.DefUseEffect simp = Simplifier.simplify(true, gc.temps, s);
+      Simplifier.DefUseEffect simp = Simplifier.simplify(true, gc.temps, gc.options, s);
       if ((simp == Simplifier.DefUseEffect.MOVE_FOLDED) || (simp == Simplifier.DefUseEffect.MOVE_REDUCED)) {
         gc.temps.release(t);
         push(Move.getClearVal(s), rtype);
@@ -3822,9 +3811,6 @@ public final class BC2IR
    * @return true if an unconditional throw is generated, false otherwise
    */
   private boolean do_CheckStore(Operand ref, Operand elem, TypeReference elemType) {
-    if (gc.options.NO_CHECKSTORE) {
-      return false;     // Unsafely eliminate all store checks
-    }
     if (CF_CHECKSTORE) {
       // NOTE: BE WARY OF ADDITIONAL OPTIMZATIONS.
       // ARRAY SUBTYPING IS SUBTLE (see JLS 10.10) --dave
@@ -4011,9 +3997,9 @@ public final class BC2IR
                   RegisterOperand tlocr = locr.copyU2U();
                   guard = gc.makeNullCheckGuard(tlocr.getRegister());
                   setGuard(tlocr, guard.copyD2U());
-                  tlocr.setType(type2);
                   tlocr.clearDeclaredType();
                   tlocr.clearPreciseType();
+                  tlocr.setType(type2);
                   setLocal(locNum, tlocr);
                   branch = generateTarget(offset);
                   generated = true;
@@ -4836,7 +4822,7 @@ public final class BC2IR
     return barrier;
   }
 
-  /* special process for long/double constants */
+  /** special process for long/double constants */
   private Operand _prepareLongConstant(Operand op) {
     /* for long and double constants, always move them to a register,
      * therefor, BURS will split it in two registers.
@@ -4847,7 +4833,7 @@ public final class BC2IR
     return t.copyD2U();
   }
 
-  /* special process for long/double constants */
+  /** special process for long/double constants */
   private Operand _prepareDoubleConstant(Operand op) {
     /* for long and double constants, always move them to a register,
      * therefor, BURS will split it in two registers.
@@ -4858,20 +4844,13 @@ public final class BC2IR
     return t.copyD2U();
   }
 
-  /* make a temporary register, and create a move instruction
-  * @param op, the local variable.
-  * @return operand marked as use.
-  */
+  /**
+   * make a temporary register, and create a move instruction
+   * @param op, the local variable.
+   * @return operand marked as use.
+   */
   private Operand _loadLocalForOSR(Operand op) {
 
-    /* if it is LOCALS ON STACK, do nothing. */
-/*
-        if (LOCALS_ON_STACK) {
-      return op;
-    }
-*/
-
-    /* otherwise, create move instructions. */
     /* return address is processed specially */
     if (op instanceof ReturnAddressOperand) {
       return op;
