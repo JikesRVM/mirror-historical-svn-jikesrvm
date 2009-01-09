@@ -75,11 +75,10 @@ public final class ControllerThread extends RVMThread {
     Controller.controllerThread = this;
 
     // Bring up the logging system
-    AOSLogging.boot();
+    AOSLogging.logger.boot();
     if (Controller.options.ENABLE_ADVICE_GENERATION) {
       AOSGenerator.boot();
     }
-    AOSLogging.controllerStarted();
 
     // Create measurement entities that are NOT related to
     // adaptive recompilation
@@ -167,7 +166,6 @@ public final class ControllerThread extends RVMThread {
       Organizer o = e.nextElement();
       o.start();
     }
-
     try {
       sentinel.open();
     } catch (Exception e) {
@@ -272,7 +270,7 @@ public final class ControllerThread extends RVMThread {
    * Final report
    */
   public static void report() {
-    AOSLogging.controllerCompleted();
+    AOSLogging.logger.printControllerStats();
   }
 
 }

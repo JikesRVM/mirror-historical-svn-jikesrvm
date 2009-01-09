@@ -56,8 +56,6 @@ public final class MethodSampleOrganizer extends Organizer {
    */
   @Override
   public void initialize() {
-    AOSLogging.methodSampleOrganizerThreadStarted(filterOptLevel);
-
     // PNT: I have a bad feeling about this:
     int numSamples = Controller.options.METHOD_SAMPLE_SIZE * RVMThread.numProcessors;
     if (Controller.options.mlCBS()) {
@@ -80,7 +78,7 @@ public final class MethodSampleOrganizer extends Organizer {
    * Method that is called when the sampling threshold is reached
    */
   void thresholdReached() {
-    AOSLogging.organizerThresholdReached();
+    AOSLogging.logger.organizerThresholdReached();
 
     int numSamples = ((MethodListener) listener).getNumSamples();
     int[] samples = ((MethodListener) listener).getSamples();
@@ -122,7 +120,7 @@ public final class MethodSampleOrganizer extends Organizer {
                (((OptCompiledMethod) cm).getOptLevel() >= filterOptLevel)))) {
           HotMethodRecompilationEvent event = new HotMethodRecompilationEvent(cm, ns);
           Controller.controllerInputQueue.insert(ns, event);
-          AOSLogging.controllerNotifiedForHotness(cm, ns);
+          AOSLogging.logger.controllerNotifiedForHotness(cm, ns);
         }
       }
     }

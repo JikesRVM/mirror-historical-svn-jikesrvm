@@ -22,7 +22,6 @@ import org.jikesrvm.adaptive.util.AOSLogging;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.runtime.Magic;
-import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
 
@@ -293,7 +292,7 @@ public abstract class RuntimeMeasurements {
    */
   public static void decayDecayableObjects() {
     decayEventCounter++;
-    AOSLogging.decayingCounters();
+    AOSLogging.logger.decayingCounters();
 
     for (Decayable obj : decayObjects) {
       obj.decay();
@@ -350,6 +349,7 @@ public abstract class RuntimeMeasurements {
         AOSLogging.threadExiting(t);
       }
     }
+    AOSLogging.logger.decayStatistics(decayEventCounter);
   }
 
   /**

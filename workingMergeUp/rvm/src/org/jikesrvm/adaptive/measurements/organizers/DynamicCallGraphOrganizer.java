@@ -16,7 +16,6 @@ import org.jikesrvm.VM;
 import org.jikesrvm.adaptive.controller.Controller;
 import org.jikesrvm.adaptive.measurements.RuntimeMeasurements;
 import org.jikesrvm.adaptive.measurements.listeners.EdgeListener;
-import org.jikesrvm.adaptive.util.AOSLogging;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.compilers.baseline.BaselineCompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethod;
@@ -96,8 +95,6 @@ public class DynamicCallGraphOrganizer extends Organizer {
    */
   @Override
   public void initialize() {
-    AOSLogging.DCGOrganizerThreadStarted();
-
     if (Controller.options.cgCBS()) {
       numberOfBufferTriples = Controller.options.DCG_SAMPLE_SIZE * VM.CBSCallSamplesPerTick;
     } else {
@@ -116,7 +113,7 @@ public class DynamicCallGraphOrganizer extends Organizer {
      *   thresholdReachedCount * samplesPerInvocationOfThresholdReached > 1 / AI_HOT_CALLSITE_THRESHOLD
      * to be true.
      */
-    thresholdReachedCount = (int)Math.ceil(1.0 /(numberOfBufferTriples * Controller.options.AI_HOT_CALLSITE_THRESHOLD));;
+    thresholdReachedCount = (int)Math.ceil(1.0 /(numberOfBufferTriples * Controller.options.INLINE_AI_HOT_CALLSITE_THRESHOLD));;
 
     // Install the edge listener
     if (Controller.options.cgTimer()) {
