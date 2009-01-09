@@ -35,9 +35,9 @@ public final class Address {
    *
    * Special values
    */
-  final int value;
+  private final ArchitecturalWord value;
 
-  Address(int value) {
+  Address(ArchitecturalWord value) {
     this.value = value;
   }
 
@@ -48,7 +48,7 @@ public final class Address {
    * @return An address instance that reflects the value zero.
    */
   public static Address zero() {
-    return new Address(0);
+    return new Address(ArchitecturalWord.fromLong(0));
   }
 
   /**
@@ -57,7 +57,7 @@ public final class Address {
    * @return <code>true</code> if this instance is zero.
    */
   public boolean isZero() {
-    return value == 0;
+    return value.isZero();
   }
 
   /**
@@ -68,7 +68,7 @@ public final class Address {
    * maximum allowable <code>Address</code> value.
    */
   public static Address max() {
-    return new Address(0xFFFFFFFF);
+    return new Address(ArchitecturalWord.fromLong(0xFFFFFFFF));
   }
 
   /**
@@ -79,7 +79,7 @@ public final class Address {
    * allowable <code>Address</code> valu.
    */
   public boolean isMax() {
-    return value == 0xFFFFFFFF;
+    return value.isMax();
   }
 
   /****************************************************************************
@@ -96,7 +96,7 @@ public final class Address {
    * @return An address instance
    */
   public static Address fromIntSignExtend(int address) {
-    return new Address(address);
+    return new Address(ArchitecturalWord.fromIntSignExtend(address));
   }
 
   /**
@@ -108,7 +108,7 @@ public final class Address {
    * @return An address instance
    */
   public static Address fromIntZeroExtend(int address) {
-    return new Address(address);
+    return new Address(ArchitecturalWord.fromIntZeroExtend(address));
   }
 
   /**
@@ -119,7 +119,7 @@ public final class Address {
    * @return An address instance
    */
   public static Address fromLong(long address) {
-    return new Address((int)address);
+    return new Address(ArchitecturalWord.fromLong(address));
   }
 
   /**
@@ -143,7 +143,7 @@ public final class Address {
    * <code>Address</code> instance.
    */
   public int toInt() {
-    return value;
+    return value.toInt();
   }
 
   /**
@@ -154,7 +154,7 @@ public final class Address {
    * <code>Address</code> instance.
    */
   public long toLong() {
-    return ((long)value) & 0x00000000FFFFFFFFL;
+    return value.toLongZeroExtend();
   }
 
   /**
@@ -170,7 +170,7 @@ public final class Address {
 
   /****************************************************************************
    *
-   * Arithemtic operators
+   * Arithmetic operators
    */
 
   /**
@@ -181,7 +181,7 @@ public final class Address {
    * of the addition.
    */
   public Address plus(int v) {
-    return new Address(value + v);
+    return new Address(value.plus(v));
   }
 
   /**
@@ -193,7 +193,7 @@ public final class Address {
    * of the addition.
    */
   public Address plus(Offset offset) {
-    return new Address(value + offset.value);
+    return new Address(value.plus(offset.toLong()));
   }
 
   /**
@@ -206,7 +206,7 @@ public final class Address {
    * of the addition.
    */
   public Address plus(Extent extent) {
-    return new Address(value + extent.value);
+    return new Address(value.plus(extent.toLong()));
   }
 
   /**
@@ -219,7 +219,7 @@ public final class Address {
    * of the subtraction.
    */
   public Address minus(int v) {
-    return new Address(value - v);
+    return new Address(value.minus(v));// TODO 64-bit
   }
 
   /**
@@ -232,7 +232,7 @@ public final class Address {
    * of the subtraction.
    */
   public Address minus(Offset offset) {
-    return new Address(value - offset.value);
+    return new Address(value.minus(offset.toLong()));// TODO 64-bit
   }
 
   /**
@@ -245,7 +245,7 @@ public final class Address {
    * of the subtraction.
    */
   public Address minus(Extent extent) {
-    return new Address(value - extent.value);
+    return new Address(value.minus(extent.toLong()));
   }
 
   /**
@@ -258,7 +258,7 @@ public final class Address {
    * of the subtraction.
    */
   public Offset diff(Address addr2) {
-    return new Offset(value - addr2.value);
+    return new Offset(value.diff(addr2.value));
   }
 
   /****************************************************************************
@@ -276,10 +276,7 @@ public final class Address {
    * than</i> <code>addr2</code>.
    */
   public boolean LT(Address addr2) {
-    if (value >= 0 && addr2.value >= 0) return value < addr2.value;
-    if (value < 0 && addr2.value < 0) return value < addr2.value;
-    if (value < 0) return false;
-    return true;
+    return value.LT(addr2.value);
   }
 
   /**
@@ -292,7 +289,7 @@ public final class Address {
    * than or equal to</i> <code>addr2</code>.
    */
   public boolean LE(Address addr2) {
-    return EQ(addr2) || LT(addr2);
+    return value.LE(addr2.value);
   }
 
   /**
@@ -305,7 +302,7 @@ public final class Address {
    * than</i> <code>addr2</code>.
    */
   public boolean GT(Address addr2) {
-    return addr2.LT(this);
+    return value.GT(addr2.value);
   }
 
   /**
@@ -318,7 +315,7 @@ public final class Address {
    * than or equal to</i> <code>addr2</code>.
    */
   public boolean GE(Address addr2) {
-    return EQ(addr2) || GT(addr2);
+    return value.GE(addr2.value);
   }
 
   /**
@@ -331,7 +328,7 @@ public final class Address {
    * to</i> <code>addr2</code>.
    */
   public boolean EQ(Address addr2) {
-    return value == addr2.value;
+    return value.EQ(addr2.value);
   }
 
   /**
@@ -344,7 +341,7 @@ public final class Address {
    * equal to</i> <code>addr2</code>.
    */
   public boolean NE(Address addr2) {
-    return !EQ(addr2);
+    return value.NE(addr2.value);
   }
 
   /****************************************************************************
@@ -370,7 +367,7 @@ public final class Address {
    * @return the read value
    */
   public ObjectReference loadObjectReference() {
-    return loadWord().toAddress().toObjectReference();
+    return new ObjectReference(loadArchitecturalWord());
   }
 
   /**
@@ -381,7 +378,7 @@ public final class Address {
    * @return the read value
    */
   public ObjectReference loadObjectReference(Offset offset) {
-    return loadWord(offset).toAddress().toObjectReference();
+    return new ObjectReference(loadArchitecturalWord(offset));
   }
 
   /**
@@ -402,7 +399,7 @@ public final class Address {
    * @return the read value
    */
   public byte loadByte(Offset offset) {
-    return SimulatedMemory.getByte(this, offset);
+    return this.plus(offset).loadByte();
   }
 
   /**
@@ -423,7 +420,7 @@ public final class Address {
    * @return the read value
    */
   public char loadChar(Offset offset) {
-    return SimulatedMemory.getChar(this, offset);
+    return this.plus(offset).loadChar();
   }
 
   /**
@@ -444,7 +441,7 @@ public final class Address {
    * @return the read value
    */
   public short loadShort(Offset offset) {
-    return SimulatedMemory.getShort(this, offset);
+    return this.plus(offset).loadShort();
   }
 
   /**
@@ -465,7 +462,7 @@ public final class Address {
    * @return the read value
    */
   public float loadFloat(Offset offset) {
-    return SimulatedMemory.getFloat(this, offset);
+    return this.plus(offset).loadFloat();
   }
 
   /**
@@ -486,7 +483,7 @@ public final class Address {
    * @return the read value
    */
   public int loadInt(Offset offset) {
-    return SimulatedMemory.getInt(this, offset);
+    return this.plus(offset).loadInt();
   }
 
 
@@ -508,7 +505,7 @@ public final class Address {
    * @return the read value
    */
   public long loadLong(Offset offset) {
-    return SimulatedMemory.getLong(this, offset);
+    return this.plus(offset).loadLong();
   }
 
   /**
@@ -529,7 +526,29 @@ public final class Address {
    * @return the read value
    */
   public double loadDouble(Offset offset) {
-    return SimulatedMemory.getDouble(this, offset);
+    return this.plus(offset).loadDouble();
+  }
+
+  /**
+   * Loads a word value from the memory location pointed to by the
+   * current instance.
+   *
+   * @param offset the offset to the value.
+   * @return the read word value.
+   */
+  private ArchitecturalWord loadArchitecturalWord() {
+    return SimulatedMemory.getWord(this);
+  }
+
+  /**
+   * Loads a word value from the memory location pointed to by the
+   * current instance.
+   *
+   * @param offset the offset to the value.
+   * @return the read word value.
+   */
+  private ArchitecturalWord loadArchitecturalWord(Offset offset) {
+    return SimulatedMemory.getWord(this.plus(offset));
   }
 
   /**
@@ -539,7 +558,7 @@ public final class Address {
    * @return the read address value.
    */
   public Address loadAddress() {
-    return new Address(loadInt());
+    return new Address(loadArchitecturalWord());
   }
 
   /**
@@ -550,7 +569,7 @@ public final class Address {
    * @return the read address value.
    */
   public Address loadAddress(Offset offset) {
-    return new Address(loadInt(offset));
+    return new Address(loadArchitecturalWord(offset));
   }
 
   /**
@@ -560,7 +579,7 @@ public final class Address {
    * @return the read word value.
    */
   public Word loadWord() {
-    return new Word(loadInt());
+    return new Word(loadArchitecturalWord());
   }
 
   /**
@@ -571,7 +590,7 @@ public final class Address {
    * @return the read word value.
    */
   public Word loadWord(Offset offset) {
-    return new Word(loadInt(offset));
+    return new Word(loadArchitecturalWord(offset));
   }
 
   /**
@@ -581,7 +600,7 @@ public final class Address {
    * @param value The address value to store.
    */
   public void store(ObjectReference value) {
-    SimulatedMemory.setInt(this, value.value);
+    SimulatedMemory.setWord(this, value.value);
   }
 
   /**
@@ -592,7 +611,7 @@ public final class Address {
    * @param offset the offset to the value.
    */
   public void store(ObjectReference value, Offset offset) {
-    SimulatedMemory.setInt(this, value.value, offset);
+    this.plus(offset).store(value);
   }
 
   /**
@@ -602,7 +621,7 @@ public final class Address {
    * @param value The address value to store.
    */
   public void store(Address value) {
-    SimulatedMemory.setInt(this, value.value);
+    SimulatedMemory.setWord(this, value.value);
   }
 
   /**
@@ -613,7 +632,7 @@ public final class Address {
    * @param offset the offset to the value.
    */
   public void store(Address value, Offset offset) {
-    SimulatedMemory.setInt(this, value.value, offset);
+    this.plus(offset).store(value);
   }
 
   /**
@@ -634,7 +653,7 @@ public final class Address {
    * @param offset the offset to the value.
    */
   public void store(float value, Offset offset) {
-    SimulatedMemory.setFloat(this, value, offset);
+    this.plus(offset).store(value);
   }
 
   /**
@@ -644,7 +663,7 @@ public final class Address {
    * @param value The word value to store.
    */
   public void store(Word value) {
-    SimulatedMemory.setInt(this, value.value);
+    SimulatedMemory.setWord(this, value.value);
   }
 
   /**
@@ -655,7 +674,7 @@ public final class Address {
    * @param offset the offset to the value.
    */
   public void store(Word value, Offset offset) {
-    SimulatedMemory.setInt(this, value.value, offset);
+    this.plus(offset).store(value);
   }
 
   /**
@@ -676,7 +695,7 @@ public final class Address {
    * @param offset the offset to the value.
    */
   public void store(byte value, Offset offset) {
-    SimulatedMemory.setByte(this, value, offset);
+    this.plus(offset).store(value);
   }
 
 
@@ -698,7 +717,7 @@ public final class Address {
    * @param offset the offset to the value.
    */
   public void store(int value, Offset offset) {
-    SimulatedMemory.setInt(this, value, offset);
+    this.plus(offset).store(value);
   }
 
   /**
@@ -719,7 +738,7 @@ public final class Address {
    * @param offset the offset to the value.
    */
   public void store(double value, Offset offset) {
-    SimulatedMemory.setDouble(this, value, offset);
+    this.plus(offset).store(value);
   }
 
 
@@ -741,7 +760,7 @@ public final class Address {
    * @param offset the offset to the value.
    */
   public void store(long value, Offset offset) {
-    SimulatedMemory.setLong(this, value, offset);
+    this.plus(offset).store(value);
   }
 
   /**
@@ -762,7 +781,7 @@ public final class Address {
    * @param offset the offset to the value.
    */
   public void store(char value, Offset offset) {
-    SimulatedMemory.setChar(this, value, offset);
+    this.plus(offset).store(value);
   }
 
   /**
@@ -783,7 +802,7 @@ public final class Address {
    * @param offset the offset to the value.
    */
   public void store(short value, Offset offset) {
-    SimulatedMemory.setShort(this, value, offset);
+    this.plus(offset).store(value);
   }
 
   /****************************************************************************
@@ -897,7 +916,7 @@ public final class Address {
    * @return true if the attempt was successful.
    */
   public boolean attempt(int old, int value, Offset offset) {
-    return SimulatedMemory.exchangeInt(this, old, value, offset);
+    return this.plus(offset).attempt(old,value);
   }
 
   /**
@@ -909,7 +928,7 @@ public final class Address {
    * @return true if the attempt was successful.
    */
   public boolean attempt(Word old, Word value) {
-    return SimulatedMemory.exchangeInt(this, old.value, value.value);
+    return SimulatedMemory.exchangeWord(this, old.value, value.value);
   }
 
   /**
@@ -922,7 +941,7 @@ public final class Address {
    * @return true if the attempt was successful.
    */
   public boolean attempt(Word old, Word value, Offset offset) {
-    return SimulatedMemory.exchangeInt(this, old.value, value.value, offset);
+    return this.plus(offset).attempt(old,value);
   }
 
   /**
@@ -934,7 +953,7 @@ public final class Address {
    * @return true if the attempt was successful.
    */
   public boolean attempt(ObjectReference old, ObjectReference value) {
-    return SimulatedMemory.exchangeInt(this, old.value, value.value);
+    return SimulatedMemory.exchangeWord(this, old.value, value.value);
   }
 
   /**
@@ -947,7 +966,7 @@ public final class Address {
    * @return true if the attempt was successful.
    */
   public boolean attempt(ObjectReference old, ObjectReference value, Offset offset) {
-    return SimulatedMemory.exchangeInt(this, old.value, value.value, offset);
+    return this.plus(offset).attempt(old,value);
   }
 
   /**
@@ -959,7 +978,7 @@ public final class Address {
    * @return true if the attempt was successful.
    */
   public boolean attempt(Address old, Address value) {
-    return SimulatedMemory.exchangeInt(this, old.value, value.value);
+    return SimulatedMemory.exchangeWord(this, old.value, value.value);
   }
 
   /**
@@ -972,32 +991,13 @@ public final class Address {
    * @return true if the attempt was successful.
    */
   public boolean attempt(Address old, Address value, Offset offset) {
-    return SimulatedMemory.exchangeInt(this, old.value, value.value, offset);
+    return this.plus(offset).attempt(old,value);
   }
 
   /**
    * Return a string representation of this address.
    */
   public String toString() {
-    return formatInt(value);
-  }
-
-  /**
-   * Create a string representation of the given int value as an address.
-   */
-  public static String formatInt(int value) {
-    char[] chars = new char[10];
-    chars[0] = '0';
-    chars[1] = 'x';
-    for(int x = 9; x > 1; x--) {
-      int thisValue = value & 0x0F;
-      if (thisValue > 9) {
-        chars[x] = (char)('A' + thisValue - 10);
-      } else {
-        chars[x] = (char)('0' + thisValue);
-      }
-      value >>>= 4;
-    }
-    return new String(chars);
+    return value.toString();
   }
 }
