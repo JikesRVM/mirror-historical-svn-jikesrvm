@@ -38,6 +38,22 @@ import org.vmmagic.unboxed.Offset;
 @SynchronizedObject
 public final class JNICompiledMethod extends CompiledMethod {
 
+  /** Architecture specific deliverer of exceptions */
+  private static final ExceptionDeliverer deliverer;
+
+  static {
+    if (VM.BuildForIA32) {
+      try {
+        deliverer =
+         (ExceptionDeliverer)Class.forName("org.jikesrvm.jni.ia32.JNIExceptionDeliverer").newInstance();
+      } catch (Exception e) {
+        throw new Error(e);
+      }
+    } else {
+      deliverer = null;
+    }
+  }
+
   public JNICompiledMethod(int id, RVMMethod m) {
     super(id, m);
   }
@@ -53,9 +69,9 @@ public final class JNICompiledMethod extends CompiledMethod {
 
   @Uninterruptible
   public ExceptionDeliverer getExceptionDeliverer() {
-    // this method should never get called.
-    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
-    return null;
+    // this method should never get called on PPC
+    if (VM.VerifyAssertions) VM._assert(VM.BuildForIA32);
+    return deliverer;
   }
 
   @Uninterruptible
