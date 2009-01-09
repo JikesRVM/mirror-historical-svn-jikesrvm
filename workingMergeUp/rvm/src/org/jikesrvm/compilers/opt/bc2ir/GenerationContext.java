@@ -364,9 +364,9 @@ public final class GenerationContext implements org.jikesrvm.compilers.opt.drive
         RegisterOperand objPtr = receiver.asRegister();
         if (ClassLoaderProxy.includesType(child.method.getDeclaringClass().getTypeRef(), objPtr.getType()) != YES) {
           // narrow type of actual to match formal static type implied by method
-          objPtr.setType(child.method.getDeclaringClass().getTypeRef());
           objPtr.clearPreciseType(); // Can be precise but not assignable if enough classes aren't loaded
           objPtr.setDeclaredType();
+          objPtr.setType(child.method.getDeclaringClass().getTypeRef());
         }
         local = child.makeLocal(localNum, objPtr);
         localNum++;
@@ -533,14 +533,14 @@ public final class GenerationContext implements org.jikesrvm.compilers.opt.drive
    * Should null checks be generated?
    */
   boolean noNullChecks() {
-    return options.NO_NULL_CHECK || method.hasNoNullCheckAnnotation();
+    return method.hasNoNullCheckAnnotation();
   }
 
   /**
    * Should bounds checks be generated?
    */
   boolean noBoundsChecks() {
-    return options.NO_BOUNDS_CHECK || method.hasNoBoundsCheckAnnotation();
+    return method.hasNoBoundsCheckAnnotation();
   }
 
   /**
@@ -671,7 +671,7 @@ public final class GenerationContext implements org.jikesrvm.compilers.opt.drive
     // since it's the second time reenter
     if (method.isForOsrSpecialization()) {
       // do nothing
-    } else if (method.isSynchronized() && !options.MONITOR_NOP && !options.INVOKEE_THREAD_LOCAL) {
+    } else if (method.isSynchronized() && !options.ESCAPE_INVOKEE_THREAD_LOCAL) {
       Operand lockObject = getLockObject();
       Instruction s = MonitorOp.create(MONITORENTER, lockObject, new TrueGuardOperand());
       appendInstruction(prologue, s, SYNCHRONIZED_MONITORENTER_BCI);
@@ -684,7 +684,7 @@ public final class GenerationContext implements org.jikesrvm.compilers.opt.drive
    */
   private void completeEpilogue(boolean isOutermost) {
     // Deal with implicit monitorexit for synchronized methods.
-    if (method.isSynchronized() && !options.MONITOR_NOP && !options.INVOKEE_THREAD_LOCAL) {
+    if (method.isSynchronized() && !options.ESCAPE_INVOKEE_THREAD_LOCAL) {
       Operand lockObject = getLockObject();
       Instruction s = MonitorOp.create(MONITOREXIT, lockObject, new TrueGuardOperand());
       appendInstruction(epilogue, s, SYNCHRONIZED_MONITOREXIT_BCI);
@@ -710,7 +710,7 @@ public final class GenerationContext implements org.jikesrvm.compilers.opt.drive
    * PRECONDITION: cfg, arguments & temps have been setup/initialized.
    */
   private void completeExceptionHandlers(boolean isOutermost) {
-    if (method.isSynchronized() && !options.MONITOR_NOP) {
+    if (method.isSynchronized() && !options.ESCAPE_INVOKEE_THREAD_LOCAL) {
       ExceptionHandlerBasicBlock rethrow =
           new ExceptionHandlerBasicBlock(SYNTH_CATCH_BCI,
                                              inlineSequence,

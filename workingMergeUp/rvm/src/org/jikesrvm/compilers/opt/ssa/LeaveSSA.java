@@ -67,17 +67,12 @@ public class LeaveSSA extends CompilerPhase {
    */
   static final boolean DEBUG = false;
 
-  // control bias between adding blocks or adding temporaries
-  private static final boolean SplitBlockToAvoidRenaming = false;
-  private static final boolean SplitBlockForLocalLive = true;
-  private static final boolean SplitBlockIntoInfrequent = true;
-
   /**
    * The IR to manipulate
    */
   private IR ir;
 
-  private BranchOptimizations branchOpts = new BranchOptimizations(-1, true, true);
+  private final BranchOptimizations branchOpts = new BranchOptimizations(-1, true, true);
 
   private boolean splitSomeBlock = false;
 
@@ -136,7 +131,7 @@ public class LeaveSSA extends CompilerPhase {
    * This class provides an abstraction over stacks of names
    * for registers.
    */
-  static class VariableStacks extends HashMap<Register, Stack<Operand>> {
+  static final class VariableStacks extends HashMap<Register, Stack<Operand>> {
     /** Support for map serialization */
     static final long serialVersionUID = -5664504465082745314L;
 
@@ -188,7 +183,7 @@ public class LeaveSSA extends CompilerPhase {
    * An instance of this class represents a pending copy instruction
    * to be inserted.
    */
-  static class Copy {
+  static final class Copy {
     /**
      * The right-hand side of the copy instruction
      */
@@ -391,10 +386,10 @@ public class LeaveSSA extends CompilerPhase {
         if (c.source.isRegister()) rr = c.source.asRegister().getRegister();
         boolean shouldSplitBlock =
             !c.phi.getBasicBlock().isExceptionHandlerBasicBlock() &&
-            ((out.contains(r) && SplitBlockToAvoidRenaming) ||
-             (rr != null && usedBelowCopy(bb, rr) && SplitBlockForLocalLive));
+            ((ir.options.SSA_SPLITBLOCK_TO_AVOID_RENAME && out.contains(r)) ||
+             (rr != null && ir.options.SSA_SPLITBLOCK_FOR_LOCAL_LIVE && usedBelowCopy(bb, rr)));
 
-        if (SplitBlockIntoInfrequent) {
+        if (ir.options.SSA_SPLITBLOCK_INTO_INFREQUENT) {
           if (!bb.getInfrequent() &&
               c.phi.getBasicBlock().getInfrequent() &&
               !c.phi.getBasicBlock().isExceptionHandlerBasicBlock()) {
@@ -760,6 +755,7 @@ public class LeaveSSA extends CompilerPhase {
    * coalescing.
    * @param ir the IR to work upon
    */
+  @SuppressWarnings("unused") // NB this was an aborted attempt to fix a bug in leave SSA
   private static void normalizeSSA(IR ir) {
     for (Instruction s = ir.firstInstructionInCodeOrder(),
         sentinel = ir.lastInstructionInCodeOrder(),

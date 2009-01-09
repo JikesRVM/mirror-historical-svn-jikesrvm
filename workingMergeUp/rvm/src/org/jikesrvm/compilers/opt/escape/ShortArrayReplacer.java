@@ -87,13 +87,35 @@ import org.jikesrvm.compilers.opt.ir.operand.TrueGuardOperand;
  * Class that performs scalar replacement of short arrays
  */
 final class ShortArrayReplacer implements AggregateReplacer {
-  private static final boolean DEBUG = false;
+  /**
+   * number of elements in the array
+   */
+  private final int size;
+  /**
+   * type of the array
+   */
+  private final RVMArray vmArray;
+  /**
+   * the register holding the array reference
+   */
+  private final Register reg;
+  /**
+   * the governing IR
+   */
+  private final IR ir;
 
   /**
-   * Arrays shorter than this length are candidates to be replaced by
-   * scalar values.
+   * @param r the register holding the array reference
+   * @param a the type of the array to replace
+   * @param s the size of the array to replace
+   * @param i the IR
    */
-  public static final int SHORT_ARRAY_SIZE = 5;
+  private ShortArrayReplacer(Register r, RVMArray a, int s, IR i) {
+    reg = r;
+    vmArray = a;
+    size = s;
+    ir = i;
+  }
 
   /**
    * Return an object representing this transformation for a given
@@ -112,7 +134,7 @@ final class ShortArrayReplacer implements AggregateReplacer {
       return null;
     }
     int s = size.asIntConstant().value;
-    if (s > SHORT_ARRAY_SIZE) {
+    if (s > ir.options.ESCAPE_MAX_ARRAY_SIZE) {
       return null;
     }
     if (s < 0) {
@@ -144,6 +166,8 @@ final class ShortArrayReplacer implements AggregateReplacer {
     transform2(this.reg, defI, scalars);
   }
   private void transform2(Register reg, Instruction defI, RegisterOperand[] scalars) {
+    final boolean DEBUG = false;
+
     // now remove the def
     if (DEBUG) {
       System.out.println("Removing " + defI);
@@ -153,36 +177,6 @@ final class ShortArrayReplacer implements AggregateReplacer {
     for (RegisterOperand use = reg.useList; use != null; use = use.getNext()) {
       scalarReplace(use, scalars, null);
     }
-  }
-
-  /**
-   * number of elements in the array
-   */
-  private final int size;
-  /**
-   * type of the array
-   */
-  private final RVMArray vmArray;
-  /**
-   * the register holding the array reference
-   */
-  private final Register reg;
-  /**
-   * the governing IR
-   */
-  private final IR ir;
-
-  /**
-   * @param r the register holding the array reference
-   * @param a the type of the array to replace
-   * @param s the size of the array to replace
-   * @param i the IR
-   */
-  private ShortArrayReplacer(Register r, RVMArray a, int s, IR i) {
-    reg = r;
-    vmArray = a;
-    size = s;
-    ir = i;
   }
 
   /**

@@ -85,18 +85,18 @@ public class LoopUnrolling extends CompilerPhase {
   }
 
   public boolean shouldPerform(OptOptions options) {
-    return ((options.getOptLevel() >= 3) && (options.UNROLL_LOG >= 1) && (!options.LOOP_VERSIONING));
+    return ((options.getOptLevel() >= 3) && (options.CONTROL_UNROLL_LOG >= 1) && (!options.SSA_LOOP_VERSIONING));
   }
 
   /**
    * This is the method that actually does the work of the phase.
    */
   public void perform(IR ir) {
-    unrollFactor = (1 << ir.options.UNROLL_LOG);
+    unrollFactor = (1 << ir.options.CONTROL_UNROLL_LOG);
 
     if (ir.hasReachableExceptionHandlers()) return;
     DefUse.computeDU(ir);
-    new Simple(1, true, true, true).perform(ir);
+    new Simple(1, true, true, true, false).perform(ir);
     new BranchOptimizations(-1, true, true).perform(ir, true);
 
     //new CFGTransformations().perform(ir);
@@ -958,7 +958,7 @@ public class LoopUnrolling extends CompilerPhase {
   static void deleteBranches(BasicBlock b) {
     Instruction branch = b.lastRealInstruction();
     while (branch.isBranch()) {
-      Instruction nextBranch = branch.getPrev();
+      Instruction nextBranch = branch.prevInstructionInCodeOrder();
       branch.remove();
       branch = nextBranch;
     }
