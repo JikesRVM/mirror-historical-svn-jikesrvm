@@ -293,6 +293,8 @@ public class Entrypoints {
 
   public static final RVMField JNIEnvSavedTRField =
       getField(org.jikesrvm.jni.JNIEnvironment.class, "savedTRreg", org.jikesrvm.scheduler.RVMThread.class);
+  public static final RVMField JNIEnvBasePointerOnEntryToNative =
+      getField(org.jikesrvm.jni.JNIEnvironment.class, "basePointerOnEntryToNative", org.vmmagic.unboxed.Address.class);
   public static final RVMField JNIGlobalRefsField =
     getField(org.jikesrvm.jni.JNIGlobalRefTable.class, "JNIGlobalRefs", org.vmmagic.unboxed.AddressArray.class);
   public static final RVMField JNIRefsField =
@@ -308,9 +310,17 @@ public class Entrypoints {
   public static final RVMField JNIExternalFunctionsField =
       getField(org.jikesrvm.jni.JNIEnvironment.class, "externalJNIFunctions", org.vmmagic.unboxed.Address.class);
   public static final RVMField JNIEnvSavedJTOCField =
-      (VM.BuildForPowerPC) ? getField(org.jikesrvm.jni.JNIEnvironment.class,
-                                      "savedJTOC",
-                                      org.vmmagic.unboxed.Address.class) : null;
+      VM.BuildForPowerPC ? getField(org.jikesrvm.jni.JNIEnvironment.class,
+                                    "savedJTOC",
+                                    org.vmmagic.unboxed.Address.class) : null;
+  public static final RVMMethod jniEntry =
+      VM.BuildForIA32 ? getMethod(org.jikesrvm.jni.JNIEnvironment.class,
+                                  "entryToJNI",
+                                  "(I)V") : null;
+  public static final RVMMethod jniExit =
+      VM.BuildForIA32 ? getMethod(org.jikesrvm.jni.JNIEnvironment.class,
+                                  "exitFromJNI",
+                                  "(I)Ljava/lang/Object;") : null;
 
   public static final RVMField the_boot_recordField =
       getField(org.jikesrvm.runtime.BootRecord.class, "the_boot_record", org.jikesrvm.runtime.BootRecord.class);

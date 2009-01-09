@@ -286,7 +286,7 @@ public class VM extends Properties implements Constants, ExitStatus {
     if (VM.BuildForHarmony) {
       System.loadLibrary("hyluni");
       System.loadLibrary("hythr");
-      System.loadLibrary("hycharset");
+      System.loadLibrary("hyniochar");
     }
     runClassInitializer("java.io.File"); // needed for when we initialize the
     // system/application class loader.
@@ -404,6 +404,7 @@ public class VM extends Properties implements Constants, ExitStatus {
       runClassInitializer("gnu.java.nio.charset.EncodingHelper");
       runClassInitializer("java.lang.reflect.Proxy");
       runClassInitializer("java.lang.reflect.Proxy$ProxySignature");
+      runClassInitializer("java.net.InetAddress");
     }
     runClassInitializer("java.util.logging.Logger");
     if (VM.BuildForHarmony) {
@@ -2589,6 +2590,14 @@ public class VM extends Properties implements Constants, ExitStatus {
    */
   public static boolean buildFor32Addr() {
     return BuildFor32Addr;
+  }
+
+  /**
+   * Is this a build for SSE2? NB. this method is provided to give a
+   * hook to the IA32 assembler that won't be compiled away by javac
+   */
+  public static boolean buildForSSE2() {
+    return BuildForSSE2;
   }
 }
 
