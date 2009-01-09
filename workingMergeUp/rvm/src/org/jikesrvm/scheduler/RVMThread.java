@@ -12,6 +12,9 @@
  */
 package org.jikesrvm.scheduler;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+
 import org.jikesrvm.ArchitectureSpecific.CodeArray;
 import org.jikesrvm.ArchitectureSpecific.Registers;
 import org.jikesrvm.ArchitectureSpecificOpt.PostThreadSwitch;
@@ -27,7 +30,6 @@ import org.jikesrvm.Configuration;
 import org.jikesrvm.Services;
 import org.jikesrvm.UnimplementedError;
 import org.jikesrvm.adaptive.OnStackReplacementEvent;
-import org.jikesrvm.adaptive.measurements.RuntimeMeasurements;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.osr.ObjectHolder;
@@ -1800,10 +1802,6 @@ public class RVMThread extends ThreadContext {
       VM.enableGC();
     }
 
-    if (VM.BuildForAdaptiveSystem) {
-      RuntimeMeasurements.monitorThreadExit();
-    }
-
     // allow java.lang.Thread.exit() to remove this thread from ThreadGroup
     java.lang.JikesRVMSupport.threadDied(thread);
 
@@ -1861,7 +1859,7 @@ public class RVMThread extends ThreadContext {
         if (VM.TraceExceptionDelivery) {
           VM.sysWriteln("Calling sysExit due to uncaught exception.");
         }
-        System.exit(VM.EXIT_STATUS_DYING_WITH_UNCAUGHT_EXCEPTION);
+        callSystemExit(VM.EXIT_STATUS_DYING_WITH_UNCAUGHT_EXCEPTION);
       } else if (thread instanceof MainThread) {
         MainThread mt = (MainThread) thread;
         if (!mt.launched) {
@@ -1873,11 +1871,11 @@ public class RVMThread extends ThreadContext {
            * there is no reason why we should not support this.)   This was
            * discussed on jikesrvm-researchers
            * on 23 Jan 2005 and 24 Jan 2005. */
-          System.exit(VM.EXIT_STATUS_MAIN_THREAD_COULD_NOT_LAUNCH);
+          callSystemExit(VM.EXIT_STATUS_MAIN_THREAD_COULD_NOT_LAUNCH);
         }
       }
       /* Use System.exit so that any shutdown hooks are run.  */
-      System.exit(0);
+      callSystemExit(0);
       if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
     }
 
@@ -1899,6 +1897,37 @@ public class RVMThread extends ThreadContext {
     }
     if (traceAcct) VM.sysWriteln("returning cached lock...");
 
+    // Switch to uninterruptible portion of termination
+    terminateUnpreemptible();
+  }
+
+  /**
+   * Call System.exit() with the correct security status.
+   * @param exitStatus
+   */
+  @Interruptible
+  private void callSystemExit(final int exitStatus) {
+    AccessController.doPrivileged(new PrivilegedAction<Object>() {
+      //@Override // Java 1.5 - can't override interface method
+      public Object run() {
+        System.exit(exitStatus);
+        return null;
+      }
+    });
+  }
+
+  /**
+   * Unpreemptible portion of thread termination. Unpreemptible to avoid a
+   * dead thread from being scheduled.
+   */
+  @Unpreemptible
+  private void terminateUnpreemptible() {
+    // release anybody waiting on this thread -
+    // in particular, see {@link #join()}
+    synchronized (this) {
+      notifyAllUninterruptible(this);
+      state = State.TERMINATED;
+    }
     // returned cached free lock
     if (cachedFreeLock != null) {
       if (Lock.trace) {
