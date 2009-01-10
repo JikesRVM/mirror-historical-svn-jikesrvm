@@ -924,10 +924,6 @@ public abstract class JNICompiler implements BaselineConstants {
     asm.emitPOP_Reg(T0);
 
     // reload native/C nonvolatile regs - saved in prolog
-    // what about FPRs
-    ThreadLocalState.emitPopThread(asm);
-
-    // reload native/C nonvolatile regs - saved in prolog
     for (FloatingPointMachineRegister r : NATIVE_NONVOLATILE_FPRS) {
       // TODO: we assume non-volatile will hold at most a double
       if (r instanceof XMM) {
