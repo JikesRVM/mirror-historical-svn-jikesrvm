@@ -324,7 +324,7 @@ public final class JNIEnvironment implements SizeConstants {
   @Entrypoint
   public void entryToJNI(int encodedReferenceOffsets) {
     // Save processor
-    savedPRreg = Magic.getProcessorRegister();
+    savedTRreg = Magic.getThreadRegister();
 
     // Save frame pointer of calling routine, once so that native stack frames
     // are skipped and once for use by GC
@@ -409,7 +409,7 @@ public final class JNIEnvironment implements SizeConstants {
       VM.sysWrite("(top is ");
       VM.sysWrite(JNIRefsTop);
       VM.sysWrite(")\n");
-      org.jikesrvm.scheduler.Scheduler.dumpStack();
+      RVMThread.dumpStack();
       return null;
     }
     if (offset < 0) {

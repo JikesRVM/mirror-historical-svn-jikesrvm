@@ -218,10 +218,6 @@ public class Map {
    * @return The number of chunks freed
    */
   private static int freeContiguousChunks(int chunk) {
-    if (false) {
-      Log.write("Map: freed ");
-      Log.writeln(reverseHashChunk(chunk));
-    }
     int chunks = regionMap.free(chunk);
     totalAvailableDiscontiguousChunks += chunks;
     for (int offset = 0; offset < chunks; offset++) {
@@ -355,9 +351,3 @@ public class Map {
       return Word.fromIntZeroExtend(chunk).lsh(Space.LOG_BYTES_IN_CHUNK).toAddress();
   }
 }
-
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

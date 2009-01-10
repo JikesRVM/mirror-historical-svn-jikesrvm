@@ -835,7 +835,7 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
     IA32_EDX(context) = *(int *)sp; // also pass second param in EDX.
     sp = sp - __SIZEOF_POINTER__; /* return address - looks like called from failing instruction */
     sp = sp - __SIZEOF_POINTER__; /* next parameter is info for array bounds trap */
-    ((int *)sp)[0] = ((unsigned *)(localVirtualProcessorAddress + Processor_arrayIndexTrapParam_offset))[0];
+    ((int *)sp)[0] = ((unsigned *)(localNativeThreadAddress + Thread_arrayIndexTrapParam_offset))[0];
     IA32_EDX(context) = ((int *)sp)[0]; // also pass second param in EDX.
     sp = sp - __SIZEOF_POINTER__; /* return address - looks like called from failing instruction */
     *(Address *) sp = instructionFollowing;
@@ -1234,10 +1234,11 @@ createVM(int UNUSED vmInSeparateThread)
        ((Address *)sp)[0] = Constants_INVISIBLE_METHOD_ID;    /* STACKFRAME_METHOD_ID_OFFSET */
 
        // fprintf(SysTraceFile, "%s: here goes...\n", Me);
-       int rc = bootThread ((void*)ip, (void*)pr, (void*)sp);
+       int rc = bootThread ((void*)ip, (void*)tr, (void*)sp);
 
        fprintf(SysErrorFile, "%s: createVM(): boot() returned; failed to create a virtual machine.  rc=%d.  Bye.\n", Me, rc);
        return 1;
+    }
 }
 
 

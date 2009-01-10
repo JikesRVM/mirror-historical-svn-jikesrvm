@@ -73,7 +73,7 @@ public final class AOSLogging {
     return log;
   }
 
-  /*
+ /**
   * Record that the AOS logging has been booted.
   * Needed to allow fast exit from reporting to ensure
   * that when no class is specified to be run but "-help" is specified,
@@ -127,10 +127,10 @@ public final class AOSLogging {
    *  system
    */
   public static void systemExiting() {
-    if (!booted) return; // fast exit
+    if (!logger.booted) return; // fast exit
     if (Controller.options.LOGGING_LEVEL >= 1) {
-      synchronized (log) {
-        log.println(getTime() + " System Exiting\n");
+      synchronized (logger.log) {
+        logger.log.println(logger.getTime() + " System Exiting\n");
       }
     }
   }
@@ -141,20 +141,16 @@ public final class AOSLogging {
    * @param t the thread of interest
    */
   public static void threadExiting(RVMThread t) {
-    if (!booted) return; // fast exit
+    if (!logger.booted) return; // fast exit
     try {
       if (Controller.options.LOGGING_LEVEL >= 1) {
-        synchronized (log) {
+        synchronized (logger.log) {
           final String threadType = t.isGCThread() ? "g" : t.isDaemonThread() ? "d" : "";
           final String status = threadType + (!t.isAlive() ? "!" : "");
-          log.println(getTime() +
-                      " ThreadIndex: " +
-                      t.getIndex() +
-                      " " +
-                      t.getClass().getName() +
-                      " status(" +
-                      status +
-                      ")");
+          logger.log.println(logger.getTime() +
+                             " ThreadIndex: " + t.getIndex() +
+                             " " + t.getClass().getName() +
+                             " status(" + status + ")");
         }
       }
     } catch (NullPointerException e) {
@@ -168,8 +164,8 @@ public final class AOSLogging {
    */
   public static void controllerStarted() {
     if (Controller.options.LOGGING_LEVEL >= 1) {
-      synchronized (log) {
-        log.println(getTime() + " Controller thread started");
+      synchronized (logger.log) {
+        logger.log.println(logger.getTime() + " Controller thread started");
       }
     }
   }
@@ -337,7 +333,7 @@ public final class AOSLogging {
    */
   public static void recordRecompAndThreadStats() {
     if (Controller.options.LOGGING_LEVEL >= 1) {
-      printControllerStats();
+      logger.printControllerStats();
 
       // PNT: this may miss threads when threads exit
       for (int i = 0, n = RVMThread.numThreads; i < n; i++) {
@@ -348,8 +344,8 @@ public final class AOSLogging {
       }
 
       // add a terminating line to help scripts find the end of the thread list
-      synchronized (log) {
-        log.println(getTime() + " completed stats dump");
+      synchronized (logger.log) {
+        logger.log.println(logger.getTime() + " completed stats dump");
       }
     }
   }

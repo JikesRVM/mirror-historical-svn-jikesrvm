@@ -22,6 +22,7 @@ import org.jikesrvm.adaptive.util.AOSLogging;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.runtime.Magic;
+import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
 
@@ -340,7 +341,7 @@ public abstract class RuntimeMeasurements {
   public static void report() {
     reportReportableObjects();
 
-    AOSLogging.decayStatistics(decayEventCounter);
+    AOSLogging.logger.decayStatistics(decayEventCounter);
 
     // PNT: this will not get all threads every time.
     for (int i = 0, n = RVMThread.numThreads; i < n; i++) {

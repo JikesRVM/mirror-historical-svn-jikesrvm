@@ -30,6 +30,7 @@ import org.jikesrvm.Configuration;
 import org.jikesrvm.Services;
 import org.jikesrvm.UnimplementedError;
 import org.jikesrvm.adaptive.OnStackReplacementEvent;
+import org.jikesrvm.adaptive.measurements.RuntimeMeasurements;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.osr.ObjectHolder;
@@ -1351,7 +1352,7 @@ public class RVMThread extends ThreadContext {
     enterNativeBlocked(false);
   }
   @Entrypoint
-  static final void enterJNIBlocked() {
+  public static final void enterJNIBlocked() {
     getCurrentThread().enterNativeBlocked(true);
   }
   @Entrypoint
@@ -1365,7 +1366,7 @@ public class RVMThread extends ThreadContext {
   }
   @Entrypoint
   @Unpreemptible("May block if the thread was asked to do so, but otherwise will not block")
-  static final void leaveJNIBlockedFromCallIntoNative() {
+  public static final void leaveJNIBlockedFromCallIntoNative() {
     RVMThread t=getCurrentThread();
     if (traceReallyBlock) {
       VM.sysWriteln("Thread #",t.getThreadSlot()," in leaveJNIBlockedFromCallIntoNative");
@@ -1895,7 +1896,13 @@ public class RVMThread extends ThreadContext {
       JNIEnvironment.deallocateEnvironment(jniEnv);
       jniEnv = null;
     }
-    if (traceAcct) VM.sysWriteln("returning cached lock...");
+    if (traceAcct) VM.sysWriteln("making joinable...");
+
+    // PNT: this is really iffy
+    synchronized (this) {
+      isJoinable = true;
+      notifyAll();
+    }
 
     // Switch to uninterruptible portion of termination
     terminateUnpreemptible();
@@ -1922,13 +1929,9 @@ public class RVMThread extends ThreadContext {
    */
   @Unpreemptible
   private void terminateUnpreemptible() {
-    // release anybody waiting on this thread -
-    // in particular, see {@link #join()}
-    synchronized (this) {
-      notifyAllUninterruptible(this);
-      state = State.TERMINATED;
-    }
-    // returned cached free lock
+    // return cached free lock
+    if (traceAcct) VM.sysWriteln("returning cached lock...");
+
     if (cachedFreeLock != null) {
       if (Lock.trace) {
         VM.sysWriteln("Thread #",threadSlot,": about to free lock ",

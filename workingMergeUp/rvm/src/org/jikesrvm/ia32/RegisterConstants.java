@@ -317,7 +317,7 @@ public interface RegisterConstants {
 
   /** Register current stack pointer. NB the frame pointer is maintained in the processor. */
   GPR STACK_POINTER = ESP;
-  /** Register holding a reference to processor local information */
+  /** Register holding a reference to thread local information */
   GPR THREAD_REGISTER = ESI;
 
   /*
