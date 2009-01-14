@@ -1898,12 +1898,6 @@ public class RVMThread extends ThreadContext {
     }
     if (traceAcct) VM.sysWriteln("making joinable...");
 
-    // PNT: this is really iffy
-    synchronized (this) {
-      isJoinable = true;
-      notifyAll();
-    }
-
     // Switch to uninterruptible portion of termination
     terminateUnpreemptible();
   }
