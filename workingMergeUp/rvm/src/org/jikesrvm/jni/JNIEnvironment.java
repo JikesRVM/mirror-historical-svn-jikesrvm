@@ -18,7 +18,6 @@ import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.runtime.Entrypoints;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.RuntimeEntrypoints;
-import org.jikesrvm.runtime.SysCall;
 import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.scheduler.Synchronization;
 import org.vmmagic.pragma.Entrypoint;
@@ -368,9 +367,11 @@ public final class JNIEnvironment implements SizeConstants {
   @Entrypoint
   public Object exitFromJNI(int offset) {
     // Transition processor from IN_JNI to IN_JAVA
-    while(!Synchronization.tryCompareAndSwap(Magic.getThreadRegister(),
+    if(!Synchronization.tryCompareAndSwap(Magic.getThreadRegister(),
         Entrypoints.execStatusField.getOffset(), RVMThread.IN_JNI, RVMThread.IN_JAVA)) {
       RVMThread.leaveJNIBlockedFromCallIntoNative();
+      if (VM.VerifyAssertions)
+        VM._assert(RVMThread.getCurrentThread().execStatus == RVMThread.IN_JAVA);
     }
     // Restore JNI ref top and saved frame pointer
     JNIRefsTop = JNIRefsSavedFP;
@@ -511,8 +512,3 @@ public final class JNIEnvironment implements SizeConstants {
     }
   }
 }
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/
