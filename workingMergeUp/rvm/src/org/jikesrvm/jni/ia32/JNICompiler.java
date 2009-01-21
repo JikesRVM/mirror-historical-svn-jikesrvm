@@ -772,7 +772,7 @@ public abstract class JNICompiler implements BaselineConstants {
       asm,
       Entrypoints.execStatusField.getOffset(),
       T1);
- 
+
     // if we succeeded, move on, else go into slow path
     ForwardReference doneLeaveJNIRef = asm.forwardJcc(Assembler.EQ);
 
