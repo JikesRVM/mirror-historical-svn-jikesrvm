@@ -27,7 +27,6 @@ import org.jikesrvm.jni.JNICompiledMethod;
 import org.jikesrvm.jni.JNIGlobalRefTable;
 import org.jikesrvm.ppc.BaselineConstants;
 import org.jikesrvm.ppc.MachineCode;
-import org.jikesrvm.runtime.ArchEntrypoints;
 import org.jikesrvm.runtime.Entrypoints;
 import org.jikesrvm.runtime.Memory;
 import org.jikesrvm.runtime.Statics;
@@ -156,9 +155,8 @@ public abstract class JNICompiler
     // buy main frame, the total size equals to frameSize
     asm.emitSTAddrU(FP, -frameSize + JNI_SAVE_AREA_SIZE, FP);
 
-    // establish S1 -> Thread, S0 -> threads JNIEnv structure
-    asm.emitLAddrOffset(S1, THREAD_REGISTER, Entrypoints.activeThreadField.getOffset());
-    asm.emitLAddrOffset(S0, S1, Entrypoints.jniEnvField.getOffset());
+    // establish S0 -> threads JNIEnv structure
+    asm.emitLAddrOffset(S0, THREAD_REGISTER, Entrypoints.jniEnvField.getOffset());
 
     // save the TR register in the JNIEnvironment object for possible calls back into Java
     asm.emitSTAddrOffset(THREAD_REGISTER, S0, Entrypoints.JNIEnvSavedTRField.getOffset());
@@ -211,15 +209,15 @@ public abstract class JNICompiler
     //
     asm.emitLAddrOffset(THREAD_REGISTER, S0, Entrypoints.JNIEnvSavedTRField.getOffset());
 
-    asm.emitLVALAddr(S1, Entrypoints.vpStatusField.getOffset());
+    asm.emitLVALAddr(S1, Entrypoints.execStatusField.getOffset());
     asm.emitLWARX(S0, S1, THREAD_REGISTER);         // get status for thread
     asm.emitCMPI(S0, RVMThread.IN_JAVA);            // we should be in java code?
     ForwardReference notInJava = asm.emitForwardBC(NE);
     asm.emitLVAL(S0, RVMThread.IN_JNI);             // S0  <- new state value
     asm.emitSTWCXr(S0, S1, THREAD_REGISTER);        // attempt to change state to IN_JNI
-    ForwardReference enteredJNIRef = asm.forwardBC(Assembler.EQ); // branch if success over slow path
+    ForwardReference enteredJNIRef = asm.emitForwardBC(Assembler.EQ); // branch if success over slow path
 
-    notInJava.resolve();
+    notInJava.resolve(asm);
     // NOTE: THREAD_REGISTER should still have the thread
     // pointer, since up to this point we would have saved it but not
     // overwritten it.
@@ -266,27 +264,27 @@ public abstract class JNICompiler
     //      (the same way we stored the JNI Env above)
     asm.emitLAddr(S0, 0, FP);           // get mini-frame
     asm.emitLAddr(S0, 0, S0);           // get Java caller FP
-    asm.emitLAddr(THREAD_REGISTER, -JNI_ENV_OFFSET, S0);   // load JNIEnvironment
+    asm.emitLAddr(THREAD_REGISTER, -JNI_ENV_OFFSET, S0);   // load JNIEnvironment into TR
 
     // Restore JTOC and TR
-    asm.emitLAddrOffset(JTOC, THREAD_REGISTER, ArchEntrypoints.JNIEnvSavedJTOCField.getOffset());
+    asm.emitLAddrOffset(JTOC, THREAD_REGISTER, Entrypoints.JNIEnvSavedJTOCField.getOffset());
     asm.emitLAddrOffset(THREAD_REGISTER, THREAD_REGISTER, Entrypoints.JNIEnvSavedTRField.getOffset());
-    asm.emitLVALAddr(S1, Entrypoints.vpStatusField.getOffset());
+    asm.emitLVALAddr(S1, Entrypoints.execStatusField.getOffset());
     asm.emitLWARX(S0, S1, THREAD_REGISTER);     // get status for processor
-    asm.emitCMPI(S0, Processor.IN_JNI);         // are we IN_JNI code?
+    asm.emitCMPI(S0, RVMThread.IN_JNI);         // are we IN_JNI code?
     ForwardReference blocked = asm.emitForwardBC(NE);
 
-    asm.emitLVAL(S0, Processor.IN_JAVA);               // S0  <- new state value
+    asm.emitLVAL(S0, RVMThread.IN_JAVA);               // S0  <- new state value
     asm.emitSTWCXr(S0, S1, THREAD_REGISTER);           // attempt to change state to java
     ForwardReference fr = asm.emitForwardBC(NE);       // branch over blocked call if state change successful
 
-    blocked.resolve();
+    blocked.resolve(asm);
     // if not IN_JNI call RVMThread.leaveJNIBlockedFromJNIFunctionCall
-    asm.emitLAddrOffset(T1, JTOC, Entrypoints.leaveJNIBlockedMethod.getOffset()); // T1 gets address of function
+    asm.emitLAddrOffset(T1, JTOC, Entrypoints.leaveJNIBlockedFromJNIFunctionCallMethod.getOffset()); // T1 gets address of function
     asm.emitMTLR(T1);
     asm.emitBCLRL();   // call RVMThread.leaveJNIBlockedFromJNIFunctionCall
 
-    fr.resolve();
+    fr.resolve(asm);
 
     // check if GC has occurred, If GC did not occur, then
     // VM NON_VOLATILE regs were restored by OS and are valid.  If GC did occur
@@ -305,12 +303,8 @@ public abstract class JNICompiler
     }
     fr1.resolve(asm);
 
-    asm.emitLAddrOffset(S0,
-                        THREAD_REGISTER,
-                        Entrypoints.activeThreadField.getOffset());  // S0 holds thread pointer
-
     // reestablish S0 to hold pointer to JNIEnvironment
-    asm.emitLAddrOffset(S0, S0, Entrypoints.jniEnvField.getOffset());
+    asm.emitLAddrOffset(S0, THREAD_REGISTER, Entrypoints.jniEnvField.getOffset());
 
     // pop jrefs frame off the JNIRefs stack, "reopen" the previous top jref frame
     // use S1 as scratch, also use T2, T3 for scratch which are no longer needed
@@ -1326,15 +1320,15 @@ public abstract class JNICompiler
     if (VM.BuildForSVR4ABI || VM.BuildForMachOABI) {
       // on AIX JTOC is part of AIX Linkage triplet and this already set by our caller.
       // Thus, we only need this load on non-AIX platforms
-      asm.emitLAddrOffset(JTOC, T0, ArchEntrypoints.JNIEnvSavedJTOCField.getOffset());
+      asm.emitLAddrOffset(JTOC, T0, Entrypoints.JNIEnvSavedJTOCField.getOffset());
     }
 
-    asm.emitLVALAddr(S1, Entrypoints.vpStatusField.getOffset());
+    asm.emitLVALAddr(S1, Entrypoints.execStatusField.getOffset());
     asm.emitLWARX(S0, S1, THREAD_REGISTER);               // get status for processor
-    asm.emitCMPI(S0, Processor.BLOCKED_IN_NATIVE);       // check if GC in progress, blocked in native mode
-    ForwardReference frBlocked = asm.emitForwardBC(EQ);
+    asm.emitCMPI(S0, RVMThread.IN_JNI);       // check if GC in progress, blocked in native mode
+    ForwardReference frBlocked = asm.emitForwardBC(NE);
 
-    asm.emitLVAL(S0, Processor.IN_JAVA);                // S0  <- new state value
+    asm.emitLVAL(S0, RVMThread.IN_JAVA);                // S0  <- new state value
     asm.emitSTWCXr(S0, S1, THREAD_REGISTER);              // attempt to change state to IN_JAVA
     asm.emitBC(NE, retryLoop);                            // br if failure -retry lwarx by jumping to label0
     ForwardReference frInJava = asm.emitForwardB();        // branch around code to call sysYield
@@ -1361,14 +1355,15 @@ public abstract class JNICompiler
     asm.emitMR(THREAD_REGISTER, JTOC);                                  // save JTOC so we can restore below
     asm.emitLAddrOffset(KLUDGE_TI_REG,
                         S1,
-                        Entrypoints.sysVirtualProcessorYieldIPField.getOffset());  // load addr of function
+                        Entrypoints.leaveJNIBlockedFromJNIFunctionCallMethod.getOffset());  // load addr of function
     if (VM.BuildForPowerOpenABI) {
+      // PNT: unnecessary?
       /* the sysVPYIP field points to the function descriptor, so we'll load the IP and TOC from that */
-      asm.emitLAddrOffset(JTOC, KLUDGE_TI_REG, Offset.fromIntSignExtend(BYTES_IN_ADDRESS));          // load TOC
-      asm.emitLAddrOffset(KLUDGE_TI_REG, KLUDGE_TI_REG, Offset.zero());
+      // asm.emitLAddrOffset(JTOC, KLUDGE_TI_REG, Offset.fromIntSignExtend(BYTES_IN_ADDRESS));          // load TOC
+      // asm.emitLAddrOffset(KLUDGE_TI_REG, KLUDGE_TI_REG, Offset.zero());
     }
     asm.emitMTLR(KLUDGE_TI_REG);
-    asm.emitBCLRL();                                                          // call sysVirtualProcessorYield in sys.C
+    asm.emitBCLRL();                                                    // call RVMThread.leaveJNIBlockFromJNIFunction
     asm.emitMR(JTOC, THREAD_REGISTER);                                  // restore JTOC
 
     // restore the saved volatile GPRs 3-10 and FPRs 1-6
@@ -1422,10 +1417,7 @@ public abstract class JNICompiler
 
     // establish T2 -> current thread's JNIEnvironment, from activeThread field
     // of current processor
-    asm.emitLAddrOffset(T2,
-                        THREAD_REGISTER,
-                        Entrypoints.activeThreadField.getOffset());   // T2 <- activeThread of TR
-    asm.emitLAddrOffset(T2, T2, Entrypoints.jniEnvField.getOffset());                         // T2 <- JNIEnvironment
+    asm.emitLAddrOffset(T2, THREAD_REGISTER, Entrypoints.jniEnvField.getOffset());                         // T2 <- JNIEnvironment
 
     // before returning to C, set pointer to top java frame in JNIEnv, using offset
     // saved in this glue frame during transition from C to Java.  GC will use this saved
@@ -1447,10 +1439,10 @@ public abstract class JNICompiler
     // store current TR into JNIEnvironment; we may have switched TRs while in Java mode.
     asm.emitSTAddrOffset(THREAD_REGISTER, T2, Entrypoints.JNIEnvSavedTRField.getOffset());
 
-    // change the state of the VP to IN_NATIVE.
+    // change the state of the TR to IN_JNI
     //
-    asm.emitLVAL(S0, Processor.IN_NATIVE);
-    asm.emitSTWoffset(S0, THREAD_REGISTER, Entrypoints.vpStatusField.getOffset());
+    asm.emitLVAL(S0, RVMThread.IN_JNI);
+    asm.emitSTWoffset(S0, THREAD_REGISTER, Entrypoints.execStatusField.getOffset());
 
     // Restore those AIX nonvolatile registers saved in the prolog above
     // Here we only save & restore ONLY those registers not restored by RVM

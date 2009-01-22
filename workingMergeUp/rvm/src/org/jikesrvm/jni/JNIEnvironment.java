@@ -86,6 +86,14 @@ public final class JNIEnvironment implements SizeConstants {
   protected RVMThread savedTRreg;
 
   /**
+   * For saving JTOC register on entry to native,
+   * to be restored on JNI call from native (only used on PowerPC)
+   */
+  @Entrypoint
+  @Untraced
+  protected Address savedJTOC;
+
+  /**
    * When native code doesn't maintain a base pointer we can't chain
    * through the base pointers when walking the stack. This field
    * holds the basePointer on entry to the native code in such a case,

@@ -270,8 +270,9 @@ public abstract class OutOfLineMachineCode
     asm.emitSTAddr(FP, FP << LOG_BYTES_IN_ADDRESS, T3);
 
     // (2) Set currentThread.beingDispatched to false
-    asm.emitLVAL(0, 0);                                       // R0 := 0
-    asm.emitSTBoffset(0, T0, Entrypoints.beingDispatchedField.getOffset()); // T0.beingDispatched := R0
+    // PNT: don't have this field anymore
+    // asm.emitLVAL(0, 0);                                       // R0 := 0
+    // asm.emitSTBoffset(0, T0, Entrypoints.beingDispatchedField.getOffset()); // T0.beingDispatched := R0
 
     // (3) Restore nonvolatile hardware state of new thread.
 
