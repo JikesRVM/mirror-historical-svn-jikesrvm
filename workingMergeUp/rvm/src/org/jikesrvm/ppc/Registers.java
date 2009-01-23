@@ -47,7 +47,7 @@ public abstract class Registers implements ArchConstants {
   public Address lr;     // link register
   public boolean inuse; // do exception registers currently contain live values?
 
-  static Address invalidIP = Address.max();
+  private static final Address invalidIP = Address.max();
 
   public Registers() {
     gprs = gprsShadow = MemoryManager.newNonMovingWordArray(NUM_GPRS);
@@ -63,6 +63,7 @@ public abstract class Registers implements ArchConstants {
       fprs[i]=other.fprs[i];
     }
     ip=other.ip;
+    lr=other.lr;
   }
 
   public final void assertSame(Registers other) {
@@ -81,6 +82,10 @@ public abstract class Registers implements ArchConstants {
     }
     if (ip.NE(other.ip)) {
       VM.sysWriteln("Registers not equal: IP");
+      fail=true;
+    }
+    if (lr.NE(other.lr)) {
+      VM.sysWriteln("Registers not equal: LR");
       fail=true;
     }
     if (fail) {
