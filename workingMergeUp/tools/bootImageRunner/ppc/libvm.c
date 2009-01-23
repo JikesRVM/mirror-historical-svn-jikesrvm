@@ -460,14 +460,6 @@ cSignalHandler(int signum, siginfo_t * UNUSED zero, struct ucontext *context)
 #endif
     // UNUSED: // Address jtoc =  GET_GPR(save, Constants_JTOC_POINTER);
 
-    if (signum == SIGALRM) {
-        processTimerTick();
-#ifdef RVM_FOR_OSX
-        sigreturn((struct sigcontext*) context);
-#endif
-        return;
-    }
-
     if (signum == SIGHUP) { /* asynchronous signal used to awaken external
                                debugger  */
         if (lib_verbose)
@@ -737,7 +729,7 @@ cTrapHandler(int signum, int UNUSED zero, sigcontext *context)
 
    /* Copy the trapped register set into the current thread's "hardware
       exception registers" save area. */
-    Address thread = GET_GPS(save,Constants_THREAD_REGISTER);
+    Address thread = GET_GPR(save,Constants_THREAD_REGISTER);
     Address *registers = *(Address **)
         ((char *)thread + RVMThread_exceptionRegisters_offset);
 
@@ -1340,7 +1332,7 @@ createVM(int vmInSeparateThread)
     // set up initial stack frame
     //
     Address  jtoc = bootRecord.tocRegister;
-    Address  tr = *(Address*)(bootRecord.tocRegister+bootThreadOffset);
+    Address  tr = *(Address *) (bootRecord.tocRegister + bootRecord.bootThreadOffset);
     Address tid = bootRecord.tiRegister;
     Address  ip = bootRecord.ipRegister;
     Address  sp = bootRecord.spRegister;
@@ -1393,14 +1385,20 @@ createVM(int vmInSeparateThread)
 
         return 0;
     } else {
-        if (lib_verbose) {
-            fprintf(SysTraceFile, "%s: calling boot thread: jtoc = " FMTrvmPTR
-                    "   tr = " FMTrvmPTR "   tid = %d   fp = " FMTrvmPTR "\n",
-                    Me, rvmPTR_ARG(jtoc), rvmPTR_ARG(tr), tid, rvmPTR_ARG(fp));
+        if (setjmp(primordial_jb)) {
+            *(int*)(tr + RVMThread_execStatus_offset) = RVMThread_TERMINATED;
+            // cannot return or else the process will exit
+            for (;;) pause();
+        } else {
+            if (lib_verbose) {
+                fprintf(SysTraceFile, "%s: calling boot thread: jtoc = " FMTrvmPTR
+                        "   tr = " FMTrvmPTR "   tid = %d   fp = " FMTrvmPTR "\n",
+                        Me, rvmPTR_ARG(jtoc), rvmPTR_ARG(tr), tid, rvmPTR_ARG(fp));
+            }
+            bootThread(jtoc, tr, tid, fp);
+            fprintf(SysErrorFile, "Unexpected return from bootThread\n");
+            return 1;
         }
-        bootThread(jtoc, tr, tid, fp);
-        fprintf(SysErrorFile, "Unexpected return from bootThread\n");
-        return 1;
     }
 
 }

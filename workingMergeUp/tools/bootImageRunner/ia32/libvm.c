@@ -117,8 +117,6 @@ char *Me;
 
 static BootRecord *bootRecord;
 
-jmp_buf primordial_jb;
-
 static void vwriteFmt(int fd, const char fmt[], va_list ap)
     NONNULL(2) __attribute__((format (printf, 2, 0)));
 static void vwriteFmt(int fd, size_t bufsz, const char fmt[], va_list ap)

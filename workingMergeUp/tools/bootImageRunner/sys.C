@@ -889,8 +889,11 @@ sysNativeThreadCreate(Address tr, Address ip, Address fp)
     return (Address)sysNativeThreadHandle;
 }
 
-// keys for managing thread termination
+/** keys for managing thread termination */
 static pthread_key_t TerminateJmpBufKey;
+
+/** jump buffer for primordial thread */
+jmp_buf primordial_jb;
 
 extern "C" void *
 sysNativeThreadStartup(void *args)
