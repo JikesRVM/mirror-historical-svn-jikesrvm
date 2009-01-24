@@ -91,7 +91,7 @@ public final class JNIEnvironment implements SizeConstants {
    */
   @Entrypoint
   @Untraced
-  protected Address savedJTOC;
+  private final Address savedJTOC = VM.BuildForPowerPC ? Magic.getTocPointer() : Address.zero();
 
   /**
    * When native code doesn't maintain a base pointer we can't chain
