@@ -232,6 +232,8 @@ public final class Simple extends CompilerPhase {
     // Use register list to enumerate register objects
     Register elemNext;
     boolean reiterate = true;
+    // Processor register that it is ok to constant propagate
+    final Register PR = ir.regpool.getPhysicalRegisterSet().getPR();
     while (reiterate) {         // /MT/ better think about proper ordering.
       reiterate = false;
       for (Register reg = ir.regpool.getFirstSymbolicRegister(); reg != null; reg = elemNext) {
@@ -269,7 +271,8 @@ public final class Simple extends CompilerPhase {
           // If rhs is a physical register, then we can't safely propagate
           // it to uses of lhs because we don't understand the implicit
           // uses/defs of physical registers well enough to do so safely.
-          if (rrhs.isPhysical()) continue;
+          // (the exception being the processor register)
+          if (rrhs.isPhysical() && rrhs != PR) continue;
         }
 
         reiterate = ir.options.getOptLevel() > 1;
@@ -280,7 +283,12 @@ public final class Simple extends CompilerPhase {
           RegisterOperand rhsRegOp = rhs.asRegister();
           for (RegisterOperand use = reg.useList; use != null; use = nextUse) {
             nextUse = use.getNext(); // get early before reg's useList is updated.
-            if (VM.VerifyAssertions) VM._assert(rhsRegOp.getRegister().getType() == use.getRegister().getType());
+            if (VM.VerifyAssertions) {
+              if (rhsRegOp.getRegister().getType() != use.getRegister().getType()) {
+                throw new OptimizingCompilerException("Simple.copyPropagation: type of " +
+                  rhsRegOp.getRegister() + " doesn't match " + use.getRegister());
+              }
+            }
             DefUse.transferUse(use, rhsRegOp);
           }
         } else if (rhs.isConstant()) {

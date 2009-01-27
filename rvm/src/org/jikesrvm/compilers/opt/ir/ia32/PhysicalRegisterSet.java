@@ -159,6 +159,9 @@ public abstract class PhysicalRegisterSet extends GenericPhysicalRegisterSet
     reg[C2].setSpansBasicBlock();
     reg[C3].setSpansBasicBlock();
     reg[PROCESSOR_REGISTER.value()].setSpansBasicBlock();
+    reg[PROCESSOR_REGISTER.value()].setSSA();
+    reg[PROCESSOR_REGISTER.value()].clearInteger();
+    reg[PROCESSOR_REGISTER.value()].setAddress();
 
     // For SSE2
     reg[ST0].setDouble();

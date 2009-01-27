@@ -161,6 +161,9 @@ public abstract class PhysicalRegisterSet extends GenericPhysicalRegisterSet
 
     // 7. set properties on some special registers
     reg[PROCESSOR_REGISTER].setSpansBasicBlock();
+    reg[PROCESSOR_REGISTER].setSSA();
+    reg[PROCESSOR_REGISTER].clearInteger();
+    reg[PROCESSOR_REGISTER].setAddress();
     reg[FRAME_POINTER].setSpansBasicBlock();
     reg[JTOC_POINTER].setSpansBasicBlock();
 
