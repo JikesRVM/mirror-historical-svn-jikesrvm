@@ -42,8 +42,6 @@ import org.jikesrvm.compilers.opt.ir.operand.Operand;
 import org.jikesrvm.compilers.opt.ir.operand.RegisterOperand;
 import org.jikesrvm.compilers.opt.util.SpaceEffGraphEdge;
 import org.jikesrvm.compilers.opt.util.SpaceEffGraphNode;
-import java.util.ArrayDeque;
-import java.util.Queue;
 
 /**
  * This class contains methods for invoking BURS tree-pattern matching
@@ -274,47 +272,26 @@ final class NormalBURS extends BURS {
 
   // routine to identify harmless inter-tree edges.
   // Is goal reachable via any edge in the current tree?
-  private boolean reachableRoot(SpaceEffGraphNode start, SpaceEffGraphNode goal, int searchnum) {
-    // queue of roots to process
-    Queue<SpaceEffGraphNode> rootWorkQueue = new ArrayDeque<SpaceEffGraphNode>();
-    rootWorkQueue.add(start);
-    // queue of children of roots to process in inner loop
-    Queue<BURS_TreeNode> childWorkQueue = new ArrayDeque<BURS_TreeNode>();
-    // loop over all roots
-    while (!rootWorkQueue.isEmpty()) {
-      SpaceEffGraphNode currentRoot = rootWorkQueue.remove();
-      // have we found the goal?
-      if (currentRoot == goal)
-        return true;
-      // have we been here before?
-      if (currentRoot.scratch == searchnum)
-        continue;
-      // mark as visited
-      currentRoot.scratch = searchnum;
-      // descend children
-      childWorkQueue.add((BURS_TreeNode)currentRoot.scratchObject);
-      while (!childWorkQueue.isEmpty()) {
-        BURS_TreeNode currentChild = childWorkQueue.remove();
-        SpaceEffGraphNode dgn = currentChild.dg_node;
-        if (dgn != null) {
-          for (SpaceEffGraphEdge out = dgn.firstOutEdge(); out != null; out = out.getNextOut()) {
-            // process new root, return quickly if it's the goal, queue if we've not seen it before
-            SpaceEffGraphNode newRoot = out.toNode().nextSorted;
-            if (newRoot == goal)
-              return true;
-            if (newRoot.scratch != searchnum) {
-              rootWorkQueue.add(newRoot);
-            }
-          }
-        }
-        // process the children of this node
-        if (currentChild.child1 != null && !currentChild.child1.isTreeRoot()) {
-          childWorkQueue.add(currentChild.child1);
-        }
-        if (currentChild.child2 != null && !currentChild.child2.isTreeRoot()) {
-          childWorkQueue.add(currentChild.child2);
-        }
+  private boolean reachableRoot(SpaceEffGraphNode current, SpaceEffGraphNode goal, int searchnum) {
+    if (current == goal) return true;
+    if (current.scratch == searchnum) return false;
+    current.scratch = searchnum;
+    BURS_TreeNode root = (BURS_TreeNode) current.scratchObject;
+    return reachableChild(root, goal, searchnum);
+  }
+
+  private boolean reachableChild(BURS_TreeNode n, SpaceEffGraphNode goal, int searchnum) {
+    SpaceEffGraphNode dgn = n.dg_node;
+    if (dgn != null) {
+      for (SpaceEffGraphEdge out = dgn.firstOutEdge(); out != null; out = out.getNextOut()) {
+        if (reachableRoot(out.toNode().nextSorted, goal, searchnum)) return true;
       }
+    }
+    if (n.child1 != null && !n.child1.isTreeRoot() && reachableChild(n.child1, goal, searchnum)) {
+      return true;
+    }
+    if (n.child2 != null && !n.child2.isTreeRoot() && reachableChild(n.child2, goal, searchnum)) {
+      return true;
     }
     return false;
   }
