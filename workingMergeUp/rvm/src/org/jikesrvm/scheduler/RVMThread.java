@@ -77,6 +77,70 @@ import org.jikesrvm.tuningfork.Feedlet;
 
 /**
  * A generic java thread's execution context.
+ * <p>
+ * Threads use a state machine to indicate to other threads, as well as VM
+ * services, how this thread should be treated in the case of an asynchronous
+ * request, for example in the case of GC.  The state machine uses the
+ * following states:
+ * <ul>
+ * <li>NEW</li>
+ * <li>IN_JAVA</li>
+ * <li>IN_NATIVE</li>
+ * <li>IN_JNI</li>
+ * <li>IN_JAVA_TO_BLOCK</li>
+ * <li>BLOCKED_IN_NATIVE</li>
+ * <li>BLOCKED_IN_JNI</li>
+ * <li>TERMINATED</li>
+ * </ul>
+ * The following state transitions are legal:
+ * <ul>
+ * <li>NEW to IN_JAVA: occurs when the thread is actually started.  At this
+ *     point it is safe to expect that the thread will reach a safe point in
+ *     some bounded amount of time, at which point it will have a complete
+ *     execution context, and this will be able to have its stack traces by GC.</li>
+ * <li>IN_JAVA to IN_JAVA_TO_BLOCK: occurs when an asynchronous request is
+ *     made, for example to stop for GC, do a mutator flush, or do an isync on PPC.</li>
+ * <li>IN_JAVA to IN_NATIVE: occurs when the code opts to run in privileged mode,
+ *     without synchronizing with GC.  This state transition is only performed by
+ *     HeavyCondLock, in cases where the thread is about to go idle while waiting
+ *     for notifications (such as in the case of park, wait, or sleep).</li>
+ * <li>IN_JAVA to IN_JNI: occurs in response to a JNI downcall, or return from a JNI
+ *     upcall.</li>
+ * <li>IN_JAVA_TO_BLOCK to BLOCKED_IN_NATIVE: occurs when a thread that had been
+ *     asked to perform an async activity decides to go idle instead.  This state
+ *     always corresponds to a notification being sent to other threads, letting
+ *     them know that this thread is idle.  When the thread is idle, any asynchronous
+ *     requests (such as mutator flushes) can instead be performed on behalf of this
+ *     thread by other threads, since this thread is guaranteed not to be running
+ *     any user Java code, and will not be able to return to running Java code without
+ *     first blocking, and waiting to be unblocked (see BLOCKED_IN_NATIVE to IN_JAVA
+ *     transition.</li>
+ * <li>IN_JAVA_TO_BLOCK to BLOCKED_IN_JNI: occurs when a thread that had been
+ *     asked to perform an async activity decides to make a JNI downcall, or return
+ *     from a JNI upcall, instead.  In all other regards, this is identical to the
+ *     IN_JAVA_TO_BLOCK to BLOCKED_IN_NATIVE transition.</li>
+ * <li>IN_NATIVE to IN_JAVA: occurs when a thread returns from idling or running
+ *     privileged code to running Java code.</li>
+ * <li>BLOCKED_IN_NATIVE to IN_JAVA: occurs when a thread that had been asked to
+ *     perform an async activity while running privileged code or idling decides to
+ *     go back to running Java code.  The actual transition is preceded by the
+ *     thread first performing any requested actions (such as mutator flushes) and
+ *     waiting for a notification that it is safe to continue running (for example,
+ *     the thread may wait until GC is finished).</li>
+ * <li>IN_JNI to IN_JAVA: occurs when a thread returns from a JNI downcall, or makes
+ *     a JNI upcall.</li>
+ * <li>BLOCKED_IN_JNI to IN_JAVA: same as BLOCKED_IN_NATIVE to IN_JAVA, except that
+ *     this occurs in response to a return from a JNI downcall, or as the thread
+ *     makes a JNI upcall.</li>
+ * <li>IN_JAVA to TERMINATED: the thread has terminated, and will never reach any
+ *     more safe points, and thus will not be able to respond to any more requests
+ *     for async activities.</li>
+ * </ul>
+ * Observe that the transitions from BLOCKED_IN_NATIVE and BLOCKED_IN_JNI to IN_JAVA
+ * constitute a safe point.  Code running in BLOCKED_IN_NATIVE or BLOCKED_IN_JNI is
+ * "GC safe" but is not quite at a safe point; safe points are special in that
+ * they allow the thread to perform async activities (such as mutator flushes or
+ * isyncs), while GC safe code will not necessarily perform either.
  *
  * @see org.jikesrvm.scheduler.greenthreads.GreenThread
  * @see org.jikesrvm.mm.mminterface.CollectorThread
@@ -129,7 +193,8 @@ public class RVMThread extends ThreadContext {
 
   /*
    * definitions for thread status for interaction of Java-native transitions
-   * and requests for threads to stop.
+   * and requests for threads to stop.  THESE ARE PRIVATE TO THE SCHEDULER, and
+   * are only used deep within the stack.
    */
   /**
    * Thread has not yet started. This state holds right up until just before we
@@ -143,34 +208,50 @@ public class RVMThread extends ThreadContext {
   public static final int IN_JAVA = 1;
 
   /**
-   * A state used by the scheduler to mark that a thread is in native code (a
-   * syscall). The point is that for now, the thread is not executing Java code
-   * and is effectively at a safe point, but it may transition back into Java
-   * code at any moment.
+   * A state used by the scheduler to mark that a thread is in privileged code
+   * that does not need to synchronize with the collector.  This is a special
+   * state, similar to the IN_JNI state but requiring different interaction with
+   * the collector (as there is no JNI stack frame, the registers have to be
+   * saved in contextRegisters).  As well, this state should only be entered
+   * from privileged code in the org.jikesrvm.scheduler package.  Typically,
+   * this state is entered using a call to enterNative() just prior to idling
+   * the thread; though it would not be wrong to enter it prior to any other
+   * long-running activity that does not require interaction with the GC.
    */
   public static final int IN_NATIVE = 2;
 
   /**
-   * A thread is executing native code and is effectively at a GC safe point.
-   * Care must be taken if GC occurs and the native code execution finishes.
+   * Same as IN_NATIVE, except that we're executing JNI code and thus have a
+   * JNI stack frame and JNI environment, and thus the GC can load registers
+   * from there rather than using contextRegisters.
    */
   public static final int IN_JNI = 3;
 
   /**
-   * thread is in Java code but is expected to block. the point is that we're
-   * waiting for the thread to reach a safe point and expect this to happen in
-   * bounded time; but if the thread were to escape to native we want to know
-   * about it. thus, transitions into native code while in the IN_JAVA_TO_BLOCK
-   * state result in a notification (broadcast on the thread's monitor) and a
-   * state change to BLOCKED_IN_NATIVE. Observe that it is always safe to
-   * conservatively change IN_JAVA to IN_JAVA_TO_BLOCK.
+   * thread is in Java code but is expected to block. the transition from IN_JAVA
+   * to IN_jAVA_TO_BLOCK happens as a result of an asynchronous call by the GC
+   * or any other internal VM code that requires this thread to perform an
+   * asynchronous activity (another example is the request to do an isync on PPC).
+   * the point is that we're waiting for the thread to reach a safe point and
+   * expect this to happen in bounded time; but if the thread were to escape to
+   * native we want to know about it. thus, transitions into native code while
+   * in the IN_JAVA_TO_BLOCK state result in a notification (broadcast on the
+   * thread's monitor) and a state change to BLOCKED_IN_NATIVE. Observe that it
+   * is always safe to conservatively change IN_JAVA to IN_JAVA_TO_BLOCK.
    */
   public static final int IN_JAVA_TO_BLOCK = 4;
 
   /**
    * thread is in native code, and is to block before returning to Java code.
-   * the point is that the thread is guaranteed not to execute any Java code
-   * until:
+   * the transition from IN_NATIVE to BLOCKED_IN_NATIVE happens as a result
+   * of an asynchronous call by the GC or any other internal VM code that
+   * requires this thread to perform an asynchronous activity (another example
+   * is the request to do an isync on PPC).  as well, code entering privileged
+   * code that would otherwise go from IN_JAVA to IN_NATIVE will go to
+   * BLOCKED_IN_NATIVE instead, if the state was IN_JAVA_TO_BLOCK.
+   * <p>
+   * the point of this state is that the thread is guaranteed not to execute
+   * any Java code until:
    * <ol>
    * <li>The state changes to IN_NATIVE, and
    * <li>The thread gets a broadcast on its monitor.
@@ -1393,9 +1474,8 @@ public class RVMThread extends ThreadContext {
     }
 
     if (traceBlock)
-      VM
-          .sysWriteln("Thread #", threadSlot,
-              " has acknowledged soft handshakes");
+      VM.sysWriteln("Thread #", threadSlot,
+		    " has acknowledged soft handshakes");
 
     for (;;) {
       // deal with block requests
@@ -1706,6 +1786,20 @@ public class RVMThread extends ThreadContext {
     return block(ba, false);
   }
 
+  /**
+   * Indicate that we'd like the current thread to be executing privileged code that
+   * does not require synchronization with the GC.  This call may be made on a thread
+   * that is IN_JAVA or IN_JAVA_TO_BLOCK, and will result in the thread being either
+   * IN_NATIVE or BLOCKED_IN_NATIVE.  In the case of an
+   * IN_JAVA_TO_BLOCK-&gt;BLOCKED_IN_NATIVE transition, this call will acquire the
+   * thread's lock and send out a notification to any threads waiting for this thread
+   * to reach a safepoint.  This notification serves to notify them that the thread
+   * is in GC-safe code, but will not reach an actual safepoint for an indetermined
+   * amount of time.  This is significant, because safepoints may perform additional
+   * actions (such as handling handshake requests, which may include things like
+   * mutator flushes and running isync) that IN_NATIVE code will not perform until
+   * returning to IN_JAVA by way of a leaveNative() call.
+   */
   public static void enterNative() {
     RVMThread t = getCurrentThread();
     if (ALWAYS_LOCK_ON_STATE_TRANSITION) {
@@ -1752,6 +1846,12 @@ public class RVMThread extends ThreadContext {
     return true;
   }
 
+  /**
+   * Leave privileged code.  This is valid for threads that are either IN_NATIVE,
+   * IN_JNI, BLOCKED_IN_NATIVE, or BLOCKED_IN_JNI, and always results in the thread
+   * being IN_JAVA.  If the thread was previously BLOCKED_IN_NATIVE or BLOCKED_IN_JNI,
+   * the thread will block until notified that it can run again.
+   */
   @Unpreemptible("May block if the thread was asked to do so; otherwise does no actions that would lead to blocking")
   public static void leaveNative() {
     if (!attemptLeaveNativeNoBlock()) {

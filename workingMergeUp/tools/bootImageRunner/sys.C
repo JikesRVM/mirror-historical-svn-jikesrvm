@@ -882,6 +882,12 @@ sysNativeThreadCreate(Address tr, Address ip, Address fp)
         fprintf(SysErrorFile, "%s: pthread_create failed (rc=%d)\n", Me, rc);
         sysExit(EXIT_STATUS_SYSCALL_TROUBLE);
     }
+    
+    if ((rc = pthread_detach(sysNativeThreadHandle)))
+    {
+        fprintf(SysErrorFile, "%s: pthread_detach failed (rc=%d)\n", Me, rc);
+        sysExit(EXIT_STATUS_SYSCALL_TROUBLE);
+    }
 
     if (VERBOSE_PTHREAD)
         fprintf(SysTraceFile, "%s: pthread_create 0x%08x\n", Me, (Address) sysNativeThreadHandle);
