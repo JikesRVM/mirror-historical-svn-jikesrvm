@@ -40,7 +40,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
 
-import org.jikesrvm.VM;
+import org.jikesrvm.runtime.StackTrace;
 
 final class VMAccessController
 {
@@ -54,14 +54,14 @@ final class VMAccessController
    * call stack. We use this to remember which context object corresponds to
    * which call.
    */
-  private static final ThreadLocal contexts = new ThreadLocal();
+  private static final ThreadLocal<LinkedList<AccessControlContext>> contexts = new ThreadLocal<LinkedList<AccessControlContext>>();
 
   /**
    * This is a Boolean that, if set, tells getContext that it has already
    * been called once, allowing us to handle recursive permission checks
    * caused by methods getContext calls.
    */
-  private static final ThreadLocal inGetContext = new ThreadLocal();
+  private static final ThreadLocal<Boolean> inGetContext = new ThreadLocal<Boolean>();
 
   /**
    * And we return this all-permissive context to ensure that privileged
@@ -108,12 +108,12 @@ final class VMAccessController
   {
     if (DEBUG)
       debug("pushing " + acc);
-    LinkedList stack = (LinkedList) contexts.get();
+    LinkedList<AccessControlContext> stack = contexts.get();
     if (stack == null)
       {
          if (DEBUG)
            debug("no stack... creating ");
-        stack = new LinkedList();
+        stack = new LinkedList<AccessControlContext>();
         contexts.set(stack);
       }
     stack.addFirst(acc);
@@ -132,7 +132,7 @@ final class VMAccessController
 
     // Stack should never be null, nor should it be empty, if this method
     // and its counterpart has been called properly.
-    LinkedList stack = (LinkedList) contexts.get();
+    LinkedList<AccessControlContext> stack = contexts.get();
     if (stack != null)
       {
         stack.removeFirst();
@@ -160,7 +160,7 @@ final class VMAccessController
     //
     // XXX is this necessary? We should verify if there are any calls in
     // the stack below this method that require permission checks.
-    Boolean inCall = (Boolean) inGetContext.get();
+    Boolean inCall = inGetContext.get();
     if (inCall != null && inCall.booleanValue())
       {
         if (DEBUG)
@@ -171,21 +171,22 @@ final class VMAccessController
     inGetContext.set(Boolean.TRUE);
 
     Object[][] stack = getStack();
-    Class[] classes = (Class[]) stack[0];
+    Class<?>[] classes = (Class<?>[]) stack[0];
     String[] methods = (String[]) stack[1];
 
     if (DEBUG)
       debug("got trace of length " + classes.length);
-    
+
     /**
      * Handle the default getStack() implementation gracefully
      */
     if (classes.length == 0) {
+      inGetContext.set(Boolean.FALSE);
       return DEFAULT_CONTEXT;
     }
 
-    HashSet domains = new HashSet();
-    HashSet seenDomains = new HashSet();
+    HashSet<ProtectionDomain> domains = new HashSet<ProtectionDomain>();
+    HashSet<ProtectionDomain> seenDomains = new HashSet<ProtectionDomain>();
     AccessControlContext context = null;
     int privileged = 0;
 
@@ -196,7 +197,7 @@ final class VMAccessController
     // and AccessController.getContext.
     for (int i = 3; i < classes.length && privileged < 2; i++)
       {
-        Class clazz = classes[i];
+        Class<?> clazz = classes[i];
         String method = methods[i];
 
         if (DEBUG)
@@ -215,11 +216,11 @@ final class VMAccessController
             && method.equals ("doPrivileged"))
           {
             // If there was a call to doPrivileged with a supplied context,
-            // return that context. If using JAAS doAs*, it should be 
+            // return that context. If using JAAS doAs*, it should be
 	    // a context with a SubjectDomainCombiner
-            LinkedList l = (LinkedList) contexts.get();
+            LinkedList<AccessControlContext> l = contexts.get();
             if (l != null)
-              context = (AccessControlContext) l.getFirst();
+              context = l.getFirst();
             privileged = 1;
           }
 
@@ -241,8 +242,7 @@ final class VMAccessController
     if (DEBUG)
       debug("created domains: " + domains);
 
-    ProtectionDomain[] result = (ProtectionDomain[])
-      domains.toArray(new ProtectionDomain[domains.size()]);
+    ProtectionDomain[] result = domains.toArray(new ProtectionDomain[domains.size()]);
 
     if (context != null)
       {
@@ -275,8 +275,9 @@ final class VMAccessController
    * arrays match up, meaning that method <i>i</i> is declared in class
    * <i>i</i>. The arrays are clean; it will only contain Java methods,
    * and no element of the list should be null.
-   * 
-   * <p>JikesRVM implementation
+   *
+   * <p>JikesRVM implementation, uses org.jikesrvm.runtime.StackTrace
+   * for efficiency.
    *
    * @return A pair of arrays describing the current call stack. The first
    *    element is an array of Class objects, and the second is an array
@@ -284,21 +285,18 @@ final class VMAccessController
    */
   private static Object[][] getStack()
   {
-    StackTraceElement[] stack = new Throwable().getStackTrace();
     ArrayList<Class<?>> classes = new ArrayList<Class<?>>();
     ArrayList<String> methods = new ArrayList<String>();
-    
+
+    StackTrace.Element[] stack = new StackTrace().getStackTrace(new Throwable());
     for (int i=1; i < stack.length; i++) {
-      final String className = stack[i].getClassName();
       final String methodName = stack[i].getMethodName();
-      
+      final Class<?> elementClass = stack[i].getElementClass();
+
       /* Filter out invalid classnames */
-      if (className.length() > 0) {
-        try {
-          classes.add(Class.forName(className));
-          methods.add(methodName);
-        } catch (ClassNotFoundException e) {
-        }
+      if (elementClass != null) {
+        classes.add(elementClass);
+        methods.add(methodName);
       }
     }
     return new Object[][] { classes.toArray(new Class[0]), methods.toArray(new String[0]) };
