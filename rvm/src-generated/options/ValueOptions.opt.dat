@@ -45,6 +45,14 @@ V PROFILE_CBS_HOTNESS double 0.98
 Threshold at which a conditional branch is considered to be skewed
 
 
+V PROFILE_FORWARD_BRANCH_PROB float 0.1f
+Static probability an unknown forward branch will be taken
+
+
+V PROFILE_BACKWARD_BRANCH_PROB float 0.9f
+Static probability an unknown backward branch will be taken
+
+
 V ESCAPE_MAX_ARRAY_SIZE int 5
 Maximum size of array to replaced with registers by simple escape analysis
 

@@ -616,9 +616,9 @@ public final class GenerationContext implements org.jikesrvm.compilers.opt.drive
       BranchProfile bp = branchProfiles.getEntry(bcIndex);
       prob = ((ConditionalBranchProfile) bp).getTakenProbability();
     } else if (backwards) {
-      prob = 0.9f;
+      prob = options.PROFILE_BACKWARD_BRANCH_PROB;
     } else {
-      prob = 0.5f;
+      prob = options.PROFILE_FORWARD_BRANCH_PROB;
     }
     // experimental option: flip the probablity to see how bad things would be if
     // we were completely wrong.
