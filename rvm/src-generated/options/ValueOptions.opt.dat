@@ -45,7 +45,7 @@ V PROFILE_CBS_HOTNESS double 0.98
 Threshold at which a conditional branch is considered to be skewed
 
 
-V PROFILE_FORWARD_BRANCH_PROB float 0.1f
+V PROFILE_FORWARD_BRANCH_PROB float 0.5f
 Static probability an unknown forward branch will be taken
 
 
