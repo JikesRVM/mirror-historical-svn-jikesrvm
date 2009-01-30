@@ -13,7 +13,9 @@
 package org.jikesrvm.scheduler;
 
 import org.jikesrvm.VM;
+import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Untraced;
 import org.jikesrvm.runtime.Magic;
 
 /**
@@ -21,12 +23,13 @@ import org.jikesrvm.runtime.Magic;
  * where there is some other lock that already protects the queue.
  */
 @Uninterruptible
+@NonMoving
 public class ThreadQueue {
   protected static final boolean trace = false;
 
-  RVMThread head;
+  @Untraced RVMThread head;
 
-  RVMThread tail;
+  @Untraced RVMThread tail;
 
   public ThreadQueue() {
   }

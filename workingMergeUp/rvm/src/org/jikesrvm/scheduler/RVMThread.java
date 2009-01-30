@@ -311,14 +311,14 @@ public class RVMThread extends ThreadContext {
    * on one such queue at a time. The queue that a thread is on is indicated by
    * <code>queuedOn</code>.
    */
-  RVMThread next;
+  @Untraced RVMThread next;
 
   /**
    * The queue that the thread is on, or null if the thread is not on a queue
    * (specifically ThreadQueue). If the thread is on such a queue, the
    * <code>next</code> field is used as a link pointer.
    */
-  ThreadQueue queuedOn;
+  @Untraced ThreadQueue queuedOn;
 
   // to handle contention for spin locks
   //
