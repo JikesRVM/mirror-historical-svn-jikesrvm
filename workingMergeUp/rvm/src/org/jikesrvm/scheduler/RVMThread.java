@@ -365,7 +365,7 @@ public class RVMThread extends ThreadContext {
    * The boot thread, can't be final so as to allow initialization during boot
    * image writing.
    */
-  @Entrypoint
+  @Entrypoint @Untraced
   public static RVMThread bootThread;
 
   /**
@@ -1099,10 +1099,6 @@ public class RVMThread extends ThreadContext {
     sysCall.sysCreateThreadSpecificDataKeys();
     sysCall.sysStashVmThreadInPthread(getCurrentThread());
     
-    for (int i=0;i<MAX_THREADS;++i) {
-      VM.sysWriteln(Magic.objectAsAddress(threadBySlot).plus(i*4).loadAddress());
-    }
-
     threadingInitialized = true;
     TimerThread tt = new TimerThread();
     tt.makeDaemon(true);
@@ -2742,8 +2738,14 @@ public class RVMThread extends ThreadContext {
    * so it can be directly used in the ownership tests.
    */
   public final int getLockingId() {
-    if (VM.VerifyAssertions)
-      VM._assert(threadBySlot[threadSlot] == this);
+    if (VM.VerifyAssertions) {
+      RVMThread hypotheticalThis=threadBySlot[threadSlot];
+      if (hypotheticalThis!=this) {
+        VM.sysWriteln("this = ",Magic.objectAsAddress(this));
+        VM.sysWriteln("hypothetical this = ",Magic.objectAsAddress(hypotheticalThis));
+      }
+      VM._assert(hypotheticalThis == this);
+    }
     return threadSlot << ThinLockConstants.TL_THREAD_ID_SHIFT;
   }
 
