@@ -159,9 +159,11 @@ public class SSMutator extends StopTheWorldMutator {
     if (phaseId == SS.RELEASE) {
       super.collectionPhase(phaseId, primary);
       // rebind the allocation bump pointer to the appropriate semispace.
-      Log.write("rebinding allocator for ");
-      Log.write(id);
-      Log.writeln();
+      if (false) {
+        Log.write("rebinding allocator for ");
+        Log.write(id);
+        Log.writeln();
+      }
       ss.rebind(SS.toSpace());
       return;
     }

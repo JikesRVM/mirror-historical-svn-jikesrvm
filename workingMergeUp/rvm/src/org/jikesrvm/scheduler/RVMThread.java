@@ -1475,7 +1475,7 @@ public class RVMThread extends ThreadContext {
 
     if (traceBlock)
       VM.sysWriteln("Thread #", threadSlot,
-		    " has acknowledged soft handshakes");
+                    " has acknowledged soft handshakes");
 
     for (;;) {
       // deal with block requests
