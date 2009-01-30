@@ -17,14 +17,14 @@ import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.RVMThread;
-import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
 /**
  * Code invoked from Thread.yieldpoint for the purposes of OSR.
  */
-@Uninterruptible
+@Unpreemptible
 public class OSRListener {
 
   public static boolean checkForOSRPromotion(int whereFrom, Address yieldpointServiceMethodFP) {

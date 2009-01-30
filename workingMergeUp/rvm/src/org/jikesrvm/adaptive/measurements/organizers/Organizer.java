@@ -100,6 +100,6 @@ public abstract class Organizer extends RVMThread {
       if (VM.VerifyAssertions) VM._assert(listener.isActive());
       listener.passivate();
     }
-    latch.open();
+    latch.openDangerously();
   }
 }

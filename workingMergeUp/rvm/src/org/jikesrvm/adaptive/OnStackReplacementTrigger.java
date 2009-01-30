@@ -18,7 +18,7 @@ import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.NoInline;
-import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.unboxed.Offset;
 
 /**
@@ -30,7 +30,7 @@ public class OnStackReplacementTrigger {
    * Trigger an OSR from a running thread.
    */
   @NoInline
-  @Uninterruptible
+  @Unpreemptible
   public static void trigger(int ypTakenInCMID, Offset tsFromFPoff, Offset ypTakenFPoff, int whereFrom) {
 
     RVMThread thread = RVMThread.getCurrentThread();
