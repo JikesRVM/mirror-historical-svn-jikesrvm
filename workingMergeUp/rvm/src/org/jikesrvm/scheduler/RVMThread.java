@@ -1098,7 +1098,7 @@ public class RVMThread extends ThreadContext {
     monitorBySlot[getCurrentThread().threadSlot] = new NoYieldpointsCondLock();
     sysCall.sysCreateThreadSpecificDataKeys();
     sysCall.sysStashVmThreadInPthread(getCurrentThread());
-    
+
     threadingInitialized = true;
     TimerThread tt = new TimerThread();
     tt.makeDaemon(true);
