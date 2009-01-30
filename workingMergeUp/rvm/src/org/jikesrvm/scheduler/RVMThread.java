@@ -1131,12 +1131,12 @@ public class RVMThread extends ThreadContext {
     isAboutToTerminate = true;
     monitor().broadcast();
     flushRequested = true; /*
-                             * hack! we really want to call
-                             * MemoryManager.flushMutatorContext() here, but
-                             * handleHandshakeRequest() will already call it if
-                             * flushRequested is set. so we do it by setting
-                             * flushRequested to true.
-                             */
+                            * hack! we really want to call
+                            * MemoryManager.flushMutatorContext() here, but
+                            * handleHandshakeRequest() will already call it if
+                            * flushRequested is set. so we do it by setting
+                            * flushRequested to true.
+                            */
     handleHandshakeRequest();
     // WARNING! DANGER! Since we've set isAboutToTerminate to true, when we
     // release this lock the GC will:
@@ -1156,18 +1156,30 @@ public class RVMThread extends ThreadContext {
   }
 
   /**
-   * Method called from GC before processing list of threads.
+   * Method called after processing a list of threads, or before starting a new
+   * thread.  This does two things.  First, it guarantees that the thread slots
+   * used by any dead threads are freed.  Second, it guarantees that each thread
+   * deregisters itself from GC.  Thus, it is essential that after requesting
+   * things like mutator flushes, you call this, to ensure that any threads that
+   * had died before or during the mutator flush request do the Right Thing.
    */
   @NoCheckStore
   public static void processAboutToTerminate() {
-    acctLock.lock();
-    for (int i = 0; i < aboutToTerminateN; ++i) {
-      if (aboutToTerminate[i].execStatus == TERMINATED) {
-        aboutToTerminate[i].releaseThreadSlot();
-        aboutToTerminate[i--] = aboutToTerminate[--aboutToTerminateN];
+    for (;;) {
+      RVMThread t=null;
+      acctLock.lock();
+      for (int i = 0; i < aboutToTerminateN; ++i) {
+        if (aboutToTerminate[i].execStatus == TERMINATED) {
+          t = aboutToTerminate[i];
+          aboutToTerminate[i--] = aboutToTerminate[--aboutToTerminateN];
+        }
       }
+      acctLock.unlock();
+      if (t==null) {
+        break;
+      }
+      t.releaseThreadSlot();
     }
-    acctLock.unlock();
   }
 
   /**
@@ -1184,8 +1196,8 @@ public class RVMThread extends ThreadContext {
       threadIdx = 0;
       numThreads = 1;
     } else {
-      acctLock.lock();
       processAboutToTerminate();
+      acctLock.lock();
       if (freeSlotN > 0) {
         threadSlot = freeSlots[--freeSlotN];
       } else {
@@ -1244,6 +1256,8 @@ public class RVMThread extends ThreadContext {
     threadBySlot[threadSlot] = null;
     freeSlots[freeSlotN++] = threadSlot;
     acctLock.unlock();
+
+    deregisterMutator(); // NB ugliness!  we don't actually know what this does.
   }
 
   /** Start the debugger thread. Currently not implemented. */
@@ -2778,7 +2792,6 @@ public class RVMThread extends ThreadContext {
   public static int snapshotHandshakeThreads() {
     // figure out which threads to consider
     acctLock.lock(); /* get a consistent view of which threads are live. */
-    processAboutToTerminate(); /* community service */
 
     int numToHandshake = 0;
     for (int i = 0; i < numThreads; ++i) {
@@ -2883,6 +2896,8 @@ public class RVMThread extends ThreadContext {
     if (VM.VerifyAssertions)
       VM._assert(softHandshakeLeft == 0);
     softHandshakeDataLock.unlock();
+
+    processAboutToTerminate();
 
     handshakeLock.unlock();
   }

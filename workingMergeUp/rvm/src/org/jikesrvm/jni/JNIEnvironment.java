@@ -378,8 +378,11 @@ public final class JNIEnvironment implements SizeConstants {
     if(!Synchronization.tryCompareAndSwap(Magic.getThreadRegister(),
         Entrypoints.execStatusField.getOffset(), RVMThread.IN_JNI, RVMThread.IN_JAVA)) {
       RVMThread.leaveJNIBlockedFromCallIntoNative();
-      if (VM.VerifyAssertions)
-        VM._assert(RVMThread.getCurrentThread().execStatus == RVMThread.IN_JAVA);
+      // this assertion is quite wrong.  someone could have put the thread into any
+      // state between when leaveJNIBlockedFromCallIntoNative() returned and when
+      // we execute this assertion.
+      //if (VM.VerifyAssertions)
+      //  VM._assert(RVMThread.getCurrentThread().execStatus == RVMThread.IN_JAVA);
     }
     // Restore JNI ref top and saved frame pointer
     JNIRefsTop = JNIRefsSavedFP;

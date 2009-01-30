@@ -353,7 +353,6 @@ public final class CollectorThread extends RVMThread {
         // while we're waiting.  that is unlikely but possible.
         for (;;) {
           RVMThread.acctLock.lock();
-          RVMThread.processAboutToTerminate(); // community service
           int numToHandshake=0;
           for (int i=0;i<RVMThread.numThreads;++i) {
             RVMThread t=threads[i];
@@ -391,6 +390,13 @@ public final class CollectorThread extends RVMThread {
           }
         }
         RVMThread.handshakeLock.unlock();
+
+        RVMThread.processAboutToTerminate(); /*
+                                              * ensure that any threads that died while
+                                              * we were stopping the world notify the
+                                              * GC that they had stopped.
+                                              */
+
         if (verbose>=2) {
           VM.sysWriteln("Thread #",getThreadSlot()," just blocked a bunch of threads.");
           RVMThread.dumpAcct();
@@ -497,7 +503,6 @@ public final class CollectorThread extends RVMThread {
         // and now unblock all threads
         RVMThread.handshakeLock.lock();
         RVMThread.acctLock.lock();
-        RVMThread.processAboutToTerminate(); // community service
         int numToHandshake=0;
         for (int i=0;i<RVMThread.numThreads;++i) {
           RVMThread t=threads[i];

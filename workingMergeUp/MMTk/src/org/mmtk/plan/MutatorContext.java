@@ -94,6 +94,10 @@ public abstract class MutatorContext implements Constants {
     VM.activePlan.registerMutator(this);
   }
 
+  public void deregisterMutator() {
+    // FIXME implement this.
+  }
+
   /****************************************************************************
    * Instance fields
    */
