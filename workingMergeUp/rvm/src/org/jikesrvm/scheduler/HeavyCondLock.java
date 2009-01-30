@@ -22,6 +22,7 @@ import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.NoOptCompile;
 import org.vmmagic.pragma.BaselineSaveLSRegisters;
+import org.vmmagic.pragma.Untraced;
 import org.vmmagic.unboxed.Word;
 
 /**
@@ -62,7 +63,7 @@ import org.vmmagic.unboxed.Word;
 public class HeavyCondLock {
   Word mutex;
   Word cond;
-  RVMThread holder;
+  @Untraced RVMThread holder;
   int recCount;
   public int acquireCount;
   /**

@@ -1098,6 +1098,10 @@ public class RVMThread extends ThreadContext {
     monitorBySlot[getCurrentThread().threadSlot] = new NoYieldpointsCondLock();
     sysCall.sysCreateThreadSpecificDataKeys();
     sysCall.sysStashVmThreadInPthread(getCurrentThread());
+    
+    for (int i=0;i<MAX_THREADS;++i) {
+      VM.sysWriteln(Magic.objectAsAddress(threadBySlot).plus(i*4).loadAddress());
+    }
 
     threadingInitialized = true;
     TimerThread tt = new TimerThread();
