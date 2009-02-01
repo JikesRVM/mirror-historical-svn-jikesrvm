@@ -1113,9 +1113,11 @@ public class RVMThread extends ThreadContext {
       RVMThread t = CollectorThread.createActiveCollectorThread();
       t.start();
     }
-    for (int i = 1; i <= numProcessors; ++i) {
-      RVMThread t = ConcurrentCollectorThread.createConcurrentCollectorThread();
-      t.start();
+    if (false) {
+      for (int i = 1; i <= numProcessors; ++i) {
+        RVMThread t = ConcurrentCollectorThread.createConcurrentCollectorThread();
+        t.start();
+      }
     }
     FinalizerThread.boot();
     getCurrentThread().enableYieldpoints();
