@@ -173,6 +173,11 @@ public class RVMThread extends ThreadContext {
 
   /** Trace adjustments to stack size */
   private static final boolean traceAdjustments = false;
+  
+  /** Never kill threads.  Useful for testing bugs related to interaction of
+      thread death with for example MMTk.  For production, this should never
+      be set to true. */
+  private static final boolean neverKillThreads = true;
 
   /** Generate statistics? */
   private static final boolean STATS = Lock.STATS;
@@ -1167,20 +1172,22 @@ public class RVMThread extends ThreadContext {
    */
   @NoCheckStore
   public static void processAboutToTerminate() {
-    for (;;) {
-      RVMThread t=null;
-      acctLock.lock();
-      for (int i = 0; i < aboutToTerminateN; ++i) {
-        if (aboutToTerminate[i].execStatus == TERMINATED) {
-          t = aboutToTerminate[i];
-          aboutToTerminate[i--] = aboutToTerminate[--aboutToTerminateN];
+    if (!neverKillThreads) {
+      for (;;) {
+        RVMThread t=null;
+        acctLock.lock();
+        for (int i = 0; i < aboutToTerminateN; ++i) {
+          if (aboutToTerminate[i].execStatus == TERMINATED) {
+            t = aboutToTerminate[i];
+            aboutToTerminate[i--] = aboutToTerminate[--aboutToTerminateN];
+          }
         }
+        acctLock.unlock();
+        if (t==null) {
+          break;
+        }
+        t.releaseThreadSlot();
       }
-      acctLock.unlock();
-      if (t==null) {
-        break;
-      }
-      t.releaseThreadSlot();
     }
   }
 
