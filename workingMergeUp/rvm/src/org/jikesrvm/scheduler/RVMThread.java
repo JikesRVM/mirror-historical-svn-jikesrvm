@@ -1832,8 +1832,11 @@ public class RVMThread extends ThreadContext {
         }
       } while (!(Synchronization.tryCompareAndSwap(t, offset, oldState, newState)));
     }
-    if (VM.VerifyAssertions)
-      VM._assert(t.execStatus == IN_NATIVE);
+    // NB this is not a correct assertion, as there is a race.  we could succeed in
+    // CASing the status to IN_NATIVE, but then someone else could asynchronosly
+    // set it to whatever they want.
+    //if (VM.VerifyAssertions)
+    //  VM._assert(t.execStatus == IN_NATIVE);
   }
 
   /**
