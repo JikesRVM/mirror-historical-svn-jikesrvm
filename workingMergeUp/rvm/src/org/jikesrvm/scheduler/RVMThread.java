@@ -1370,7 +1370,7 @@ public class RVMThread extends ThreadContext {
    * Create a thread with default stack and with the given name.
    */
   public RVMThread(String name) {
-    this(MemoryManager.newStack(STACK_SIZE_NORMAL, false), null, // java.lang.Thread
+    this(MemoryManager.newStack(STACK_SIZE_NORMAL), null, // java.lang.Thread
         name, true, // daemon
         true, // system
         Thread.NORM_PRIORITY);
@@ -1394,7 +1394,7 @@ public class RVMThread extends ThreadContext {
    */
   public RVMThread(Thread thread, long stacksize, String name, boolean daemon,
       int priority) {
-    this(MemoryManager.newStack((stacksize <= 0) ? STACK_SIZE_NORMAL : (int) stacksize, false), thread, name, daemon, false, priority);
+    this(MemoryManager.newStack((stacksize <= 0) ? STACK_SIZE_NORMAL : (int) stacksize), thread, name, daemon, false, priority);
   }
 
   final void acknowledgeBlockRequests() {
@@ -3156,7 +3156,7 @@ public class RVMThread extends ThreadContext {
     if (MemoryManager.gcInProgress()) {
       VM.sysFail("system error: resizing stack while GC is in progress");
     }
-    byte[] newStack = MemoryManager.newStack(newSize, false);
+    byte[] newStack = MemoryManager.newStack(newSize);
     getCurrentThread().disableYieldpoints();
     transferExecutionToNewStack(newStack, exceptionRegisters);
     getCurrentThread().enableYieldpoints();

@@ -91,7 +91,7 @@ public final class ConcurrentCollectorThread extends RVMThread {
    */
   @Interruptible
   public static ConcurrentCollectorThread createConcurrentCollectorThread() {
-    byte[] stack = MemoryManager.newStack(ArchitectureSpecific.StackframeLayoutConstants.STACK_SIZE_COLLECTOR, true);
+    byte[] stack = MemoryManager.newStack(ArchitectureSpecific.StackframeLayoutConstants.STACK_SIZE_COLLECTOR);
 
     schedLock.lock();
     running++;

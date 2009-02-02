@@ -108,15 +108,15 @@ public class DebuggerThread extends RVMThread {
           //         won't start running while we're looking at it) ?
           RVMThread thread = RVMThread.threadBySlot[threadIndex];
 
-          VM.sysWriteln(thread.getIndex() + " " + thread + " " + thread.getThreadState());
+          // FIXME: PNT VM.sysWriteln(thread.getIndex() + " " + thread + " " + thread.getThreadState());
 
           Address fp =
               (thread == RVMThread.getCurrentThread()) ? Magic.getFramePointer() :
                  thread.contextRegisters.getInnermostFramePointer();
-
-          RVMThread.getCurrentProcessor().disableYieldpoints();
+          // FIXME: PNT
+          //RVMThread.getCurrentProcessor().disableYieldpoints();
           RVMThread.dumpStack(fp);
-          RVMThread.getCurrentProcessor().enableYieldpoints();
+          //RVMThread.getCurrentProcessor().enableYieldpoints();
         } else {
           VM.sysWrite("please specify a thread id\n");
         }

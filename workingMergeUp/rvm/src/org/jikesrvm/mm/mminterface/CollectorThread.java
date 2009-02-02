@@ -229,7 +229,7 @@ public final class CollectorThread extends RVMThread {
    */
   @Interruptible
   public static CollectorThread createActiveCollectorThread() {
-    byte[] stack = MemoryManager.newStack(ArchitectureSpecific.StackframeLayoutConstants.STACK_SIZE_COLLECTOR, true);
+    byte[] stack = MemoryManager.newStack(ArchitectureSpecific.StackframeLayoutConstants.STACK_SIZE_COLLECTOR);
     return new CollectorThread(stack);
   }
 

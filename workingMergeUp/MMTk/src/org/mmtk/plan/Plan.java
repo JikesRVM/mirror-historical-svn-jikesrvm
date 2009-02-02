@@ -93,7 +93,6 @@ public abstract class Plan implements Constants {
   public static final int ALLOC_HOT_CODE = USE_CODE_SPACE ? ALLOC_CODE : ALLOC_DEFAULT;
   public static final int ALLOC_COLD_CODE = USE_CODE_SPACE ? ALLOC_CODE : ALLOC_DEFAULT;
   public static final int ALLOC_STACK = ALLOC_LOS;
-  public static final int ALLOC_IMMORTAL_STACK = ALLOC_IMMORTAL;
   public static final int ALLOCATORS = 9;
   public static final int DEFAULT_SITE = -1;
 

@@ -601,9 +601,9 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
           isPrefix("Lorg/jikesrvm/mm/", clsBA) ||
           isPrefix("Lorg/jikesrvm/memorymanagers/mminterface/GCMapIteratorGroup", clsBA)) {
         if (traceAllocator) {
-          VM.sysWriteln("IMMORTAL");
+          VM.sysWriteln("NONMOVING");
         }
-        return Plan.ALLOC_IMMORTAL;
+        return Plan.ALLOC_NON_MOVING;
       }
       if (method.isNonMovingAllocation()) {
         return Plan.ALLOC_NON_MOVING;
@@ -641,7 +641,7 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
         isPrefix("Lorg/jikesrvm/mm/", typeBA) ||
         isPrefix("Lorg/jikesrvm/memorymanagers/", typeBA) ||
         isPrefix("Lorg/jikesrvm/jni/JNIEnvironment;", typeBA)) {
-      allocator = Plan.ALLOC_IMMORTAL;
+      allocator = Plan.ALLOC_NON_MOVING;
     }
     return allocator;
   }
@@ -838,12 +838,11 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
   /**
    * Allocate a stack
    * @param bytes    The number of bytes to allocate
-   * @param immortal  Is the stack immortal and non-moving?
    * @return The stack
    */
   @Inline
   @Unpreemptible
-  public static byte[] newStack(int bytes, boolean immortal) {
+  public static byte[] newStack(int bytes) {
     if (!VM.runningVM) {
       return new byte[bytes];
     } else {
@@ -858,7 +857,7 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
                                     width,
                                     headerSize,
                                     stackTib,
-                                    (immortal ? Plan.ALLOC_IMMORTAL_STACK : Plan.ALLOC_STACK),
+                                    Plan.ALLOC_STACK,
                                     align,
                                     offset,
                                     Plan.DEFAULT_SITE);
