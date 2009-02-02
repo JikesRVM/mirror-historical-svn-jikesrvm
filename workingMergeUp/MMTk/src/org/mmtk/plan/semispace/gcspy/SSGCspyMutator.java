@@ -96,24 +96,6 @@ import org.vmmagic.unboxed.*;
   }
 
   /**
-   * Return the space into which an allocator is allocating.  This
-   * particular method will match against those spaces defined at this
-   * level of the class hierarchy.  Subclasses must deal with spaces
-   * they define and refer to superclasses appropriately.  This exists
-   * to support {@link org.mmtk.plan.MutatorContext#getOwnAllocator(Allocator)}.
-   *
-   * @see org.mmtk.plan.MutatorContext#getOwnAllocator(Allocator)
-   * @param a An allocator
-   * @return The space into which <code>a</code> is allocating, or
-   *         <code>null</code> if there is no space associated with
-   *         <code>a</code>.
-   */
-  public final Space getSpaceFromAllocator(Allocator a) {
-    if (a == gcspy) return SSGCspy.gcspySpace;
-    return super.getSpaceFromAllocator(a);
-  }
-
-  /**
    * Return the allocator instance associated with a space
    * <code>space</code>, for this plan instance.  This exists
    * to support {@link org.mmtk.plan.MutatorContext#getOwnAllocator(Allocator)}.
@@ -124,7 +106,7 @@ import org.vmmagic.unboxed.*;
    * which is allocating into <code>space</code>, or <code>null</code>
    * if no appropriate allocator can be established.
    */
-  public Allocator getAllocatorFromSpace(Space space) {
+  public Allocator<?> getAllocatorFromSpace(Space space) {
     if (space == SSGCspy.gcspySpace) return gcspy;
     return super.getAllocatorFromSpace(space);
   }

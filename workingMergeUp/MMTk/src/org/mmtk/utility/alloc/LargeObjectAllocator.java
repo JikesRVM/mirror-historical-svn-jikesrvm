@@ -30,13 +30,12 @@ import org.vmmagic.pragma.*;
  * improvement...
  */
 @Uninterruptible
-public abstract class LargeObjectAllocator extends Allocator implements Constants {
+public abstract class LargeObjectAllocator extends Allocator<BaseLargeObjectSpace> implements Constants {
 
   /****************************************************************************
    *
    * Instance variables
    */
-  protected final BaseLargeObjectSpace space;
 
   /****************************************************************************
    *
@@ -50,7 +49,7 @@ public abstract class LargeObjectAllocator extends Allocator implements Constant
    * will be associated.
    */
   public LargeObjectAllocator(BaseLargeObjectSpace space) {
-    this.space = space;
+    super(space);
   }
 
   /****************************************************************************

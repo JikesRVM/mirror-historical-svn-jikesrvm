@@ -60,8 +60,8 @@ public class SSMutator extends StopTheWorldMutator {
    * Called before the MutatorContext is used, but after the context has been
    * fully registered and is visible to collection.
    */
-  public void initMutator() {
-    super.initMutator();
+  public void initMutator(int id) {
+    super.initMutator(id);
     ss.rebind(SS.toSpace());
   }
 
@@ -105,24 +105,6 @@ public class SSMutator extends StopTheWorldMutator {
   }
 
   /**
-   * Return the space into which an allocator is allocating.  This
-   * particular method will match against those spaces defined at this
-   * level of the class hierarchy.  Subclasses must deal with spaces
-   * they define and refer to superclasses appropriately.  This exists
-   * to support {@link MutatorContext#getOwnAllocator(Allocator)}.
-   *
-   * @see MutatorContext#getOwnAllocator(Allocator)
-   * @param a An allocator
-   * @return The space into which <code>a</code> is allocating, or
-   *         <code>null</code> if there is no space associated with
-   *         <code>a</code>.
-   */
-  public Space getSpaceFromAllocator(Allocator a) {
-    if (a == ss) return SS.toSpace();
-    return super.getSpaceFromAllocator(a);
-  }
-
-  /**
    * Return the allocator instance associated with a space
    * <code>space</code>, for this plan instance.  This exists
    * to support {@link MutatorContext#getOwnAllocator(Allocator)}.
@@ -133,7 +115,7 @@ public class SSMutator extends StopTheWorldMutator {
    * which is allocating into <code>space</code>, or <code>null</code>
    * if no appropriate allocator can be established.
    */
-  public Allocator getAllocatorFromSpace(Space space) {
+  public Allocator<?> getAllocatorFromSpace(Space space) {
     if (space == SS.copySpace0 || space == SS.copySpace1) return ss;
     return super.getAllocatorFromSpace(space);
   }
@@ -161,7 +143,7 @@ public class SSMutator extends StopTheWorldMutator {
       // rebind the allocation bump pointer to the appropriate semispace.
       if (false) {
         Log.write("rebinding allocator for ");
-        Log.write(id);
+        Log.write(getId());
         Log.writeln();
       }
       ss.rebind(SS.toSpace());

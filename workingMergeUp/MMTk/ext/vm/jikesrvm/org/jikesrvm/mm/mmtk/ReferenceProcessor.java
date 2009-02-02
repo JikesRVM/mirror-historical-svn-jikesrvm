@@ -21,6 +21,7 @@ import org.vmmagic.unboxed.*;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.mm.mminterface.DebugUtil;
+import org.jikesrvm.mm.mminterface.Selected;
 import org.jikesrvm.runtime.Entrypoints;
 import org.jikesrvm.scheduler.RVMThread;
 
@@ -314,7 +315,7 @@ public final class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
     nurseryIndex = maxIndex = toIndex;
 
     /* flush out any remset entries generated during the above activities */
-    ActivePlan.flushRememberedSets();
+    Selected.Mutator.get().flushRememberedSets();
   }
 
   /**

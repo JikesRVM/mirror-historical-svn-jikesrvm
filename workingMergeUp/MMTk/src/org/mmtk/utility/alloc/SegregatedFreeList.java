@@ -22,15 +22,12 @@ import org.vmmagic.unboxed.*;
  * This abstract class implements the fast past for a segregated free list.
  */
 @Uninterruptible
-public abstract class SegregatedFreeList<S extends SegregatedFreeListSpace> extends Allocator implements Constants {
+public abstract class SegregatedFreeList<S extends SegregatedFreeListSpace> extends Allocator<S> implements Constants {
 
   /****************************************************************************
    *
    * Instance variables
    */
-
-  /** The space, only required to call size class calculation methods */
-  protected final S space;
 
   /** The current free lists for the size classes */
   protected final AddressArray freeList;
@@ -46,7 +43,7 @@ public abstract class SegregatedFreeList<S extends SegregatedFreeListSpace> exte
    * @param space The space with which this allocator will be associated
    */
   public SegregatedFreeList(S space) {
-    this.space = space;
+    super(space);
     this.freeList = AddressArray.create(sizeClassCount());
   }
 
@@ -91,7 +88,7 @@ public abstract class SegregatedFreeList<S extends SegregatedFreeListSpace> exte
    */
   @Inline
   private int sizeClassCount() {
-    return space.sizeClassCount();
+    return SegregatedFreeListSpace.sizeClassCount();
   }
 
   /**

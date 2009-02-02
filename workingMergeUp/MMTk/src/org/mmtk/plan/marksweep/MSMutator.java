@@ -108,22 +108,6 @@ public class MSMutator extends StopTheWorldMutator {
   }
 
   /**
-   * Return the space into which an allocator is allocating.  This
-   * particular method will match against those spaces defined at this
-   * level of the class hierarchy.  Subclasses must deal with spaces
-   * they define and refer to superclasses appropriately.
-   *
-   * @param a An allocator
-   * @return The space into which <code>a</code> is allocating, or
-   *         <code>null</code> if there is no space associated with
-   *         <code>a</code>.
-   */
-  public Space getSpaceFromAllocator(Allocator a) {
-    if (a == ms) return MS.msSpace;
-    return super.getSpaceFromAllocator(a);
-  }
-
-  /**
    * Return the allocator instance associated with a space
    * <code>space</code>, for this plan instance.
    *
@@ -132,7 +116,7 @@ public class MSMutator extends StopTheWorldMutator {
    * which is allocating into <code>space</code>, or <code>null</code>
    * if no appropriate allocator can be established.
    */
-  public Allocator getAllocatorFromSpace(Space space) {
+  public Allocator<?> getAllocatorFromSpace(Space space) {
     if (space == MS.msSpace) return ms;
     return super.getAllocatorFromSpace(space);
   }
@@ -163,5 +147,16 @@ public class MSMutator extends StopTheWorldMutator {
     }
 
     super.collectionPhase(phaseId, primary);
+  }
+  
+
+  /**
+   * Flush mutator context, in response to a requestMutatorFlush.
+   * Also called by the default implementation of deinitMutator.
+   */
+  @Override
+  public void flush() {
+    super.flush();
+    ms.flush();
   }
 }

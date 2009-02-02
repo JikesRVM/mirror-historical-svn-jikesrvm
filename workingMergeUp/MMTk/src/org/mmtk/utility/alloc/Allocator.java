@@ -38,7 +38,40 @@ import org.vmmagic.pragma.*;
  * where the allocation that caused a GC or allocations immediately following
  * GC are run incorrectly.
  */
-@Uninterruptible public abstract class Allocator implements Constants {
+@Uninterruptible
+public abstract class Allocator<T extends Space> implements Constants {
+
+  /**
+   * The space this allocator is bound to.
+   */
+  protected T space;
+
+  /**
+   * Create a new allocator instance.
+   *
+   * @param space The space to bind allocation to.
+   */
+  protected Allocator(T space) {
+    this.space = space;
+  }
+
+  /**
+   * Return the space this allocator is currently bound to.
+   *
+   * @return The Space.
+   */
+  protected T getSpace() {
+    return this.space;
+  }
+
+  /**
+   * Rebind this allocator to a different space.
+   *
+   * @param space The new space to bind to.
+   */
+  protected void rebind(T space) {
+    this.space = space;
+  }
 
   /**
    * Aligns up an allocation request. The allocation request accepts a
@@ -224,7 +257,8 @@ import org.vmmagic.pragma.*;
   @Inline
   public final Address allocSlowInline(int bytes, int alignment, int offset) {
     int gcCountStart = Stats.gcCount();
-    Allocator current = this;
+    Allocator<?> current = this;
+    Space space = current.getSpace();
     for (int i = 0; i < Plan.MAX_COLLECTION_ATTEMPTS; i++) {
       Address result = current.allocSlowOnce(bytes, alignment, offset);
       if (!result.isZero()) {
@@ -236,13 +270,13 @@ import org.vmmagic.pragma.*;
          * current thread and the mutator context. This is possible for
          * VMs that dynamically multiplex Java threads onto multiple mutator
          * contexts, */
-        current = VM.activePlan.mutator().getOwnAllocator(current);
+        current = VM.activePlan.mutator().getAllocatorFromSpace(space);
       }
     }
     Log.write("GC Error: Allocator.allocSlow failed on request of ");
     Log.write(bytes);
     Log.write(" on space ");
-    Log.writeln(Plan.getSpaceNameFromAllocatorAnyLocal(this));
+    Log.writeln(space.getName());
     Log.write("gcCountStart = ");
     Log.writeln(gcCountStart);
     Log.write("gcCount (now) = ");

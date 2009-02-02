@@ -550,6 +550,7 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    * returning to MMTk.
    */
   private void assertMutatorRemsetsFlushed() {
+    /* FIXME: PNT 
     if (VM.VERIFY_ASSERTIONS) {
       for (int m = 0; m < VM.activePlan.mutatorCount(); m++) {
         MutatorContext mc=VM.activePlan.mutator(m);
@@ -557,7 +558,7 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
           mc.assertRemsetsFlushed();
         }
       }
-    }
+    }*/
   }
   /**
    * This method logs a message with preprended thread id, if the

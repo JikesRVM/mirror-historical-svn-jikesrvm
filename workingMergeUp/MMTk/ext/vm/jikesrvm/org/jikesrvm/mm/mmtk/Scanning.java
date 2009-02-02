@@ -329,7 +329,7 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
     }
 
     /* flush out any remset entries generated during the above activities */
-    ActivePlan.flushRememberedSets();
+    Selected.Mutator.get().flushRememberedSets();
   }
 
   /**

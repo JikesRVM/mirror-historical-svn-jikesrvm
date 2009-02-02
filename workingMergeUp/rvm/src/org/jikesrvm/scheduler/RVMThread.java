@@ -39,7 +39,6 @@ import org.jikesrvm.jni.JNIEnvironment;
 import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.mm.mminterface.ThreadContext;
 import org.jikesrvm.mm.mminterface.CollectorThread;
-import org.jikesrvm.mm.mminterface.ConcurrentCollectorThread;
 import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.objectmodel.ThinLockConstants;
 import org.jikesrvm.runtime.Entrypoints;
@@ -177,7 +176,7 @@ public class RVMThread extends ThreadContext {
   /** Never kill threads.  Useful for testing bugs related to interaction of
       thread death with for example MMTk.  For production, this should never
       be set to true. */
-  private static final boolean neverKillThreads = true;
+  private static final boolean neverKillThreads = false;
 
   /** Generate statistics? */
   private static final boolean STATS = Lock.STATS;
@@ -924,7 +923,7 @@ public class RVMThread extends ThreadContext {
   protected int inDumpStack = 0;
 
   /** Is this a "registered mutator?" */
-  public boolean registeredMutator = false;
+  public boolean activeMutatorContext = false;
 
   /** Lock used for dumping stack and such. */
   public static HeavyCondLock dumpLock;
@@ -1112,17 +1111,10 @@ public class RVMThread extends ThreadContext {
       ObjectHolder.boot();
     }
     CollectorThread.boot();
-    ConcurrentCollectorThread.boot();
 
     for (int i = 1; i <= numProcessors; ++i) {
       RVMThread t = CollectorThread.createActiveCollectorThread();
       t.start();
-    }
-    if (false) {
-      for (int i = 1; i <= numProcessors; ++i) {
-        RVMThread t = ConcurrentCollectorThread.createConcurrentCollectorThread();
-        t.start();
-      }
     }
     FinalizerThread.boot();
     getCurrentThread().enableYieldpoints();
@@ -1266,7 +1258,8 @@ public class RVMThread extends ThreadContext {
     freeSlots[freeSlotN++] = threadSlot;
     acctLock.unlock();
 
-    deregisterMutator(); // NB ugliness!  we don't actually know what this does.
+    deinitMutator();
+    activeMutatorContext = false;
   }
 
   /** Start the debugger thread. Currently not implemented. */
@@ -1297,8 +1290,8 @@ public class RVMThread extends ThreadContext {
     if (!VM.runningVM) {
       // create primordial thread (in boot image)
       assignThreadSlot();
-      initMutator();
-      registerMutator();
+      initMutator(threadSlot);
+      this.activeMutatorContext = true;
       // Remember the boot thread
       this.systemThread = true;
       this.execStatus = IN_JAVA;
@@ -1340,11 +1333,8 @@ public class RVMThread extends ThreadContext {
       VM.enableGC();
 
       assignThreadSlot();
-      initMutator();
-      if (traceAcct) {
-        VM.sysWriteln("registering mutator for ", threadSlot);
-      }
-      registerMutator();
+      initMutator(threadSlot);
+      activeMutatorContext = true;
       if (traceAcct) {
         VM.sysWriteln("registered mutator for ", threadSlot);
       }

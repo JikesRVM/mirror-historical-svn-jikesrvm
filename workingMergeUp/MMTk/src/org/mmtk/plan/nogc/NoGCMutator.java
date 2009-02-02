@@ -97,24 +97,6 @@ public class NoGCMutator extends MutatorContext {
   }
 
   /**
-   * Return the space into which an allocator is allocating.  This
-   * particular method will match against those spaces defined at this
-   * level of the class hierarchy.  Subclasses must deal with spaces
-   * they define and refer to superclasses appropriately.
-   *
-   * @param a An allocator
-   * @return The space into which <code>a</code> is allocating, or
-   *         <code>null</code> if there is no space associated with
-   *         <code>a</code>.
-   */
-  public Space getSpaceFromAllocator(Allocator a) {
-    if (a == def) return NoGC.defSpace;
-
-    // a does not belong to this plan instance
-    return super.getSpaceFromAllocator(a);
-  }
-
-  /**
    * Return the allocator instance associated with a space
    * <code>space</code>, for this plan instance.
    *
@@ -123,7 +105,7 @@ public class NoGCMutator extends MutatorContext {
    * which is allocating into <code>space</code>, or <code>null</code>
    * if no appropriate allocator can be established.
    */
-  public Allocator getAllocatorFromSpace(Space space) {
+  public Allocator<?> getAllocatorFromSpace(Space space) {
     if (space == NoGC.defSpace) return def;
     return super.getAllocatorFromSpace(space);
   }

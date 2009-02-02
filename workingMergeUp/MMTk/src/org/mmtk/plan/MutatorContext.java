@@ -83,19 +83,22 @@ public abstract class MutatorContext implements Constants {
    * Initialization
    */
 
+
   /**
-   * Called before the MutatorContext is used, but after the context has been
-   * fully registered and is visible to collection.
+   * Notify that the mutator context is registered and ready to execute. From
+   * this point it will be included in iterations over mutators.
+   *
+   * @param id The id of this mutator context.
    */
-  public void initMutator() {
-  }
-  public void registerMutator() {
-    // don't register the mutator until we're initialized
-    VM.activePlan.registerMutator(this);
+  public void initMutator(int id) {
+    this.id = id;
   }
 
-  public void deregisterMutator() {
-    // FIXME implement this.
+  /**
+   * The mutator is about to be cleaned up, make sure all local data is returned.
+   */
+  public void deinitMutator() {
+    flush();
   }
 
   /****************************************************************************
@@ -103,7 +106,7 @@ public abstract class MutatorContext implements Constants {
    */
 
   /** Unique mutator identifier */
-  public int id;
+  private int id;
 
   /** Used for printing log information in a thread safe manner */
   protected final Log log = new Log();
@@ -231,41 +234,6 @@ public abstract class MutatorContext implements Constants {
    */
 
   /**
-   * Given an allocator, <code>a</code>, determine the space into
-   * which <code>a</code> is allocating and then return an allocator
-   * (possibly <code>a</code>) associated with <i>this plan
-   * instance</i> which is allocating into the same space as
-   * <code>a</code>.<p>
-   *
-   * The need for the method is subtle.  The problem arises because
-   * application threads may change their affinity with
-   * processors/posix threads, and this may happen during a GC (at the
-   * point at which the scheduler performs thread switching associated
-   * with the GC). At the end of a GC, the thread that triggered the
-   * GC may now be bound to a different processor and thus the
-   * allocator instance on its stack may be no longer be valid
-   * (i.e. it may pertain to a different plan instance).<p>
-   *
-   * This method allows the correct allocator instance to be
-   * established and associated with the thread (see {@link
-   * org.mmtk.utility.alloc.Allocator#allocSlow(int, int, int) Allocator.allocSlow()}).
-   *
-   * @see org.mmtk.utility.alloc.Allocator
-   * @see org.mmtk.utility.alloc.Allocator#allocSlow(int, int, int)
-   *
-   * @param a An allocator instance.
-   * @return An allocator instance associated with <i>this plan
-   * instance</i> that allocates into the same space as <code>a</code>
-   * (this may in fact be <code>a</code>).
-   */
-  public final Allocator getOwnAllocator(Allocator a) {
-    Space space = Plan.getSpaceFromAllocatorAnyLocal(a);
-    if (space == null)
-      VM.assertions.fail("MutatorContext.getOwnAllocator could not obtain space");
-    return getAllocatorFromSpace(space);
-  }
-
-  /**
    * Return the space into which an allocator is allocating.  This
    * particular method will match against those spaces defined at this
    * level of the class hierarchy.  Subclasses must deal with spaces
@@ -276,7 +244,7 @@ public abstract class MutatorContext implements Constants {
    *         <code>null</code> if there is no space associated with
    *         <code>a</code>.
    */
-  public Space getSpaceFromAllocator(Allocator a) {
+  public Space getSpaceFromAllocator(Allocator<?> a) {
     if (a == immortal) return Plan.immortalSpace;
     if (a == los)      return Plan.loSpace;
     if (a == nonmove)  return Plan.nonMovingSpace;
@@ -296,7 +264,7 @@ public abstract class MutatorContext implements Constants {
    * which is allocating into <code>space</code>, or <code>null</code>
    * if no appropriate allocator can be established.
    */
-  public Allocator getAllocatorFromSpace(Space space) {
+  public Allocator<?> getAllocatorFromSpace(Space space) {
     if (space == Plan.immortalSpace)  return immortal;
     if (space == Plan.loSpace)        return los;
     if (space == Plan.nonMovingSpace) return nonmove;
@@ -432,10 +400,13 @@ public abstract class MutatorContext implements Constants {
   }
 
   /**
-   * Flush mutator context, in response to a requestMutatorFlush
+   * Flush mutator context, in response to a requestMutatorFlush.
+   * Also called by the default implementation of deinitMutator.
    */
   public void flush() {
     flushRememberedSets();
+    smcode.flush();
+    nonmove.flush();
   }
 
   /**

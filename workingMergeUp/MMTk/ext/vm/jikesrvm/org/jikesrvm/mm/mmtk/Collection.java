@@ -25,7 +25,6 @@ import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.mm.mminterface.Selected;
 import org.jikesrvm.mm.mminterface.CollectorThread;
-import org.jikesrvm.mm.mminterface.ConcurrentCollectorThread;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.scheduler.FinalizerThread;
@@ -306,13 +305,6 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
     return Magic.threadAsCollectorThread(RVMThread.getCurrentThread()).getGCOrdinal() - CollectorThread.GC_ORDINAL_BASE;
   }
 
-  /**
-   * Ensure all concurrent worker threads are scheduled.
-   */
-  public void scheduleConcurrentWorkers() {
-    scheduleConcurrentThreads();
-  }
-
   private static RVMThread.SoftHandshakeVisitor mutatorFlushVisitor =
     new RVMThread.SoftHandshakeVisitor() {
       @Uninterruptible
@@ -375,13 +367,6 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
     if (finalizedCount > 0) {
       FinalizerThread.schedule();
     }
-  }
-
-  /**
-   * Schedule the concurrent collector threads.
-   */
-  public static void scheduleConcurrentThreads() {
-    ConcurrentCollectorThread.scheduleConcurrentCollectorThreads();
   }
 }
 
