@@ -245,11 +245,11 @@ public abstract class MutatorContext implements Constants {
    *         <code>a</code>.
    */
   public Space getSpaceFromAllocator(Allocator<?> a) {
-    if (a == immortal) return Plan.immortalSpace;
-    if (a == los)      return Plan.loSpace;
-    if (a == nonmove)  return Plan.nonMovingSpace;
-    if (Plan.USE_CODE_SPACE && a == smcode)   return Plan.smallCodeSpace;
-    if (Plan.USE_CODE_SPACE && a == lgcode)   return Plan.largeCodeSpace;
+    if ((Object)a == immortal) return Plan.immortalSpace;
+    if ((Object)a == los)      return Plan.loSpace;
+    if ((Object)a == nonmove)  return Plan.nonMovingSpace;
+    if (Plan.USE_CODE_SPACE && (Object)a == smcode)   return Plan.smallCodeSpace;
+    if (Plan.USE_CODE_SPACE && (Object)a == lgcode)   return Plan.largeCodeSpace;
 
     // a does not belong to this plan instance
     return null;
