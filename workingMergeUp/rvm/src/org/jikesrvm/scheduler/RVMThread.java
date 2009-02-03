@@ -157,12 +157,12 @@ public class RVMThread extends ThreadContext {
   protected static final boolean traceBlock = false;
 
   /** Trace when a thread is really blocked */
-  protected static final boolean traceReallyBlock = false || traceBlock;
+  protected static final boolean traceReallyBlock = true || traceBlock;
 
   protected static final boolean dumpStackOnBlock = false; // DANGEROUS! can lead to crashes!
 
   /** Trace thread start/stop */
-  protected static final boolean traceAcct = false;
+  protected static final boolean traceAcct = true;
 
   /** Trace execution */
   protected static final boolean trace = false;
@@ -288,7 +288,9 @@ public class RVMThread extends ThreadContext {
    * execution it is using (Java, VM native, or JNI)
    */
   @Entrypoint
-  public int execStatus;
+  private int execStatus;
+  
+  public int getExecStatus() { return execStatus; }
 
   /**
    * Is the thread about to terminate? Protected by the thread's monitor. Note
@@ -299,7 +301,9 @@ public class RVMThread extends ThreadContext {
    */
   // FIXME: there should be an execStatus state called TERMINATING that
   // corresponds to this. that would make a lot more sense.
-  public boolean isAboutToTerminate;
+  private boolean isAboutToTerminate;
+  
+  public boolean getIsAboutToTerminate() { return isAboutToTerminate; }
 
   /** Is this thread in the process of blocking? */
   boolean isBlocking;
@@ -1085,6 +1089,60 @@ public class RVMThread extends ThreadContext {
       Entrypoints.dumpStackAndDieMethod.getOffset();
     Lock.init();
   }
+  
+  public void assertAcceptableStates(int expected) {
+    if (VM.VerifyAssertions) {
+      int curStatus=execStatus;
+      if (curStatus!=expected) {
+        VM.sysWriteln("FATAL ERROR: unexpected thread state.");
+        VM.sysWriteln("Expected: ",expected);
+        VM.sysWriteln("Observed: ",curStatus);
+        VM._assert(curStatus==expected);
+      }
+    }
+  }
+
+  public void assertAcceptableStates(int expected1,int expected2) {
+    if (VM.VerifyAssertions) {
+      int curStatus=execStatus;
+      if (curStatus!=expected1 &&
+          curStatus!=expected2) {
+        VM.sysWriteln("FATAL ERROR: unexpected thread state.");
+        VM.sysWriteln("Expected: ",expected1);
+        VM.sysWriteln("      or: ",expected2);
+        VM.sysWriteln("Observed: ",curStatus);
+        VM._assert(curStatus==expected1 ||
+                   curStatus==expected2);
+      }
+    }
+  }
+
+  public void assertUnacceptableStates(int unexpected) {
+    if (VM.VerifyAssertions) {
+      int curStatus=execStatus;
+      if (curStatus==unexpected) {
+        VM.sysWriteln("FATAL ERROR: unexpected thread state.");
+        VM.sysWriteln("Unexpected: ",unexpected);
+        VM.sysWriteln("  Observed: ",curStatus);
+        VM._assert(curStatus!=unexpected);
+      }
+    }
+  }
+
+  public void assertUnacceptableStates(int unexpected1,int unexpected2) {
+    if (VM.VerifyAssertions) {
+      int curStatus=execStatus;
+      if (curStatus==unexpected1 ||
+          curStatus==unexpected2) {
+        VM.sysWriteln("FATAL ERROR: unexpected thread state.");
+        VM.sysWriteln("Unexpected: ",unexpected1);
+        VM.sysWriteln("       and: ",unexpected2);
+        VM.sysWriteln("  Observed: ",curStatus);
+        VM._assert(curStatus!=unexpected1 &&
+                   curStatus!=unexpected2);
+      }
+    }
+  }
 
   /**
    * Boot the threading subsystem.
@@ -1103,6 +1161,10 @@ public class RVMThread extends ThreadContext {
     sysCall.sysCreateThreadSpecificDataKeys();
     sysCall.sysStashVmThreadInPthread(getCurrentThread());
 
+    if (traceAcct) {
+      VM.sysWriteln("boot thread at ",Magic.objectAsAddress(getCurrentThread()));
+    }
+    
     threadingInitialized = true;
     TimerThread tt = new TimerThread();
     tt.makeDaemon(true);
@@ -1118,6 +1180,7 @@ public class RVMThread extends ThreadContext {
     }
     FinalizerThread.boot();
     getCurrentThread().enableYieldpoints();
+    if (traceAcct) VM.sysWriteln("RVMThread booted");
   }
 
   /**
@@ -1453,7 +1516,7 @@ public class RVMThread extends ThreadContext {
   /** A variant of checkBlock() that does not save the thread state. */
   @NoInline
   @Unpreemptible("May block if the thread was asked to do so, but otherwise does no actions that would cause blocking")
-  final void checkBlockNoSaveContext() {
+  private final void checkBlockNoSaveContext() {
     if (traceBlock)
       VM.sysWriteln("Thread #", threadSlot, " in checkBlockNoSaveContext");
     // NB: anything this method calls CANNOT change the contextRegisters
@@ -1601,7 +1664,7 @@ public class RVMThread extends ThreadContext {
     checkBlockNoSaveContext();
   }
 
-  final void enterNativeBlocked(boolean jni) {
+  private final void enterNativeBlockedImpl(boolean jni) {
     if (traceReallyBlock)
       VM.sysWriteln("Thread #", threadSlot, " entering native blocked.");
     // NB: anything this method calls CANNOT change the contextRegisters
@@ -1628,15 +1691,57 @@ public class RVMThread extends ThreadContext {
       VM.sysWriteln("Thread #", threadSlot, " done enter native blocked.");
   }
 
+  @Unpreemptible("May block if the thread was asked to do so, but otherwise does no actions that would cause blocking")
+  private final void leaveNativeBlockedImpl() {
+    checkBlockNoSaveContext();
+  }
+    
   final void enterNativeBlocked() {
-    enterNativeBlocked(false);
+    assertAcceptableStates(IN_JAVA,IN_JAVA_TO_BLOCK);
+    enterNativeBlockedImpl(false);
+    assertAcceptableStates(IN_NATIVE,BLOCKED_IN_NATIVE);
+  }
+  
+  @Unpreemptible("May block if the thread was asked to do so, but otherwise does no actions that would cause blocking")
+  final void leaveNativeBlocked() {
+    assertAcceptableStates(IN_NATIVE,BLOCKED_IN_NATIVE);
+    leaveNativeBlockedImpl();
+    assertAcceptableStates(IN_JAVA,IN_JAVA_TO_BLOCK);
+  }
+  
+  final void enterJNIBlocked() {
+    assertAcceptableStates(IN_JAVA,IN_JAVA_TO_BLOCK);
+    enterNativeBlockedImpl(true);
+    assertAcceptableStates(IN_JNI,BLOCKED_IN_JNI);
+  }
+  
+  @Unpreemptible("May block if the thread was asked to do so, but otherwise does no actions that would cause blocking")
+  final void leaveJNIBlocked() {
+    assertAcceptableStates(IN_JNI,BLOCKED_IN_JNI);
+    leaveNativeBlockedImpl();
+    assertAcceptableStates(IN_JAVA,IN_JAVA_TO_BLOCK);
   }
 
   @Entrypoint
-  public static final void enterJNIBlocked() {
-    getCurrentThread().enterNativeBlocked(true);
+  public static final void enterJNIBlockedFromJNIFunctionCall() {
+    RVMThread t=getCurrentThread();
+    if (traceReallyBlock) {
+      VM.sysWriteln("Thread #",t.getThreadSlot(), " in enterJNIBlockedFromJNIFunctionCall");
+      VM.sysWriteln("thread address = ",Magic.objectAsAddress(t));
+    }
+    t.enterJNIBlocked();
   }
-
+  
+  @Entrypoint
+  public static final void enterJNIBlockedFromCallIntoNative() {
+    RVMThread t=getCurrentThread();
+    if (traceReallyBlock) {
+      VM.sysWriteln("Thread #",t.getThreadSlot(), " in enterJNIBlockedFromCallIntoNative");
+      VM.sysWriteln("thread address = ",Magic.objectAsAddress(t));
+    }
+    t.enterJNIBlocked();
+  }
+  
   @Entrypoint
   @Unpreemptible("May block if the thread was asked to do so, but otherwise will not block")
   static final void leaveJNIBlockedFromJNIFunctionCall() {
@@ -1644,8 +1749,11 @@ public class RVMThread extends ThreadContext {
     if (traceReallyBlock) {
       VM.sysWriteln("Thread #", t.getThreadSlot(),
           " in leaveJNIBlockedFromJNIFunctionCall");
+      VM.sysWriteln("thread address = ",Magic.objectAsAddress(t));
+      VM.sysWriteln("state = ", t.execStatus);
+      VM.sysWriteln("jtoc = ", Magic.getJTOC());
     }
-    t.checkBlockNoSaveContext();
+    t.leaveJNIBlocked();
   }
 
   /**
@@ -1658,8 +1766,10 @@ public class RVMThread extends ThreadContext {
     if (traceReallyBlock) {
       VM.sysWriteln("Thread #", t.getThreadSlot(),
           " in leaveJNIBlockedFromCallIntoNative");
+      VM.sysWriteln("state = ", t.execStatus);
+      VM.sysWriteln("jtoc = ", Magic.getJTOC());
     }
-    t.checkBlockNoSaveContext();
+    t.leaveJNIBlocked();
   }
 
   private int setBlockedExecStatus() {
@@ -1748,7 +1858,7 @@ public class RVMThread extends ThreadContext {
                   VM.sysWriteln("Thread #", threadSlot, "'s status is ",
                       execStatus);
                 }
-                VM._assert(execStatus != IN_NATIVE);
+                assertUnacceptableStates(IN_NATIVE);
               } else {
                 monitor().await();
               }
@@ -1825,7 +1935,7 @@ public class RVMThread extends ThreadContext {
         if (oldState == IN_JAVA) {
           newState = IN_NATIVE;
         } else {
-          if (VM.VerifyAssertions) VM._assert(oldState == IN_JAVA_TO_BLOCK);
+          t.assertAcceptableStates(IN_JAVA_TO_BLOCK);
           t.enterNativeBlocked();
           return;
         }
@@ -1854,8 +1964,7 @@ public class RVMThread extends ThreadContext {
       if (oldState == IN_NATIVE || oldState == IN_JNI) {
         newState = IN_JAVA;
       } else {
-        if (VM.VerifyAssertions)
-          VM._assert(oldState == BLOCKED_IN_NATIVE || oldState == BLOCKED_IN_JNI);
+        t.assertAcceptableStates(BLOCKED_IN_NATIVE,BLOCKED_IN_JNI);
         return false;
       }
     } while (!(Synchronization.tryCompareAndSwap(t, offset, oldState, newState)));
@@ -1875,7 +1984,7 @@ public class RVMThread extends ThreadContext {
         VM.sysWriteln("Thread #", getCurrentThreadSlot(),
             " is leaving native blocked");
       }
-      getCurrentThread().checkBlockNoSaveContext();
+      getCurrentThread().leaveNativeBlocked();
     }
   }
 

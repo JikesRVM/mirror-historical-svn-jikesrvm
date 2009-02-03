@@ -282,11 +282,11 @@ public class HeavyCondLock {
   public void waitNicely() {
     RVMThread t=RVMThread.getCurrentThread();
     Magic.saveThreadState(t.contextRegisters);
-    if (VM.VerifyAssertions) t.contextRegistersSave.copyFrom(t.contextRegisters);
+    if (VM.VerifyAssertions && VM.BuildForIA32) t.contextRegistersSave.copyFrom(t.contextRegisters);
     waitNicelyImpl();
     // assert that moving GC didn't modify the context registers, as that would
     // indicate that we failed to save that register on the stack.
-    if (VM.VerifyAssertions) t.contextRegistersSave.assertSame(t.contextRegisters);
+    if (VM.VerifyAssertions && VM.BuildForIA32) t.contextRegistersSave.assertSame(t.contextRegisters);
   }
   @NoInline
   @Unpreemptible

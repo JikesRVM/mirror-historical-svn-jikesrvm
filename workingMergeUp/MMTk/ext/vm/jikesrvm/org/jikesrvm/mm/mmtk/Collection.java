@@ -229,7 +229,13 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
      */
     RVMThread t = ((Selected.Mutator) m).getThread();
     t.monitor().lock();
-    int execStatus = t.execStatus;
+    // are these the only unexpected states?
+    t.assertUnacceptableStates(RVMThread.IN_JNI,RVMThread.IN_NATIVE);
+    int execStatus = t.getExecStatus();
+    // these next assertions are not redundant given the ability of the
+    // states to change asynchronously, even when we're holding the lock, since
+    // the thread may change its own state.  of course that shouldn't happen,
+    // but having more assertions never hurts...
     if (VM.VerifyAssertions) VM._assert(execStatus != RVMThread.IN_JNI);
     if (VM.VerifyAssertions) VM._assert(execStatus != RVMThread.IN_NATIVE);
     if (execStatus == RVMThread.BLOCKED_IN_JNI) {
@@ -258,7 +264,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
     if (false) {
       VM.sysWriteln("prepareCollector called for ",t.getThreadSlot());
     }
-    int execStatus = t.execStatus;
+    int execStatus = t.getExecStatus();
     if (VM.VerifyAssertions) VM._assert(execStatus == RVMThread.IN_JAVA);
     Address fp = Magic.getFramePointer();
     while (true) {

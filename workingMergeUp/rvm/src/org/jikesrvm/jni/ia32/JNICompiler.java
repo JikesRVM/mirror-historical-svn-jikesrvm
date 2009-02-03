@@ -914,7 +914,7 @@ public abstract class JNICompiler implements BaselineConstants {
     // fast path failed, make the call
     asm.emitCALL_Abs(
       Magic.getTocPointer().plus(
-        Entrypoints.enterJNIBlockedMethod.getOffset()));
+        Entrypoints.enterJNIBlockedFromJNIFunctionCallMethod.getOffset()));
 
     // OK - we reach here when we have set the state to IN_JNI
     doneEnterJNIRef.resolve(asm);

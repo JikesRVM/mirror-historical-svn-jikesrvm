@@ -225,7 +225,7 @@ getInstOpcode(unsigned int faultingInstructionAddress, char MnemonicBuffer[256])
 }
 #endif // RVM_WITH_ALIGNMENT_CHECKING
 
-static int
+int
 inRVMAddressSpace(Address addr)
 {
     /* get the boot record */

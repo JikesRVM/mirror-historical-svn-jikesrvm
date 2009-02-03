@@ -44,11 +44,14 @@ public class TimerThread extends RVMThread {
   // NOTE: this runs concurrently with stop-the-world GC
   @Override
   public void run() {
+    disableYieldpoints();
     if (verbose>=1) trace("TimerThread","run routine entered");
     try {
       for (;;) {
         sysCall.sysNanosleep(1000L*1000L*(long)VM.interruptQuantum);
         RVMThread.timerTicks++;
+        // FIXME: this is wrong.  when we get the candidate from the list,
+        // there is no guarantee that said candidate won't get GC'd.
         for (int i=0;i<RVMThread.numThreads;++i) {
           RVMThread candidate=RVMThread.threads[i];
           if (candidate!=null) {

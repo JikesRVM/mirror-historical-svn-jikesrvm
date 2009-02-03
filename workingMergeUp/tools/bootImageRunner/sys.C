@@ -1479,12 +1479,18 @@ sysCopy(void *dst, const void *src, Extent cnt)
     memcpy(dst, src, cnt);
 }
 
+int inRVMAddressSpace(Address a);
+
 // Allocate memory.
 //
 extern "C" void *
 sysMalloc(int length)
 {
-    return malloc(length);
+    void *result=malloc(length);
+    if (inRVMAddressSpace((Address)result)) {
+      fprintf(stderr,"malloc returned something that is in RVM address space: %p\n",result);
+    }
+    return result;
 }
 
 extern "C" void *

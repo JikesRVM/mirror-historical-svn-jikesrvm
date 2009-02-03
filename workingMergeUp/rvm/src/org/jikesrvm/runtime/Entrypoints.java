@@ -204,8 +204,10 @@ public class Entrypoints {
       getMethod(org.jikesrvm.scheduler.RVMThread.class, "yieldpointFromBackedge", "()V");
   public static final NormalMethod yieldpointFromEpilogueMethod =
       getMethod(org.jikesrvm.scheduler.RVMThread.class, "yieldpointFromEpilogue", "()V");
-  public static final NormalMethod enterJNIBlockedMethod =
-      getMethod(org.jikesrvm.scheduler.RVMThread.class, "enterJNIBlocked", "()V");
+  public static final NormalMethod enterJNIBlockedFromJNIFunctionCallMethod =
+      getMethod(org.jikesrvm.scheduler.RVMThread.class, "enterJNIBlockedFromJNIFunctionCall", "()V");
+  public static final NormalMethod enterJNIBlockedFromCallIntoNativeMethod =
+      getMethod(org.jikesrvm.scheduler.RVMThread.class, "enterJNIBlockedFromCallIntoNative", "()V");
   public static final NormalMethod leaveJNIBlockedFromJNIFunctionCallMethod =
       getMethod(org.jikesrvm.scheduler.RVMThread.class, "leaveJNIBlockedFromJNIFunctionCall", "()V");
   public static final NormalMethod leaveJNIBlockedFromCallIntoNativeMethod =

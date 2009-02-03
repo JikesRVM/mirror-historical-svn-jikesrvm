@@ -60,7 +60,6 @@ if [[ -e $RVM_HOME/JikesRVM-symbols.o ]]; then
   echo "add-symbol-file $RVM_HOME/JikesRVM-symbols.o 0x0" >> $TMP_GDB_COMMANDS
 fi
 
-# Set an initial breakpoint right before we start the jump into VM.boot
-echo "break bootThread" >> $TMP_GDB_COMMANDS
+echo "set pagination no" >> $TMP_GDB_COMMANDS
 
 gdb "${gdb_args[@]}" "$RVM_HOME/JikesRVM" "--command=$TMP_GDB_COMMANDS"

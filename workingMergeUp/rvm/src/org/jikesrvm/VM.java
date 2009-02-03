@@ -282,6 +282,7 @@ public class VM extends Properties implements Constants, ExitStatus {
     org.jikesrvm.jni.JNIEnvironment.boot();
     if (verboseBoot >= 1) VM.sysWriteln("Initializing JNI for boot thread");
     RVMThread.getCurrentThread().initializeJNIEnv();
+    if (verboseBoot >= 1) VM.sysWriteln("JNI initialized for boot thread");
 
     if (VM.BuildForHarmony) {
       System.loadLibrary("hyluni");

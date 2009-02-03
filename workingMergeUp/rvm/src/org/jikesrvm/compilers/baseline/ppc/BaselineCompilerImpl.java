@@ -3641,7 +3641,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
         asm.emitSTAddr(i, offset -= BYTES_IN_ADDRESS, FP);
       }
     } else {
-      // Restore non-volatile registers.
+      // save non-volatile registers.
       int offset = frameSize;
       for (int i = lastFloatStackRegister; i >= FIRST_FLOAT_LOCAL_REGISTER; --i) {
         asm.emitSTFD(i, offset -= BYTES_IN_DOUBLE, FP);

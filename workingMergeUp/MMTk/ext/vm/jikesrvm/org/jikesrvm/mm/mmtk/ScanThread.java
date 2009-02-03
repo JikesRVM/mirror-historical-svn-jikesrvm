@@ -152,7 +152,7 @@ import org.vmmagic.unboxed.Offset;
                                 boolean processCodeLocations,
                                 Address gprs, Address topFrame) {
     // figure out if the thread should be scanned at all; if not, exit
-    if (thread.execStatus==RVMThread.NEW || thread.isAboutToTerminate) {
+    if (thread.getExecStatus()==RVMThread.NEW || thread.getIsAboutToTerminate()) {
       return;
     }
     /* establish ip and fp for the stack to be scanned */

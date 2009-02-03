@@ -620,9 +620,14 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
    *           HardwareTrapGCMapIterator during garbage collection.
    */
   @Entrypoint
+  @UnpreemptibleNoWarn
   static void deliverHardwareException(int trapCode, int trapInfo) {
+    if (false) VM.sysWriteln("delivering hardware exception");
     RVMThread myThread = RVMThread.getCurrentThread();
+    if (false) VM.sysWriteln("we have a thread = ",Magic.objectAsAddress(myThread));
+    if (false) VM.sysWriteln("it's in state = ",myThread.getExecStatus());
     Registers exceptionRegisters = myThread.getExceptionRegisters();
+    if (false) VM.sysWriteln("we have exception registers = ",Magic.objectAsAddress(exceptionRegisters));
 
     if ((trapCode == TRAP_STACK_OVERFLOW || trapCode == TRAP_JNI_STACK) &&
         myThread.getStack().length < (STACK_SIZE_MAX >> LOG_BYTES_IN_ADDRESS) &&
@@ -1096,6 +1101,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
    * can force a garbage collection.
    */
   @Inline
+  @Uninterruptible
   private static boolean canForceGC() {
     return VM.ForceFrequentGC && RVMThread.safeToForceGCs();
   }

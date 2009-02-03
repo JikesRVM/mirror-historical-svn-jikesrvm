@@ -358,7 +358,7 @@ public final class JNIEnvironment implements SizeConstants {
     // Transition processor from IN_JAVA to IN_JNI
     if(!Synchronization.tryCompareAndSwap(Magic.getThreadRegister(),
         Entrypoints.execStatusField.getOffset(), RVMThread.IN_JAVA, RVMThread.IN_JNI)) {
-      RVMThread.enterJNIBlocked();
+      RVMThread.enterJNIBlockedFromCallIntoNative();
     }
   }
 
