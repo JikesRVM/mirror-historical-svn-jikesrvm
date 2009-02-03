@@ -130,8 +130,7 @@ import org.jikesrvm.scheduler.ThreadQueue;
     }
     thread = me;
     where = -1;
-    // is an isync needed?  note that we cannot get here except by performing
-    // some manner of locked operation.
+    Magic.isync();
   }
 
   public void check(int w) {
@@ -142,6 +141,7 @@ import org.jikesrvm.scheduler.ThreadQueue;
   public void release() {
     where=-1;
     thread=null;
+    Magic.sync();
     Offset offset=Entrypoints.lockStateField.getOffset();
     for (;;) {
       int oldState=Magic.prepareInt(this,offset);

@@ -697,6 +697,9 @@ cTrapHandler(int signum, int UNUSED zero, sigcontext *context)
       uintptr_t faultMask = 0xffffffffffff0000;
 #endif
       if (!(((faultingAddress & faultMask) == faultMask) || ((faultingAddress & faultMask) == 0))) {
+        if (lib_verbose) {
+          fprintf(SysTraceFile, "assuming that this is not a null pointer exception because the faulting address does not lie in the first or last page.\n");
+        }
 	isNullPtrExn = 0;
       }
     }
