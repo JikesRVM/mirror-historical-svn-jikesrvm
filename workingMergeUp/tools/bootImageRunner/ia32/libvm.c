@@ -642,41 +642,31 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
     }
 
     /* test validity of native thread address */
+    if (!inRVMAddressSpace(localNativeThreadAddress))
     {
-        unsigned int vp_hn;  /* the high nibble of the vp address value */
-        vp_hn = localNativeThreadAddress >> 28;
-        if (vp_hn < 3 || !inRVMAddressSpace(localNativeThreadAddress))
-        {
-            writeErr("invalid native thread address (not an address - high nibble %d)\n",
-                     vp_hn);
-	    abort();
-            signal(signo, SIG_DFL);
-            raise(signo);
-            // We should never get here.
-            _exit(EXIT_STATUS_DYING_WITH_UNCAUGHT_EXCEPTION);
-        }
+        writeErr("invalid native thread address (not an address %x)\n",
+                 localNativeThreadAddress);
+        abort();
+        signal(signo, SIG_DFL);
+        raise(signo);
+        // We should never get here.
+        _exit(EXIT_STATUS_DYING_WITH_UNCAUGHT_EXCEPTION);
     }
-
 
     /* get the frame pointer from thread object  */
     localFrameAddress =
         *(unsigned *) (localNativeThreadAddress + Thread_framePointer_offset);
 
     /* test validity of frame address */
+    if (!inRVMAddressSpace(localFrameAddress))
     {
-        unsigned int fp_hn;
-        fp_hn = localFrameAddress >> 28;
-        if (fp_hn < 3 || !inRVMAddressSpace(localFrameAddress))
-        {
-            writeErr("invalid frame address %x"
-            " (not an address - high nibble %d)\n",
-                                 localFrameAddress, fp_hn);
-	    abort();
-            signal(signo, SIG_DFL);
-            raise(signo);
-            // We should never get here.
-            _exit(EXIT_STATUS_DYING_WITH_UNCAUGHT_EXCEPTION);
-        }
+        writeErr("invalid frame address (not an address %x)\n",
+                 localFrameAddress);
+        abort();
+        signal(signo, SIG_DFL);
+        raise(signo);
+        // We should never get here.
+        _exit(EXIT_STATUS_DYING_WITH_UNCAUGHT_EXCEPTION);
     }
 
 
