@@ -41,7 +41,7 @@ public class Selected {
   @Uninterruptible
   public static class Collector extends @_PLAN_@Collector
   {
-    private RVMThread thread;
+    private final RVMThread thread;
     public Collector(RVMThread parent) { thread = parent; }
     @Inline
     public final RVMThread getThread() { return thread; }
