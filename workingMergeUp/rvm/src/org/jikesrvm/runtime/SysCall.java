@@ -167,6 +167,16 @@ public abstract class SysCall {
   @SysCallTemplate
   public abstract int sysNativeThreadCreate(Address tr, Address ip, Address fp);
 
+  /**
+   * Tells you if the current system supportes sysNativeThreadBind().
+   * @return 1 if it's supported, 0 if it isn't
+   */
+  @SysCallTemplate
+  public abstract int sysNativeThreadBindSupported();
+  
+  @SysCallTemplate
+  public abstract void sysNativeThreadBind(int cpuId);
+
   @SysCallTemplate
   public abstract void sysSchedYield();
 

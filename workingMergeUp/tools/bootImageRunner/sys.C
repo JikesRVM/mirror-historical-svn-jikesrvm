@@ -895,6 +895,51 @@ sysNativeThreadCreate(Address tr, Address ip, Address fp)
     return (Address)sysNativeThreadHandle;
 }
 
+extern "C" int
+sysNativeThreadBindSupported()
+{
+  int result=0;
+#ifdef RVM_FOR_AIX
+  result=1;
+#endif
+#ifdef RVM_FOR_LINUX
+  result=1;
+#endif
+  return result;
+}
+
+extern "C" void
+sysNativeThreadBind(int UNUSED cpuId)
+{
+    // bindprocessor() seems to be only on AIX
+#ifdef RVM_FOR_AIX
+    if (numCpus == -1) {
+        fprintf(SysErrorFile, "%s: sysconf failed (errno=%d): ", Me, errno);
+        perror(NULL);
+        sysExit(EXIT_STATUS_SYSCALL_TROUBLE);
+    }
+
+    cpuId = cpuId;
+
+    int rc = bindprocessor(BINDTHREAD, thread_self(), cpuId);
+    fprintf(SysTraceFile, "%s: bindprocessor pthread %d (kernel thread %d) %s to cpu %d\n", Me, pthread_self(), thread_self(), (rc ? "NOT bound" : "bound"), cpuId);
+
+    if (rc) {
+        fprintf(SysErrorFile, "%s: bindprocessor failed (errno=%d): ", Me, errno);
+        perror(NULL);
+        sysExit(EXIT_STATUS_SYSCALL_TROUBLE);
+    }
+#endif
+
+#ifdef RVM_FOR_LINUX
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(cpuId, &cpuset);
+
+    pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset);
+#endif
+}
+
 /** keys for managing thread termination */
 static pthread_key_t TerminateJmpBufKey;
 

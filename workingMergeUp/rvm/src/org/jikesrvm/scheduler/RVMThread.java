@@ -160,6 +160,8 @@ public class RVMThread extends ThreadContext {
   protected static final boolean traceReallyBlock = false || traceBlock;
 
   protected static final boolean dumpStackOnBlock = false; // DANGEROUS! can lead to crashes!
+  
+  protected static final boolean traceBind = true;
 
   /** Trace thread start/stop */
   protected static final boolean traceAcct = false;
@@ -1143,6 +1145,20 @@ public class RVMThread extends ThreadContext {
       }
     }
   }
+  
+  static void bind(int cpuId) {
+    if (VM.VerifyAssertions) VM._assert(sysCall.sysNativeThreadBindSupported()==1);
+    sysCall.sysNativeThreadBind(cpuId);
+  }
+  
+  static void bindIfRequested() {
+    if (VM.forceOneCPU>=0) {
+      if (traceBind) {
+        VM.sysWriteln("binding thread to CPU: ",VM.forceOneCPU);
+      }
+      bind(VM.forceOneCPU);
+    }
+  }
 
   /**
    * Boot the threading subsystem.
@@ -1164,6 +1180,8 @@ public class RVMThread extends ThreadContext {
     if (traceAcct) {
       VM.sysWriteln("boot thread at ",Magic.objectAsAddress(getCurrentThread()));
     }
+    
+    bindIfRequested();
     
     threadingInitialized = true;
     TimerThread tt = new TimerThread();
@@ -2221,6 +2239,8 @@ public class RVMThread extends ThreadContext {
   @SuppressWarnings({ "unused", "UnusedDeclaration" })
   // Called by back-door methods.
   private static void startoff() {
+    bindIfRequested();
+    
     sysCall.sysPthreadSetupSignalHandling();
 
     RVMThread currentThread = getCurrentThread();

@@ -251,6 +251,8 @@ public class BootRecord {
 
   // threads
   public Address sysNumProcessorsIP;
+  public Address sysNativeThreadBindSupportedIP;
+  public Address sysNativeThreadBindIP;
   public Address sysNativeThreadCreateIP;
   public Address sysSchedYieldIP;
   public Address sysPthreadSelfIP;
