@@ -12,16 +12,6 @@
 #  regarding copyright ownership.
 #
 require "getopts.pl";
-
-if (0) {
-  print "timedrun invoked with:";
-  for ($i=0;$i<$#ARGV;$i++) {
-    print " ";
-    print $ARGV[$i];
-  }
-  print "\n";
-}
-
 &Getopts('t:e:o:');
 
 $alarm_exit_code = 1;
