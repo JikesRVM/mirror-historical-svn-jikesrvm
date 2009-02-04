@@ -818,7 +818,11 @@ public final class TypeReference {
         }
       }
     } else {
-      setType(Primitive.createPrimitive(this));
+      if (isUnboxedType()) {
+        setType(UnboxedType.createUnboxedType(this));
+      } else {
+        setType(Primitive.createPrimitive(this));
+      }
     }
     return type;
   }

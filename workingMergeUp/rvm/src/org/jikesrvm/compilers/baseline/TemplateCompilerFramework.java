@@ -1685,7 +1685,8 @@ public abstract class TemplateCompilerFramework
               } // else fall through to emit_checkcast
             } else if (type.isArrayType()) {
               RVMType elemType = type.asArray().getElementType();
-              if (elemType.isPrimitiveType() || (elemType.isClassType() && elemType.asClass().isFinal())) {
+              if (elemType.isPrimitiveType() || elemType.isUnboxedType() ||
+                  (elemType.isClassType() && elemType.asClass().isFinal())) {
                 emit_checkcast_final(type);
                 break;
               } // else fall through to emit_checkcast
@@ -1722,7 +1723,8 @@ public abstract class TemplateCompilerFramework
               }
             } else if (type.isArrayType()) {
               RVMType elemType = type.asArray().getElementType();
-              if (elemType.isPrimitiveType() || (elemType.isClassType() && elemType.asClass().isFinal())) {
+              if (elemType.isPrimitiveType() || elemType.isUnboxedType() ||
+                  (elemType.isClassType() && elemType.asClass().isFinal())) {
                 emit_instanceof_final(type);
                 break;
               }

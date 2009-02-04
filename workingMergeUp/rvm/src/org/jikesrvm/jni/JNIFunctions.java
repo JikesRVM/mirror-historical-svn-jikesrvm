@@ -464,7 +464,7 @@ public class JNIFunctions implements SizeConstants {
     try {
       Class<?> javaCls = (Class<?>) env.getJNIRef(classJREF);
       RVMType type = java.lang.JikesRVMSupport.getTypeForClass(javaCls);
-      if (type.isArrayType() || type.isPrimitiveType()) {
+      if (type.isArrayType() || type.isPrimitiveType() || type.isUnboxedType()) {
         env.recordException(new InstantiationException());
         return 0;
       }
@@ -4110,7 +4110,8 @@ public class JNIFunctions implements SizeConstants {
       }
 
       RVMArray arrayType = Magic.getObjectType(sourceArray).asArray();
-      if (arrayType.getElementType().isPrimitiveType()) {
+      RVMType elementType = arrayType.getElementType();
+      if (elementType.isPrimitiveType() || elementType.isUnboxedType()) {
         return 0;
       }
 
