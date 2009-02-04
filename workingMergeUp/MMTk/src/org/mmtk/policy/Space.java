@@ -416,10 +416,9 @@ public abstract class Space implements Constants {
    * @return The address of the new discontiguous space.
    */
   public Address growDiscontiguousSpace(int chunks) {
-    Map.lock.acquire();
-    Address result=this.lastDiscontiguousRegion = Map.allocateContiguousChunks(descriptor, this, chunks, lastDiscontiguousRegion);
-    Map.lock.release();
-    return result;
+    // FIXME: When checking final patch double check we dont want to lock on Map.lock here
+    this.lastDiscontiguousRegion = Map.allocateContiguousChunks(descriptor, this, chunks, lastDiscontiguousRegion);
+    return this.lastDiscontiguousRegion;
   }
 
   /**
@@ -453,12 +452,10 @@ public abstract class Space implements Constants {
    */
   public int releaseDiscontiguousChunks(Address chunk) {
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(chunk.EQ(chunkAlign(chunk, true)));
-    Map.lock.acquire();
     if (chunk.EQ(lastDiscontiguousRegion)) {
       lastDiscontiguousRegion = Map.getNextContiguousRegion(chunk);
     }
     int result=Map.freeContiguousChunks(chunk);
-    Map.lock.release();
     return result;
   }
 
