@@ -28,9 +28,3 @@ import org.vmmagic.Pragma;
 @Target({ElementType.METHOD})
 @Pragma
 public @interface NoCheckStore { }
-
-/* For the emacs weenies in the crowd.
-Local Variables:
-   c-basic-offset: 2
-End:
-*/
