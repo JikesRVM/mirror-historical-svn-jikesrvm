@@ -12,7 +12,6 @@
  */
 package org.jikesrvm.compilers.baseline.ppc;
 
-import org.jikesrvm.classloader.MethodReference;
 import org.jikesrvm.compilers.common.assembler.ppc.Assembler;
 import org.jikesrvm.ppc.BaselineConstants;
 import org.jikesrvm.runtime.Entrypoints;
@@ -25,20 +24,23 @@ import org.vmmagic.unboxed.Offset;
  */
 class Barriers implements BaselineConstants {
 
-  // on entry java stack contains ...|array_ref|index|value|
+  // on entry T0, T1, and T2 already contain the appropriate values
   static void compileArrayStoreBarrier(BaselineCompilerImpl comp) {
-    comp.emit_resolved_invokestatic((MethodReference)Entrypoints.aastoreMethod.getMemberRef());
+    Assembler asm = comp.asm;
+    asm.emitLAddrToc(S0, Entrypoints.arrayStoreWriteBarrierMethod.getOffset());
+    asm.emitMTCTR(S0);
+    asm.emitBCCTRL();  // MemoryManager.arrayStoreWriteBarrier(Object ref, int index, Object value)
   }
 
   //  on entry java stack contains ...|target_ref|ref_to_store|
-  // T2 already contains the offset of the field on entry
+  // T1 already contains the offset of the field on entry
   static void compilePutfieldBarrier(BaselineCompilerImpl comp, int locationMetadata) {
     Assembler asm = comp.asm;
     asm.emitLAddrToc(S0, Entrypoints.putfieldWriteBarrierMethod.getOffset());
     asm.emitMTCTR(S0);
     comp.peekAddr(T0, 1);               // object base
     asm.emitNullCheck(T0);
-    comp.peekAddr(T1, 0);               // value to store
+    comp.peekAddr(T2, 0);               // value to store
     asm.emitLVAL(T3, locationMetadata);
     asm.emitBCCTRL(); // MemoryManager.putfieldWriteBarrier(T0,T1,T2,T3)
   }
@@ -50,21 +52,21 @@ class Barriers implements BaselineConstants {
     asm.emitMTCTR(S0);
     comp.peekAddr(T0, 1);                 // object base
     asm.emitNullCheck(T0);
-    asm.emitLVALAddr(T2, fieldOffset);       // offset
-    comp.peekAddr(T1, 0);                 // value to store
+    asm.emitLVALAddr(T1, fieldOffset);       // offset
+    comp.peekAddr(T2, 0);                 // value to store
     asm.emitLVAL(T3, locationMetadata);
     asm.emitBCCTRL();  // MemoryManager.putfieldWriteBarrier(T0,T1,T2,T3)
   }
 
   //  on entry java stack contains ...|ref_to_store|
-  // T1 already contains the offset of the field on entry
+  // T0 already contains the offset of the field on entry
   static void compilePutstaticBarrier(BaselineCompilerImpl comp, int locationMetadata) {
     Assembler asm = comp.asm;
     asm.emitLAddrToc(S0, Entrypoints.putstaticWriteBarrierMethod.getOffset());
     asm.emitMTCTR(S0);
-    comp.peekAddr(T0, 0);                 // value to store
+    comp.peekAddr(T1, 0);                 // value to store
     asm.emitLVAL(T2, locationMetadata);
-    asm.emitBCCTRL(); // MemoryManager.putstaticWriteBarrier(T0,T1,T2)
+    asm.emitBCCTRL(); // MemoryManager.putstaticWriteBarrier(T0,T1)
   }
 
   //  on entry java stack contains ...|ref_to_store|
@@ -72,10 +74,10 @@ class Barriers implements BaselineConstants {
     Assembler asm = comp.asm;
     asm.emitLAddrToc(S0, Entrypoints.putstaticWriteBarrierMethod.getOffset());
     asm.emitMTCTR(S0);
-    asm.emitLVALAddr(T1, fieldOffset);    // offset
-    comp.peekAddr(T0, 0);                 // value to store
+    asm.emitLVALAddr(T0, fieldOffset);    // offset
+    comp.peekAddr(T1, 0);                 // value to store
     asm.emitLVAL(T2, locationMetadata);
-    asm.emitBCCTRL();  // MemoryManager.putstaticWriteBarrier(T0,T1,T2)
+    asm.emitBCCTRL();  // MemoryManager.putstaticWriteBarrier(T0,T1)
   }
 
   // on entry T0, T1 already contain the appropriate values

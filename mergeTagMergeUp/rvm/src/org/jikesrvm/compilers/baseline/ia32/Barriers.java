@@ -19,7 +19,6 @@ import org.jikesrvm.ia32.BaselineConstants;
 import org.jikesrvm.runtime.Entrypoints;
 import org.jikesrvm.runtime.Magic;
 import org.vmmagic.unboxed.Offset;
-import org.vmmagic.pragma.Inline;
 
 /**
  * Class called from baseline compiler to generate architecture specific
@@ -29,57 +28,64 @@ import org.vmmagic.pragma.Inline;
 class Barriers implements BaselineConstants {
 
   /**
-   * Generate code to perform an array store barrier. On entry the stack holds:
-   * arrayRef, index, value.
+   * Generate code to perform an array store barrier
    *
    * @param asm the assembler to generate the code in
    * @param ref the register holding the array reference
    * @param index the register holding index into the array
    * @param value the register holding the value to store
    */
-  static void compileArrayStoreBarrier(Assembler asm) {
+  static void compileArrayStoreBarrier(Assembler asm, GPR ref, GPR index, GPR value) {
+    asm.emitPUSH_Reg(ref);
+    asm.emitPUSH_Reg(index);
+    asm.emitPUSH_Reg(value);
     BaselineCompilerImpl.genParameterRegisterLoad(asm, 3);
-    asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.aastoreMethod.getOffset()));
+    asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.arrayStoreWriteBarrierMethod.getOffset()));
   }
 
   /**
-   * Generate code to perform a putfield barrier. On entry the stack holds:
-   * object, value.
+   * Generate code to perform a putfield barrier
    *
    * @param asm the assembler to generate the code in
+   * @param ref the register holding the array reference
    * @param offset the register holding the offset of the field
-   * @param locationMetadata meta-data about the location
+   * @param value the register holding the value to store
    */
-  @Inline
-  static void compilePutfieldBarrier(Assembler asm, GPR offset, int locationMetadata) {
+  static void compilePutfieldBarrier(Assembler asm, GPR ref, GPR offset, GPR value, int locationMetadata) {
+    BaselineCompilerImpl.genNullCheck(asm, ref);
+    asm.emitPUSH_Reg(ref);
     asm.emitPUSH_Reg(offset);
+    asm.emitPUSH_Reg(value);
     asm.emitPUSH_Imm(locationMetadata);
     BaselineCompilerImpl.genParameterRegisterLoad(asm, 4);
-    BaselineCompilerImpl.genNullCheck(asm, T0);
     asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.putfieldWriteBarrierMethod.getOffset()));
-  }
+   }
 
   /**
-   * Generate code to perform a putfield barrier when the field is at a known
-   * offset. On entry the stack holds: object, value.
+   * Generate code to perform a putfield barrier when the field is at a known offset
    *
    * @param asm the assembler to generate the code in
+   * @param ref the register holding the array reference
    * @param fieldOffset the offset of the field
-   * @param locationMetadata meta-data about the location
+   * @param value the register holding the value to store
    */
-  @Inline
-  static void compilePutfieldBarrierImm(Assembler asm, Offset fieldOffset, int locationMetadata) {
+  static void compilePutfieldBarrierImm(Assembler asm, GPR ref, Offset fieldOffset, GPR value, int locationMetadata) {
+    BaselineCompilerImpl.genNullCheck(asm, ref);
+    asm.emitPUSH_Reg(ref);
     asm.emitPUSH_Imm(fieldOffset.toInt());
+    asm.emitPUSH_Reg(value);
     asm.emitPUSH_Imm(locationMetadata);
     BaselineCompilerImpl.genParameterRegisterLoad(asm, 4);
-    BaselineCompilerImpl.genNullCheck(asm, T0);
     asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.putfieldWriteBarrierMethod.getOffset()));
   }
 
   static void compilePutstaticBarrier(Assembler asm, GPR reg, int locationMetadata) {
     //  on entry java stack contains ...|ref_to_store|
     //  reg holds offset of field
+    if(VM.VerifyAssertions) VM._assert(reg != S0);
+    asm.emitPOP_Reg(S0);   // S0 = ref_to_store
     asm.emitPUSH_Reg(reg); // offset
+    asm.emitPUSH_Reg(S0);  // ref_to_store
     asm.emitPUSH_Imm(locationMetadata);
     BaselineCompilerImpl.genParameterRegisterLoad(asm, 3);
     asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.putstaticWriteBarrierMethod.getOffset()));
@@ -87,7 +93,9 @@ class Barriers implements BaselineConstants {
 
   static void compilePutstaticBarrierImm(Assembler asm, Offset fieldOffset, int locationMetadata) {
     //  on entry java stack contains ...|ref_to_store|
+    asm.emitPOP_Reg(S0);   // S0 = ref_to_store
     asm.emitPUSH_Imm(fieldOffset.toInt());
+    asm.emitPUSH_Reg(S0);  // ref_to_store
     asm.emitPUSH_Imm(locationMetadata);
     BaselineCompilerImpl.genParameterRegisterLoad(asm, 3);
     asm.emitCALL_Abs(Magic.getTocPointer().plus(Entrypoints.putstaticWriteBarrierMethod.getOffset()));
