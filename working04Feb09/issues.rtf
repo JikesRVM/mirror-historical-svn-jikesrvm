@@ -1,0 +1,678 @@
+{\rtf1\mac\ansicpg10000\cocoartf824\cocoasubrtf470
+{\fonttbl\f0\fswiss\fcharset77 Optima-Regular;\f1\fnil\fcharset77 LucidaGrande;}
+{\colortbl;\red255\green255\blue255;}
+{\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc2\leveljcn2\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid0\'02\'05.;}{\levelnumbers\'01;}}{\listlevel\levelnfc23\levelnfcn23\leveljc2\leveljcn2\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{hyphen\}}{\leveltext\leveltemplateid1\'02\'05.;}{\levelnumbers\'01;}}{\listname ;}\listid1}
+{\list\listtemplateid2\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc2\leveljcn2\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid0\'02\'05.;}{\levelnumbers\'01;}}{\listlevel\levelnfc23\levelnfcn23\leveljc2\leveljcn2\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{hyphen\}}{\leveltext\leveltemplateid1\'02\'05.;}{\levelnumbers\'01;}}{\listlevel\levelnfc0\levelnfcn0\leveljc2\leveljcn2\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{decimal\}.}{\leveltext\leveltemplateid2\'02\'05.;}{\levelnumbers\'01;}}{\listlevel\levelnfc3\levelnfcn3\leveljc2\leveljcn2\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{upper-alpha\}.}{\leveltext\leveltemplateid3\'02\'05.;}{\levelnumbers\'01;}}{\listlevel\levelnfc0\levelnfcn0\leveljc2\leveljcn2\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{decimal\}.}{\leveltext\leveltemplateid4\'02\'05.;}{\levelnumbers\'01;}}{\listlevel\levelnfc3\levelnfcn3\leveljc2\leveljcn2\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{upper-alpha\}.}{\leveltext\leveltemplateid5\'02\'05.;}{\levelnumbers\'01;}}{\listlevel\levelnfc0\levelnfcn0\leveljc2\leveljcn2\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{decimal\}.}{\leveltext\leveltemplateid6\'02\'05.;}{\levelnumbers\'01;}}{\listlevel\levelnfc23\levelnfcn23\leveljc2\leveljcn2\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{hyphen\}}{\leveltext\leveltemplateid7\'02\'05.;}{\levelnumbers\'01;}}{\listname ;}\listid2}}
+{\*\listoverridetable{\listoverride\listid1\listoverridecount0\ls1}{\listoverride\listid2\listoverridecount0\ls2}}
+\margl1440\margr1440\vieww11820\viewh13300\viewkind0
+\pard\tx220\tx720\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+
+\f0\fs28 \cf0 	\'a5	Locks seem to rely to some extent on processor-local allocation, and the invariant that you don't need to allocate to lock.  In my experience in a 1:1 thread system you need to allow monitors to allocate, which is a sort of "inversion" of the current layering (current: alloc on top of locks, but we want: locks on top of alloc).  Or, we need a lock-less allocation path.  This would be akin to GHC.\
+	\'a5	Do we want to keep the notion of "processor" but just not for scheduling?  Locks could then still be allocated "processor local".\
+\pard\tx940\tx1440\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls1\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 No.\
+\pard\tx220\tx720\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\cf0 	\'a5	Do we care about PPC?  The current system is memory-model-safe on PPC, but ensuring that the "new" system is will require a fair bit of non-trivial (and massively annoying) tweaking.  In all, it may not be worth it.\
+	\'a5	What about the nativethreads package?  Blow it away?\
+	\'a5	Does JikesRVM seriously not have proper barriers?\
+	\'a5	Huh?  Yield points in the prologue and epilogue?\
+	\'a5	What exactly is the extent of MMTk's dependence on green threading?  MMTk has been used in systems that have 1:1 threading, right?\
+\pard\tx940\tx1440\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\cf0 	
+\f1 \uc0\u8259 	
+\f0 Seems like concurrent collectors need to know how many processors there are.  That's cool.\
+	
+\f1 \uc0\u8259 	
+\f0 Handshakes seem to require knowing how to poke and tickle the scheduler in the right way.\
+	
+\f1 \uc0\u8259 	
+\f0 Parallel collectors need to know how many processors there are and how to make all of the processors yield to the collector.\
+	
+\f1 \uc0\u8259 	
+\f0 The synchronization barrier - whatever that is - seems to require massive amount of scheduler hacks.\
+	
+\f1 \uc0\u8259 	
+\f0 MMTk needs to know things about the class types used for VM internals for the purpose of choosing allocator types for class type.\
+\pard\tx220\tx720\tx940\tx1440\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}What about OSR?\
+\pard\tx940\tx1440\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Ask Dave G.\
+\pard\tx220\tx720\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}VM.disableGC is deprecated?\
+{\listtext	\'a5	}What the heck does interruptible mean?  Do we care?\
+{\listtext	\'a5	}Are collector threads used if concurrent collector threads are used?  If the two are used together, what do they assume about sharing processors and atomicity?\
+\pard\tx940\tx1440\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Seems like they are used together, but I'm still unclear if they need to share collector contexts, and if there are any atomicity expectations.\
+\pard\tx220\tx720\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}What do we need per-thread mutex/cond for:\
+\pard\tx940\tx1440\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Blocking threads until GC finishes.\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 Blocking a thread when signaling OSR\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 Managing a doubly-linked list of live threads.\
+\pard\tx220\tx720\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}Where does an Address point to in an object?\
+\pard\tx940\tx1440\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 See ObjectModel.java comment block\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 all object references point to end-of-header-plus-word.  so for arrays we point to the first element.  for scalars we point to beginning-of-payload-plus-word.\
+\pard\tx220\tx720\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}Does code really get relocated by the GC?\
+{\listtext	\'a5	}Registers:\
+\pard\tx940\tx1440\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 we save state in Registers prior to throwing\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 then we muck the state accordingly by modifying those Registers\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 and then we ask those registers to be reinstalled\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 the hardwareExceptionRegisters hold the registers saved by the hardware signal handler (null checks, stack overflow, etc)\
+\pard\tx220\tx720\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}How married are we to the changeThreadState thingy?\
+\pard\tx940\tx1440\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Meh.  I already hacked it up.\
+\pard\tx220\tx720\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}When is OSR used?  I can see it's used for OSR-guarded inlining... but what if you have a running method that is unoptimized and you want to replace it with something that is optimized?\
+\pard\tx940\tx1440\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 every time a timeslice expires we check the current point for OSR\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 That seems to imply that we need timer interrupts.....\
+\pard\tx220\tx720\tx1440\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}How should thread suspension work?\
+\pard\tx940\tx1440\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 If a thread is in Java but about to go into C, we need to block it before it disappears into C.\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 The current green thread system fails here.  When a thread is in Java but about to disappear into C, it just assumes that this thread is going to happily cooperate (by virtue of being in Java).  In fact, it'll go into C and never acknowledge - so if we're waiting for it we might deadlock.\
+\pard\tx1660\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Fixed.\
+\pard\tx220\tx720\tx1440\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}JNI-to-Java and Java-to-JNI:\
+\pard\tx940\tx1440\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Java calls into JNI method\
+\pard\tx1660\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 OutOfLineMachineCode.generateInvokeNativeFunctionInstructions\
+\pard\tx940\tx1440\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Java returns into JNI method\
+\pard\tx1660\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 JNICompiler.generateEpilogForJNIMethod\
+\pard\tx940\tx1440\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 JNI method calls into Java\
+\pard\tx1660\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 JNICompiler.generateGlueCodeForJNIMethod\
+\pard\tx940\tx1440\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 JNI method returns into Java\
+\pard\tx1660\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 OutOfLineMachineCode.generateInvokeNativeFunctionInstructions\
+\pard\tx220\tx720\tx1440\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}Do the JNI implementation methods get compiled only with baseline?\
+\pard\tx940\tx1440\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 And: what the heck is the terminology?  Is "JNI function" a Java method that implements the JNI spec's functions that get called from C, or a C function that implements a Java native method?\
+\pard\tx220\tx720\tx1440\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}Calling conventions?\
+\pard\tx940\tx1440\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 See Barrier\
+\pard\tx220\tx720\tx1440\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}Add a fence in the (non-pure threading) RVM's JNI entry sequence?\
+{\listtext	\'a5	}What is the deal with JTOC (EDI)?\
+\pard\tx940\tx1440\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 In baseline, we load it from the processor whenever we need it\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 In opt, we seem to magically know its constant value.  Huh?\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 It's a constant, no reason to load it from anything or to store it anywhere\
+\pard\tx220\tx720\tx1440\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}Why does the OSR_SUSPENDED state exist?\
+{\listtext	\'a5	}What do we need the state field for?\
+\pard\tx940\tx1440\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 green threading\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 java.lang.Thread's state\
+\pard\tx220\tx720\tx1440\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}Why does yielding put you in a BLOCKED state?  (The thread is still runnable!)\
+{\listtext	\'a5	}Suspension logic:\
+\pard\tx940\tx1440\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Threads should have bits indicating requests to block, as well as a second set of bits indicating that we're blocked for that reason.  Requester sets the request bit and waits for the block bit to be set.  If the thread is blocking itself, no need to set request bit.\
+\pard\tx1660\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Thread.suspend\
+\pard\tx2380\tx2880\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li2880\fi-2880\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl3\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Goal: must allow multiple simultaneous suspension requests to "work"\
+\pard\tx3100\tx3600\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li3600\fi-3600\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl4\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 If a suspension request happens while another suspension request is waiting, it should just wait for the other one.\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 If a suspension request happens while the thread is suspended, do nothing.\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 This is a reason for the check in step 2 below, that guards the setting of the request bit in step 2.1.\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 BUT: we need to have a request counter, because we want to catch ABA in step 3.A.2.A.1 below.\
+\pard\tx3820\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li4320\fi-4320\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl5\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 One way to do this is that instead of having a suspend bit, we can have a suspend object field; when we set it, we set it to a uniquely allocated object, and then step 3.A.2.A.1 exits whenever the request is no longer ours.\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 In the algorithm that follows, when we are dealing with the Thread.suspend reason:\
+\pard\tx4540\tx5040\tx5600\tx6160\tx6720\li5040\fi-5040\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl6\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 "setting the request bit" means allocating a unique request object and assigning it to the field\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 "clearing the request bit" means setting the field to null\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 checking if it is set or cleared means comparing against null, except in 3.A.2.A.1 as noted.\
+\pard\tx1660\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 OSR suspended\
+\pard\tx2380\tx2880\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li2880\fi-2880\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl3\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Note: don't need request bit because it's always self-requested.  But we'll have it just to make it easier to share code.\
+\pard\tx1660\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 blocked on GC\
+\pard\tx940\tx1440\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 A request to suspend should proceed as follows:\
+\pard\tx1660\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	1.	}Acquire thread lock\
+{\listtext	2.	}If neither the bit indicating suspension reason nor the bit indicating suspension request are set:\
+\pard\tx2380\tx2880\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li2880\fi-2880\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl3\cf0 {\listtext	1.	}Set bit indicating suspension request\
+\pard\tx1660\tx2160\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	3.	}Check if the thread being suspended is the current thread:\
+\pard\tx2380\tx2880\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li2880\fi-2880\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl3\cf0 {\listtext	A.	}If not current thread:\
+\pard\tx3100\tx3600\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li3600\fi-3600\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl4\cf0 {\listtext	1.	}Set takeYieldpoint field\
+{\listtext	2.	}change execution status accordingly using CAS. \
+\pard\tx3820\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li4320\fi-4320\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl5\cf0 {\listtext	A.	}If IN_JAVA_TO_BLOCK:\
+\pard\tx4540\tx5040\tx5600\tx6160\tx6720\li5040\fi-5040\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl6\cf0 {\listtext	1.	}enter wait loop until the block request bit is cleared or the reason bit is set\
+\pard\tx5260\tx5760\tx6160\tx6720\li5760\fi-5760\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl7\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Note that for handling Thread.suspend the request is not a bit but an object field, and we loop until the object field no longer refers to "our" suspension request object.\
+\pard\tx3820\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li4320\fi-4320\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl5\cf0 {\listtext	B.	}If BLOCKED_IN_NATIVE:\
+\pard\tx4540\tx5040\tx5600\tx6160\tx6720\li5040\fi-5040\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl6\cf0 {\listtext	1.	}clear the request bit\
+{\listtext	2.	}set the reason bit\
+{\listtext	3.	}broadcast\
+\pard\tx2380\tx2880\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li2880\fi-2880\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl3\cf0 {\listtext	B.	}If current thread, enter loop with following body:\
+\pard\tx3100\tx3600\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li3600\fi-3600\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl4\cf0 {\listtext	1.	}checks request block bits; if one is set then:\
+\pard\tx3820\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li4320\fi-4320\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl5\cf0 {\listtext	1.	}clear it\
+{\listtext	2.	}set the corresponding block reason bit\
+{\listtext	3.	}broadcast\
+\pard\tx3100\tx3600\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li3600\fi-3600\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl4\cf0 {\listtext	2.	}if none of the block reason bits are set:\
+\pard\tx3820\tx4320\tx5040\tx5600\tx6160\tx6720\li4320\fi-4320\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl5\cf0 {\listtext	A.	}set status back to IN_JAVA (no need to CAS)\
+{\listtext	B.	}exit loop\
+\pard\tx3100\tx3600\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\li3600\fi-3600\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl4\cf0 {\listtext	3.	}wait.\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	4.	}Release thread lock\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Invariant: the only thread that can set execution status without holding the thread lock is the respective thread.\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Lemma: step 3.A.1 above may be reordered with step 2.\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Anything that blocks needs to be handled like a JNI call, which is as follows:\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	1.	}attempt CAS from IN_JAVA to IN_NATIVE\
+\pard\tx2380\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2880\fi-2880\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl3\cf0 {\listtext	A.	}If success: done.\
+{\listtext	B.	}If failure:\
+\pard\tx3100\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li3600\fi-3600\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl4\cf0 {\listtext	1.	}Assert that the state was IN_JAVA_TO_BLOCK\
+{\listtext	2.	}Acquire thread lock\
+{\listtext	3.	}set status to BLOCKED_IN_NATIVE\
+{\listtext	4.	}Ensure that the thread acknowledges block requests?\
+{\listtext	5.	}broadcast\
+{\listtext	6.	}Release thread lock\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	2.	}Make the call\
+{\listtext	3.	}attempt CAS from IN_NATIVE to IN_JAVA\
+\pard\tx2380\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2880\fi-2880\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl3\cf0 {\listtext	A.	}If success: done.\
+{\listtext	B.	}If failure:\
+\pard\tx3100\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li3600\fi-3600\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl4\cf0 {\listtext	1.	}Assert that the state was BLOCKED_IN_NATIVE\
+{\listtext	2.	}Acquire thread lock\
+{\listtext	3.	}Perform step 3.B from the above algorithm.\
+{\listtext	4.	}Release thread lock\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}In Java, can you suspend a thread while it is:\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 waiting?\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 sleeping?\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 joining?\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 locking?\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 blocked in native?\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}Oh yeah, I'll have to deal with interrupt semantics...  That sounds like no fun at all.\
+{\listtext	\'a5	}OSR bug?\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 we activate the OSR organizer (at which point it might start running) and only then we osrSuspend.  it is possible that we'll then start OSRing before it is suspended, or, equally bad, that we'll osrResume before osrSuspending.\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 to fix this we need some better synchronization between the requesting thread and the organizer.\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}Where are thread stacks allocated and deallocated?\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Do we need to do the trick where we deallocate a thread stack from a different thread?\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 Stacks get allocated via the GC\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 The trick isn't needed with green threads because there is no yieldpoint between when the thread declares itself dead and when it switches context.\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 It seems possible to have a mechanism where the bootstrap frame turns off the thread by just setting a bit somewhere.\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 before exiting back into the bootstrap frame, a thread can put itself on a death watchlist.  anyone allocating a new thread slot can consult the watchlist to see if any of those threads are actually dead before claiming their slot.\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 what if a thread is dying an we try to block it on GC?\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 first of all, for GC we need to be able to make asynchronous blocking requests (so that we don't separately request and wait for blockage on each thread)\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 block() should return false if a thread died in the process\
+\pard\tx2380\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2880\fi-2880\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl3\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 or it can return the new value of execStatus, which will have a new thing called TERMINATED\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 so ... get rid of Phase?\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 That sounds awesome\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}What if a thread gets terminated while it is starting?\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Terminating a thread only works by asking it to throw some manner of exception.  Hence - the transition to the TERMINATED state only happens when the thread moves itself into that state, rather than when someone else asynchronously puts the thread into that state.\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}The more important question:\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 what if we want to block a thread while it is NEW?\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 No.  NEW should mean that we haven't actually started it yet.  Once we are inevitably going to call pthread_create(), the state should be changed to IN_JAVA in anticipation of the call.  this is "accurate" since IN_JAVA really means "this thread will hit a safepoint after each currently runnable thread is given an opportunity to execute at most C steps", where C is an a priori constant.\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}Where does the boot() call in libvm.c go?\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 boot() is just a wrapper for bootThread()\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}Thread termination can be handled by nothing but a syscall that:\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	1.	}Sets execStatus accordingly\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 I think this can just be a store - it need not be a CAS.\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 But it does need a fence before it.\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	2.	}calls pthread_exit\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}NOTE: any comment with "PNT" indicates that there is work remaining for pure native threads at the point of the comment.\
+{\listtext	\'a5	}What implementation strategy should be used for implementing wait/notify?\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 seems like it's best to wait on the thread's heavylock\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 need to manage a queue of threads that are waiting\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 the management of the queue and the waiting/notification do not have to performed as one atomic action.\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 wait algorithm:\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	1.	}assert that we're the monitor owner\
+{\listtext	2.	}place thread on queue\
+{\listtext	3.	}release monitor\
+{\listtext	4.	}acquire thread heavylock\
+{\listtext	5.	}enter wait loop until a wakeup is posted, where a wakeup can be one of:\
+\pard\tx2380\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2880\fi-2880\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl3\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 interrupt()\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 notify()\
+\pard\tx3100\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li3600\fi-3600\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl4\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 what do we say about spurious wakeup?\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 the thing I'm worried about is a notify() from a different monitor than the one we're waiting on\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	6.	}release thread heavylock\
+{\listtext	7.	}reacquire monitor\
+{\listtext	8.	}remove ourselves from the queue if we're still on it\
+{\listtext	9.	}clear wakeup flag\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 notify algorithm:\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	1.	}assert that we're the monitor owner\
+{\listtext	2.	}pick (and remove) a thread from queue\
+\pard\tx2380\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2880\fi-2880\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl3\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Invariant: by being on this queue, this thread's wakeup flag is temporarily protected by the monitor\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	3.	}set monitor wakeup flag\
+{\listtext	4.	}acquire thread heavylock\
+\pard\tx2380\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2880\fi-2880\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl3\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 this part is required.  holding the lock when performing the broadcast ensures that we send the broadcast either:\
+\pard\tx3100\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li3600\fi-3600\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl4\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 once the thread is actually waiting (thus guaranteeing to wake up it)\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 before the thread had performed the check to see if it is to wait.  in that case it won't wait at all.\
+\pard\tx2380\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2880\fi-2880\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl3\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 note that in the absence of the thread heavylock lock acquisition, we might have the following meshing:\
+\pard\tx3100\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li3600\fi-3600\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl4\cf0 {\listtext	1.	}waiting thread concludes that it needs to wait\
+{\listtext	2.	}we set the wakeup flag\
+{\listtext	3.	}we broadcast\
+{\listtext	4.	}waiting thread calls wait (and ends up waiting because it misses the broadcast call)\
+\pard\tx2380\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2880\fi-2880\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl3\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 If we acquire the lock to broadcast then in this case step 3 gets postponed until after step 4.\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	5.	}broadcast on thread heavylock\
+{\listtext	6.	}release thread heavylock\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 cases:\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	I.	}notify runs completely before wait begins\
+\pard\tx2380\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2880\fi-2880\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl3\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 notify is lost but that is correct as per Java semantics\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	II.	}notify runs after wait releases monitor, but before wait acquires thread heavylock\
+\pard\tx2380\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2880\fi-2880\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl3\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 wakeup flag is set causing the waiting thread to immediately wake up\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	III.	}notify runs after wait acquires the heavylock and waits\
+\pard\tx2380\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2880\fi-2880\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl3\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 wakeup flag is set and a broadcast is set, causing the waiting thread to wake up and return from the loop\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 It would seem that it is impossible for a notify on one monitor to wake up a wait on a different monitor under this scheme.  a thread can only be on a monitor's wait queue if it is about to wait on the heavylock.  only one notifying thread will pop the waiting thread.  the waiting thread will make no progress until the notifying thread does its thing.\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 Issue: what about threads that get woken up because of interrupts?  Those threads need to remove themselves from the monitor wait queue!\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Fix: after waiting always remove yourself from the queue just in case\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Invariant: never fucking EVER acquire any user mutex while holding the thread heavylock!\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 Note: the wakeup flag is exactly equivalent to saying that the thread is no longer on the queue.  sort of.  at least that equivalence holds until the monitor is released (and releasing it just to wait doesn't count).\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Thus: a perfectly correct implementation of the above would forego the wakeup flag entirely and have the waiting thread guard its wait call with a check to see if it's still on the queue.  if so, wait, otherwise, break.\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 This is what I'm actually doing, because I now have a O(1) way of seeing if a thread is on a queue.\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}
+\f1 Seems like calling HeavyCondLock.lock() from interruptible code is bad news.  Maybe we should make that impossible?
+\f0 \
+{\listtext	\'a5	}Chat with Dave G. and Daniel F. about uninterruptible\
+{\listtext	\'a5	}Mutexes could be made non-recursive, which would permit assertion checking that a yieldpoint handler isn't getting into someone's critical seciton.  Or not.\
+{\listtext	\'a5	}Things that are unresolved:\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 How does a yieldpoint throw an asyncThrowable?\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 RuntimeEntrypoints.athrow\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 How does wait() unlock the lock it is holding and ensure that someone gets scheduled?\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Same as it unlocks anything else.\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 How are interrupts and asyncThrowables posted?\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Set asyncThrowable and then set takeYieldpoint\
+{\listtext	
+\f1 \uc0\u8259 	}
+\f0 To interrupt, just set hasInterrupt and move on\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}
+\f1 Where should the syncing happen on PPC?  Does this really require STW?\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1
+\f0 \cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 No - we only need a soft handshake.\
+{\listtext	
+\f1 \uc0\u8259 	}Joy.\
+\ls2\ilvl1
+\f0 {\listtext	
+\f1 \uc0\u8259 	}Implement a generic soft handshake mechanism.  Should be able to say RVMThread.softHandshake().\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2
+\f0 \cf0 {\listtext	
+\f1 \uc0\u8259 	}Multiple concurrent softHandshake() requests are serialized.\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0
+\f0 \cf0 {\listtext	\'a5	}
+\f1 What the fuck is going on with CBS?\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1
+\f0 \cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 It seems to be doing some form of path sampling profiling.\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0\cf0 {\listtext	\'a5	}
+\f1 Principles of locking:\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1
+\f0 \cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 A thread's monitor may be acquired while any other lock is held.\
+{\listtext	
+\f1 \uc0\u8259 	}Never acquire any other locks while holding the thread's monitor.\
+\ls2\ilvl1
+\f0 {\listtext	
+\f1 \uc0\u8259 	}Never acquire any other locks while holding the acctLock.\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0
+\f0 \cf0 {\listtext	\'a5	}
+\f1 Stop the world GC:\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1
+\f0 \cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 collector:\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2\cf0 {\listtext	1.	}acquire the handshakeLock\
+{\listtext	2.	}determine which threads to block\
+{\listtext	3.	}send out async block requests\
+{\listtext	4.	}send out sync block requests\
+{\listtext	5.	}release the handshakeLock\
+{\listtext	6.	}do collection\
+{\listtext	7.	}acquire gcLock\
+{\listtext	8.	}flag completion of collection\
+{\listtext	9.	}broadcast on gcLock\
+{\listtext	10.	}release gcLock\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}mutator:\
+\pard\tx1660\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li2160\fi-2160\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl2
+\f0 \cf0 {\listtext	1.	}if we cannot allocate, request GC\
+{\listtext	2.	}acquire gcLock\
+{\listtext	3.	}enter wait look on gcLock until completion of collection is flagged\
+{\listtext	4.	}release gcLock\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1\cf0 {\listtext	
+\f1 \uc0\u8259 	}note: we use gcLock.waitNicely() so that the collector threads realize that we're blocked.\
+\pard\tx220\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li720\fi-720\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl0
+\f0 \cf0 {\listtext	\'a5	}
+\f1 Locks in MMTk\
+\pard\tx940\tx1440\tx2160\tx2880\tx3600\tx4320\tx4480\tx5040\tx5600\tx6160\tx6720\li1440\fi-1440\sb80\sa80\ql\qnatural\pardirnatural
+\ls2\ilvl1
+\f0 \cf0 {\listtext	
+\f1 \uc0\u8259 	}
+\f0 Should they be spinlocks or adaptive mutexes?\
+{\listtext	
+\f1 \uc0\u8259 	}If they are adaptive mutexes, should they be pthread mutexes or should they be written in the spirit of Lock?\
+\ls2\ilvl1
+\f0 {\listtext	
+\f1 \uc0\u8259 	}It seems that spinlocking may be the way to go...
+\f0 \
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\sb80\sa80\ql\qnatural\pardirnatural
+\cf0 \
+}
