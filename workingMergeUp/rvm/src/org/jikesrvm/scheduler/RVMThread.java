@@ -161,7 +161,7 @@ public class RVMThread extends ThreadContext {
 
   protected static final boolean dumpStackOnBlock = false; // DANGEROUS! can lead to crashes!
   
-  protected static final boolean traceBind = true;
+  protected static final boolean traceBind = false;
 
   /** Trace thread start/stop */
   protected static final boolean traceAcct = false;
