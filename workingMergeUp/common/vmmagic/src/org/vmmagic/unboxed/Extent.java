@@ -16,10 +16,8 @@ import org.vmmagic.Unboxed;
 import org.vmmagic.pragma.RawStorage;
 
 /**
- * Represents a pointer-sized int used for describing the length, in
- * bytes, of a chunk of memory.  Typical uses include the "length" or
- * "size" arguments to for example a memcpy, or a read/write type
- * syscall.
+ * Represents a pointer-sized unsigned integer used for describing a length in bytes.
+ * Typical uses include "length" or "size" arguments (e.g., for memcpy).
  */
 @Unboxed
 @RawStorage(lengthInWords = true, length = 1)
