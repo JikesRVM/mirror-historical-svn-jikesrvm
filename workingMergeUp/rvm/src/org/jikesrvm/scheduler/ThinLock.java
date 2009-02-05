@@ -428,8 +428,3 @@ public final class ThinLock implements ThinLockConstants {
 
 }
 
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

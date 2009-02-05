@@ -934,8 +934,3 @@ public class JavaHeader implements JavaHeaderConstants {
     Configuration.archHelper.baselineEmitLoadTIB(asm, dest, object, TIB_OFFSET);
   }
 }
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

@@ -212,8 +212,3 @@ public abstract class RVMMember extends AnnotatedElement implements Constants, C
   }
 }
 
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

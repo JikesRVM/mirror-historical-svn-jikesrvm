@@ -390,8 +390,3 @@ public final class MethodReference extends MemberReference {
     return null;
   }
 }
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

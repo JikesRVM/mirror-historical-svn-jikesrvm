@@ -61,8 +61,3 @@ public interface BaselineConstants extends Constants, ArchConstants {
   Offset XMM_SAVE_OFFSET = T1_SAVE_OFFSET.minus(XMM_STATE_SIZE);
 }
 
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

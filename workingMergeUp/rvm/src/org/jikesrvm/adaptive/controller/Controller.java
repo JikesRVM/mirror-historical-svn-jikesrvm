@@ -285,8 +285,3 @@ public class Controller implements Callbacks.ExitMonitor,
   }
 }
 
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

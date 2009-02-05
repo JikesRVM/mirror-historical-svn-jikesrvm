@@ -1106,8 +1106,3 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
     return VM.ForceFrequentGC && RVMThread.safeToForceGCs();
   }
 }
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

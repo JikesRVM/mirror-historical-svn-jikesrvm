@@ -58,8 +58,3 @@ public final class CompilationThread extends RVMThread {
 
 }
 
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

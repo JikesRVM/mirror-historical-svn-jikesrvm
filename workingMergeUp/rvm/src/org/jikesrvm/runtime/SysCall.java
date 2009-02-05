@@ -427,8 +427,3 @@ public abstract class SysCall {
   public abstract int gcspySprintf(Address str, Address format, Address value);
 }
 
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

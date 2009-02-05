@@ -562,8 +562,3 @@ public final class CollectorThread extends RVMThread {
 
 }
 
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

@@ -349,8 +349,3 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
   }
 }
 
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

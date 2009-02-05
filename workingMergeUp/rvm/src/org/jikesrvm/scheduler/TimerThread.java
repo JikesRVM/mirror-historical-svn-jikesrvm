@@ -80,8 +80,3 @@ public class TimerThread extends RVMThread {
   public boolean ignoreHandshakesAndGC() { return true; }
 }
 
-/* For the emacs weenies in the crowd.
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

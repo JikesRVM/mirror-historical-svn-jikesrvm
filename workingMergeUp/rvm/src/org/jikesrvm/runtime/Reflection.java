@@ -293,8 +293,3 @@ public class Reflection implements Constants {
 
   private static boolean firstUse = true;
 }
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

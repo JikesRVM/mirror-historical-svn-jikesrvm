@@ -315,8 +315,3 @@ public abstract class BaselineCompiler extends TemplateCompilerFramework {
     return "baseline";
   }
 }
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

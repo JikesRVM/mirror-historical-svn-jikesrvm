@@ -832,8 +832,3 @@ public final class TypeReference {
     return "< " + classloader + ", " + name + " >";
   }
 }
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

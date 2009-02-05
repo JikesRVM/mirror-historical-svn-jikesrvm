@@ -263,8 +263,3 @@ public final class SpinLock implements Constants {
 
 }
 
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

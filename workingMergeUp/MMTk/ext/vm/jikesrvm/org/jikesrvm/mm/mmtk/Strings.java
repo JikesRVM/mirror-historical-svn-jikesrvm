@@ -109,8 +109,3 @@ public final class Strings extends org.mmtk.vm.Strings {
     return n;
   }
 }
-/*
-  Local Variables:
-  c-basic-offset: 2
-  End:
-*/

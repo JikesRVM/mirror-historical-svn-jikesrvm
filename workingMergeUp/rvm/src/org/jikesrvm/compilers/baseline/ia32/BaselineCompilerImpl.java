@@ -4670,8 +4670,3 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
   }
 }
 
-/*
-  Local Variables:
-  c-basic-offset: 2
-  End:
-*/

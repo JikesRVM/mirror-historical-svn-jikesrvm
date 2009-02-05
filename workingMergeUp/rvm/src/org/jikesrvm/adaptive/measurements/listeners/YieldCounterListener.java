@@ -63,8 +63,3 @@ public final class YieldCounterListener extends NullListener {
   private int numYields = 0;
   private int totalYields = 0;
 }
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

@@ -494,8 +494,3 @@ public final class MethodCountData implements Reportable {
   }
 }
 
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

@@ -99,8 +99,3 @@ public final class SynchronizationBarrier {
     }
   }  // startupRendezvous
 }
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

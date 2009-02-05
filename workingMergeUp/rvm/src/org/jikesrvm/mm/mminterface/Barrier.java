@@ -88,8 +88,3 @@ final class Barrier {
     return result;
   }
 }
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

@@ -424,8 +424,3 @@ public interface RegisterConstants {
                         : new XMM[]{XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7};
 // CHECKSTYLE:ON
 }
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

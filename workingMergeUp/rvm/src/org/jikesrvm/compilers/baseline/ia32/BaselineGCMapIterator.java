@@ -431,8 +431,3 @@ public abstract class BaselineGCMapIterator extends GCMapIterator implements Bas
   }
 }
 
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

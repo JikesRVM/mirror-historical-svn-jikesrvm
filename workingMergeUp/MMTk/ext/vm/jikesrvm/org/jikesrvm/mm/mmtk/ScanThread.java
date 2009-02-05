@@ -763,8 +763,3 @@ import org.vmmagic.unboxed.Offset;
     Log.writeln();
   }
 }
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

@@ -28,8 +28,3 @@ public abstract class ThreadContext extends Selected.Mutator {
   public Selected.Collector collectorContext;
 }
 
-/* For the emacs weenies in the crowd.
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

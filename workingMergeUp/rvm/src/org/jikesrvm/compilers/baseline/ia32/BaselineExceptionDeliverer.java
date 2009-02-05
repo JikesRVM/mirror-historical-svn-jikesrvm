@@ -111,8 +111,3 @@ public abstract class BaselineExceptionDeliverer extends ExceptionDeliverer impl
 }
 
 
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

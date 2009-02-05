@@ -2602,8 +2602,3 @@ public class VM extends Properties implements Constants, ExitStatus {
   }
 }
 
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

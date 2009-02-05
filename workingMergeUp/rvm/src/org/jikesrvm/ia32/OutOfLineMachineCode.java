@@ -638,8 +638,3 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
     return asm.getMachineCodes();
   }
 }
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

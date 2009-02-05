@@ -444,8 +444,3 @@ public class Entrypoints {
     }
   }
 }
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

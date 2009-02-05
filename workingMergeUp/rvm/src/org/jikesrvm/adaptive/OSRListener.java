@@ -72,8 +72,3 @@ public class OSRListener {
     OnStackReplacementTrigger.trigger(ypTakenInCMID, tsFromFPoff, realFPoff, RVMThread.OSROPT);
   }
 }
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

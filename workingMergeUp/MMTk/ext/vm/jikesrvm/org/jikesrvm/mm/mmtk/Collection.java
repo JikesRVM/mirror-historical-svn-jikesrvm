@@ -376,8 +376,3 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
   }
 }
 
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

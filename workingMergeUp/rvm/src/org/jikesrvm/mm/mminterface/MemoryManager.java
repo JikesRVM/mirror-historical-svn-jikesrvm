@@ -1320,8 +1320,3 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
 
 }
 
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/
