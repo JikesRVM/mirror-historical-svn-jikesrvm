@@ -52,8 +52,8 @@ import org.vmmagic.pragma.*;
  * This class relies on the supporting virtual machine implementing the
  * getNextObject and related operations.
  */
-@Uninterruptible
-public class BumpPointer extends Allocator<Space> implements Constants {
+@Uninterruptible public class BumpPointer extends Allocator
+  implements Constants {
 
   /****************************************************************************
    *
@@ -86,9 +86,11 @@ public class BumpPointer extends Allocator<Space> implements Constants {
   protected Address cursor; // insertion point
   private Address internalLimit; // current internal slow-path sentinal for bump pointer
   private Address limit; // current external slow-path sentinal for bump pointer
+  protected Space space; // space this bump pointer is associated with
   protected Address initialRegion; // first contiguous region
   protected final boolean allowScanning; // linear scanning is permitted if true
   protected Address region; // current contiguous region
+
 
   /**
    * Constructor.
@@ -97,7 +99,7 @@ public class BumpPointer extends Allocator<Space> implements Constants {
    * @param allowScanning Allow linear scanning of this region of memory.
    */
   protected BumpPointer(Space space, boolean allowScanning) {
-    super(space);
+    this.space = space;
     this.allowScanning = allowScanning;
     reset();
   }
@@ -122,8 +124,8 @@ public class BumpPointer extends Allocator<Space> implements Constants {
    * @param space The space to associate the bump pointer with.
    */
   public final void rebind(Space space) {
-    super.rebind(space);
     reset();
+    this.space = space;
   }
 
   /**
@@ -247,7 +249,7 @@ public class BumpPointer extends Allocator<Space> implements Constants {
       VM.assertions.fail("Allocation on unbound bump pointer.");
     }
 
-    /* Check if we already have a chunk to use */
+    /* Check if we already have a block to use */
     if (allowScanning && !region.isZero()) {
       Address nextRegion = region.loadAddress(NEXT_REGION_OFFSET);
       if (!nextRegion.isZero()) {

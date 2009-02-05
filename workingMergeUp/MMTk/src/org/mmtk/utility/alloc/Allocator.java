@@ -38,40 +38,14 @@ import org.vmmagic.pragma.*;
  * where the allocation that caused a GC or allocations immediately following
  * GC are run incorrectly.
  */
-@Uninterruptible
-public abstract class Allocator<T extends Space> implements Constants {
-
-  /**
-   * The space this allocator is bound to.
-   */
-  protected T space;
-
-  /**
-   * Create a new allocator instance.
-   *
-   * @param space The space to bind allocation to.
-   */
-  protected Allocator(T space) {
-    this.space = space;
-  }
+@Uninterruptible public abstract class Allocator implements Constants {
 
   /**
    * Return the space this allocator is currently bound to.
    *
    * @return The Space.
    */
-  protected T getSpace() {
-    return this.space;
-  }
-
-  /**
-   * Rebind this allocator to a different space.
-   *
-   * @param space The new space to bind to.
-   */
-  protected void rebind(T space) {
-    this.space = space;
-  }
+  protected abstract Space getSpace();
 
   /**
    * Aligns up an allocation request. The allocation request accepts a
@@ -257,7 +231,7 @@ public abstract class Allocator<T extends Space> implements Constants {
   @Inline
   public final Address allocSlowInline(int bytes, int alignment, int offset) {
     int gcCountStart = Stats.gcCount();
-    Allocator<?> current = this;
+    Allocator current = this;
     Space space = current.getSpace();
     for (int i = 0; i < Plan.MAX_COLLECTION_ATTEMPTS; i++) {
       Address result = current.allocSlowOnce(bytes, alignment, offset);

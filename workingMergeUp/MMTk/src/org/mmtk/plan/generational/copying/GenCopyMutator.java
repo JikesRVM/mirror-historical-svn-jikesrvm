@@ -124,7 +124,7 @@ public class GenCopyMutator extends GenMutator {
    * which is allocating into <code>space</code>, or <code>null</code>
    * if no appropriate allocator can be established.
    */
-  public final Allocator<?> getAllocatorFromSpace(Space space) {
+  public final Allocator getAllocatorFromSpace(Space space) {
     if (space == GenCopy.matureSpace0 || space == GenCopy.matureSpace1) return mature;
     return super.getAllocatorFromSpace(space);
   }

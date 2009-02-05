@@ -116,7 +116,7 @@ public class CopyMSMutator extends StopTheWorldMutator {
    * which is allocating into <code>space</code>, or <code>null</code>
    * if no appropriate allocator can be established.
    */
-  public Allocator<?> getAllocatorFromSpace(Space space) {
+  public Allocator getAllocatorFromSpace(Space space) {
     if (space == CopyMS.nurserySpace) return nursery;
     if (space == CopyMS.msSpace) return mature;
     return super.getAllocatorFromSpace(space);

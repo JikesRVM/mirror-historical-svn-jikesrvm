@@ -119,7 +119,7 @@ import org.vmmagic.unboxed.*;
    * which is allocating into <code>space</code>, or <code>null</code>
    * if no appropriate allocator can be established.
    */
-  public Allocator<?> getAllocatorFromSpace(Space space) {
+  public Allocator getAllocatorFromSpace(Space space) {
     if (space == Gen.nurserySpace) return nursery;
     return super.getAllocatorFromSpace(space);
   }

@@ -31,12 +31,13 @@ import org.vmmagic.pragma.*;
  *
  */
 @Uninterruptible
-public class ImmixAllocator extends Allocator<ImmixSpace> implements Constants {
+public class ImmixAllocator extends Allocator implements Constants {
 
   /****************************************************************************
    *
    * Instance variables
    */
+  protected final ImmixSpace space;    /* space this allocator is associated with */
   private final boolean hot;
   private final boolean copy;
 
@@ -60,7 +61,7 @@ public class ImmixAllocator extends Allocator<ImmixSpace> implements Constants {
    * @param copy TODO
    */
   public ImmixAllocator(ImmixSpace space, boolean hot, boolean copy) {
-    super(space);
+    this.space = space;
     this.hot = hot;
     this.copy = copy;
     reset();
@@ -303,6 +304,9 @@ public class ImmixAllocator extends Allocator<ImmixSpace> implements Constants {
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(block.toWord().and(Word.fromIntSignExtend(BYTES_IN_BLOCK-1)).isZero());
     VM.memory.zeroPages(block, BYTES_IN_BLOCK);
    }
+
+  /** @return the space associated with this squish allocator */
+  public final Space getSpace() { return space; }
 
   /**
    * Print out the status of the allocator (for debugging)

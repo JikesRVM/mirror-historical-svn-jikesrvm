@@ -138,7 +138,7 @@ public class RCBaseMutator extends StopTheWorldMutator {
    * which is allocating into <code>space</code>, or <code>null</code>
    * if no appropriate allocator can be established.
    */
-  public Allocator<?> getAllocatorFromSpace(Space space) {
+  public Allocator getAllocatorFromSpace(Space space) {
     if (space == RCBase.rcSpace) return rc;
     if (space == RCBase.rcloSpace) return rclos;
 

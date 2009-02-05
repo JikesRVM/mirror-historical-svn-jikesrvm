@@ -106,7 +106,7 @@ public class ImmixMutator extends StopTheWorldMutator {
    * which is allocating into <code>space</code>, or <code>null</code>
    * if no appropriate allocator can be established.
    */
-  public Allocator<?> getAllocatorFromSpace(Space space) {
+  public Allocator getAllocatorFromSpace(Space space) {
     if (space == Immix.immixSpace) return immix;  // FIXME is it not a problem that we have a 2:1 mapping?
     return super.getAllocatorFromSpace(space);
   }

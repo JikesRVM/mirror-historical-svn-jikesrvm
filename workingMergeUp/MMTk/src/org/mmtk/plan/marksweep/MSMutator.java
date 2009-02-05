@@ -116,7 +116,7 @@ public class MSMutator extends StopTheWorldMutator {
    * which is allocating into <code>space</code>, or <code>null</code>
    * if no appropriate allocator can be established.
    */
-  public Allocator<?> getAllocatorFromSpace(Space space) {
+  public Allocator getAllocatorFromSpace(Space space) {
     if (space == MS.msSpace) return ms;
     return super.getAllocatorFromSpace(space);
   }
