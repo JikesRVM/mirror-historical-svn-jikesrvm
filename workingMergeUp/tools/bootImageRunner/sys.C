@@ -1270,15 +1270,19 @@ sysPthreadCondTimedWait(Word cond,Word mutex,
     timespec ts;
     ts.tv_sec = (time_t)(whenWakeupNanos/1000000000LL);
     ts.tv_nsec = (long)(whenWakeupNanos%1000000000LL);
-    if (0) printf("starting wait at %lld until %lld (%ld, %ld)\n",
-		  sysNanoTime(),whenWakeupNanos,ts.tv_sec,ts.tv_nsec);
-    fflush(stdout);
+    if (0) {
+      fprintf(stderr, "starting wait at %lld until %lld (%ld, %ld)\n",
+             sysNanoTime(),whenWakeupNanos,ts.tv_sec,ts.tv_nsec);
+      fflush(stderr);
+    }
     int res=pthread_cond_timedwait((pthread_cond_t*)cond,
 				   (pthread_mutex_t*)mutex,
 				   &ts);
-    if (0) printf("returned from wait at %lld instead of %lld with res = %d\n",
-		  sysNanoTime(),whenWakeupNanos,res);
-    fflush(stdout);
+    if (0) {
+      fprintf(stderr, "returned from wait at %lld instead of %lld with res = %d\n",
+             sysNanoTime(),whenWakeupNanos,res);
+      fflush(stderr);
+    }
 }
 
 extern "C" void

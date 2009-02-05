@@ -762,7 +762,6 @@ cTrapHandler(int signum, int UNUSED zero, sigcontext *context)
 
     if (*inuse) {
       fprintf(SysTraceFile, "%s: internal error: recursive use of hardware exception registers in thread %p (exiting)\n", Me, thread);
-        abort();
         /* Things went badly wrong, so attempt to generate a useful error
            dump before exiting by returning to Scheduler.dumpStackAndDie,
            passing it the fp of the offending thread.

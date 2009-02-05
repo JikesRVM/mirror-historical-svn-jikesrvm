@@ -453,27 +453,6 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
     
     unsigned int localInstructionAddress;
 
-#if 0
-    static pthread_mutex_t exceptionLock = PTHREAD_MUTEX_INITIALIZER;
-    
-    /*
-     * Get the exceptionLock. We can not call pthread_mutex_lock,
-     * it might block and we could catch another signal
-     */
-    for(;;) {
-      int lockrc = pthread_mutex_trylock( &exceptionLock );
-      if (lockrc == 0) break;        // We have the lock
-      if (lockrc == EBUSY) continue; // Busy, we *must* spin
-
-      writeErr("invalid result from pthread_mutex_trylock %d\n", lockrc);
-      signal(signo, SIG_DFL);
-      raise(signo);
-      // We should never get here.
-      _exit(EXIT_STATUS_DYING_WITH_UNCAUGHT_EXCEPTION);
-    }
-    
-#endif
-    
     if (lib_verbose)
 	fprintf(SysTraceFile,"hardwareTrapHandler: pthread = %p\n",pthread_self());
 
@@ -491,9 +470,6 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
      */
     localInstructionAddress  = IA32_EIP(context);
     localNativeThreadAddress = IA32_ESI(context);
-
-    /* FOR DEBUG ONLY */
-    instructionFollowing = getInstructionFollowing(localInstructionAddress);
 
     // We are prepared to handle these kinds of "recoverable" traps:
     //
@@ -729,9 +705,6 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
         IA32_EIP(context) = dumpStack;
         *vmr_inuse = false;
 
-#if 0
-        pthread_mutex_unlock( &exceptionLock );
-#endif
         return;
     }
 
@@ -844,9 +817,6 @@ hardwareTrapHandler(int signo, siginfo_t *si, void *context)
     /* setup to return to deliver hardware exception routine */
     IA32_EIP(context) = javaExceptionHandlerAddress;
 
-#if 0
-    pthread_mutex_unlock( &exceptionLock );
-#endif
     if (lib_verbose)
 	fprintf(SysTraceFile,
 		"exiting normally; the context will take care of the rest (or so we hope)\n");
