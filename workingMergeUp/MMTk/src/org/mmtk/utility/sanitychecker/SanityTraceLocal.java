@@ -38,6 +38,7 @@ public final class SanityTraceLocal extends TraceLocal {
    *
    * Object processing and tracing
    */
+
   /**
    * This method is the core method during the trace of the object graph.
    * The role of this method is to:
@@ -63,9 +64,3 @@ public final class SanityTraceLocal extends TraceLocal {
     return true;
   }
 }
-
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

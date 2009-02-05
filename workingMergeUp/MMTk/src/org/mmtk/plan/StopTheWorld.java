@@ -67,9 +67,3 @@ public abstract class StopTheWorld extends Simple {
     }
   }
 }
-
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

@@ -23,7 +23,6 @@ import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Extent;
 import org.vmmagic.unboxed.Word;
-import org.vmmagic.unboxed.ObjectReference;
 
 /**
  * This class manages the mapping of spaces to virtual memory ranges.<p>
@@ -87,7 +86,6 @@ public class Map {
    */
   public static void insert(Address start, Extent extent, int descriptor,
       Space space) {
-    ObjectReference or=ObjectReference.fromObject(space);
     Extent e = Extent.zero();
     while (e.LT(extent)) {
       int index = getChunkIndex(start.plus(e));
@@ -105,8 +103,7 @@ public class Map {
   }
 
   /**
-   * Allocate some number of contiguous chunks within a discontiguous region.  Note: you <b>must</b>
-   * acquire the Map.lock before calling.
+   * Allocate some number of contiguous chunks within a discontiguous region
    *
    * @param descriptor The descriptor for the space to which these chunks will be assigned
    * @param space The space to which these chunks will be assigned
@@ -115,12 +112,7 @@ public class Map {
    * @return The address of the assigned memory.  This always succeeds.  If the request fails we fail right here.
    */
   public static Address allocateContiguousChunks(int descriptor, Space space, int chunks, Address previous) {
-    if (false) {
-      Log.write("Map: allocating ");
-      Log.write(chunks<<Space.LOG_BYTES_IN_CHUNK);
-      Log.write(" bytes for ");
-      Log.writeln(space.getName());
-    }
+    lock.acquire();
     int chunk = regionMap.alloc(chunks);
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(chunk != 0);
     if (chunk == -1) {
@@ -135,14 +127,7 @@ public class Map {
     Address rtn = addressForChunkIndex(chunk);
     insert(rtn, Extent.fromIntZeroExtend(chunks<<Space.LOG_BYTES_IN_CHUNK), descriptor, space);
     linkageMap[chunk] = previous.isZero() ? 0 : getChunkIndex(previous);
-    if (false) {
-      Log.write("Map: allocated ");
-      Log.write(getContiguousRegionSize(rtn));
-      Log.write(" bytes for ");
-      Log.write(space.getName());
-      Log.write(", returning ");
-      Log.writeln(rtn);
-    }
+    lock.release();
     return rtn;
   }
 
@@ -199,15 +184,16 @@ public class Map {
   }
 
   /**
-   * Free some set of contiguous chunks, given the chunk address.  Call this
-   * after acquiring the Map.lock.
+   * Free some set of contiguous chunks, given the chunk address
    *
    * @param start The start address of the first chunk in the series
    * @return The number of chunks which were contiguously allocated
    */
   public static int freeContiguousChunks(Address start) {
+    lock.acquire();
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(start.EQ(Space.chunkAlign(start, true)));
     int rtn = freeContiguousChunks(getChunkIndex(start));
+    lock.release();
     return rtn;
   }
 

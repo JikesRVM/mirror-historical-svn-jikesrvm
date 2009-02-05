@@ -23,8 +23,6 @@ import org.mmtk.vm.VM;
 import org.vmmagic.pragma.*;
 import org.vmmagic.unboxed.*;
 
-// this is such a confused class...  it seems that this is only needed
-// to be defined for collector threads.  but who knows!
 /**
  * This class (and its sub-classes) implement <i>per-collector thread</i>
  * behavior.  We assume <i>N</i> collector threads and <i>M</i>
@@ -68,13 +66,11 @@ import org.vmmagic.unboxed.*;
  * @see org.mmtk.vm.ActivePlan
  * @see Plan
  */
-@Uninterruptible
-public abstract class CollectorContext implements Constants {
+@Uninterruptible public abstract class CollectorContext implements Constants {
 
   /****************************************************************************
    * Instance fields
    */
-
   /** Unique collector identifier */
   private int id;
 

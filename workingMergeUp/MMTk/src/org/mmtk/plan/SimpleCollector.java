@@ -19,9 +19,6 @@ import org.mmtk.vm.VM;
 
 import org.vmmagic.pragma.*;
 
-// this claims to be per-collector-thread but it ends up being used from
-// mutator threads.  epic fail.  NO IT DOESN'T!  at least not by my
-// further investigation...
 /**
  * This class (and its sub-classes) implement <i>per-collector thread</i>
  * behavior and state.
@@ -175,9 +172,3 @@ public abstract class SimpleCollector extends CollectorContext {
     return (Simple) VM.activePlan.global();
   }
 }
-
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

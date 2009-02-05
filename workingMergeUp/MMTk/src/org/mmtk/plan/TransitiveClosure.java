@@ -47,9 +47,7 @@ public abstract class TransitiveClosure {
    * Get the specialized scan with the given id.
    */
   public static Class<?> getSpecializedScanClass(int id) {
-    if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(specializedScans[id] != null);
-    }
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(specializedScans[id] != null);
     return specializedScans[id];
   }
 

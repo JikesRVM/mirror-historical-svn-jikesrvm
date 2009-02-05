@@ -46,9 +46,7 @@ public final class SanityCheckerLocal implements Constants {
   @NoInline
   public boolean collectionPhase(int phaseId, boolean primary) {
     if (phaseId == Simple.SANITY_PREPARE) {
-      if (primary) {
-        rootTraceLocal.prepare();
-      }
+      rootTraceLocal.prepare();
       return true;
     }
 
@@ -78,9 +76,3 @@ public final class SanityCheckerLocal implements Constants {
     return false;
   }
 }
-
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

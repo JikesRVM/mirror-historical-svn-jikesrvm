@@ -18,7 +18,6 @@ import org.mmtk.policy.Space;
 import org.mmtk.policy.ImmortalSpace;
 import org.mmtk.policy.RawPageSpace;
 import org.mmtk.policy.LargeObjectSpace;
-import org.mmtk.utility.alloc.Allocator;
 import org.mmtk.utility.alloc.LinearScan;
 import org.mmtk.utility.Constants;
 import org.mmtk.utility.Conversions;
@@ -346,18 +345,6 @@ public abstract class Plan implements Constants {
    * @return True if we have run out of heap space.
    */
   public final boolean lastCollectionFailed() {
-    if (false) {
-      Log.write("in thread ");
-      Log.write(VM.activePlan.mutator().getId());
-      Log.write(" collection trigger = ");
-      Log.write(collectionTrigger);
-      Log.write(", getPagesAvail = ");
-      Log.write(getPagesAvail());
-      Log.write(", getHeapFullThreshold = ");
-      Log.write(getHeapFullThreshold());
-      Log.write(", requiredAtStart = ");
-      Log.writeln(requiredAtStart);
-    }
     return !(collectionTrigger == Collection.EXTERNAL_GC_TRIGGER ||
              collectionTrigger == Collection.INTERNAL_PHASE_GC_TRIGGER) &&
       (getPagesAvail() < getHeapFullThreshold() || getPagesAvail() < requiredAtStart);
@@ -599,11 +586,6 @@ public abstract class Plan implements Constants {
   public static void setCollectionTrigger(int trigger) {
     collectionTrigger = trigger;
   }
-
-  /****************************************************************************
-   * Space - Allocator mapping. See description for getOwnAllocator in PlanLocal
-   * for a description of why this is important.
-   */
 
   /****************************************************************************
    * Harness
@@ -1057,9 +1039,3 @@ public abstract class Plan implements Constants {
     return TransitiveClosure.getSpecializedScanClass(id);
   }
 }
-
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

@@ -318,9 +318,3 @@ public abstract class PageResource implements Constants {
       mutatorLock.release();
   }
 }
-
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

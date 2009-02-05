@@ -16,7 +16,6 @@ import org.mmtk.plan.*;
 import org.mmtk.policy.CopyLocal;
 import org.mmtk.policy.Space;
 import org.mmtk.utility.alloc.Allocator;
-import org.mmtk.utility.Log;
 
 import org.vmmagic.unboxed.*;
 import org.vmmagic.pragma.*;
@@ -141,11 +140,6 @@ public class SSMutator extends StopTheWorldMutator {
     if (phaseId == SS.RELEASE) {
       super.collectionPhase(phaseId, primary);
       // rebind the allocation bump pointer to the appropriate semispace.
-      if (false) {
-        Log.write("rebinding allocator for ");
-        Log.write(getId());
-        Log.writeln();
-      }
       ss.rebind(SS.toSpace());
       return;
     }

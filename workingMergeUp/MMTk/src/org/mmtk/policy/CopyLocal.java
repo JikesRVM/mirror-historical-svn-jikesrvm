@@ -41,5 +41,4 @@ import org.vmmagic.pragma.*;
   public CopyLocal() {
     super(null, true);
   }
-
 }

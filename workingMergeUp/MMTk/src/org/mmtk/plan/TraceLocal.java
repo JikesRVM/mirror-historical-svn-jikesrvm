@@ -81,24 +81,11 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    *
    * @param source The source of the reference.
    * @param slot The location containing the object reference to be
-   * traced.  The object reference is <i>NOT</i> an interior pointer.
-   * @param root True if <code>objLoc</code> is within a root.
+   *        traced.  The object reference is <i>NOT</i> an interior pointer.
    */
   @Inline
   public final void processEdge(ObjectReference source, Address slot) {
-    if (false) {
-      Log.write("edge going from ");
-      Log.flush();
-      VM.objectModel.dumpObject(source);
-      Log.write("at ");
-      Log.write(slot);
-      Log.write(" to ");
-    }
     ObjectReference object = VM.activePlan.global().loadObjectReference(slot);
-    if (false) {
-      Log.write(object);
-      Log.writeln();
-    }
     ObjectReference newObject = traceObject(object, false);
     VM.activePlan.global().storeObjectReference(slot, newObject);
   }
@@ -115,12 +102,6 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    */
   @Inline
   public final void reportDelayedRootEdge(Address slot) {
-    if (false) {
-      Log.write("edge going from delayed root ");
-      Log.write(slot);
-      Log.write(" to ");
-      Log.writeln(slot.loadObjectReference());
-    }
     rootLocations.push(slot);
   }
 
@@ -135,12 +116,6 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    */
   @Inline
   public final void processRootEdge(Address slot, boolean untraced) {
-    if (false) {
-      Log.write("edge going from root ");
-      Log.write(slot);
-      Log.write(" to ");
-      Log.writeln(slot.loadObjectReference());
-    }
     ObjectReference object;
     if (untraced) object = slot.loadObjectReference();
     else     object = VM.activePlan.global().loadObjectReference(slot);
@@ -292,9 +267,8 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
     if (Plan.USE_CODE_SPACE && Space.isInSpace(Plan.LARGE_CODE, object))
       return Plan.largeCodeSpace.traceObject(this, object);
     if (VM.VERIFY_ASSERTIONS) {
-      Log.write("Trouble tracing ");
-      Log.write(object);
-      Log.writeln();
+      Log.write("Failing object => "); Log.writeln(object);
+      Space.printVMMap();
       VM.assertions._assert(false, "No special case for space in traceObject");
     }
     return ObjectReference.nullReference();
@@ -550,16 +524,15 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    * returning to MMTk.
    */
   private void assertMutatorRemsetsFlushed() {
-    /* FIXME: PNT 
+    /* FIXME: PNT
     if (VM.VERIFY_ASSERTIONS) {
       for (int m = 0; m < VM.activePlan.mutatorCount(); m++) {
-        MutatorContext mc=VM.activePlan.mutator(m);
-        if (mc!=null) {
-          mc.assertRemsetsFlushed();
-        }
+        VM.activePlan.mutator(m).assertRemsetsFlushed();
       }
-    }*/
+    }
+    */
   }
+
   /**
    * This method logs a message with preprended thread id, if the
    * verbosity level is greater or equal to the passed level.
@@ -596,9 +569,3 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
     }
   }
 }
-
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

@@ -207,7 +207,7 @@ public final class MarkSweepSpace extends SegregatedFreeListSpace implements Con
   /**
    * A new collection increment has completed.  For the mark-sweep
    * collector this means we can perform the sweep phase.
-   */
+ */
   public void release() {
     sweepConsumedBlocks(!EAGER_MARK_CLEAR);
     inMSCollection = false;

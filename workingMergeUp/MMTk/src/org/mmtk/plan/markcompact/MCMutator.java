@@ -118,6 +118,7 @@ import org.vmmagic.unboxed.*;
     return super.getAllocatorFromSpace(space);
   }
 
+
   /****************************************************************************
    *
    * Collection

@@ -15,7 +15,6 @@ package org.mmtk.plan.semispace;
 import org.mmtk.plan.TraceLocal;
 import org.mmtk.plan.Trace;
 import org.mmtk.policy.Space;
-import org.mmtk.utility.Log;
 
 import org.vmmagic.pragma.*;
 import org.vmmagic.unboxed.*;
@@ -105,23 +104,7 @@ public class SSTraceLocal extends TraceLocal {
    * @return True if the object will not move.
    */
   public boolean willNotMoveInCurrentCollection(ObjectReference object) {
-    if (false) {
-      Log.write("object reference ");
-      Log.write(object);
-      Log.write(" will not move in current collection = ");
-    }
-    boolean result=
-      (SS.hi && !Space.isInSpace(SS.SS0, object)) ||
-      (!SS.hi && !Space.isInSpace(SS.SS1, object));
-    if (false) {
-      Log.write(result);
-      Log.writeln();
-    }
-    return result;
+    return (SS.hi && !Space.isInSpace(SS.SS0, object)) ||
+           (!SS.hi && !Space.isInSpace(SS.SS1, object));
   }
 }
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/

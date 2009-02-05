@@ -416,9 +416,8 @@ public abstract class Space implements Constants {
    * @return The address of the new discontiguous space.
    */
   public Address growDiscontiguousSpace(int chunks) {
-    // FIXME: When checking final patch double check we dont want to lock on Map.lock here
     this.lastDiscontiguousRegion = Map.allocateContiguousChunks(descriptor, this, chunks, lastDiscontiguousRegion);
-    return this.lastDiscontiguousRegion;
+    return lastDiscontiguousRegion;
   }
 
   /**
@@ -455,8 +454,7 @@ public abstract class Space implements Constants {
     if (chunk.EQ(lastDiscontiguousRegion)) {
       lastDiscontiguousRegion = Map.getNextContiguousRegion(chunk);
     }
-    int result=Map.freeContiguousChunks(chunk);
-    return result;
+    return Map.freeContiguousChunks(chunk);
   }
 
   /**
@@ -532,22 +530,11 @@ public abstract class Space implements Constants {
         Log.writeln();
       } else {
         Log.write("D [");
-        int cnt=0;
-        for(Address a = space.lastDiscontiguousRegion; !a.isZero();
-            a = Map.getNextContiguousRegion(a)) {
-          Log.write(a);
-          Log.write("->");
-          Extent regionSize=Map.getContiguousRegionSize(a);
-          Log.write(a.plus(regionSize.minus(1)));
-          Log.write(" (size = ");
-          Log.write(regionSize);
-          Log.write(")");
+        for(Address a = space.lastDiscontiguousRegion; !a.isZero(); a = Map.getNextContiguousRegion(a)) {
+          Log.write(a); Log.write("->");
+          Log.write(a.plus(Map.getContiguousRegionSize(a).minus(1)));
           if (Map.getNextContiguousRegion(a) != Address.zero())
             Log.write(", ");
-          if (cnt++==10000) {
-            Log.writeln();
-            VM.assertions.fail("more than 10000 regions; probably this means that something got corrupted.");
-          }
         }
         Log.writeln("]");
       }
@@ -711,8 +698,3 @@ public abstract class Space implements Constants {
     return chunkAlign(rtn, false);
   }
 }
-/*
-Local Variables:
-   c-basic-offset: 2
-End:
-*/
