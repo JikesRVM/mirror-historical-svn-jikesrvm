@@ -28,7 +28,6 @@ import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.RuntimeCompiler;
 import org.jikesrvm.compilers.opt.driver.CompilationPlan;
 import org.jikesrvm.runtime.Time;
-import org.jikesrvm.scheduler.RVMThread;
 
 /**
  * This class provides logging functionality for the Adaptive Optimization System
@@ -73,7 +72,7 @@ public final class AOSLogging {
     return log;
   }
 
- /**
+  /*
   * Record that the AOS logging has been booted.
   * Needed to allow fast exit from reporting to ensure
   * that when no class is specified to be run but "-help" is specified,
@@ -121,54 +120,6 @@ public final class AOSLogging {
   ////////////////////////////////////////////////////////////////
   // Logging level 1
   ////////////////////////////////////////////////////////////////
-
-  /**
-   * Called from Controller.report to allow a last message to the logging
-   *  system
-   */
-  public static void systemExiting() {
-    if (!logger.booted) return; // fast exit
-    if (Controller.options.LOGGING_LEVEL >= 1) {
-      synchronized (logger.log) {
-        logger.log.println(logger.getTime() + " System Exiting\n");
-      }
-    }
-  }
-
-  /**
-   * Called from RuntimeMeasurements when the argument thread is terminating
-   * to allow us to record the time spent in the thread.
-   * @param t the thread of interest
-   */
-  public static void threadExiting(RVMThread t) {
-    if (!logger.booted) return; // fast exit
-    try {
-      if (Controller.options.LOGGING_LEVEL >= 1) {
-        synchronized (logger.log) {
-          final String threadType = t.isGCThread() ? "g" : t.isDaemonThread() ? "d" : "";
-          final String status = threadType + (!t.isAlive() ? "!" : "");
-          logger.log.println(logger.getTime() +
-                             " ThreadIndex: " + t.getIndex() +
-                             " " + t.getClass().getName() +
-                             " status(" + status + ")");
-        }
-      }
-    } catch (NullPointerException e) {
-      // ignore.  A thread exited before the AOS Logging system was
-      // initialized.  It can't be interesting.
-    }
-  }
-
-  /**
-   * Call this method when the controller thread initially begins executing
-   */
-  public static void controllerStarted() {
-    if (Controller.options.LOGGING_LEVEL >= 1) {
-      synchronized (logger.log) {
-        logger.log.println(logger.getTime() + " Controller thread started");
-      }
-    }
-  }
 
   /**
    * Call this method to dump statistics related to decaying
@@ -324,28 +275,6 @@ public final class AOSLogging {
                     CompilerDNA.getCompilerString(compiler2) +
                     " compiler: " +
                     rate);
-      }
-    }
-  }
-
-  /**
-   * prints the current recompilation and thread stats to the log file
-   */
-  public static void recordRecompAndThreadStats() {
-    if (Controller.options.LOGGING_LEVEL >= 1) {
-      logger.printControllerStats();
-
-      // PNT: this may miss threads when threads exit
-      for (int i = 0, n = RVMThread.numThreads; i < n; i++) {
-        RVMThread t = RVMThread.threads[i];
-        if (t != null) {
-          AOSLogging.threadExiting(t);
-        }
-      }
-
-      // add a terminating line to help scripts find the end of the thread list
-      synchronized (logger.log) {
-        logger.log.println(logger.getTime() + " completed stats dump");
       }
     }
   }

@@ -56,7 +56,6 @@ public final class MethodSampleOrganizer extends Organizer {
    */
   @Override
   public void initialize() {
-    // PNT: I have a bad feeling about this:
     int numSamples = Controller.options.METHOD_SAMPLE_SIZE * RVMThread.numProcessors;
     if (Controller.options.mlCBS()) {
       numSamples *= VM.CBSMethodSamplesPerTick;

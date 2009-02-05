@@ -101,7 +101,6 @@ public class DynamicCallGraphOrganizer extends Organizer {
     } else {
       numberOfBufferTriples = Controller.options.DCG_SAMPLE_SIZE;
     }
-    // PNT: I have a bad feeling about this:
     numberOfBufferTriples *= RVMThread.numProcessors;
     bufferSize = numberOfBufferTriples * 3;
     buffer = new int[bufferSize];
@@ -134,16 +133,10 @@ public class DynamicCallGraphOrganizer extends Organizer {
   void thresholdReached() {
     if (DEBUG) VM.sysWriteln("DCG_Organizer.thresholdReached()");
 
-    if (false) {
-      VM.sysWriteln("Dumping buffer in thresholdReached:");
-      for (int i=0;i<bufferSize;++i) {
-        VM.sysWriteln(buffer[i]);
-      }
-    }
     for (int i = 0; i < bufferSize; i = i + 3) {
       int calleeCMID=0;
-      // PMT: this is retarded beyond anything I've ever done.
-      while (calleeCMID==0) {
+      // FIXME: This is necessary but hacky and may not even be correct.
+      while (calleeCMID == 0) {
         calleeCMID = buffer[i + 0];
       }
       Magic.isync();

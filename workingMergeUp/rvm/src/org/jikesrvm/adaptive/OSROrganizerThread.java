@@ -29,7 +29,7 @@ import org.vmmagic.pragma.NonMoving;
 public final class OSROrganizerThread extends RVMThread {
   /** Constructor */
   public OSROrganizerThread() {
-    super("OSROrganizer");
+    super("OSR_Organizer");
     makeDaemon(true);
   }
 

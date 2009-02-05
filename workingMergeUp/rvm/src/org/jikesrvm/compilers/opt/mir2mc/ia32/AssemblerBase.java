@@ -354,6 +354,19 @@ abstract class AssemblerBase extends Assembler
     return ((MemoryOperand) op).scale;
   }
 
+  /**
+   *  Given a memory operand, return the 2 bit IA32 ISA encoding
+   * of its scale, suitable for passing to the Assembler to mask
+   * into a SIB byte.  This function assumes its operand is a memory
+   * operand, and will blow up if it is not; one should confirm an
+   * operand really has a scale before invoking this method on it.
+   *
+   * @see #isRegIdx
+   * @see #isRegOff
+   *
+   * @param op the register operand being queried
+   * @return the IA32 ISA encoding of the scale of op
+   */
   Offset getDisp(Operand op) {
     return ((MemoryOperand) op).disp;
   }

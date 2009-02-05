@@ -42,6 +42,7 @@ public abstract class Organizer extends RVMThread {
 
   /** A latch used for activate/passivate. */
   private final Latch latch = new Latch(false);
+
   /**
    * Called when thread is scheduled.
    */

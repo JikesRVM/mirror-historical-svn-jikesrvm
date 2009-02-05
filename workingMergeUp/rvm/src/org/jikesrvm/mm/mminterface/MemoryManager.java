@@ -64,8 +64,7 @@ import org.vmmagic.unboxed.Word;
 import org.vmmagic.unboxed.WordArray;
 
 /**
- * The interface that the JMTk memory manager presents to the Jikes
- * research virtual machine.
+ * The interface that the MMTk memory manager presents to Jikes RVM
  */
 @Uninterruptible
 public final class MemoryManager implements HeapLayoutConstants, Constants {
@@ -596,9 +595,7 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
         }
         return Plan.ALLOC_DEFAULT;
       }
-      if (isPrefix("Lorg/mmtk/", clsBA) ||
-          isPrefix("Lorg/jikesrvm/mm/", clsBA) ||
-          isPrefix("Lorg/jikesrvm/memorymanagers/mminterface/GCMapIteratorGroup", clsBA)) {
+      if (isPrefix("Lorg/mmtk/", clsBA) || isPrefix("Lorg/jikesrvm/mm/", clsBA)) {
         if (traceAllocator) {
           VM.sysWriteln("NONMOVING");
         }
@@ -641,7 +638,6 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
     }
     if (isPrefix("Lorg/mmtk/", typeBA) ||
         isPrefix("Lorg/jikesrvm/mm/", typeBA) ||
-        isPrefix("Lorg/jikesrvm/memorymanagers/", typeBA) ||
         isPrefix("Lorg/jikesrvm/jni/JNIEnvironment;", typeBA)) {
       allocator = Plan.ALLOC_NON_MOVING;
     }

@@ -49,7 +49,7 @@ import org.vmmagic.unboxed.ObjectReference;
 public final class SpecializedScanMethod extends SpecializedMethod implements SizeConstants, JavaHeaderConstants {
 
   /** Use specialized scanning ? */
-  public static final boolean ENABLED = /*true*/ false;
+  public static final boolean ENABLED = true;
 
   /** This method's signature: the object to be scanned and the trace to use */
   private static final TypeReference[] signature = new TypeReference[] {
@@ -473,4 +473,3 @@ public final class SpecializedScanMethod extends SpecializedMethod implements Si
 
   // CHECKSTYLE:ON
 }
-

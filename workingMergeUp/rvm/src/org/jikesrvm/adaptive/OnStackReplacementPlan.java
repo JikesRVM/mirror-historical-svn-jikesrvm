@@ -125,8 +125,8 @@ public class OnStackReplacementPlan implements Constants {
         AOSLogging.logger.logOsrEvent("OSR compilation failed!");
       } else {
         setStatus(ControllerPlan.COMPLETED);
-        // now let OSR_CodeInstaller generate a code stub,
-        // and OSR_PostThreadSwitch will install the stub to run.
+        // now let CodeInstaller generate a code stub,
+        // and PostThreadSwitch will install the stub to run.
         CodeInstaller.install(state, newCM);
         AOSLogging.logger.logOsrEvent("OSR compilation succeeded! " + compPlan.method);
       }

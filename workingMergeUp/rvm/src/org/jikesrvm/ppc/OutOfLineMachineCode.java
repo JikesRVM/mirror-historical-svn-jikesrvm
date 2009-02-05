@@ -142,9 +142,6 @@ public abstract class OutOfLineMachineCode
       asm.emitLAddrU(i, BYTES_IN_ADDRESS, S0);                 // GPRi := gprs[i]
     }
 
-    // PNT: fix this!!  it won't be easy, since we have to save all volatile
-    // regs...
-
     //
     // free registers: 0, S0
     //
@@ -234,6 +231,8 @@ public abstract class OutOfLineMachineCode
   /**
    * Machine code to implement "Magic.threadSwitch()".
    *
+   * Currently not functional on PNT. Left for template for possible reintroduction.
+   *
    *  Parameters taken at runtime:
    *    T0 == address of Thread object for the current thread
    *    T1 == address of Registers object for the new thread
@@ -276,12 +275,7 @@ public abstract class OutOfLineMachineCode
     // save fp
     asm.emitSTAddr(FP, FP << LOG_BYTES_IN_ADDRESS, T3);
 
-    // (2) Set currentThread.beingDispatched to false
-    // PNT: don't have this field anymore
-    // asm.emitLVAL(0, 0);                                       // R0 := 0
-    // asm.emitSTBoffset(0, T0, Entrypoints.beingDispatchedField.getOffset()); // T0.beingDispatched := R0
-
-    // (3) Restore nonvolatile hardware state of new thread.
+    // (2) Restore nonvolatile hardware state of new thread.
 
     // restore non-volatile fprs
     asm.emitLAddrOffset(T0, T1, fprsOffset); // T0 := T1.fprs[]

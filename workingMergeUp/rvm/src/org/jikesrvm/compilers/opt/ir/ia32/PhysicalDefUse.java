@@ -111,7 +111,7 @@ public abstract class PhysicalDefUse {
     if ((code & maskC1) != 0) s += " C1";
     if ((code & maskC2) != 0) s += " C2";
     if ((code & maskC3) != 0) s += " C3";
-    if ((code & maskTR) != 0) s += " PR";
+    if ((code & maskTR) != 0) s += " TR";
     if ((code & maskESP) != 0) s += " ESP";
     return s;
   }

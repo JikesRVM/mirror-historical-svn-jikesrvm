@@ -45,7 +45,6 @@ public final class AccumulatingMethodSampleOrganizer extends Organizer {
   public void initialize() {
     data = new MethodCountData();
     new AsyncReporter().start();
-    // PNT: I have a bad feeling about this:
     int numSamples = Controller.options.METHOD_SAMPLE_SIZE * RVMThread.numProcessors;
     if (Controller.options.mlCBS()) {
       numSamples *= VM.CBSMethodSamplesPerTick;

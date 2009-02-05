@@ -30,13 +30,6 @@ public class OSRListener {
   public static boolean checkForOSRPromotion(int whereFrom, Address yieldpointServiceMethodFP) {
     if (RVMThread.getCurrentThread().isSystemThread()) return false;
 
-    // check if there are pending osr request
-    // PNT: this SHOULD NOT be necessary, but I have a feeling that it sadly
-    // is.
-    if (false && (Controller.osrOrganizer != null) && (Controller.osrOrganizer.osr_flag)) {
-      Controller.osrOrganizer.activate();
-    }
-
     if (whereFrom != RVMThread.BACKEDGE) return false;
 
     // See if we are at a loop backedge in an outdated baseline compiled method

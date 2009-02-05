@@ -342,15 +342,6 @@ public abstract class RuntimeMeasurements {
     reportReportableObjects();
 
     AOSLogging.logger.decayStatistics(decayEventCounter);
-
-    // PNT: this will not get all threads every time.
-    for (int i = 0, n = RVMThread.numThreads; i < n; i++) {
-      RVMThread t = RVMThread.threads[i];
-      if (t != null) {
-        AOSLogging.threadExiting(t);
-      }
-    }
-    AOSLogging.logger.decayStatistics(decayEventCounter);
   }
 
   /**
@@ -363,13 +354,6 @@ public abstract class RuntimeMeasurements {
 
     cbsMethodListeners = new MethodListener[0];
     cbsContextListeners = new ContextListener[0];
-  }
-
-  /**
-   * Called from Thread.terminate.
-   */
-  public static void monitorThreadExit() {
-    AOSLogging.threadExiting(RVMThread.getCurrentThread());
   }
 
   /**

@@ -426,7 +426,6 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
 
     return asm.getMachineCodes();
   }
-  // PNT: time for the epic fun!  Oh yay!
 
   /**
    * Machine code to implement "Magic.saveThreadState()".
@@ -482,6 +481,8 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
 
   /**
    * Machine code to implement "Magic.threadSwitch()".
+   * 
+   * NOTE: Currently not functional for PNT: left as a guide for possible reimplementation.
    *
    *  Parameters taken at runtime:
    *    T0 == address of Thread object for the current thread
@@ -496,7 +497,6 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
    *    restores new thread's Registers nonvolatile hardware state.
    *    execution resumes at address specificed by restored thread's Registers ip field
    */
-  // PNT: this currently does not work
   private static ArchitectureSpecific.CodeArray generateThreadSwitchInstructions() {
     if (VM.VerifyAssertions) {
       VM._assert(NUM_NONVOLATILE_FPRS == 0); // assuming no NV FPRs (otherwise would have to save them here)

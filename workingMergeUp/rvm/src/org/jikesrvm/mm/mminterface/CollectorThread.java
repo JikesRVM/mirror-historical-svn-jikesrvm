@@ -166,7 +166,6 @@ public final class CollectorThread extends RVMThread {
    */
   CollectorThread(byte[] stack) {
     super(stack, myName);
-    // PNT: need to somehow do this at build time
     this.collectorContext = new Selected.Collector(this);
     makeDaemon(true); // this is redundant, but harmless
   }

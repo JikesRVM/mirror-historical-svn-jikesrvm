@@ -3898,6 +3898,9 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
     }
   }
 
+  /**
+   * Generate instructions to acquire lock on entry to a method
+   */
   private void genMonitorEnter() {
     if (method.isStatic()) {
       Offset klassOffset = Offset.fromIntSignExtend(Statics.findOrCreateObjectLiteral(klass.getClassForType()));
@@ -4385,6 +4388,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
       Offset offsetToFirstArg = offsetToLastArg.plus((m.getParameterWords()-1) << LG_WORDSIZE);
       boolean[] inRegister = VM.BuildFor32Addr ? null : new boolean[args.length];
       int paramBytes = 0;
+
       // (1) save three RVM nonvolatile/special registers
       //     we don't have to save EBP: the callee will
       //     treat it as a framepointer and save/restore
@@ -4392,6 +4396,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
       asm.emitPUSH_Reg(EBX);
       asm.emitPUSH_Reg(ESI);
       asm.emitPUSH_Reg(EDI);
+
       // (2) Pass args in registers passing from left-to-right
       //     (NB avoid the first argument holding the target function address)
       int gpRegistersInUse = 0;
@@ -4438,6 +4443,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
           }
         }
       }
+
       // (3) Stack alignment
       ForwardReference dontRealignStack = null;
       int argsToPush=0;
@@ -4459,6 +4465,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
           dontRealignStack = asm.forwardJcc(Assembler.EQ);
         }
       }
+
       // Generate argument pushing and call code upto twice, once with realignment
       ForwardReference afterCalls = null;
       for (int j= VM.BuildFor32Addr ? 1 : 0;  j < 2; j++) {
@@ -4515,6 +4522,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
           }
         }
         if (VM.VerifyAssertions) VM._assert(offsetToFirstArg.EQ(offsetToJavaArg));
+
         // (5) invoke target function with address given by the first argument
         if (VM.BuildFor32Addr) {
           asm.emitMOV_Reg_RegDisp(S0, SP, offsetToFirstArg);
@@ -4523,6 +4531,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
           asm.emitMOV_Reg_RegDisp_Quad(T0, SP, offsetToFirstArg);
           asm.emitCALL_Reg(T0);
         }
+
         // (6) pop space for arguments
         if (j == 0) {
           offsetToFirstArg = offsetToFirstArg.minus(WORDSIZE);
@@ -4533,13 +4542,17 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
           adjustStack(paramBytes, true);
         }
       }
+
       if (afterCalls != null) afterCalls.resolve(asm);
+
       // (7) restore RVM registers
       asm.emitPOP_Reg(EDI);
       asm.emitPOP_Reg(ESI);
       asm.emitPOP_Reg(EBX);
+
       // (8) pop expression stack (including the first parameter)
       adjustStack(m.getParameterWords() << LG_WORDSIZE, true);
+
       // (9) push return value
       if (rtype.isLongType()) {
         if (VM.BuildFor32Addr) {

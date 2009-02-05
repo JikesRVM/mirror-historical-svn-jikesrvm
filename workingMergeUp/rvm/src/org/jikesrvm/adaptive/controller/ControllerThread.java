@@ -233,8 +233,7 @@ public final class ControllerThread extends RVMThread {
     AOSOptions opts = Controller.options;
 
     if (opts.GATHER_PROFILE_DATA) {
-      Controller.organizers.addElement(
-          new AccumulatingMethodSampleOrganizer());
+      Controller.organizers.addElement(new AccumulatingMethodSampleOrganizer());
 
       createDynamicCallGraphOrganizer();
     }
