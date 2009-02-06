@@ -573,6 +573,11 @@ public class RVMThread extends ThreadContext {
   @Entrypoint
   @Untraced
   private final Registers exceptionRegisters;
+  
+  // evil shadow fields to get the above traced by GC
+  private final Registers contextRegistersShadow;
+  private final Registers contextRegistersSaveShadow;
+  private final Registers exceptionRegistersShadow;
 
   /** Count of recursive uncaught exceptions, we need to bail out at some point */
   private int uncaughtExceptionCount = 0;
@@ -1333,9 +1338,9 @@ public class RVMThread extends ThreadContext {
     this.daemon = daemon;
     this.priority = priority;
 
-    this.contextRegisters = new Registers();
-    this.contextRegistersSave = new Registers();
-    this.exceptionRegisters = new Registers();
+    this.contextRegisters = this.contextRegistersShadow = new Registers();
+    this.contextRegistersSave = this.contextRegistersSaveShadow = new Registers();
+    this.exceptionRegisters = this.exceptionRegistersShadow = new Registers();
     if (VM.runningVM) {
       feedlet = TraceEngine.engine.makeFeedlet(name, name);
     }
