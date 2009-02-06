@@ -491,9 +491,6 @@ public class VM extends Properties implements Constants, ExitStatus {
     if (verboseBoot >= 1) VM.sysWriteln("Starting main thread");
     mainThread.start();
 
-    if (verboseBoot >= 1) VM.sysWriteln("Starting debugger thread");
-    RVMThread.startDebuggerThread();
-
     // End of boot thread.
     //
     if (VM.TraceThreads) RVMThread.trace("VM.boot", "completed - terminating");

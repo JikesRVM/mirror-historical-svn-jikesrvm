@@ -355,7 +355,7 @@ public final class CollectorThread extends RVMThread {
           int numToHandshake=0;
           for (int i=0;i<RVMThread.numThreads;++i) {
             RVMThread t=threads[i];
-            if (!(t.isGCThread() && !t.isConcurrentGCThread()) &&
+            if (!(t.isGCThread()) &&
                 !t.ignoreHandshakesAndGC()) {
               RVMThread.handshakeThreads[numToHandshake++]=t;
             }
@@ -505,7 +505,7 @@ public final class CollectorThread extends RVMThread {
         int numToHandshake=0;
         for (int i=0;i<RVMThread.numThreads;++i) {
           RVMThread t=threads[i];
-          if (!(t.isGCThread() && !t.isConcurrentGCThread()) &&
+          if (!(t.isGCThread()) &&
               !t.ignoreHandshakesAndGC()) {
             RVMThread.handshakeThreads[numToHandshake++]=t;
           }

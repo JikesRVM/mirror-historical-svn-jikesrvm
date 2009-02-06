@@ -143,7 +143,6 @@ import org.jikesrvm.tuningfork.Feedlet;
  *
  * @see org.jikesrvm.scheduler.greenthreads.GreenThread
  * @see org.jikesrvm.mm.mminterface.CollectorThread
- * @see DebuggerThread
  * @see FinalizerThread
  * @see org.jikesrvm.adaptive.measurements.organizers.Organizer
  */
@@ -375,7 +374,7 @@ public class RVMThread extends ThreadContext {
    * The boot thread, can't be final so as to allow initialization during boot
    * image writing.
    */
-  @Entrypoint @Untraced
+  @Entrypoint
   public static RVMThread bootThread;
 
   /**
@@ -446,26 +445,6 @@ public class RVMThread extends ThreadContext {
   int arrayIndexTrapParam;
 
   /* --------- END IA-specific fields. NOTE: NEED TO REFACTOR --------- */
-
-  // More GC fields
-  //
-  // why is this here? it came from Processor. is this just to make counting
-  // scalable?
-  // PNT: revisit these fields.
-  /** count live objects during gc */
-  public int large_live;
-
-  /** count live objects during gc */
-  public int small_live;
-
-  /** used for instrumentation in allocators */
-  public long totalBytesAllocated;
-
-  /** used for instrumentation in allocators */
-  public long totalObjectsAllocated;
-
-  /** used for instrumentation in allocators */
-  public long synchronizedObjectsAllocated;
 
   /**
    * Is the next taken yieldpoint in response to a request to perform OSR?
@@ -1206,7 +1185,7 @@ public class RVMThread extends ThreadContext {
    * before they finish terminating.
    */
   @NoCheckStore
-  void addAboutToTerminate() {
+  private void addAboutToTerminate() {
     monitor().lock();
     isAboutToTerminate = true;
     monitor().broadcast();
@@ -1343,11 +1322,6 @@ public class RVMThread extends ThreadContext {
     activeMutatorContext = false;
   }
 
-  /** Start the debugger thread. Currently not implemented. */
-  public static void startDebuggerThread() {
-    // PNT: do stuff here
-  }
-
   /**
    * @param stack
    *          stack in which to execute the thread
@@ -1359,9 +1333,9 @@ public class RVMThread extends ThreadContext {
     this.daemon = daemon;
     this.priority = priority;
 
-    Registers rtmp1 = contextRegisters = new Registers();
-    Registers rtmp2 = contextRegistersSave = new Registers();
-    Registers rtmp3 = exceptionRegisters = new Registers();
+    this.contextRegisters = new Registers();
+    this.contextRegistersSave = new Registers();
+    this.exceptionRegisters = new Registers();
     if (VM.runningVM) {
       feedlet = TraceEngine.engine.makeFeedlet(name, name);
     }
@@ -3569,25 +3543,6 @@ public class RVMThread extends ThreadContext {
    * @return false
    */
   public boolean isGCThread() {
-    return false;
-  }
-
-  /**
-   * Is this a concurrent collector thread? Concurrent collector threads need to
-   * be stopped during GC.
-   *
-   * @return false
-   */
-  public boolean isConcurrentGCThread() {
-    return false;
-  }
-
-  /**
-   * Is this the debugger thread?
-   *
-   * @return false
-   */
-  public boolean isDebuggerThread() {
     return false;
   }
 
