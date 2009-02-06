@@ -2377,7 +2377,9 @@ public class RVMThread extends ThreadContext {
     if (traceAcct)
       VM.sysWriteln("making joinable...");
 
-    // PNT: this is really iffy
+    // this works.  we use synchronized because we cannot use the thread's
+    // monitor().  see comment in join().  this is fine, because we're still
+    // "running" from the standpoint of GC.
     synchronized (this) {
       isJoinable = true;
       notifyAll();
@@ -3720,6 +3722,10 @@ public class RVMThread extends ThreadContext {
       VM._assert(myThread != this);
     if (traceBlock)
       VM.sysWriteln("Joining on Thread #", threadSlot);
+    // this uses synchronized because we cannot have one thread acquire
+    // another thread's lock using the Nicely scheme, as that would result
+    // in a thread holding two threads' monitor()s.  using synchronized
+    // turns out to be just fine - see comment in terminate().
     synchronized (this) {
       if (ms == 0 && ns == 0) {
         while (!isJoinable) {
