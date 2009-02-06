@@ -80,7 +80,7 @@ public class Mutator {
   public static synchronized void register(MutatorContext context) {
     int id = mutators.size();
     mutators.add(null);
-    context.id=id;
+    context.initMutator(id);
   }
 
   /** Is this thread out of memory if the gc cannot free memory */
@@ -146,7 +146,7 @@ public class Mutator {
     try {
       String prefix = Harness.plan.getValue();
       this.context = (MutatorContext)Class.forName(prefix + "Mutator").newInstance();
-      this.context.initMutator();
+      register(this.context);
     } catch (Exception ex) {
       throw new RuntimeException("Could not create Mutator", ex);
     }

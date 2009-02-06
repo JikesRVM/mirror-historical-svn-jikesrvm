@@ -150,7 +150,7 @@ public class Scanning extends org.mmtk.vm.Scanning {
         myIndex = threadCounter++;
       }
 
-      if (myIndex >= VM.activePlan.mutatorCount()) {
+      if (myIndex >= Mutator.count()) {
         break;
       }
 
