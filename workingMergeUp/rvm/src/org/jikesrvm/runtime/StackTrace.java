@@ -160,14 +160,6 @@ public class StackTrace {
     VM.enableGC();
   }
   
-  @Uninterruptible
-  private Address skipWhatNeedsSkipping(Address fp) {
-    for (int i=0;i<0;++i) {
-      fp = Magic.getCallerFramePointer(fp);
-    }
-    return fp;
-  }
-
   /**
    * Walk the stack counting the number of stack frames encountered.
    * The stack being walked is our stack, so code is Uninterrupible to stop the
@@ -182,7 +174,6 @@ public class StackTrace {
     Address ip;
     /* Stack trace for the current thread */
     fp = Magic.getFramePointer();
-    fp = skipWhatNeedsSkipping(fp);
     ip = Magic.getReturnAddress(fp);
     fp = Magic.getCallerFramePointer(fp);
     while (Magic.getCallerFramePointer(fp).NE(STACKFRAME_SENTINEL_FP)) {
@@ -218,7 +209,6 @@ public class StackTrace {
     Address ip;
     /* Stack trace for the current thread */
     fp = Magic.getFramePointer();
-    fp = skipWhatNeedsSkipping(fp);
     ip = Magic.getReturnAddress(fp);
     fp = Magic.getCallerFramePointer(fp);
     while (Magic.getCallerFramePointer(fp).NE(STACKFRAME_SENTINEL_FP)) {
