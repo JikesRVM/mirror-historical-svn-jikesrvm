@@ -227,7 +227,8 @@ public final class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
     lock.acquire();
     while (growingTable || maxIndex >= references.length()) {
       if (growingTable) {
-        // FIXME PNT: this looks incredibly wrong.
+        // FIXME: We should probably speculatively allocate a new table instead.
+        // note, we can copy without the lock after installing the new table (unint during copy).
         lock.release();
         RVMThread.yield(); // (1) Allow another thread to grow the table
         lock.acquire();

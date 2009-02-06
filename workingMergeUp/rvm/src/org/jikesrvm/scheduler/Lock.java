@@ -406,7 +406,7 @@ public class Lock implements Constants {
     if (mutex.latestContender == null) {
       VM.sysWrite("<null>");
     } else {
-      VM.sysWriteInt(mutex.latestContender.getIndex());
+      VM.sysWriteInt(mutex.latestContender.getThreadSlot());
     }
     VM.sysWrite("\n");
   }

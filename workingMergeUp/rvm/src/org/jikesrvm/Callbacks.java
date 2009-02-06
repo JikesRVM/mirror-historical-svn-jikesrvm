@@ -1148,7 +1148,7 @@ public final class Callbacks {
   @SuppressWarnings("unused")
   private static int getThread() {
     if (VM.runningVM) {
-      return RVMThread.getCurrentThread().getIndex();
+      return RVMThread.getCurrentThread().getThreadSlot();
     } else {
       return System.identityHashCode(Thread.currentThread());
     }

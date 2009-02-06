@@ -243,7 +243,7 @@ public final class SpinLock implements Constants {
       VM.sysFail("Unexpectedly large spin lock contention");
     }
     // PNT: this is weird.
-    int pid = RVMThread.getCurrentThread().getIndex(); // delay a different amount in each thread
+    int pid = RVMThread.getCurrentThread().getThreadSlot(); // delay a different amount in each thread
     delayIndex = (delayIndex + pid) % delayCount.length;
     int delay = delayCount[delayIndex] * delayMultiplier; // pseudorandom backoff component
     delay += delayBase << (n - 1);                     // exponential backoff component

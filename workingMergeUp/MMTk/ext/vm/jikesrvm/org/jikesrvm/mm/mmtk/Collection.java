@@ -337,25 +337,6 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
     RVMThread.softHandshake(mutatorFlushVisitor);
   }
 
-  // What the frack?  Concurrent means incremental?  This method bothers me.
-  // No NO NO!  This should just work!  If the stop-the-world collector starts
-  // it will signal the concurrent collectors to stop.  The concurrent
-  // collectors will stop at a yieldpoint, and only "return" from the
-  // yieldpoint once the STW collection is done.  So it should Just Work.
-  /**
-   * Possibly yield the current concurrent collector thread. Return
-   * true if yielded.
-   */
-  @Inline
-  @Unpreemptible("Becoming another thread interrupts the current thread, avoid preemption in the process")
-  public boolean yieldpoint() {
-    if (RVMThread.getCurrentThread().takeYieldpoint != 0) {
-      RVMThread.yieldpointFromBackedge();
-      return true; // PNT: is this right?
-    }
-    return false;
-  }
-
   /***********************************************************************
    *
    * Finalizers

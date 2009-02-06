@@ -84,4 +84,3 @@ public class SoftLatch {
     open=false;
   }
 }
-

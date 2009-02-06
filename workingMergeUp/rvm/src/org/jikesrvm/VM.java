@@ -2037,7 +2037,7 @@ public class VM extends Properties implements Constants, ExitStatus {
 
   private static void showThread() {
     write("Thread ");
-    write(RVMThread.getCurrentThread().getIndex());
+    write(RVMThread.getCurrentThread().getThreadSlot());
     write(": ");
   }
 

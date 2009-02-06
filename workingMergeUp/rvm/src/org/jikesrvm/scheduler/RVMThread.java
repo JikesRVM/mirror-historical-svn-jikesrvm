@@ -2119,7 +2119,7 @@ public class RVMThread extends ThreadContext {
   @Override
   @Unpreemptible("May block due to allocation but otherwise avoids blocking")
   public String toString() {
-    return (name == null) ? Services.stringConcatenate("Thread-", getIndex()) : name;
+    return (name == null) ? Services.stringConcatenate("Thread-", getThreadSlot()) : name;
   }
 
   /**
@@ -2850,17 +2850,8 @@ public class RVMThread extends ThreadContext {
   }
 
   /**
-   * Get this thread's index in {@link threadBySlot}[].
-   */
-  public final int getIndex() {
-    if (VM.VerifyAssertions)
-      VM._assert((execStatus == TERMINATED) || threadBySlot[threadSlot] == this);
-    return threadSlot;
-  }
-
-  /**
    * Get this thread's id for use in lock ownership tests. This is just the
-   * thread's index as returned by {@link #getIndex()}, shifted appropriately
+   * thread's slot as returned by {@link #getThreadSlot()}, shifted appropriately
    * so it can be directly used in the ownership tests.
    */
   public final int getLockingId() {
@@ -3262,7 +3253,7 @@ public class RVMThread extends ThreadContext {
     getCurrentThread().enableYieldpoints();
     if (traceAdjustments) {
       RVMThread t = getCurrentThread();
-      VM.sysWrite("Thread: resized stack ", t.getIndex());
+      VM.sysWrite("Thread: resized stack ", t.getThreadSlot());
       VM.sysWrite(" to ", t.stack.length / 1024);
       VM.sysWrite("k\n");
     }
@@ -4051,7 +4042,7 @@ public class RVMThread extends ThreadContext {
    * -1 if <code>offset</code> is negative.
    */
   public int dump(char[] dest, int offset) {
-    offset = Services.sprintf(dest, offset, getIndex()); // id
+    offset = Services.sprintf(dest, offset, getThreadSlot()); // id
     if (daemon) {
       offset = Services.sprintf(dest, offset, "-daemon"); // daemon thread?
     }
@@ -4179,7 +4170,7 @@ public class RVMThread extends ThreadContext {
   private static void _trace(String who, String what, int howmany, boolean hex) {
     outputLock.lock();
     VM.sysWrite("[");
-    // VM.sysWriteInt(RVMThread.getCurrentThread().getIndex());
+    // VM.sysWriteInt(RVMThread.getCurrentThread().getThreadSlot());
     getCurrentThread().dump();
     VM.sysWrite("] ");
     if (traceDetails) {
