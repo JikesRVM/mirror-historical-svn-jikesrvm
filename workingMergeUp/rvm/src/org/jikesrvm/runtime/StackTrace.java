@@ -53,6 +53,7 @@ public class StackTrace {
    * Create a trace for the call stack of RVMThread.getThreadForStackTrace
    * (normally the current thread unless we're in GC)
    */
+  @NoInline
   public StackTrace() {
     boolean isVerbose = false;
     int traceIndex = 0;
@@ -96,7 +97,6 @@ public class StackTrace {
    * The stack being walked isn't our stack so GC must be disabled.
    * @return number of stack frames encountered
    */
-  @NoInline
   private int countFramesNoGC(RVMThread stackTraceThread) {
     int stackFrameCount = 0;
     VM.disableGC(); // so fp & ip don't change under our feet
@@ -129,7 +129,6 @@ public class StackTrace {
    * Walk the stack recording the stack frames encountered.
    * The stack being walked isn't our stack so GC must be disabled.
    */
-  @NoInline
   private void recordFramesNoGC(RVMThread stackTraceThread) {
     int stackFrameCount = 0;
     VM.disableGC(); // so fp & ip don't change under our feet
@@ -160,6 +159,14 @@ public class StackTrace {
     }
     VM.enableGC();
   }
+  
+  @Uninterruptible
+  private Address skipWhatNeedsSkipping(Address fp) {
+    for (int i=0;i<0;++i) {
+      fp = Magic.getCallerFramePointer(fp);
+    }
+    return fp;
+  }
 
   /**
    * Walk the stack counting the number of stack frames encountered.
@@ -175,6 +182,7 @@ public class StackTrace {
     Address ip;
     /* Stack trace for the current thread */
     fp = Magic.getFramePointer();
+    fp = skipWhatNeedsSkipping(fp);
     ip = Magic.getReturnAddress(fp);
     fp = Magic.getCallerFramePointer(fp);
     while (Magic.getCallerFramePointer(fp).NE(STACKFRAME_SENTINEL_FP)) {
@@ -203,12 +211,14 @@ public class StackTrace {
    * stack moving.
    */
   @Uninterruptible
+  @NoInline
   private void recordFramesUninterruptible(RVMThread stackTraceThread) {
     int stackFrameCount = 0;
     Address fp;
     Address ip;
     /* Stack trace for the current thread */
     fp = Magic.getFramePointer();
+    fp = skipWhatNeedsSkipping(fp);
     ip = Magic.getReturnAddress(fp);
     fp = Magic.getCallerFramePointer(fp);
     while (Magic.getCallerFramePointer(fp).NE(STACKFRAME_SENTINEL_FP)) {
@@ -325,7 +335,7 @@ public class StackTrace {
    * Get the compiled method at element
    */
   private CompiledMethod getCompiledMethod(int element) {
-    if ((element > 0) && (element < compiledMethods.length)) {
+    if ((element >= 0) && (element < compiledMethods.length)) {
       int mid = compiledMethods[element];
       if (mid != INVISIBLE_METHOD_ID) {
         return CompiledMethods.getCompiledMethod(mid);
@@ -504,7 +514,7 @@ public class StackTrace {
       }
       // (4) remove frames belonging to exception constructors upto the causes constructor
       while((element < compiledMethods.length) &&
-          (compiledMethod != null) &&
+            (compiledMethod != null) &&
             (compiledMethod.getMethod().getDeclaringClass().getClassForType() != cause.getClass()) &&
             compiledMethod.getMethod().isObjectInitializer() &&
             compiledMethod.getMethod().getDeclaringClass().isThrowable()) {
