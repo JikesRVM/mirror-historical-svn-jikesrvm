@@ -95,7 +95,7 @@ import org.vmmagic.unboxed.*;
    *
    * @param id The id of this collector context.
    */
-  public void registerCollector(int id) {
+  public void initCollector(int id) {
     this.id = id;
   }
 

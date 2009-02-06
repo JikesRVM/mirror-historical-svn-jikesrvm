@@ -167,8 +167,12 @@ public final class CollectorThread extends RVMThread {
   CollectorThread(byte[] stack) {
     super(stack, myName);
     this.collectorContext = new Selected.Collector(this);
+    this.collectorContext.initCollector(nextId++);
     makeDaemon(true); // this is redundant, but harmless
   }
+
+  /** Next collector thread id. Collector threads are not created concurrently. */
+  private static int nextId = 0;
 
   /**
    * Is this the GC thread?
