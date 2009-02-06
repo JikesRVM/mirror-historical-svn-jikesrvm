@@ -173,7 +173,7 @@ public abstract class SysCall {
    */
   @SysCallTemplate
   public abstract int sysNativeThreadBindSupported();
-  
+
   @SysCallTemplate
   public abstract void sysNativeThreadBind(int cpuId);
 

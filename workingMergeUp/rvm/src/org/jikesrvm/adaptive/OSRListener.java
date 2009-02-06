@@ -12,7 +12,6 @@
  */
 package org.jikesrvm.adaptive;
 
-import org.jikesrvm.adaptive.controller.Controller;
 import org.jikesrvm.compilers.common.CompiledMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.runtime.Magic;

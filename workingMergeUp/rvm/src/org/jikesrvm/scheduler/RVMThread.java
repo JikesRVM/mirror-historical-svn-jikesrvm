@@ -159,7 +159,7 @@ public class RVMThread extends ThreadContext {
   protected static final boolean traceReallyBlock = false || traceBlock;
 
   protected static final boolean dumpStackOnBlock = false; // DANGEROUS! can lead to crashes!
-  
+
   protected static final boolean traceBind = false;
 
   /** Trace thread start/stop */
@@ -173,7 +173,7 @@ public class RVMThread extends ThreadContext {
 
   /** Trace adjustments to stack size */
   private static final boolean traceAdjustments = false;
-  
+
   /** Never kill threads.  Useful for testing bugs related to interaction of
       thread death with for example MMTk.  For production, this should never
       be set to true. */
@@ -290,7 +290,7 @@ public class RVMThread extends ThreadContext {
    */
   @Entrypoint
   private int execStatus;
-  
+
   public int getExecStatus() { return execStatus; }
 
   /**
@@ -303,7 +303,7 @@ public class RVMThread extends ThreadContext {
   // FIXME: there should be an execStatus state called TERMINATING that
   // corresponds to this. that would make a lot more sense.
   private boolean isAboutToTerminate;
-  
+
   public boolean getIsAboutToTerminate() { return isAboutToTerminate; }
 
   /** Is this thread in the process of blocking? */
@@ -573,7 +573,7 @@ public class RVMThread extends ThreadContext {
   @Entrypoint
   @Untraced
   private final Registers exceptionRegisters;
-  
+
   // evil shadow fields to get the above traced by GC
   private final Registers contextRegistersShadow;
   private final Registers contextRegistersSaveShadow;
@@ -1075,7 +1075,7 @@ public class RVMThread extends ThreadContext {
       Entrypoints.dumpStackAndDieMethod.getOffset();
     Lock.init();
   }
-  
+
   public void assertAcceptableStates(int expected) {
     if (VM.VerifyAssertions) {
       int curStatus=execStatus;
@@ -1129,12 +1129,12 @@ public class RVMThread extends ThreadContext {
       }
     }
   }
-  
+
   static void bind(int cpuId) {
     if (VM.VerifyAssertions) VM._assert(sysCall.sysNativeThreadBindSupported()==1);
     sysCall.sysNativeThreadBind(cpuId);
   }
-  
+
   static void bindIfRequested() {
     if (VM.forceOneCPU>=0) {
       if (traceBind) {
@@ -1164,9 +1164,9 @@ public class RVMThread extends ThreadContext {
     if (traceAcct) {
       VM.sysWriteln("boot thread at ",Magic.objectAsAddress(getCurrentThread()));
     }
-    
+
     bindIfRequested();
-    
+
     threadingInitialized = true;
     TimerThread tt = new TimerThread();
     tt.makeDaemon(true);
@@ -1513,7 +1513,7 @@ public class RVMThread extends ThreadContext {
   /** A variant of checkBlock() that does not save the thread state. */
   @NoInline
   @Unpreemptible("May block if the thread was asked to do so, but otherwise does no actions that would cause blocking")
-  private final void checkBlockNoSaveContext() {
+  private void checkBlockNoSaveContext() {
     if (traceBlock)
       VM.sysWriteln("Thread #", threadSlot, " in checkBlockNoSaveContext");
     // NB: anything this method calls CANNOT change the contextRegisters
@@ -1661,7 +1661,7 @@ public class RVMThread extends ThreadContext {
     checkBlockNoSaveContext();
   }
 
-  private final void enterNativeBlockedImpl(boolean jni) {
+  private void enterNativeBlockedImpl(boolean jni) {
     if (traceReallyBlock)
       VM.sysWriteln("Thread #", threadSlot, " entering native blocked.");
     // NB: anything this method calls CANNOT change the contextRegisters
@@ -1689,29 +1689,29 @@ public class RVMThread extends ThreadContext {
   }
 
   @Unpreemptible("May block if the thread was asked to do so, but otherwise does no actions that would cause blocking")
-  private final void leaveNativeBlockedImpl() {
+  private void leaveNativeBlockedImpl() {
     checkBlockNoSaveContext();
   }
-    
+
   final void enterNativeBlocked() {
     assertAcceptableStates(IN_JAVA,IN_JAVA_TO_BLOCK);
     enterNativeBlockedImpl(false);
     assertAcceptableStates(IN_NATIVE,BLOCKED_IN_NATIVE);
   }
-  
+
   @Unpreemptible("May block if the thread was asked to do so, but otherwise does no actions that would cause blocking")
   final void leaveNativeBlocked() {
     assertAcceptableStates(IN_NATIVE,BLOCKED_IN_NATIVE);
     leaveNativeBlockedImpl();
     assertAcceptableStates(IN_JAVA,IN_JAVA_TO_BLOCK);
   }
-  
+
   final void enterJNIBlocked() {
     assertAcceptableStates(IN_JAVA,IN_JAVA_TO_BLOCK);
     enterNativeBlockedImpl(true);
     assertAcceptableStates(IN_JNI,BLOCKED_IN_JNI);
   }
-  
+
   @Unpreemptible("May block if the thread was asked to do so, but otherwise does no actions that would cause blocking")
   final void leaveJNIBlocked() {
     assertAcceptableStates(IN_JNI,BLOCKED_IN_JNI);
@@ -1728,7 +1728,7 @@ public class RVMThread extends ThreadContext {
     }
     t.enterJNIBlocked();
   }
-  
+
   @Entrypoint
   public static final void enterJNIBlockedFromCallIntoNative() {
     RVMThread t=getCurrentThread();
@@ -1738,7 +1738,7 @@ public class RVMThread extends ThreadContext {
     }
     t.enterJNIBlocked();
   }
-  
+
   @Entrypoint
   @Unpreemptible("May block if the thread was asked to do so, but otherwise will not block")
   static final void leaveJNIBlockedFromJNIFunctionCall() {
@@ -2219,7 +2219,7 @@ public class RVMThread extends ThreadContext {
   // Called by back-door methods.
   private static void startoff() {
     bindIfRequested();
-    
+
     sysCall.sysPthreadSetupSignalHandling();
 
     RVMThread currentThread = getCurrentThread();

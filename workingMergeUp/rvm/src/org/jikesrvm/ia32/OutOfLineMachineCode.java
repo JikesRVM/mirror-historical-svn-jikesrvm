@@ -481,7 +481,7 @@ public abstract class OutOfLineMachineCode implements BaselineConstants {
 
   /**
    * Machine code to implement "Magic.threadSwitch()".
-   * 
+   *
    * NOTE: Currently not functional for PNT: left as a guide for possible reimplementation.
    *
    *  Parameters taken at runtime:

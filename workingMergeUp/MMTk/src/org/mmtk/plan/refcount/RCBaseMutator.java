@@ -217,7 +217,7 @@ public class RCBaseMutator extends StopTheWorldMutator {
     super.flush();
     rc.flush();
   }
-  
+
   /****************************************************************************
    *
    * Write barriers.

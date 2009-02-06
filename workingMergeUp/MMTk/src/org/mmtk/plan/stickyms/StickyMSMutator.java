@@ -199,7 +199,7 @@ public class StickyMSMutator extends MSMutator {
     super.flush();
     ms.flush();
   }
-  
+
   /****************************************************************************
    *
    * Miscellaneous

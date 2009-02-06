@@ -148,7 +148,6 @@ public class MSMutator extends StopTheWorldMutator {
 
     super.collectionPhase(phaseId, primary);
   }
-  
 
   /**
    * Flush mutator context, in response to a requestMutatorFlush.

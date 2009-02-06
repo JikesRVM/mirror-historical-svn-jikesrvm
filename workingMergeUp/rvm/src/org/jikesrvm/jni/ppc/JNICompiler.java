@@ -1449,13 +1449,13 @@ public abstract class JNICompiler
     asm.emitLVAL(S0, RVMThread.IN_JNI);
     asm.emitSTWCXr(S0, S1, THREAD_REGISTER);
     ForwardReference enteredJNIRef = asm.emitForwardBC(Assembler.EQ);
-    
+
     notInJava.resolve(asm);
-    
+
     // NOTE: we save and restore volatiles here.  that's overkill.  we really
     // only need to save/restore the return registers (see above).  oh well.
     // if it works then I can't bring myself to care.
-    
+
     asm.emitLAddrOffset(S0, THREAD_REGISTER, Entrypoints.threadContextRegistersField.getOffset());
     asm.emitLAddrOffset(S1, JTOC, ArchEntrypoints.saveVolatilesInstructionsField.getOffset());
     asm.emitMTLR(S1);
@@ -1464,7 +1464,7 @@ public abstract class JNICompiler
     asm.emitLAddrOffset(S0, JTOC, Entrypoints.enterJNIBlockedFromJNIFunctionCallMethod.getOffset());
     asm.emitMTLR(S0);
     asm.emitBCLRL();
-    
+
     asm.emitLAddrOffset(S0, THREAD_REGISTER, Entrypoints.threadContextRegistersField.getOffset());
     asm.emitLAddrOffset(S1, JTOC, ArchEntrypoints.restoreVolatilesInstructionsField.getOffset());
     asm.emitMTLR(S1);
