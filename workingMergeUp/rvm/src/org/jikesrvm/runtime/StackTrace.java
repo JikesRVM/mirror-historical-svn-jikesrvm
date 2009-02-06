@@ -159,7 +159,7 @@ public class StackTrace {
     }
     VM.enableGC();
   }
-  
+
   /**
    * Walk the stack counting the number of stack frames encountered.
    * The stack being walked is our stack, so code is Uninterrupible to stop the
