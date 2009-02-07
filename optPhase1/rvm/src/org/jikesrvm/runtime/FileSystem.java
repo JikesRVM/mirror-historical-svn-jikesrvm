@@ -93,24 +93,8 @@ public class FileSystem {
     }
     return rc;
   }
-
-  /**
-   * Read single byte from file.
-   * FIXME: should throw an IOException to indicate an error?
-   *
-   * @param fd file descriptor
-   * @return byte that was read (< -1: i/o error, -1: eof, >= 0: data)
-   */
-  public static int readByte(int fd) {
-    int b = sysCall.sysReadByte(fd);
-    if (b >= -1) {
-      // Either a valid read, or we reached EOF
-      return b;
-    } else {
-      // Read returned with a genuine error
-      return -2;
-    }
-  }
+  
+  
 
   // PNT: not sure if this is the right place to have this.
   /**

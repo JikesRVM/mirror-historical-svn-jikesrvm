@@ -1905,6 +1905,17 @@ public class RVMThread extends ThreadContext {
   public final int block(BlockAdapter ba) {
     return block(ba, false);
   }
+  
+  /**
+   * Save the current thread state.  Call this prior to calling enterNative().  You must
+   * be in a method that is marked BaselineSaveLSRegisters.
+   */
+  @NoInline
+  public static void saveThreadState() {
+    Address curFP=Magic.getFramePointer();
+    getCurrentThread().contextRegisters.setInnermost(Magic.getReturnAddress(curFP),
+                                                     Magic.getCallerFramePointer(curFP));
+  }
 
   /**
    * Indicate that we'd like the current thread to be executing privileged code that
@@ -1920,6 +1931,7 @@ public class RVMThread extends ThreadContext {
    * mutator flushes and running isync) that IN_NATIVE code will not perform until
    * returning to IN_JAVA by way of a leaveNative() call.
    */
+  @NoInline // so we can get the fp
   public static void enterNative() {
     RVMThread t = getCurrentThread();
     if (ALWAYS_LOCK_ON_STATE_TRANSITION) {
