@@ -1657,7 +1657,7 @@ public class RVMThread extends ThreadContext {
   @BaselineSaveLSRegisters
   @Unpreemptible("May block if asked to do so, but otherwise does not actions that would block")
   final void checkBlock() {
-    Magic.saveThreadState(contextRegisters);
+    saveThreadState();
     checkBlockNoSaveContext();
   }
 
