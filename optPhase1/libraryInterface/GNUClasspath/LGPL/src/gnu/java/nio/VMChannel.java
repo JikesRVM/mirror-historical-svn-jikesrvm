@@ -116,7 +116,6 @@ public final class VMChannel
 
   static
   {
-    VM.sysWriteln("Dude, I'm like, here, and, shit");
     // load the shared library needed for native methods.
     if (Configuration.INIT_LOAD_LIBRARY)
     {
