@@ -119,6 +119,7 @@ public class VM extends Properties implements Constants, ExitStatus {
    * @exception Exception
    */
   @UnpreemptibleNoWarn("No point threading until threading is booted")
+  @Entrypoint
   public static void boot() {
     writingBootImage = false;
     runningVM = true;

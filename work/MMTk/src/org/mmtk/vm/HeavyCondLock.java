@@ -15,32 +15,29 @@ package org.mmtk.vm;
 import org.vmmagic.pragma.Uninterruptible;
 
 /**
- * Simple, fair locks with deadlock detection.
+ * Provides MMTk access to a heavy lock with condition variable.
+ * Functionally similar to Java monitors, but safe in the darker corners of runtime code.
  */
 @Uninterruptible
-public abstract class Lock {
+public abstract class HeavyCondLock {
 
   /**
-   * Set the name of this lock instance
-   *
-   * @param str The name of the lock (for error output).
+   * Block until the lock is acquired.
    */
-  public abstract void setName(String str);
+  public abstract void lock();
 
   /**
-   * Try to acquire a lock and spin-wait until acquired.
+   * Release the lock.
    */
-  public abstract void acquire();
+  public abstract void unlock();
 
   /**
-   * Perform sanity checks on the lock. For debugging.
-   *
-   * @param w Identifies the code location in the debugging output.
+   * Wait for a broadcast.
    */
-  public abstract void check(int w);
+  public abstract void waitNicely();
 
   /**
-   * Release the lock by incrementing serving counter.
+   * Send a broadcast.
    */
-  public abstract void release();
+  public abstract void broadcast();
 }

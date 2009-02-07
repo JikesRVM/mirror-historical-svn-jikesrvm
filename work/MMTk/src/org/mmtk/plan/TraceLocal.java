@@ -274,18 +274,6 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
     return ObjectReference.nullReference();
   }
 
-
-  /**
-   * Ensure that this object will not move for the rest of the GC.
-   *
-   * @param object The object that must not move
-   * @return The new object, guaranteed stable for the rest of the GC.
-   */
-  @Inline
-  public ObjectReference precopyObject(ObjectReference object) {
-    return traceObject(object);
-  }
-
   /**
    * This method traces an object with knowledge of the fact that object
    * is a root or not. In simple collectors the fact it is a root is not
@@ -546,26 +534,6 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
       Log.prependThreadId();
       Log.write("    ");
       Log.writeln(message);
-    }
-  }
-
-  /**
-   * Given a slot (ie the address of an ObjectReference), ensure that the
-   * referent will not move for the rest of the GC. This is achieved by
-   * calling the precopyObject method.
-   *
-   * @param slot The slot to check
-   * @param untraced Is this is an untraced reference?
-   */
-  @Inline
-  public final void processPrecopyEdge(Address slot, boolean untraced) {
-    ObjectReference child;
-    if (untraced) child = slot.loadObjectReference();
-    else          child = VM.activePlan.global().loadObjectReference(slot);
-    if (!child.isNull()) {
-      child = precopyObject(child);
-      if (untraced) slot.store(child);
-      else          VM.activePlan.global().storeObjectReference(slot, child);
     }
   }
 }

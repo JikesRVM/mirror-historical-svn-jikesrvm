@@ -63,13 +63,6 @@ public abstract class SimpleCollector extends CollectorContext {
       return;
     }
 
-    if (phaseId == Simple.PRECOPY) {
-      if (VM.activePlan.constraints().movesObjects()) {
-        VM.scanning.preCopyGCInstances(getCurrentTrace());
-      }
-      return;
-    }
-
     if (phaseId == Simple.STACK_ROOTS) {
       VM.scanning.computeThreadRoots(getCurrentTrace());
       return;

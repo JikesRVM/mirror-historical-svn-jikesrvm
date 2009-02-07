@@ -90,20 +90,6 @@ public final class ImmixDefragTraceLocal extends TraceLocal {
     return super.traceObject(object);
   }
 
-  @Inline
-  @Override
-  public ObjectReference precopyObject(ObjectReference object) {
-    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(Immix.immixSpace.inImmixDefragCollection());
-    if (object.isNull()) return object;
-    ObjectReference rtn;
-    if (Space.isInSpace(Immix.IMMIX, object))
-      rtn = Immix.immixSpace.traceObject(this, object, Plan.ALLOC_DEFAULT);
-    else
-      rtn = object;
-    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(willNotMoveInCurrentCollection(rtn));
-    return rtn;
-  }
-
   @Override
   public boolean willNotMoveInCurrentCollection(ObjectReference object) {
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(Immix.immixSpace.inImmixDefragCollection());

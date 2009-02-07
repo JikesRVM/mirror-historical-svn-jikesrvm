@@ -48,17 +48,6 @@ public class Scanning extends org.mmtk.vm.Scanning {
     scanObject(trace, object);
   }
 
-  /**
-   * Delegated precopying of a object's children, processing each pointer field
-   * encountered.
-   *
-   * @param trace The trace object to use for precopying.
-   * @param object The object to be scanned.
-   */
-  public void precopyChildren(TraceLocal trace, ObjectReference object) {
-    scanObject(trace, object);
-  }
-
   /** Counter for computeThreadRoots **/
   private int threadCounter;
 
@@ -71,21 +60,6 @@ public class Scanning extends org.mmtk.vm.Scanning {
    */
   public synchronized void resetThreadCounter() {
     threadCounter = 0;
-  }
-
-  /**
-   * Pre-copy all potentially movable instances used in the course of
-   * GC.  This includes the thread objects representing the GC threads
-   * themselves.  It is crucial that these instances are forwarded
-   * <i>prior</i> to the GC proper.  Since these instances <i>are
-   * not</i> enqueued for scanning, it is important that when roots
-   * are computed the same instances are explicitly scanned and
-   * included in the set of roots.  The existence of this method
-   * allows the actions of calculating roots and forwarding GC
-   * instances to be decoupled.
-   */
-  public void preCopyGCInstances(TraceLocal trace) {
-    /* None */
   }
 
   /**

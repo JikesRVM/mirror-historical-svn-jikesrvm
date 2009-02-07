@@ -320,19 +320,24 @@ public class RVMThread extends ThreadContext {
    * on one such queue at a time. The queue that a thread is on is indicated by
    * <code>queuedOn</code>.
    */
-  @Untraced RVMThread next;
+  @Untraced
+  RVMThread next;
 
   /**
    * The queue that the thread is on, or null if the thread is not on a queue
    * (specifically ThreadQueue). If the thread is on such a queue, the
    * <code>next</code> field is used as a link pointer.
    */
-  @Untraced ThreadQueue queuedOn;
+  @Untraced
+  ThreadQueue queuedOn;
 
-  // to handle contention for spin locks
-  //
+  /**
+   * Used to handle contention for spin locks
+   */
+  @Untraced
   SpinLock awaitingSpinLock;
 
+  @Untraced
   RVMThread contenderLink;
 
   /**
@@ -368,7 +373,7 @@ public class RVMThread extends ThreadContext {
    * Thread is a system thread, that is one used by the system and as such
    * doesn't have a Runnable...
    */
-  final boolean systemThread;
+  private final boolean systemThread;
 
   /**
    * The boot thread, can't be final so as to allow initialization during boot
@@ -558,6 +563,7 @@ public class RVMThread extends ThreadContext {
   @Entrypoint
   @Untraced
   public final Registers contextRegisters;
+  private final Registers contextRegistersShadow;
 
   /**
    * Place to save register state when this thread is not actually running.
@@ -565,6 +571,7 @@ public class RVMThread extends ThreadContext {
   @Entrypoint
   @Untraced
   public final Registers contextRegistersSave;
+  private final Registers contextRegistersSaveShadow;
 
   /**
    * Place to save register state during hardware(C signal trap handler) or
@@ -573,10 +580,6 @@ public class RVMThread extends ThreadContext {
   @Entrypoint
   @Untraced
   private final Registers exceptionRegisters;
-
-  // evil shadow fields to get the above traced by GC
-  private final Registers contextRegistersShadow;
-  private final Registers contextRegistersSaveShadow;
   private final Registers exceptionRegistersShadow;
 
   /** Count of recursive uncaught exceptions, we need to bail out at some point */
@@ -793,7 +796,8 @@ public class RVMThread extends ThreadContext {
    */
   @Entrypoint
   @Untraced
-  public JNIEnvironment jniEnv;
+  private JNIEnvironment jniEnv;
+  private JNIEnvironment jniEnvShadow;
 
   /** Used by GC to determine collection success */
   private boolean physicalAllocationFailed;
@@ -1327,12 +1331,17 @@ public class RVMThread extends ThreadContext {
     activeMutatorContext = false;
   }
 
-  /**
-   * @param stack
-   *          stack in which to execute the thread
-   */
-  public RVMThread(byte[] stack, Thread thread, String name, boolean daemon,
-      boolean system, int priority) {
+   /**
+    * Create a new RVM Thread
+    *
+    * @param stack The stack on which to execute the thread.
+    * @param thread The corresponding java.lang.Thread.
+    * @param name The name of the thread
+    * @param daemon True if this is a daemon thread.
+    * @param system True if this is a system thread.
+    * @param priority The threads execution priority.
+    */
+   public RVMThread(byte[] stack, Thread thread, String name, boolean daemon, boolean system, int priority) {
     this.stack = stack;
     this.name = name;
     this.daemon = daemon;
@@ -1341,11 +1350,13 @@ public class RVMThread extends ThreadContext {
     this.contextRegisters = this.contextRegistersShadow = new Registers();
     this.contextRegistersSave = this.contextRegistersSaveShadow = new Registers();
     this.exceptionRegisters = this.exceptionRegistersShadow = new Registers();
+
     if (VM.runningVM) {
       feedlet = TraceEngine.engine.makeFeedlet(name, name);
     }
-    if (VM.VerifyAssertions)
-      VM._assert(stack != null);
+
+    if (VM.VerifyAssertions) VM._assert(stack != null);
+
     // put self in list of threads known to scheduler and garbage collector
     if (!VM.runningVM) {
       // create primordial thread (in boot image)
@@ -1360,12 +1371,10 @@ public class RVMThread extends ThreadContext {
       onStackReplacementEvent = null;
     } else {
       // create a normal (ie. non-primordial) thread
-      if (trace)
-        trace("RVMThread create: ", name);
-      if (trace)
-        trace("daemon: ", daemon ? "true" : "false");
-      if (trace)
-        trace("RVMThread", "create");
+      if (trace) trace("RVMThread create: ", name);
+      if (trace) trace("daemon: ", daemon ? "true" : "false");
+      if (trace) trace("RVMThread", "create");
+
       // set up wrapper Thread if one exists
       this.thread = thread;
       // Set thread type
@@ -1377,8 +1386,7 @@ public class RVMThread extends ThreadContext {
       stackLimit = Magic.objectAsAddress(stack).plus(STACK_SIZE_GUARD);
 
       // get instructions for method to be executed as thread startoff
-      CodeArray instructions = Entrypoints.threadStartoffMethod
-          .getCurrentEntryCodeArray();
+      CodeArray instructions = Entrypoints.threadStartoffMethod.getCurrentEntryCodeArray();
 
       VM.disableGC();
 
@@ -1399,9 +1407,7 @@ public class RVMThread extends ThreadContext {
         VM.sysWriteln("registered mutator for ", threadSlot);
       }
 
-      // only do this at runtime because it will call Magic;
-      // we set this explicitly for the boot thread as part of booting.
-      jniEnv = JNIEnvironment.allocateEnvironment();
+      initializeJNIEnv();
 
       if (VM.BuildForAdaptiveSystem) {
         onStackReplacementEvent = new OnStackReplacementEvent();
@@ -2166,7 +2172,7 @@ public class RVMThread extends ThreadContext {
    */
   @Interruptible
   public final void initializeJNIEnv() {
-    jniEnv = JNIEnvironment.allocateEnvironment();
+    this.jniEnv = this.jniEnvShadow = new JNIEnvironment();
   }
 
   /**
@@ -2387,14 +2393,6 @@ public class RVMThread extends ThreadContext {
     if (traceAcct)
       VM.sysWriteln("Thread #", threadSlot, " is joinable.");
 
-    if (traceAcct)
-      VM.sysWriteln("killing jnienv...");
-
-    if (jniEnv != null) {
-      // warning: this is synchronized!
-      JNIEnvironment.deallocateEnvironment(jniEnv);
-      jniEnv = null;
-    }
     if (traceAcct)
       VM.sysWriteln("making joinable...");
 
@@ -3072,6 +3070,85 @@ public class RVMThread extends ThreadContext {
       dumpStack();
       dumpLock.unlock();
     }
+  }
+
+  /**
+   * Stop all mutator threads. This is current intended to be run by a single thread.
+   *
+   * Fixpoint until there are no threads that we haven't blocked. Fixpoint is needed to
+   * catch the (unlikely) case that a thread spawns another thread while we are waiting.
+   */
+  @NoCheckStore
+  @Unpreemptible
+  public static void blockAllMutatorsForGC() {
+    RVMThread.handshakeLock.lock();
+    while (true) {
+      // (1) Find all the threads that need to be blocked for GC
+      RVMThread.acctLock.lock();
+      int numToHandshake = 0;
+      for (int i = 0; i < RVMThread.numThreads; i++) {
+        RVMThread t = RVMThread.threads[i];
+        if (!t.isGCThread() && !t.ignoreHandshakesAndGC()) {
+          RVMThread.handshakeThreads[numToHandshake++] = t;
+        }
+      }
+      RVMThread.acctLock.unlock();
+
+      // (2) Remove any threads that have already been blocked from the list.
+      for (int i = 0; i < numToHandshake; i++) {
+        RVMThread t = RVMThread.handshakeThreads[i];
+        t.monitor().lock();
+        if (t.blockedFor(RVMThread.gcBlockAdapter) || RVMThread.notRunning(t.asyncBlock(RVMThread.gcBlockAdapter))) {
+          // Already blocked or not running, remove.
+          RVMThread.handshakeThreads[i--] = RVMThread.handshakeThreads[--numToHandshake];
+          RVMThread.handshakeThreads[numToHandshake] = null; // help GC
+        }
+        t.monitor().unlock();
+      }
+
+      // (3) Quit trying to block threads if all threads are either blocked
+      //     or not running (a thread is "not running" if it is NEW or TERMINATED;
+      //     in the former case it means that the thread has not had start()
+      //     called on it while in the latter case it means that the thread
+      //     is either in the TERMINATED state or is about to be in that state
+      //     real soon now, and will not perform any heap-related work before
+      //     terminating).
+      if (numToHandshake == 0) break;
+
+      // (4) Request a block for GC from all other threads.
+      for (int i = 0; i < numToHandshake; i++) {
+        if (false) VM.sysWriteln("Waiting for ", RVMThread.handshakeThreads[i].getThreadSlot(), " to block.");
+        RVMThread.handshakeThreads[i].block(RVMThread.gcBlockAdapter);
+        RVMThread.handshakeThreads[i] = null; // help GC
+      }
+    }
+    RVMThread.handshakeLock.unlock();
+
+    // Deal with terminating threads to ensure that all threads are either dead to MMTk or stopped above.
+    RVMThread.processAboutToTerminate();
+  }
+
+  /**
+   * Unblock all mutators blocked for GC.
+   */
+  @NoCheckStore
+  @Unpreemptible
+  public static void unblockAllMutatorsForGC() {
+    RVMThread.handshakeLock.lock();
+    RVMThread.acctLock.lock();
+    int numToHandshake = 0;
+    for (int i = 0; i < RVMThread.numThreads; i++) {
+      RVMThread t = RVMThread.threads[i];
+      if (!t.isGCThread() && !t.ignoreHandshakesAndGC()) {
+        RVMThread.handshakeThreads[numToHandshake++] = t;
+      }
+    }
+    RVMThread.acctLock.unlock();
+    for (int i = 0; i < numToHandshake; i++) {
+      RVMThread.handshakeThreads[i].unblock(RVMThread.gcBlockAdapter);
+      RVMThread.handshakeThreads[i] = null; // Help GC
+    }
+    RVMThread.handshakeLock.unlock();
   }
 
   /**

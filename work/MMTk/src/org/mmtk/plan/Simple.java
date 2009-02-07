@@ -48,7 +48,6 @@ public abstract class Simple extends Plan implements Constants {
   public static final short SET_COLLECTION_KIND = Phase.createSimple("set-collection-kind", null);
   public static final short INITIATE            = Phase.createSimple("initiate", null);
   public static final short PREPARE             = Phase.createSimple("prepare");
-  public static final short PRECOPY             = Phase.createSimple("precopy");
   public static final short PREPARE_STACKS      = Phase.createSimple("prepare-stacks", null);
   public static final short STACK_ROOTS         = Phase.createSimple("stacks");
   public static final short ROOTS               = Phase.createSimple("root");
@@ -116,7 +115,6 @@ public abstract class Simple extends Plan implements Constants {
       Phase.scheduleGlobal     (PREPARE),
       Phase.scheduleCollector  (PREPARE),
       Phase.scheduleComplex    (prepareStacks),
-      Phase.scheduleCollector  (PRECOPY),
       Phase.scheduleCollector  (STACK_ROOTS),
       Phase.scheduleCollector  (ROOTS),
       Phase.scheduleGlobal     (ROOTS),

@@ -14,18 +14,14 @@ package org.jikesrvm.mm.mminterface;
 
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.VM;
-import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.mm.mmtk.Collection;
 import org.jikesrvm.mm.mmtk.MMTk_Events;
 import org.jikesrvm.mm.mmtk.ScanThread;
-import org.jikesrvm.mm.mmtk.Scanning;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.Time;
 import org.jikesrvm.scheduler.Synchronization;
 import org.jikesrvm.scheduler.RVMThread;
 import org.mmtk.plan.Plan;
-import org.mmtk.utility.heap.HeapGrowthManager;
-import org.mmtk.utility.options.Options;
 import org.vmmagic.pragma.BaselineNoRegisters;
 import org.vmmagic.pragma.BaselineSaveLSRegisters;
 import org.vmmagic.pragma.Interruptible;
@@ -350,55 +346,7 @@ public final class CollectorThread extends RVMThread {
          themselves (if they had made their own GC requests). */
       if (gcOrdinal == GC_ORDINAL_BASE) {
         if (verbose>=2) VM.sysWriteln("Thread #",getThreadSlot()," is about to block a bunch of threads.");
-        RVMThread.handshakeLock.lock();
-        // fixpoint until there are no threads that we haven't blocked.
-        // fixpoint is needed in case some thread spawns another thread
-        // while we're waiting.  that is unlikely but possible.
-        for (;;) {
-          RVMThread.acctLock.lock();
-          int numToHandshake=0;
-          for (int i=0;i<RVMThread.numThreads;++i) {
-            RVMThread t=threads[i];
-            if (!(t.isGCThread()) &&
-                !t.ignoreHandshakesAndGC()) {
-              RVMThread.handshakeThreads[numToHandshake++]=t;
-            }
-          }
-          RVMThread.acctLock.unlock();
-
-          for (int i=0;i<numToHandshake;++i) {
-            RVMThread t=RVMThread.handshakeThreads[i];
-            t.monitor().lock();
-            if (t.blockedFor(RVMThread.gcBlockAdapter) ||
-                RVMThread.notRunning(t.asyncBlock(RVMThread.gcBlockAdapter))) {
-              // already blocked or not running, remove
-              RVMThread.handshakeThreads[i--]=
-                RVMThread.handshakeThreads[--numToHandshake];
-              RVMThread.handshakeThreads[numToHandshake]=null; // help GC
-            }
-            t.monitor().unlock();
-          }
-          // quit trying to block threads if all threads are either blocked
-          // or not running (a thread is "not running" if it is NEW or TERMINATED;
-          // in the former case it means that the thread has not had start()
-          // called on it while in the latter case it means that the thread
-          // is either in the TERMINATED state or is about to be in that state
-          // real soon now, and will not perform any heap-related stuff before
-          // terminating).
-          if (numToHandshake==0) break;
-          for (int i=0;i<numToHandshake;++i) {
-            if (verbose>=2) VM.sysWriteln("waiting for ",RVMThread.handshakeThreads[i].getThreadSlot()," to block");
-            RVMThread.handshakeThreads[i].block(RVMThread.gcBlockAdapter);
-            RVMThread.handshakeThreads[i]=null; // help GC
-          }
-        }
-        RVMThread.handshakeLock.unlock();
-
-        RVMThread.processAboutToTerminate(); /*
-                                              * ensure that any threads that died while
-                                              * we were stopping the world notify the
-                                              * GC that they had stopped.
-                                              */
+        RVMThread.blockAllMutatorsForGC();
 
         if (verbose>=2) {
           VM.sysWriteln("Thread #",getThreadSlot()," just blocked a bunch of threads.");
@@ -410,80 +358,21 @@ public final class CollectorThread extends RVMThread {
        * non-participants */
       if (verbose >= 2) VM.sysWriteln("GC Message: CT.run  initializing rendezvous");
       gcBarrier.startupRendezvous();
-      for (;;) {
-        /* actually perform the GC... */
-        if (verbose >= 2) VM.sysWriteln("GC Message: CT.run  starting collection");
-        Selected.Collector.get().collect(); // gc
-        if (verbose >= 2) VM.sysWriteln("GC Message: CT.run  finished collection");
 
-        gcBarrier.rendezvous(5200);
+      /* actually perform the GC... */
+      if (verbose >= 2) VM.sysWriteln("GC Message: CT.run  starting collection");
+      Selected.Collector.get().collect(); // gc
+      if (verbose >= 2) VM.sysWriteln("GC Message: CT.run  finished collection");
 
-        if (gcOrdinal == GC_ORDINAL_BASE) {
-          long elapsedTime = Time.nanoTime() - startTime;
-          HeapGrowthManager.recordGCTime(Time.nanosToMillis(elapsedTime));
-          if (Selected.Plan.get().lastCollectionFullHeap() && !internalPhaseTriggered) {
-            if (Options.variableSizeHeap.getValue() && !userTriggered) {
-              // Don't consider changing the heap size if gc was forced by System.gc()
-              HeapGrowthManager.considerHeapSize();
-            }
-            HeapGrowthManager.reset();
-          }
+      gcBarrier.rendezvous(5200);
 
-          if (internalPhaseTriggered) {
-            if (Selected.Plan.get().lastCollectionFailed()) {
-              internalPhaseTriggered = false;
-              Plan.setCollectionTrigger(Collection.INTERNAL_GC_TRIGGER);
-            }
-          }
 
-          if (Scanning.threadStacksScanned()) {
-            /* Snip reference to any methods that are still marked
-             * obsolete after we've done stack scans. This allows
-             * reclaiming them on the next GC. */
-            CompiledMethods.snipObsoleteCompiledMethods();
-            Scanning.clearThreadStacksScanned();
-
-            collectionAttemptBase++;
-          }
-
-          collectionCount += 1;
-        }
-
-        startTime = Time.nanoTime();
-        gcBarrier.rendezvous(5201);
-        boolean cont=Selected.Plan.get().lastCollectionFailed() && !Plan.isEmergencyCollection();
-        if (!cont) break;
-      }
+      startTime = Time.nanoTime();
+      gcBarrier.rendezvous(5201);
 
       /* wait for other collector threads to arrive here */
       rendezvous(5210);
       if (verbose > 2) VM.sysWriteln("CollectorThread: past rendezvous 1 after collection");
-
-      if (gcOrdinal == GC_ORDINAL_BASE && !internalPhaseTriggered) {
-        /* If the collection failed, we may need to throw OutOfMemory errors.
-         * As we have not cleared the GC flag, allocation is not budgeted.
-         *
-         * This is not flawless in the case we physically can not allocate
-         * anything right after a GC, but that case is unlikely (we can
-         * not make it happen) and is a lot of work to get around. */
-        if (Plan.isEmergencyCollection()) {
-          RVMThread.getCurrentThread().setEmergencyAllocation();
-          boolean gcFailed = Selected.Plan.get().lastCollectionFailed();
-          // Allocate OOMEs (some of which *may* not get used)
-          for(int t=0; t < RVMThread.numThreads; t++) {
-            RVMThread thread = RVMThread.threads[t];
-            if (thread != null) {
-              if (thread.getCollectionAttempt() > 0) {
-                /* this thread was allocating */
-                if (gcFailed || thread.physicalAllocationFailed()) {
-                  allocateOOMEForThread(thread);
-                }
-              }
-            }
-          }
-          RVMThread.getCurrentThread().clearEmergencyAllocation();
-        }
-      }
 
       /* Wake up mutators waiting for this gc cycle and reset
        * the handshake object to be used for next gc cycle.
@@ -504,22 +393,7 @@ public final class CollectorThread extends RVMThread {
 
         if (verbose>=2) VM.sysWriteln("Thread #",getThreadSlot()," is unblocking a bunch of threads.");
         // and now unblock all threads
-        RVMThread.handshakeLock.lock();
-        RVMThread.acctLock.lock();
-        int numToHandshake=0;
-        for (int i=0;i<RVMThread.numThreads;++i) {
-          RVMThread t=threads[i];
-          if (!(t.isGCThread()) &&
-              !t.ignoreHandshakesAndGC()) {
-            RVMThread.handshakeThreads[numToHandshake++]=t;
-          }
-        }
-        RVMThread.acctLock.unlock();
-        for (int i=0;i<numToHandshake;++i) {
-          RVMThread.handshakeThreads[i].unblock(RVMThread.gcBlockAdapter);
-          RVMThread.handshakeThreads[i]=null; // help GC
-        }
-        RVMThread.handshakeLock.unlock();
+        RVMThread.unblockAllMutatorsForGC();
         if (verbose>=2) VM.sysWriteln("Thread #",getThreadSlot()," just unblocked a bunch of threads.");
 
         /* schedule the FinalizerThread, if there is work to do & it is idle */

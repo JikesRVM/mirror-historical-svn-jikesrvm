@@ -43,7 +43,6 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    *
    * Class variables
    */
-
   /** The fully qualified name of the collector thread. */
   private static Atom collectorThreadAtom;
   /** The string "run". */
@@ -241,7 +240,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
     if (execStatus == RVMThread.BLOCKED_IN_JNI) {
       if (false) {
         VM.sysWriteln("for thread #",t.getThreadSlot()," setting up JNI stack scan");
-        VM.sysWriteln("thread #",t.getThreadSlot()," has top java fp = ",t.jniEnv.topJavaFP());
+        VM.sysWriteln("thread #",t.getThreadSlot()," has top java fp = ",t.getJNIEnv().topJavaFP());
       }
 
       /* thread is blocked in C for this GC.
@@ -249,7 +248,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
        frame, which has been saved in the running threads JNIEnv.  Put
        the saved frame pointer into the threads saved context regs,
        which is where the stack scan starts. */
-      t.contextRegisters.setInnermost(Address.zero(), t.jniEnv.topJavaFP());
+      t.contextRegisters.setInnermost(Address.zero(), t.getJNIEnv().topJavaFP());
     }
     t.monitor().unlock();
   }
@@ -287,6 +286,25 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
       }
       fp = caller_fp;
     }
+  }
+
+  /**
+   * Stop all mutator threads. This is current intended to be run by a single thread.
+   *
+   * Fixpoint until there are no threads that we haven't blocked. Fixpoint is needed to
+   * catch the (unlikely) case that a thread spawns another thread while we are waiting.
+   */
+  @Unpreemptible
+  public static void stopAllMutators() {
+    RVMThread.blockAllMutatorsForGC();
+  }
+
+  /**
+   * Resume all mutators blocked for GC.
+   */
+  @Unpreemptible
+  public static void resumeAllMutators() {
+    RVMThread.unblockAllMutatorsForGC();
   }
 
   /**
