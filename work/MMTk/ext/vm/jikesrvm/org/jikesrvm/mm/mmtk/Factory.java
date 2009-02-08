@@ -138,6 +138,23 @@ public final class Factory extends org.mmtk.vm.Factory {
   }
 
   /**
+   * Create a new HeavyCondLock instance using the appropriate VM-specific
+   * concrete Lock sub-class.
+   *
+   * @see Lock
+   * @param name The string to be associated with this lock instance
+   * @return A concrete VM-specific HeavyCondLock instance.
+   */
+  public org.mmtk.vm.HeavyCondLock newHeavyCondLock(String name) {
+    try {
+      return new HeavyCondLock(name);
+    } catch (Exception e) {
+      VM.sysFail("Failed to allocate new Lock!");
+      return null; // never get here
+    }
+  }
+  
+  /**
    * Create a new Memory instance using the appropriate VM-specific
    * concrete Memory sub-class.
    *

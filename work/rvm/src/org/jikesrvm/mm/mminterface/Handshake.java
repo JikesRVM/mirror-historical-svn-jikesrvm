@@ -115,7 +115,7 @@ public class Handshake {
     if (verbose>=1) VM.sysWriteln("GC Thread #",RVMThread.getCurrentThreadSlot()," parked.");
     while (!requestFlag) {
       if (verbose>=1) VM.sysWriteln("GC Thread #",RVMThread.getCurrentThreadSlot()," waiting for request.");
-      lock.waitNicely();
+      lock.await();
     }
     if (verbose>=1) VM.sysWriteln("GC Thread #",RVMThread.getCurrentThreadSlot()," got request, unparking.");
     collectorThreadsParked--;

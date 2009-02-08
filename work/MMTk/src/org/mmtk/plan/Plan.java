@@ -12,6 +12,8 @@
  */
 package org.mmtk.plan;
 
+import java.lang.reflect.InvocationTargetException;
+
 import org.mmtk.policy.MarkSweepSpace;
 import org.mmtk.policy.SegregatedFreeListSpace;
 import org.mmtk.policy.Space;
@@ -223,6 +225,20 @@ public abstract class Plan implements Constants {
   public void fullyBooted() {
     initialized = true;
     if (Options.harnessAll.getValue()) harnessBegin();
+    
+    for(int i=0; i < 10; i++) {
+      Class<?> klass = this.getClass();
+      while(!klass.getName().startsWith("org.mmtk.plan")) {
+        klass = klass.getSuperclass();
+      }
+      String contextClassName = klass.getName() + "Collector";
+      try {
+        klass = (Class<?>)Class.forName(contextClassName);
+        VM.collection.spawnCollectorContext((CollectorContext)klass.newInstance());
+      } catch (Throwable t) {
+        VM.assertions.fail("Error creating collector context '" + contextClassName + "' : " + t.toString());
+      }
+    }
   }
 
   /**

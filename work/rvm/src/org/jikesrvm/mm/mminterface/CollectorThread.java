@@ -21,7 +21,9 @@ import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.Time;
 import org.jikesrvm.scheduler.Synchronization;
 import org.jikesrvm.scheduler.RVMThread;
+import org.mmtk.plan.CollectorContext;
 import org.mmtk.plan.Plan;
+import org.mmtk.plan.generational.marksweep.GenMSCollector;
 import org.vmmagic.pragma.BaselineNoRegisters;
 import org.vmmagic.pragma.BaselineSaveLSRegisters;
 import org.vmmagic.pragma.Interruptible;
@@ -116,6 +118,8 @@ public final class CollectorThread extends RVMThread {
 
   /** The base collection attempt */
   public static int collectionAttemptBase = 0;
+  
+  private CollectorContext context;
 
   /***********************************************************************
    *
@@ -162,8 +166,9 @@ public final class CollectorThread extends RVMThread {
    */
   CollectorThread(byte[] stack) {
     super(stack, myName);
-    this.collectorContext = new Selected.Collector(this);
-    this.collectorContext.initCollector(nextId++);
+    //this.collectorContext = new Selected.Collector(this);
+    this.context = new GenMSCollector();// new Selected.Collector(this);
+    this.context.initCollector(nextId++);
     makeDaemon(true); // this is redundant, but harmless
   }
 
@@ -179,6 +184,14 @@ public final class CollectorThread extends RVMThread {
     return true;
   }
 
+  /**
+   * @return this thread's collector context.
+   */
+  @Uninterruptible
+  public CollectorContext getCollectorContext() {
+    return context;
+  }
+  
   /**
    * Get the thread to use for building stack traces.
    */
@@ -361,7 +374,7 @@ public final class CollectorThread extends RVMThread {
 
       /* actually perform the GC... */
       if (verbose >= 2) VM.sysWriteln("GC Message: CT.run  starting collection");
-      Selected.Collector.get().collect(); // gc
+      context.collect(); // gc
       if (verbose >= 2) VM.sysWriteln("GC Message: CT.run  finished collection");
 
       gcBarrier.rendezvous(5200);

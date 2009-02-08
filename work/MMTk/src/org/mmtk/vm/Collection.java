@@ -68,6 +68,11 @@ import org.vmmagic.pragma.*;
   };
 
   /**
+   * Spawn a thread the execute the supplied collector context.
+   */
+  public abstract void spawnCollectorContext(CollectorContext context);
+  
+  /**
    * Triggers a collection.
    *
    * @param why the reason why a collection was triggered.  0 to
@@ -128,13 +133,6 @@ import org.vmmagic.pragma.*;
    * @param m the mutator to prepare
    */
   public abstract void prepareMutator(MutatorContext m);
-
-  /**
-   * Prepare a collector for a collection.
-   *
-   * @param c the collector to prepare
-   */
-  public abstract void prepareCollector(CollectorContext c);
 
   /**
    * Rendezvous with all other processors, returning the rank

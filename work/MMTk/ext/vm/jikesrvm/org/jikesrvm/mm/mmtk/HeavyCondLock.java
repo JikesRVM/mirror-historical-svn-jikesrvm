@@ -10,7 +10,7 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.mmtk.vm;
+package org.jikesrvm.mm.mmtk;
 
 import org.vmmagic.pragma.Uninterruptible;
 
@@ -19,25 +19,39 @@ import org.vmmagic.pragma.Uninterruptible;
  * Functionally similar to Java monitors, but safe in the darker corners of runtime code.
  */
 @Uninterruptible
-public abstract class HeavyCondLock {
+public final class HeavyCondLock extends org.mmtk.vm.HeavyCondLock {
+
+  private final org.jikesrvm.scheduler.HeavyCondLock theLock;
+  
+  public HeavyCondLock(String name) {
+    this.theLock = new org.jikesrvm.scheduler.HeavyCondLock();
+  }
 
   /**
    * Block until the lock is acquired.
    */
-  public abstract void lock();
+  public void lock() {
+    theLock.lock();
+  }
 
   /**
    * Release the lock.
    */
-  public abstract void unlock();
+  public void unlock() {
+    theLock.unlock();
+  }
 
   /**
    * Wait for a broadcast.
    */
-  public abstract void await();
+  public void await() {
+    theLock.await();
+  }
 
   /**
    * Send a broadcast.
    */
-  public abstract void broadcast();
+  public void broadcast() {
+    theLock.broadcast();
+  }
 }

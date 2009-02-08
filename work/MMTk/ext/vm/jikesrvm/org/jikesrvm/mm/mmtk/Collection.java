@@ -48,6 +48,13 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
   /** The string "run". */
   private static Atom runAtom;
 
+  /**
+   * Spawn a thread to execute the supplied collector context.
+   */
+  public void spawnCollectorContext(CollectorContext context) {
+    context.run();
+  }
+  
   /***********************************************************************
    *
    * Initialization
@@ -251,41 +258,6 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
       t.contextRegisters.setInnermost(Address.zero(), t.getJNIEnv().topJavaFP());
     }
     t.monitor().unlock();
-  }
-
-  /**
-   * Prepare a collector for a collection.
-   *
-   * @param c the collector to prepare
-   */
-  public final void prepareCollector(CollectorContext c) {
-    RVMThread t = ((Selected.Collector) c).getThread();
-    if (false) {
-      VM.sysWriteln("prepareCollector called for ",t.getThreadSlot());
-    }
-    int execStatus = t.getExecStatus();
-    if (VM.VerifyAssertions) VM._assert(execStatus == RVMThread.IN_JAVA);
-    Address fp = Magic.getFramePointer();
-    while (true) {
-      Address caller_ip = Magic.getReturnAddress(fp);
-      Address caller_fp = Magic.getCallerFramePointer(fp);
-      if (Magic.getCallerFramePointer(caller_fp).EQ(ArchitectureSpecific.StackframeLayoutConstants.STACKFRAME_SENTINEL_FP))
-        VM.sysFail("prepareMutator (participating): Could not locate CollectorThread.run");
-      int compiledMethodId = Magic.getCompiledMethodID(caller_fp);
-      CompiledMethod compiledMethod = CompiledMethods.getCompiledMethod(compiledMethodId);
-      RVMMethod method = compiledMethod.getMethod();
-      Atom cls = method.getDeclaringClass().getDescriptor();
-      Atom name = method.getName();
-      if (name == runAtom && cls == collectorThreadAtom) {
-        if (false) {
-          VM.sysWriteln("preparing GC thread ",RVMThread.getCurrentThreadSlot()," with ip = ",caller_ip);
-          VM.sysWriteln("preparing GC thread ",RVMThread.getCurrentThreadSlot()," with fp = ",caller_fp);
-        }
-        t.contextRegisters.setInnermost(caller_ip, caller_fp);
-        break;
-      }
-      fp = caller_fp;
-    }
   }
 
   /**

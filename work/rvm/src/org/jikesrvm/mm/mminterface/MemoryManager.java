@@ -39,6 +39,7 @@ import org.jikesrvm.objectmodel.TIBLayoutConstants;
 import org.jikesrvm.options.OptionSet;
 import org.jikesrvm.runtime.BootRecord;
 import org.jikesrvm.runtime.Magic;
+import org.mmtk.plan.CollectorContext;
 import org.mmtk.plan.Plan;
 import org.mmtk.policy.Space;
 import org.mmtk.utility.Constants;
@@ -769,7 +770,7 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
   /**
    * Allocate space for GC-time copying of an object
    *
-   * @param collector The collector instance to be used for this allocation
+   * @param context The collector context to be used for this allocation
    * @param bytes The size of the allocation in bytes
    * @param align The alignment requested; must be a power of 2.
    * @param offset The offset at which the alignment is desired.
@@ -777,14 +778,14 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
    * @return The first byte of a suitably sized and aligned region of memory.
    */
   @Inline
-  public static Address allocateSpace(Selected.Collector collector, int bytes, int align, int offset, int allocator,
+  public static Address allocateSpace(CollectorContext context, int bytes, int align, int offset, int allocator,
                                       ObjectReference from) {
     /* MMTk requests must be in multiples of MIN_ALIGNMENT */
     bytes = org.jikesrvm.runtime.Memory.alignUp(bytes, MIN_ALIGNMENT);
 
     /* Now make the request */
     Address region;
-    region = collector.allocCopy(from, bytes, align, offset, allocator);
+    region = context.allocCopy(from, bytes, align, offset, allocator);
 
     /* TODO: if (Stats.GATHER_MARK_CONS_STATS) Plan.mark.inc(bytes); */
     if (CHECK_MEMORY_IS_ZEROED) Memory.assertIsZeroed(region, bytes);
