@@ -70,36 +70,14 @@ import org.vmmagic.pragma.*;
   /**
    * Spawn a thread the execute the supplied collector context.
    */
+  @Interruptible
   public abstract void spawnCollectorContext(CollectorContext context);
   
   /**
-   * Triggers a collection.
-   *
-   * @param why the reason why a collection was triggered.  0 to
-   *          <code>TRIGGER_REASONS - 1</code>.
+   * Block for the garbage collector.
    */
-  @LogicallyUninterruptible
-  public abstract void triggerCollection(int why);
-
-  /**
-   * Joins an already requested collection.
-   */
-  @LogicallyUninterruptible
-  public abstract void joinCollection();
-
-  /**
-   * Trigger an asynchronous collection, checking for memory
-   * exhaustion first.
-   *
-   * @param why the reason why a collection was triggered.  0 to
-   *          <code>TRIGGER_REASONS - 1</code>.
-   */
-  public abstract void triggerAsyncCollection(int why);
-
-  /**
-   * The maximum number collection attempts across threads.
-   */
-  public abstract int maximumCollectionAttempt();
+  @Unpreemptible
+  public abstract void blockForGC();
 
   /**
    * Report that the allocation has succeeded.
@@ -118,16 +96,6 @@ import org.vmmagic.pragma.*;
   public abstract boolean isEmergencyAllocation();
 
   /**
-   * Determine whether a collection cycle has fully completed (this is
-   * used to ensure a GC is not in the process of completing, to
-   * avoid, for example, an async GC being triggered on the switch
-   * from GC to mutator thread before all GC threads have switched.
-   *
-   * @return True if GC is not in progress.
-   */
-  public abstract boolean noThreadsInGC();
-
-  /**
    * Prepare a mutator for collection.
    *
    * @param m the mutator to prepare
@@ -135,24 +103,24 @@ import org.vmmagic.pragma.*;
   public abstract void prepareMutator(MutatorContext m);
 
   /**
-   * Rendezvous with all other processors, returning the rank
-   * (that is, the order this processor arrived at the barrier).
-   */
-  public abstract int rendezvous(int where);
-
-  /** @return The number of active collector threads */
-  public abstract int activeGCThreads();
-
-  /**
-   * @return The ordinal ID of the running collector thread w.r.t.
-   * the set of active collector threads (zero based)
-   */
-  public abstract int activeGCThreadOrdinal();
-
-  /**
    * Request each mutator flush remembered sets. This method
    * will trigger the flush and then yield until all processors have
    * flushed.
    */
   public abstract void requestMutatorFlush();
+  
+  /**
+   * Stop all mutator threads. This is current intended to be run by a single thread.
+   *
+   * Fixpoint until there are no threads that we haven't blocked. Fixpoint is needed to
+   * catch the (unlikely) case that a thread spawns another thread while we are waiting.
+   */
+  @Unpreemptible
+  public abstract void stopAllMutators();
+  /**
+   * Resume all mutators blocked for GC.
+   */
+  @Unpreemptible
+  public abstract void resumeAllMutators();
+
 }

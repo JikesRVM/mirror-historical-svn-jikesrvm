@@ -13,6 +13,7 @@
 package org.mmtk.plan.nogc;
 
 import org.mmtk.plan.CollectorContext;
+import org.mmtk.plan.ParallelCollector;
 import org.mmtk.plan.TraceLocal;
 import org.mmtk.vm.VM;
 import org.vmmagic.pragma.Inline;
@@ -32,7 +33,7 @@ import org.vmmagic.pragma.Uninterruptible;
  * @see CollectorContext
  */
 @Uninterruptible
-public class NoGCCollector extends CollectorContext {
+public class NoGCCollector extends ParallelCollector {
 
   /************************************************************************
    * Instance fields

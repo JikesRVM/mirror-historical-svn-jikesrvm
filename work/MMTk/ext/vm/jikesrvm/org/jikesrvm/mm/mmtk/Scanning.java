@@ -15,6 +15,7 @@ package org.jikesrvm.mm.mmtk;
 import org.mmtk.plan.TraceLocal;
 import org.mmtk.plan.TransitiveClosure;
 import org.mmtk.utility.Constants;
+import org.mmtk.vm.VM;
 
 import org.jikesrvm.jni.JNIEnvironment;
 import org.jikesrvm.jni.JNIGlobalRefTable;
@@ -128,11 +129,11 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
     /* scan jni functions */
     CollectorThread ct = Magic.threadAsCollectorThread(RVMThread.getCurrentThread());
     Address jniFunctions = Magic.objectAsAddress(JNIEnvironment.JNIFunctions);
-    int threads = CollectorThread.numCollectors();
+    int threads = VM.activePlan.collector().parallelWorkerCount();
     int size = JNIEnvironment.JNIFunctions.length();
     int chunkSize = size / threads;
-    int start = (ct.getGCOrdinal() - 1) * chunkSize;
-    int end = (ct.getGCOrdinal() == threads) ? size : ct.getGCOrdinal() * chunkSize;
+    int start = (ct.getCollectorContext().parallelWorkerOrdinal() - 1) * chunkSize;
+    int end = (ct.getCollectorContext().parallelWorkerOrdinal() == threads) ? size : ct.getCollectorContext().parallelWorkerOrdinal() * chunkSize;
 
     for(int i=start; i < end; i++) {
       trace.processRootEdge(jniFunctions.plus(i << LOG_BYTES_IN_ADDRESS), true);
@@ -149,8 +150,8 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
     Address jniGlobalRefs = Magic.objectAsAddress(JNIGlobalRefTable.JNIGlobalRefs);
     size = JNIGlobalRefTable.JNIGlobalRefs.length();
     chunkSize = size / threads;
-    start = (ct.getGCOrdinal() - 1) * chunkSize;
-    end = (ct.getGCOrdinal() == threads) ? size : ct.getGCOrdinal() * chunkSize;
+    start = (ct.getCollectorContext().parallelWorkerOrdinal() - 1) * chunkSize;
+    end = (ct.getCollectorContext().parallelWorkerOrdinal() == threads) ? size : ct.getCollectorContext().parallelWorkerOrdinal() * chunkSize;
 
     for(int i=start; i < end; i++) {
       trace.processRootEdge(jniGlobalRefs.plus(i << LOG_BYTES_IN_ADDRESS), true);

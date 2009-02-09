@@ -181,7 +181,6 @@ import org.vmmagic.unboxed.*;
     }
     tail = queue.alloc().plus(bufferSentinel(arity));
     tailBufferEnd = tail;
-    Plan.checkForAsyncCollection(); // possible side-effect of alloc()
   }
 
   /**

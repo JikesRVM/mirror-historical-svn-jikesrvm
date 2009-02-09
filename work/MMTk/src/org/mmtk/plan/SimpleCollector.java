@@ -32,7 +32,7 @@ import org.vmmagic.pragma.*;
  * @see CollectorContext
  */
 @Uninterruptible
-public abstract class SimpleCollector extends CollectorContext {
+public abstract class SimpleCollector extends ParallelCollector {
 
   /****************************************************************************
    * Instance fields

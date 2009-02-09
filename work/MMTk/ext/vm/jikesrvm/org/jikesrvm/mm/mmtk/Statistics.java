@@ -28,7 +28,8 @@ import org.vmmagic.pragma.*;
    */
   @Uninterruptible
   public int getCollectionCount() {
-    return MemoryManager.getCollectionCount();
+    // FIXME: TODO: Implement
+    return 0;//MemoryManager.getCollectionCount();
   }
 
   /**

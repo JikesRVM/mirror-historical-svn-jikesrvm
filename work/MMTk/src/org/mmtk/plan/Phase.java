@@ -343,8 +343,8 @@ public abstract class Phase implements Constants {
    * @return True if the phase stack is exhausted.
    */
   public static boolean beginNewPhaseStack(int scheduledPhase) {
-    int order = VM.collection.rendezvous(1001);
-
+    int order = ((ParallelCollector)VM.activePlan.collector()).rendezvous();
+   
     if (order == 1) {
       pushScheduledPhase(scheduledPhase);
     }
@@ -355,7 +355,11 @@ public abstract class Phase implements Constants {
    * Process the phase stack. This method is called by multiple threads.
    */
   private static boolean processPhaseStack(boolean resume) {
-    int order = VM.collection.rendezvous(1001);
+    /* Global and Collector instances used in phases */
+    Plan plan = VM.activePlan.global();
+    ParallelCollector collector = (ParallelCollector)VM.activePlan.collector();
+
+    int order = collector.rendezvous();
     final boolean primary = order == 1;
 
     boolean log = Options.verbose.getValue() >= 6;
@@ -379,11 +383,7 @@ public abstract class Phase implements Constants {
     }
 
     /* Make sure everyone sees the first phase */
-    VM.collection.rendezvous(1002);
-
-    /* Global and Collector instances used in phases */
-    Plan plan = VM.activePlan.global();
-    CollectorContext collector = VM.activePlan.collector();
+    collector.rendezvous();
 
     /* The main phase execution loop */
     int scheduledPhase;
@@ -451,7 +451,7 @@ public abstract class Phase implements Constants {
       }
 
       /* Sync point after execution of a phase */
-      VM.collection.rendezvous(1004);
+      collector.rendezvous();
 
       /* Mutator phase reset */
       if (primary && schedule == SCHEDULE_MUTATOR) {
@@ -462,7 +462,7 @@ public abstract class Phase implements Constants {
        * scheduling, we have to double-synchronize to ensure all
        * collector threads see the reset mutator counter. */
       if (needsMutatorResetRendezvous(isEvenPhase)) {
-        VM.collection.rendezvous(1005);
+        collector.rendezvous();
       }
 
       /* Stop the timer(s) */

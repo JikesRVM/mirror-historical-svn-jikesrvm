@@ -12,20 +12,15 @@
  */
 package org.jikesrvm.mm.mmtk;
 
-import org.mmtk.plan.Plan;
 import org.mmtk.plan.CollectorContext;
 import org.mmtk.plan.MutatorContext;
 import org.mmtk.utility.options.Options;
 
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.VM;
-import org.jikesrvm.classloader.Atom;
-import org.jikesrvm.classloader.RVMMethod;
-import org.jikesrvm.compilers.common.CompiledMethod;
-import org.jikesrvm.compilers.common.CompiledMethods;
+import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.mm.mminterface.Selected;
 import org.jikesrvm.mm.mminterface.CollectorThread;
-import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.scheduler.FinalizerThread;
 import org.vmmagic.pragma.Inline;
@@ -43,98 +38,29 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    *
    * Class variables
    */
-  /** The fully qualified name of the collector thread. */
-  private static Atom collectorThreadAtom;
-  /** The string "run". */
-  private static Atom runAtom;
 
   /**
    * Spawn a thread to execute the supplied collector context.
    */
+  @Interruptible
   public void spawnCollectorContext(CollectorContext context) {
-    context.run();
+    byte[] stack = MemoryManager.newStack(ArchitectureSpecific.StackframeLayoutConstants.STACK_SIZE_COLLECTOR);
+    CollectorThread t = new CollectorThread(stack, context);
+    t.start();
+  }
+
+  /**
+   * Block for the garbage collector.
+   */
+  @Unpreemptible
+  public void blockForGC() {
+    RVMThread.getCurrentThread().block(RVMThread.gcBlockAdapter);
   }
   
   /***********************************************************************
    *
    * Initialization
    */
-
-  /**
-   * Initialization that occurs at <i>build</i> time.  The values of
-   * statics at the completion of this routine will be reflected in
-   * the boot image.  Any objects referenced by those statics will be
-   * transitively included in the boot image.
-   *
-   * This is called from MemoryManager.
-   */
-  @Interruptible
-  public static void init() {
-    collectorThreadAtom = Atom.findOrCreateAsciiAtom("Lorg/jikesrvm/mm/mminterface/CollectorThread;");
-    runAtom = Atom.findOrCreateAsciiAtom("run");
-  }
-
-  /**
-   * Triggers a collection.
-   *
-   * @param why the reason why a collection was triggered.  0 to
-   * <code>TRIGGER_REASONS - 1</code>.
-   */
-  @Unpreemptible("Becoming another thread interrupts the current thread, avoid preemption in the process")
-  public final void triggerCollection(int why) {
-    triggerCollectionStatic(why);
-  }
-
-  /**
-   * Joins a collection.
-   */
-  @Unpreemptible("Becoming another thread interrupts the current thread, avoid preemption in the process")
-  public final void joinCollection() {
-    if (Options.verbose.getValue() >= 4) {
-      VM.sysWriteln("Entered Collection.joinCollection().  Stack:");
-      RVMThread.dumpStack();
-    }
-
-    while (Plan.isCollectionTriggered()) {
-      CollectorThread.handshake.waitForGCToFinish();
-    }
-    checkForOutOfMemoryError(true);
-  }
-
-  /**
-   * Triggers a collection.
-   *
-   * @param why the reason why a collection was triggered.  0 to
-   * <code>TRIGGER_REASONS - 1</code>.
-   */
-  @Unpreemptible("Change state of thread possibly context switching if generating exception")
-  public static void triggerCollectionStatic(int why) {
-    if (VM.VerifyAssertions) VM._assert((why >= 0) && (why < TRIGGER_REASONS));
-
-    if (Options.verbose.getValue() >= 4) {
-      VM.sysWriteln("Entered Collection.triggerCollection().  Stack:");
-      RVMThread.dumpStack();
-    }
-
-    checkForOutOfMemoryError(false);
-
-    if (why == EXTERNAL_GC_TRIGGER) {
-      if (Options.verbose.getValue() == 1 || Options.verbose.getValue() == 2)
-        VM.sysWrite("[Forced GC]");
-    } else if (why == INTERNAL_PHASE_GC_TRIGGER) {
-      if (Options.verbose.getValue() == 1 || Options.verbose.getValue() == 2)
-        VM.sysWrite("[Phase GC]");
-    } else {
-      RVMThread.getCurrentThread().reportCollectionAttempt();
-    }
-
-    CollectorThread.collect(CollectorThread.handshake, why);
-    checkForOutOfMemoryError(true);
-
-    if (Options.verbose.getValue() >= 4) {
-      VM.sysWriteln("Leaving Collection.triggerCollection().");
-    }
-  }
 
   /**
    * Check if there is an out of memory error waiting.
@@ -152,21 +78,6 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
       myThread.resetCollectionAttempts();
       throw oome;
     }
-  }
-
-  /**
-   * The maximum number collection attempts across threads.
-   */
-  public int maximumCollectionAttempt() {
-    int max = 1;
-    RVMThread.acctLock.lock();
-    for(int t=0; t < RVMThread.numThreads; t++) {
-      RVMThread thread = RVMThread.threads[t];
-      int current = thread.getCollectionAttempt();
-      if (current > max) max = current;
-    }
-    RVMThread.acctLock.unlock();
-    return max + CollectorThread.collectionAttemptBase;
   }
 
   /**
@@ -192,35 +103,6 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    */
   public boolean isEmergencyAllocation() {
     return RVMThread.getCurrentThread().emergencyAllocation();
-  }
-
-  /**
-   * Trigger an asynchronous collection, checking for memory
-   * exhaustion first.
-   */
-  @Unpreemptible("Becoming another thread interrupts the current thread, avoid preemption in the process")
-  public final void triggerAsyncCollection(int why) {
-    if (Options.verbose.getValue() >= 1) {
-      if (why == INTERNAL_PHASE_GC_TRIGGER) {
-        VM.sysWrite("[Async-Phase GC]");
-      } else {
-        VM.sysWrite("[Async GC]");
-      }
-    }
-    CollectorThread.asyncCollect(CollectorThread.handshake, why);
-  }
-
-  /**
-   * Determine whether a collection cycle has fully completed (this is
-   * used to ensure a GC is not in the process of completing, to
-   * avoid, for example, an async GC being triggered on the switch
-   * from GC to mutator thread before all GC threads have switched.
-   *
-   * @return True if GC is not in progress.
-   */
-  @Uninterruptible
-  public final boolean noThreadsInGC() {
-    return CollectorThread.noThreadsInGC();
   }
 
   /**
@@ -267,7 +149,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    * catch the (unlikely) case that a thread spawns another thread while we are waiting.
    */
   @Unpreemptible
-  public static void stopAllMutators() {
+  public void stopAllMutators() {
     RVMThread.blockAllMutatorsForGC();
   }
 
@@ -275,30 +157,8 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    * Resume all mutators blocked for GC.
    */
   @Unpreemptible
-  public static void resumeAllMutators() {
+  public void resumeAllMutators() {
     RVMThread.unblockAllMutatorsForGC();
-  }
-
-  /**
-   * Rendezvous with all other processors, returning the rank
-   * (that is, the order this processor arrived at the barrier).
-   */
-  public final int rendezvous(int where) {
-    return CollectorThread.gcBarrier.rendezvous(where);
-  }
-
-  // REVIEW: what are the semantics of this method in a concurrent collector?
-  /** @return The number of active collector threads */
-  public final int activeGCThreads() {
-    return CollectorThread.numCollectors();
-  }
-
-  /**
-   * @return The ordinal ID of the running collector thread w.r.t.
-   * the set of active collector threads (zero based)
-   */
-  public final int activeGCThreadOrdinal() {
-    return Magic.threadAsCollectorThread(RVMThread.getCurrentThread()).getGCOrdinal() - CollectorThread.GC_ORDINAL_BASE;
   }
 
   private static RVMThread.SoftHandshakeVisitor mutatorFlushVisitor =

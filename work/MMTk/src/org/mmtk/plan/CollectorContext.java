@@ -12,10 +12,7 @@
  */
 package org.mmtk.plan;
 
-import org.mmtk.policy.ImmortalLocal;
-import org.mmtk.utility.sanitychecker.SanityCheckerLocal;
 import org.mmtk.utility.alloc.Allocator;
-import org.mmtk.utility.alloc.BumpPointer;
 import org.mmtk.utility.Constants;
 import org.mmtk.utility.Log;
 
@@ -74,24 +71,23 @@ public abstract class CollectorContext implements Constants {
    * Instance fields
    */
 
-  /** Unique collector identifier. */
+  /** Unique identifier. */
   private int id;
 
   /** Used for printing log information in a thread safe manner */
   protected final Log log = new Log();
-
+  
   /****************************************************************************
    *
    * Initialization
    */
-  protected CollectorContext() {
-  }
 
   /**
    * Notify that the collector context is registered and ready to execute.
    *
    * @param id The id of this collector context.
    */
+  @Interruptible
   public void initCollector(int id) {
     this.id = id;
   }
@@ -150,27 +146,42 @@ public abstract class CollectorContext implements Constants {
    * Collection.
    */
 
-  /** Perform a garbage collection */
-  public void run() {
-    Log.writeln("I am a stupid collector context...");
+  /**
+   * Entry point for the collector context.
+   */
+  @Unpreemptible
+  public abstract void run();
+
+  /**
+   * The number of parallel workers currently executing with this collector
+   * context. This can be queried from anywhere within a collector context
+   * to determine how best to perform load-balancing.
+   *
+   * @return The number of parallel workers.
+   */
+  public int parallelWorkerCount() {
+    return 1;
   }
 
-  /** Perform a single garbage collection */
-  public abstract void collect();
-  
   /**
-   * Perform a (local) collection phase.
+   * The ordinal of the current worker. This is in the range of 1 to the result
+   * of parallelWorkerCount() inclusive.
    *
-   * @param phaseId The unique phase identifier
-   * @param primary Should this thread be used to execute any single-threaded
-   * local operations?
+   * @return The ordinal of this collector context, starting from 1.
    */
-  public abstract void collectionPhase(short phaseId, boolean primary);
+  public int parallelWorkerOrdinal() {
+    return 1;
+  }
 
   /**
-   * @return The current trace instance.
+   * Get the executing context to rendezvous with other contexts working
+   * in parallel.
+   * 
+   * @return The order this context reached the rendezvous, starting from 1.
    */
-  public abstract TraceLocal getCurrentTrace();
+  public int rendezvous() {
+    return 1;
+  }
 
   /****************************************************************************
    * Miscellaneous.

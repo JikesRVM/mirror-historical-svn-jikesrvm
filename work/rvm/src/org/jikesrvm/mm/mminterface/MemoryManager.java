@@ -98,21 +98,6 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
   private MemoryManager() {} // This constructor will never be invoked.
 
   /**
-   * Initialization that occurs at <i>build</i> time.  The value of
-   * statics as at the completion of this routine will be reflected in
-   * the boot image.  Any objects referenced by those statics will be
-   * transitively included in the boot image.
-   *
-   * This is the entry point for all build-time activity in the collector.
-   */
-  @Interruptible
-  public static void init() {
-    if (VM.VerifyAssertions) VM._assert(!Selected.Constraints.get().needsStaticReadBarrier());
-    CollectorThread.init();
-    org.jikesrvm.mm.mmtk.Collection.init();
-  }
-
-  /**
    * Initialization that occurs at <i>boot</i> time (runtime
    * initialization).  This is only executed by one processor (the
    * primordial thread).
@@ -385,15 +370,6 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
    * Statistics
    */
 
-  /**
-   * Returns the number of collections that have occured.
-   *
-   * @return The number of collections that have occured.
-   */
-  public static int getCollectionCount() {
-    return CollectorThread.collectionCount;
-  }
-
   /***********************************************************************
    *
    * Application interface to memory manager
@@ -432,7 +408,8 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
   @Interruptible
   public static void gc() {
     if (!org.mmtk.utility.options.Options.ignoreSystemGC.getValue()) {
-      Collection.triggerCollectionStatic(Collection.EXTERNAL_GC_TRIGGER);
+      // FIXME: To implement.
+      //Collection.triggerCollectionStatic(Collection.EXTERNAL_GC_TRIGGER);
     }
   }
 

@@ -191,6 +191,19 @@ public final class VM {
   }
 
   /**
+   * Create a new HeavyCondLock instance using the appropriate VM-specific
+   * concrete Lock sub-class.
+   *
+   * @see HeavyCondLock
+   *
+   * @param name The string to be associated with this instance
+   * @return A concrete VM-specific HeavyCondLock instance.
+   */
+  public static HeavyCondLock newHeavyCondLock(String name) {
+    return factory.newHeavyCondLock(name);
+  }
+
+  /**
    * Create a new SynchronizedCounter instance using the appropriate
    * VM-specific concrete SynchronizedCounter sub-class.
    *

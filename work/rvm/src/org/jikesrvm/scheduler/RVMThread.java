@@ -1125,7 +1125,7 @@ public class RVMThread extends ThreadContext {
       int curStatus=execStatus;
       if (curStatus==unexpected1 ||
           curStatus==unexpected2) {
-        VM.sysWriteln("FATAL ERROR: unexpected thread state.");
+        VM.sysWriteln("FATAL ERROR: unexpected thread state for thread", threadSlot);
         VM.sysWriteln("Unexpected: ",unexpected1);
         VM.sysWriteln("       and: ",unexpected2);
         VM.sysWriteln("  Observed: ",curStatus);
@@ -1179,12 +1179,7 @@ public class RVMThread extends ThreadContext {
     if (VM.BuildForAdaptiveSystem) {
       ObjectHolder.boot();
     }
-    CollectorThread.boot();
 
-    for (int i = 1; i <= numProcessors; ++i) {
-      RVMThread t = CollectorThread.createActiveCollectorThread();
-      t.start();
-    }
     FinalizerThread.boot();
     getCurrentThread().enableYieldpoints();
     if (traceAcct) VM.sysWriteln("RVMThread booted");

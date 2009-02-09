@@ -2451,7 +2451,6 @@ public class VM extends Properties implements Constants, ExitStatus {
     }
     RuntimeEntrypoints.init();
     RVMThread.init();
-    MemoryManager.init();
   }
 
   public static void disableYieldpoints() { RVMThread.getCurrentThread().disableYieldpoints(); }

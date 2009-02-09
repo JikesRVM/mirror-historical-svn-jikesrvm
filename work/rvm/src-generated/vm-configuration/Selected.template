@@ -30,6 +30,11 @@ public class Selected {
   }
 
   @Uninterruptible
+  public static final class Collector extends @_PLAN_@Collector
+  {
+  }
+
+  @Uninterruptible
   public static final class Constraints extends @_PLAN_@Constraints
   {
     private static final Constraints constraints = new Constraints();

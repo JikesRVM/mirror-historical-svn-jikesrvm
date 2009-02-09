@@ -192,7 +192,7 @@ public abstract class Simple extends Plan implements Constants {
   public void collectionPhase(short phaseId) {
     if (phaseId == SET_COLLECTION_KIND) {
       requiredAtStart = getPagesRequired();
-      collectionAttempt = VM.collection.maximumCollectionAttempt();
+      collectionAttempt = 1;// TODO: FIXME: VM.collection.maximumCollectionAttempt();
       emergencyCollection = lastCollectionFullHeap() && collectionAttempt > 1;
       if (collectionAttempt > MAX_COLLECTION_ATTEMPTS) {
         VM.assertions.fail("Too many collection attempts. Suspect plan is not setting FullHeap flag");

@@ -66,9 +66,9 @@ public class ScanBootImage implements Constants {
     Address imageStart = BootRecord.the_boot_record.bootImageDataStart;
 
     /* figure out striding */
-    int stride = CollectorThread.numCollectors()<<LOG_CHUNK_BYTES;
     CollectorThread collector = Magic.threadAsCollectorThread(RVMThread.getCurrentThread());
-    int start = (collector.getGCOrdinal() - 1)<<LOG_CHUNK_BYTES;
+    int stride = collector.getCollectorContext().parallelWorkerCount()<<LOG_CHUNK_BYTES;
+    int start = (collector.getCollectorContext().parallelWorkerOrdinal() - 1)<<LOG_CHUNK_BYTES;
     Address cursor = mapStart.plus(start);
 
     /* statistics */

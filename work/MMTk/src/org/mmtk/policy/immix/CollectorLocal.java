@@ -71,7 +71,7 @@ public final class CollectorLocal implements Constants {
    * Prepare for a collection. If paranoid, perform a sanity check.
    */
   public void prepare(boolean majorGC) {
-    int ordinal = VM.collection.activeGCThreadOrdinal();
+    int ordinal = VM.activePlan.collector().parallelWorkerOrdinal();
     if (ImmixConstants.DONT_CLEAR_MARKS_AT_EVERY_GC) {
       if (majorGC && !immixSpace.inImmixDefragCollection())
         clearAllBlockMarkState(ordinal);
@@ -89,7 +89,7 @@ public final class CollectorLocal implements Constants {
 
   private void resetLineMarksAndDefragStateTable(int ordinal, final short threshold) {
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!DONT_CLEAR_MARKS_AT_EVERY_GC && immixSpace.inImmixDefragCollection());
-    int stride = VM.collection.activeGCThreads();
+    int stride = VM.activePlan.collector().parallelWorkerCount();
     Address chunk = chunkMap.firstChunk(ordinal, stride);
     while (!chunk.isZero()) {
       Chunk.resetLineMarksAndDefragStateTable(chunk, threshold);
@@ -99,7 +99,7 @@ public final class CollectorLocal implements Constants {
 
   private void clearAllLineMarks(int ordinal) {
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!DONT_CLEAR_MARKS_AT_EVERY_GC);
-    int stride = VM.collection.activeGCThreads();
+    int stride = VM.activePlan.collector().parallelWorkerCount();
     Address chunk = chunkMap.firstChunk(ordinal, stride);
     while (!chunk.isZero()) {
       Chunk.clearLineMarks(chunk);
@@ -109,7 +109,7 @@ public final class CollectorLocal implements Constants {
 
   private void clearAllBlockMarkState(int ordinal) {
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(DONT_CLEAR_MARKS_AT_EVERY_GC);
-    int stride = VM.collection.activeGCThreads();
+    int stride = VM.activePlan.collector().parallelWorkerCount();
     Address chunk = chunkMap.firstChunk(ordinal, stride);
     while (!chunk.isZero()) {
       Chunk.clearBlockMarkState(chunk);
@@ -127,8 +127,8 @@ public final class CollectorLocal implements Constants {
   }
 
   private void sweepAllBlocks(boolean majorGC) {
-    int stride = VM.collection.activeGCThreads();
-    int ordinal = VM.collection.activeGCThreadOrdinal();
+    int stride = VM.activePlan.collector().parallelWorkerCount();
+    int ordinal = VM.activePlan.collector().parallelWorkerOrdinal();
     int[] markSpillHisto = defrag.getAndZeroSpillMarkHistogram(ordinal);
     Address chunk = chunkMap.firstChunk(ordinal, stride);
     while (!chunk.isZero()) {

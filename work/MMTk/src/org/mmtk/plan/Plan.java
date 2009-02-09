@@ -12,8 +12,6 @@
  */
 package org.mmtk.plan;
 
-import java.lang.reflect.InvocationTargetException;
-
 import org.mmtk.policy.MarkSweepSpace;
 import org.mmtk.policy.SegregatedFreeListSpace;
 import org.mmtk.policy.Space;
@@ -162,6 +160,9 @@ public abstract class Plan implements Constants {
 
   /** Global sanity checking state **/
   public static final SanityChecker sanityChecker = new SanityChecker();
+  
+  /** Default collector context */
+  private final Class<?> defaultCollectorContext;
 
   /****************************************************************************
    * Constructor.
@@ -185,6 +186,20 @@ public abstract class Plan implements Constants {
     Options.perfMetric = new PerfMetric();
     Map.finalizeStaticSpaceMap();
     registerSpecializedMethods();
+
+    // Determine the default collector context.
+    Class<?> klass = this.getClass();
+    while(!klass.getName().startsWith("org.mmtk.plan")) {
+      klass = klass.getSuperclass();
+    }
+    String contextClassName = klass.getName() + "Collector";
+    try {
+      klass = (Class<?>)Class.forName(contextClassName);
+    } catch (Throwable t) {
+      t.printStackTrace();
+      System.exit(-1);
+    }
+    defaultCollectorContext = klass;
   }
 
   /****************************************************************************
@@ -225,22 +240,17 @@ public abstract class Plan implements Constants {
   public void fullyBooted() {
     initialized = true;
     if (Options.harnessAll.getValue()) harnessBegin();
-    
-    for(int i=0; i < 10; i++) {
-      Class<?> klass = this.getClass();
-      while(!klass.getName().startsWith("org.mmtk.plan")) {
-        klass = klass.getSuperclass();
-      }
-      String contextClassName = klass.getName() + "Collector";
-      try {
-        klass = (Class<?>)Class.forName(contextClassName);
-        VM.collection.spawnCollectorContext((CollectorContext)klass.newInstance());
-      } catch (Throwable t) {
-        VM.assertions.fail("Error creating collector context '" + contextClassName + "' : " + t.toString());
-      }
-    }
-  }
 
+    // Create our parallel workers
+    parallelWorkers.initGroup(4, defaultCollectorContext);
+    
+    // Create our control thread.
+    VM.collection.spawnCollectorContext(controlCollectorContext);
+  }
+  
+  private static final ParallelCollectorGroup parallelWorkers = new ParallelCollectorGroup("ParallelWorkers");
+  private static final ControllerCollectorContext controlCollectorContext = new ControllerCollectorContext(parallelWorkers);
+  
   /**
    * The VM is about to exit. Perform any clean up operations.
    *
@@ -434,27 +444,6 @@ public abstract class Plan implements Constants {
   /** @return Is the memory management system initialized? */
   public static boolean isInitialized() {
     return initialized;
-  }
-
-  /**
-   * Has collection has triggered?
-   */
-  public static boolean isCollectionTriggered() {
-    return collectionTriggered;
-  }
-
-  /**
-   * Set that a collection has been triggered.
-   */
-  public static void setCollectionTriggered() {
-    collectionTriggered = true;
-  }
-
-  /**
-   * A collection has fully completed.  Clear the triggered flag.
-   */
-  public static void collectionComplete() {
-    collectionTriggered = false;
   }
 
   /**
@@ -692,7 +681,6 @@ public abstract class Plan implements Constants {
     return Conversions.pagesToBytes(VM.activePlan.global().getPagesUsed());
   }
 
-
   /**
    * Return the amount of <i>memory in use</i>, in bytes.  Note that
    * this includes unused memory that is held in reserve for copying,
@@ -769,9 +757,8 @@ public abstract class Plan implements Constants {
    * allocation, excluding space reserved for copying.
    */
   public int getPagesUsed() {
-    return loSpace.reservedPages() +
-           immortalSpace.reservedPages() + metaDataSpace.reservedPages() +
-           nonMovingSpace.reservedPages();
+    return loSpace.reservedPages() + immortalSpace.reservedPages() +
+      metaDataSpace.reservedPages() + nonMovingSpace.reservedPages();
   }
 
   /**
@@ -782,9 +769,8 @@ public abstract class Plan implements Constants {
    * outstanding allocation requests.
    */
   public int getPagesRequired() {
-    return loSpace.requiredPages() +
-      metaDataSpace.requiredPages() + immortalSpace.requiredPages() +
-      nonMovingSpace.requiredPages();
+    return loSpace.requiredPages() + metaDataSpace.requiredPages() +
+      immortalSpace.requiredPages() + nonMovingSpace.requiredPages();
   }
 
   /**
@@ -795,27 +781,6 @@ public abstract class Plan implements Constants {
     int threshold = (getTotalPages() * HEAP_FULL_PERCENTAGE) / 100;
     if (threshold < HEAP_FULL_MINIMUM) threshold = HEAP_FULL_MINIMUM;
     return threshold;
-  }
-
-  /**
-   * Return the number of metadata pages reserved for use given the pending
-   * allocation.
-   *
-   * @return The number of pages reserved given the pending
-   * allocation, excluding space reserved for copying.
-   */
-  public int getMetaDataPagesUsed() {
-    return metaDataSpace.reservedPages();
-  }
-
-  /**
-   * Return the cycle time at which this GC should complete.
-   *
-   * @return The time cap for this GC (i.e. the time by which it
-   * should complete).
-   */
-  public static long getTimeCap() {
-    return timeCap;
   }
 
   /****************************************************************************
@@ -859,17 +824,6 @@ public abstract class Plan implements Constants {
    */
   @LogicallyUninterruptible
   public final boolean poll(boolean spaceFull, Space space) {
-    if (isCollectionTriggered()) {
-      if (space == metaDataSpace) {
-        /* This is not, in general, in a GC safe point. */
-        return false;
-      }
-      /* Someone else initiated a collection, we should join it */
-      logPoll(space, "Joining collection");
-      VM.collection.joinCollection();
-      return true;
-    }
-
     if (collectionRequired(spaceFull)) {
       if (space == metaDataSpace) {
         /* In general we must not trigger a GC on metadata allocation since
@@ -877,46 +831,16 @@ public abstract class Plan implements Constants {
          * an asynchronous GC, which will occur at the next safe point.
          */
         logPoll(space, "Asynchronous collection requested");
-        setAwaitingAsyncCollection();
+        controlCollectorContext.request();
         return false;
       }
       logPoll(space, "Triggering collection");
-      VM.collection.triggerCollection(Collection.RESOURCE_GC_TRIGGER);
-      return true;
-    }
-
-    if (concurrentCollectionRequired()) {
-      logPoll(space, "Triggering collection");
-      VM.collection.triggerCollection(Collection.INTERNAL_PHASE_GC_TRIGGER);
+      controlCollectorContext.request();
+      VM.collection.blockForGC();
       return true;
     }
 
     return false;
-  }
-
-  /**
-   * Check whether an asynchronous collection is pending.<p>
-   *
-   * This is decoupled from the poll() mechanism because the
-   * triggering of asynchronous collections can trigger write
-   * barriers, which can trigger an asynchronous collection.  Thus, if
-   * the triggering were tightly coupled with the request to alloc()
-   * within the write buffer code, then inifinite regress could
-   * result.  There is no race condition in the following code since
-   * there is no harm in triggering the collection more than once,
-   * thus it is unsynchronized.
-   */
-  @Inline
-  public static void checkForAsyncCollection() {
-    if (awaitingAsyncCollection && VM.collection.noThreadsInGC()) {
-      awaitingAsyncCollection = false;
-      VM.collection.triggerAsyncCollection(Collection.RESOURCE_GC_TRIGGER);
-    }
-  }
-
-  /** Request an async GC */
-  protected static void setAwaitingAsyncCollection() {
-    awaitingAsyncCollection = true;
   }
 
   /**
@@ -945,16 +869,6 @@ public abstract class Plan implements Constants {
     boolean heapFull = getPagesReserved() > getTotalPages();
 
     return spaceFull || stressForceGC || heapFull;
-  }
-
-  /**
-   * This method controls the triggering of an atomic phase of a concurrent
-   * collection. It is called periodically during allocation.
-   *
-   * @return True if a collection is requested by the plan.
-   */
-  protected boolean concurrentCollectionRequired() {
-    return false;
   }
 
   /**

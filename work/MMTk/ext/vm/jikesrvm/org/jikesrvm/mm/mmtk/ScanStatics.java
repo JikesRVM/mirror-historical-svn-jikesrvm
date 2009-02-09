@@ -50,16 +50,16 @@ public final class ScanStatics implements Constants {
     // The address of the statics table
     // equivalent to Statics.getSlots()
     final Address slots = Magic.getJTOC();
-    // The number of collector threads
-    final int numberOfCollectors = CollectorThread.numCollectors();
     // This thread as a collector
     final CollectorThread ct = Magic.threadAsCollectorThread(RVMThread.getCurrentThread());
+    // The number of collector threads
+    final int numberOfCollectors = ct.getCollectorContext().parallelWorkerCount();
     // The number of static references
     final int numberOfReferences = Statics.getNumberOfReferenceSlots();
     // The size to give each thread
     final int chunkSize = (numberOfReferences / numberOfCollectors) & chunkSizeMask;
     // The number of this collector thread (1...n)
-    final int threadOrdinal = ct.getGCOrdinal();
+    final int threadOrdinal = ct.getCollectorContext().parallelWorkerOrdinal();
 
     // Start and end of statics region to be processed
     final int start = (threadOrdinal == 1) ? refSlotSize : (threadOrdinal - 1) * chunkSize;
