@@ -622,15 +622,6 @@ public class RVMThread extends ThreadContext {
    */
 
   /**
-   * Place to save/restore this thread's monitor state during
-   * {@link Object#wait} and {@link Object#notify}.
-   */
-  protected Object waitObject;
-
-  /** Lock recursion count for this thread's monitor. */
-  protected int waitCount;
-
-  /**
    * Should the thread suspend?
    */
   boolean shouldSuspend;
@@ -2749,23 +2740,12 @@ public class RVMThread extends ThreadContext {
       if (VM.VerifyAssertions)
         VM._assert(l.getOwnerId() == getLockingId());
 
-      // release the lock
-      l.mutex.lock();
-      RVMThread toAwaken = l.entering.dequeue();
-      waitObject = l.getLockedObject();
-      waitCount = l.getRecursionCount();
-      l.setOwnerId(0);
-      l.waiting.enqueue(this);
-      l.mutex.unlock();
+      // release the lock and enqueue waiting
+      int waitCount=l.enqueueWaitingAndUnlockCompletely(this);
 
-      // if there was a thread waiting, awaken it
-      if (toAwaken != null) {
-        // is this where the problem is coming from?
-        toAwaken.monitor().lockedBroadcast();
-      }
       // block
       monitor().lock();
-      while (l.waiting.isQueued(this) && !hasInterrupt && asyncThrowable == null &&
+      while (l.isWaiting(this) && !hasInterrupt && asyncThrowable == null &&
              (!hasTimeout || sysCall.sysNanoTime() < whenWakeupNanos)) {
         if (hasTimeout) {
           monitor().timedWaitAbsoluteNicely(whenWakeupNanos);
@@ -2783,19 +2763,10 @@ public class RVMThread extends ThreadContext {
         asyncThrowable = null;
       }
       monitor().unlock();
-      if (l.waiting.isQueued(this)) {
-        l.mutex.lock();
-        l.waiting.remove(this); /*
-                                 * in case we got here due to an interrupt or a
-                                 * stop() rather than a notify
-                                 */
-        l.mutex.unlock();
-        // Note that the above must be done before attempting to acquire
-        // the lock, since acquiring the lock may require queueing the thread.
-        // But we cannot queue the thread if it is already on another
-        // queue.
-      }
-      // reacquire the lock, restoring the recursion count
+      l.removeFromWaitQueue(this);
+      // reacquire the lock, restoring the recursion count.  note that the
+      // lock associated with the object may have changed (been deflated and
+      // reinflated) so we must start anew
       ObjectModel.genericLock(o);
       waitObject = null;
       if (waitCount != 1) { // reset recursion count

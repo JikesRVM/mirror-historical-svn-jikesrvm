@@ -12,6 +12,8 @@
  */
 package org.jikesrvm.scheduler;
 
-public final class LockConfig extends LockConfigs {
-  public static final int SELECTED = @_SELECTED_@;
+public final class LockConfig {
+  public static final int SELECTED = LockConfigs.@_SELECTED_@;
+  
+  public static final class Selected extends @_SELECTED_@Lock;
 }

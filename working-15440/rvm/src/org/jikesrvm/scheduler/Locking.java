@@ -46,12 +46,7 @@ public final class Locking implements ThinLockConstants {
   @Entrypoint
   @Unpreemptible("Become another thread when lock is contended, don't preempt in other cases")
   static void inlineLock(Object o, Offset lockOffset) {
-    switch (LockConfig.SELECTED) {
-    case LockConfig.ThinEagerDeflate:
-      ThinLock.inlineLock(o,lockOffset);
-      break;
-    default: VM.sysFail("bad configuration");
-    }
+    LockConfig.Selected.inlineLock(o,lockOffset);
   }
 
   /**
@@ -68,12 +63,7 @@ public final class Locking implements ThinLockConstants {
   @Entrypoint
   @Unpreemptible("No preemption normally, but may raise exceptions")
   static void inlineUnlock(Object o, Offset lockOffset) {
-    switch (LockConfig.SELECTED) {
-    case LockConfig.ThinEagerDeflate:
-      ThinLock.inlineUnlock(o,lockOffset);
-      break;
-    default: VM.sysFail("bad configuration");
-    }
+    LockConfig.Selected.inlineUnlock(o,lockOffset);
   }
 
   /**
@@ -87,12 +77,7 @@ public final class Locking implements ThinLockConstants {
   @NoInline
   @Unpreemptible("Become another thread when lock is contended, don't preempt in other cases")
   public static void lock(Object o, Offset lockOffset) {
-    switch (LockConfig.SELECTED) {
-    case LockConfig.ThinEagerDeflate:
-      ThinLock.lock(o,lockOffset);
-      break;
-    default: VM.sysFail("bad configuration");
-    }
+    LockConfig.Selected.lock(o,lockOffset);
   }
 
   /**
@@ -106,12 +91,7 @@ public final class Locking implements ThinLockConstants {
   @NoInline
   @Unpreemptible("No preemption normally, but may raise exceptions")
   public static void unlock(Object o, Offset lockOffset) {
-    switch (LockConfig.SELECTED) {
-    case LockConfig.ThinEagerDeflate:
-      ThinLock.unlock(o,lockOffset);
-      break;
-    default: VM.sysFail("bad configuration");
-    }
+    LockConfig.Selected.unlock(o,lockOffset);
   }
 
   /**
@@ -122,13 +102,7 @@ public final class Locking implements ThinLockConstants {
    *         by thread <code>false</code> if it is not.
    */
   public static boolean holdsLock(Object obj, Offset lockOffset, RVMThread thread) {
-    switch (LockConfig.SELECTED) {
-    case LockConfig.ThinEagerDeflate:
-      return ThinLock.holdsLock(obj,lockOffset,thread);
-    default:
-      VM.sysFail("bad configuration");
-      return false; // never get here
-    }
+    return LockConfig.Selected.holdsLock(obj,lockOffset,thread);
   }
 
   /**
@@ -143,15 +117,8 @@ public final class Locking implements ThinLockConstants {
    */
   @Unpreemptible
   public static Lock getHeavyLock(Object o, Offset lockOffset, boolean create) {
-    switch (LockConfig.SELECTED) {
-    case LockConfig.ThinEagerDeflate:
-      return ThinLock.getHeavyLock(o,lockOffset,create);
-    default:
-      VM.sysFail("bad configuration");
-      return null;
-    }
+    return LockConfig.Selected.getHeavyLock(o,lockOffset,create);
   }
-
 }
 
 

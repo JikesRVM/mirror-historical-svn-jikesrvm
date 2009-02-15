@@ -30,7 +30,7 @@ import org.vmmagic.unboxed.Word;
  * Implementation of thin locks.
  */
 @Uninterruptible
-final class ThinLock implements ThinLockConstants {
+final class ThinEagerDeflateLock implements ThinLockConstants {
 
   ////////////////////////////////////////
   /// Support for light-weight locking ///

@@ -170,34 +170,34 @@ public class Lock implements Constants {
   // Statistics
 
   /** Number of lock operations */
-  public static int lockOperations;
+  private static int lockOperations;
   /** Number of unlock operations */
-  public static int unlockOperations;
+  private static int unlockOperations;
   /** Number of deflations */
-  public static int deflations;
+  private static int deflations;
 
   /****************************************************************************
    * Instance
    */
 
   /** The object being locked (if any). */
-  protected Object lockedObject;
+  private Object lockedObject;
   /** The id of the thread that owns this lock (if any). */
-  protected int ownerId;
+  private int ownerId;
   /** The number of times the owning thread (if any) has acquired this lock. */
-  protected int recursionCount;
+  private int recursionCount;
   /** A spin lock to handle contention for the data structures of this lock. */
-  public final SpinLock mutex;
+  final SpinLock mutex;
   /** Is this lock currently being used? */
-  protected boolean active;
+  private boolean active;
   /** The next free lock on the free lock list */
   private Lock nextFreeLock;
   /** This lock's index in the lock table*/
   protected int index;
   /** Queue for entering the lock, guarded by mutex. */
-  ThreadQueue entering;
+  private ThreadQueue entering;
   /** Queue for waiting on a notify, guarded by mutex as well. */
-  ThreadQueue waiting;
+  private ThreadQueue waiting;
 
   /**
    * A heavy weight lock to handle extreme contention and wait/notify
@@ -325,6 +325,43 @@ public class Lock implements Constants {
     ThinLock.deflate(o, lockOffset, this);
     lockedObject = null;
     free(this);
+  }
+  
+  public int enqueueWaitingAndUnlockCompletely(RVMThread toWait) {
+    int result;
+    mutex.lock();
+    RVMThread toAwaken = entering.dequeue();
+    result = getRecursionCount();
+    setOwnerId(0);
+    waiting.enqueue(toWait);
+    mutex.unlock();
+    
+    // if there was a thread waiting, awaken it
+    if (toAwaken != null) {
+      // is this where the problem is coming from?
+      toAwaken.monitor().lockedBroadcast();
+    }
+    
+    return result;
+  }
+  
+  public boolean isWaiting(RVMThread t) {
+    return l.waiting.isQueued(t);
+  }
+  
+  public void removeFromWaitQueue(RVMThread wasWaiting) {
+    if (waiting.isQueued(wasWaiting)) {
+      mutex.lock();
+      waiting.remove(wasWaiting); /*
+                                   * in case we got here due to an interrupt or a
+                                   * stop() rather than a notify
+                                   */
+      mutex.unlock();
+      // Note that the above must be done before attempting to acquire
+      // the lock, since acquiring the lock may require queueing the thread.
+      // But we cannot queue the thread if it is already on another
+      // queue.
+    }
   }
 
   /**
