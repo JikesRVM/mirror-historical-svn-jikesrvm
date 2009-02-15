@@ -1094,7 +1094,7 @@ public class RVMThread extends ThreadContext {
     // long-standing lisp bug)
     BootRecord.the_boot_record.dumpStackAndDieOffset =
       Entrypoints.dumpStackAndDieMethod.getOffset();
-    Lock.init();
+    LockConfig.selectedPlan.init();
   }
 
   public void assertAcceptableStates(int expected) {
@@ -2548,7 +2548,7 @@ public class RVMThread extends ThreadContext {
       }
       if (VM.VerifyAssertions)
         VM._assert(cachedFreeLock.mutex.latestContender != this);
-      Lock.returnLock(cachedFreeLock);
+      LockConfig.selectedPlan.returnLock(cachedFreeLock);
       cachedFreeLock = null;
     }
 
@@ -2722,66 +2722,7 @@ public class RVMThread extends ThreadContext {
 
   @Interruptible
   void waitImpl(Object o, boolean hasTimeout, long whenWakeupNanos) {
-    boolean throwInterrupt = false;
-    Throwable throwThis = null;
-    if (asyncThrowable != null) {
-      throwThis = asyncThrowable;
-      asyncThrowable = null;
-    } else if (!ObjectModel.holdsLock(o, this)) {
-      throw new IllegalMonitorStateException("waiting on " + o);
-    } else if (hasInterrupt) {
-      throwInterrupt = true;
-      hasInterrupt = false;
-    } else {
-      waiting = hasTimeout ? Waiting.TIMED_WAITING : Waiting.WAITING;
-      // get lock for object
-      Lock l = ObjectModel.getHeavyLock(o, true);
-      // this thread is supposed to own the lock on o
-      if (VM.VerifyAssertions)
-        VM._assert(l.getOwnerId() == getLockingId());
-
-      // release the lock and enqueue waiting
-      int waitCount=l.enqueueWaitingAndUnlockCompletely(this);
-
-      // block
-      monitor().lock();
-      while (l.isWaiting(this) && !hasInterrupt && asyncThrowable == null &&
-             (!hasTimeout || sysCall.sysNanoTime() < whenWakeupNanos)) {
-        if (hasTimeout) {
-          monitor().timedWaitAbsoluteNicely(whenWakeupNanos);
-        } else {
-          monitor().waitNicely();
-        }
-      }
-      // figure out if anything special happened while we were blocked
-      if (hasInterrupt) {
-        throwInterrupt = true;
-        hasInterrupt = false;
-      }
-      if (asyncThrowable != null) {
-        throwThis = asyncThrowable;
-        asyncThrowable = null;
-      }
-      monitor().unlock();
-      l.removeFromWaitQueue(this);
-      // reacquire the lock, restoring the recursion count.  note that the
-      // lock associated with the object may have changed (been deflated and
-      // reinflated) so we must start anew
-      ObjectModel.genericLock(o);
-      waitObject = null;
-      if (waitCount != 1) { // reset recursion count
-        Lock l2 = ObjectModel.getHeavyLock(o, true);
-        l2.setRecursionCount(waitCount);
-      }
-      waiting = Waiting.RUNNABLE;
-    }
-    // check if we should exit in a special way
-    if (throwThis != null) {
-      RuntimeEntrypoints.athrow(throwThis);
-    }
-    if (throwInterrupt) {
-      RuntimeEntrypoints.athrow(new InterruptedException("sleep interrupted"));
-    }
+    LockConfig.selectedPlan.waitImpl(o, hasTimeout, whenWakeupNanos);
   }
 
   /**
@@ -4743,7 +4684,7 @@ public class RVMThread extends ThreadContext {
     VM.sysWrite("\n");
 
     VM.sysWrite("\n-- Locks in use --\n");
-    Lock.dumpLocks();
+    LockConfig.selectedPlan.dumpLocks();
 
     VM.sysWriteln("Dumping stack of active thread\n");
     dumpStack();

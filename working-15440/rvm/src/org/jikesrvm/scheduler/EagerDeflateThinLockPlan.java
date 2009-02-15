@@ -26,89 +26,285 @@ import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
-/**
- * Implementation of thin locks.
- */
 @Uninterruptible
-final class ThinEagerDeflateLock implements ThinLockConstants {
+public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
+  /** do debug tracing? */
+  protected static final boolean trace = false;
+  /** Control the gathering of statistics */
+  public static final boolean STATS = false;
 
-  ////////////////////////////////////////
-  /// Support for light-weight locking ///
-  ////////////////////////////////////////
+  /** The (fixed) number of entries in the lock table spine */
+  protected static final int LOCK_SPINE_SIZE = 128;
+  /** The log size of each chunk in the spine */
+  protected static final int LOG_LOCK_CHUNK_SIZE = 11;
+  /** The size of each chunk in the spine */
+  protected static final int LOCK_CHUNK_SIZE = 1 << LOG_LOCK_CHUNK_SIZE;
+  /** The mask used to get the chunk-level index */
+  protected static final int LOCK_CHUNK_MASK = LOCK_CHUNK_SIZE - 1;
+  /** The maximum possible number of locks */
+  protected static final int MAX_LOCKS = LOCK_SPINE_SIZE * LOCK_CHUNK_SIZE;
+  /** The number of chunks to allocate on startup */
+  protected static final int INITIAL_CHUNKS = 1;
 
   /**
-   * Return the lock index for a given lock word.  Assert valid index
-   * ranges, that the fat lock bit is set, and that the lock entry
-   * exists.
-   *
-   * @param lockWord The lock word whose lock index is being established
-   * @return the lock index corresponding to the lock workd.
+   * Should we give up or persist in the attempt to get a heavy-weight lock,
+   * if its <code>mutex</code> microlock is held by another procesor.
    */
-  @Inline
-  private static int getLockIndex(Word lockWord) {
-    int index = lockWord.and(TL_LOCK_ID_MASK).rshl(TL_LOCK_ID_SHIFT).toInt();
+  private static final boolean tentativeMicrolocking = false;
+
+  // Heavy lock table.
+
+  /** The table of locks. */
+  private static Lock[][] locks;
+  /** Used during allocation of locks within the table. */
+  private static final SpinLock lockAllocationMutex = new SpinLock();
+  /** The number of chunks in the spine that have been physically allocated */
+  private static int chunksAllocated;
+  /** The number of locks allocated (these may either be in use, on a global
+   * freelist, or on a thread's freelist. */
+  private static int nextLockIndex;
+
+  // Global free list.
+
+  /** A global lock free list head */
+  private static Lock globalFreeLock;
+  /** the number of locks held on the global free list. */
+  private static int globalFreeLocks;
+  /** the total number of allocation operations. */
+  private static int globalLocksAllocated;
+  /** the total number of free operations. */
+  private static int globalLocksFreed;
+
+  // Statistics
+
+  /** Number of lock operations */
+  private static int lockOperations;
+  /** Number of unlock operations */
+  private static int unlockOperations;
+  /** Number of deflations */
+  private static int deflations;
+
+  public void init() {
+    super.init();
+    nextLockIndex = 1;
+    locks = new Lock[LOCK_SPINE_SIZE][];
+    for (int i=0; i < INITIAL_CHUNKS; i++) {
+      chunksAllocated++;
+      locks[i] = new Lock[LOCK_CHUNK_SIZE];
+    }
     if (VM.VerifyAssertions) {
-      if (!(index > 0 && index < Lock.numLocks())) {
-        VM.sysWrite("Lock index out of range! Word: "); VM.sysWrite(lockWord);
-        VM.sysWrite(" index: "); VM.sysWrite(index);
-        VM.sysWrite(" locks: "); VM.sysWrite(Lock.numLocks());
-        VM.sysWriteln();
-      }
-      VM._assert(index > 0 && index < Lock.numLocks());  // index is in range
-      VM._assert(!lockWord.and(TL_FAT_LOCK_MASK).isZero());        // fat lock bit is set
-      VM._assert(Lock.getLock(index) != null);               // the lock is actually there
+      // check that each potential lock is addressable
+      VM._assert(((MAX_LOCKS - 1) <=
+                  ThinLockConstants.TL_LOCK_ID_MASK.rshl(ThinLockConstants.TL_LOCK_ID_SHIFT).toInt()) ||
+                  ThinLockConstants.TL_LOCK_ID_MASK.EQ(Word.fromIntSignExtend(-1)));
     }
-    return index;
+  }
+  
+  /**
+   * Delivers up an unassigned heavy-weight lock.  Locks are allocated
+   * from processor specific regions or lists, so normally no synchronization
+   * is required to obtain a lock.
+   *
+   * Collector threads cannot use heavy-weight locks.
+   *
+   * @return a free Lock; or <code>null</code>, if garbage collection is not enabled
+   */
+  @UnpreemptibleNoWarn("The caller is prepared to lose control when it allocates a lock")
+  static Lock allocate() {
+    RVMThread me=RVMThread.getCurrentThread();
+    if (me.cachedFreeLock != null) {
+      Lock l = me.cachedFreeLock;
+      me.cachedFreeLock = null;
+      if (trace) {
+        VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
+                      ", a cached free lock from Thread #",me.getThreadSlot());
+      }
+      return l;
+    }
+
+    Lock l = null;
+    while (l == null) {
+      if (globalFreeLock != null) {
+        lockAllocationMutex.lock();
+        l = globalFreeLock;
+        if (l != null) {
+          globalFreeLock = l.nextFreeLock;
+          l.nextFreeLock = null;
+          l.active = true;
+          globalFreeLocks--;
+        }
+        lockAllocationMutex.unlock();
+        if (trace && l!=null) {
+          VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
+                        " from the global freelist for Thread #",me.getThreadSlot());
+        }
+      } else {
+        l = new Lock(); // may cause thread switch (and processor loss)
+        lockAllocationMutex.lock();
+        if (globalFreeLock == null) {
+          // ok, it's still correct for us to be adding a new lock
+          if (nextLockIndex >= MAX_LOCKS) {
+            VM.sysWriteln("Too many fat locks"); // make MAX_LOCKS bigger? we can keep going??
+            VM.sysFail("Exiting VM with fatal error");
+          }
+          l.index = nextLockIndex++;
+          globalLocksAllocated++;
+        } else {
+          l = null; // someone added to the freelist, try again
+        }
+        lockAllocationMutex.unlock();
+        if (l != null) {
+          if (l.index >= numLocks()) {
+            /* We need to grow the table */
+            growLocks(l.index);
+          }
+          addLock(l);
+          l.active = true;
+          /* make sure other processors see lock initialization.
+           * Note: Derek and I BELIEVE that an isync is not required in the other processor because the lock is newly allocated - Bowen */
+          Magic.sync();
+        }
+        if (trace && l!=null) {
+          VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
+                        ", a freshly allocated lock for Thread #",
+                        me.getThreadSlot());
+        }
+      }
+    }
+    return l;
   }
 
   /**
-   * Obtains a lock on the indicated object.  Abbreviated light-weight
-   * locking sequence inlined by the optimizing compiler for the
-   * prologue of synchronized methods and for the
-   * <code>monitorenter</code> bytecode.
-   *
-   * @param o the object to be locked
-   * @param lockOffset the offset of the thin lock word in the object.
-   * @see org.jikesrvm.compilers.opt.hir2lir.ExpandRuntimeServices
+   * Recycles an unused heavy-weight lock.  Locks are deallocated
+   * to processor specific lists, so normally no synchronization
+   * is required to obtain or release a lock.
    */
-  @Inline
-  @Unpreemptible("Become another thread when lock is contended, don't preempt in other cases")
-  static void inlineLock(Object o, Offset lockOffset) {
-    Word old = Magic.prepareWord(o, lockOffset);
-    if (old.rshl(TL_THREAD_ID_SHIFT).isZero()) {
-      // implies that fatbit == 0 & threadid == 0
-      int threadId = RVMThread.getCurrentThread().getLockingId();
-      if (Magic.attemptWord(o, lockOffset, old, old.or(Word.fromIntZeroExtend(threadId)))) {
-        Magic.isync(); // don't use stale prefetched data in monitor
-        if (STATS) fastLocks++;
-        return;           // common case: o is now locked
+  protected static void free(Lock l) {
+    l.active = false;
+    RVMThread me = RVMThread.getCurrentThread();
+    if (me.cachedFreeLock == null) {
+      if (trace) {
+        VM.sysWriteln("Lock.free: setting ",Magic.objectAsAddress(l),
+                      " as the cached free lock for Thread #",
+                      me.getThreadSlot());
       }
+      me.cachedFreeLock = l;
+    } else {
+      if (trace) {
+        VM.sysWriteln("Lock.free: returning ",Magic.objectAsAddress(l),
+                      " to the global freelist for Thread #",
+                      me.getThreadSlot());
+      }
+      returnLock(l);
     }
-    lock(o, lockOffset); // uncommon case: default to out-of-line lock()
+  }
+  static void returnLock(Lock l) {
+    if (trace) {
+      VM.sysWriteln("Lock.returnLock: returning ",Magic.objectAsAddress(l),
+                    " to the global freelist for Thread #",
+                    RVMThread.getCurrentThreadSlot());
+    }
+    lockAllocationMutex.lock();
+    l.nextFreeLock = globalFreeLock;
+    globalFreeLock = l;
+    globalFreeLocks++;
+    globalLocksFreed++;
+    lockAllocationMutex.unlock();
   }
 
   /**
-   * Releases the lock on the indicated object.  Abreviated
-   * light-weight unlocking sequence inlined by the optimizing
-   * compiler for the epilogue of synchronized methods and for the
-   * <code>monitorexit</code> bytecode.
+   * Grow the locks table by allocating a new spine chunk.
+   */
+  @UnpreemptibleNoWarn("The caller is prepared to lose control when it allocates a lock")
+  static void growLocks(int id) {
+    int spineId = id >> LOG_LOCK_CHUNK_SIZE;
+    if (spineId >= LOCK_SPINE_SIZE) {
+      VM.sysFail("Cannot grow lock array greater than maximum possible index");
+    }
+    for(int i=chunksAllocated; i <= spineId; i++) {
+      if (locks[i] != null) {
+        /* We were beaten to it */
+        continue;
+      }
+
+      /* Allocate the chunk */
+      Lock[] newChunk = new Lock[LOCK_CHUNK_SIZE];
+
+      lockAllocationMutex.lock();
+      if (locks[i] == null) {
+        /* We got here first */
+        locks[i] = newChunk;
+        chunksAllocated++;
+      }
+      lockAllocationMutex.unlock();
+    }
+  }
+
+  /**
+   * Return the number of lock slots that have been allocated. This provides
+   * the range of valid lock ids.
+   */
+  public static int numLocks() {
+    return chunksAllocated * LOCK_CHUNK_SIZE;
+  }
+
+  /**
+   * Read a lock from the lock table by id.
    *
-   * @param o the object to be unlocked
-   * @param lockOffset the offset of the thin lock word in the object.
-   * @see org.jikesrvm.compilers.opt.hir2lir.ExpandRuntimeServices
+   * @param id The lock id
+   * @return The lock object.
    */
   @Inline
-  @Unpreemptible("No preemption normally, but may raise exceptions")
-  static void inlineUnlock(Object o, Offset lockOffset) {
-    Word old = Magic.prepareWord(o, lockOffset);
-    Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
-    if (old.xor(threadId).rshl(TL_LOCK_COUNT_SHIFT).isZero()) { // implies that fatbit == 0 && count == 0 && lockid == me
-      Magic.sync(); // memory barrier: subsequent locker will see previous writes
-      if (Magic.attemptWord(o, lockOffset, old, old.and(TL_UNLOCK_MASK))) {
-        return; // common case: o is now unlocked
+  public static Lock getLock(int id) {
+    return locks[id >> LOG_LOCK_CHUNK_SIZE][id & LOCK_CHUNK_MASK];
+  }
+
+  /**
+   * Add a lock to the lock table
+   *
+   * @param l The lock object
+   */
+  @Uninterruptible
+  public static void addLock(Lock l) {
+    Lock[] chunk = locks[l.index >> LOG_LOCK_CHUNK_SIZE];
+    int index = l.index & LOCK_CHUNK_MASK;
+    Services.setArrayUninterruptible(chunk, index, l);
+  }
+
+  /**
+   * Dump the lock table.
+   */
+  public static void dumpLocks() {
+    for (int i = 0; i < numLocks(); i++) {
+      Lock l = getLock(i);
+      if (l != null) {
+        l.dump();
       }
     }
-    unlock(o, lockOffset);  // uncommon case: default to non inlined unlock()
+    VM.sysWrite("\n");
+    VM.sysWrite("lock availability stats: ");
+    VM.sysWriteInt(globalLocksAllocated);
+    VM.sysWrite(" locks allocated, ");
+    VM.sysWriteInt(globalLocksFreed);
+    VM.sysWrite(" locks freed, ");
+    VM.sysWriteInt(globalFreeLocks);
+    VM.sysWrite(" free locks\n");
+  }
+
+  /**
+   * Count number of locks held by thread
+   * @param id the thread locking ID we're counting for
+   * @return number of locks held
+   */
+  public int countLocksHeldByThread(int id) {
+    int count=0;
+    for (int i = 0; i < numLocks(); i++) {
+      Lock l = getLock(i);
+      if (l != null && l.active && l.ownerId == id && l.recursionCount > 0) {
+        count++;
+      }
+    }
+    return count;
   }
 
   /**
@@ -121,7 +317,7 @@ final class ThinEagerDeflateLock implements ThinLockConstants {
    */
   @NoInline
   @Unpreemptible("Become another thread when lock is contended, don't preempt in other cases")
-  static void lock(Object o, Offset lockOffset) {
+  public void lock(Object o, Offset lockOffset) {
     major:
     while (true) { // repeat only if attempt to lock a promoted lock fails
       int retries = retryLimit;
@@ -155,7 +351,7 @@ final class ThinEagerDeflateLock implements ThinLockConstants {
 
         if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // o has a heavy lock
           int index = getLockIndex(old);
-          if (Lock.getLock(index).lockHeavy(o)) {
+          if (getLock(index).lockHeavy(o)) {
             break major; // lock succeeds (note that lockHeavy has issued an isync)
           }
           // heavy lock failed (deflated or contention for system lock)
@@ -337,31 +533,6 @@ final class ThinEagerDeflateLock implements ThinLockConstants {
   }
 
   /**
-   * @param obj an object
-   * @param lockOffset the offset of the thin lock word in the object.
-   * @param thread a thread
-   * @return <code>true</code> if the lock on obj at offset lockOffset is currently owned
-   *         by thread <code>false</code> if it is not.
-   */
-  static boolean holdsLock(Object obj, Offset lockOffset, RVMThread thread) {
-    int tid = thread.getLockingId();
-    Word bits = Magic.getWordAtOffset(obj, lockOffset);
-    if (bits.and(TL_FAT_LOCK_MASK).isZero()) {
-      // if locked, then it is locked with a thin lock
-      return (bits.and(ThinLockConstants.TL_THREAD_ID_MASK).toInt() == tid);
-    } else {
-      // if locked, then it is locked with a fat lock
-      int index = getLockIndex(bits);
-      Lock l = Lock.getLock(index);
-      return l != null && l.getOwnerId() == tid;
-    }
-  }
-
-  ////////////////////////////////////////////////////////////////////////////
-  /// Get heavy-weight lock for an object; if thin, inflate it.
-  ////////////////////////////////////////////////////////////////////////////
-
-  /**
    * Obtains the heavy-weight lock, if there is one, associated with the
    * indicated object.  Returns <code>null</code>, if there is no
    * heavy-weight lock associated with the object.
@@ -384,10 +555,6 @@ final class ThinEagerDeflateLock implements ThinLockConstants {
 
   }
 
-  ///////////////////////////////////////////////////////////////
-  /// Support for debugging and performance tuning ///
-  ///////////////////////////////////////////////////////////////
-
   /**
    * Number of times a thread yields before inflating the lock on a
    * object to a heavy-weight lock.  The current value was for the
@@ -401,24 +568,6 @@ final class ThinEagerDeflateLock implements ThinLockConstants {
    */
   private static final boolean traceContention = false;
 
-  //////////////////////////////////////////////
-  //             Statistics                   //
-  //////////////////////////////////////////////
-
-  static final boolean STATS = Lock.STATS;
-
-  static int fastLocks;
-  static int slowLocks;
-
-  static void notifyAppRunStart(String app, int value) {
-    if (!STATS) return;
-    fastLocks = 0;
-    slowLocks = 0;
-  }
-
-  static void notifyExit(int value) {
-    if (!STATS) return;
-  }
-
 }
+
 

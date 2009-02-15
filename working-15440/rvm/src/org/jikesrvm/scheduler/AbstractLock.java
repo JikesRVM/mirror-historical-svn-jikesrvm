@@ -30,7 +30,7 @@ import org.vmmagic.unboxed.Offset;
 /**
  * Abstract baseclass for all locks.
  */
-public abstract class AbstractLock implements Constants {
+public abstract class AbstractLock implements Constants, ThinLockConstants {
   
   public abstract boolean isActive();
   
@@ -40,12 +40,6 @@ public abstract class AbstractLock implements Constants {
   
   public abstract void unlockHeavy();
   
-  public abstract int enqueueWaitingAndUnlockCompletely(RVMThread toWait);
-  
-  public abstract boolean isWaiting(RVMThread t);
-  
-  public abstract void removeFromWaitQueue(RVMThread wasWaiting);
-  
   public abstract void setOwnerId(int id);
   
   public abstract int getOwnerId();
@@ -53,20 +47,6 @@ public abstract class AbstractLock implements Constants {
   public abstract void setRecursionCount(int c);
   
   public abstract int getRecursionCount();
-  
-  public int unlockHeavyCompletely() {
-    int result=getRecursionCount();
-    setRecursionCount(1);
-    unlockHeavy();
-    return result;
-  }
-  
-  public static void relock(Object o,int recCount) {
-    ObjectModel.genericLock(o);
-    if (recCount!=1) {
-      ObjectModel.getHeavyLock(o,true).setRecursionCount(recCount);
-    }
-  }
   
   public abstract Object getLockedObject();
   

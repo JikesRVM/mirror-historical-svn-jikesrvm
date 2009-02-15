@@ -46,7 +46,7 @@ public final class Locking implements ThinLockConstants {
   @Entrypoint
   @Unpreemptible("Become another thread when lock is contended, don't preempt in other cases")
   static void inlineLock(Object o, Offset lockOffset) {
-    LockConfig.Selected.inlineLock(o,lockOffset);
+    LockConfig.selectedPlan.inlineLock(o,lockOffset);
   }
 
   /**
@@ -63,7 +63,7 @@ public final class Locking implements ThinLockConstants {
   @Entrypoint
   @Unpreemptible("No preemption normally, but may raise exceptions")
   static void inlineUnlock(Object o, Offset lockOffset) {
-    LockConfig.Selected.inlineUnlock(o,lockOffset);
+    LockConfig.selectedPlan.inlineUnlock(o,lockOffset);
   }
 
   /**
@@ -77,7 +77,7 @@ public final class Locking implements ThinLockConstants {
   @NoInline
   @Unpreemptible("Become another thread when lock is contended, don't preempt in other cases")
   public static void lock(Object o, Offset lockOffset) {
-    LockConfig.Selected.lock(o,lockOffset);
+    LockConfig.selectedPlan.lock(o,lockOffset);
   }
 
   /**
@@ -91,7 +91,7 @@ public final class Locking implements ThinLockConstants {
   @NoInline
   @Unpreemptible("No preemption normally, but may raise exceptions")
   public static void unlock(Object o, Offset lockOffset) {
-    LockConfig.Selected.unlock(o,lockOffset);
+    LockConfig.selectedPlan.unlock(o,lockOffset);
   }
 
   /**
@@ -102,7 +102,7 @@ public final class Locking implements ThinLockConstants {
    *         by thread <code>false</code> if it is not.
    */
   public static boolean holdsLock(Object obj, Offset lockOffset, RVMThread thread) {
-    return LockConfig.Selected.holdsLock(obj,lockOffset,thread);
+    return LockConfig.selectedPlan.holdsLock(obj,lockOffset,thread);
   }
 
   /**
@@ -116,8 +116,22 @@ public final class Locking implements ThinLockConstants {
    * @return the heavy-weight lock on the object (if any)
    */
   @Unpreemptible
-  public static Lock getHeavyLock(Object o, Offset lockOffset, boolean create) {
-    return LockConfig.Selected.getHeavyLock(o,lockOffset,create);
+  public static AbstractLock getHeavyLock(Object o, 
+                                          Offset lockOffset, 
+                                          boolean create) {
+    return LockConfig.selectedPlan.getHeavyLock(o,lockOffset,create);
+  }
+  
+  public static int countLocksHeldByThread(RVMThread t) {
+    return LockConfig.selectedPlan.countLocksHeldByThread(t);
+  }
+  
+  public static void init() {
+    LockConfig.selectedPlan.init();
+  }
+
+  public static void boot() {
+    LockConfig.selectedPlan.boot();
   }
 }
 

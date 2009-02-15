@@ -46,23 +46,33 @@ public abstract class CommonLock extends AbstractLock {
   protected abstract void lockWaiting();
   protected abstract void unlockWaiting();
   
-  public int enqueueWaitingAndUnlockCompletely(RVMThread toWait) {
+  protected abstract boolean isWaiting(RVMThread t);
+  protected abstract void removeFromWaitQueue(RVMThread wasWaiting);
+  
+  protected int enqueueWaitingAndUnlockCompletely(RVMThread toWait) {
     lockWaiting();
     waiting.enqueue(toWait);
     unlockWaiting();
     return unlockHeavyCompletely();
   }
   
-  public boolean isWaiting(RVMThread t) {
+  protected boolean isWaiting(RVMThread t) {
     return waiting.isQueued(t);
   }
   
-  public void removeFromWaitQueue(RVMThread wasWaiting) {
+  protected void removeFromWaitQueue(RVMThread wasWaiting) {
     if (isWaiting(wasWaiting)) {
       lockWaiting();
       waiting.remove(wasWaiting);
       unlockWaiting();
     }
+  }
+  
+  protected int unlockHeavyCompletely() {
+    int result=getRecursionCount();
+    setRecursionCount(1);
+    unlockHeavy();
+    return result;
   }
   
   public void setOwnerId(int id) {
