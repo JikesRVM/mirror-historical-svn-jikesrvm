@@ -31,27 +31,60 @@ import org.vmmagic.unboxed.Word;
  */
 @Uninterruptible
 public abstract class AbstractLockPlan implements Constants, ThinLockConstants {
+  public static AbstractLockPlan instance;
+  
+  public AbstractLockPlan() {
+    instance=this;
+  }
+  
   public abstract void init();
   
   public abstract void boot();
   
   public abstract void inlineLock(Object o,int lockOffset);
+  public void inlineLock(Object o) {
+    inlineLock(o, JavaHeader.getThinLockOffset(o));
+  }
   
   public abstract void inlineUnlock(Object o,int lockOffset);
+  public void inlineUnlock(Object o) {
+    inlineUnlock(o, JavaHeader.getThinLockOffset(o));
+  }
   
   public abstract void lock(Object o,int lockOffset);
+  public void lock(Object o) {
+    lock(o, JavaHeader.getThinLockOffset(o));
+  }
 
   public abstract void unlock(Object o,int lockOffset);
+  public void unlock(Object o) {
+    unlock(o, JavaHeader.getThinLockOffset(o));
+  }
   
   public abstract boolean holdsLock(Ojbect o,Offset lockOffset,RVMThread thread);
+  public boolean holdsLock(Object o, RVMThread thread) {
+    return holdsLock(o, JavaHeader.getThinLockOffset(o), threads);
+  }
   
   public abstract AbstractLock getHeavyLock(Object o,Offset lockOffset,boolean create);
+  public AbstractLock getHeavyLock(Object o, boolean create) {
+    return getHeavyLock(o, JavaHeader.getThinLockOffset(o), create);
+  }
   
   public abstract void waitImpl(Object o, boolean hasTimeout, long whenWakeupNanos);
   public abstract void notify(Object o);
   public abstract void notifyAll(Object o);
   
-  public abstract int countLocksHeldByThread(RVMThread t);
+  /** Upper bound on the number of locks; typically this is only used for
+      assertions. */
+  public abstract int numLocks();
+  public abstract AbstractLock getLock(int id);
+  
+  public abstract int countLocksHeldByThread(int id);
+  
+  public void returnLock(AbstractLock l) {
+    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
+  }
 }
 
 

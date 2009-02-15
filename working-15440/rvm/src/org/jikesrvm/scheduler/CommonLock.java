@@ -38,6 +38,7 @@ public abstract class CommonLock extends AbstractLock {
   protected boolean active;
   protected int id;
   protected ThreadQueue waiting;
+  protected CommonLock nextFreeLock;
   
   protected CommonLock() {
     waiting=new ThreadQueue();

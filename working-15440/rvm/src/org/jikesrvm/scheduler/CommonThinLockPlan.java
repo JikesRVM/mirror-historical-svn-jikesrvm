@@ -28,6 +28,12 @@ import org.vmmagic.unboxed.Word;
 import org.vmmagic.unboxed.Offset;
 
 public abstract class CommonThinLockPlan extends CommonLockPlan {
+  public static CommonThinLockPlan instance;
+  
+  public CommonThinLockPlan() {
+    instance=this;
+  }
+  
   /**
    * Return the lock index for a given lock word.  Assert valid index
    * ranges, that the fat lock bit is set, and that the lock entry
@@ -40,7 +46,7 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
   protected int getLockIndex(Word lockWord) {
     int index = lockWord.and(TL_LOCK_ID_MASK).rshl(TL_LOCK_ID_SHIFT).toInt();
     if (VM.VerifyAssertions) {
-      if (!(index > 0 && index < Lock.numLocks())) {
+      if (!(index > 0 && index < numLocks())) {
         VM.sysWrite("Lock index out of range! Word: "); VM.sysWrite(lockWord);
         VM.sysWrite(" index: "); VM.sysWrite(index);
         VM.sysWrite(" locks: "); VM.sysWrite(Lock.numLocks());

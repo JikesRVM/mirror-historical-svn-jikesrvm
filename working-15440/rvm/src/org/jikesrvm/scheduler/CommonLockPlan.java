@@ -28,6 +28,51 @@ import org.vmmagic.unboxed.Word;
 
 @Uninterruptible
 public abstract class CommonLockPlan extends AbstractLockPlan {
+  public static CommonLockPlan instance;
+  
+  public CommonLockPlan() {
+    instance=this;
+  }
+  
+  /** do debug tracing? */
+  protected static final boolean trace = false;
+
+  /** The (fixed) number of entries in the lock table spine */
+  protected static int LOCK_SPINE_SIZE = 128;
+  /** The log size of each chunk in the spine */
+  protected static final int LOG_LOCK_CHUNK_SIZE = 11;
+  /** The size of each chunk in the spine */
+  protected static final int LOCK_CHUNK_SIZE = 1 << LOG_LOCK_CHUNK_SIZE;
+  /** The mask used to get the chunk-level index */
+  protected static final int LOCK_CHUNK_MASK = LOCK_CHUNK_SIZE - 1;
+  /** The maximum possible number of locks */
+  protected static final int MAX_LOCKS = LOCK_SPINE_SIZE * LOCK_CHUNK_SIZE;
+  /** The number of chunks to allocate on startup */
+  protected static final int INITIAL_CHUNKS = 1;
+
+  // Heavy lock table.
+
+  /** The table of locks. */
+  private static CommonLock[][] locks;
+  /** Used during allocation of locks within the table. */
+  private static final SpinLock lockAllocationMutex = new SpinLock();
+  /** The number of chunks in the spine that have been physically allocated */
+  private static int chunksAllocated;
+  /** The number of locks allocated (these may either be in use, on a global
+   * freelist, or on a thread's freelist. */
+  private static int nextLockIndex;
+
+  // Global free list.
+
+  /** A global lock free list head */
+  private static Lock globalFreeLock;
+  /** the number of locks held on the global free list. */
+  private static int globalFreeLocks;
+  /** the total number of allocation operations. */
+  private static int globalLocksAllocated;
+  /** the total number of free operations. */
+  private static int globalLocksFreed;
+
   public static final boolean STATS = false;
 
   // Statistics
@@ -42,21 +87,247 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   protected static int fastLocks;
   protected static int slowLocks;
   
-  public void init() {
-    // do nothing ... real action happens in subclasses
-  }
+  protected static int waitOperations;
+  protected static int notifyOperations;
+  protected static int notifyAllOperations;
   
-  protected void relock(Object o,int recCount) {
-    ObjectModel.genericLock(o);
-    if (recCount!=1) {
-      ObjectModel.getHeavyLock(o,true).setRecursionCount(recCount);
+  public void init() {
+    nextLockIndex = 1;
+    locks = new Lock[LOCK_SPINE_SIZE][];
+    for (int i=0; i < INITIAL_CHUNKS; i++) {
+      chunksAllocated++;
+      locks[i] = new Lock[LOCK_CHUNK_SIZE];
+    }
+    if (VM.VerifyAssertions) {
+      // check that each potential lock is addressable
+      VM._assert(((MAX_LOCKS - 1) <=
+                  ThinLockConstants.TL_LOCK_ID_MASK.rshl(ThinLockConstants.TL_LOCK_ID_SHIFT).toInt()) ||
+                  ThinLockConstants.TL_LOCK_ID_MASK.EQ(Word.fromIntSignExtend(-1)));
     }
   }
   
-  // FIXME: why the fuck are we passing lockOffsets around?
+  /**
+   * Delivers up an unassigned heavy-weight lock.  Locks are allocated
+   * from processor specific regions or lists, so normally no synchronization
+   * is required to obtain a lock.
+   *
+   * Collector threads cannot use heavy-weight locks.
+   *
+   * @return a free Lock; or <code>null</code>, if garbage collection is not enabled
+   */
+  @UnpreemptibleNoWarn("The caller is prepared to lose control when it allocates a lock")
+  protected CommonLock allocate() {
+    RVMThread me=RVMThread.getCurrentThread();
+    if (me.cachedFreeLock != null) {
+      Lock l = me.cachedFreeLock;
+      me.cachedFreeLock = null;
+      if (trace) {
+        VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
+                      ", a cached free lock from Thread #",me.getThreadSlot());
+      }
+      return l;
+    }
+
+    Lock l = null;
+    while (l == null) {
+      if (globalFreeLock != null) {
+        lockAllocationMutex.lock();
+        l = globalFreeLock;
+        if (l != null) {
+          globalFreeLock = l.nextFreeLock;
+          l.nextFreeLock = null;
+          l.active = true;
+          globalFreeLocks--;
+        }
+        lockAllocationMutex.unlock();
+        if (trace && l!=null) {
+          VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
+                        " from the global freelist for Thread #",me.getThreadSlot());
+        }
+      } else {
+        l = new LockConfig.Selected(); // may cause thread switch (and processor loss)
+        lockAllocationMutex.lock();
+        if (globalFreeLock == null) {
+          // ok, it's still correct for us to be adding a new lock
+          if (nextLockIndex >= MAX_LOCKS) {
+            VM.sysWriteln("Too many fat locks"); // make MAX_LOCKS bigger? we can keep going??
+            VM.sysFail("Exiting VM with fatal error");
+          }
+          l.index = nextLockIndex++;
+          globalLocksAllocated++;
+        } else {
+          l = null; // someone added to the freelist, try again
+        }
+        lockAllocationMutex.unlock();
+        if (l != null) {
+          if (l.index >= numLocks()) {
+            /* We need to grow the table */
+            growLocks(l.index);
+          }
+          addLock(l);
+          l.active = true;
+          /* make sure other processors see lock initialization.
+           * Note: Derek and I BELIEVE that an isync is not required in the other processor because the lock is newly allocated - Bowen */
+          Magic.sync();
+        }
+        if (trace && l!=null) {
+          VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
+                        ", a freshly allocated lock for Thread #",
+                        me.getThreadSlot());
+        }
+      }
+    }
+    return l;
+  }
+
+  /**
+   * Recycles an unused heavy-weight lock.  Locks are deallocated
+   * to processor specific lists, so normally no synchronization
+   * is required to obtain or release a lock.
+   */
+  void free(CommonLock l) {
+    l.active = false;
+    RVMThread me = RVMThread.getCurrentThread();
+    if (me.cachedFreeLock == null) {
+      if (trace) {
+        VM.sysWriteln("Lock.free: setting ",Magic.objectAsAddress(l),
+                      " as the cached free lock for Thread #",
+                      me.getThreadSlot());
+      }
+      me.cachedFreeLock = l;
+    } else {
+      if (trace) {
+        VM.sysWriteln("Lock.free: returning ",Magic.objectAsAddress(l),
+                      " to the global freelist for Thread #",
+                      me.getThreadSlot());
+      }
+      returnLock(l);
+    }
+  }
+  public void returnLock(AbstractLock l_) {
+    if (trace) {
+      VM.sysWriteln("Lock.returnLock: returning ",Magic.objectAsAddress(l),
+                    " to the global freelist for Thread #",
+                    RVMThread.getCurrentThreadSlot());
+    }
+    CommonLock l=(CommonLock)l_;
+    lockAllocationMutex.lock();
+    l.nextFreeLock = globalFreeLock;
+    globalFreeLock = l;
+    globalFreeLocks++;
+    globalLocksFreed++;
+    lockAllocationMutex.unlock();
+  }
+
+  /**
+   * Grow the locks table by allocating a new spine chunk.
+   */
+  @UnpreemptibleNoWarn("The caller is prepared to lose control when it allocates a lock")
+  void growLocks(int id) {
+    int spineId = id >> LOG_LOCK_CHUNK_SIZE;
+    if (spineId >= LOCK_SPINE_SIZE) {
+      VM.sysFail("Cannot grow lock array greater than maximum possible index");
+    }
+    for(int i=chunksAllocated; i <= spineId; i++) {
+      if (locks[i] != null) {
+        /* We were beaten to it */
+        continue;
+      }
+
+      /* Allocate the chunk */
+      CommonLock[] newChunk = new CommonLock[LOCK_CHUNK_SIZE];
+
+      lockAllocationMutex.lock();
+      if (locks[i] == null) {
+        /* We got here first */
+        locks[i] = newChunk;
+        chunksAllocated++;
+      }
+      lockAllocationMutex.unlock();
+    }
+  }
+
+  /**
+   * Return the number of lock slots that have been allocated. This provides
+   * the range of valid lock ids.
+   */
+  public int numLocks() {
+    return chunksAllocated * LOCK_CHUNK_SIZE;
+  }
+
+  /**
+   * Read a lock from the lock table by id.
+   *
+   * @param id The lock id
+   * @return The lock object.
+   */
+  @Inline
+  public CommonLock getLock(int id) {
+    return locks[id >> LOG_LOCK_CHUNK_SIZE][id & LOCK_CHUNK_MASK];
+  }
+
+  /**
+   * Add a lock to the lock table
+   *
+   * @param l The lock object
+   */
+  @Uninterruptible
+  private void addLock(CommonLock l) {
+    Lock[] chunk = locks[l.index >> LOG_LOCK_CHUNK_SIZE];
+    int index = l.index & LOCK_CHUNK_MASK;
+    Services.setArrayUninterruptible(chunk, index, l);
+  }
+
+  /**
+   * Dump the lock table.
+   */
+  public void dumpLocks() {
+    for (int i = 0; i < numLocks(); i++) {
+      Lock l = getLock(i);
+      if (l != null) {
+        l.dump();
+      }
+    }
+    VM.sysWrite("\n");
+    VM.sysWrite("lock availability stats: ");
+    VM.sysWriteInt(globalLocksAllocated);
+    VM.sysWrite(" locks allocated, ");
+    VM.sysWriteInt(globalLocksFreed);
+    VM.sysWrite(" locks freed, ");
+    VM.sysWriteInt(globalFreeLocks);
+    VM.sysWrite(" free locks\n");
+  }
+
+  /**
+   * Count number of locks held by thread
+   * @param id the thread locking ID we're counting for
+   * @return number of locks held
+   */
+  public int countLocksHeldByThread(int id) {
+    int count=0;
+    for (int i = 0; i < numLocks(); i++) {
+      CommonLock l = getLock(i);
+      if (l != null && l.active && l.ownerId == id && l.recursionCount > 0) {
+        count++;
+      }
+    }
+    return count;
+  }
+
   public abstract CommonLock getHeavyLock(Object o, Offset lockOffset, boolean create);
+  public CommonLock getHeavyLock(Object o, boolean create) {
+    return getHeavyLock(o, JavaHeader.getThinLockOffset(o), create);
+  }
+  
+  protected void relock(Object o,int recCount) {
+    lock(o);
+    if (recCount!=1) {
+      getHeavyLock(o,true).setRecursionCount(recCount);
+    }
+  }
   
   public void waitImpl(Object o, boolean hasTimeout, long whenWakeupNanos) {
+    if (STATS) waitOperations++;
     RVMThread t=RVMThread.getCurrentThread();
     boolean throwInterrupt = false;
     Throwable throwThis = null;
@@ -69,47 +340,39 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
       throwInterrupt = true;
       t.hasInterrupt = false;
     } else {
-      waiting = hasTimeout ? Waiting.TIMED_WAITING : Waiting.WAITING;
+      t.waiting = hasTimeout ? Waiting.TIMED_WAITING : Waiting.WAITING;
       // get lock for object
-      Lock l = (CommonLock)getHeavyLock(o, true);
+      CommonLock l = getHeavyLock(o, true);
       // this thread is supposed to own the lock on o
       if (VM.VerifyAssertions)
-        VM._assert(l.getOwnerId() == getLockingId());
+        VM._assert(l.getOwnerId() == t.getLockingId());
 
       // release the lock and enqueue waiting
-      int waitCount=l.enqueueWaitingAndUnlockCompletely(this);
+      int waitCount=l.enqueueWaitingAndUnlockCompletely(t);
 
       // block
-      monitor().lock();
-      while (l.isWaiting(this) && !hasInterrupt && asyncThrowable == null &&
+      t.monitor().lock();
+      while (l.isWaiting(t) && !t.hasInterrupt && t.asyncThrowable == null &&
              (!hasTimeout || sysCall.sysNanoTime() < whenWakeupNanos)) {
         if (hasTimeout) {
-          monitor().timedWaitAbsoluteNicely(whenWakeupNanos);
+          t.monitor().timedWaitAbsoluteNicely(whenWakeupNanos);
         } else {
-          monitor().waitNicely();
+          t.monitor().waitNicely();
         }
       }
       // figure out if anything special happened while we were blocked
-      if (hasInterrupt) {
+      if (t.hasInterrupt) {
         throwInterrupt = true;
-        hasInterrupt = false;
+        t.hasInterrupt = false;
       }
-      if (asyncThrowable != null) {
-        throwThis = asyncThrowable;
-        asyncThrowable = null;
+      if (t.asyncThrowable != null) {
+        throwThis = t.asyncThrowable;
+        t.asyncThrowable = null;
       }
-      monitor().unlock();
-      l.removeFromWaitQueue(this);
-      // reacquire the lock, restoring the recursion count.  note that the
-      // lock associated with the object may have changed (been deflated and
-      // reinflated) so we must start anew
-      ObjectModel.genericLock(o);
-      waitObject = null;
-      if (waitCount != 1) { // reset recursion count
-        Lock l2 = ObjectModel.getHeavyLock(o, true);
-        l2.setRecursionCount(waitCount);
-      }
-      waiting = Waiting.RUNNABLE;
+      t.monitor().unlock();
+      l.removeFromWaitQueue(t);
+      relock(o, waitCount);
+      t.waiting = Waiting.RUNNABLE;
     }
     // check if we should exit in a special way
     if (throwThis != null) {
@@ -120,6 +383,56 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     }
   }
   
+  /**
+   * Support for Java {@link java.lang.Object#notify()} synchronization
+   * primitive.
+   *
+   * @param o the object synchronized on
+   */
+  @Interruptible
+  public void notify(Object o) {
+    if (STATS)
+      notifyOperations++;
+    CommonLock l=getHeavyLock(o, false);
+    if (l == null)
+      return;
+    if (l.getOwnerId() != RVMThread.getCurrentThread().getLockingId()) {
+      RVMThread.raiseIllegalMonitorStateException("notifying", o);
+    }
+    l.lockWaiting();
+    RVMThread toAwaken = l.waiting.dequeue();
+    l.unlockWaiting();
+    if (toAwaken != null) {
+      toAwaken.monitor().lockedBroadcast();
+    }
+  }
+
+  /**
+   * Support for Java synchronization primitive.
+   *
+   * @param o the object synchronized on
+   * @see java.lang.Object#notifyAll
+   */
+  @UninterruptibleNoWarn("Never blocks except if there was an error")
+  public static void notifyAll(Object o) {
+    if (STATS)
+      notifyAllOperations++;
+    CommonLock l = getHeavyLock(o, false);
+    if (l == null)
+      return;
+    if (l.getOwnerId() != RVMThread.getCurrentThread().getLockingId()) {
+      RVMThread.raiseIllegalMonitorStateException("notifyAll", o);
+    }
+    for (;;) {
+      l.lockWaiting();
+      RVMThread toAwaken = l.waiting.dequeue();
+      l.unlockWaiting();
+      if (toAwaken == null)
+        break;
+      toAwaken.monitor().lockedBroadcast();
+    }
+  }
+
   /****************************************************************************
    * Statistics
    */
@@ -143,7 +456,17 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   protected void reportStats() {
     int totalLocks = lockOperations + ThinLock.fastLocks + ThinLock.slowLocks;
     
-    RVMThread.dumpStats();
+    VM.sysWrite("FatLocks: ");
+    VM.sysWrite(waitOperations);
+    VM.sysWrite(" wait operations\n");
+    VM.sysWrite("FatLocks: ");
+    VM.sysWrite(timedWaitOperations);
+    VM.sysWrite(" timed wait operations\n");
+    VM.sysWrite("FatLocks: ");
+    VM.sysWrite(notifyOperations);
+    VM.sysWrite(" notify operations\n");
+    VM.sysWrite("FatLocks: ");
+    VM.sysWrite(notifyAllOperations);
     VM.sysWrite(" notifyAll operations\n");
     VM.sysWrite("FatLocks: ");
     VM.sysWrite(lockOperations);
@@ -166,7 +489,6 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     Services.percentage(slowLocks, value, "all lock operations");
     VM.sysWriteln();
     
-    // FIXME: move to subclass
     VM.sysWrite("lock availability stats: ");
     VM.sysWriteInt(globalLocksAllocated);
     VM.sysWrite(" locks allocated, ");

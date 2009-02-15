@@ -83,10 +83,5 @@ public abstract class AbstractLock implements Constants, ThinLockConstants {
     dumpWaitingThreads();
     dumpImplementationSpecific();
   }
-  
-  @UnpreemptibleNoWarn
-  protected static void raiseIllegalMonitorStateException(String msg, Object o) {
-    throw new IllegalMonitorStateException(msg + o);
-  }
 }
 

@@ -28,285 +28,23 @@ import org.vmmagic.unboxed.Word;
 
 @Uninterruptible
 public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
-  /** do debug tracing? */
-  protected static final boolean trace = false;
-  /** Control the gathering of statistics */
-  public static final boolean STATS = false;
-
-  /** The (fixed) number of entries in the lock table spine */
-  protected static final int LOCK_SPINE_SIZE = 128;
-  /** The log size of each chunk in the spine */
-  protected static final int LOG_LOCK_CHUNK_SIZE = 11;
-  /** The size of each chunk in the spine */
-  protected static final int LOCK_CHUNK_SIZE = 1 << LOG_LOCK_CHUNK_SIZE;
-  /** The mask used to get the chunk-level index */
-  protected static final int LOCK_CHUNK_MASK = LOCK_CHUNK_SIZE - 1;
-  /** The maximum possible number of locks */
-  protected static final int MAX_LOCKS = LOCK_SPINE_SIZE * LOCK_CHUNK_SIZE;
-  /** The number of chunks to allocate on startup */
-  protected static final int INITIAL_CHUNKS = 1;
-
+  public static EagerDeflateThinLockPlan instance;
+  
+  public EagerDeflateThinLockPlan() {
+    instance=this;
+  }
+  
   /**
    * Should we give up or persist in the attempt to get a heavy-weight lock,
    * if its <code>mutex</code> microlock is held by another procesor.
    */
   private static final boolean tentativeMicrolocking = false;
 
-  // Heavy lock table.
-
-  /** The table of locks. */
-  private static Lock[][] locks;
-  /** Used during allocation of locks within the table. */
-  private static final SpinLock lockAllocationMutex = new SpinLock();
-  /** The number of chunks in the spine that have been physically allocated */
-  private static int chunksAllocated;
-  /** The number of locks allocated (these may either be in use, on a global
-   * freelist, or on a thread's freelist. */
-  private static int nextLockIndex;
-
-  // Global free list.
-
-  /** A global lock free list head */
-  private static Lock globalFreeLock;
-  /** the number of locks held on the global free list. */
-  private static int globalFreeLocks;
-  /** the total number of allocation operations. */
-  private static int globalLocksAllocated;
-  /** the total number of free operations. */
-  private static int globalLocksFreed;
-
-  // Statistics
-
-  /** Number of lock operations */
-  private static int lockOperations;
-  /** Number of unlock operations */
-  private static int unlockOperations;
-  /** Number of deflations */
-  private static int deflations;
-
   public void init() {
     super.init();
-    nextLockIndex = 1;
-    locks = new Lock[LOCK_SPINE_SIZE][];
-    for (int i=0; i < INITIAL_CHUNKS; i++) {
-      chunksAllocated++;
-      locks[i] = new Lock[LOCK_CHUNK_SIZE];
-    }
-    if (VM.VerifyAssertions) {
-      // check that each potential lock is addressable
-      VM._assert(((MAX_LOCKS - 1) <=
-                  ThinLockConstants.TL_LOCK_ID_MASK.rshl(ThinLockConstants.TL_LOCK_ID_SHIFT).toInt()) ||
-                  ThinLockConstants.TL_LOCK_ID_MASK.EQ(Word.fromIntSignExtend(-1)));
-    }
+    // nothing to do...
   }
   
-  /**
-   * Delivers up an unassigned heavy-weight lock.  Locks are allocated
-   * from processor specific regions or lists, so normally no synchronization
-   * is required to obtain a lock.
-   *
-   * Collector threads cannot use heavy-weight locks.
-   *
-   * @return a free Lock; or <code>null</code>, if garbage collection is not enabled
-   */
-  @UnpreemptibleNoWarn("The caller is prepared to lose control when it allocates a lock")
-  static Lock allocate() {
-    RVMThread me=RVMThread.getCurrentThread();
-    if (me.cachedFreeLock != null) {
-      Lock l = me.cachedFreeLock;
-      me.cachedFreeLock = null;
-      if (trace) {
-        VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
-                      ", a cached free lock from Thread #",me.getThreadSlot());
-      }
-      return l;
-    }
-
-    Lock l = null;
-    while (l == null) {
-      if (globalFreeLock != null) {
-        lockAllocationMutex.lock();
-        l = globalFreeLock;
-        if (l != null) {
-          globalFreeLock = l.nextFreeLock;
-          l.nextFreeLock = null;
-          l.active = true;
-          globalFreeLocks--;
-        }
-        lockAllocationMutex.unlock();
-        if (trace && l!=null) {
-          VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
-                        " from the global freelist for Thread #",me.getThreadSlot());
-        }
-      } else {
-        l = new Lock(); // may cause thread switch (and processor loss)
-        lockAllocationMutex.lock();
-        if (globalFreeLock == null) {
-          // ok, it's still correct for us to be adding a new lock
-          if (nextLockIndex >= MAX_LOCKS) {
-            VM.sysWriteln("Too many fat locks"); // make MAX_LOCKS bigger? we can keep going??
-            VM.sysFail("Exiting VM with fatal error");
-          }
-          l.index = nextLockIndex++;
-          globalLocksAllocated++;
-        } else {
-          l = null; // someone added to the freelist, try again
-        }
-        lockAllocationMutex.unlock();
-        if (l != null) {
-          if (l.index >= numLocks()) {
-            /* We need to grow the table */
-            growLocks(l.index);
-          }
-          addLock(l);
-          l.active = true;
-          /* make sure other processors see lock initialization.
-           * Note: Derek and I BELIEVE that an isync is not required in the other processor because the lock is newly allocated - Bowen */
-          Magic.sync();
-        }
-        if (trace && l!=null) {
-          VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
-                        ", a freshly allocated lock for Thread #",
-                        me.getThreadSlot());
-        }
-      }
-    }
-    return l;
-  }
-
-  /**
-   * Recycles an unused heavy-weight lock.  Locks are deallocated
-   * to processor specific lists, so normally no synchronization
-   * is required to obtain or release a lock.
-   */
-  protected static void free(Lock l) {
-    l.active = false;
-    RVMThread me = RVMThread.getCurrentThread();
-    if (me.cachedFreeLock == null) {
-      if (trace) {
-        VM.sysWriteln("Lock.free: setting ",Magic.objectAsAddress(l),
-                      " as the cached free lock for Thread #",
-                      me.getThreadSlot());
-      }
-      me.cachedFreeLock = l;
-    } else {
-      if (trace) {
-        VM.sysWriteln("Lock.free: returning ",Magic.objectAsAddress(l),
-                      " to the global freelist for Thread #",
-                      me.getThreadSlot());
-      }
-      returnLock(l);
-    }
-  }
-  static void returnLock(Lock l) {
-    if (trace) {
-      VM.sysWriteln("Lock.returnLock: returning ",Magic.objectAsAddress(l),
-                    " to the global freelist for Thread #",
-                    RVMThread.getCurrentThreadSlot());
-    }
-    lockAllocationMutex.lock();
-    l.nextFreeLock = globalFreeLock;
-    globalFreeLock = l;
-    globalFreeLocks++;
-    globalLocksFreed++;
-    lockAllocationMutex.unlock();
-  }
-
-  /**
-   * Grow the locks table by allocating a new spine chunk.
-   */
-  @UnpreemptibleNoWarn("The caller is prepared to lose control when it allocates a lock")
-  static void growLocks(int id) {
-    int spineId = id >> LOG_LOCK_CHUNK_SIZE;
-    if (spineId >= LOCK_SPINE_SIZE) {
-      VM.sysFail("Cannot grow lock array greater than maximum possible index");
-    }
-    for(int i=chunksAllocated; i <= spineId; i++) {
-      if (locks[i] != null) {
-        /* We were beaten to it */
-        continue;
-      }
-
-      /* Allocate the chunk */
-      Lock[] newChunk = new Lock[LOCK_CHUNK_SIZE];
-
-      lockAllocationMutex.lock();
-      if (locks[i] == null) {
-        /* We got here first */
-        locks[i] = newChunk;
-        chunksAllocated++;
-      }
-      lockAllocationMutex.unlock();
-    }
-  }
-
-  /**
-   * Return the number of lock slots that have been allocated. This provides
-   * the range of valid lock ids.
-   */
-  public static int numLocks() {
-    return chunksAllocated * LOCK_CHUNK_SIZE;
-  }
-
-  /**
-   * Read a lock from the lock table by id.
-   *
-   * @param id The lock id
-   * @return The lock object.
-   */
-  @Inline
-  public static Lock getLock(int id) {
-    return locks[id >> LOG_LOCK_CHUNK_SIZE][id & LOCK_CHUNK_MASK];
-  }
-
-  /**
-   * Add a lock to the lock table
-   *
-   * @param l The lock object
-   */
-  @Uninterruptible
-  public static void addLock(Lock l) {
-    Lock[] chunk = locks[l.index >> LOG_LOCK_CHUNK_SIZE];
-    int index = l.index & LOCK_CHUNK_MASK;
-    Services.setArrayUninterruptible(chunk, index, l);
-  }
-
-  /**
-   * Dump the lock table.
-   */
-  public static void dumpLocks() {
-    for (int i = 0; i < numLocks(); i++) {
-      Lock l = getLock(i);
-      if (l != null) {
-        l.dump();
-      }
-    }
-    VM.sysWrite("\n");
-    VM.sysWrite("lock availability stats: ");
-    VM.sysWriteInt(globalLocksAllocated);
-    VM.sysWrite(" locks allocated, ");
-    VM.sysWriteInt(globalLocksFreed);
-    VM.sysWrite(" locks freed, ");
-    VM.sysWriteInt(globalFreeLocks);
-    VM.sysWrite(" free locks\n");
-  }
-
-  /**
-   * Count number of locks held by thread
-   * @param id the thread locking ID we're counting for
-   * @return number of locks held
-   */
-  public int countLocksHeldByThread(int id) {
-    int count=0;
-    for (int i = 0; i < numLocks(); i++) {
-      Lock l = getLock(i);
-      if (l != null && l.active && l.ownerId == id && l.recursionCount > 0) {
-        count++;
-      }
-    }
-    return count;
-  }
-
   /**
    * Obtains a lock on the indicated object.  Light-weight locking
    * sequence for the prologue of synchronized methods and for the
@@ -398,7 +136,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
       Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
       if (id.NE(threadId)) { // not normal case
         if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // o has a heavy lock
-          Lock.getLock(getLockIndex(old)).unlockHeavy(o);
+          getLock(getLockIndex(old)).unlockHeavy(o);
           // note that unlockHeavy has issued a sync
           return;
         }
@@ -445,7 +183,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
       // this assertions is just plain wrong.
       //VM._assert((Magic.getWordAtOffset(o, lockOffset).and(TL_FAT_LOCK_MASK).isZero()));
     }
-    Lock l = Lock.allocate();
+    Lock l = allocate();
     if (VM.VerifyAssertions) {
       VM._assert(l != null); // inflate called by wait (or notify) which shouldn't be called during GC
     }
@@ -468,7 +206,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    */
   @Unpreemptible
   private static boolean inflateAndLock(Object o, Offset lockOffset) {
-    Lock l = Lock.allocate();
+    Lock l = allocate();
     if (l == null) return false; // can't allocate locks during GC
     Lock rtn = attemptToInflate(o, lockOffset, l);
     if (l != rtn) {
@@ -493,14 +231,14 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
       old = Magic.prepareWord(o, lockOffset);
       // check to see if another thread has already created a fat lock
       if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // already a fat lock in place
-        if (Lock.trace) {
+        if (trace) {
           VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot(),
                         ": freeing lock ",Magic.objectAsAddress(l),
                         " because we had a double-inflate");
         }
-        Lock.free(l);
+        free(l);
         l.mutex.unlock();
-        l = Lock.getLock(getLockIndex(old));
+        l = getLock(getLockIndex(old));
         RVMThread.leaveLockingPath();
         return l;
       }
@@ -524,7 +262,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
     if (VM.VerifyAssertions) {
       Word old = Magic.getWordAtOffset(o, lockOffset);
       VM._assert(!(old.and(TL_FAT_LOCK_MASK).isZero()));
-      VM._assert(l == Lock.getLock(getLockIndex(old)));
+      VM._assert(l == getLock(getLockIndex(old)));
     }
     Word old;
     do {
@@ -546,13 +284,12 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
   static Lock getHeavyLock(Object o, Offset lockOffset, boolean create) {
     Word old = Magic.getWordAtOffset(o, lockOffset);
     if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // already a fat lock in place
-      return Lock.getLock(getLockIndex(old));
+      return getLock(getLockIndex(old));
     } else if (create) {
       return inflate(o, lockOffset);
     } else {
       return null;
     }
-
   }
 
   /**

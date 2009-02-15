@@ -615,7 +615,7 @@ public class RVMThread extends ThreadContext {
    * A cached free lock. Not a free list; this will only ever contain 0 or 1
    * locks!
    */
-  public Lock cachedFreeLock;
+  public AbstractLock cachedFreeLock;
 
   /*
    * Wait/notify fields
@@ -4243,21 +4243,6 @@ public class RVMThread extends ThreadContext {
    */
   public int dump(char[] dest) {
     return dump(dest, 0);
-  }
-
-  /** Dump statistics gather on operations */
-  static void dumpStats() {
-    VM.sysWrite("FatLocks: ");
-    VM.sysWrite(waitOperations);
-    VM.sysWrite(" wait operations\n");
-    VM.sysWrite("FatLocks: ");
-    VM.sysWrite(timedWaitOperations);
-    VM.sysWrite(" timed wait operations\n");
-    VM.sysWrite("FatLocks: ");
-    VM.sysWrite(notifyOperations);
-    VM.sysWrite(" notify operations\n");
-    VM.sysWrite("FatLocks: ");
-    VM.sysWrite(notifyAllOperations);
   }
 
   /**
