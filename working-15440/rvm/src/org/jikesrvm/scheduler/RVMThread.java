@@ -2527,8 +2527,6 @@ public class RVMThread extends ThreadContext {
       VM.sysWriteln("returning cached lock...");
 
     if (cachedFreeLock != null) {
-      if (VM.VerifyAssertions)
-        VM._assert(cachedFreeLock.mutex.latestContender != this);
       LockConfig.selectedPlan.returnLock(cachedFreeLock);
       cachedFreeLock = null;
     }
