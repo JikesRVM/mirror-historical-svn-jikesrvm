@@ -38,7 +38,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * Should we give up or persist in the attempt to get a heavy-weight lock,
    * if its <code>mutex</code> microlock is held by another procesor.
    */
-  private static final boolean tentativeMicrolocking = false;
+  public static final boolean tentativeMicrolocking = false;
 
   public void init() {
     super.init();

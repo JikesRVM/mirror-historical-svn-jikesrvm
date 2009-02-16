@@ -104,7 +104,7 @@ public class EagerDeflateThinLock extends CommonThinLock {
     RVMThread me = RVMThread.getCurrentThread();
     if (ownerId != me.getLockingId()) {
       mutex.unlock(); // thread-switching benign
-      RVMThread.raiseIllegalMonitorStateException("heavy unlocking", o);
+      RVMThread.raiseIllegalMonitorStateException("heavy unlocking", lockedObject);
     }
     recursionCount--;
     if (0 < recursionCount) {

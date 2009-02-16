@@ -18,7 +18,10 @@ import org.jikesrvm.Callbacks;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.objectmodel.ThinLockConstants;
+import org.jikesrvm.objectmodel.JavaHeader;
 import org.jikesrvm.runtime.Magic;
+import static org.jikesrvm.runtime.SysCall.sysCall;
+import org.jikesrvm.adaptive.measurements.RuntimeMeasurements;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
@@ -92,6 +95,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   protected static int slowLocks;
   
   protected static int waitOperations;
+  protected static int timedWaitOperations;
   protected static int notifyOperations;
   protected static int notifyAllOperations;
   
@@ -123,7 +127,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   protected CommonLock allocate() {
     RVMThread me=RVMThread.getCurrentThread();
     if (me.cachedFreeLock != null) {
-      CommonLock l = me.cachedFreeLock;
+      CommonLock l = (CommonLock)me.cachedFreeLock;
       me.cachedFreeLock = null;
       if (trace) {
         VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
@@ -157,16 +161,16 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
             VM.sysWriteln("Too many fat locks"); // make MAX_LOCKS bigger? we can keep going??
             VM.sysFail("Exiting VM with fatal error");
           }
-          l.index = nextLockIndex++;
+          l.id = nextLockIndex++;
           globalLocksAllocated++;
         } else {
           l = null; // someone added to the freelist, try again
         }
         lockAllocationMutex.unlock();
         if (l != null) {
-          if (l.index >= numLocks()) {
+          if (l.id >= numLocks()) {
             /* We need to grow the table */
-            growLocks(l.index);
+            growLocks(l.id);
           }
           addLock(l);
           l.active = true;
@@ -210,7 +214,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   }
   public void returnLock(AbstractLock l_) {
     if (trace) {
-      VM.sysWriteln("Lock.returnLock: returning ",Magic.objectAsAddress(l),
+      VM.sysWriteln("Lock.returnLock: returning ",Magic.objectAsAddress(l_),
                     " to the global freelist for Thread #",
                     RVMThread.getCurrentThreadSlot());
     }
@@ -277,8 +281,8 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
    */
   @Uninterruptible
   private void addLock(CommonLock l) {
-    CommonLock[] chunk = locks[l.index >> LOG_LOCK_CHUNK_SIZE];
-    int index = l.index & LOCK_CHUNK_MASK;
+    CommonLock[] chunk = locks[l.id >> LOG_LOCK_CHUNK_SIZE];
+    int index = l.id & LOCK_CHUNK_MASK;
     Services.setArrayUninterruptible(chunk, index, l);
   }
 
@@ -320,7 +324,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
 
   public abstract CommonLock getHeavyLock(Object o, Offset lockOffset, boolean create);
   public CommonLock getHeavyLock(Object o, boolean create) {
-    return getHeavyLock(o, JavaHeader.getThinLockOffset(o), create);
+    return getHeavyLock(o, Magic.getObjectType(o).getThinLockOffset().toInt(), create);
   }
   
   protected void relock(Object o,int recCount) {
@@ -331,20 +335,26 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   }
   
   public void waitImpl(Object o, boolean hasTimeout, long whenWakeupNanos) {
-    if (STATS) waitOperations++;
+    if (STATS) {
+      if (hasTimeout) {
+        timedWaitOperations++;
+      } else {
+        waitOperations++;
+      }
+    }
     RVMThread t=RVMThread.getCurrentThread();
     boolean throwInterrupt = false;
     Throwable throwThis = null;
     if (t.asyncThrowable != null) {
       throwThis = t.asyncThrowable;
       t.asyncThrowable = null;
-    } else if (!holdsLock(o, this)) {
+    } else if (!holdsLock(o, t)) {
       throw new IllegalMonitorStateException("waiting on " + o);
     } else if (t.hasInterrupt) {
       throwInterrupt = true;
       t.hasInterrupt = false;
     } else {
-      t.waiting = hasTimeout ? Waiting.TIMED_WAITING : Waiting.WAITING;
+      t.waiting = hasTimeout ? RVMThread.Waiting.TIMED_WAITING : RVMThread.Waiting.WAITING;
       // get lock for object
       CommonLock l = getHeavyLock(o, true);
       // this thread is supposed to own the lock on o
@@ -376,7 +386,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
       t.monitor().unlock();
       l.removeFromWaitQueue(t);
       relock(o, waitCount);
-      t.waiting = Waiting.RUNNABLE;
+      t.waiting = RVMThread.Waiting.RUNNABLE;
     }
     // check if we should exit in a special way
     if (throwThis != null) {
@@ -418,7 +428,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
    * @see java.lang.Object#notifyAll
    */
   @UninterruptibleNoWarn("Never blocks except if there was an error")
-  public static void notifyAll(Object o) {
+  public void notifyAll(Object o) {
     if (STATS)
       notifyAllOperations++;
     CommonLock l = getHeavyLock(o, false);
@@ -444,8 +454,8 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   @Interruptible
   public void boot() {
     if (STATS) {
-      Callbacks.addExitMonitor(new Lock.ExitMonitor());
-      Callbacks.addAppRunStartMonitor(new Lock.AppRunStartMonitor());
+      Callbacks.addExitMonitor(new CommonLockPlan.ExitMonitor());
+      Callbacks.addAppRunStartMonitor(new CommonLockPlan.AppRunStartMonitor());
     }
   }
   
