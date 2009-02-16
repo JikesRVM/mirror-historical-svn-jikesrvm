@@ -20,6 +20,7 @@ import org.jikesrvm.objectmodel.ThinLockConstants;
 import org.jikesrvm.runtime.Magic;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
+import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.unboxed.Address;
@@ -284,7 +285,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @return the heavy-weight lock on the object (if any)
    */
   @Unpreemptible
-  public EagerDeflateThinLock getHeavyLock(Object o, Offset lockOffset, boolean create) {
+  public AbstractLock getHeavyLock(Object o, Offset lockOffset, boolean create) {
     Word old = Magic.getWordAtOffset(o, lockOffset);
     if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // already a fat lock in place
       return (EagerDeflateThinLock)getLock(getLockIndex(old));

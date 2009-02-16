@@ -324,9 +324,9 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   }
 
   @Unpreemptible
-  public abstract CommonLock getHeavyLock(Object o, Offset lockOffset, boolean create);
+  public abstract AbstractLock getHeavyLock(Object o, Offset lockOffset, boolean create);
   @Unpreemptible
-  public CommonLock getHeavyLock(Object o, boolean create) {
+  public AbstractLock getHeavyLock(Object o, boolean create) {
     return getHeavyLock(o, Magic.getObjectType(o).getThinLockOffset(), create);
   }
   
@@ -361,7 +361,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     } else {
       t.waiting = hasTimeout ? RVMThread.Waiting.TIMED_WAITING : RVMThread.Waiting.WAITING;
       // get lock for object
-      CommonLock l = getHeavyLock(o, true);
+      CommonLock l = (CommonLock)getHeavyLock(o, true);
       // this thread is supposed to own the lock on o
       if (VM.VerifyAssertions)
         VM._assert(l.getOwnerId() == t.getLockingId());
@@ -408,11 +408,11 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
    *
    * @param o the object synchronized on
    */
-  @Interruptible
+  @UninterruptibleNoWarn("Never blocks except if there was an error")
   public void notify(Object o) {
     if (STATS)
       notifyOperations++;
-    CommonLock l=getHeavyLock(o, false);
+    CommonLock l=(CommonLock)getHeavyLock(o, false);
     if (l == null)
       return;
     if (l.getOwnerId() != RVMThread.getCurrentThread().getLockingId()) {
@@ -436,7 +436,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   public void notifyAll(Object o) {
     if (STATS)
       notifyAllOperations++;
-    CommonLock l = getHeavyLock(o, false);
+    CommonLock l = (CommonLock)getHeavyLock(o, false);
     if (l == null)
       return;
     if (l.getOwnerId() != RVMThread.getCurrentThread().getLockingId()) {
