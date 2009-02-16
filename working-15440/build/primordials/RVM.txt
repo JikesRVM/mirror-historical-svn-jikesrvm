@@ -54,8 +54,8 @@
 [[Lorg/jikesrvm/scheduler/RVMThread;
 [Lorg/jikesrvm/scheduler/RVMThread$BlockAdapter;
 [[Lorg/jikesrvm/scheduler/RVMThread$BlockAdapter;
-[Lorg/jikesrvm/scheduler/Lock;
-[[Lorg/jikesrvm/scheduler/Lock;
+[Lorg/jikesrvm/scheduler/CommonLock;
+[[Lorg/jikesrvm/scheduler/CommonLock;
 
 [Lorg/jikesrvm/util/AbstractHashMapRVM$AbstractBucket;
 [Lorg/jikesrvm/util/AbstractHashSetRVM$AbstractBucket;

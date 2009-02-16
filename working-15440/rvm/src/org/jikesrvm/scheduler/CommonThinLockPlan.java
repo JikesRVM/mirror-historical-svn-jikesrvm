@@ -27,6 +27,7 @@ import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.unboxed.Word;
 import org.vmmagic.unboxed.Offset;
 
+@Uninterruptible
 public abstract class CommonThinLockPlan extends CommonLockPlan {
   public static CommonThinLockPlan instance;
   
