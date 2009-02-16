@@ -40,6 +40,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    */
   public static final boolean tentativeMicrolocking = false;
 
+  @Interruptible
   public void init() {
     super.init();
     // nothing to do...

@@ -323,7 +323,9 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     return count;
   }
 
+  @Unpreemptible
   public abstract CommonLock getHeavyLock(Object o, Offset lockOffset, boolean create);
+  @Unpreemptible
   public CommonLock getHeavyLock(Object o, boolean create) {
     return getHeavyLock(o, Magic.getObjectType(o).getThinLockOffset(), create);
   }
