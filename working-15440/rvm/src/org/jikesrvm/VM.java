@@ -38,7 +38,7 @@ import org.jikesrvm.runtime.RuntimeEntrypoints;
 import org.jikesrvm.runtime.SysCall;
 
 import static org.jikesrvm.runtime.SysCall.sysCall;
-import org.jikesrvm.scheduler.Lock;
+import org.jikesrvm.scheduler.LockConfig;
 import org.jikesrvm.scheduler.MainThread;
 import org.jikesrvm.scheduler.Synchronization;
 import org.jikesrvm.scheduler.RVMThread;
@@ -265,7 +265,7 @@ public class VM extends Properties implements Constants, ExitStatus {
       runClassInitializer("java.security.AccessController");
     }
     if (verboseBoot >= 1) VM.sysWriteln("Booting Lock");
-    Lock.boot();
+    LockConfig.selectedPlan.boot();
 
     // Enable multiprocessing.
     // Among other things, after this returns, GC and dynamic class loading are enabled.

@@ -181,21 +181,6 @@ public class RVMThread extends ThreadContext {
       be set to true. */
   private static final boolean neverKillThreads = false;
 
-  /** Generate statistics? */
-  private static final boolean STATS = Lock.STATS;
-
-  /** Number of wait operations */
-  static int waitOperations;
-
-  /** Number of timed wait operations */
-  static int timedWaitOperations;
-
-  /** Number of notify operations */
-  static int notifyOperations;
-
-  /** Number of notifyAll operations */
-  static int notifyAllOperations;
-
   public static final boolean ALWAYS_LOCK_ON_STATE_TRANSITION = false;
 
   /*
@@ -2778,20 +2763,7 @@ public class RVMThread extends ThreadContext {
    */
   @Interruptible
   public static void notify(Object o) {
-    if (STATS)
-      notifyOperations++;
-    Lock l = ObjectModel.getHeavyLock(o, false);
-    if (l == null)
-      return;
-    if (l.getOwnerId() != getCurrentThread().getLockingId()) {
-      raiseIllegalMonitorStateException("notifying", o);
-    }
-    l.mutex.lock();
-    RVMThread toAwaken = l.waiting.dequeue();
-    l.mutex.unlock();
-    if (toAwaken != null) {
-      toAwaken.monitor().lockedBroadcast();
-    }
+    LockConfig.selectedPlan.notify(o);
   }
 
   /**
@@ -2802,22 +2774,7 @@ public class RVMThread extends ThreadContext {
    */
   @UninterruptibleNoWarn("Never blocks except if there was an error")
   public static void notifyAll(Object o) {
-    if (STATS)
-      notifyAllOperations++;
-    Lock l = ObjectModel.getHeavyLock(o, false);
-    if (l == null)
-      return;
-    if (l.getOwnerId() != getCurrentThread().getLockingId()) {
-      raiseIllegalMonitorStateException("notifyAll", o);
-    }
-    for (;;) {
-      l.mutex.lock();
-      RVMThread toAwaken = l.waiting.dequeue();
-      l.mutex.unlock();
-      if (toAwaken == null)
-        break;
-      toAwaken.monitor().lockedBroadcast();
-    }
+    LockConfig.selectedPlan.notifyAll(o);
   }
 
   public void stop(Throwable cause) {

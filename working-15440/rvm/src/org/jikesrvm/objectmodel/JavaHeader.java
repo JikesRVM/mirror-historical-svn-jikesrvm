@@ -22,7 +22,7 @@ import org.jikesrvm.classloader.RVMType;
 import org.jikesrvm.mm.mminterface.MemoryManagerConstants;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.Memory;
-import org.jikesrvm.scheduler.Lock;
+import org.jikesrvm.scheduler.AbstractLock;
 import org.jikesrvm.scheduler.Locking;
 import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Inline;
@@ -610,7 +610,7 @@ public class JavaHeader implements JavaHeaderConstants {
    * @return the heavy-weight lock on the object (if any)
    */
   @Unpreemptible("May be interrupted for allocations of locks")
-  public static Lock getHeavyLock(Object o, boolean create) {
+  public static AbstractLock getHeavyLock(Object o, boolean create) {
     return Locking.getHeavyLock(o, STATUS_OFFSET, create);
   }
 
