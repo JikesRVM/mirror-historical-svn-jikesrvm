@@ -219,11 +219,15 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
   }
 
   /**
-   * Promotes a light-weight lock to a heavy-weight lock.
+   * Promotes a light-weight lock to a heavy-weight lock.  If this returns the lock
+   * that you gave it, its mutex will be locked; otherwise, its mutex will be unlocked.
+   * Hence, calls to this method should always be followed by a condition lock() or
+   * unlock() call.
    *
    * @param o the object to get a heavy-weight lock
    * @param lockOffset the offset of the thin lock word in the object.
-   * @return whether the object was successfully locked
+   * @return the inflated lock; either the one you gave, or another one, if the lock
+   *         was inflated by some other thread.
    */
   protected EagerDeflateThinLock attemptToInflate(Object o,
                                                   Offset lockOffset,
