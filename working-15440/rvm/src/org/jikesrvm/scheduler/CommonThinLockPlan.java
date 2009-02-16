@@ -49,12 +49,12 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
       if (!(index > 0 && index < numLocks())) {
         VM.sysWrite("Lock index out of range! Word: "); VM.sysWrite(lockWord);
         VM.sysWrite(" index: "); VM.sysWrite(index);
-        VM.sysWrite(" locks: "); VM.sysWrite(Lock.numLocks());
+        VM.sysWrite(" locks: "); VM.sysWrite(numLocks());
         VM.sysWriteln();
       }
-      VM._assert(index > 0 && index < Lock.numLocks());  // index is in range
+      VM._assert(index > 0 && index < numLocks());  // index is in range
       VM._assert(!lockWord.and(TL_FAT_LOCK_MASK).isZero());        // fat lock bit is set
-      VM._assert(Lock.getLock(index) != null);               // the lock is actually there
+      VM._assert(getLock(index) != null);               // the lock is actually there
     }
     return index;
   }
@@ -71,7 +71,7 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
    */
   @Inline
   @Unpreemptible("Become another thread when lock is contended, don't preempt in other cases")
-  static void inlineLock(Object o, Offset lockOffset) {
+  public void inlineLock(Object o, Offset lockOffset) {
     Word old = Magic.prepareWord(o, lockOffset);
     if (old.rshl(TL_THREAD_ID_SHIFT).isZero()) {
       // implies that fatbit == 0 & threadid == 0
@@ -97,7 +97,7 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
    */
   @Inline
   @Unpreemptible("No preemption normally, but may raise exceptions")
-  static void inlineUnlock(Object o, Offset lockOffset) {
+  public void inlineUnlock(Object o, Offset lockOffset) {
     Word old = Magic.prepareWord(o, lockOffset);
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
     if (old.xor(threadId).rshl(TL_LOCK_COUNT_SHIFT).isZero()) { // implies that fatbit == 0 && count == 0 && lockid == me
@@ -125,7 +125,7 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
     } else {
       // if locked, then it is locked with a fat lock
       int index = getLockIndex(bits);
-      Lock l = Lock.getLock(index);
+      CommonLock l = getLock(index);
       return l != null && l.getOwnerId() == tid;
     }
   }

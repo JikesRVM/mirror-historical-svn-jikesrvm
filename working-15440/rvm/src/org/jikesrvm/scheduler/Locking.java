@@ -121,18 +121,6 @@ public final class Locking implements ThinLockConstants {
                                           boolean create) {
     return LockConfig.selectedPlan.getHeavyLock(o,lockOffset,create);
   }
-  
-  public static int countLocksHeldByThread(RVMThread t) {
-    return LockConfig.selectedPlan.countLocksHeldByThread(t);
-  }
-  
-  public static void init() {
-    LockConfig.selectedPlan.init();
-  }
-
-  public static void boot() {
-    LockConfig.selectedPlan.boot();
-  }
 }
 
 

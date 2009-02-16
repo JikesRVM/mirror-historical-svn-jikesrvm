@@ -21,7 +21,7 @@ import org.jikesrvm.objectmodel.ThinLockConstants;
 import org.jikesrvm.objectmodel.JavaHeader;
 import org.jikesrvm.runtime.Magic;
 import static org.jikesrvm.runtime.SysCall.sysCall;
-import org.jikesrvm.adaptive.measurements.RuntimeMeasurements;
+import org.jikesrvm.runtime.RuntimeEntrypoints;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
@@ -324,7 +324,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
 
   public abstract CommonLock getHeavyLock(Object o, Offset lockOffset, boolean create);
   public CommonLock getHeavyLock(Object o, boolean create) {
-    return getHeavyLock(o, Magic.getObjectType(o).getThinLockOffset().toInt(), create);
+    return getHeavyLock(o, Magic.getObjectType(o).getThinLockOffset(), create);
   }
   
   protected void relock(Object o,int recCount) {
@@ -496,11 +496,11 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     VM.sysWrite("ThinLocks: ");
     VM.sysWrite(fastLocks);
     VM.sysWrite(" fast locks");
-    Services.percentage(fastLocks, value, "all lock operations");
+    Services.percentage(fastLocks, totalLocks, "all lock operations");
     VM.sysWrite("ThinLocks: ");
     VM.sysWrite(slowLocks);
     VM.sysWrite(" slow locks");
-    Services.percentage(slowLocks, value, "all lock operations");
+    Services.percentage(slowLocks, totalLocks, "all lock operations");
     VM.sysWriteln();
     
     VM.sysWrite("lock availability stats: ");

@@ -28,8 +28,8 @@ import org.vmmagic.unboxed.Word;
 
 @Uninterruptible
 public class EagerDeflateThinLock extends CommonThinLock {
-  private final SpinLock mutex;
-  private final ThreadQueue entering;
+  final SpinLock mutex;
+  final ThreadQueue entering;
   
   public EagerDeflateThinLock() {
     mutex=new SpinLock();

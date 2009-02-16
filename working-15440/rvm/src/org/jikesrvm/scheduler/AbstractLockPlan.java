@@ -42,24 +42,24 @@ public abstract class AbstractLockPlan implements Constants, ThinLockConstants {
   
   public abstract void boot();
   
-  public abstract void inlineLock(Object o,int lockOffset);
+  public abstract void inlineLock(Object o,Offset lockOffset);
   public void inlineLock(Object o) {
-    inlineLock(o, Magic.getObjectType(o).getThinLockOffset().toInt());
+    inlineLock(o, Magic.getObjectType(o).getThinLockOffset());
   }
   
-  public abstract void inlineUnlock(Object o,int lockOffset);
+  public abstract void inlineUnlock(Object o,Offset lockOffset);
   public void inlineUnlock(Object o) {
-    inlineUnlock(o, Magic.getObjectType(o).getThinLockOffset().toInt());
+    inlineUnlock(o, Magic.getObjectType(o).getThinLockOffset());
   }
   
-  public abstract void lock(Object o,int lockOffset);
+  public abstract void lock(Object o,Offset lockOffset);
   public void lock(Object o) {
-    lock(o, Magic.getObjectType(o).getThinLockOffset().toInt());
+    lock(o, Magic.getObjectType(o).getThinLockOffset());
   }
 
-  public abstract void unlock(Object o,int lockOffset);
+  public abstract void unlock(Object o,Offset lockOffset);
   public void unlock(Object o) {
-    unlock(o, Magic.getObjectType(o).getThinLockOffset().toInt());
+    unlock(o, Magic.getObjectType(o).getThinLockOffset());
   }
   
   public abstract boolean holdsLock(Object o,Offset lockOffset,RVMThread thread);

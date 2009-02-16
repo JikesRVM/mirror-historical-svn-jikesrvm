@@ -2395,7 +2395,7 @@ public class RVMThread extends ThreadContext {
     TraceEngine.engine.removeFeedlet(feedlet);
 
     if (VM.VerifyAssertions) {
-      if (Lock.countLocksHeldByThread(getLockingId()) > 0) {
+      if (LockConfig.selectedPlan.countLocksHeldByThread(getLockingId()) > 0) {
         VM.sysWriteln("Error, thread terminating holding a lock");
         RVMThread.dumpVirtualMachine();
       }
@@ -2527,10 +2527,6 @@ public class RVMThread extends ThreadContext {
       VM.sysWriteln("returning cached lock...");
 
     if (cachedFreeLock != null) {
-      if (Lock.trace) {
-        VM.sysWriteln("Thread #", threadSlot, ": about to free lock ",
-            Magic.objectAsAddress(cachedFreeLock));
-      }
       if (VM.VerifyAssertions)
         VM._assert(cachedFreeLock.mutex.latestContender != this);
       LockConfig.selectedPlan.returnLock(cachedFreeLock);
