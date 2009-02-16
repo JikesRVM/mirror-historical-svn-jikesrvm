@@ -97,7 +97,7 @@ public class EagerDeflateThinLock extends CommonThinLock {
    *
    * @param o the object to be unlocked
    */
-  public void unlockHeavy(Object o) {
+  public void unlockHeavy() {
     RVMThread.enterLockingPath();
     boolean deflated = false;
     mutex.lock(); // Note: thread switching is not allowed while mutex is held.
@@ -117,6 +117,7 @@ public class EagerDeflateThinLock extends CommonThinLock {
     RVMThread toAwaken = entering.dequeue();
     if (toAwaken == null && entering.isEmpty() && waiting.isEmpty()) { // heavy lock can be deflated
       // Possible project: decide on a heuristic to control when lock should be deflated
+      Object o = lockedObject;
       Offset lockOffset = Magic.getObjectType(o).getThinLockOffset();
       if (!lockOffset.isMax()) { // deflate heavy lock
         deflate(o, lockOffset);

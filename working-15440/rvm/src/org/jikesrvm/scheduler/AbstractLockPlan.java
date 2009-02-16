@@ -44,32 +44,32 @@ public abstract class AbstractLockPlan implements Constants, ThinLockConstants {
   
   public abstract void inlineLock(Object o,int lockOffset);
   public void inlineLock(Object o) {
-    inlineLock(o, JavaHeader.getThinLockOffset(o));
+    inlineLock(o, Magic.getObjectType(o).getThinLockOffset());
   }
   
   public abstract void inlineUnlock(Object o,int lockOffset);
   public void inlineUnlock(Object o) {
-    inlineUnlock(o, JavaHeader.getThinLockOffset(o));
+    inlineUnlock(o, Magic.getObjectType(o).getThinLockOffset());
   }
   
   public abstract void lock(Object o,int lockOffset);
   public void lock(Object o) {
-    lock(o, JavaHeader.getThinLockOffset(o));
+    lock(o, Magic.getObjectType(o).getThinLockOffset());
   }
 
   public abstract void unlock(Object o,int lockOffset);
   public void unlock(Object o) {
-    unlock(o, JavaHeader.getThinLockOffset(o));
+    unlock(o, Magic.getObjectType(o).getThinLockOffset());
   }
   
   public abstract boolean holdsLock(Object o,Offset lockOffset,RVMThread thread);
   public boolean holdsLock(Object o, RVMThread thread) {
-    return holdsLock(o, JavaHeader.getThinLockOffset(o), threads);
+    return holdsLock(o, Magic.getObjectType(o).getThinLockOffset(), threads);
   }
   
   public abstract AbstractLock getHeavyLock(Object o,Offset lockOffset,boolean create);
   public AbstractLock getHeavyLock(Object o, boolean create) {
-    return getHeavyLock(o, JavaHeader.getThinLockOffset(o), create);
+    return getHeavyLock(o, Magic.getObjectType(o).getThinLockOffset(), create);
   }
   
   public abstract void waitImpl(Object o, boolean hasTimeout, long whenWakeupNanos);
