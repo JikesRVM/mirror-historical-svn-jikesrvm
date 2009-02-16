@@ -45,7 +45,7 @@ public class EagerDeflateThinLock extends CommonThinLock {
   @Unpreemptible
   public boolean lockHeavy(Object o) {
     RVMThread.enterLockingPath();
-    if (tentativeMicrolocking) {
+    if (EagerDeflateThinLockPlan.tentativeMicrolocking) {
       if (!mutex.tryLock()) {
         RVMThread.leaveLockingPath();
         return false;
@@ -68,7 +68,7 @@ public class EagerDeflateThinLock extends CommonThinLock {
       RVMThread.leaveLockingPath();
       return false;
     }
-    if (STATS) lockOperations++;
+    if (CommonLockPlan.STATS) CommonLockPlan.lockOperations++;
     RVMThread me = RVMThread.getCurrentThread();
     int threadId = me.getLockingId();
     if (ownerId == threadId) {
@@ -112,7 +112,7 @@ public class EagerDeflateThinLock extends CommonThinLock {
       RVMThread.leaveLockingPath();
       return;
     }
-    if (STATS) unlockOperations++;
+    if (CommonLockPlan.STATS) CommonLockPlan.unlockOperations++;
     ownerId = 0;
     RVMThread toAwaken = entering.dequeue();
     if (toAwaken == null && entering.isEmpty() && waiting.isEmpty()) { // heavy lock can be deflated
@@ -144,10 +144,10 @@ public class EagerDeflateThinLock extends CommonThinLock {
       VM._assert(entering.isEmpty());
       VM._assert(waiting.isEmpty());
     }
-    if (STATS) deflations++;
+    if (CommonLockPlan.STATS) CommonLockPlan.deflations++;
     EagerDeflateThinLockPlan.instance.deflate(o, lockOffset, this);
     lockedObject = null;
-    free(this);
+    EagerDeflateThinLockPlan.instance.free(this);
   }
   
   protected void lockWaiting() {
@@ -156,6 +156,11 @@ public class EagerDeflateThinLock extends CommonThinLock {
   
   protected void unlockWaiting() {
     mutex.unlock();
+  }
+  
+  protected void dumpBlockedThreads() {
+    VM.sysWrite(" entering: ");
+    entering.dump();
   }
 }
 

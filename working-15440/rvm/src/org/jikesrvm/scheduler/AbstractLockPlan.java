@@ -62,7 +62,7 @@ public abstract class AbstractLockPlan implements Constants, ThinLockConstants {
     unlock(o, JavaHeader.getThinLockOffset(o));
   }
   
-  public abstract boolean holdsLock(Ojbect o,Offset lockOffset,RVMThread thread);
+  public abstract boolean holdsLock(Object o,Offset lockOffset,RVMThread thread);
   public boolean holdsLock(Object o, RVMThread thread) {
     return holdsLock(o, JavaHeader.getThinLockOffset(o), threads);
   }

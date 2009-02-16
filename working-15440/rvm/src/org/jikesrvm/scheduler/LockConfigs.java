@@ -13,7 +13,7 @@
 package org.jikesrvm.scheduler;
 
 public final class LockConfigs {
-  public static final int ThinEagerDeflate = 1;
+  public static final int EagerDeflateThin = 1;
 }
 
 
