@@ -22,6 +22,7 @@ import org.jikesrvm.runtime.Magic;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
@@ -44,7 +45,9 @@ public abstract class AbstractLockPlan implements Constants, ThinLockConstants {
   @Interruptible
   public abstract void boot();
   
+  @Unpreemptible
   public abstract void inlineLock(Object o,Offset lockOffset);
+  @Unpreemptible
   public void inlineLock(Object o) {
     inlineLock(o, Magic.getObjectType(o).getThinLockOffset());
   }
@@ -54,7 +57,9 @@ public abstract class AbstractLockPlan implements Constants, ThinLockConstants {
     inlineUnlock(o, Magic.getObjectType(o).getThinLockOffset());
   }
   
+  @Unpreemptible
   public abstract void lock(Object o,Offset lockOffset);
+  @Unpreemptible
   public void lock(Object o) {
     lock(o, Magic.getObjectType(o).getThinLockOffset());
   }
@@ -69,12 +74,16 @@ public abstract class AbstractLockPlan implements Constants, ThinLockConstants {
     return holdsLock(o, Magic.getObjectType(o).getThinLockOffset(), thread);
   }
   
+  @Unpreemptible
   public abstract AbstractLock getHeavyLock(Object o,Offset lockOffset,boolean create);
+  @Unpreemptible
   public AbstractLock getHeavyLock(Object o, boolean create) {
     return getHeavyLock(o, Magic.getObjectType(o).getThinLockOffset(), create);
   }
   
+  @Interruptible
   public abstract void waitImpl(Object o, boolean hasTimeout, long whenWakeupNanos);
+
   public abstract void notify(Object o);
   public abstract void notifyAll(Object o);
   

@@ -99,6 +99,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   protected static int notifyOperations;
   protected static int notifyAllOperations;
   
+  @Interruptible
   public void init() {
     nextLockIndex = 1;
     locks = new CommonLock[LOCK_SPINE_SIZE][];
@@ -327,6 +328,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     return getHeavyLock(o, Magic.getObjectType(o).getThinLockOffset(), create);
   }
   
+  @Unpreemptible
   protected void relock(Object o,int recCount) {
     lock(o);
     if (recCount!=1) {
@@ -334,6 +336,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     }
   }
   
+  @Interruptible
   public void waitImpl(Object o, boolean hasTimeout, long whenWakeupNanos) {
     if (STATS) {
       if (hasTimeout) {

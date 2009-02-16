@@ -31,6 +31,7 @@ import org.vmmagic.unboxed.Offset;
  * The typically not implementation-specific common to all locks.  Most
  * locks inheric from this.
  */
+@Uninterruptible
 public abstract class CommonLock extends AbstractLock {
   protected Object lockedObject;
   protected int ownerId;

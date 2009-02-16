@@ -30,12 +30,14 @@ import org.vmmagic.unboxed.Offset;
 /**
  * Abstract baseclass for all locks.
  */
+@Uninterruptible
 public abstract class AbstractLock implements Constants, ThinLockConstants {
   
   public abstract boolean isActive();
   
   public abstract int getLockId();
   
+  @Unpreemptible
   public abstract boolean lockHeavy(Object o);
   
   public abstract void unlockHeavy();
