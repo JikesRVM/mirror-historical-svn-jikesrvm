@@ -124,6 +124,13 @@ public class Entrypoints {
       getMethod(org.jikesrvm.scheduler.Locking.class,
                 "inlineUnlock",
                 "(Ljava/lang/Object;Lorg/vmmagic/unboxed/Offset;)V");
+  
+  public static final RVMField sloppyDeflateThinLockStateField=
+      (org.jikesrvm.scheduler.LockConfig.SELECTED ==
+       org.jikesrvm.scheduler.LockConfigs.SloppyDeflateThin)
+      ? getField(org.jikesrvm.scheduler.SloppyDeflateThinLock.class,
+                 "state", int.class)
+      : null;
 
   public static final NormalMethod lazyMethodInvokerMethod =
       getMethod(org.jikesrvm.runtime.DynamicLinker.class, "lazyMethodInvoker", "()V");

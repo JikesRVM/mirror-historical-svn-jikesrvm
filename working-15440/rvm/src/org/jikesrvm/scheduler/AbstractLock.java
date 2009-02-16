@@ -37,11 +37,26 @@ public abstract class AbstractLock implements Constants, ThinLockConstants {
   
   public abstract int getLockId();
   
+  /**
+   * Heavy lock acquisition.  Note that this may fail spuriously (so you should
+   * spin) or, in particular, if the object for which you're trying to acquire
+   * the lock is different from the object with which the lock is associated.
+   * @param o The object for which you'd like to acquire this lock.  This lock
+   *          is associated with some object - but the lock-to-object mapping
+   *          may, in general, change asynchronously.  This parameter indicates
+   *          for which object you'd like to acquire the lock, so that the
+   *          implementation may back out if it realizes that it's associated
+   *          with the wrong object.
+   * @return true if you've successfully acquired the lock for the given object
+   *         or false otherwise.  This method may spuriously (read: randomly,
+   *         without cause or warning) return false if it chooses to.
+   */
   @Unpreemptible
   public abstract boolean lockHeavy(Object o);
   
   public abstract void unlockHeavy();
   
+  /** Set the thread that owns ("holds") the lock. */
   public abstract void setOwnerId(int id);
   
   public abstract int getOwnerId();
@@ -50,6 +65,20 @@ public abstract class AbstractLock implements Constants, ThinLockConstants {
   
   public abstract int getRecursionCount();
   
+  /**
+   * Get the object currently associated with this lock.  This may change
+   * asynchronously and without warning, so you should not rely on this method
+   * except if you have implementation-specific knowledge, if you're just
+   * using this method for debugging, or if this method's approximate result
+   * is useful for your algorithm.  All that this method guarantees is that
+   * the returned object was at some point in time associated with this lock.
+   * One example use is to have the spin loop around lockHeavy() first check,
+   * using this method, if the locked object is the one it was expecting.  If
+   * not, it can just reload and try again; in some situations this may be
+   * better than calling lockHeavy() directly, though the implementation gives
+   * no guarantees in this regard (for example: lockHeavy() may already do this
+   * fast check).
+   */
   public abstract Object getLockedObject();
   
   public abstract void setLockedObject(Object o);

@@ -45,7 +45,18 @@ public abstract class CommonLock extends AbstractLock {
     waiting=new ThreadQueue();
   }
   
+  /**
+   * Lock the lock's waiting state.  Used by all subclasses of CommonLock prior
+   * to changing the waiting queue.  May be overloaded by some subclasses to mean,
+   * more strongly, that the lock's entire state is locked.  This is a
+   * non-recursive lock, and is typically implemented using spinning.
+   */
   protected abstract void lockWaiting();
+  
+  /**
+   * Unlock the lock's waiting state.  Used by all subclasses of CommonLock
+   * after changing the waiting queue.
+   */
   protected abstract void unlockWaiting();
   
   protected int enqueueWaitingAndUnlockCompletely(RVMThread toWait) {
