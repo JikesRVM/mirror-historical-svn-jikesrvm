@@ -65,7 +65,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   // Global free list.
 
   /** A global lock free list head */
-  private static Lock globalFreeLock;
+  private static CommonLock globalFreeLock;
   /** the number of locks held on the global free list. */
   private static int globalFreeLocks;
   /** the total number of allocation operations. */
@@ -93,10 +93,10 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   
   public void init() {
     nextLockIndex = 1;
-    locks = new Lock[LOCK_SPINE_SIZE][];
+    locks = new CommonLock[LOCK_SPINE_SIZE][];
     for (int i=0; i < INITIAL_CHUNKS; i++) {
       chunksAllocated++;
-      locks[i] = new Lock[LOCK_CHUNK_SIZE];
+      locks[i] = new CommonLock[LOCK_CHUNK_SIZE];
     }
     if (VM.VerifyAssertions) {
       // check that each potential lock is addressable
@@ -119,7 +119,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   protected CommonLock allocate() {
     RVMThread me=RVMThread.getCurrentThread();
     if (me.cachedFreeLock != null) {
-      Lock l = me.cachedFreeLock;
+      CommonLock l = me.cachedFreeLock;
       me.cachedFreeLock = null;
       if (trace) {
         VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
@@ -128,7 +128,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
       return l;
     }
 
-    Lock l = null;
+    CommonLock l = null;
     while (l == null) {
       if (globalFreeLock != null) {
         lockAllocationMutex.lock();
@@ -273,7 +273,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
    */
   @Uninterruptible
   private void addLock(CommonLock l) {
-    Lock[] chunk = locks[l.index >> LOG_LOCK_CHUNK_SIZE];
+    CommonLock[] chunk = locks[l.index >> LOG_LOCK_CHUNK_SIZE];
     int index = l.index & LOCK_CHUNK_MASK;
     Services.setArrayUninterruptible(chunk, index, l);
   }
@@ -283,7 +283,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
    */
   public void dumpLocks() {
     for (int i = 0; i < numLocks(); i++) {
-      Lock l = getLock(i);
+      CommonLock l = getLock(i);
       if (l != null) {
         l.dump();
       }
@@ -454,7 +454,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   }
   
   protected void reportStats() {
-    int totalLocks = lockOperations + ThinLock.fastLocks + ThinLock.slowLocks;
+    int totalLocks = lockOperations + fastLocks + slowLocks;
     
     VM.sysWrite("FatLocks: ");
     VM.sysWrite(waitOperations);

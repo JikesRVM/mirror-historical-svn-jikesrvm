@@ -55,7 +55,7 @@ public abstract class AbstractLock implements Constants, ThinLockConstants {
   public abstract void dumpBlockedThreads();
   public abstract void dumpWaitingThreads();
   
-  public abstract void dumpImplementationSpecific();
+  public void dumpImplementationSpecific() {}
   
   public void dump() {
     if (!isActive()) {
