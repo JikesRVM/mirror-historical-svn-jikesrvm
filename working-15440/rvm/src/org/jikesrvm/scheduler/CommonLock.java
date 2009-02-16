@@ -47,9 +47,6 @@ public abstract class CommonLock extends AbstractLock {
   protected abstract void lockWaiting();
   protected abstract void unlockWaiting();
   
-  protected abstract boolean isWaiting(RVMThread t);
-  protected abstract void removeFromWaitQueue(RVMThread wasWaiting);
-  
   protected int enqueueWaitingAndUnlockCompletely(RVMThread toWait) {
     lockWaiting();
     waiting.enqueue(toWait);

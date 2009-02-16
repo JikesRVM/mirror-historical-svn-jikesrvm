@@ -206,9 +206,9 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    */
   @Unpreemptible
   private static boolean inflateAndLock(Object o, Offset lockOffset) {
-    Lock l = allocate();
+    EagerDeflateThinLock l = (EagerDeflateThinLock)allocate();
     if (l == null) return false; // can't allocate locks during GC
-    Lock rtn = attemptToInflate(o, lockOffset, l);
+    EagerDeflateThinLock rtn = attemptToInflate(o, lockOffset, l);
     if (l != rtn) {
       l = rtn;
       l.mutex.lock();
