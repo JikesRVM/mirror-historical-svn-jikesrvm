@@ -13,6 +13,7 @@
 package org.jikesrvm.scheduler;
 
 import org.jikesrvm.VM;
+import org.jikesrvm.Constants;
 import org.jikesrvm.Services;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;

@@ -176,18 +176,18 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @return the heavy-weight lock on this object
    */
   @Unpreemptible
-  private static Lock inflate(Object o, Offset lockOffset) {
+  private static EagerDeflateThinLock inflate(Object o, Offset lockOffset) {
     RVMThread.enterLockingPath();
     if (VM.VerifyAssertions) {
       VM._assert(holdsLock(o, lockOffset, RVMThread.getCurrentThread()));
       // this assertions is just plain wrong.
       //VM._assert((Magic.getWordAtOffset(o, lockOffset).and(TL_FAT_LOCK_MASK).isZero()));
     }
-    Lock l = allocate();
+    EagerDeflateThinLock l = (EagerDeflateThinLock)allocate();
     if (VM.VerifyAssertions) {
       VM._assert(l != null); // inflate called by wait (or notify) which shouldn't be called during GC
     }
-    Lock rtn = attemptToInflate(o, lockOffset, l);
+    EagerDeflateThinLock rtn = attemptToInflate(o, lockOffset, l);
     if (rtn == l)
       l.mutex.unlock();
     RVMThread.leaveLockingPath();
@@ -223,7 +223,9 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @param lockOffset the offset of the thin lock word in the object.
    * @return whether the object was successfully locked
    */
-  private static Lock attemptToInflate(Object o, Offset lockOffset, Lock l) {
+  private static EagerDeflateThinLock attemptToInflate(Object o,
+                                                       Offset lockOffset,
+                                                       EagerDeflateThinLock l) {
     RVMThread.enterLockingPath();
     Word old;
     l.mutex.lock();
@@ -258,7 +260,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
     } while (true);
   }
 
-  static void deflate(Object o, Offset lockOffset, Lock l) {
+  static void deflate(Object o, Offset lockOffset, EagerDeflateThinLock l) {
     if (VM.VerifyAssertions) {
       Word old = Magic.getWordAtOffset(o, lockOffset);
       VM._assert(!(old.and(TL_FAT_LOCK_MASK).isZero()));
@@ -281,7 +283,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @return the heavy-weight lock on the object (if any)
    */
   @Unpreemptible
-  static Lock getHeavyLock(Object o, Offset lockOffset, boolean create) {
+  static EagerDeflateThinLock getHeavyLock(Object o, Offset lockOffset, boolean create) {
     Word old = Magic.getWordAtOffset(o, lockOffset);
     if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // already a fat lock in place
       return getLock(getLockIndex(old));
