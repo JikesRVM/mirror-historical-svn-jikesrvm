@@ -54,11 +54,15 @@ public class SloppyDeflateThinLock extends CommonThinLock {
   @Entrypoint
   protected int state;
   
-  // FIXME: keep track of rate of usage so that we can make a more informed
-  // deflation decision.
+  protected int numUses;
   
   public SloppyDeflateThinLock() {
     queue = new ThreadQueue();
+  }
+  
+  protected void activate() {
+    numUses=1;
+    super.activate();
   }
   
   protected int spinLimit() {
@@ -137,6 +141,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
   
   @Unpreemptible
   public boolean lockHeavy(Object o) {
+    numUses++;
     int myId=RVMThread.getCurrentThread().getLockingId();
     if (myId == ownerId) {
       if (VM.VerifyAssertions) {
@@ -170,6 +175,11 @@ public class SloppyDeflateThinLock extends CommonThinLock {
       Magic.sync();
       releaseImpl();
     }
+  }
+  
+  protected int enqueueWaitingAndUnlockCompletely(RVMThread toWait) {
+    numUses++;
+    return super.enqueueWaitingAndUnlockCompletely(toWait);
   }
   
   protected void lockWaiting() {

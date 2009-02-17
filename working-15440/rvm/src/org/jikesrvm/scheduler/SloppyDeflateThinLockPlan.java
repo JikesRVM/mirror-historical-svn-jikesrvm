@@ -160,7 +160,7 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
       
       Magic.sync(); // ensure the above writes happen.
       
-      l.active=true;
+      l.activate();
       
       // the lock is now "active" - so the deflation detector thingy will see it, but it
       // will also see that the lock is held.
@@ -191,7 +191,14 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
     }
   }
   
-  protected void deflateIfPossible(Object o, Offset lockOffset) {
+  protected void pollDeflate(Object o, Offset lockOffset) {
+    // the idea:
+    // - check if the object has a fat lock
+    // - if it does, check its numUses counter:
+    //   - if it's zero, lock the lock's state, see if numUses is still zero, and
+    //     if the lock is deflatable, and if both are true, deflate the lock, unlock
+    //     its state, and free it.
+    //   - if it's non-zero, reset it to zero.
   }
 }
 

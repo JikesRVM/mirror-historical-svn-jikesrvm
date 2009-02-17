@@ -191,7 +191,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
 
   protected CommonLock allocateAndActivate() {
     CommonLock result=allocate();
-    result.active=true;
+    result.activate();
     return result;
   }
 
