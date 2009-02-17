@@ -18,10 +18,12 @@ import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.objectmodel.ThinLockConstants;
 import org.jikesrvm.runtime.Magic;
+import org.jikesrvm.runtime.Entrypoints;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Unpreemptible;
+import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
@@ -95,7 +97,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
   @Unpreemptible
   protected void acquireImpl() {
     Offset offset=Entrypoints.sloppyDeflateThinLockStateField.getOffset();
-    for (int n=spinLimit();i-->0;) {
+    for (int n=spinLimit();n-->0;) {
       int oldState=Magic.prepareInt(this,offset);
       if ((oldState==CLEAR &&
            Magic.attemptInt(this,offset,CLEAR,LOCKED)) ||
@@ -255,6 +257,11 @@ public class SloppyDeflateThinLock extends CommonThinLock {
         numUses=0;
       }
     }
+  }
+  
+  protected void dumpBlockedThreads() {
+    VM.sysWrite(" entering: ");
+    queue.dump();
   }
 }
 

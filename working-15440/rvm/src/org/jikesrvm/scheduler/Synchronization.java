@@ -78,9 +78,9 @@ public class Synchronization {
   public static boolean tryCompareAndSwap(Object base, Offset offset, Word testValue, Word newValue) {
     Word oldValue;
     do {
-      oldValue = Magic.prepareLong(base, offset);
+      oldValue = Magic.prepareWord(base, offset);
       if (oldValue != testValue) return false;
-    } while (!Magic.attemptLong(base, offset, oldValue, newValue));
+    } while (!Magic.attemptWord(base, offset, oldValue, newValue));
     return true;
   }
 
