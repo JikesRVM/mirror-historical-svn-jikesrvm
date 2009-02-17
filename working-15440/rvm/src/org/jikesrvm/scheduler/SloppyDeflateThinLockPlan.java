@@ -73,7 +73,7 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
           Magic.isync();
           return;
         }
-      } else if (!(old.and(TL_FAT_LOCK_MASK).isZero())) {
+      } else if (!old.and(TL_FAT_LOCK_MASK).isZero()) {
         // we have a heavy lock.
         if (getLock(getLockIndex(old)).lockHeavy(o)) {
           return;
@@ -83,7 +83,7 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
         // attempt to inflate it (this may fail, in which case we'll just harmlessly
         // loop around).  if it succeeds, we loop around anyway, so that we can
         // grab the lock the fat way.
-        inflateLocked(o, lockOffset);
+        inflate(o, lockOffset);
       }
     }
   }
@@ -124,29 +124,75 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
   }
   
   @Unpreemptible
-  protected boolean inflate(Object o, Offset lockOffset) {
+  protected SloppyDeflateThinLock inflate(Object o, Offset lockOffset) {
     // the idea:
     // attempt to allocate fat lock, extract the
     // state of the thin lock and put it into the fat lock, mark the lock as active
     // (allowing it to be deflated) and attempt CAS to replace
     // the thin lock with a pointer to the fat lock.
     
-    // the problem:
+    // nb:
     // what about when someone asks for the lock to be inflated, holds onto the fat
     // lock, and then does stuff to it?  won't the autodeflater deflate it at that
     // point?
-    
-    // the answer:
     // no.  you're only allowed to ask for the fat lock when the object is locked.  in
     // that case, it cannot be deflated.
+    
+    for (;;) {
+      Word old = o.plus(lockOffset).loadWord();
+      Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
+      
+      if (!old.and(TL_FAT_LOCK_MASK).isZero()) {
+        return (SloppyDeflateThinLock)getLock(getLockIndex(old));
+      }
+      
+      SloppyDeflateThinLock l=(SloppyDeflateThinLock)allocate();
+      if (l==null) {
+        // allocation failed, give up
+        return null;
+      }
+      
+      l.setLockedObject(o);
+      l.setOwnerId(old.and(TL_THREAD_ID_MASK).toInt());
+      if (l.getOwnerId()!=0) {
+        l.setRecursionCount(old.ant(TL_LOCK_COUNT_MASK).rshl(TL_LOCK_COUNT_SHIFT).toInt()+1);
+      }
+      
+      Magic.sync(); // ensure the above writes happen.
+      
+      l.active=true;
+      
+      // the lock is now "active" - so the deflation detector thingy will see it, but it
+      // will also see that the lock is held.
+      
+      Word changed=
+        TL_FAT_LOCK_MASK.or(Word.fromIntZeroExtend(l.id).lsh(TL_LOCK_ID_SHIFT))
+        .or(old.and(TL_UNLOCK_MASK));
+      
+      if (Synchronization.tryCompareAndSwap(o, lockOffset, old, changed)) {
+        return l;
+      } else {
+        free(l);
+      }
+    }
   }
   
   @Unpreemptible
-  protected void inflateLocked(Object o, Offset lockOffset) {
-    
+  public AbstractLock getHeavyLock(Object o, Offset lockOffset, boolean create) {
+    Word old = Magic.getWordAtOffset(o, lockOffset);
+    if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // already a fat lock in place
+      return getLock(getLockIndex(old));
+    } else if (create) {
+      AbstractLock result=inflate(o, lockOffset);
+      if (VM.VerifyAssertions) VM._assert(result!=null);
+      return result;
+    } else {
+      return null;
+    }
   }
   
-  // NOTE: implementing holdsLock will be bizarre.
+  protected void deflateIfPossible(Object o, Offset lockOffset) {
+  }
 }
 
 

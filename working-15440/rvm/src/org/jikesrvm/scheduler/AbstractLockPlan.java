@@ -79,7 +79,9 @@ public abstract class AbstractLockPlan implements Constants, ThinLockConstants {
    * lock will be created if it did not previously exist.  However, some implementations
    * may choose to asynchronously deflate locks.  The only way to guarantee that a lock
    * is not asynchronously deflated is to ensure that it is held, or has someone enqueued
-   * on its wait list.
+   * on its wait list.  For this reason, implementations of this method <i>may</i> choose
+   * to assert that the lock is not "deflatable" (i.e. not held and with nobody enqueued
+   * for waiting) at the time that the request is made.
    */
   @Unpreemptible
   public abstract AbstractLock getHeavyLock(Object o,Offset lockOffset,boolean create);

@@ -54,6 +54,9 @@ public class SloppyDeflateThinLock extends CommonThinLock {
   @Entrypoint
   protected int state;
   
+  // FIXME: keep track of rate of usage so that we can make a more informed
+  // deflation decision.
+  
   public SloppyDeflateThinLock() {
     queue = new ThreadQueue();
   }
