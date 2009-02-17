@@ -239,7 +239,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
    * and if you do deflate it, make sure you do so prior to calling unlockWaiting().
    */
   private boolean canDeflate() {
-    return state == CLEAR && waiting.isEmpty();
+    return (state&~QUEUEING_FLAG) == CLEAR && waiting.isEmpty();
   }
   
   protected void pollDeflate() {
@@ -248,6 +248,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
       if (numUses==0) {
         lockWaiting();
         if (numUses==0 && canDeflate()) {
+          VM.sysWriteln("decided to deflate a lock.");
           for (;;) {
             Word old=Magic.prepareWord(lockedObject, lockOffset);
             if (Magic.attemptWord(lockedObject,

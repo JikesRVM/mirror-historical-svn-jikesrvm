@@ -169,9 +169,7 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
       } else {
         l.setLockedState(
           old.and(TL_THREAD_ID_MASK).toInt(),
-          (l.getOwnerId() != 0
-           ? old.and(TL_LOCK_COUNT_MASK).rshl(TL_LOCK_COUNT_SHIFT).toInt() + 1
-           : 0));
+          old.and(TL_LOCK_COUNT_MASK).rshl(TL_LOCK_COUNT_SHIFT).toInt() + 1);
       }
       
       Magic.sync(); // ensure the above writes happen.
@@ -186,6 +184,7 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
         .or(old.and(TL_UNLOCK_MASK));
       
       if (Synchronization.tryCompareAndSwap(o, lockOffset, old, changed)) {
+        VM.sysWriteln("inflated a lock.");
         return l;
       } else {
         free(l);
