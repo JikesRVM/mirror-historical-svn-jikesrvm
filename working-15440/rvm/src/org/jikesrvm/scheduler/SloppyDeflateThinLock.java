@@ -62,7 +62,26 @@ public class SloppyDeflateThinLock extends CommonThinLock {
   
   protected void activate() {
     numUses=1;
+    Magic.sync();
     super.activate();
+  }
+  
+  private void deactivate() {
+    if (VM.VerifyAssertions) {
+      VM._assert(waiting.isEmpty());
+      VM._assert(queue.isEmpty());
+      VM._assert(ownerId==0);
+      VM._assert(recursionCount==0);
+    }
+
+    active=false;
+    Magic.sync();
+
+    lockedObject=null;
+    numUses=0;
+
+    Magic.sync();
+    state=CLEAR;
   }
   
   protected int spinLimit() {
@@ -207,8 +226,35 @@ public class SloppyDeflateThinLock extends CommonThinLock {
    * Can this lock be deflated right now?  Only call this after calling lockWaiting(),
    * and if you do deflate it, make sure you do so prior to calling unlockWaiting().
    */
-  protected boolean canDeflate() {
+  private boolean canDeflate() {
     return state == CLEAR && waiting.isEmpty();
+  }
+  
+  protected void pollDeflate() {
+    if (active) {
+      Offset lockOffset=Magic.getObjectType(lockedObject).getThinLockOffset();
+      if (numUses==0) {
+        lockWaiting();
+        if (numUses==0) {
+          for (;;) {
+            Word old=Magic.prepareWord(lockedObject, lockOffset);
+            if (Magic.attemptWord(lockedObject,
+                                  lockOffset,
+                                  old,
+                                  old.and(TL_UNLOCK_MASK))) {
+              break;
+            }
+          }
+          deactivate();
+          SloppyDeflateThinLockPlan.instance.free(this);
+        } else {
+          numUses=0;
+          unlockWaiting();
+        }
+      } else {
+        numUses=0;
+      }
+    }
   }
 }
 

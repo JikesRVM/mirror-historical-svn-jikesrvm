@@ -2284,6 +2284,15 @@ public class VM extends Properties implements Constants, ExitStatus {
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
   }
 
+  @UninterruptibleNoWarn
+  @NoInline
+  public static void printExceptionAndDie(String where,Throwable e) {
+    sysWriteln("Unexpected exception thrown in ",where,": ");
+    sysWriteln(e.toString());
+    e.printStackTrace();
+    _assert(VM.NOT_REACHED);
+  }
+
   /**
    * Exit virtual machine.
    * @param value  value to pass to host o/s

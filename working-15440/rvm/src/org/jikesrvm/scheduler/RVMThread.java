@@ -2659,17 +2659,13 @@ public class RVMThread extends ThreadContext {
   public static void yield() {
     sysCall.sysSchedYield();
   }
-
-  /**
-   * Suspend execution of current thread for specified number of seconds (or
-   * fraction).
-   */
+  
   @Interruptible
-  public static void sleep(long millis, int ns) throws InterruptedException {
+  public static void sleep(long ns) throws InterruptedException {
     RVMThread t = getCurrentThread();
     t.waiting = Waiting.TIMED_WAITING;
     long atStart = sysCall.sysNanoTime();
-    long whenEnd = atStart + (long) ns + millis * 1000L * 1000L;
+    long whenEnd = atStart + ns;
     t.monitor().lock();
     while (!t.hasInterrupt && t.asyncThrowable == null &&
         sysCall.sysNanoTime() < whenEnd) {
@@ -2693,6 +2689,15 @@ public class RVMThread extends ThreadContext {
     if (throwInterrupt) {
       throw new InterruptedException("sleep interrupted");
     }
+  }
+
+  /**
+   * Suspend execution of current thread for specified number of seconds (or
+   * fraction).
+   */
+  @Interruptible
+  public static void sleep(long millis, int ns) throws InterruptedException {
+    sleep((long) ns + millis * 1000L * 1000L);
   }
 
   /*

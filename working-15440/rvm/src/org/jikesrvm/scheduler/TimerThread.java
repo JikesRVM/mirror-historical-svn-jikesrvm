@@ -63,14 +63,8 @@ public class TimerThread extends RVMThread {
         RVMThread.checkDebugRequest();
       }
     } catch (Throwable e) {
-      printExceptionAndDie(e);
+      VM.printExceptionAndDie("timer thread",e);
     }
-  }
-  @UninterruptibleNoWarn
-  private static void printExceptionAndDie(Throwable e) {
-    VM.sysWriteln("Unexpected exception thrown in timer thread: ",e.toString());
-    e.printStackTrace();
-    VM._assert(VM.NOT_REACHED);
   }
   public boolean ignoreHandshakesAndGC() { return true; }
 }

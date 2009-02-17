@@ -139,7 +139,7 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
     // that case, it cannot be deflated.
     
     for (;;) {
-      Word old = o.plus(lockOffset).loadWord();
+      Word old = Magic.getWordAtOffset(o, lockOffset);
       Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
       
       if (!old.and(TL_FAT_LOCK_MASK).isZero()) {
@@ -191,14 +191,33 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
     }
   }
   
-  protected void pollDeflate(Object o, Offset lockOffset) {
-    // the idea:
-    // - check if the object has a fat lock
-    // - if it does, check its numUses counter:
-    //   - if it's zero, lock the lock's state, see if numUses is still zero, and
-    //     if the lock is deflatable, and if both are true, deflate the lock, unlock
-    //     its state, and free it.
-    //   - if it's non-zero, reset it to zero.
+  protected long interruptQuantumMultiplier() {
+    return 5;
+  }
+  
+  static class PollDeflateThread extends RVMThread {
+    public PollDeflateThread() {
+      super("PollDeflateThread");
+    }
+    
+    @Override
+    public void run() {
+      try {
+        for (;;) {
+          RVMThread.sleep(
+            1000L*1000L*instance.interruptQuantumMultiplier()*VM.interruptQuantum);
+          
+          for (int i=0;i<instance.numLocks();++i) {
+            SloppyDeflateThinLock l=(SloppyDeflateThinLock)instance.getLock(i);
+            if (l!=null) {
+              l.pollDeflate();
+            }
+          }
+        }
+      } catch (Throwable e) {
+        VM.printExceptionAndDie("poll deflate thread",e);
+      }
+    }
   }
 }
 
