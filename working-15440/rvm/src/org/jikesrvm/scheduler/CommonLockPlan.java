@@ -150,10 +150,14 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
           globalFreeLocks--;
         }
         lockAllocationMutex.unlock();
+        // note that if l is non-null, we'll return, otherwise we'll reloop.
         if (trace && l!=null) {
           VM.sysWriteln("Lock.allocate: returning ",Magic.objectAsAddress(l),
                         " from the global freelist for Thread #",me.getThreadSlot());
         }
+      } else if (nextLockIndex >= MAX_LOCKS && tryToDeflateSomeLocks()) {
+        // if we're out of locks and the implementation managed to free some,
+        // reloop and try again.  otherwise we drop down below and die.
       } else {
         l = new LockConfig.Selected(); // may cause thread switch (and processor loss)
         lockAllocationMutex.lock();

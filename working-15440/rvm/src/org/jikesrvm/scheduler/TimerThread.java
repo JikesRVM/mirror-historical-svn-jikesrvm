@@ -65,6 +65,7 @@ public class TimerThread extends RVMThread {
     } catch (Throwable e) {
       VM.printExceptionAndDie("timer thread",e);
     }
+    VM.sysFail("should never get here");
   }
   public boolean ignoreHandshakesAndGC() { return true; }
 }

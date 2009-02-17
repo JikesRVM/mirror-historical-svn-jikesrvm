@@ -32,6 +32,8 @@ import org.vmmagic.unboxed.Word;
 public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
   public static SloppyDeflateThinLockPlan instance;
   
+  protected HeavyCondLock deflateLock;
+  
   public SloppyDeflateThinLockPlan() {
     instance=this;
   }
@@ -39,13 +41,13 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
   @Interruptible
   public void init() {
     super.init();
-    // nothing to do...
+    // nothing to do for now...
   }
   
   @Interruptible
   public void boot() {
     super.boot();
-    // nothing to do for now...
+    deflateLock=new HeavyCondLock();
   }
   
   @Interruptible
@@ -206,8 +208,30 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
     }
   }
   
+  @Unpreemptible
+  protected boolean deflateAsMuchAsPossible(boolean allUnlocked) {
+    boolean result=false;
+    deflateLock.lockNicely();
+    for (int i=0;i<numLocks();++i) {
+      SloppyDeflateThinLock l=(SloppyDeflateThinLock)getLock(i);
+      if (l!=null) {
+        result|=l.pollDeflate(allUnlocked);
+      }
+    }
+    deflateLock.unlock();
+    if (trace && result) {
+      VM.sysWriteln("deflated some locks with allUnlocked = ",allUnlocked);
+    }
+    return result;
+  }
+  
+  @Unpreemptible
+  protected boolean tryToDeflateSomeLocks() {
+    return deflateAsMuchAsPossible(true);
+  }
+  
   protected long interruptQuantumMultiplier() {
-    return 5;
+    return 10;
   }
   
   @NonMoving
@@ -223,16 +247,12 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
           RVMThread.sleep(
             1000L*1000L*instance.interruptQuantumMultiplier()*VM.interruptQuantum);
           
-          for (int i=0;i<instance.numLocks();++i) {
-            SloppyDeflateThinLock l=(SloppyDeflateThinLock)instance.getLock(i);
-            if (l!=null) {
-              l.pollDeflate();
-            }
-          }
+          instance.deflateAsMuchAsPossible(false);
         }
       } catch (Throwable e) {
         VM.printExceptionAndDie("poll deflate thread",e);
       }
+      VM.sysFail("should never get here");
     }
   }
 }

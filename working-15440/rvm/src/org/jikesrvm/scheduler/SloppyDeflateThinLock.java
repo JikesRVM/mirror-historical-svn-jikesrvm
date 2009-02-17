@@ -242,12 +242,12 @@ public class SloppyDeflateThinLock extends CommonThinLock {
     return (state&~QUEUEING_FLAG) == CLEAR && waiting.isEmpty();
   }
   
-  protected void pollDeflate() {
+  protected boolean pollDeflate(boolean allUnlocked) {
     if (active) {
       Offset lockOffset=Magic.getObjectType(lockedObject).getThinLockOffset();
-      if (numUses==0) {
+      if (allUnlocked || numUses==0) {
         lockWaiting();
-        if (numUses==0 && canDeflate()) {
+        if ((allUnlocked || numUses==0) && canDeflate()) {
           if (trace) VM.sysWriteln("decided to deflate a lock.");
           for (;;) {
             Word old=Magic.prepareWord(lockedObject, lockOffset);
@@ -260,6 +260,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
           }
           deactivate();
           SloppyDeflateThinLockPlan.instance.free(this);
+          return true;
         } else {
           numUses=0;
           unlockWaiting();
@@ -268,6 +269,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
         numUses=0;
       }
     }
+    return false;
   }
   
   protected void dumpBlockedThreads() {

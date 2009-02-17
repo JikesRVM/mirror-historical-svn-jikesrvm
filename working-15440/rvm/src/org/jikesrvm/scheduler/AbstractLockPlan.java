@@ -114,6 +114,12 @@ public abstract class AbstractLockPlan implements Constants, ThinLockConstants {
   public void returnLock(AbstractLock l) {
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
   }
+
+  @Unpreemptible
+  protected boolean tryToDeflateSomeLocks() {
+    return false; /* by default implementations cannot spontaneously deflate
+                     some locks. */
+  }
 }
 
 
