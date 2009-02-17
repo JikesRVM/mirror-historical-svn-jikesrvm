@@ -117,10 +117,12 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   
   /**
    * Delivers up an unassigned heavy-weight lock.  Locks are allocated
-   * from processor specific regions or lists, so normally no synchronization
-   * is required to obtain a lock.
+   * from either a thread-local cached lock or from a global list.
    *
    * Collector threads cannot use heavy-weight locks.
+   *
+   * Locks returned by this method are not marked "active"; you can do
+   * that yourself or by calling allocateAndActivate().
    *
    * @return a free Lock; or <code>null</code>, if garbage collection is not enabled
    */
@@ -145,7 +147,6 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
         if (l != null) {
           globalFreeLock = l.nextFreeLock;
           l.nextFreeLock = null;
-          l.active = true;
           globalFreeLocks--;
         }
         lockAllocationMutex.unlock();
@@ -174,7 +175,6 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
             growLocks(l.id);
           }
           addLock(l);
-          l.active = true;
           /* make sure other processors see lock initialization.
            * Note: Derek and I BELIEVE that an isync is not required in the other processor because the lock is newly allocated - Bowen */
           Magic.sync();
@@ -187,6 +187,12 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
       }
     }
     return l;
+  }
+
+  protected CommonLock allocateAndActivate() {
+    CommonLock result=allocate();
+    result.active=true;
+    return result;
   }
 
   /**

@@ -126,20 +126,27 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
   @Unpreemptible
   protected boolean inflate(Object o, Offset lockOffset) {
     // the idea:
-    // attempt to allocate fat lock, lock its state to prevent deflation, extract the
-    // state of the thin lock and put it into the fat lock, and attempt CAS to replace
+    // attempt to allocate fat lock, extract the
+    // state of the thin lock and put it into the fat lock, mark the lock as active
+    // (allowing it to be deflated) and attempt CAS to replace
     // the thin lock with a pointer to the fat lock.
     
     // the problem:
     // what about when someone asks for the lock to be inflated, holds onto the fat
     // lock, and then does stuff to it?  won't the autodeflater deflate it at that
     // point?
+    
+    // the answer:
+    // no.  you're only allowed to ask for the fat lock when the object is locked.  in
+    // that case, it cannot be deflated.
   }
   
   @Unpreemptible
   protected void inflateLocked(Object o, Offset lockOffset) {
     
   }
+  
+  // NOTE: implementing holdsLock will be bizarre.
 }
 
 

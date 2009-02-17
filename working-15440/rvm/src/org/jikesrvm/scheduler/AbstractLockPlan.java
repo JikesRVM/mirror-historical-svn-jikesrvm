@@ -74,8 +74,20 @@ public abstract class AbstractLockPlan implements Constants, ThinLockConstants {
     return holdsLock(o, Magic.getObjectType(o).getThinLockOffset(), thread);
   }
   
+  /**
+   * Get a heavy lock for an object.  Note that it you set create to true, a new heavy
+   * lock will be created if it did not previously exist.  However, some implementations
+   * may choose to asynchronously deflate locks.  The only way to guarantee that a lock
+   * is not asynchronously deflated is to ensure that it is held, or has someone enqueued
+   * on its wait list.
+   */
   @Unpreemptible
   public abstract AbstractLock getHeavyLock(Object o,Offset lockOffset,boolean create);
+  
+  /**
+   * Convenience method for getHeavyLock(Object,Offset,boolean), which computes the
+   * offset automatically.
+   */
   @Unpreemptible
   public AbstractLock getHeavyLock(Object o, boolean create) {
     return getHeavyLock(o, Magic.getObjectType(o).getThinLockOffset(), create);

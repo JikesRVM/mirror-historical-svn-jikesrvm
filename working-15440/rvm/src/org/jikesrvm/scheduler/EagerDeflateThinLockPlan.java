@@ -185,7 +185,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
       // this assertions is just plain wrong.
       //VM._assert((Magic.getWordAtOffset(o, lockOffset).and(TL_FAT_LOCK_MASK).isZero()));
     }
-    EagerDeflateThinLock l = (EagerDeflateThinLock)allocate();
+    EagerDeflateThinLock l = (EagerDeflateThinLock)allocateAndActivate();
     if (VM.VerifyAssertions) {
       VM._assert(l != null); // inflate called by wait (or notify) which shouldn't be called during GC
     }
@@ -208,7 +208,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    */
   @Unpreemptible
   protected boolean inflateAndLock(Object o, Offset lockOffset) {
-    EagerDeflateThinLock l = (EagerDeflateThinLock)allocate();
+    EagerDeflateThinLock l = (EagerDeflateThinLock)allocateAndActivate();
     if (l == null) return false; // can't allocate locks during GC
     EagerDeflateThinLock rtn = attemptToInflate(o, lockOffset, l);
     if (l != rtn) {
