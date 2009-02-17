@@ -87,6 +87,59 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
       }
     }
   }
+  
+  @NoInline
+  @Unpreemptible
+  public void unlock(Object o, Offset lockOffset) {
+    Magic.sync();
+    for (;;) {
+      Word old = Magic.prepareWord(o, lockOffset);
+      Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
+      Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
+      if (old.EQ(threadId)) {
+        if (old.and(TL_LOCK_COUNT_MASK).isZero()) {
+          // release lock
+          Word changed = old.and(TL_UNLOCK_MASL);
+          if (Magic.attemptWord(o, lockOffset, old, changed)) {
+            return;
+          }
+        } else {
+          // decrement count
+          Word changed = old.toAddress().minus(TL_LOCK_COUNT_UNIT).toWord();
+          if (Magic.attemptWord(o, lockOffset, old, changed)) {
+            return; // unlock succeeds
+          }
+        }
+      } else {
+        if (old.and(TL_FAT_LOCK_MASK).isZero()) {
+          // someone else holds the lock in thin mode and it's not us.  that indicates
+          // bad use of monitorenter/monitorexit
+          RVMThread.raiseIllegalMonitorStateException("thin unlocking", o);
+        }
+        // fat unlock
+        getLock(getLockIndex(old)).unlockHeavy();
+        return;
+      }
+    }
+  }
+  
+  @Unpreemptible
+  protected boolean inflate(Object o, Offset lockOffset) {
+    // the idea:
+    // attempt to allocate fat lock, lock its state to prevent deflation, extract the
+    // state of the thin lock and put it into the fat lock, and attempt CAS to replace
+    // the thin lock with a pointer to the fat lock.
+    
+    // the problem:
+    // what about when someone asks for the lock to be inflated, holds onto the fat
+    // lock, and then does stuff to it?  won't the autodeflater deflate it at that
+    // point?
+  }
+  
+  @Unpreemptible
+  protected void inflateLocked(Object o, Offset lockOffset) {
+    
+  }
 }
 
 
