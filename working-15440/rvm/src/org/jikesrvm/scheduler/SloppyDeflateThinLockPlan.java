@@ -105,7 +105,7 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
       Word old = Magic.prepareWord(o, lockOffset);
       Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
       Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
-      if (old.EQ(threadId)) {
+      if (id.EQ(threadId)) {
         if (old.and(TL_LOCK_COUNT_MASK).isZero()) {
           // release lock
           Word changed = old.and(TL_UNLOCK_MASK);
