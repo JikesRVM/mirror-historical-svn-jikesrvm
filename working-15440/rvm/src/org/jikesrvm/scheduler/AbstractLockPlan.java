@@ -45,6 +45,9 @@ public abstract class AbstractLockPlan implements Constants, ThinLockConstants {
   @Interruptible
   public abstract void boot();
   
+  @Interruptible
+  public abstract void lateBoot();
+  
   @Unpreemptible
   public abstract void inlineLock(Object o,Offset lockOffset);
   @Unpreemptible

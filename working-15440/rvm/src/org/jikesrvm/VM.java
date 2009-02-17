@@ -274,6 +274,9 @@ public class VM extends Properties implements Constants, ExitStatus {
     RVMThread.boot();
     DynamicLibrary.boot();
 
+    if (verboseBoot >= 1) VM.sysWriteln("Booting Lock");
+    LockConfig.selectedPlan.lateBoot();
+
     if (verboseBoot >= 1) VM.sysWriteln("Setting up boot thread");
     RVMThread.getCurrentThread().setupBootJavaThread();
 

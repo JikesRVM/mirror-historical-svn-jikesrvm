@@ -458,16 +458,17 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     }
   }
 
-  /****************************************************************************
-   * Statistics
-   */
-
   @Interruptible
   public void boot() {
     if (STATS) {
       Callbacks.addExitMonitor(new CommonLockPlan.ExitMonitor());
       Callbacks.addAppRunStartMonitor(new CommonLockPlan.AppRunStartMonitor());
     }
+  }
+  
+  @Interruptible
+  public void lateBoot() {
+    // nothing to do...
   }
   
   protected void initStats() {

@@ -44,9 +44,17 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
   @Interruptible
   public void boot() {
     super.boot();
-    // we'll see if there's anything to do.
+    // nothing to do for now...
   }
   
+  @Interruptible
+  public void lateBoot() {
+    super.lateBoot();
+    PollDeflateThread pdt=new PollDeflateThread();
+    pdt.makeDaemon(true);
+    pdt.start();
+  }
+
   @NoInline
   @Unpreemptible
   public void lock(Object o, Offset lockOffset) {
