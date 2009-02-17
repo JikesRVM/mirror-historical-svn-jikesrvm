@@ -184,7 +184,7 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
         .or(old.and(TL_UNLOCK_MASK));
       
       if (Synchronization.tryCompareAndSwap(o, lockOffset, old, changed)) {
-        VM.sysWriteln("inflated a lock.");
+        if (trace) VM.sysWriteln("inflated a lock.");
         return l;
       } else {
         free(l);

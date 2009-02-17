@@ -248,7 +248,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
       if (numUses==0) {
         lockWaiting();
         if (numUses==0 && canDeflate()) {
-          VM.sysWriteln("decided to deflate a lock.");
+          if (trace) VM.sysWriteln("decided to deflate a lock.");
           for (;;) {
             Word old=Magic.prepareWord(lockedObject, lockOffset);
             if (Magic.attemptWord(lockedObject,

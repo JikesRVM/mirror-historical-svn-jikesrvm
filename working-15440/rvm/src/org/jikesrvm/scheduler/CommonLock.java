@@ -33,6 +33,8 @@ import org.vmmagic.unboxed.Offset;
  */
 @Uninterruptible
 public abstract class CommonLock extends AbstractLock {
+  protected static final boolean trace = CommonLockPlan.trace;
+  
   protected Object lockedObject;
   protected int ownerId;
   protected int recursionCount;
