@@ -203,6 +203,7 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
     return 5;
   }
   
+  @NonMoving
   static class PollDeflateThread extends RVMThread {
     public PollDeflateThread() {
       super("PollDeflateThread");
