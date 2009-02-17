@@ -57,11 +57,11 @@ public abstract class AbstractLock implements Constants, ThinLockConstants {
   public abstract void unlockHeavy();
   
   /** Set the thread that owns ("holds") the lock. */
-  public abstract void setOwnerId(int id);
+  protected abstract void setOwnerId(int id);
   
   public abstract int getOwnerId();
   
-  public abstract void setRecursionCount(int c);
+  protected abstract void setRecursionCount(int c);
   
   public abstract int getRecursionCount();
   
@@ -81,7 +81,17 @@ public abstract class AbstractLock implements Constants, ThinLockConstants {
    */
   public abstract Object getLockedObject();
   
-  public abstract void setLockedObject(Object o);
+  protected abstract void setLockedObject(Object o);
+  
+  protected void setUnlockedState() {
+    setOwnerId(0);
+    setRecursionCount(0);
+  }
+
+  protected void setLockedState(int ownerId,int recursionCount) {
+    setOwnerId(ownerId);
+    setRecursionCount(recursionCount);
+  }
   
   protected abstract void dumpBlockedThreads();
   protected abstract void dumpWaitingThreads();

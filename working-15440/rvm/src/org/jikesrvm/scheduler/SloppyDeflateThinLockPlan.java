@@ -71,11 +71,13 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
       Word old = Magic.prepareWord(o, lockOffset);
       Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
       if (id.isZero()) {
+        // lock not held, acquire quickly with rec count == 1
         if (Magic.attemptWord(o, lockOffset, old, old.or(threadId))) {
           Magic.isync();
           return;
         }
       } else if (id.EQ(threadId)) {
+        // lock held, attempt to increment rec count
         Word changed = old.toAddress().plus(TL_LOCK_COUNT_UNIT).toWord();
         if (!changed.and(TL_LOCK_COUNT_MASK).isZero() &&
             Magic.attemptWord(o, lockOffset, old, changed)) {
@@ -162,9 +164,14 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
       }
       
       l.setLockedObject(o);
-      l.setOwnerId(old.and(TL_THREAD_ID_MASK).toInt());
-      if (l.getOwnerId()!=0) {
-        l.setRecursionCount(old.and(TL_LOCK_COUNT_MASK).rshl(TL_LOCK_COUNT_SHIFT).toInt()+1);
+      if (id.isZero()) {
+        l.setUnlockedState();
+      } else {
+        l.setLockedState(
+          old.and(TL_THREAD_ID_MASK).toInt(),
+          (l.getOwnerId() != 0
+           ? old.and(TL_LOCK_COUNT_MASK).rshl(TL_LOCK_COUNT_SHIFT).toInt() + 1
+           : 0));
       }
       
       Magic.sync(); // ensure the above writes happen.

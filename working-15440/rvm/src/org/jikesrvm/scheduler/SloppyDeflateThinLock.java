@@ -160,6 +160,16 @@ public class SloppyDeflateThinLock extends CommonThinLock {
     }
   }
   
+  protected void setUnlockedState() {
+    super.setUnlockedState();
+    state=CLEAR;
+  }
+  
+  protected void setLockedState(int ownerId,int recursionCount) {
+    super.setLockedState(ownerId,recursionCount);
+    state=LOCKED;
+  }
+  
   @Unpreemptible
   public boolean lockHeavy(Object o) {
     numUses++;
@@ -237,7 +247,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
       Offset lockOffset=Magic.getObjectType(lockedObject).getThinLockOffset();
       if (numUses==0) {
         lockWaiting();
-        if (numUses==0) {
+        if (numUses==0 && canDeflate()) {
           for (;;) {
             Word old=Magic.prepareWord(lockedObject, lockOffset);
             if (Magic.attemptWord(lockedObject,
