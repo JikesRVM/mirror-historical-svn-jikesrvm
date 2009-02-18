@@ -56,14 +56,14 @@ public class SloppyDeflateThinLock extends CommonThinLock {
   @Entrypoint
   protected int state;
   
-  protected int numUses;
+  protected int numHeavyUses;
   
   public SloppyDeflateThinLock() {
     queue = new ThreadQueue();
   }
   
   protected void activate() {
-    numUses=1;
+    numHeavyUses=1;
     Magic.sync();
     super.activate();
   }
@@ -80,14 +80,15 @@ public class SloppyDeflateThinLock extends CommonThinLock {
     Magic.sync();
 
     lockedObject=null;
-    numUses=0;
+    numHeavyUses=0;
 
     Magic.sync();
     state=CLEAR;
   }
   
   protected int spinLimit() {
-    return 1000;
+    return 0;
+    // return 1000;
   }
   
   /**
@@ -105,6 +106,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
            Magic.attemptInt(this,offset,CLEAR_QUEUED,LOCKED_QUEUED))) {
         return; // acquired
       }
+      Magic.pause();
     }
     for (;;) {
       int oldState=Magic.prepareInt(this,offset);
@@ -115,6 +117,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
         return;
       } else if ((oldState==LOCKED || oldState==LOCKED_QUEUED) &&
                  Magic.attemptInt(this,offset,oldState,oldState|QUEUEING_FLAG)) {
+        numHeavyUses++;
         RVMThread me=RVMThread.getCurrentThread();
         queue.enqueue(me);
         Magic.sync();
@@ -125,6 +128,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
         }
         me.monitor().unlock();
       }
+      Magic.pause();
     }
   }
   
@@ -157,22 +161,25 @@ public class SloppyDeflateThinLock extends CommonThinLock {
         toAwaken.monitor().lockedBroadcast();
         return;
       }
+      Magic.pause();
     }
   }
   
   protected void setUnlockedState() {
+    // FIXME: broken!!  the lock could have been spuriously acquired
+    // after deflation!  this would break that case.
     super.setUnlockedState();
     state=CLEAR;
   }
   
   protected void setLockedState(int ownerId,int recursionCount) {
+    // FIXME: broken!!  we should acquire the lock first.
     super.setLockedState(ownerId,recursionCount);
     state=LOCKED;
   }
   
   @Unpreemptible
   public boolean lockHeavy(Object o) {
-    numUses++;
     int myId=RVMThread.getCurrentThread().getLockingId();
     if (myId == ownerId) {
       if (VM.VerifyAssertions) {
@@ -185,6 +192,8 @@ public class SloppyDeflateThinLock extends CommonThinLock {
       recursionCount++;
       return true;
     } else {
+      // problem: what if we get here but the lock has since been deflated,
+      // reinflated, and then we get here during reinflation?
       acquireImpl();
       Magic.isync();
       if (lockedObject == o) {
@@ -193,6 +202,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
         return true;
       } else {
         // oops!  acquired the lock of the wrong object!
+        VM.sysWriteln("acquired the lock of the wrong object!");
         Magic.sync();
         releaseImpl();
         return false;
@@ -209,7 +219,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
   }
   
   protected int enqueueWaitingAndUnlockCompletely(RVMThread toWait) {
-    numUses++;
+    numHeavyUses++;
     return super.enqueueWaitingAndUnlockCompletely(toWait);
   }
   
@@ -223,6 +233,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
                            oldState|QUEUEING_FLAG)) {
         break;
       }
+      Magic.pause();
     }
     Magic.isync();
   }
@@ -242,12 +253,13 @@ public class SloppyDeflateThinLock extends CommonThinLock {
     return (state&~QUEUEING_FLAG) == CLEAR && waiting.isEmpty();
   }
   
-  protected boolean pollDeflate(boolean allUnlocked) {
+  protected boolean pollDeflate(int useThreshold) {
     if (active) {
       Offset lockOffset=Magic.getObjectType(lockedObject).getThinLockOffset();
-      if (allUnlocked || numUses==0) {
+      if (numHeavyUses<0 || numHeavyUses<useThreshold || useThreshold<0) {
         lockWaiting();
-        if ((allUnlocked || numUses==0) && canDeflate()) {
+        if ((numHeavyUses<0 || numHeavyUses<useThreshold || useThreshold<0) &&
+            canDeflate()) {
           if (trace) VM.sysWriteln("decided to deflate a lock.");
           for (;;) {
             Word old=Magic.prepareWord(lockedObject, lockOffset);
@@ -262,11 +274,11 @@ public class SloppyDeflateThinLock extends CommonThinLock {
           SloppyDeflateThinLockPlan.instance.free(this);
           return true;
         } else {
-          numUses=0;
+          numHeavyUses=0;
           unlockWaiting();
         }
       } else {
-        numUses=0;
+        numHeavyUses=0;
       }
     }
     return false;

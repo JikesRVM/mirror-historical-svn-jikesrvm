@@ -18,6 +18,7 @@ import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.objectmodel.ThinLockConstants;
 import org.jikesrvm.runtime.Magic;
+import static org.jikesrvm.runtime.SysCall.sysCall;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Interruptible;
@@ -209,29 +210,40 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
   }
   
   @Unpreemptible
-  protected boolean deflateAsMuchAsPossible(boolean allUnlocked) {
-    boolean result=false;
+  protected boolean deflateAsMuchAsPossible(int useThreshold) {
+    int cnt=0,cntno=0;
+    long before=0;
+    if (true || trace) {
+      before=sysCall.sysNanoTime();
+    }
     deflateLock.lockNicely();
     for (int i=0;i<numLocks();++i) {
       SloppyDeflateThinLock l=(SloppyDeflateThinLock)getLock(i);
       if (l!=null) {
-        result|=l.pollDeflate(allUnlocked);
+        if (l.pollDeflate(useThreshold)) {
+          cnt++;
+        } else {
+          cntno++;
+        }
       }
     }
     deflateLock.unlock();
-    if (trace && result) {
-      VM.sysWriteln("deflated some locks with allUnlocked = ",allUnlocked);
+    if ((true || trace) && cnt>0) {
+      long after=sysCall.sysNanoTime();
+      VM.sysWriteln("deflated ",cnt," but skipped ",cntno," locks with useThreshold = ",useThreshold);
+      VM.sysWriteln("lock list is ",numLocks()," long");
+      VM.sysWriteln("and it took ",after-before," nanos");
     }
-    return result;
+    return cnt>0;
   }
   
   @Unpreemptible
   protected boolean tryToDeflateSomeLocks() {
-    return deflateAsMuchAsPossible(true);
+    return deflateAsMuchAsPossible(-1);
   }
   
   protected long interruptQuantumMultiplier() {
-    return 10;
+    return 2;
   }
   
   @NonMoving
@@ -247,7 +259,7 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
           RVMThread.sleep(
             1000L*1000L*instance.interruptQuantumMultiplier()*VM.interruptQuantum);
           
-          instance.deflateAsMuchAsPossible(false);
+          instance.deflateAsMuchAsPossible((int)(1000*instance.interruptQuantumMultiplier()*VM.interruptQuantum));
         }
       } catch (Throwable e) {
         VM.printExceptionAndDie("poll deflate thread",e);
