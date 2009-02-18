@@ -372,7 +372,11 @@ Check to make sure all required properties are specified. This includes properti
       <equals arg1="${config.include.perfctr}" arg2="true"/>
     </condition>
 
-    <property name="filter" value="${arch.filter} ${os.filter} ${addr.filter} ${gctrace.filter} ${gcspy.filter} ${alignment-checking.filter} ${perfctr.filter}"/>
+    <condition property="classlib.filter" value="-DRVM_FOR_HARMONY=1" else="-DRVM_FOR_CLASSPATH=1">
+      <equals arg1="${classlib.provider}" arg2="Harmony"/>
+    </condition>
+
+    <property name="filter" value="${arch.filter} ${os.filter} ${addr.filter} ${gctrace.filter} ${gcspy.filter} ${alignment-checking.filter} ${perfctr.filter} ${classlib.filter}"/>
   </target>
 
   <!-- **************************************************************************** -->
@@ -1543,7 +1547,13 @@ Check to make sure all required properties are specified. This includes properti
       <equals arg1="${config.include.perfctr}" arg2="true"/>
     </condition>
 
-    <property name="rvm.src" value="${bl.dir}/RunBootImage.C ${bl.dir}/sys.C ${rvm.arch.src} ${perfctr.src}"/>
+    <property name="rvm.syscall.src" value="${bl.dir}/sysAlignmentCheck.C ${bl.dir}/sysConsole.C ${bl.dir}/sysIO.C ${bl.dir}/sysLibrary.C ${bl.dir}/sysMath.C ${bl.dir}/sysMemory.C ${bl.dir}/sysMisc.C ${bl.dir}/sysPerfCtr.C ${bl.dir}/sysThread.C ${bl.dir}/sysTime.C"/>
+
+    <condition property="rvm.src"
+               value="${bl.dir}/RunBootImage.C ${bl.dir}/sysGCSpy.C ${rvm.syscall.src} ${rvm.arch.src} ${perfctr.src}"
+               else="${bl.dir}/RunBootImage.C  ${rvm.syscall.src} ${rvm.arch.src} ${perfctr.src}">
+      <equals arg1="include.gcspy" arg2="true"/>
+    </condition>
   </target>
 
   <target name="build-ppc-bootThread" depends="check-bootloader-properties" if="gen-ppc-bootThread">
@@ -1651,7 +1661,7 @@ Check to make sure all required properties are specified. This includes properti
       </conditions>
       <sequential>
         <exec executable="${c++.exe}" failonerror="true">
-          <arg line="${c++.args} ${rvm.common.args} ${gcspy.lib.dir} -lpthread ${perfctr.lib} ${c++.librt} ${rvm.src} ${c++.rdynamic} -g"/>
+          <arg line="${c++.args} ${rvm.common.args} ${gcspy.lib.dir} -lpthread ${perfctr.lib} ${c++.librt} ${c++.rdynamic} -g"/>
           <arg value="-o"/>
           <arg value="${build.base}/JikesRVM"/>
           <arg value="-L${build.base}"/>
@@ -1663,6 +1673,7 @@ Check to make sure all required properties are specified. This includes properti
           <arg value="-lhyprt"/>
           <arg value="-lhythr"/>
           <arg value="-lhyzlib"/>
+          <arg line="${rvm.src}"/>
 	</exec>
       </sequential>
     </if>
