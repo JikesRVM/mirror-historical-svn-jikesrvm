@@ -18,6 +18,10 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
+#ifdef RVM_FOR_AIX
+#include <sys/cache.h>
+#endif
+
 /** Allocate memory. */
 EXTERNAL void* sysMalloc(int length)
 {
@@ -188,8 +192,8 @@ EXTERNAL void* sysMMapErrno(char *start , size_t length ,
     CONSOLE_PRINTF(SysTraceFile, "%s: sysMMapErrno %p %d %d %d %d %d failed with %d.\n",
                    Me, start, length, protection, flags, fd, offset, errno);
     return (void *) errno;
-  }else{
-    TRACE_PRINTF(SysTraceFile, "mmap succeeded- region = [0x%x ... 0x%x]    size = %d\n", res, ((int)res) + length, length);
+  } else {
+    TRACE_PRINTF(SysTraceFile, "mmap succeeded- region = [0x%x ... 0x%x]    size = %d\n", res, ((size_t)res) + length, length);
     return res;
   }
 #else
