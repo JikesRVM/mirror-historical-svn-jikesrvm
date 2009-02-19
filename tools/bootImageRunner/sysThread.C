@@ -12,12 +12,14 @@
  */
 
 #include "sys.h"
+#include <stdlib.h>
 
-#ifndef RVM_FOR_HARMONY
+#ifdef RVM_FOR_HARMONY
+#include <apr_thread_proc.h>
+#else
 #include <errno.h>
 #include <pthread.h>
 #include <setjmp.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/sysinfo.h>
 #include <sys/ucontext.h>
@@ -32,7 +34,6 @@
 static hythread_tls_key_t TerminateJmpBufKey;
 static hythread_tls_key_t VmThreadKey;
 static hythread_tls_key_t IsVmThreadKey;
-static hythread_tls_key_t DeathLock;
 #else
 /** keys for managing thread termination */
 static pthread_key_t TerminateJmpBufKey;
@@ -165,8 +166,12 @@ EXTERNAL int sysNumProcessors()
 EXTERNAL Address sysNativeThreadCreate(Address tr, Address ip, Address fp)
 {
   Address        *sysNativeThreadArguments;
+#ifndef RVM_FOR_HARMONY
   pthread_attr_t sysNativeThreadAttributes;
   pthread_t      sysNativeThreadHandle;
+#else
+  hythread_t     sysNativeThreadHandle;
+#endif
   int            rc;
   SYS_START();
   TRACE_PRINTF(SysTraceFile, "%s: sysNativeThreadCreate %p %p %p\n", Me, tr, ip, fp);
@@ -178,26 +183,38 @@ EXTERNAL Address sysNativeThreadCreate(Address tr, Address ip, Address fp)
   sysNativeThreadArguments[1] = ip;
   sysNativeThreadArguments[2] = fp;
 
+#ifndef RVM_FOR_HARMONY
   // create attributes
   if ((rc = pthread_attr_init(&sysNativeThreadAttributes))) {
     CONSOLE_PRINTF(SysErrorFile, "%s: pthread_attr_init failed (rc=%d)\n", Me, rc);
     sysExit(EXIT_STATUS_SYSCALL_TROUBLE);
   }
-
   // force 1:1 pthread to kernel thread mapping (on AIX 4.3)
   pthread_attr_setscope(&sysNativeThreadAttributes, PTHREAD_SCOPE_SYSTEM);
-
+#endif
   // create native thread
-  if ((rc = pthread_create(&sysNativeThreadHandle,
-                           &sysNativeThreadAttributes,
-                           sysNativeThreadStartup,
-                           sysNativeThreadArguments)))
+#ifdef RVM_FOR_HARMONY
+  rc = hythread_create(&sysNativeThreadHandle, 0, HYTHREAD_PRIORITY_NORMAL, 0,
+                       (hythread_entrypoint_t)sysNativeThreadStartup,
+                       sysNativeThreadArguments);
+#else
+  rc = pthread_create(&sysNativeThreadHandle,
+                      &sysNativeThreadAttributes,
+                      sysNativeThreadStartup,
+                      sysNativeThreadArguments);
+#endif
+  if (rc)
   {
     CONSOLE_PRINTF(SysErrorFile, "%s: pthread_create failed (rc=%d)\n", Me, rc);
     sysExit(EXIT_STATUS_SYSCALL_TROUBLE);
   }
-    
-  if ((rc = pthread_detach(sysNativeThreadHandle)))
+
+#ifdef RVM_FOR_HARMONY
+  rc = hythread_detach(sysNativeThreadHandle);
+#else
+  rc = pthread_detach(sysNativeThreadHandle);
+#endif
+  if (rc)
   {
     CONSOLE_PRINTF(SysErrorFile, "%s: pthread_detach failed (rc=%d)\n", Me, rc);
     sysExit(EXIT_STATUS_SYSCALL_TROUBLE);
@@ -215,13 +232,14 @@ static void* sysNativeThreadStartup(void *args)
   Address tr, ip, fp;
   jmp_buf *jb;
 
+  SYS_START();
   memset (&stack, 0, sizeof stack);
   stackBuf = (char*)malloc(sizeof(char[SIGSTKSZ]));
   stack.ss_sp = stackBuf;
   stack.ss_flags = 0;
   stack.ss_size = SIGSTKSZ;
   if (sigaltstack (&stack, 0)) {
-    CONSOLE_PRINTF(stderr, "sigaltstack failed (errno=%d)\n",errno);
+    CONSOLE_PRINTF(SysErrorFile, "sigaltstack failed (errno=%d)\n",errno);
     exit(1);
   }
 
@@ -282,6 +300,7 @@ EXTERNAL void sysNativeThreadBind(int UNUSED cpuId)
 {
   SYS_START();
   TRACE_PRINTF(SysTraceFile, "%s: sysNativeThreadBind");
+#ifndef RVM_FOR_HARMONY
   // bindprocessor() seems to be only on AIX
 #ifdef RVM_FOR_AIX
   int rc = bindprocessor(BINDTHREAD, thread_self(), cpuId);
@@ -300,6 +319,7 @@ EXTERNAL void sysNativeThreadBind(int UNUSED cpuId)
   CPU_SET(cpuId, &cpuset);
 
   pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset);
+#endif
 #endif
 }
 
@@ -327,7 +347,7 @@ EXTERNAL void sysCreateThreadSpecificDataKeys(void)
     CONSOLE_PRINTF(SysErrorFile, "%s: pthread_key_create(&TerminateJmpBufKey,0) failed (err=%d)\n", Me, rc);
     sysExit(EXIT_STATUS_SYSCALL_TROUBLE);
   }
-  TRACE_PRINTF(stderr, "%s: vm processor key=%u\n", Me, VmThreadKey);
+  TRACE_PRINTF(SysErrorFile, "%s: vm processor key=%u\n", Me, VmThreadKey);
 }
 
 /**
@@ -408,39 +428,17 @@ EXTERNAL void sysPthreadSetupSignalHandling()
 #endif // RVM_FOR_HARMONY -- TODO
 }
 
-EXTERNAL int sysPthreadSignal(int pthread)
-{
-  SYS_START();
-  TRACE_PRINTF(SysTraceFile, "%s: sysPthreadSignal %d\n", Me, pthread);
-#ifndef RVM_FOR_HARMONY
-  pthread_t thread;
-  thread = (pthread_t)pthread;
-
-  pthread_kill(thread, SIGCONT);
-  return 0;
-#endif // RVM_FOR_HARMONY -- TODO
-}
-
-EXTERNAL int sysPthreadJoin(int pthread)
-{
-  SYS_START();
-  TRACE_PRINTF(SysTraceFile, "%s: pthread %d joins %d\n", Me, pthread_self(), pthread);
-#ifdef RVM_FOR_HARMONY
-#error TODO
-#else
-  pthread_t thread;
-  thread = (pthread_t)pthread;
-  pthread_join(thread, NULL);
-  return 0;
-#endif
-}
-
 EXTERNAL void sysPthreadExit()
 {
   SYS_START();
-  TRACE_PRINTF(SysTraceFile, "%s: pthread %d exits\n", Me, pthread_self());
+  TRACE_PRINTF(SysTraceFile, "%s: pthread %d exits\n", Me,
 #ifdef RVM_FOR_HARMONY
-#error TODO
+               hythread_self());
+#else
+               pthread_self());
+#endif
+#ifdef RVM_FOR_HARMONY
+  hythread_exit(NULL);
 #else
   pthread_exit(NULL);
 #endif
@@ -470,11 +468,15 @@ EXTERNAL void sysSchedYield()
 
 EXTERNAL Address sysPthreadMutexCreate()
 {
-  pthread_mutex_t *mutex;
   SYS_START();
   TRACE_PRINTF(SysTraceFile, "%s: sysPthreadMutexCreate\n", Me);
-  mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+#ifdef RVM_FOR_HARMONY
+  hythread_monitor_t mutex;
+  hythread_monitor_init(&mutex, HYTHREAD_MONITOR_SYSTEM);
+#else
+  pthread_mutex_t *mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
   pthread_mutex_init(mutex,NULL);
+#endif
   return (Address)mutex;
 }
 
@@ -597,10 +599,13 @@ EXTERNAL void sysTerminatePthread()
  */
 EXTERNAL void sysNanosleep(long long howLongNanos)
 {
-  struct timespec req;
-  const long long nanosPerSec = 1000LL * 1000 * 1000;
   SYS_START();
   TRACE_PRINTF(SysTraceFile, "%s: sysNanosleep %lld\n", Me, howLongNanos);
+#ifdef RVM_FOR_HARMONY
+  hythread_sleep(howLongNanos/1000);
+#else
+  struct timespec req;
+  const long long nanosPerSec = 1000LL * 1000 * 1000;
   req.tv_sec = howLongNanos / nanosPerSec;
   req.tv_nsec = howLongNanos % nanosPerSec;
   int ret = nanosleep(&req, (struct timespec *) NULL);
@@ -614,4 +619,5 @@ EXTERNAL void sysNanosleep(long long howLongNanos)
                    Me, req.tv_sec, req.tv_nsec,
                    strerror( errno ), errno);
   }
+#endif
 }

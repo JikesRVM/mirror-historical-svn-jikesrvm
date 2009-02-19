@@ -84,6 +84,7 @@ void findMappable();
 static void
 usage(void)
 {
+    SYS_START();
     CONSOLE_PRINTF(SysTraceFile, "Usage: %s [-options] class [args...]\n", Me);
     CONSOLE_PRINTF(SysTraceFile, "          (to execute a class)\n");
     CONSOLE_PRINTF(SysTraceFile, "   or  %s [-options] -jar jarfile [args...]\n",Me);
@@ -116,6 +117,7 @@ usage(void)
 static void
 nonstandard_usage()
 {
+    SYS_START();
     CONSOLE_PRINTF(SysTraceFile, "Usage: %s [options] class [args...]\n",Me);
     CONSOLE_PRINTF(SysTraceFile, "          (to execute a class)\n");
     CONSOLE_PRINTF(SysTraceFile, "where options include\n");
@@ -128,12 +130,14 @@ nonstandard_usage()
 static void
 shortVersion()
 {
+    SYS_START();
     CONSOLE_PRINTF(SysTraceFile,  "%s %s\n",rvm_configuration, rvm_version);
 }
 
 static void
 fullVersion()
 {
+    SYS_START();
     shortVersion();
     CONSOLE_PRINTF(SysTraceFile,  "\thost config: %s\n\ttarget config: %s\n",
             rvm_host_configuration, rvm_target_configuration);
@@ -170,6 +174,7 @@ fullVersion()
 static const char **
 processCommandLineArguments(const char *CLAs[], int n_CLAs, bool *fastExit)
 {
+    SYS_START();
     int n_JCLAs = 0;
     bool startApplicationOptions = false;
     const char *subtoken;
@@ -326,7 +331,11 @@ processCommandLineArguments(const char *CLAs[], int n_CLAs, bool *fastExit)
 
         if (strnequal(token, nonStandardArgs[SYSLOGFILE_INDEX],14)) {
             subtoken = token + 14;
+#ifdef RVM_FOR_HARMONY
+            IDATA ftmp = hyfile_open(subtoken, HyOpenAppend, 0);
+#else
             FILE* ftmp = fopen(subtoken, "a");
+#endif
             if (!ftmp) {
                 CONSOLE_PRINTF(SysTraceFile,  "%s: can't open SysTraceFile \"%s\": %s\n", Me, subtoken, strerror(errno));
                 *fastExit = true;
@@ -404,13 +413,16 @@ processCommandLineArguments(const char *CLAs[], int n_CLAs, bool *fastExit)
 int
 main(int argc, const char **argv)
 {
+    SYS_START();
     Me            = strrchr(*argv, '/') + 1;
     ++argv, --argc;
     initialHeapSize = heap_default_initial_size;
     maximumHeapSize = heap_default_maximum_size;
-    
+
+#ifndef RVM_FOR_HARMONY
     setvbuf(stdout,NULL,_IONBF,0);
     setvbuf(stderr,NULL,_IONBF,0);
+#endif
 
     /*
      * Debugging: print out command line arguments.
@@ -533,6 +545,7 @@ parse_memory_size(const char *sizeName, /*  "initial heap" or "maximum heap" or
                   const char *subtoken /* e.g., "200M" or "200" */,
                   bool *fastExit)
 {
+    SYS_START();
     errno = 0;
     long double userNum;
     char *endp;                 /* Should be const char *, but if we do that,

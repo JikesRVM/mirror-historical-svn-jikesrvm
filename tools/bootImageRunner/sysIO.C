@@ -71,7 +71,7 @@ EXTERNAL int sysSyncFile(int fd)
   SYS_START();
   TRACE_PRINTF(SysTraceFile, "%s: sync %d\n", Me, fd);
 #ifdef RVM_FOR_HARMONY
-  return PORTLIB->hyfile_sync(PORTLIB, fd);
+  return hyfile_sync(fd);
 #else
   if (fsync(fd) != 0) {
     // some kinds of files cannot be sync'ed, so don't print error message
@@ -89,12 +89,12 @@ EXTERNAL int sysSyncFile(int fd)
  */
 EXTERNAL int sysReadByte(int fd)
 {
+  unsigned char ch;
   SYS_START();
   TRACE_PRINTF(SysTraceFile, "%s: readByte %d\n", Me, fd);
 #ifdef RVM_FOR_HARMONY
-  return PORTLIB->hyfile_read(PORTLIB, fd, &ch, 1);
+  return hyfile_read(fd, &ch, 1);
 #else
-  unsigned char ch;
   int rc;
 
  again:
@@ -132,7 +132,7 @@ sysWriteByte(int fd, int data)
   char ch = data;
   TRACE_PRINTF(SysTraceFile, "%s: writeByte %d %c\n", Me, fd, ch);
 #ifdef RVM_FOR_HARMONY
-  return PORTLIB->hyfile_write(PORTLIB, fd, &ch, 1);
+  return hyfile_write(fd, &ch, 1);
 #else
  again:
   int rc = write(fd, &ch, 1);
@@ -162,7 +162,7 @@ EXTERNAL int sysReadBytes(int fd, char *buf, int cnt)
   SYS_START();
   TRACE_PRINTF(SysTraceFile, "%s: read %d 0x%08x %d\n", Me, fd, buf, cnt);
 #ifdef RVM_FOR_HARMONY
-  return PORTLIB->hyfile_read(PORTLIB, fd, buf, cnt);
+  return hyfile_read(fd, buf, cnt);
 #else
  again:
   int rc = read(fd, buf, cnt);
@@ -194,7 +194,7 @@ EXTERNAL int sysWriteBytes(int fd, char *buf, int cnt)
   SYS_START();
   TRACE_PRINTF(SysTraceFile, "%s: write %d 0x%08x %d\n", Me, fd, buf, cnt);
 #ifdef RVM_FOR_HARMONY
-  return PORTLIB->hyfile_write(PORTLIB, fd, buf, cnt);
+  return hyfile_write(fd, buf, cnt);
 #else
  again:
   int rc = write(fd, buf, cnt);
@@ -229,7 +229,7 @@ static int sysClose(int fd)
   SYS_START();
   TRACE_PRINTF(SysTraceFile, "%s: close %d\n", Me, fd);
 #ifdef RVM_FOR_HARMONY
-  return PORTLIB->hyfile_close(PORTLIB, fd);
+  return hyfile_close(fd);
 #else
   if ( -1 == fd ) return -1;
   int rc = close(fd);

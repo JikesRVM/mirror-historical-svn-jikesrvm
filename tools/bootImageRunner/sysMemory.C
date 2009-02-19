@@ -86,13 +86,13 @@ EXTERNAL void sysZeroPages(void *dst, int cnt)
     rc = munmap(dst, cnt);
     if (rc != 0)
     {
-      fprintf(SysErrorFile, "%s: munmap failed (errno=%d): ", Me, errno);
+      CONSOLE_PRINTF(SysErrorFile, "%s: munmap failed (errno=%d): ", Me, errno);
       sysExit(EXIT_STATUS_SYSCALL_TROUBLE);
     }
     addr = mmap(dst, cnt, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_ANONYMOUS | MAP_FIXED, -1, 0);
     if (addr == (void *)-1)
     {
-      fprintf(SysErrorFile, "%s: mmap failed (errno=%d): ", Me, errno);
+      CONSOLE_PRINTF(SysErrorFile, "%s: mmap failed (errno=%d): ", Me, errno);
       sysExit(EXIT_STATUS_SYSCALL_TROUBLE);
     }
   }
@@ -111,13 +111,15 @@ EXTERNAL void sysSyncCache(void *address, size_t size)
   uintptr_t start, end, addr;
   SYS_START();
   TRACE_PRINTF(SysTraceFile, "%s: sync %p %d\n", Me, address, size);
-
+#ifdef RVM_FOR_HARMONY
+  hycpu_flush_icache(address, size);
+#else
 #ifdef RVM_FOR_POWERPC
 #ifdef RVM_FOR_AIX
   _sync_cache_range((caddr_t) address, size);
 #else
   if (size < 0) {
-    fprintf(SysErrorFile, "%s: tried to sync a region of negative size!\n", Me);
+    CONSOLE_PRINTF(SysErrorFile, "%s: tried to sync a region of negative size!\n", Me);
     sysExit(EXIT_STATUS_SYSCALL_TROUBLE);
   }
 
@@ -140,8 +142,9 @@ EXTERNAL void sysSyncCache(void *address, size_t size)
 
   /* context synchronization */
   asm("isync");
-#endif
-#endif
+#endif // RVM_FOR_AIX
+#endif // RVM_FOR_POWERPC
+#endif // RVM_FOR_HARMONY
 }
 
 /**
