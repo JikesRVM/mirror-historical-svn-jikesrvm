@@ -166,16 +166,30 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
         return null;
       }
       
-      l.setLockedObject(o);
+      // we need to do a careful dance here.  set up the lock.  put it into a locked
+      // state.  but if the CAS fails, have a way of rescuing the lock.
+      
+      // note that at this point attempts to acquire the lock will succeed but back out
+      // immediately, since they'll notice that the locked object is not the one they
+      // wanted.
+      
       if (id.isZero()) {
         l.setUnlockedState();
       } else {
         l.setLockedState(
           old.and(TL_THREAD_ID_MASK).toInt(),
           old.and(TL_LOCK_COUNT_MASK).rshl(TL_LOCK_COUNT_SHIFT).toInt() + 1);
+        // the lock is now acquired - on behalf of the thread that owned the thin
+        // lock.  crazy.  what if that thread then tries to acquire this lock thinking
+        // it belongs to a different object?
+        
+        // even crazier: what if the thread that owns the thin lock is trying to
+        // acquire the fat lock thinking it belongs to a different object?  if it
+        // decides to do that right now, it'll deadlock.
       }
       
-      Magic.sync(); // ensure the above writes happen.
+      Magic.sync();
+      l.setLockedObject(o);
       
       l.activate();
       
@@ -187,9 +201,10 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
         .or(old.and(TL_UNLOCK_MASK));
       
       if (Synchronization.tryCompareAndSwap(o, lockOffset, old, changed)) {
-        if (trace) VM.sysWriteln("inflated a lock.");
+        if (trace) VM.tsysWriteln("inflated a lock.");
         return l;
       } else {
+        // need to "deactivate" the lock here.
         free(l);
       }
     }
@@ -230,9 +245,9 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
     deflateLock.unlock();
     if ((true || trace) && cnt>0) {
       long after=sysCall.sysNanoTime();
-      VM.sysWriteln("deflated ",cnt," but skipped ",cntno," locks with useThreshold = ",useThreshold);
-      VM.sysWriteln("lock list is ",numLocks()," long");
-      VM.sysWriteln("and it took ",after-before," nanos");
+      VM.tsysWriteln("deflated ",cnt," but skipped ",cntno," locks with useThreshold = ",useThreshold);
+      VM.tsysWriteln("lock list is ",numLocks()," long");
+      VM.tsysWriteln("and it took ",after-before," nanos");
     }
     return cnt>0;
   }

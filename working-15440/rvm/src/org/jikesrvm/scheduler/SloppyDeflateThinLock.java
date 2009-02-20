@@ -68,7 +68,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
     super.activate();
   }
   
-  private void deactivate() {
+  protected void deactivate() {
     if (VM.VerifyAssertions) {
       VM._assert(waiting.isEmpty());
       VM._assert(queue.isEmpty());
@@ -166,20 +166,24 @@ public class SloppyDeflateThinLock extends CommonThinLock {
   }
   
   protected void setUnlockedState() {
-    // FIXME: broken!!  the lock could have been spuriously acquired
-    // after deflation!  this would break that case.
-    super.setUnlockedState();
-    state=CLEAR;
+    VM.tsysWriteln("inflating unlocked: ",id);
+    ownerId=0;
+    recursionCount=0;
   }
   
+  @Unpreemptible
   protected void setLockedState(int ownerId,int recursionCount) {
-    // FIXME: broken!!  we should acquire the lock first.
-    super.setLockedState(ownerId,recursionCount);
-    state=LOCKED;
+    VM.tsysWriteln("inflating locked: ",id);
+    acquireImpl();
+    // at this point only the *owner* of the lock can mess with it.
+    this.ownerId=ownerId;
+    this.recursionCount=recursionCount;
+    VM.tsysWriteln("done inflating locked: ",id);
   }
   
   @Unpreemptible
   public boolean lockHeavy(Object o) {
+    VM.tsysWriteln("locking heavy: ",id);
     int myId=RVMThread.getCurrentThread().getLockingId();
     if (myId == ownerId) {
       if (VM.VerifyAssertions) {
@@ -202,7 +206,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
         return true;
       } else {
         // oops!  acquired the lock of the wrong object!
-        VM.sysWriteln("acquired the lock of the wrong object!");
+        VM.tsysWriteln("acquired the lock of the wrong object!");
         Magic.sync();
         releaseImpl();
         return false;
@@ -210,11 +214,18 @@ public class SloppyDeflateThinLock extends CommonThinLock {
     }
   }
   
+  @Unpreemptible
   public void unlockHeavy() {
+    if (recursionCount==0) {
+      RVMThread.raiseIllegalMonitorStateException("unlocking unlocked lock",lockedObject);
+    }
     if (--recursionCount==0) {
+      VM.tsysWriteln("locking heavy completely: ",id);
       ownerId = 0;
       Magic.sync();
       releaseImpl();
+    } else {
+      VM.tsysWriteln("locking heavy recursively: ",id);
     }
   }
   
@@ -260,7 +271,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
         lockWaiting();
         if ((numHeavyUses<0 || numHeavyUses<useThreshold || useThreshold<0) &&
             canDeflate()) {
-          if (trace) VM.sysWriteln("decided to deflate a lock.");
+          if (trace) VM.tsysWriteln("decided to deflate a lock.");
           for (;;) {
             Word old=Magic.prepareWord(lockedObject, lockOffset);
             if (Magic.attemptWord(lockedObject,

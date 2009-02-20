@@ -2077,6 +2077,42 @@ public class VM extends Properties implements Constants, ExitStatus {
     writeln();
     swUnlock();
   }
+  
+  @NoInline
+  public static void tsysWriteln(String s1, int i1, String s2, int i2, String s3, int i3) {
+    swLock();
+    showThread();
+    write(s1);
+    write(i1);
+    write(s2);
+    write(i2);
+    write(s3);
+    write(i3);
+    writeln();
+    swUnlock();
+  }
+
+  @NoInline
+  public static void tsysWriteln(String s1, int i1, String s2) {
+    swLock();
+    showThread();
+    write(s1);
+    write(i1);
+    write(s2);
+    writeln();
+    swUnlock();
+  }
+
+  @NoInline
+  public static void tsysWriteln(String s1, long l1, String s2) {
+    swLock();
+    showThread();
+    write(s1);
+    write(l1);
+    write(s2);
+    writeln();
+    swUnlock();
+  }
 
   @NoInline
   public static void tsysWriteln(String s1, String s2, String s3, int i4, String s5, String s6) {

@@ -61,8 +61,6 @@ public abstract class AbstractLock implements Constants, ThinLockConstants {
   
   public abstract int getOwnerId();
   
-  protected abstract void setRecursionCount(int c);
-  
   public abstract int getRecursionCount();
   
   /**
@@ -80,18 +78,6 @@ public abstract class AbstractLock implements Constants, ThinLockConstants {
    * fast check).
    */
   public abstract Object getLockedObject();
-  
-  protected abstract void setLockedObject(Object o);
-  
-  protected void setUnlockedState() {
-    setOwnerId(0);
-    setRecursionCount(0);
-  }
-
-  protected void setLockedState(int ownerId,int recursionCount) {
-    setOwnerId(ownerId);
-    setRecursionCount(recursionCount);
-  }
   
   protected abstract void dumpBlockedThreads();
   protected abstract void dumpWaitingThreads();

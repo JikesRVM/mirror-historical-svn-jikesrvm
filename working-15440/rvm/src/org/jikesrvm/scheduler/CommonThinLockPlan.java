@@ -74,13 +74,25 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
   @Unpreemptible("Become another thread when lock is contended, don't preempt in other cases")
   public void inlineLock(Object o, Offset lockOffset) {
     Word old = Magic.prepareWord(o, lockOffset);
-    if (old.rshl(TL_THREAD_ID_SHIFT).isZero()) {
+    Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
+    if (id.isZero()) {
       // implies that fatbit == 0 & threadid == 0
       int threadId = RVMThread.getCurrentThread().getLockingId();
       if (Magic.attemptWord(o, lockOffset, old, old.or(Word.fromIntZeroExtend(threadId)))) {
         Magic.isync(); // don't use stale prefetched data in monitor
         if (STATS) fastLocks++;
         return;           // common case: o is now locked
+      }
+    } else {
+      Word threadId = Word.fromIntSignExtend(RVMThread.getCurrentThread().getLockingId());
+      if (id.EQ(threadId)) {
+        Word changed=old.toAddress().plus(TL_LOCK_COUNT_UNIT).toWord();
+        if (!changed.and(TL_LOCK_COUNT_MASK).isZero() &&
+            Magic.attemptWord(o, lockOffset, old, changed)) {
+          Magic.isync();
+          if (STATS) fastLocks++;
+          return;
+        }
       }
     }
     lock(o, lockOffset); // uncommon case: default to out-of-line lock()
@@ -100,11 +112,22 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
   @Unpreemptible("No preemption normally, but may raise exceptions")
   public void inlineUnlock(Object o, Offset lockOffset) {
     Word old = Magic.prepareWord(o, lockOffset);
+    Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
-    if (old.xor(threadId).rshl(TL_LOCK_COUNT_SHIFT).isZero()) { // implies that fatbit == 0 && count == 0 && lockid == me
-      Magic.sync(); // memory barrier: subsequent locker will see previous writes
-      if (Magic.attemptWord(o, lockOffset, old, old.and(TL_UNLOCK_MASK))) {
-        return; // common case: o is now unlocked
+    if (id.EQ(threadId)) {
+      Magic.sync();
+      if (old.and(TL_LOCK_COUNT_MASK).isZero()) {
+        // release lock
+        Word changed = old.and(TL_UNLOCK_MASK);
+        if (Magic.attemptWord(o, lockOffset, old, changed)) {
+          return;
+        }
+      } else {
+        // decrement count
+        Word changed = old.toAddress().minus(TL_LOCK_COUNT_UNIT).toWord();
+        if (Magic.attemptWord(o, lockOffset, old, changed)) {
+          return; // unlock succeeds
+        }
       }
     }
     unlock(o, lockOffset);  // uncommon case: default to non inlined unlock()

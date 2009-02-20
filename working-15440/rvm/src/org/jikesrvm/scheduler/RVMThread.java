@@ -597,10 +597,9 @@ public class RVMThread extends ThreadContext {
   private int uncaughtExceptionCount = 0;
 
   /**
-   * A cached free lock. Not a free list; this will only ever contain 0 or 1
-   * locks!
+   * A cached free lock id.
    */
-  public AbstractLock cachedFreeLock;
+  public int cachedFreeLockID=-1;
 
   /*
    * Wait/notify fields
@@ -2486,6 +2485,15 @@ public class RVMThread extends ThreadContext {
       VM.sysWriteln("Thread #", threadSlot, " is joinable.");
 
     if (traceAcct)
+      VM.sysWriteln("returning cached lock...");
+
+    if (LockConfig.selectedPlan instanceof CommonLockPlan &&
+        cachedFreeLockID != -1) {
+      ((CommonLockPlan)LockConfig.selectedPlan).returnLockID(cachedFreeLockID);
+      cachedFreeLockID = -2;
+    }
+
+    if (traceAcct)
       VM.sysWriteln("killing jnienv...");
 
     if (jniEnv != null) {
@@ -2523,14 +2531,6 @@ public class RVMThread extends ThreadContext {
   @Unpreemptible
   private void terminateUnpreemptible() {
     // return cached free lock
-    if (traceAcct)
-      VM.sysWriteln("returning cached lock...");
-
-    if (cachedFreeLock != null) {
-      LockConfig.selectedPlan.returnLock(cachedFreeLock);
-      cachedFreeLock = null;
-    }
-
     if (traceAcct)
       VM.sysWriteln("adding to aboutToTerminate...");
 
@@ -2750,8 +2750,8 @@ public class RVMThread extends ThreadContext {
 
   @UnpreemptibleNoWarn("Possible context when generating exception")
   public static void raiseIllegalMonitorStateException(String msg, Object o) {
-    throw new IllegalMonitorStateException(Services.stringConcatenate(msg, o
-        .toString()));
+    throw new IllegalMonitorStateException(Services.stringConcatenate(
+                                             msg, o==null?"<null>":o.toString()));
   }
 
   /**
@@ -3097,7 +3097,7 @@ public class RVMThread extends ThreadContext {
   public static void hardHandshakeSuspend(HardHandshakeVisitor hhv) {
     RVMThread current=getCurrentThread();
     
-    handshakeLock.lock();
+    handshakeLock.lockNicely();
     // fixpoint until there are no threads that we haven't blocked.
     // fixpoint is needed in case some thread spawns another thread
     // while we're waiting.  that is unlikely but possible.
@@ -3151,7 +3151,7 @@ public class RVMThread extends ThreadContext {
   @NoCheckStore
   public static void hardHandshakeResume(HardHandshakeVisitor hhv) {
     RVMThread current=getCurrentThread();
-    handshakeLock.lock();
+    handshakeLock.lockNicely();
     acctLock.lock();
     int numToHandshake=0;
     for (int i=0;i<numThreads;++i) {

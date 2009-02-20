@@ -125,6 +125,16 @@ public class Entrypoints {
                 "inlineUnlock",
                 "(Ljava/lang/Object;Lorg/vmmagic/unboxed/Offset;)V");
   
+  public static final RVMField commonLockFreeHeadField=
+      getField(org.jikesrvm.scheduler.CommonLockPlan.class,
+               "freeHead",
+               org.jikesrvm.scheduler.CommonLockPlan.FreeID.class);
+  
+  public static final RVMField commonLockNextLockIDField=
+      getField(org.jikesrvm.scheduler.CommonLockPlan.class,
+               "nextLockID",
+               int.class);
+  
   public static final RVMField sloppyDeflateThinLockStateField=
       (org.jikesrvm.scheduler.LockConfig.SELECTED ==
        org.jikesrvm.scheduler.LockConfigs.SloppyDeflateThin)
