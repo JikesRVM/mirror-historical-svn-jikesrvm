@@ -599,7 +599,9 @@ public class RVMThread extends ThreadContext {
   /**
    * A cached free lock id.
    */
-  public int cachedFreeLockID=-1;
+  CommonLock cachedFreeLock=null;
+  
+  boolean noMoreLocking=false;
 
   /*
    * Wait/notify fields
@@ -2488,9 +2490,10 @@ public class RVMThread extends ThreadContext {
       VM.sysWriteln("returning cached lock...");
 
     if (LockConfig.selectedPlan instanceof CommonLockPlan &&
-        cachedFreeLockID != -1) {
-      ((CommonLockPlan)LockConfig.selectedPlan).returnLockID(cachedFreeLockID);
-      cachedFreeLockID = -2;
+        cachedFreeLock != null) {
+      ((CommonLockPlan)LockConfig.selectedPlan).returnLock(cachedFreeLock);
+      cachedFreeLock = null;
+      noMoreLocking = true;
     }
 
     if (traceAcct)
@@ -3149,6 +3152,7 @@ public class RVMThread extends ThreadContext {
   }
   
   @NoCheckStore
+  @Unpreemptible
   public static void hardHandshakeResume(HardHandshakeVisitor hhv) {
     RVMThread current=getCurrentThread();
     handshakeLock.lockNicely();

@@ -22,6 +22,7 @@ import org.jikesrvm.objectmodel.JavaHeader;
 import org.jikesrvm.runtime.Magic;
 import static org.jikesrvm.runtime.SysCall.sysCall;
 import org.jikesrvm.runtime.RuntimeEntrypoints;
+import org.jikesrvm.runtime.Entrypoints;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
@@ -29,6 +30,7 @@ import org.vmmagic.pragma.UninterruptibleNoWarn;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.pragma.UnpreemptibleNoWarn;
+import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
@@ -44,7 +46,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   /** do debug tracing? */
   protected static final boolean trace = false;
   
-  protected static int INIT_LOCKS_LENGTH = 1;
+  protected static int INIT_LOCKS_LENGTH = 2048;
   
   protected static int MAX_LOCKS = 262144; // any more doesn't make sense given the number of bits in the thin lock word
 
@@ -60,7 +62,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   protected CommonLock[] locks;
   
   // ugh.  making this public so that Entrypoints can see it.
-  public static FreeID {
+  public static class FreeID {
     final int id;
     final FreeID next;
     
@@ -75,14 +77,17 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   protected FreeID freeHead;
   
   @Entrypoint
-  protected int nextLockID;
+  protected int nextLockID=1;
   
   /** the total number of allocation operations. */
-  private static int globalLocksAllocated;
+  @Entrypoint
+  private int globalLocksAllocated;
   /** the total number of free operations. */
-  private static int globalLocksFreed;
+  @Entrypoint
+  private int globalLocksFreed;
 
-  public static final boolean STATS = false;
+  public static final boolean HEAVY_STATS = false;
+  public static final boolean STATS = HEAVY_STATS || false;
 
   // Statistics
 
@@ -129,12 +134,12 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   
   @UnpreemptibleNoWarn
   private void growLocksIfNeeded() {
-    VM.sysWriteln("stopping all threads to grow locks");
+    if (trace) VM.sysWriteln("stopping all threads to grow locks");
     RVMThread.handshakeLock.lockNicely();
     try {
       if (freeHead==null && nextLockID==locks.length) {
         RVMThread.hardHandshakeSuspend(RVMThread.allButGC);
-        VM.sysWriteln("all threads stopped");
+        if (trace) VM.sysWriteln("all threads stopped");
         
         try {
           if (freeHead==null && nextLockID==locks.length) {
@@ -145,66 +150,82 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
             locks=newLocks;
           }
         } finally {
-          VM.sysWriteln("resuming all threads");
+          if (trace) VM.sysWriteln("resuming all threads");
           RVMThread.hardHandshakeResume(RVMThread.allButGC);
         }
       }
     } finally {
       RVMThread.handshakeLock.unlock();
-      VM.sysWriteln("all threads resumed");
+      if (trace) VM.sysWriteln("all threads resumed");
     }
   }
-
+  
+  @UnpreemptibleNoWarn
+  @Inline
   protected CommonLock allocate() {
-    CommonLock result=new LockConfig.Selected();
-    
     RVMThread me=RVMThread.getCurrentThread();
     
     if (VM.VerifyAssertions) {
-      // threads use cachedFreeLock==-2 to indicate that no new inflations should
-      // be allowed.
-      VM._assert(me.cachedFreeLock>=-1);
+      VM._assert(!me.noMoreLocking);
       
       // inflating locks from GC would be awkward
       VM._assert(!me.isGCThread());
     }
     
-    if (me.cachedFreeLockID!=-1) {
-      result.id=me.cachedFreeLockID;
-      me.cachedFreeLockID=-1;
+    CommonLock result;
+    
+    if (me.cachedFreeLock!=null) {
+      result=me.cachedFreeLock;
+      me.cachedFreeLock=null;
     } else {
-      
-      // this loop breaks only once it assigns an id to result.id
-      for (;;) {
-        FreeID fid=freeHead;
-        if (fid!=null) {
+      result=allocateSlow();
+    }
+
+    if (VM.VerifyAssertions) VM._assert(result.id>0);
+    
+    return result;
+  }
+
+  @UnpreemptibleNoWarn
+  @NoInline
+  private CommonLock allocateSlow() {
+    RVMThread me=RVMThread.getCurrentThread();
+    
+    if (STATS) Synchronization.fetchAndAdd(
+      this,Entrypoints.commonLockGlobalLocksAllocatedField.getOffset(),1);
+    
+    CommonLock result=new LockConfig.Selected();
+    
+    // this loop breaks only once it assigns an id to result.id
+    for (;;) {
+      FreeID fid=freeHead;
+      if (fid!=null) {
+        if (Synchronization.tryCompareAndSwap(
+              this, Entrypoints.commonLockFreeHeadField.getOffset(),
+              fid, fid.next)) {
+          result.id = fid.id;
+          break;
+        }
+      } else {
+        int myID=nextLockID;
+        if (myID>=MAX_LOCKS) {
+          VM.sysWriteln("Too many fat locks");
+          VM.sysFail("Exiting VM with fatal error");
+        }
+        if (myID<locks.length) {
           if (Synchronization.tryCompareAndSwap(
-                this, Entrypoints.commonLockFreeHeadField.getOffset(),
-                fid, fid.next)) {
-            result.id = fid.id;
+                this, Entrypoints.commonLockNextLockIDField.getOffset(),
+                myID, myID+1)) {
+            result.id = myID;
             break;
           }
         } else {
-          int myID=nextLockID;
-          if (myID>=MAX_LOCKS) {
-            VM.sysWriteln("Too many fat locks");
-            VM.sysFail("Exiting VM with fatal error");
-          }
-          if (myID<locks.length) {
-            if (Synchronization.tryCompareAndSwap(
-                  this, Entrypoints.commonLockNextLockIDField.getOffset(),
-                  myID, myID+1)) {
-              result.id = myID;
-              break;
-            }
-          } else {
-            growLocksIfNeeded();
-          }
+          growLocksIfNeeded();
         }
-        // we get here after growing locks, or more likely, if one of the CASes
-        // failed.
-        Magic.pause();
       }
+      // we get here after growing locks, or more likely, if one of the CASes
+      // failed.
+      Magic.pause();
     }
     
     return result;
@@ -224,21 +245,30 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   }
   
   @UnpreemptibleNoWarn
+  @Inline
   protected void free(CommonLock l) {
     l.active=false;
-    locks[l.id]=null;
     RVMThread me=RVMThread.getCurrentThread();
-    if (me.cachedFreeLock==-1) {
-      me.cachedFreeLock=l.id;
+    if (me.cachedFreeLock==null) {
+      me.cachedFreeLock=l;
     } else {
+      locks[l.id]=null;
       returnLockID(l.id);
     }
   }
   
+  @Unpreemptible
+  protected void returnLock(CommonLock l) {
+    returnLockID(l.id);
+  }
+  
   @UnpreemptibleNoWarn
+  @NoInline
   protected void returnLockID(int id) {
+    if (STATS) Synchronization.fetchAndAdd(
+      this,Entrypoints.commonLockGlobalLocksFreedField.getOffset(),1);
     for (;;) {
-      FreeID fid=new FreeID(l.id,freeHead);
+      FreeID fid=new FreeID(id,freeHead);
       if (Synchronization.tryCompareAndSwap(
             this, Entrypoints.commonLockFreeHeadField.getOffset(),
             fid.next, fid)) {
@@ -276,12 +306,11 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
         l.dump();
       }
     }
-    VM.sysWrite("\n");
-    VM.sysWrite("lock availability stats: ");
+    VM.sysWrite("\nlock availability stats: ");
     VM.sysWriteInt(globalLocksAllocated);
     VM.sysWrite(" locks allocated, ");
     VM.sysWriteInt(globalLocksFreed);
-    VM.sysWrite(" locks freed, ");
+    VM.sysWrite(" locks freed\n");
   }
 
   /**

@@ -55,7 +55,6 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
       }
       VM._assert(index > 0 && index < numLocks());  // index is in range
       VM._assert(!lockWord.and(TL_FAT_LOCK_MASK).isZero());        // fat lock bit is set
-      VM._assert(getLock(index) != null);               // the lock is actually there
     }
     return index;
   }
@@ -80,7 +79,7 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
       int threadId = RVMThread.getCurrentThread().getLockingId();
       if (Magic.attemptWord(o, lockOffset, old, old.or(Word.fromIntZeroExtend(threadId)))) {
         Magic.isync(); // don't use stale prefetched data in monitor
-        if (STATS) fastLocks++;
+        if (HEAVY_STATS) fastLocks++;
         return;           // common case: o is now locked
       }
     } else {
@@ -90,7 +89,7 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
         if (!changed.and(TL_LOCK_COUNT_MASK).isZero() &&
             Magic.attemptWord(o, lockOffset, old, changed)) {
           Magic.isync();
-          if (STATS) fastLocks++;
+          if (HEAVY_STATS) fastLocks++;
           return;
         }
       }
@@ -150,7 +149,7 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
       // if locked, then it is locked with a fat lock
       int index = getLockIndex(bits);
       CommonLock l = getLock(index);
-      return l != null && l.getOwnerId() == tid;
+      return l != null && l.lockedObject==obj && l.getOwnerId() == tid;
     }
   }
 }

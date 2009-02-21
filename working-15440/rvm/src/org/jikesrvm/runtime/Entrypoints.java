@@ -135,6 +135,15 @@ public class Entrypoints {
                "nextLockID",
                int.class);
   
+  public static final RVMField commonLockGlobalLocksAllocatedField=
+      getField(org.jikesrvm.scheduler.CommonLockPlan.class,
+               "globalLocksAllocated",
+               int.class);
+  public static final RVMField commonLockGlobalLocksFreedField=
+      getField(org.jikesrvm.scheduler.CommonLockPlan.class,
+               "globalLocksFreed",
+               int.class);
+  
   public static final RVMField sloppyDeflateThinLockStateField=
       (org.jikesrvm.scheduler.LockConfig.SELECTED ==
        org.jikesrvm.scheduler.LockConfigs.SloppyDeflateThin)

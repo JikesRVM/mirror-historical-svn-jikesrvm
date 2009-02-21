@@ -68,7 +68,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
         if (id.isZero()) { // o isn't locked
           if (Magic.attemptWord(o, lockOffset, old, old.or(threadId))) {
             Magic.isync(); // don't use stale prefetched data in monitor
-            if (STATS) slowLocks++;
+            if (HEAVY_STATS) slowLocks++;
             break major;  // lock succeeds
           }
           continue; // contention, possibly spurious, try again
@@ -83,19 +83,20 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
           }
           if (Magic.attemptWord(o, lockOffset, old, changed)) {
             Magic.isync(); // don't use stale prefetched data in monitor !!TODO: is this isync required?
-            if (STATS) slowLocks++;
+            if (HEAVY_STATS) slowLocks++;
             break major;  // lock succeeds
           }
           continue; // contention, probably spurious, try again (TODO!! worry about this)
         }
 
         if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // o has a heavy lock
-          int index = getLockIndex(old);
-          if (getLock(index).lockHeavy(o)) {
+          EagerDeflateThinLock l=(EagerDeflateThinLock)getLock(getLockIndex(old));
+          if (l!=null && // could happen if already deflated
+              l.lockHeavy(o)) {
             break major; // lock succeeds (note that lockHeavy has issued an isync)
           }
           // heavy lock failed (deflated or contention for system lock)
-          RVMThread.yield();
+          Magic.pause();
           continue major;    // try again
         }
         // real contention: wait (hope other thread unlocks o), try again
@@ -111,7 +112,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
           RVMThread.trace(Magic.getObjectType(o).toString(), s, -2 - retries);
         }
         if (0 != retries) {
-          RVMThread.yield(); // wait, hope o gets unlocked
+          Magic.pause(); // wait, hope o gets unlocked
         }
       }
       // create a heavy lock for o and lock it
@@ -138,6 +139,9 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
       Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
       if (id.NE(threadId)) { // not normal case
         if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // o has a heavy lock
+          // in this case getLock() will return non-null because a lock that is
+          // held cannot be deflated.  ... except if we have illegal use of
+          // monitorenter/monitorexit.  we should do a check anyway.
           getLock(getLockIndex(old)).unlockHeavy();
           // note that unlockHeavy has issued a sync
           return;
@@ -208,7 +212,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    */
   @Unpreemptible
   protected boolean inflateAndLock(Object o, Offset lockOffset) {
-    EagerDeflateThinLock l = (EagerDeflateThinLock)allocateAndActivate();
+    EagerDeflateThinLock l = (EagerDeflateThinLock)allocateActivateAndAdd();
     if (l == null) return false; // can't allocate locks during GC
     EagerDeflateThinLock rtn = attemptToInflate(o, lockOffset, l);
     if (l != rtn) {
@@ -244,12 +248,18 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
                         ": freeing lock ",Magic.objectAsAddress(l),
                         " because we had a double-inflate");
         }
+        EagerDeflateThinLock result = (EagerDeflateThinLock)getLock(getLockIndex(old));
+        if (result==null ||
+            result.lockedObject!=o) {
+          continue; /* this is nasty.  this will happen when a lock
+                       is deflated. */
+        }
         free(l);
         l.mutex.unlock();
-        l = (EagerDeflateThinLock)getLock(getLockIndex(old));
         RVMThread.leaveLockingPath();
-        return l;
+        return result;
       }
+      if (VM.VerifyAssertions) VM._assert(l!=null);
       Word locked = TL_FAT_LOCK_MASK.or(Word.fromIntZeroExtend(l.id).lsh(TL_LOCK_ID_SHIFT));
       Word changed = locked.or(old.and(TL_UNLOCK_MASK));
       if (VM.VerifyAssertions) VM._assert(getLockIndex(changed) == l.id);
