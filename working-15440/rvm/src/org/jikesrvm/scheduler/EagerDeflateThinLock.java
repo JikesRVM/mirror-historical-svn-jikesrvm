@@ -52,7 +52,7 @@ public class EagerDeflateThinLock extends CommonThinLock {
    * @param o the object to be locked
    * @return true, if the lock succeeds; false, otherwise
    */
-  public boolean lockHeavy(Object o) {
+  public final boolean lockHeavy(Object o) {
     if (CommonLockPlan.PROFILE) RVMThread.enterLockingPath();
     if (EagerDeflateThinLockPlan.tentativeMicrolocking) {
       if (!Synchronization.tryAcquireLock(
@@ -70,7 +70,7 @@ public class EagerDeflateThinLock extends CommonThinLock {
   
   /** Complete the task of acquiring the heavy lock, assuming that the mutex
       is already acquired (locked). */
-  protected boolean lockHeavyLocked(Object o) {
+  protected final boolean lockHeavyLocked(Object o) {
     if (CommonLockPlan.PROFILE) RVMThread.enterLockingPath();
     if (lockedObject != o) { // lock disappeared before we got here
       unlockState();
@@ -106,7 +106,7 @@ public class EagerDeflateThinLock extends CommonThinLock {
    *
    * @param o the object to be unlocked
    */
-  public void unlockHeavy() {
+  public final void unlockHeavy() {
     if (CommonLockPlan.PROFILE) RVMThread.enterLockingPath();
     boolean deflated = false;
     lockState(); // Note: thread switching is not allowed while mutex is held.
@@ -147,7 +147,7 @@ public class EagerDeflateThinLock extends CommonThinLock {
    *
    * @param o the object from which this lock is to be disassociated
    */
-  protected void deflate(Object o, Offset lockOffset) {
+  protected final void deflate(Object o, Offset lockOffset) {
     if (VM.VerifyAssertions) {
       VM._assert(lockedObject == o);
       VM._assert(recursionCount == 0);
@@ -160,15 +160,15 @@ public class EagerDeflateThinLock extends CommonThinLock {
     EagerDeflateThinLockPlan.instance.free(this);
   }
   
-  protected void lockState() {
+  protected final void lockState() {
     Synchronization.acquireLock(this,Entrypoints.eagerDeflateThinLockMutexField.getOffset());
   }
   
-  protected void unlockState() {
+  protected final void unlockState() {
     Synchronization.releaseLock(this,Entrypoints.eagerDeflateThinLockMutexField.getOffset());
   }
   
-  protected void dumpBlockedThreads() {
+  protected final void dumpBlockedThreads() {
     VM.sysWrite(" entering: ");
     entering.dump();
   }

@@ -44,7 +44,7 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
    */
   @Inline
   @Unpreemptible
-  protected int getLockIndex(Word lockWord) {
+  protected final int getLockIndex(Word lockWord) {
     int index = lockWord.and(TL_LOCK_ID_MASK).rshl(TL_LOCK_ID_SHIFT).toInt();
     if (VM.VerifyAssertions) {
       if (!(index > 0 && index < numLocks())) {
@@ -70,7 +70,7 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
    * @see org.jikesrvm.compilers.opt.hir2lir.ExpandRuntimeServices
    */
   @Inline
-  public void inlineLock(Object o, Offset lockOffset) {
+  public final void inlineLock(Object o, Offset lockOffset) {
     Word old = Magic.prepareWord(o, lockOffset);
     Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
     if (id.isZero()) {
@@ -107,7 +107,7 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
    * @see org.jikesrvm.compilers.opt.hir2lir.ExpandRuntimeServices
    */
   @Inline
-  public void inlineUnlock(Object o, Offset lockOffset) {
+  public final void inlineUnlock(Object o, Offset lockOffset) {
     Word old = Magic.prepareWord(o, lockOffset);
     Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
@@ -138,7 +138,7 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
    *         by thread <code>false</code> if it is not.
    */
   @Unpreemptible
-  public boolean holdsLock(Object obj, Offset lockOffset, RVMThread thread) {
+  public final boolean holdsLock(Object obj, Offset lockOffset, RVMThread thread) {
     int tid = thread.getLockingId();
     Word bits = Magic.getWordAtOffset(obj, lockOffset);
     if (bits.and(TL_FAT_LOCK_MASK).isZero()) {
@@ -147,7 +147,7 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
     } else {
       // if locked, then it is locked with a fat lock
       int index = getLockIndex(bits);
-      CommonLock l = (CommonLock)getLock(index);
+      CommonLock l = (CommonThinLock)Magic.eatCast(getLock(index));
       return l != null && l.lockedObject==obj && l.getOwnerId() == tid;
     }
   }

@@ -113,6 +113,7 @@ import org.jikesrvm.osr.OSRConstants;
 import org.jikesrvm.osr.ObjectHolder;
 import org.jikesrvm.runtime.Entrypoints;
 import org.jikesrvm.runtime.Magic;
+import org.jikesrvm.runtime.MagicNames;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
@@ -275,6 +276,9 @@ public final class BC2IR
    */
   private static final boolean DBG_SELECTIVE = false;
   private static final boolean DBG_SELECTED = false;
+  
+  private static final short CLEAR_INFO = 0;
+  private static final short EAT_CAST = 1;
 
   //////////
   // End of field declarations
@@ -1940,8 +1944,18 @@ public final class BC2IR
           // See if this is a magic method (Magic, Address, Word, etc.)
           // If it is, generate the inline code and we are done.
           if (ref.isMagic()) {
-            boolean generated = GenerateMagic.generateMagic(this, gc, ref);
-            if (generated) break;
+            if (ref.getName()==MagicNames.eatCast) {
+              // FIXME: move to GenerateMagic?  hmmm.  I like this here because of its
+              // weirdo interaction with subsequent uses of the register.
+              RegisterOperand reg = gc.temps.makeTemp(TypeReference.JavaLangObject);
+              reg.setInfo(EAT_CAST);
+              appendInstruction(Move.create(REF_MOVE, reg, popRef()));
+              push(reg.copyD2U());
+              break;
+            } else {
+              boolean generated = GenerateMagic.generateMagic(this, gc, ref);
+              if (generated) break;
+            }
           }
 
           // A non-magical invokestatic.  Create call instruction.
@@ -2218,6 +2232,16 @@ public final class BC2IR
           TypeReference typeRef = bcodes.getTypeReference();
           boolean classLoading = couldCauseClassLoading(typeRef);
           Operand op2 = pop();
+          if (op2 instanceof RegisterOperand &&
+              ((RegisterOperand)op2).getInfo() == EAT_CAST) {
+            RegisterOperand rop2=(RegisterOperand)op2;
+            rop2.setInfo(CLEAR_INFO);
+            rop2=(RegisterOperand)rop2.copy();
+            rop2.setType(typeRef);
+            push(rop2);
+            if (DBG_CF) db("skipped gen of checkcast because of Magic.eatCast");
+            break;
+          }
           if (typeRef.isWordType()) {
             op2 = op2.copy();
             if (op2 instanceof RegisterOperand) {

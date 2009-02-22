@@ -4829,6 +4829,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
                methodName == MagicNames.objectAsShortArray ||
                methodName == MagicNames.objectAsIntArray ||
                methodName == MagicNames.objectAsThread ||
+               methodName == MagicNames.eatCast ||
                methodName == MagicNames.threadAsCollectorThread ||
                methodName == MagicNames.floatAsIntBits ||
                methodName == MagicNames.intBitsAsFloat ||

@@ -88,9 +88,9 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   private int globalLocksFreed;
 
   public static final boolean HEAVY_STATS = false;
-  public static final boolean STATS = HEAVY_STATS || true;
+  public static final boolean STATS = HEAVY_STATS || false;
   
-  public static final boolean PROFILE = true;
+  public static final boolean PROFILE = false;
 
   // Statistics
 
@@ -160,7 +160,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   }
   
   @Inline
-  protected CommonLock allocate() {
+  protected final CommonLock allocate() {
     RVMThread me=RVMThread.getCurrentThread();
     
     if (VM.VerifyAssertions) {
@@ -188,7 +188,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   }
 
   @NoInline
-  private CommonLock allocateSlow(CommonLock result) {
+  private final CommonLock allocateSlow(CommonLock result) {
     RVMThread me=RVMThread.getCurrentThread();
     
     if (STATS) Synchronization.fetchAndAdd(
@@ -230,19 +230,19 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   }
   
   @Unpreemptible
-  protected void addLock(CommonLock l) {
+  protected final void addLock(CommonLock l) {
     locks[l.id]=l;
   }
   
-  protected CommonLock allocateActivateAndAdd() {
-    CommonLock l=allocate();
+  protected final CommonLock allocateActivateAndAdd() {
+    LockConfig.Selected l=(LockConfig.Selected)Magic.eatCast(allocate());
     l.activate();
     addLock(l);
     return l;
   }
   
   @Inline
-  protected void free(CommonLock l) {
+  protected final void free(CommonLock l) {
     RVMThread me=RVMThread.getCurrentThread();
     l.lockedObject=null;
     locks[l.id]=null;
@@ -254,7 +254,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   }
   
   @NoInline
-  protected void returnLockID(int id) {
+  protected final void returnLockID(int id) {
     if (STATS) Synchronization.fetchAndAdd(
       this,Entrypoints.commonLockGlobalLocksFreedField.getOffset(),1);
     for (;;) {
@@ -272,7 +272,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
    * the range of valid lock ids.
    */
   @Unpreemptible
-  public int numLocks() {
+  public final int numLocks() {
     return nextLockID;
   }
 
@@ -284,12 +284,12 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
    */
   @Inline
   @Unpreemptible
-  public AbstractLock getLock(int id) {
+  public final AbstractLock getLock(int id) {
     return locks[id];
   }
   
   @Uninterruptible
-  public void dumpLockStats() {
+  public final void dumpLockStats() {
     VM.sysWrite("lock availability stats: ");
     VM.sysWriteInt(locksAllocated);
     VM.sysWrite(" locks allocated, ");
@@ -303,9 +303,9 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
    * Dump the lock table.
    */
   @UninterruptibleNoWarn // FIXME
-  public void dumpLocks() {
+  public final void dumpLocks() {
     for (int i = 0; i < numLocks(); i++) {
-      CommonLock l = (CommonLock)getLock(i);
+      CommonLock l = (CommonLock)Magic.eatCast(getLock(i));
       if (l != null) {
         l.dump();
       }
@@ -319,10 +319,10 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
    * @param id the thread locking ID we're counting for
    * @return number of locks held
    */
-  public int countLocksHeldByThread(int id) {
+  public final int countLocksHeldByThread(int id) {
     int count=0;
     for (int i = 0; i < numLocks(); i++) {
-      CommonLock l = (CommonLock)getLock(i);
+      CommonLock l = (CommonLock)Magic.eatCast(getLock(i));
       if (l != null && l.lockedObject!=null && l.ownerId == id && l.recursionCount > 0) {
         count++;
       }
@@ -330,14 +330,14 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     return count;
   }
 
-  protected void relock(Object o,int recCount) {
+  protected final void relock(Object o,int recCount) {
     lock(o);
     if (recCount!=1) {
-      ((CommonLock)getHeavyLock(o,true)).setRecursionCount(recCount);
+      ((CommonLock)Magic.eatCast(getHeavyLock(o,true))).setRecursionCount(recCount);
     }
   }
   
-  public void waitImpl(Object o, boolean hasTimeout, long whenWakeupNanos) {
+  public final void waitImpl(Object o, boolean hasTimeout, long whenWakeupNanos) {
     if (STATS) {
       if (hasTimeout) {
         timedWaitOperations++;
@@ -359,7 +359,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     } else {
       t.waiting = hasTimeout ? RVMThread.Waiting.TIMED_WAITING : RVMThread.Waiting.WAITING;
       // get lock for object
-      CommonLock l = (CommonLock)getHeavyLock(o, true);
+      CommonLock l = (CommonLock)Magic.eatCast(getHeavyLock(o, true));
       // this thread is supposed to own the lock on o
       if (VM.VerifyAssertions)
         VM._assert(l.getOwnerId() == t.getLockingId());
@@ -406,10 +406,10 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
    *
    * @param o the object synchronized on
    */
-  public void notify(Object o) {
+  public final void notify(Object o) {
     if (STATS)
       notifyOperations++;
-    CommonLock l=(CommonLock)getHeavyLock(o, false);
+    CommonLock l=(CommonLock)Magic.eatCast(getHeavyLock(o, false));
     if (l == null)
       return;
     if (l.getOwnerId() != RVMThread.getCurrentThread().getLockingId()) {
@@ -429,10 +429,10 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
    * @param o the object synchronized on
    * @see java.lang.Object#notifyAll
    */
-  public void notifyAll(Object o) {
+  public final void notifyAll(Object o) {
     if (STATS)
       notifyAllOperations++;
-    CommonLock l = (CommonLock)getHeavyLock(o, false);
+    CommonLock l = (CommonLock)Magic.eatCast(getHeavyLock(o, false));
     if (l == null)
       return;
     if (l.getOwnerId() != RVMThread.getCurrentThread().getLockingId()) {
@@ -448,7 +448,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     }
   }
 
-  protected void initStats() {
+  protected final void initStats() {
     lockOperations = 0;
     unlockOperations = 0;
     deflations = 0;
@@ -456,7 +456,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     slowLocks = 0;
   }
   
-  protected void reportStats() {
+  protected final void reportStats() {
     int totalLocks = lockOperations + fastLocks + slowLocks;
     
     VM.sysWrite("FatLocks: ");

@@ -54,7 +54,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @param lockOffset the offset of the thin lock word in the object.
    */
   @NoInline
-  public void lock(Object o, Offset lockOffset) {
+  public final void lock(Object o, Offset lockOffset) {
     major:
     while (true) { // repeat only if attempt to lock a promoted lock fails
       int retries = retryLimit;
@@ -87,7 +87,8 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
         }
 
         if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // o has a heavy lock
-          EagerDeflateThinLock l=(EagerDeflateThinLock)getLock(getLockIndex(old));
+          EagerDeflateThinLock l=(EagerDeflateThinLock)
+            Magic.eatCast(getLock(getLockIndex(old)));
           if (l!=null && // could happen if already deflated
               l.lockHeavy(o)) {
             break major; // lock succeeds (note that lockHeavy has issued an isync)
@@ -127,7 +128,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @param lockOffset the offset of the thin lock word in the object.
    */
   @NoInline
-  public void unlock(Object o, Offset lockOffset) {
+  public final void unlock(Object o, Offset lockOffset) {
     Magic.sync(); // prevents stale data from being seen by next owner of the lock
     while (true) { // spurious contention detected
       Word old = Magic.prepareWord(o, lockOffset);
@@ -138,7 +139,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
           // in this case getLock() will return non-null because a lock that is
           // held cannot be deflated.  ... except if we have illegal use of
           // monitorenter/monitorexit.  we should do a check anyway.
-          getLock(getLockIndex(old)).unlockHeavy();
+          ((EagerDeflateThinLock)Magic.eatCast(getLock(getLockIndex(old)))).unlockHeavy();
           // note that unlockHeavy has issued a sync
           return;
         }
@@ -177,14 +178,14 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @param lockOffset the offset of the thin lock word in the object.
    * @return the heavy-weight lock on this object
    */
-  protected EagerDeflateThinLock inflate(Object o, Offset lockOffset) {
+  protected final EagerDeflateThinLock inflate(Object o, Offset lockOffset) {
     if (PROFILE) RVMThread.enterLockingPath();
     if (VM.VerifyAssertions) {
       VM._assert(holdsLock(o, lockOffset, RVMThread.getCurrentThread()));
       // this assertions is just plain wrong.
       //VM._assert((Magic.getWordAtOffset(o, lockOffset).and(TL_FAT_LOCK_MASK).isZero()));
     }
-    EagerDeflateThinLock l = (EagerDeflateThinLock)allocateActivateAndAdd();
+    EagerDeflateThinLock l = (EagerDeflateThinLock)Magic.eatCast(allocateActivateAndAdd());
     if (VM.VerifyAssertions) {
       VM._assert(l != null); // inflate called by wait (or notify) which shouldn't be called during GC
     }
@@ -205,8 +206,8 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @param lockOffset the offset of the thin lock word in the object.
    * @return whether the object was successfully locked
    */
-  protected boolean inflateAndLock(Object o, Offset lockOffset) {
-    EagerDeflateThinLock l = (EagerDeflateThinLock)allocateActivateAndAdd();
+  protected final boolean inflateAndLock(Object o, Offset lockOffset) {
+    EagerDeflateThinLock l = (EagerDeflateThinLock)Magic.eatCast(allocateActivateAndAdd());
     if (l == null) return false; // can't allocate locks during GC
     EagerDeflateThinLock rtn = attemptToInflate(o, lockOffset, l);
     if (l != rtn) {
@@ -227,9 +228,9 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @return the inflated lock; either the one you gave, or another one, if the lock
    *         was inflated by some other thread.
    */
-  protected EagerDeflateThinLock attemptToInflate(Object o,
-                                                  Offset lockOffset,
-                                                  EagerDeflateThinLock l) {
+  protected final EagerDeflateThinLock attemptToInflate(Object o,
+                                                        Offset lockOffset,
+                                                        EagerDeflateThinLock l) {
     if (PROFILE) RVMThread.enterLockingPath();
     Word old;
     l.lockState();
@@ -242,7 +243,8 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
                         ": freeing lock ",Magic.objectAsAddress(l),
                         " because we had a double-inflate");
         }
-        EagerDeflateThinLock result = (EagerDeflateThinLock)getLock(getLockIndex(old));
+        EagerDeflateThinLock result = (EagerDeflateThinLock)
+          Magic.eatCast(getLock(getLockIndex(old)));
         if (result==null ||
             result.lockedObject!=o) {
           continue; /* this is nasty.  this will happen when a lock
@@ -270,7 +272,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
     } while (true);
   }
 
-  protected void deflate(Object o, Offset lockOffset, EagerDeflateThinLock l) {
+  protected final void deflate(Object o, Offset lockOffset, EagerDeflateThinLock l) {
     if (VM.VerifyAssertions) {
       Word old = Magic.getWordAtOffset(o, lockOffset);
       VM._assert(!(old.and(TL_FAT_LOCK_MASK).isZero()));
@@ -292,10 +294,10 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @param create if true, create heavy lock if none found
    * @return the heavy-weight lock on the object (if any)
    */
-  public AbstractLock getHeavyLock(Object o, Offset lockOffset, boolean create) {
+  public final AbstractLock getHeavyLock(Object o, Offset lockOffset, boolean create) {
     Word old = Magic.getWordAtOffset(o, lockOffset);
     if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // already a fat lock in place
-      return (EagerDeflateThinLock)getLock(getLockIndex(old));
+      return (EagerDeflateThinLock)Magic.eatCast(getLock(getLockIndex(old)));
     } else if (create) {
       return inflate(o, lockOffset);
     } else {

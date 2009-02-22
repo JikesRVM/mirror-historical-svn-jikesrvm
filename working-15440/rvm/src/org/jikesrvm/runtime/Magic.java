@@ -608,6 +608,17 @@ public final class Magic {
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
     return null;
   }
+  
+  /**
+   * Cast to any type.  This eats any cast that follows it.  Note that the cast
+   * still exists in the baseline compiler; this optimization is only done by
+   * the opt compiler.
+   */
+  public static Object eatCast(Object object) {
+    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
+    return null;
+  }
+  
   /**
    * Cast bits.
    * @param number A floating point number

@@ -43,16 +43,16 @@ public abstract class CommonLock extends AbstractLock {
   protected CommonLock() {
   }
   
-  protected ThreadQueue waiting() {
+  protected final ThreadQueue waiting() {
     if (waiting==null) waiting=new ThreadQueue();
     return waiting;
   }
   
-  protected boolean waitingIsEmpty() {
+  protected final boolean waitingIsEmpty() {
     return waiting==null || waiting.isEmpty();
   }
   
-  protected RVMThread waitingDequeue() {
+  protected final RVMThread waitingDequeue() {
     if (waiting==null) {
       return null;
     }
@@ -80,12 +80,12 @@ public abstract class CommonLock extends AbstractLock {
     return unlockHeavyCompletely();
   }
   
-  protected boolean isWaiting(RVMThread t) {
+  protected final boolean isWaiting(RVMThread t) {
     ThreadQueue w=this.waiting;
     return w!=null && w.isQueued(t);
   }
   
-  protected void removeFromWaitQueue(RVMThread wasWaiting) {
+  protected final void removeFromWaitQueue(RVMThread wasWaiting) {
     if (isWaiting(wasWaiting)) {
       lockState();
       waiting().remove(wasWaiting);
@@ -93,50 +93,50 @@ public abstract class CommonLock extends AbstractLock {
     }
   }
   
-  protected int unlockHeavyCompletely() {
+  protected final int unlockHeavyCompletely() {
     int result=getRecursionCount();
     setRecursionCount(1);
     unlockHeavy();
     return result;
   }
   
-  public void setOwnerId(int id) {
+  public final void setOwnerId(int id) {
     ownerId=id;
   }
   
   @Unpreemptible
-  public int getOwnerId() {
+  public final int getOwnerId() {
     return ownerId;
   }
   
-  public void setRecursionCount(int c) {
+  public final void setRecursionCount(int c) {
     recursionCount=c;
   }
   
-  public int getRecursionCount() {
+  public final int getRecursionCount() {
     return recursionCount;
   }
   
-  public void setLockedObject(Object o) {
+  public final void setLockedObject(Object o) {
     lockedObject=o;
   }
   
-  public Object getLockedObject() {
+  public final Object getLockedObject() {
     return lockedObject;
   }
   
-  public int getLockId() {
+  public final int getLockId() {
     return id;
   }
   
-  public boolean isActive() {
+  public final boolean isActive() {
     return lockedObject!=null;
   }
   
   protected void activate() {
   }
 
-  protected void dumpWaitingThreads() {
+  protected final void dumpWaitingThreads() {
     VM.sysWrite(" waiting: ");
     waiting().dump();
   }
