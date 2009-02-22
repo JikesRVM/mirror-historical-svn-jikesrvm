@@ -30,7 +30,6 @@ import org.vmmagic.unboxed.Offset;
 /**
  * Abstract baseclass for all locks.
  */
-@Uninterruptible
 public abstract class AbstractLock implements Constants, ThinLockConstants {
   
   public abstract boolean isActive();
@@ -51,7 +50,6 @@ public abstract class AbstractLock implements Constants, ThinLockConstants {
    *         or false otherwise.  This method may spuriously (read: randomly,
    *         without cause or warning) return false if it chooses to.
    */
-  @Unpreemptible
   public abstract boolean lockHeavy(Object o);
   
   public abstract void unlockHeavy();
@@ -59,6 +57,7 @@ public abstract class AbstractLock implements Constants, ThinLockConstants {
   /** Set the thread that owns ("holds") the lock. */
   protected abstract void setOwnerId(int id);
   
+  @Unpreemptible
   public abstract int getOwnerId();
   
   public abstract int getRecursionCount();

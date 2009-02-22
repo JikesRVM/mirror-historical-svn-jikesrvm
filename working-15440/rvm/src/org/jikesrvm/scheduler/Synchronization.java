@@ -18,6 +18,7 @@ import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.runtime.Magic;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Word;
 import org.vmmagic.unboxed.Offset;
@@ -210,5 +211,52 @@ public class Synchronization {
       if (newValue.LT(bound)) return Address.max();
     } while (!Magic.attemptAddress(base, offset, oldValue, newValue));
     return oldValue;
+  }
+  
+  /**
+   * Interruptibly acquire a light-weight spinlock.  The interruptibility
+   * of the acquisition itself allows you to run interruptible code (like
+   * allocation) while holding the lock.
+   * @param base The object containing a spinlock field.
+   * @param offset The offset to an int field used as a spinlock.  Initialize
+   *               this field to 0 if you want it to start out unlocked.
+   */
+  @Inline
+  @Interruptible
+  public static void acquireLock(Object base, Offset offset) {
+    for (;;) {
+      Magic.prepareInt(base, offset);
+      if (Magic.attemptInt(base, offset, 0, 1)) {
+        Magic.isync();
+        return;
+      }
+      Magic.pause();
+    }
+  }
+  
+  /**
+   * Try to acquire a light-weight spinlock.
+   * @param base The object containing a spinlock field.
+   * @param offset The offset to an int field used as a spinlock.  Initialize
+   *               this field to 0 if you want it to start out unlocked.
+   */
+  @Inline
+  public static boolean tryAcquireLock(Object base, Offset offset) {
+    Magic.prepareInt(base, offset);
+    if (Magic.attemptInt(base, offset, 0, 1)) {
+      Magic.isync();
+      return true;
+    }
+    return false;
+  }
+  
+  /**
+   * Interruptibly release a light-weight spinlock.
+   */
+  @Inline
+  @Interruptible
+  public static void releaseLock(Object base, Offset offset) {
+    Magic.sync();
+    Magic.setIntAtOffset(base, offset, 0);
   }
 }

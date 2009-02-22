@@ -577,7 +577,7 @@ public class JavaHeader implements JavaHeaderConstants {
   /**
    * Generic lock
    */
-  @Unpreemptible("Become another thread when lock is contended, don't preempt in other cases")
+  @Interruptible
   public static void genericLock(Object o) {
     Locking.lock(o, STATUS_OFFSET);
   }
@@ -585,7 +585,7 @@ public class JavaHeader implements JavaHeaderConstants {
   /**
    * Generic unlock
    */
-  @Unpreemptible("No interruption unless of exceptions")
+  @Interruptible
   public static void genericUnlock(Object o) {
     Locking.unlock(o, STATUS_OFFSET);
   }
@@ -596,6 +596,7 @@ public class JavaHeader implements JavaHeaderConstants {
    * @return <code>true</code> if the lock on obj is currently owned
    *         by thread <code>false</code> if it is not.
    */
+  @Unpreemptible
   public static boolean holdsLock(Object obj, RVMThread thread) {
     return Locking.holdsLock(obj, STATUS_OFFSET, thread);
   }
@@ -609,7 +610,7 @@ public class JavaHeader implements JavaHeaderConstants {
    * @param create if true, create heavy lock if none found
    * @return the heavy-weight lock on the object (if any)
    */
-  @Unpreemptible("May be interrupted for allocations of locks")
+  @Interruptible
   public static AbstractLock getHeavyLock(Object o, boolean create) {
     return Locking.getHeavyLock(o, STATUS_OFFSET, create);
   }

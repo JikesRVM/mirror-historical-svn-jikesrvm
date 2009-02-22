@@ -28,7 +28,6 @@ import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
-@Uninterruptible
 public class SloppyDeflateThinLock extends CommonThinLock {
   // WARNING: there is some code duplication with MMTk Lock
   
@@ -70,16 +69,15 @@ public class SloppyDeflateThinLock extends CommonThinLock {
   
   protected void deactivate() {
     if (VM.VerifyAssertions) {
-      VM._assert(waiting.isEmpty());
+      VM._assert(waitingIsEmpty());
       VM._assert(queue.isEmpty());
       VM._assert(ownerId==0);
       VM._assert(recursionCount==0);
     }
 
-    active=false;
+    lockedObject=null;
     Magic.sync();
 
-    lockedObject=null;
     numHeavyUses=0;
 
     Magic.sync();
@@ -95,7 +93,6 @@ public class SloppyDeflateThinLock extends CommonThinLock {
    * Implementation of lock acquisition.  Does not deal with locked objects or with
    * recursion.  Also does not do any Magic synchronization.
    */
-  @Unpreemptible
   protected void acquireImpl() {
     Offset offset=Entrypoints.sloppyDeflateThinLockStateField.getOffset();
     for (int n=spinLimit();n-->0;) {
@@ -171,7 +168,6 @@ public class SloppyDeflateThinLock extends CommonThinLock {
     recursionCount=0;
   }
   
-  @Unpreemptible
   protected void setLockedState(int ownerId,int recursionCount) {
     VM.tsysWriteln("inflating locked: ",id);
     acquireImpl();
@@ -181,7 +177,6 @@ public class SloppyDeflateThinLock extends CommonThinLock {
     VM.tsysWriteln("done inflating locked: ",id);
   }
   
-  @Unpreemptible
   public boolean lockHeavy(Object o) {
     VM.tsysWriteln("locking heavy: ",id);
     int myId=RVMThread.getCurrentThread().getLockingId();
@@ -214,7 +209,6 @@ public class SloppyDeflateThinLock extends CommonThinLock {
     }
   }
   
-  @Unpreemptible
   public void unlockHeavy() {
     if (recursionCount==0) {
       RVMThread.raiseIllegalMonitorStateException("unlocking unlocked lock",lockedObject);
@@ -234,7 +228,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
     return super.enqueueWaitingAndUnlockCompletely(toWait);
   }
   
-  protected void lockWaiting() {
+  protected void lockState() {
     Offset offset=Entrypoints.sloppyDeflateThinLockStateField.getOffset();
     for (;;) {
       int oldState=Magic.prepareInt(this,offset);
@@ -249,7 +243,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
     Magic.isync();
   }
   
-  protected void unlockWaiting() {
+  protected void unlockState() {
     Magic.sync();
     // don't need CAS since the state field cannot change while the QUEUEING_FLAG
     // is set.
@@ -261,14 +255,14 @@ public class SloppyDeflateThinLock extends CommonThinLock {
    * and if you do deflate it, make sure you do so prior to calling unlockWaiting().
    */
   private boolean canDeflate() {
-    return (state&~QUEUEING_FLAG) == CLEAR && waiting.isEmpty();
+    return (state&~QUEUEING_FLAG) == CLEAR && waitingIsEmpty();
   }
   
   protected boolean pollDeflate(int useThreshold) {
-    if (active) {
+    if (lockedObject!=null) {
       Offset lockOffset=Magic.getObjectType(lockedObject).getThinLockOffset();
       if (numHeavyUses<0 || numHeavyUses<useThreshold || useThreshold<0) {
-        lockWaiting();
+        lockState();
         if ((numHeavyUses<0 || numHeavyUses<useThreshold || useThreshold<0) &&
             canDeflate()) {
           if (trace) VM.tsysWriteln("decided to deflate a lock.");
@@ -286,7 +280,7 @@ public class SloppyDeflateThinLock extends CommonThinLock {
           return true;
         } else {
           numHeavyUses=0;
-          unlockWaiting();
+          unlockState();
         }
       } else {
         numHeavyUses=0;

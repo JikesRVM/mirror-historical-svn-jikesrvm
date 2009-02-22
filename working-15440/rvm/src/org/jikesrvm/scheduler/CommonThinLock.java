@@ -26,7 +26,6 @@ import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
-@Uninterruptible
 public abstract class CommonThinLock extends CommonLock {
   // nothing here for now
 }

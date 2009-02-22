@@ -35,7 +35,6 @@ import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
-@Uninterruptible
 public abstract class CommonLockPlan extends AbstractLockPlan {
   public static CommonLockPlan instance;
   
@@ -78,7 +77,9 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   
   @Entrypoint
   protected int nextLockID=1;
-  
+
+  @Entrypoint
+  private int locksAllocated;
   /** the total number of allocation operations. */
   @Entrypoint
   private int globalLocksAllocated;
@@ -87,7 +88,9 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   private int globalLocksFreed;
 
   public static final boolean HEAVY_STATS = false;
-  public static final boolean STATS = HEAVY_STATS || false;
+  public static final boolean STATS = HEAVY_STATS || true;
+  
+  public static final boolean PROFILE = true;
 
   // Statistics
 
@@ -108,7 +111,6 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   protected static int notifyOperations;
   protected static int notifyAllOperations;
 
-  @Interruptible
   public void init() {
     if (VM.VerifyAssertions) {
       // check that each potential lock is addressable
@@ -118,7 +120,6 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     }
   }
   
-  @Interruptible
   public void boot() {
     locks = new CommonLock[INIT_LOCKS_LENGTH];
     if (STATS) {
@@ -127,14 +128,12 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     }
   }
   
-  @Interruptible
   public void lateBoot() {
     // nothing to do...
   }
   
-  @UnpreemptibleNoWarn
   private void growLocksIfNeeded() {
-    if (trace) VM.sysWriteln("stopping all threads to grow locks");
+    if (true || trace) VM.sysWriteln("stopping all threads to grow locks");
     RVMThread.handshakeLock.lockNicely();
     try {
       if (freeHead==null && nextLockID==locks.length) {
@@ -160,25 +159,27 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     }
   }
   
-  @UnpreemptibleNoWarn
   @Inline
   protected CommonLock allocate() {
     RVMThread me=RVMThread.getCurrentThread();
     
     if (VM.VerifyAssertions) {
-      VM._assert(!me.noMoreLocking);
+      VM._assert(me.cachedFreeLockID>=-1);
       
       // inflating locks from GC would be awkward
       VM._assert(!me.isGCThread());
     }
     
-    CommonLock result;
+    if (STATS) Synchronization.fetchAndAdd(
+      this,Entrypoints.commonLockLocksAllocatedField.getOffset(),1);
+
+    CommonLock result=new LockConfig.Selected();
     
-    if (me.cachedFreeLock!=null) {
-      result=me.cachedFreeLock;
-      me.cachedFreeLock=null;
+    if (me.cachedFreeLockID!=-1) {
+      result.id=me.cachedFreeLockID;
+      me.cachedFreeLockID=-1;
     } else {
-      result=allocateSlow();
+      allocateSlow(result);
     }
 
     if (VM.VerifyAssertions) VM._assert(result.id>0);
@@ -186,15 +187,12 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     return result;
   }
 
-  @UnpreemptibleNoWarn
   @NoInline
-  private CommonLock allocateSlow() {
+  private CommonLock allocateSlow(CommonLock result) {
     RVMThread me=RVMThread.getCurrentThread();
     
     if (STATS) Synchronization.fetchAndAdd(
       this,Entrypoints.commonLockGlobalLocksAllocatedField.getOffset(),1);
-    
-    CommonLock result=new LockConfig.Selected();
     
     // this loop breaks only once it assigns an id to result.id
     for (;;) {
@@ -236,7 +234,6 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     locks[l.id]=l;
   }
   
-  @Unpreemptible
   protected CommonLock allocateActivateAndAdd() {
     CommonLock l=allocate();
     l.activate();
@@ -244,25 +241,18 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     return l;
   }
   
-  @UnpreemptibleNoWarn
   @Inline
   protected void free(CommonLock l) {
-    l.active=false;
     RVMThread me=RVMThread.getCurrentThread();
-    if (me.cachedFreeLock==null) {
-      me.cachedFreeLock=l;
+    l.lockedObject=null;
+    locks[l.id]=null;
+    if (me.cachedFreeLockID==-1) {
+      me.cachedFreeLockID=l.id;
     } else {
-      locks[l.id]=null;
       returnLockID(l.id);
     }
   }
   
-  @Unpreemptible
-  protected void returnLock(CommonLock l) {
-    returnLockID(l.id);
-  }
-  
-  @UnpreemptibleNoWarn
   @NoInline
   protected void returnLockID(int id) {
     if (STATS) Synchronization.fetchAndAdd(
@@ -281,6 +271,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
    * Return the number of lock slots that have been allocated. This provides
    * the range of valid lock ids.
    */
+  @Unpreemptible
   public int numLocks() {
     return nextLockID;
   }
@@ -292,25 +283,35 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
    * @return The lock object.
    */
   @Inline
-  public CommonLock getLock(int id) {
+  @Unpreemptible
+  public AbstractLock getLock(int id) {
     return locks[id];
+  }
+  
+  @Uninterruptible
+  public void dumpLockStats() {
+    VM.sysWrite("lock availability stats: ");
+    VM.sysWriteInt(locksAllocated);
+    VM.sysWrite(" locks allocated, ");
+    VM.sysWriteInt(globalLocksAllocated);
+    VM.sysWrite(" global locks allocated, ");
+    VM.sysWriteInt(globalLocksFreed);
+    VM.sysWrite(" global locks freed\n");
   }
 
   /**
    * Dump the lock table.
    */
+  @UninterruptibleNoWarn // FIXME
   public void dumpLocks() {
     for (int i = 0; i < numLocks(); i++) {
-      CommonLock l = getLock(i);
+      CommonLock l = (CommonLock)getLock(i);
       if (l != null) {
         l.dump();
       }
     }
-    VM.sysWrite("\nlock availability stats: ");
-    VM.sysWriteInt(globalLocksAllocated);
-    VM.sysWrite(" locks allocated, ");
-    VM.sysWriteInt(globalLocksFreed);
-    VM.sysWrite(" locks freed\n");
+    VM.sysWriteln();
+    dumpLockStats();
   }
 
   /**
@@ -321,22 +322,14 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   public int countLocksHeldByThread(int id) {
     int count=0;
     for (int i = 0; i < numLocks(); i++) {
-      CommonLock l = getLock(i);
-      if (l != null && l.active && l.ownerId == id && l.recursionCount > 0) {
+      CommonLock l = (CommonLock)getLock(i);
+      if (l != null && l.lockedObject!=null && l.ownerId == id && l.recursionCount > 0) {
         count++;
       }
     }
     return count;
   }
 
-  @Unpreemptible
-  public abstract AbstractLock getHeavyLock(Object o, Offset lockOffset, boolean create);
-  @Unpreemptible
-  public AbstractLock getHeavyLock(Object o, boolean create) {
-    return getHeavyLock(o, Magic.getObjectType(o).getThinLockOffset(), create);
-  }
-  
-  @Unpreemptible
   protected void relock(Object o,int recCount) {
     lock(o);
     if (recCount!=1) {
@@ -344,7 +337,6 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     }
   }
   
-  @Interruptible
   public void waitImpl(Object o, boolean hasTimeout, long whenWakeupNanos) {
     if (STATS) {
       if (hasTimeout) {
@@ -414,7 +406,6 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
    *
    * @param o the object synchronized on
    */
-  @UninterruptibleNoWarn("Never blocks except if there was an error")
   public void notify(Object o) {
     if (STATS)
       notifyOperations++;
@@ -424,9 +415,9 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     if (l.getOwnerId() != RVMThread.getCurrentThread().getLockingId()) {
       RVMThread.raiseIllegalMonitorStateException("notifying", o);
     }
-    l.lockWaiting();
-    RVMThread toAwaken = l.waiting.dequeue();
-    l.unlockWaiting();
+    l.lockState();
+    RVMThread toAwaken = l.waitingDequeue();
+    l.unlockState();
     if (toAwaken != null) {
       toAwaken.monitor().lockedBroadcast();
     }
@@ -438,7 +429,6 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
    * @param o the object synchronized on
    * @see java.lang.Object#notifyAll
    */
-  @UninterruptibleNoWarn("Never blocks except if there was an error")
   public void notifyAll(Object o) {
     if (STATS)
       notifyAllOperations++;
@@ -449,9 +439,9 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
       RVMThread.raiseIllegalMonitorStateException("notifyAll", o);
     }
     for (;;) {
-      l.lockWaiting();
-      RVMThread toAwaken = l.waiting.dequeue();
-      l.unlockWaiting();
+      l.lockState();
+      RVMThread toAwaken = l.waitingDequeue();
+      l.unlockState();
       if (toAwaken == null)
         break;
       toAwaken.monitor().lockedBroadcast();
@@ -504,12 +494,8 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     VM.sysWrite(" slow locks");
     Services.percentage(slowLocks, totalLocks, "all lock operations");
     VM.sysWriteln();
-    
-    VM.sysWrite("lock availability stats: ");
-    VM.sysWriteInt(globalLocksAllocated);
-    VM.sysWrite(" locks allocated, ");
-    VM.sysWriteInt(globalLocksFreed);
-    VM.sysWrite(" locks freed, ");
+
+    dumpLockStats();
   }
 
   /**

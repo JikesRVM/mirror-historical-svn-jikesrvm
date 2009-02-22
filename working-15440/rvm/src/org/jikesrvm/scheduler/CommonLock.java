@@ -31,20 +31,32 @@ import org.vmmagic.unboxed.Offset;
  * The typically not implementation-specific common to all locks.  Most
  * locks inheric from this.
  */
-@Uninterruptible
 public abstract class CommonLock extends AbstractLock {
   protected static final boolean trace = CommonLockPlan.trace;
   
   protected Object lockedObject;
   protected int ownerId;
   protected int recursionCount;
-  protected boolean active;
   protected int id;
-  protected ThreadQueue waiting;
-  protected CommonLock nextFreeLock;
+  private ThreadQueue waiting;
   
   protected CommonLock() {
-    waiting=new ThreadQueue();
+  }
+  
+  protected ThreadQueue waiting() {
+    if (waiting==null) waiting=new ThreadQueue();
+    return waiting;
+  }
+  
+  protected boolean waitingIsEmpty() {
+    return waiting==null || waiting.isEmpty();
+  }
+  
+  protected RVMThread waitingDequeue() {
+    if (waiting==null) {
+      return null;
+    }
+    return waiting.dequeue();
   }
   
   /**
@@ -53,30 +65,31 @@ public abstract class CommonLock extends AbstractLock {
    * more strongly, that the lock's entire state is locked.  This is a
    * non-recursive lock, and is typically implemented using spinning.
    */
-  protected abstract void lockWaiting();
+  protected abstract void lockState();
   
   /**
    * Unlock the lock's waiting state.  Used by all subclasses of CommonLock
    * after changing the waiting queue.
    */
-  protected abstract void unlockWaiting();
+  protected abstract void unlockState();
   
   protected int enqueueWaitingAndUnlockCompletely(RVMThread toWait) {
-    lockWaiting();
-    waiting.enqueue(toWait);
-    unlockWaiting();
+    lockState();
+    waiting().enqueue(toWait);
+    unlockState();
     return unlockHeavyCompletely();
   }
   
   protected boolean isWaiting(RVMThread t) {
-    return waiting.isQueued(t);
+    ThreadQueue w=this.waiting;
+    return w!=null && w.isQueued(t);
   }
   
   protected void removeFromWaitQueue(RVMThread wasWaiting) {
     if (isWaiting(wasWaiting)) {
-      lockWaiting();
-      waiting.remove(wasWaiting);
-      unlockWaiting();
+      lockState();
+      waiting().remove(wasWaiting);
+      unlockState();
     }
   }
   
@@ -91,6 +104,7 @@ public abstract class CommonLock extends AbstractLock {
     ownerId=id;
   }
   
+  @Unpreemptible
   public int getOwnerId() {
     return ownerId;
   }
@@ -116,16 +130,15 @@ public abstract class CommonLock extends AbstractLock {
   }
   
   public boolean isActive() {
-    return active;
+    return lockedObject!=null;
   }
   
   protected void activate() {
-    active=true;
   }
 
   protected void dumpWaitingThreads() {
     VM.sysWrite(" waiting: ");
-    waiting.dump();
+    waiting().dump();
   }
 }
 

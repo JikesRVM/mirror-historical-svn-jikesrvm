@@ -27,7 +27,6 @@ import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.unboxed.Word;
 import org.vmmagic.unboxed.Offset;
 
-@Uninterruptible
 public abstract class CommonThinLockPlan extends CommonLockPlan {
   public static CommonThinLockPlan instance;
   
@@ -44,6 +43,7 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
    * @return the lock index corresponding to the lock workd.
    */
   @Inline
+  @Unpreemptible
   protected int getLockIndex(Word lockWord) {
     int index = lockWord.and(TL_LOCK_ID_MASK).rshl(TL_LOCK_ID_SHIFT).toInt();
     if (VM.VerifyAssertions) {
@@ -70,7 +70,6 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
    * @see org.jikesrvm.compilers.opt.hir2lir.ExpandRuntimeServices
    */
   @Inline
-  @Unpreemptible("Become another thread when lock is contended, don't preempt in other cases")
   public void inlineLock(Object o, Offset lockOffset) {
     Word old = Magic.prepareWord(o, lockOffset);
     Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
@@ -108,7 +107,6 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
    * @see org.jikesrvm.compilers.opt.hir2lir.ExpandRuntimeServices
    */
   @Inline
-  @Unpreemptible("No preemption normally, but may raise exceptions")
   public void inlineUnlock(Object o, Offset lockOffset) {
     Word old = Magic.prepareWord(o, lockOffset);
     Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
@@ -139,6 +137,7 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
    * @return <code>true</code> if the lock on obj at offset lockOffset is currently owned
    *         by thread <code>false</code> if it is not.
    */
+  @Unpreemptible
   public boolean holdsLock(Object obj, Offset lockOffset, RVMThread thread) {
     int tid = thread.getLockingId();
     Word bits = Magic.getWordAtOffset(obj, lockOffset);
@@ -148,7 +147,7 @@ public abstract class CommonThinLockPlan extends CommonLockPlan {
     } else {
       // if locked, then it is locked with a fat lock
       int index = getLockIndex(bits);
-      CommonLock l = getLock(index);
+      CommonLock l = (CommonLock)getLock(index);
       return l != null && l.lockedObject==obj && l.getOwnerId() == tid;
     }
   }

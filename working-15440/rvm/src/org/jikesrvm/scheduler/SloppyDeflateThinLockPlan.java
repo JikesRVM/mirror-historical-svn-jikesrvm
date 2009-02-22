@@ -29,7 +29,6 @@ import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
-@Uninterruptible
 public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
   public static SloppyDeflateThinLockPlan instance;
   
@@ -39,19 +38,16 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
     instance=this;
   }
   
-  @Interruptible
   public void init() {
     super.init();
     // nothing to do for now...
   }
   
-  @Interruptible
   public void boot() {
     super.boot();
     deflateLock=new HeavyCondLock();
   }
   
-  @Interruptible
   public void lateBoot() {
     super.lateBoot();
     PollDeflateThread pdt=new PollDeflateThread();
@@ -60,7 +56,6 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
   }
 
   @NoInline
-  @Unpreemptible
   public void lock(Object o, Offset lockOffset) {
     for (;;) {
       // the idea:
@@ -103,7 +98,6 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
   }
   
   @NoInline
-  @Unpreemptible
   public void unlock(Object o, Offset lockOffset) {
     Magic.sync();
     for (;;) {
@@ -137,7 +131,6 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
     }
   }
   
-  @Unpreemptible
   protected SloppyDeflateThinLock inflate(Object o, Offset lockOffset) {
     // the idea:
     // attempt to allocate fat lock, extract the
@@ -210,7 +203,6 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
     }
   }
   
-  @Unpreemptible
   public AbstractLock getHeavyLock(Object o, Offset lockOffset, boolean create) {
     Word old = Magic.getWordAtOffset(o, lockOffset);
     if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // already a fat lock in place
@@ -224,7 +216,6 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
     }
   }
   
-  @Unpreemptible
   protected boolean deflateAsMuchAsPossible(int useThreshold) {
     int cnt=0,cntno=0;
     long before=0;
@@ -252,7 +243,6 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
     return cnt>0;
   }
   
-  @Unpreemptible
   protected boolean tryToDeflateSomeLocks() {
     return deflateAsMuchAsPossible(-1);
   }

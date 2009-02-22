@@ -23,6 +23,7 @@ import org.jikesrvm.runtime.ExceptionDeliverer;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Unpreemptible;
+import org.vmmagic.pragma.UnpreemptibleNoWarn;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 
@@ -76,7 +77,7 @@ public abstract class BaselineExceptionDeliverer extends ExceptionDeliverer impl
   /**
    * Unwind a stackframe.
    */
-  @Unpreemptible("Unwind stack possibly from unpreemptible code")
+  @UnpreemptibleNoWarn("Unwind stack possibly from unpreemptible code, but may run interruptible code if the frame was interruptible and held a lock")
   public void unwindStackFrame(CompiledMethod compiledMethod, ArchitectureSpecific.Registers registers) {
     NormalMethod method = (NormalMethod) compiledMethod.getMethod();
     Address fp = registers.getInnermostFramePointer();

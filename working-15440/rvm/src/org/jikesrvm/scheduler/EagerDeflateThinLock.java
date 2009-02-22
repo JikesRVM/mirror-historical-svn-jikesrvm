@@ -18,22 +18,32 @@ import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.objectmodel.ThinLockConstants;
 import org.jikesrvm.runtime.Magic;
+import org.jikesrvm.runtime.Entrypoints;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Unpreemptible;
+import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
-@Uninterruptible
 public class EagerDeflateThinLock extends CommonThinLock {
-  final SpinLock mutex;
-  final ThreadQueue entering;
+  @Entrypoint
+  int mutex;
+
+  private ThreadQueue entering;
   
   public EagerDeflateThinLock() {
-    mutex=new SpinLock();
-    entering=new ThreadQueue();
+  }
+  
+  protected ThreadQueue entering() {
+    if (entering==null) entering=new ThreadQueue();
+    return entering;
+  }
+  
+  protected boolean enteringIsEmpty() {
+    return entering==null || entering.isEmpty();
   }
 
   /**
@@ -42,30 +52,29 @@ public class EagerDeflateThinLock extends CommonThinLock {
    * @param o the object to be locked
    * @return true, if the lock succeeds; false, otherwise
    */
-  @Unpreemptible
   public boolean lockHeavy(Object o) {
-    RVMThread.enterLockingPath();
+    if (CommonLockPlan.PROFILE) RVMThread.enterLockingPath();
     if (EagerDeflateThinLockPlan.tentativeMicrolocking) {
-      if (!mutex.tryLock()) {
-        RVMThread.leaveLockingPath();
+      if (!Synchronization.tryAcquireLock(
+            this,Entrypoints.eagerDeflateThinLockMutexField.getOffset())) {
+        if (CommonLockPlan.PROFILE) RVMThread.leaveLockingPath();
         return false;
       }
     } else {
-      mutex.lock();  // Note: thread switching is not allowed while mutex is held.
+      lockState();  // Note: thread switching is not allowed while mutex is held.
     }
     boolean result=lockHeavyLocked(o);
-    RVMThread.leaveLockingPath();
+    if (CommonLockPlan.PROFILE) RVMThread.leaveLockingPath();
     return result;
   }
   
   /** Complete the task of acquiring the heavy lock, assuming that the mutex
       is already acquired (locked). */
-  @Unpreemptible
   protected boolean lockHeavyLocked(Object o) {
-    RVMThread.enterLockingPath();
+    if (CommonLockPlan.PROFILE) RVMThread.enterLockingPath();
     if (lockedObject != o) { // lock disappeared before we got here
-      mutex.unlock(); // thread switching benign
-      RVMThread.leaveLockingPath();
+      unlockState();
+      if (CommonLockPlan.PROFILE) RVMThread.leaveLockingPath();
       return false;
     }
     if (CommonLockPlan.HEAVY_STATS) CommonLockPlan.lockOperations++;
@@ -77,18 +86,18 @@ public class EagerDeflateThinLock extends CommonThinLock {
       ownerId = threadId;
       recursionCount = 1;
     } else {
-      entering.enqueue(me);
-      mutex.unlock();
+      entering().enqueue(me);
+      unlockState();
       me.monitor().lock();
-      while (entering.isQueued(me)) {
+      while (entering().isQueued(me)) {
         me.monitor().waitNicely(); // this may spuriously return
       }
       me.monitor().unlock();
-      RVMThread.leaveLockingPath();
+      if (CommonLockPlan.PROFILE) RVMThread.leaveLockingPath();
       return false;
     }
-    mutex.unlock(); // thread-switching benign
-    RVMThread.leaveLockingPath();
+    unlockState(); // thread-switching benign
+    if (CommonLockPlan.PROFILE) RVMThread.leaveLockingPath();
     return true;
   }
 
@@ -98,24 +107,24 @@ public class EagerDeflateThinLock extends CommonThinLock {
    * @param o the object to be unlocked
    */
   public void unlockHeavy() {
-    RVMThread.enterLockingPath();
+    if (CommonLockPlan.PROFILE) RVMThread.enterLockingPath();
     boolean deflated = false;
-    mutex.lock(); // Note: thread switching is not allowed while mutex is held.
+    lockState(); // Note: thread switching is not allowed while mutex is held.
     RVMThread me = RVMThread.getCurrentThread();
     if (ownerId != me.getLockingId()) {
-      mutex.unlock(); // thread-switching benign
+      unlockState(); // thread-switching benign
       RVMThread.raiseIllegalMonitorStateException("heavy unlocking", lockedObject);
     }
     recursionCount--;
     if (0 < recursionCount) {
-      mutex.unlock(); // thread-switching benign
-      RVMThread.leaveLockingPath();
+      unlockState(); // thread-switching benign
+      if (CommonLockPlan.PROFILE) RVMThread.leaveLockingPath();
       return;
     }
     if (CommonLockPlan.HEAVY_STATS) CommonLockPlan.unlockOperations++;
     ownerId = 0;
-    RVMThread toAwaken = entering.dequeue();
-    if (toAwaken == null && entering.isEmpty() && waiting.isEmpty()) { // heavy lock can be deflated
+    RVMThread toAwaken = entering().dequeue();
+    if (toAwaken == null && entering().isEmpty() && waitingIsEmpty()) { // heavy lock can be deflated
       // Possible project: decide on a heuristic to control when lock should be deflated
       Object o = lockedObject;
       Offset lockOffset = Magic.getObjectType(o).getThinLockOffset();
@@ -124,11 +133,11 @@ public class EagerDeflateThinLock extends CommonThinLock {
         deflated = true;
       }
     }
-    mutex.unlock(); // does a Magic.sync();  (thread-switching benign)
+    unlockState(); // does a Magic.sync();  (thread-switching benign)
     if (toAwaken != null) {
       toAwaken.monitor().lockedBroadcast();
     }
-    RVMThread.leaveLockingPath();
+    if (CommonLockPlan.PROFILE) RVMThread.leaveLockingPath();
   }
 
   /**
@@ -142,8 +151,8 @@ public class EagerDeflateThinLock extends CommonThinLock {
     if (VM.VerifyAssertions) {
       VM._assert(lockedObject == o);
       VM._assert(recursionCount == 0);
-      VM._assert(entering.isEmpty());
-      VM._assert(waiting.isEmpty());
+      VM._assert(enteringIsEmpty());
+      VM._assert(waitingIsEmpty());
     }
     if (CommonLockPlan.HEAVY_STATS) CommonLockPlan.deflations++;
     EagerDeflateThinLockPlan.instance.deflate(o, lockOffset, this);
@@ -151,12 +160,12 @@ public class EagerDeflateThinLock extends CommonThinLock {
     EagerDeflateThinLockPlan.instance.free(this);
   }
   
-  protected void lockWaiting() {
-    mutex.lock();
+  protected void lockState() {
+    Synchronization.acquireLock(this,Entrypoints.eagerDeflateThinLockMutexField.getOffset());
   }
   
-  protected void unlockWaiting() {
-    mutex.unlock();
+  protected void unlockState() {
+    Synchronization.releaseLock(this,Entrypoints.eagerDeflateThinLockMutexField.getOffset());
   }
   
   protected void dumpBlockedThreads() {

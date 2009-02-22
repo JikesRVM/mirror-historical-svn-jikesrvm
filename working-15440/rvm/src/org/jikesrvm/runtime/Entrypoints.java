@@ -135,6 +135,10 @@ public class Entrypoints {
                "nextLockID",
                int.class);
   
+  public static final RVMField commonLockLocksAllocatedField=
+      getField(org.jikesrvm.scheduler.CommonLockPlan.class,
+               "locksAllocated",
+               int.class);
   public static final RVMField commonLockGlobalLocksAllocatedField=
       getField(org.jikesrvm.scheduler.CommonLockPlan.class,
                "globalLocksAllocated",
@@ -149,6 +153,13 @@ public class Entrypoints {
        org.jikesrvm.scheduler.LockConfigs.SloppyDeflateThin)
       ? getField(org.jikesrvm.scheduler.SloppyDeflateThinLock.class,
                  "state", int.class)
+      : null;
+
+  public static final RVMField eagerDeflateThinLockMutexField=
+      (org.jikesrvm.scheduler.LockConfig.SELECTED ==
+       org.jikesrvm.scheduler.LockConfigs.EagerDeflateThin)
+      ? getField(org.jikesrvm.scheduler.EagerDeflateThinLock.class,
+                 "mutex", int.class)
       : null;
 
   public static final NormalMethod lazyMethodInvokerMethod =

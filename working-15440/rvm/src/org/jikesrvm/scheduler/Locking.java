@@ -30,7 +30,6 @@ import org.vmmagic.unboxed.Word;
 /**
  * Public entrypoints for locking
  */
-@Uninterruptible
 public final class Locking implements ThinLockConstants {
   /**
    * Obtains a lock on the indicated object.  Abbreviated light-weight
@@ -44,7 +43,6 @@ public final class Locking implements ThinLockConstants {
    */
   @Inline
   @Entrypoint
-  @Unpreemptible("Become another thread when lock is contended, don't preempt in other cases")
   static void inlineLock(Object o, Offset lockOffset) {
     LockConfig.selectedPlan.inlineLock(o,lockOffset);
   }
@@ -61,7 +59,6 @@ public final class Locking implements ThinLockConstants {
    */
   @Inline
   @Entrypoint
-  @Unpreemptible("No preemption normally, but may raise exceptions")
   static void inlineUnlock(Object o, Offset lockOffset) {
     LockConfig.selectedPlan.inlineUnlock(o,lockOffset);
   }
@@ -75,7 +72,6 @@ public final class Locking implements ThinLockConstants {
    * @param lockOffset the offset of the thin lock word in the object.
    */
   @NoInline
-  @Unpreemptible("Become another thread when lock is contended, don't preempt in other cases")
   public static void lock(Object o, Offset lockOffset) {
     LockConfig.selectedPlan.lock(o,lockOffset);
   }
@@ -89,7 +85,6 @@ public final class Locking implements ThinLockConstants {
    * @param lockOffset the offset of the thin lock word in the object.
    */
   @NoInline
-  @Unpreemptible("No preemption normally, but may raise exceptions")
   public static void unlock(Object o, Offset lockOffset) {
     LockConfig.selectedPlan.unlock(o,lockOffset);
   }
@@ -101,6 +96,7 @@ public final class Locking implements ThinLockConstants {
    * @return <code>true</code> if the lock on obj at offset lockOffset is currently owned
    *         by thread <code>false</code> if it is not.
    */
+  @Unpreemptible
   public static boolean holdsLock(Object obj, Offset lockOffset, RVMThread thread) {
     return LockConfig.selectedPlan.holdsLock(obj,lockOffset,thread);
   }
@@ -115,7 +111,6 @@ public final class Locking implements ThinLockConstants {
    * @param create if true, create heavy lock if none found
    * @return the heavy-weight lock on the object (if any)
    */
-  @Unpreemptible
   public static AbstractLock getHeavyLock(Object o, 
                                           Offset lockOffset, 
                                           boolean create) {

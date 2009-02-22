@@ -27,7 +27,6 @@ import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
-@Uninterruptible
 public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
   public static EagerDeflateThinLockPlan instance;
   
@@ -41,7 +40,6 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    */
   public static final boolean tentativeMicrolocking = false;
 
-  @Interruptible
   public void init() {
     super.init();
     // nothing to do...
@@ -56,7 +54,6 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @param lockOffset the offset of the thin lock word in the object.
    */
   @NoInline
-  @Unpreemptible("Become another thread when lock is contended, don't preempt in other cases")
   public void lock(Object o, Offset lockOffset) {
     major:
     while (true) { // repeat only if attempt to lock a promoted lock fails
@@ -77,7 +74,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
           Word changed = old.toAddress().plus(TL_LOCK_COUNT_UNIT).toWord(); // update count
           if (changed.and(TL_LOCK_COUNT_MASK).isZero()) { // count wrapped around (most unlikely), make heavy lock
             while (!inflateAndLock(o, lockOffset)) { // wait for a lock to become available
-              RVMThread.yield();
+              Magic.pause();
             }
             break major;  // lock succeeds (note that lockHeavy has issued an isync)
           }
@@ -130,7 +127,6 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @param lockOffset the offset of the thin lock word in the object.
    */
   @NoInline
-  @Unpreemptible("No preemption normally, but may raise exceptions")
   public void unlock(Object o, Offset lockOffset) {
     Magic.sync(); // prevents stale data from being seen by next owner of the lock
     while (true) { // spurious contention detected
@@ -181,9 +177,8 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @param lockOffset the offset of the thin lock word in the object.
    * @return the heavy-weight lock on this object
    */
-  @Unpreemptible
   protected EagerDeflateThinLock inflate(Object o, Offset lockOffset) {
-    RVMThread.enterLockingPath();
+    if (PROFILE) RVMThread.enterLockingPath();
     if (VM.VerifyAssertions) {
       VM._assert(holdsLock(o, lockOffset, RVMThread.getCurrentThread()));
       // this assertions is just plain wrong.
@@ -195,8 +190,8 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
     }
     EagerDeflateThinLock rtn = attemptToInflate(o, lockOffset, l);
     if (rtn == l)
-      l.mutex.unlock();
-    RVMThread.leaveLockingPath();
+      l.unlockState();
+    if (PROFILE) RVMThread.leaveLockingPath();
     return rtn;
   }
 
@@ -210,14 +205,13 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @param lockOffset the offset of the thin lock word in the object.
    * @return whether the object was successfully locked
    */
-  @Unpreemptible
   protected boolean inflateAndLock(Object o, Offset lockOffset) {
     EagerDeflateThinLock l = (EagerDeflateThinLock)allocateActivateAndAdd();
     if (l == null) return false; // can't allocate locks during GC
     EagerDeflateThinLock rtn = attemptToInflate(o, lockOffset, l);
     if (l != rtn) {
       l = rtn;
-      l.mutex.lock();
+      l.lockState();
     }
     return l.lockHeavyLocked(o);
   }
@@ -236,9 +230,9 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
   protected EagerDeflateThinLock attemptToInflate(Object o,
                                                   Offset lockOffset,
                                                   EagerDeflateThinLock l) {
-    RVMThread.enterLockingPath();
+    if (PROFILE) RVMThread.enterLockingPath();
     Word old;
-    l.mutex.lock();
+    l.lockState();
     do {
       old = Magic.prepareWord(o, lockOffset);
       // check to see if another thread has already created a fat lock
@@ -255,8 +249,8 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
                        is deflated. */
         }
         free(l);
-        l.mutex.unlock();
-        RVMThread.leaveLockingPath();
+        l.unlockState();
+        if (PROFILE) RVMThread.leaveLockingPath();
         return result;
       }
       if (VM.VerifyAssertions) VM._assert(l!=null);
@@ -269,7 +263,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
         if (l.getOwnerId() != 0) {
           l.setRecursionCount(old.and(TL_LOCK_COUNT_MASK).rshl(TL_LOCK_COUNT_SHIFT).toInt() + 1);
         }
-        RVMThread.leaveLockingPath();
+        if (PROFILE) RVMThread.leaveLockingPath();
         return l;
       }
       // contention detected, try again
@@ -298,7 +292,6 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @param create if true, create heavy lock if none found
    * @return the heavy-weight lock on the object (if any)
    */
-  @Unpreemptible
   public AbstractLock getHeavyLock(Object o, Offset lockOffset, boolean create) {
     Word old = Magic.getWordAtOffset(o, lockOffset);
     if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // already a fat lock in place

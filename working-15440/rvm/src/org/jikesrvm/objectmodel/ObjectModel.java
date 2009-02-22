@@ -463,7 +463,7 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
    * Generic lock
    */
   @Entrypoint
-  @Unpreemptible("Become another thread when lock is contended, don't preempt in other cases")
+  @Interruptible
   public static void genericLock(Object o) {
     JavaHeader.genericLock(o);
   }
@@ -472,7 +472,7 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
    * Generic unlock
    */
   @Entrypoint
-  @Unpreemptible("No preemption normally, but may raise exceptions")
+  @Interruptible
   public static void genericUnlock(Object o) {
     JavaHeader.genericUnlock(o);
   }
@@ -483,6 +483,7 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
    * @return <code>true</code> if the lock on obj is currently owned
    *         by thread <code>false</code> if it is not.
    */
+  @Unpreemptible
   public static boolean holdsLock(Object obj, RVMThread thread) {
     return JavaHeader.holdsLock(obj, thread);
   }
@@ -496,7 +497,7 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
    * @param create if true, create heavy lock if none found
    * @return the heavy-weight lock on the object (if any)
    */
-  @Unpreemptible("May be interrupted for allocations of locks")
+  @Interruptible
   public static AbstractLock getHeavyLock(Object o, boolean create) {
     return JavaHeader.getHeavyLock(o, create);
   }

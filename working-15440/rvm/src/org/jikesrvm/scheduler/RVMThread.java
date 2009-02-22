@@ -599,9 +599,7 @@ public class RVMThread extends ThreadContext {
   /**
    * A cached free lock id.
    */
-  CommonLock cachedFreeLock=null;
-  
-  boolean noMoreLocking=false;
+  public int cachedFreeLockID=-1;
 
   /*
    * Wait/notify fields
@@ -2487,16 +2485,6 @@ public class RVMThread extends ThreadContext {
       VM.sysWriteln("Thread #", threadSlot, " is joinable.");
 
     if (traceAcct)
-      VM.sysWriteln("returning cached lock...");
-
-    if (LockConfig.selectedPlan instanceof CommonLockPlan &&
-        cachedFreeLock != null) {
-      ((CommonLockPlan)LockConfig.selectedPlan).returnLock(cachedFreeLock);
-      cachedFreeLock = null;
-      noMoreLocking = true;
-    }
-
-    if (traceAcct)
       VM.sysWriteln("killing jnienv...");
 
     if (jniEnv != null) {
@@ -2504,8 +2492,15 @@ public class RVMThread extends ThreadContext {
       JNIEnvironment.deallocateEnvironment(jniEnv);
       jniEnv = null;
     }
+
     if (traceAcct)
-      VM.sysWriteln("making joinable...");
+      VM.sysWriteln("returning cached lock...");
+
+    if (LockConfig.selectedPlan instanceof CommonLockPlan &&
+        cachedFreeLockID != -1) {
+      ((CommonLockPlan)LockConfig.selectedPlan).returnLockID(cachedFreeLockID);
+      cachedFreeLockID = -2;
+    }
 
     // Switch to uninterruptible portion of termination
     terminateUnpreemptible();
@@ -2774,7 +2769,7 @@ public class RVMThread extends ThreadContext {
    * @param o the object synchronized on
    * @see java.lang.Object#notifyAll
    */
-  @UninterruptibleNoWarn("Never blocks except if there was an error")
+  @Interruptible
   public static void notifyAll(Object o) {
     LockConfig.selectedPlan.notifyAll(o);
   }
@@ -3697,6 +3692,7 @@ public class RVMThread extends ThreadContext {
    * @return whether the thread holds the lock
    * @see java.lang.Thread#holdsLock(Object)
    */
+  @Unpreemptible
   public final boolean holdsLock(Object obj) {
     RVMThread mine = getCurrentThread();
     return ObjectModel.holdsLock(obj, mine);
