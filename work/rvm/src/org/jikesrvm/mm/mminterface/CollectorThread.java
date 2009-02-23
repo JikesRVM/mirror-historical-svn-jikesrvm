@@ -55,9 +55,6 @@ public final class CollectorThread extends RVMThread {
   /** used by collector threads to hold state during stack scanning */
   private final ScanThread threadScanner = new ScanThread();
 
-  /** The thread to use to determine stack traces if Throwables are created **/
-  private Address stackTraceThread;
-
   /** @return the thread scanner instance associated with this instance */
   @Uninterruptible
   public ScanThread getThreadScanner() { return threadScanner; }
@@ -101,33 +98,6 @@ public final class CollectorThread extends RVMThread {
   public CollectorContext getCollectorContext() {
     return context;
   }
-  
-  /**
-   * Get the thread to use for building stack traces.
-   */
-  @Uninterruptible
-  @Override
-  public RVMThread getThreadForStackTrace() {
-    if (stackTraceThread.isZero())
-      return this;
-    return (RVMThread)Magic.addressAsObject(stackTraceThread);
-  }
-
-  /**
-   * Set the thread to use for building stack traces.
-   */
-  @Uninterruptible
-  public void setThreadForStackTrace(RVMThread thread) {
-    stackTraceThread = Magic.objectAsAddress(thread);
-  }
-
-  /**
-   * Set the thread to use for building stack traces.
-   */
-  @Uninterruptible
-  public void clearThreadForStackTrace() {
-    stackTraceThread = Address.zero();
-  }
 
   /**
    * Collection entry point. Delegates the real work to MMTk.
@@ -141,18 +111,6 @@ public final class CollectorThread extends RVMThread {
   @Unpreemptible
   public void run() {
     context.run();
-  }
-
-  /**
-   * Allocate an OutOfMemoryError for a given thread.
-   * @param thread
-   */
-  @UnpreemptibleNoWarn("Calls out to interruptible OOME constructor")
-  public void allocateOOMEForThread(RVMThread thread) {
-    /* We are running inside a gc thread, so we will allocate if physically possible */
-    this.setThreadForStackTrace(thread);
-    thread.setOutOfMemoryError(new OutOfMemoryError());
-    this.clearThreadForStackTrace();
   }
 }
 

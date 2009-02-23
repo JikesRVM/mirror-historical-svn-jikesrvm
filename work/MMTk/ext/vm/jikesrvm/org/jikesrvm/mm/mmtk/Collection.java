@@ -14,7 +14,6 @@ package org.jikesrvm.mm.mmtk;
 
 import org.mmtk.plan.CollectorContext;
 import org.mmtk.plan.MutatorContext;
-import org.mmtk.utility.options.Options;
 
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.VM;
@@ -23,7 +22,6 @@ import org.jikesrvm.mm.mminterface.Selected;
 import org.jikesrvm.mm.mminterface.CollectorThread;
 import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.scheduler.FinalizerThread;
-import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.UninterruptibleNoWarn;
@@ -38,7 +36,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    *
    * Class variables
    */
-
+  
   /**
    * Spawn a thread to execute the supplied collector context.
    */
@@ -47,6 +45,13 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
     byte[] stack = MemoryManager.newStack(ArchitectureSpecific.StackframeLayoutConstants.STACK_SIZE_COLLECTOR);
     CollectorThread t = new CollectorThread(stack, context);
     t.start();
+  }
+
+  /**
+   * @return The default number of collector threads to use.
+   */
+  public int getDefaultThreads() {
+    return RVMThread.numProcessors;
   }
 
   /**
@@ -63,48 +68,13 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    */
 
   /**
-   * Check if there is an out of memory error waiting.
+   * Fail with an out of memory error.
    */
-  @Inline
-  @Unpreemptible("Exceptions may possibly cause yields")
-  private static void checkForOutOfMemoryError(boolean afterCollection) {
-    RVMThread myThread = RVMThread.getCurrentThread();
-    OutOfMemoryError oome = myThread.getOutOfMemoryError();
-    if (oome != null && (!afterCollection || !myThread.physicalAllocationFailed())) {
-      if (Options.verbose.getValue() >= 4) {
-        VM.sysWriteln("Throwing OutOfMemoryError in Collection.triggerCollection().");
-      }
-      myThread.clearOutOfMemoryError();
-      myThread.resetCollectionAttempts();
-      throw oome;
-    }
+  @UninterruptibleNoWarn
+  public void outOfMemory() {
+    throw RVMThread.getOutOfMemoryError();
   }
-
-  /**
-   * Report that the the physical allocation has succeeded.
-   */
-  public void reportAllocationSuccess() {
-    RVMThread myThread = RVMThread.getCurrentThread();
-    myThread.clearOutOfMemoryError();
-    myThread.resetCollectionAttempts();
-    myThread.clearPhysicalAllocationFailed();
-  }
-
-  /**
-   * Report that a physical allocation has failed.
-   */
-  public void reportPhysicalAllocationFailed() {
-    RVMThread.getCurrentThread().setPhysicalAllocationFailed();
-  }
-
-  /**
-   * Does the VM consider this an emergency allocation, where the normal
-   * heap size rules can be ignored.
-   */
-  public boolean isEmergencyAllocation() {
-    return RVMThread.getCurrentThread().emergencyAllocation();
-  }
-
+  
   /**
    * Prepare a mutator for a collection.
    *

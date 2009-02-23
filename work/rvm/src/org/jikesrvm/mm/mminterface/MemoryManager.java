@@ -407,10 +407,7 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
    */
   @Interruptible
   public static void gc() {
-    if (!org.mmtk.utility.options.Options.ignoreSystemGC.getValue()) {
-      // FIXME: To implement.
-      //Collection.triggerCollectionStatic(Collection.EXTERNAL_GC_TRIGGER);
-    }
+    Selected.Plan.get().handleUserCollectionRequest();
   }
 
   /****************************************************************************

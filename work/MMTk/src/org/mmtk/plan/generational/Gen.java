@@ -220,7 +220,7 @@ public abstract class Gen extends StopTheWorld {
    * @return True is this GC should be a full heap collection.
    */
   protected boolean requiresFullHeapCollection() {
-    if (collectionTrigger == Collection.EXTERNAL_GC_TRIGGER && Options.fullHeapSystemGC.getValue()) {
+    if (userTriggeredCollection && Options.fullHeapSystemGC.getValue()) {
       return true;
     }
 
@@ -236,24 +236,9 @@ public abstract class Gen extends StopTheWorld {
       return true;
     }
 
-    if (virtualMemoryExhausted())
-      return true;
-
-    int smallNurseryPages = nurserySpace.committedPages();
-    int smallNurseryYield = (int)((smallNurseryPages << 1) * SURVIVAL_ESTIMATE);
-
-    if (smallNurseryYield < getPagesRequired()) {
-      // Our total yield is insufficent.
+    if (virtualMemoryExhausted()) {
       return true;
     }
-
-    if (nurserySpace.allocationFailed()) {
-      if (smallNurseryYield < (nurserySpace.requiredPages() << 1)) {
-        // We have run out of VM pages in the nursery
-        return true;
-      }
-    }
-
 
     return false;
   }
@@ -322,18 +307,6 @@ public abstract class Gen extends StopTheWorld {
    * space.
    */
   public abstract int getMaturePhysicalPagesAvail();
-
-  /**
-   * Calculate the number of pages a collection is required to free to satisfy
-   * outstanding allocation requests.
-   *
-   * @return the number of pages a collection is required to free to satisfy
-   * outstanding allocation requests.
-   */
-  public int getPagesRequired() {
-    /* We don't currently pretenure, so mature space must be zero */
-    return super.getPagesRequired() + (nurserySpace.requiredPages() << 1);
-  }
 
   /*****************************************************************************
    *

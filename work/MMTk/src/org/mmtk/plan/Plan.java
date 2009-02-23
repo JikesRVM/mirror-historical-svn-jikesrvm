@@ -75,7 +75,6 @@ public abstract class Plan implements Constants {
 
   /* Space Size Constants. */
   public static final boolean USE_CODE_SPACE = true;
-  public static final float PLOS_FRAC = 0.07f;
   public static final int HEAP_FULL_MINIMUM = (1 << 17) >> LOG_BYTES_IN_PAGE; // 128K
   public static final int HEAP_FULL_PERCENTAGE = 2;
 
@@ -102,7 +101,6 @@ public abstract class Plan implements Constants {
   public static final int DEFAULT_MIN_NURSERY = (256 * 1024) >> LOG_BYTES_IN_PAGE;
   public static final int DEFAULT_MAX_NURSERY = (32 << 20) >> LOG_BYTES_IN_PAGE;
   public static final boolean SCAN_BOOT_IMAGE = true;  // scan it for roots rather than trace it
-  public static final int MAX_COLLECTION_ATTEMPTS = 10;
   public static final boolean REQUIRES_LOS = VM.activePlan.constraints().requiresLOS();
 
 /* Do we support a log bit in the object header?  Some write barriers may use it */
@@ -184,6 +182,7 @@ public abstract class Plan implements Constants {
     Options.sanityCheck = new SanityCheck();
     Options.debugAddress = new DebugAddress();
     Options.perfMetric = new PerfMetric();
+    Options.threads = new Threads();
     Map.finalizeStaticSpaceMap();
     registerSpecializedMethods();
 
@@ -238,19 +237,24 @@ public abstract class Plan implements Constants {
    */
   @Interruptible
   public void fullyBooted() {
-    initialized = true;
     if (Options.harnessAll.getValue()) harnessBegin();
 
+    // Make sure that if we have not explicitly set threads, then we use the right default. 
+    Options.threads.updateDefaultValue(VM.collection.getDefaultThreads());
+    
     // Create our parallel workers
-    parallelWorkers.initGroup(4, defaultCollectorContext);
+    parallelWorkers.initGroup(Options.threads.getValue(), defaultCollectorContext);
     
     // Create our control thread.
     VM.collection.spawnCollectorContext(controlCollectorContext);
+    
+    // We are now initialized.
+    initialized = true;
   }
   
   private static final ParallelCollectorGroup parallelWorkers = new ParallelCollectorGroup("ParallelWorkers");
   private static final ControllerCollectorContext controlCollectorContext = new ControllerCollectorContext(parallelWorkers);
-  
+
   /**
    * The VM is about to exit. Perform any clean up operations.
    *
@@ -368,15 +372,6 @@ public abstract class Plan implements Constants {
   }
 
   /**
-   * @return True if we have run out of heap space.
-   */
-  public final boolean lastCollectionFailed() {
-    return !(collectionTrigger == Collection.EXTERNAL_GC_TRIGGER ||
-             collectionTrigger == Collection.INTERNAL_PHASE_GC_TRIGGER) &&
-      (getPagesAvail() < getHeapFullThreshold() || getPagesAvail() < requiredAtStart);
-  }
-
-  /**
    * Force the next collection to be full heap.
    */
   public void forceFullHeapCollection() {}
@@ -430,14 +425,12 @@ public abstract class Plan implements Constants {
    * GC State
    */
 
-  protected static int requiredAtStart;
-  protected static int collectionTrigger;
+  protected static boolean userTriggeredCollection;
   protected static boolean emergencyCollection;
-  protected static boolean awaitingAsyncCollection;
   protected static boolean stacksPrepared;
 
   private static boolean initialized = false;
-  private static boolean collectionTriggered;
+  
   @Entrypoint
   private static int gcStatus = NOT_IN_GC; // shared variable
 
@@ -586,12 +579,29 @@ public abstract class Plan implements Constants {
   }
 
   /**
-   * Set the collection trigger.
+   * The application code has requested a collection.
    */
-  public static void setCollectionTrigger(int trigger) {
-    collectionTrigger = trigger;
+  @Unpreemptible
+  public void handleUserCollectionRequest() {
+    if (Options.ignoreSystemGC.getValue()) {
+      // Ignore the user GC request.
+      return;
+    }
+    // Mark this as a user triggered collection
+    userTriggeredCollection = true;
+    // Request the collection
+    controlCollectorContext.request();
+    // Wait for the collection to complete
+    VM.collection.blockForGC();
   }
-
+  
+  /**
+   * @return True if this collection was triggered by application code.
+   */
+  public boolean isUserTriggeredCollection() {
+    return userTriggeredCollection;
+  }
+  
   /****************************************************************************
    * Harness
    */
@@ -759,18 +769,6 @@ public abstract class Plan implements Constants {
   public int getPagesUsed() {
     return loSpace.reservedPages() + immortalSpace.reservedPages() +
       metaDataSpace.reservedPages() + nonMovingSpace.reservedPages();
-  }
-
-  /**
-   * Calculate the number of pages a collection is required to free to satisfy
-   * outstanding allocation requests.
-   *
-   * @return the number of pages a collection is required to free to satisfy
-   * outstanding allocation requests.
-   */
-  public int getPagesRequired() {
-    return loSpace.requiredPages() + metaDataSpace.requiredPages() +
-      immortalSpace.requiredPages() + nonMovingSpace.requiredPages();
   }
 
   /**

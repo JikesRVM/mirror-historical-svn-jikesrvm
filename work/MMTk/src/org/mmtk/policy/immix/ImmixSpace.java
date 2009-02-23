@@ -149,8 +149,8 @@ public final class ImmixSpace extends Space implements Constants {
    * @param requiredAtStart How much space is required?
    * @param userTriggered Is this a user-triggered collection?
    */
-  public void setCollectionKind(boolean emergencyCollection, boolean collectWholeHeap, int collectionAttempt, int requiredAtStart, boolean userTriggered) {
-    defrag.setCollectionKind(emergencyCollection, collectWholeHeap, collectionAttempt, requiredAtStart, userTriggered, exhaustedReusableSpace);
+  public void setCollectionKind(boolean emergencyCollection, boolean collectWholeHeap, int collectionAttempt,  boolean userTriggered) {
+    defrag.setCollectionKind(emergencyCollection, collectWholeHeap, collectionAttempt, userTriggered, exhaustedReusableSpace);
   }
 
  /****************************************************************************

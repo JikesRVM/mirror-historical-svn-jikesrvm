@@ -516,8 +516,6 @@ public abstract class Phase implements Constants {
    * @return The next phase to run, or -1 if no phases are left.
    */
   private static int getNextPhase() {
-    boolean allowConcurrentPhase = Plan.collectionTrigger == Collection.INTERNAL_PHASE_GC_TRIGGER;
-
     while (phaseStackPointer >= 0) {
       int scheduledPhase = peekScheduledPhase();
       short schedule = getSchedule(scheduledPhase);

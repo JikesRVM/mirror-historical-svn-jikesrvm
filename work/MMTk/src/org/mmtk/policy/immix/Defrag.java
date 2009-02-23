@@ -114,7 +114,7 @@ public class Defrag  implements Constants {
     debugCollectionTypeDetermined = false;
   }
 
-  void setCollectionKind(boolean emergencyCollection, boolean collectWholeHeap, int collectionAttempt, int requiredAtStart, boolean userTriggered, boolean exhaustedReusableSpace) {
+  void setCollectionKind(boolean emergencyCollection, boolean collectWholeHeap, int collectionAttempt, boolean userTriggered, boolean exhaustedReusableSpace) {
     inDefragCollection = collectWholeHeap && (userTriggered || emergencyCollection || (!BUILD_FOR_STICKYIMMIX && !exhaustedReusableSpace));
     if (inDefragCollection) {
       debugBytesDefraged = 0;

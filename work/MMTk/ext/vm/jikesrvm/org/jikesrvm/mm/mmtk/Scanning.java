@@ -129,7 +129,7 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
     /* scan jni functions */
     CollectorThread ct = Magic.threadAsCollectorThread(RVMThread.getCurrentThread());
     Address jniFunctions = Magic.objectAsAddress(JNIEnvironment.JNIFunctions);
-    int threads = VM.activePlan.collector().parallelWorkerCount();
+    int threads = ct.getCollectorContext().parallelWorkerCount();
     int size = JNIEnvironment.JNIFunctions.length();
     int chunkSize = size / threads;
     int start = (ct.getCollectorContext().parallelWorkerOrdinal() - 1) * chunkSize;

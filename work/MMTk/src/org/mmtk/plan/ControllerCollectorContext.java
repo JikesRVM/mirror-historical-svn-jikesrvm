@@ -12,6 +12,7 @@
  */
 package org.mmtk.plan;
 
+import org.mmtk.utility.heap.HeapGrowthManager;
 import org.mmtk.vm.HeavyCondLock;
 import org.mmtk.vm.VM;
 
@@ -27,13 +28,13 @@ public class ControllerCollectorContext extends CollectorContext {
   private ParallelCollectorGroup workers;
 
   /** Flag used to control the 'race to request' */
-  private volatile boolean requestFlag;
+  private boolean requestFlag;
 
   /** The current request index */
-  private volatile int requestCount;
+  private int requestCount;
 
   /** The request index that was last completed */
-  private volatile int lastRequestCount;
+  private int lastRequestCount = -1;
 
   /**
    * Create a controller context.
@@ -60,8 +61,14 @@ public class ControllerCollectorContext extends CollectorContext {
       // Wait for a collection request.
       waitForRequest();
       
+      // The start time.
+      long startTime = VM.statistics.nanoTime();
+      
       // Stop all mutator threads
       VM.collection.stopAllMutators();
+      
+      // Was this user triggered?
+      boolean userTriggeredCollection = VM.activePlan.global().isUserTriggeredCollection();
       
       // Clear the request
       clearRequest();
@@ -71,6 +78,17 @@ public class ControllerCollectorContext extends CollectorContext {
       
       // Wait for GC threads to complete.
       workers.waitForCycle();
+      
+      // Heap growth logic
+      long elapsedTime = VM.statistics.nanoTime() - startTime;
+      HeapGrowthManager.recordGCTime(VM.statistics.nanosToMillis(elapsedTime));
+      if (VM.activePlan.global().lastCollectionFullHeap()) {
+        if (!userTriggeredCollection) {
+          // Don't consider changing the heap size if the application triggered the collection
+          HeapGrowthManager.considerHeapSize();
+        }
+        HeapGrowthManager.reset();
+      }
       
       // Resume all mutators
       VM.collection.resumeAllMutators();
@@ -109,7 +127,7 @@ public class ControllerCollectorContext extends CollectorContext {
   private void waitForRequest() {
     lock.lock();
     lastRequestCount++;
-    while (lastRequestCount != requestCount) {
+    while (lastRequestCount == requestCount) {
       lock.await();
     }
     lock.unlock();

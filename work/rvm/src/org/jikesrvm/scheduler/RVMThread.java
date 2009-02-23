@@ -37,8 +37,6 @@ import org.jikesrvm.osr.ObjectHolder;
 import org.jikesrvm.adaptive.OSRListener;
 import org.jikesrvm.jni.JNIEnvironment;
 import org.jikesrvm.mm.mminterface.MemoryManager;
-import org.jikesrvm.mm.mminterface.Selected;
-import org.jikesrvm.mm.mminterface.CollectorThread;
 import org.jikesrvm.mm.mminterface.ThreadContext;
 import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.objectmodel.ThinLockConstants;
@@ -564,6 +562,7 @@ public class RVMThread extends ThreadContext {
   @Entrypoint
   @Untraced
   public final Registers contextRegisters;
+  @SuppressWarnings("unused")
   private final Registers contextRegistersShadow;
 
   /**
@@ -572,6 +571,7 @@ public class RVMThread extends ThreadContext {
   @Entrypoint
   @Untraced
   public final Registers contextRegistersSave;
+  @SuppressWarnings("unused")
   private final Registers contextRegistersSaveShadow;
 
   /**
@@ -581,6 +581,7 @@ public class RVMThread extends ThreadContext {
   @Entrypoint
   @Untraced
   private final Registers exceptionRegisters;
+  @SuppressWarnings("unused")
   private final Registers exceptionRegistersShadow;
 
   /** Count of recursive uncaught exceptions, we need to bail out at some point */
@@ -798,22 +799,17 @@ public class RVMThread extends ThreadContext {
   @Entrypoint
   @Untraced
   private JNIEnvironment jniEnv;
+  @SuppressWarnings("unused")
   private JNIEnvironment jniEnvShadow;
 
   /** Used by GC to determine collection success */
   private boolean physicalAllocationFailed;
 
-  /**
-   * Is this thread performing emergency allocation, when the normal heap limits
-   * are ignored.
-   */
-  private boolean emergencyAllocation;
-
   /** Used by GC to determine collection success */
   private int collectionAttempt;
 
   /** The OOME to throw */
-  private OutOfMemoryError outOfMemoryError;
+  private static OutOfMemoryError outOfMemoryError;
 
   /*
    * Enumerate different types of yield points for sampling
@@ -886,7 +882,7 @@ public class RVMThread extends ThreadContext {
    * Scratch area for use for gpr <=> fpr transfers by PPC baseline compiler.
    * Used to transfer x87 to SSE registers on IA32
    */
-  @SuppressWarnings({ "unused", "CanBeFinal", "UnusedDeclaration" })
+  @SuppressWarnings({ "unused" })
   // accessed via EntryPoints
   private double scratchStorage;
 
@@ -1155,6 +1151,7 @@ public class RVMThread extends ThreadContext {
   @Interruptible
   // except not really, since we don't enable yieldpoints yet
   public static void boot() {
+    outOfMemoryError = new OutOfMemoryError();
     dumpLock = new HeavyCondLock();
     acctLock = new NoYieldpointsCondLock();
     debugLock = new NoYieldpointsCondLock();
@@ -1339,7 +1336,7 @@ public class RVMThread extends ThreadContext {
     */
    public RVMThread(byte[] stack, Thread thread, String name, boolean daemon, boolean system, int priority) {
     this.stack = stack;
-    this.name = name;
+    
     this.daemon = daemon;
     this.priority = priority;
 
@@ -1355,6 +1352,8 @@ public class RVMThread extends ThreadContext {
 
     // put self in list of threads known to scheduler and garbage collector
     if (!VM.runningVM) {
+      if (VM.VerifyAssertions) VM._assert(name != null);
+      this.name = name;
       // create primordial thread (in boot image)
       assignThreadSlot();
       initMutator(threadSlot);
@@ -1397,6 +1396,7 @@ public class RVMThread extends ThreadContext {
       VM.enableGC();
 
       assignThreadSlot();
+      this.name = name == null ? "Thread-" + threadSlot : name;
       initMutator(threadSlot);
       activeMutatorContext = true;
       if (traceAcct) {
@@ -2119,9 +2119,8 @@ public class RVMThread extends ThreadContext {
    * String representation of thread
    */
   @Override
-  @Unpreemptible("May block due to allocation but otherwise avoids blocking")
   public String toString() {
-    return (name == null) ? Services.stringConcatenate("Thread-", getThreadSlot()) : name;
+    return name;
   }
 
   /**
@@ -2217,7 +2216,7 @@ public class RVMThread extends ThreadContext {
    * is at the bottom of all created method's stacks.
    */
   @Interruptible
-  @SuppressWarnings({ "unused", "UnusedDeclaration" })
+  @SuppressWarnings({ "unused" })
   // Called by back-door methods.
   private static void startoff() {
     bindIfRequested();
@@ -2723,8 +2722,7 @@ public class RVMThread extends ThreadContext {
 
   @UnpreemptibleNoWarn("Possible context when generating exception")
   public static void raiseIllegalMonitorStateException(String msg, Object o) {
-    throw new IllegalMonitorStateException(Services.stringConcatenate(msg, o
-        .toString()));
+    throw new IllegalMonitorStateException(msg + o.toString());
   }
 
   /**
@@ -3152,7 +3150,6 @@ public class RVMThread extends ThreadContext {
    */
   @Unpreemptible("May block if the thread was asked to do so but otherwise does not perform actions that may lead to blocking")
   public static void yieldpoint(int whereFrom, Address yieldpointServiceMethodFP) {
-    boolean cbsOverrun = false;
     RVMThread t = getCurrentThread();
     boolean wasAtYieldpoint = t.atYieldpoint;
     t.atYieldpoint = true;
@@ -3202,7 +3199,6 @@ public class RVMThread extends ThreadContext {
            * CBS Sampling is still active from previous quantum. Note that fact,
            * but leave all the other CBS parameters alone.
            */
-          cbsOverrun = true;
         } else {
           if (VM.CBSCallSamplesPerTick > 0) {
             t.yieldForCBSCall = true;
@@ -3880,68 +3876,21 @@ public class RVMThread extends ThreadContext {
     physicalAllocationFailed = false;
   }
 
-  /** Set the emergency allocation flag. */
-  public final void setEmergencyAllocation() {
-    emergencyAllocation = true;
-  }
-
-  /** Clear the emergency allocation flag. */
-  public final void clearEmergencyAllocation() {
-    emergencyAllocation = false;
-  }
-
-  /** Read the emergency allocation flag. */
-  public final boolean emergencyAllocation() {
-    return emergencyAllocation;
-  }
-
   /**
    * Returns the outstanding OutOfMemoryError.
    */
-  public final OutOfMemoryError getOutOfMemoryError() {
+  public static OutOfMemoryError getOutOfMemoryError() {
     return outOfMemoryError;
-  }
-
-  /**
-   * Sets the outstanding OutOfMemoryError.
-   */
-  public final void setOutOfMemoryError(OutOfMemoryError oome) {
-    outOfMemoryError = oome;
-  }
-
-  /**
-   * Get the thread to use for building stack traces. NB overridden by
-   * {@link org.jikesrvm.mm.mminterface.CollectorThread}
-   */
-  public RVMThread getThreadForStackTrace() {
-    return this;
-  }
-
-  /**
-   * Clears the outstanding OutOfMemoryError.
-   */
-  public final void clearOutOfMemoryError() {
-    /*
-     * SEE RVM-141 To avoid problems in GCTrace configuration, only clear the
-     * OOM if it is non-NULL.
-     */
-    if (outOfMemoryError != null) {
-      outOfMemoryError = null;
-    }
   }
 
   @Interruptible
   public final void handleUncaughtException(Throwable exceptionObject) {
     uncaughtExceptionCount++;
 
-    if (exceptionObject instanceof OutOfMemoryError) {
-      /* Say allocation from this thread is emergency allocation */
-      setEmergencyAllocation();
-    }
     handlePossibleRecursiveException();
     VM.enableGC();
     if (thread == null) {
-      VM.sysWrite("Exception in the primordial thread \"", toString(),
+      VM.sysWrite("Exception in the primordial thread \"", getName(),
           "\" while booting: ");
     } else {
       // This is output like that of the Sun JDK.

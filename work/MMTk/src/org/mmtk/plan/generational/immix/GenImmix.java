@@ -88,8 +88,7 @@ public class GenImmix extends Gen {
     if (phaseId == SET_COLLECTION_KIND) {
       super.collectionPhase(phaseId);
       if (gcFullHeap) {
-        boolean userTriggeredGC = collectionTrigger == Collection.EXTERNAL_GC_TRIGGER && Options.fullHeapSystemGC.getValue();
-        immixSpace.setCollectionKind(emergencyCollection, true, collectionAttempt, requiredAtStart, userTriggeredGC);
+        immixSpace.setCollectionKind(emergencyCollection, true, collectionAttempt, userTriggeredCollection);
       }
       return;
     }

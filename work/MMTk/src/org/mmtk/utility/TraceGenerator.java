@@ -222,7 +222,7 @@ import org.vmmagic.unboxed.*;
   @NoInline
   public static void traceAlloc(boolean isImmortal, ObjectReference ref,
       ObjectReference typeRef, int bytes) {
-    boolean gcAllowed = VM.traceInterface.gcEnabled() && Plan.isInitialized() && !Plan.gcInProgress();
+    boolean gcAllowed = VM.traceInterface.gcEnabled() && Plan.isInitialized() && VM.activePlan.isMutator();
     /* Test if it is time/possible for an exact allocation. */
     Word oid = VM.traceInterface.getOID(ref);
     Word allocType;

@@ -15,6 +15,7 @@ package org.mmtk.plan;
 import org.mmtk.policy.Space;
 import org.mmtk.utility.Constants;
 import org.mmtk.utility.Log;
+import org.mmtk.utility.alloc.Allocator;
 import org.mmtk.utility.options.*;
 import org.mmtk.utility.statistics.Timer;
 import org.mmtk.vm.VM;
@@ -191,12 +192,8 @@ public abstract class Simple extends Plan implements Constants {
   @Inline
   public void collectionPhase(short phaseId) {
     if (phaseId == SET_COLLECTION_KIND) {
-      requiredAtStart = getPagesRequired();
-      collectionAttempt = 1;// TODO: FIXME: VM.collection.maximumCollectionAttempt();
+      collectionAttempt = Allocator.getMaxCollectionAttempts();
       emergencyCollection = lastCollectionFullHeap() && collectionAttempt > 1;
-      if (collectionAttempt > MAX_COLLECTION_ATTEMPTS) {
-        VM.assertions.fail("Too many collection attempts. Suspect plan is not setting FullHeap flag");
-      }
       if (emergencyCollection) {
         if (Options.verbose.getValue() >= 1) Log.write("[Emergency]");
         forceFullHeapCollection();
@@ -247,7 +244,7 @@ public abstract class Simple extends Plan implements Constants {
     if (phaseId == COMPLETE) {
       setGCStatus(NOT_IN_GC);
       Space.clearAllAllocationFailed();
-      awaitingAsyncCollection = false;
+      userTriggeredCollection = false;
       return;
     }
 

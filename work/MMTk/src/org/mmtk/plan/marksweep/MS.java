@@ -112,17 +112,6 @@ public class MS extends StopTheWorld {
   }
 
   /**
-   * Calculate the number of pages a collection is required to free to satisfy
-   * outstanding allocation requests.
-   *
-   * @return the number of pages a collection is required to free to satisfy
-   * outstanding allocation requests.
-   */
-  public int getPagesRequired() {
-    return super.getPagesRequired() + msSpace.requiredPages();
-  }
-
-  /**
    * @see org.mmtk.plan.Plan#willNeverMove
    *
    * @param object Object in question

@@ -74,26 +74,15 @@ import org.vmmagic.pragma.*;
   public abstract void spawnCollectorContext(CollectorContext context);
   
   /**
+   * @return The default number of collector threads to use.
+   */
+  public abstract int getDefaultThreads();
+
+  /**
    * Block for the garbage collector.
    */
   @Unpreemptible
   public abstract void blockForGC();
-
-  /**
-   * Report that the allocation has succeeded.
-   */
-  public abstract void reportAllocationSuccess();
-
-  /**
-   * Report that a physical allocation has failed.
-   */
-  public abstract void reportPhysicalAllocationFailed();
-
-  /**
-   * Does the VM consider this an emergency alloction, where the normal
-   * heap size rules can be ignored.
-   */
-  public abstract boolean isEmergencyAllocation();
 
   /**
    * Prepare a mutator for collection.
@@ -123,4 +112,8 @@ import org.vmmagic.pragma.*;
   @Unpreemptible
   public abstract void resumeAllMutators();
 
+  /**
+   * Fail with an out of memory error.
+   */
+  public abstract void outOfMemory();
 }

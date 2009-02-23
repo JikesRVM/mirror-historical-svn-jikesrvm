@@ -117,8 +117,7 @@ public class StickyImmix extends Immix {
       super.collectionPhase(phaseId);
       collectWholeHeap = requiresFullHeapCollection();
       if (Stats.gatheringStats() && collectWholeHeap) ImmixSpace.fullHeap.set();
-      boolean userTriggeredGC = collectionTrigger == Collection.EXTERNAL_GC_TRIGGER && Options.fullHeapSystemGC.getValue();
-      immixSpace.setCollectionKind(emergencyCollection, collectWholeHeap, collectionAttempt, requiredAtStart, userTriggeredGC);
+      immixSpace.setCollectionKind(emergencyCollection, collectWholeHeap, collectionAttempt, userTriggeredCollection);
       return;
     }
 
@@ -167,7 +166,7 @@ public class StickyImmix extends Immix {
    * @return True if this GC should be a full heap collection.
    */
   protected boolean requiresFullHeapCollection() {
-    if (collectionTrigger == Collection.EXTERNAL_GC_TRIGGER && Options.fullHeapSystemGC.getValue()) {
+    if (userTriggeredCollection && Options.fullHeapSystemGC.getValue()) {
       return true;
     }
     if (nextGCWholeHeap || collectionAttempt > 1) {
@@ -178,23 +177,6 @@ public class StickyImmix extends Immix {
       // We need space from the nursery
       return true;
     }
-
-    // Estimate the yield from small nursery pages
-    int smallNurseryPages = immixSpace.committedPages() - lastCommittedImmixPages;
-    int smallNurseryYield = (int)(smallNurseryPages * SURVIVAL_ESTIMATE);
-
-    if (smallNurseryYield < getPagesRequired()) {
-      // Our total yield is insufficient.
-      return true;
-    }
-
-    if (immixSpace.allocationFailed()) {
-      if (smallNurseryYield < immixSpace.requiredPages()) {
-        // We have run out of VM pages in the nursery
-        return true;
-      }
-    }
-
     return false;
   }
 
