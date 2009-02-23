@@ -30,7 +30,7 @@ import org.vmmagic.unboxed.Offset;
 /**
  * Abstract baseclass for all locks.
  */
-public abstract class AbstractLock implements Constants, ThinLockConstants {
+public abstract class AbstractLock implements Constants {
   
   public abstract boolean isActive();
   
@@ -61,6 +61,9 @@ public abstract class AbstractLock implements Constants, ThinLockConstants {
   public abstract int getOwnerId();
   
   public abstract int getRecursionCount();
+  
+  @Unpreemptible
+  public abstract boolean holdsLock(Object o, RVMThread thread);
   
   /**
    * Get the object currently associated with this lock.  This may change
@@ -100,9 +103,7 @@ public abstract class AbstractLock implements Constants, ThinLockConstants {
 
     VM.sysWrite(" ownerId: ");
     VM.sysWriteInt(getOwnerId());
-    VM.sysWrite(" (");
-    VM.sysWriteInt(getOwnerId() >>> ThinLockConstants.TL_THREAD_ID_SHIFT);
-    VM.sysWrite(") recursionCount: ");
+    VM.sysWrite(" recursionCount: ");
     VM.sysWriteInt(getRecursionCount());
     VM.sysWriteln();
     dumpBlockedThreads();

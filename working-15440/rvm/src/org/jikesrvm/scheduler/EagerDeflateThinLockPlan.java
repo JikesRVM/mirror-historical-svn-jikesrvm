@@ -28,7 +28,7 @@ import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
-public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
+public class EagerDeflateThinLockPlan extends CommonLockPlan {
   public static EagerDeflateThinLockPlan instance;
   
   public EagerDeflateThinLockPlan() {
@@ -46,127 +46,6 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
     // nothing to do...
   }
   
-  /**
-   * Obtains a lock on the indicated object.  Light-weight locking
-   * sequence for the prologue of synchronized methods and for the
-   * <code>monitorenter</code> bytecode.
-   *
-   * @param o the object to be locked
-   * @param lockOffset the offset of the thin lock word in the object.
-   */
-  @NoInline
-  @NoNullCheck
-  public final void lock(Object o, Offset lockOffset) {
-    major:
-    while (true) { // repeat only if attempt to lock a promoted lock fails
-      int retries = retryLimit;
-      Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
-      while (0 != retries--) { // repeat if there is contention for thin lock
-        Word old = Magic.prepareWord(o, lockOffset);
-        Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
-        if (id.isZero()) { // o isn't locked
-          if (Magic.attemptWord(o, lockOffset, old, old.or(threadId))) {
-            Magic.isync(); // don't use stale prefetched data in monitor
-            if (HEAVY_STATS) slowLocks++;
-            break major;  // lock succeeds
-          }
-          continue; // contention, possibly spurious, try again
-        }
-        if (id.EQ(threadId)) { // this thread has o locked already
-          Word changed = old.toAddress().plus(TL_LOCK_COUNT_UNIT).toWord(); // update count
-          if (changed.and(TL_LOCK_COUNT_MASK).isZero()) { // count wrapped around (most unlikely), make heavy lock
-            while (!inflateAndLock(o, lockOffset)) { // wait for a lock to become available
-              Magic.pause();
-            }
-            break major;  // lock succeeds (note that lockHeavy has issued an isync)
-          }
-          if (Magic.attemptWord(o, lockOffset, old, changed)) {
-            Magic.isync(); // don't use stale prefetched data in monitor !!TODO: is this isync required?
-            if (HEAVY_STATS) slowLocks++;
-            break major;  // lock succeeds
-          }
-          continue; // contention, probably spurious, try again (TODO!! worry about this)
-        }
-
-        if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // o has a heavy lock
-          EagerDeflateThinLock l=(EagerDeflateThinLock)
-            Magic.eatCast(getLock(getLockIndex(old)));
-          if (l!=null && // could happen if already deflated
-              l.lockHeavy(o)) {
-            break major; // lock succeeds (note that lockHeavy has issued an isync)
-          }
-          // heavy lock failed (deflated or contention for system lock)
-          Magic.pause();
-          continue major;    // try again
-        }
-        // real contention: wait (hope other thread unlocks o), try again
-        if (traceContention) { // for performance tuning only (see section 5)
-          Address fp = Magic.getFramePointer();
-          fp = Magic.getCallerFramePointer(fp);
-          int mid = Magic.getCompiledMethodID(fp);
-          RVMMethod m1 = CompiledMethods.getCompiledMethod(mid).getMethod();
-          fp = Magic.getCallerFramePointer(fp);
-          mid = Magic.getCompiledMethodID(fp);
-          RVMMethod m2 = CompiledMethods.getCompiledMethod(mid).getMethod();
-          String s = m1.getDeclaringClass() + "." + m1.getName() + " " + m2.getDeclaringClass() + "." + m2.getName();
-          RVMThread.trace(Magic.getObjectType(o).toString(), s, -2 - retries);
-        }
-        if (0 != retries) {
-          Magic.pause(); // wait, hope o gets unlocked
-        }
-      }
-      // create a heavy lock for o and lock it
-      if (inflateAndLock(o, lockOffset)) break;
-    }
-    // o has been locked, must return before an exception can be thrown
-  }
-
-  /**
-   * Releases the lock on the indicated object.   Light-weight unlocking
-   * sequence for the epilogue of synchronized methods and for the
-   * <code>monitorexit</code> bytecode.
-   *
-   * @param o the object to be locked
-   * @param lockOffset the offset of the thin lock word in the object.
-   */
-  @NoInline
-  @NoNullCheck
-  public final void unlock(Object o, Offset lockOffset) {
-    Magic.sync(); // prevents stale data from being seen by next owner of the lock
-    while (true) { // spurious contention detected
-      Word old = Magic.prepareWord(o, lockOffset);
-      Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
-      Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
-      if (id.NE(threadId)) { // not normal case
-        if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // o has a heavy lock
-          // in this case getLock() will return non-null because a lock that is
-          // held cannot be deflated.  ... except if we have illegal use of
-          // monitorenter/monitorexit.  we should do a check anyway.
-          ((EagerDeflateThinLock)Magic.eatCast(getLock(getLockIndex(old)))).unlockHeavy();
-          // note that unlockHeavy has issued a sync
-          return;
-        }
-        RVMThread.trace("Lock", "unlock error: thin lock word = ", old.toAddress());
-        RVMThread.trace("Lock", "unlock error: thin lock word = ", Magic.objectAsAddress(o));
-        // RVMThread.trace("Lock", RVMThread.getCurrentThread().toString(), 0);
-        RVMThread.raiseIllegalMonitorStateException("thin unlocking", o);
-      }
-      if (old.and(TL_LOCK_COUNT_MASK).isZero()) { // get count, 0 is the last lock
-        Word changed = old.and(TL_UNLOCK_MASK);
-        if (Magic.attemptWord(o, lockOffset, old, changed)) {
-          return; // unlock succeeds
-        }
-        continue;
-      }
-      // more than one lock
-      // decrement recursion count
-      Word changed = old.toAddress().minus(TL_LOCK_COUNT_UNIT).toWord();
-      if (Magic.attemptWord(o, lockOffset, old, changed)) {
-        return; // unlock succeeds
-      }
-    }
-  }
-
   ////////////////////////////////////////////////////////////////
   /// Support for inflating (and deflating) heavy-weight locks ///
   ////////////////////////////////////////////////////////////////
@@ -182,12 +61,10 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @return the heavy-weight lock on this object
    */
   @NoNullCheck
-  protected final EagerDeflateThinLock inflate(Object o, Offset lockOffset) {
+  public final EagerDeflateThinLock inflate(Object o, Offset lockOffset) {
     if (PROFILE) RVMThread.enterLockingPath();
     if (VM.VerifyAssertions) {
       VM._assert(holdsLock(o, lockOffset, RVMThread.getCurrentThread()));
-      // this assertions is just plain wrong.
-      //VM._assert((Magic.getWordAtOffset(o, lockOffset).and(TL_FAT_LOCK_MASK).isZero()));
     }
     EagerDeflateThinLock l = (EagerDeflateThinLock)Magic.eatCast(allocateActivateAndAdd());
     if (VM.VerifyAssertions) {
@@ -241,16 +118,16 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
     Word old;
     l.lockState();
     do {
-      old = Magic.prepareWord(o, lockOffset);
+      Word bits = Magic.getWordAtOffset(o, lockOffset);
       // check to see if another thread has already created a fat lock
-      if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // already a fat lock in place
+      if (LockConfig.selectedThinPlan.isFat(bits)) {
         if (trace) {
           VM.sysWriteln("Thread #",RVMThread.getCurrentThreadSlot(),
                         ": freeing lock ",Magic.objectAsAddress(l),
                         " because we had a double-inflate");
         }
         EagerDeflateThinLock result = (EagerDeflateThinLock)
-          Magic.eatCast(getLock(getLockIndex(old)));
+          Magic.eatCast(getLock(LockConfig.selectedThinPlan.getLockIndex(old)));
         if (result==null ||
             result.lockedObject!=o) {
           continue; /* this is nasty.  this will happen when a lock
@@ -262,55 +139,18 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
         return result;
       }
       if (VM.VerifyAssertions) VM._assert(l!=null);
-      Word locked = TL_FAT_LOCK_MASK.or(Word.fromIntZeroExtend(l.id).lsh(TL_LOCK_ID_SHIFT));
-      Word changed = locked.or(old.and(TL_UNLOCK_MASK));
-      if (VM.VerifyAssertions) VM._assert(getLockIndex(changed) == l.id);
-      if (Magic.attemptWord(o, lockOffset, old, changed)) {
+      if (LockConfig.selectedThinPlan.attemptToMarkInflated(
+            o, lockOffset, bits, l.id)) {
         l.setLockedObject(o);
-        l.setOwnerId(old.and(TL_THREAD_ID_MASK).toInt());
+        l.setOwnerId(LockConfig.selectedThinPlan.getLockOwner(bits));
         if (l.getOwnerId() != 0) {
-          l.setRecursionCount(old.and(TL_LOCK_COUNT_MASK).rshl(TL_LOCK_COUNT_SHIFT).toInt() + 1);
+          l.setRecursionCount(LockConfig.selectedThinPlan.getRecCount(bits));
         }
         if (PROFILE) RVMThread.leaveLockingPath();
         return l;
       }
       // contention detected, try again
     } while (true);
-  }
-
-  @NoNullCheck
-  protected final void deflate(Object o, Offset lockOffset, EagerDeflateThinLock l) {
-    if (VM.VerifyAssertions) {
-      Word old = Magic.getWordAtOffset(o, lockOffset);
-      VM._assert(!(old.and(TL_FAT_LOCK_MASK).isZero()));
-      VM._assert(l == getLock(getLockIndex(old)));
-    }
-    Word old;
-    do {
-      old = Magic.prepareWord(o, lockOffset);
-    } while (!Magic.attemptWord(o, lockOffset, old, old.and(TL_UNLOCK_MASK)));
-  }
-
-  /**
-   * Obtains the heavy-weight lock, if there is one, associated with the
-   * indicated object.  Returns <code>null</code>, if there is no
-   * heavy-weight lock associated with the object.
-   *
-   * @param o the object from which a lock is desired
-   * @param lockOffset the offset of the thin lock word in the object.
-   * @param create if true, create heavy lock if none found
-   * @return the heavy-weight lock on the object (if any)
-   */
-  @NoNullCheck
-  public final AbstractLock getHeavyLock(Object o, Offset lockOffset, boolean create) {
-    Word old = Magic.getWordAtOffset(o, lockOffset);
-    if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // already a fat lock in place
-      return (EagerDeflateThinLock)Magic.eatCast(getLock(getLockIndex(old)));
-    } else if (create) {
-      return inflate(o, lockOffset);
-    } else {
-      return null;
-    }
   }
 
   /**

@@ -29,7 +29,7 @@ import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
-public class EagerDeflateThinLock extends CommonThinLock {
+public class EagerDeflateThinLock extends CommonLock {
   @Entrypoint
   int mutex;
 
@@ -161,7 +161,7 @@ public class EagerDeflateThinLock extends CommonThinLock {
       VM._assert(waitingIsEmpty());
     }
     if (CommonLockPlan.HEAVY_STATS) CommonLockPlan.deflations++;
-    EagerDeflateThinLockPlan.instance.deflate(o, lockOffset, this);
+    LockConfig.selectedThinPlan.markDeflated(o, lockOffset);
     lockedObject = null;
     EagerDeflateThinLockPlan.instance.free(this);
   }

@@ -126,6 +126,13 @@ public abstract class CommonLock extends AbstractLock {
     return lockedObject;
   }
   
+  public final boolean holdsLock(Object o, RVMThread thread) {
+    lockState();
+    boolean result = (lockedObject == o && thread.getLockingId()==getOwnerId());
+    unlockState();
+    return result;
+  }
+  
   public final int getLockId() {
     return id;
   }

@@ -1086,6 +1086,7 @@ public class RVMThread extends ThreadContext {
     BootRecord.the_boot_record.dumpStackAndDieOffset =
       Entrypoints.dumpStackAndDieMethod.getOffset();
     LockConfig.selectedPlan.init();
+    LockConfig.selectedThinPlan.init();
   }
 
   public void assertAcceptableStates(int expected) {

@@ -31,7 +31,7 @@ import org.vmmagic.unboxed.Word;
 /**
  * Abstract base-class for the global state of the current lock implementation.
  */
-public abstract class AbstractLockPlan implements Constants, ThinLockConstants {
+public abstract class AbstractLockPlan implements Constants {
   public static AbstractLockPlan instance;
   
   public AbstractLockPlan() {
@@ -44,50 +44,26 @@ public abstract class AbstractLockPlan implements Constants, ThinLockConstants {
   
   public abstract void lateBoot();
   
-  public abstract void inlineLock(Object o,Offset lockOffset);
-  public void inlineLock(Object o) {
-    inlineLock(o, Magic.getObjectType(o).getThinLockOffset());
+  public abstract AbstractLock inflate(Object o, Offset lockOffset);
+  
+  public AbstractLock getLock(Object o, Offset lockOffset) {
+    Word bits=Magic.getWordAtOffset(o,lockOffset);
+    if (LockConfig.selectedThinPlan.isFat(bits)) {
+      int idx=LockConfig.selectedThinPlan.getLockIndex(bits);
+      if (idx!=0) {
+        return LockConfig.selectedPlan.getLock(idx);
+      }
+    }
+    return null;
   }
   
-  public abstract void inlineUnlock(Object o,Offset lockOffset);
-  public void inlineUnlock(Object o) {
-    inlineUnlock(o, Magic.getObjectType(o).getThinLockOffset());
-  }
-  
-  public abstract void lock(Object o,Offset lockOffset);
-  public void lock(Object o) {
-    lock(o, Magic.getObjectType(o).getThinLockOffset());
-  }
-
-  public abstract void unlock(Object o,Offset lockOffset);
-  public void unlock(Object o) {
-    unlock(o, Magic.getObjectType(o).getThinLockOffset());
-  }
-  
-  @Unpreemptible
-  public abstract boolean holdsLock(Object o,Offset lockOffset,RVMThread thread);
-  @Unpreemptible
-  public boolean holdsLock(Object o, RVMThread thread) {
-    return holdsLock(o, Magic.getObjectType(o).getThinLockOffset(), thread);
-  }
-  
-  /**
-   * Get a heavy lock for an object.  Note that it you set create to true, a new heavy
-   * lock will be created if it did not previously exist.  However, some implementations
-   * may choose to asynchronously deflate locks.  The only way to guarantee that a lock
-   * is not asynchronously deflated is to ensure that it is held, or has someone enqueued
-   * on its wait list.  For this reason, implementations of this method <i>may</i> choose
-   * to assert that the lock is not "deflatable" (i.e. not held and with nobody enqueued
-   * for waiting) at the time that the request is made.
-   */
-  public abstract AbstractLock getHeavyLock(Object o,Offset lockOffset,boolean create);
-  
-  /**
-   * Convenience method for getHeavyLock(Object,Offset,boolean), which computes the
-   * offset automatically.
-   */
-  public AbstractLock getHeavyLock(Object o, boolean create) {
-    return getHeavyLock(o, Magic.getObjectType(o).getThinLockOffset(), create);
+  public boolean inflateAndLock(Object o, Offset lockOffset) {
+    LockConfig.Selected l=(LockConfig.Selected)Magic.eatCast(inflate(o, lockOffset));
+    if (l!=null) {
+      return l.lockHeavy(o);
+    } else {
+      return false;
+    }
   }
   
   public abstract void waitImpl(Object o, boolean hasTimeout, long whenWakeupNanos);

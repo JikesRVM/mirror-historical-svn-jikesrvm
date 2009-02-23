@@ -266,6 +266,7 @@ public class VM extends Properties implements Constants, ExitStatus {
     }
     if (verboseBoot >= 1) VM.sysWriteln("Booting Lock");
     LockConfig.selectedPlan.boot();
+    LockConfig.selectedThinPlan.boot();
 
     // Enable multiprocessing.
     // Among other things, after this returns, GC and dynamic class loading are enabled.
@@ -276,6 +277,7 @@ public class VM extends Properties implements Constants, ExitStatus {
 
     if (verboseBoot >= 1) VM.sysWriteln("Booting Lock");
     LockConfig.selectedPlan.lateBoot();
+    LockConfig.selectedThinPlan.lateBoot();
 
     if (verboseBoot >= 1) VM.sysWriteln("Setting up boot thread");
     RVMThread.getCurrentThread().setupBootJavaThread();

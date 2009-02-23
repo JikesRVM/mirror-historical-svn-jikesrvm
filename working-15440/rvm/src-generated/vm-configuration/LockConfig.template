@@ -22,6 +22,8 @@ public final class LockConfig {
   
   public static final class Selected extends @_SELECTED_@Lock {}
   public static final class SelectedPlan extends @_SELECTED_@LockPlan {}
+  public static final class SelectedThinPlan extends @_SELECTED_@ThinLockPlan {}
   
   public static final SelectedPlan selectedPlan = new SelectedPlan();
+  public static final SelectedThinPlan selectedThinPlan = new SelectedThinPlan();
 }
