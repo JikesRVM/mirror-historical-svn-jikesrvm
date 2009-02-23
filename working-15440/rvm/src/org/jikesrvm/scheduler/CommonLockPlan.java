@@ -31,6 +31,7 @@ import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.pragma.UnpreemptibleNoWarn;
 import org.vmmagic.pragma.Entrypoint;
+import org.vmmagic.pragma.NoNullCheck;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
@@ -160,29 +161,40 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   }
   
   @Inline
+  @NoNullCheck
   protected final CommonLock allocate() {
+    if (PROFILE) RVMThread.enterLockingPath();
+    
     RVMThread me=RVMThread.getCurrentThread();
     
     if (VM.VerifyAssertions) {
-      VM._assert(me.cachedFreeLockID>=-1);
+      VM._assert(!me.noMoreLocking);
       
       // inflating locks from GC would be awkward
       VM._assert(!me.isGCThread());
     }
     
+    CommonLock result;
+    
     if (STATS) Synchronization.fetchAndAdd(
       this,Entrypoints.commonLockLocksAllocatedField.getOffset(),1);
 
-    CommonLock result=new LockConfig.Selected();
-    
-    if (me.cachedFreeLockID!=-1) {
-      result.id=me.cachedFreeLockID;
-      me.cachedFreeLockID=-1;
+    if (LockConfig.CACHE_LOCKS && me.cachedFreeLock!=null) {
+      result=me.cachedFreeLock;
+      me.cachedFreeLock=null;
     } else {
-      allocateSlow(result);
+      result=new LockConfig.Selected();
+
+      if (!LockConfig.CACHE_LOCKS && me.cachedFreeLockID!=-1) {
+        result.id=me.cachedFreeLockID;
+        me.cachedFreeLockID=-1;
+      } else {
+        allocateSlow(result);
+      }
     }
 
     if (VM.VerifyAssertions) VM._assert(result.id>0);
+    if (PROFILE) RVMThread.leaveLockingPath();
     
     return result;
   }
@@ -230,6 +242,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   }
   
   @Unpreemptible
+  @NoNullCheck
   protected final void addLock(CommonLock l) {
     locks[l.id]=l;
   }
@@ -243,14 +256,22 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   
   @Inline
   protected final void free(CommonLock l) {
+    if (PROFILE) RVMThread.enterLockingPath();
     RVMThread me=RVMThread.getCurrentThread();
     l.lockedObject=null;
     locks[l.id]=null;
-    if (me.cachedFreeLockID==-1) {
+    if (LockConfig.CACHE_LOCKS && me.cachedFreeLock==null) {
+      me.cachedFreeLock=l;
+    } else if (!LockConfig.CACHE_LOCKS && me.cachedFreeLockID==-1) {
       me.cachedFreeLockID=l.id;
     } else {
       returnLockID(l.id);
     }
+    if (PROFILE) RVMThread.leaveLockingPath();
+  }
+  
+  protected final void returnLock(CommonLock l) {
+    returnLockID(l.id);
   }
   
   @NoInline
@@ -284,6 +305,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
    */
   @Inline
   @Unpreemptible
+  @NoNullCheck
   public final AbstractLock getLock(int id) {
     return locks[id];
   }

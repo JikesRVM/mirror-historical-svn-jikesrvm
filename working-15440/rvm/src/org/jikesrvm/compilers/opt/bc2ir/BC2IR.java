@@ -3673,6 +3673,7 @@ public final class BC2IR
    */
   public boolean do_NullCheck(Operand ref) {
     if (gc.noNullChecks()) {
+      setCurrentGuard(new TrueGuardOperand());
       return false;
     }
     if (ref.isDefinitelyNull()) {
@@ -3767,6 +3768,7 @@ public final class BC2IR
   public boolean do_BoundsCheck(Operand ref, Operand index) {
     // Unsafely eliminate all bounds checks
     if (gc.noBoundsChecks()) {
+      setCurrentGuard(new TrueGuardOperand());
       return false;
     }
     RegisterOperand guard = gc.temps.makeTempValidation();

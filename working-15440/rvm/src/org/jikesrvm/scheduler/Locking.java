@@ -23,6 +23,7 @@ import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Unpreemptible;
+import org.vmmagic.pragma.NoNullCheck;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
@@ -43,6 +44,7 @@ public final class Locking implements ThinLockConstants {
    */
   @Inline
   @Entrypoint
+  @NoNullCheck
   static void inlineLock(Object o, Offset lockOffset) {
     LockConfig.selectedPlan.inlineLock(o,lockOffset);
   }
@@ -59,6 +61,7 @@ public final class Locking implements ThinLockConstants {
    */
   @Inline
   @Entrypoint
+  @NoNullCheck
   static void inlineUnlock(Object o, Offset lockOffset) {
     LockConfig.selectedPlan.inlineUnlock(o,lockOffset);
   }
@@ -72,6 +75,7 @@ public final class Locking implements ThinLockConstants {
    * @param lockOffset the offset of the thin lock word in the object.
    */
   @NoInline
+  @NoNullCheck
   public static void lock(Object o, Offset lockOffset) {
     LockConfig.selectedPlan.lock(o,lockOffset);
   }
@@ -85,6 +89,7 @@ public final class Locking implements ThinLockConstants {
    * @param lockOffset the offset of the thin lock word in the object.
    */
   @NoInline
+  @NoNullCheck
   public static void unlock(Object o, Offset lockOffset) {
     LockConfig.selectedPlan.unlock(o,lockOffset);
   }
@@ -97,6 +102,7 @@ public final class Locking implements ThinLockConstants {
    *         by thread <code>false</code> if it is not.
    */
   @Unpreemptible
+  @NoNullCheck
   public static boolean holdsLock(Object obj, Offset lockOffset, RVMThread thread) {
     return LockConfig.selectedPlan.holdsLock(obj,lockOffset,thread);
   }
@@ -111,6 +117,7 @@ public final class Locking implements ThinLockConstants {
    * @param create if true, create heavy lock if none found
    * @return the heavy-weight lock on the object (if any)
    */
+  @NoNullCheck
   public static AbstractLock getHeavyLock(Object o, 
                                           Offset lockOffset, 
                                           boolean create) {

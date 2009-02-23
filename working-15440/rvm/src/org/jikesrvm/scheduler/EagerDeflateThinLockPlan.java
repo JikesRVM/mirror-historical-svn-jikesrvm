@@ -23,6 +23,7 @@ import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Unpreemptible;
+import org.vmmagic.pragma.NoNullCheck;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
@@ -54,6 +55,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @param lockOffset the offset of the thin lock word in the object.
    */
   @NoInline
+  @NoNullCheck
   public final void lock(Object o, Offset lockOffset) {
     major:
     while (true) { // repeat only if attempt to lock a promoted lock fails
@@ -128,6 +130,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @param lockOffset the offset of the thin lock word in the object.
    */
   @NoInline
+  @NoNullCheck
   public final void unlock(Object o, Offset lockOffset) {
     Magic.sync(); // prevents stale data from being seen by next owner of the lock
     while (true) { // spurious contention detected
@@ -178,6 +181,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @param lockOffset the offset of the thin lock word in the object.
    * @return the heavy-weight lock on this object
    */
+  @NoNullCheck
   protected final EagerDeflateThinLock inflate(Object o, Offset lockOffset) {
     if (PROFILE) RVMThread.enterLockingPath();
     if (VM.VerifyAssertions) {
@@ -206,6 +210,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @param lockOffset the offset of the thin lock word in the object.
    * @return whether the object was successfully locked
    */
+  @NoNullCheck
   protected final boolean inflateAndLock(Object o, Offset lockOffset) {
     EagerDeflateThinLock l = (EagerDeflateThinLock)Magic.eatCast(allocateActivateAndAdd());
     if (l == null) return false; // can't allocate locks during GC
@@ -228,6 +233,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @return the inflated lock; either the one you gave, or another one, if the lock
    *         was inflated by some other thread.
    */
+  @NoNullCheck
   protected final EagerDeflateThinLock attemptToInflate(Object o,
                                                         Offset lockOffset,
                                                         EagerDeflateThinLock l) {
@@ -272,6 +278,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
     } while (true);
   }
 
+  @NoNullCheck
   protected final void deflate(Object o, Offset lockOffset, EagerDeflateThinLock l) {
     if (VM.VerifyAssertions) {
       Word old = Magic.getWordAtOffset(o, lockOffset);
@@ -294,6 +301,7 @@ public class EagerDeflateThinLockPlan extends CommonThinLockPlan {
    * @param create if true, create heavy lock if none found
    * @return the heavy-weight lock on the object (if any)
    */
+  @NoNullCheck
   public final AbstractLock getHeavyLock(Object o, Offset lockOffset, boolean create) {
     Word old = Magic.getWordAtOffset(o, lockOffset);
     if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // already a fat lock in place

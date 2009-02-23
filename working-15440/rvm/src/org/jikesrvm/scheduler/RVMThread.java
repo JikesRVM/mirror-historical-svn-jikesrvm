@@ -599,7 +599,14 @@ public class RVMThread extends ThreadContext {
   /**
    * A cached free lock id.
    */
-  public int cachedFreeLockID=-1;
+  int cachedFreeLockID=-1;
+
+  /**
+   * A cached free lock.
+   */
+  CommonLock cachedFreeLock=null;
+  
+  boolean noMoreLocking=false;
 
   /*
    * Wait/notify fields
@@ -2499,8 +2506,12 @@ public class RVMThread extends ThreadContext {
     if (LockConfig.selectedPlan instanceof CommonLockPlan &&
         cachedFreeLockID != -1) {
       ((CommonLockPlan)LockConfig.selectedPlan).returnLockID(cachedFreeLockID);
-      cachedFreeLockID = -2;
     }
+    if (LockConfig.selectedPlan instanceof CommonLockPlan &&
+        cachedFreeLock != null) {
+      ((CommonLockPlan)LockConfig.selectedPlan).returnLock(cachedFreeLock);
+    }
+    noMoreLocking=true;
 
     // Switch to uninterruptible portion of termination
     terminateUnpreemptible();

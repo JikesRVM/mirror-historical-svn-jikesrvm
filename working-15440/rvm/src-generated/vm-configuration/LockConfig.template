@@ -15,6 +15,11 @@ package org.jikesrvm.scheduler;
 public final class LockConfig {
   public static final int SELECTED = LockConfigs.@_SELECTED_@;
   
+  public static final boolean CACHE_LOCKS =
+      SELECTED==LockConfigs.EagerDeflateThin;
+      
+  public static final boolean USE_REC_FASTPATH = false;
+  
   public static final class Selected extends @_SELECTED_@Lock {}
   public static final class SelectedPlan extends @_SELECTED_@LockPlan {}
   

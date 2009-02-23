@@ -24,6 +24,7 @@ import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.UnpreemptibleNoWarn;
 import org.vmmagic.pragma.Unpreemptible;
+import org.vmmagic.pragma.NoNullCheck;
 import org.vmmagic.unboxed.Word;
 import org.vmmagic.unboxed.Offset;
 

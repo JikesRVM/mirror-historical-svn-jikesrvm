@@ -24,6 +24,7 @@ import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.pragma.Entrypoint;
+import org.vmmagic.pragma.NoNullCheck;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
@@ -52,6 +53,7 @@ public class EagerDeflateThinLock extends CommonThinLock {
    * @param o the object to be locked
    * @return true, if the lock succeeds; false, otherwise
    */
+  @NoNullCheck
   public final boolean lockHeavy(Object o) {
     if (CommonLockPlan.PROFILE) RVMThread.enterLockingPath();
     if (EagerDeflateThinLockPlan.tentativeMicrolocking) {
@@ -70,6 +72,8 @@ public class EagerDeflateThinLock extends CommonThinLock {
   
   /** Complete the task of acquiring the heavy lock, assuming that the mutex
       is already acquired (locked). */
+  @NoNullCheck
+  @Inline
   protected final boolean lockHeavyLocked(Object o) {
     if (CommonLockPlan.PROFILE) RVMThread.enterLockingPath();
     if (lockedObject != o) { // lock disappeared before we got here
@@ -106,6 +110,7 @@ public class EagerDeflateThinLock extends CommonThinLock {
    *
    * @param o the object to be unlocked
    */
+  @NoNullCheck
   public final void unlockHeavy() {
     if (CommonLockPlan.PROFILE) RVMThread.enterLockingPath();
     boolean deflated = false;
@@ -147,6 +152,7 @@ public class EagerDeflateThinLock extends CommonThinLock {
    *
    * @param o the object from which this lock is to be disassociated
    */
+  @NoNullCheck
   protected final void deflate(Object o, Offset lockOffset) {
     if (VM.VerifyAssertions) {
       VM._assert(lockedObject == o);
