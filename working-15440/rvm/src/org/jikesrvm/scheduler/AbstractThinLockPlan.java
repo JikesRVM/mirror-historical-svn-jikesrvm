@@ -35,11 +35,11 @@ public abstract class AbstractThinLockPlan implements Constants, ThinLockConstan
     instance=this;
   }
   
-  public abstract void init();
+  public void init() {}
   
-  public abstract void boot();
+  public void boot() {}
   
-  public abstract void lateBoot();
+  public void lateBoot() {}
   
   /**
    * Attempt to quickly acquire the lock, and if that fails, call
@@ -127,6 +127,20 @@ public abstract class AbstractThinLockPlan implements Constants, ThinLockConstan
         return;
       }
     }
+  }
+  
+  @Inline
+  public boolean lockHeader(Object obj, Offset lockOffset) {
+    return false;
+  }
+  
+  @Inline
+  public void unlockHeader(Object obj, Offset lockOffset) {
+  }
+  
+  @Inline
+  public boolean allowHeaderCAS(Object o, Offset lockOffset) {
+    return true;
   }
 }
 

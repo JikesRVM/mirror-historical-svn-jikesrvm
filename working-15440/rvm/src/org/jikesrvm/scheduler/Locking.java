@@ -106,7 +106,23 @@ public final class Locking implements ThinLockConstants {
   public static boolean holdsLock(Object obj, Offset lockOffset, RVMThread thread) {
     return LockConfig.selectedThinPlan.holdsLock(obj,lockOffset,thread);
   }
-
+  
+  /**
+   * Lock the header word.  Returns true if the word is exclusive to us, meaning
+   * that we don't have to CAS.
+   */
+  public static boolean lockHeader(Object obj, Offset lockOffset) {
+    return LockConfig.selectedThinPlan.lockHeader(obj, lockOffset);
+  }
+  
+  public static void unlockHeader(Object obj, Offset lockOffset) {
+    LockConfig.selectedThinPlan.unlockHeader(obj, lockOffset);
+  }
+  
+  public static boolean allowHeaderCAS(Object obj, Offset lockOffset) {
+    return LockConfig.selectedThinPlan.allowHeaderCAS(obj, lockOffset);
+  }
+  
   /**
    * Obtains the heavy-weight lock, if there is one, associated with the
    * indicated object.  Returns <code>null</code>, if there is no

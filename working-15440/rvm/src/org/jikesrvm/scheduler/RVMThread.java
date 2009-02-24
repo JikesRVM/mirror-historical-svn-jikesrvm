@@ -377,6 +377,8 @@ public class RVMThread extends ThreadContext {
    */
   @Entrypoint
   public int threadSlot;
+  
+  public int lockingId;
 
   /**
    * Thread is a system thread, that is one used by the system and as such
@@ -973,6 +975,8 @@ public class RVMThread extends ThreadContext {
 
   /** In dump stack and dying */
   protected static boolean exitInProgress = false;
+  
+  private static boolean worldStopped;
 
   /** Extra debug from traces */
   protected static final boolean traceDetails = false;
@@ -984,7 +988,7 @@ public class RVMThread extends ThreadContext {
   public static final int PRIMORDIAL_THREAD_INDEX = 1;
 
   /** Maximum number of RVMThread's that we can support. */
-  public static final int LOG_MAX_THREADS = 14;
+  public static final int LOG_MAX_THREADS = 10;
 
   public static final int MAX_THREADS = 1 << LOG_MAX_THREADS;
 
@@ -1370,6 +1374,7 @@ public class RVMThread extends ThreadContext {
 
       acctLock.unlock();
     }
+    lockingId = threadSlot << ThinLockConstants.TL_THREAD_ID_SHIFT;
     if (traceAcct) {
       VM.sysWriteln("Thread #", threadSlot, " at ", Magic.objectAsAddress(this));
       VM.sysWriteln("stack at ", Magic.objectAsAddress(stack), " up to ", Magic.objectAsAddress(stack).plus(stack.length));
@@ -2988,15 +2993,7 @@ public class RVMThread extends ThreadContext {
    * so it can be directly used in the ownership tests.
    */
   public final int getLockingId() {
-    if (VM.VerifyAssertions) {
-      RVMThread hypotheticalThis=threadBySlot[threadSlot];
-      if (hypotheticalThis!=this) {
-        VM.sysWriteln("this = ",Magic.objectAsAddress(this));
-        VM.sysWriteln("hypothetical this = ",Magic.objectAsAddress(hypotheticalThis));
-      }
-      VM._assert(hypotheticalThis == this);
-    }
-    return threadSlot << ThinLockConstants.TL_THREAD_ID_SHIFT;
+    return lockingId;
   }
 
   @Uninterruptible
@@ -3279,6 +3276,7 @@ public class RVMThread extends ThreadContext {
         handshakeThreads[i]=null; // help GC
       }
     }
+    worldStopped=true;
     handshakeLock.unlock();
 
     processAboutToTerminate(); /*
@@ -3293,6 +3291,7 @@ public class RVMThread extends ThreadContext {
   public static void hardHandshakeResume(HardHandshakeVisitor hhv) {
     RVMThread current=getCurrentThread();
     handshakeLock.lockNicely();
+    worldStopped=false;
     acctLock.lock();
     int numToHandshake=0;
     for (int i=0;i<numThreads;++i) {
@@ -3309,6 +3308,10 @@ public class RVMThread extends ThreadContext {
       handshakeThreads[i]=null; // help GC
     }
     handshakeLock.unlock();
+  }
+  
+  public static boolean worldStopped() {
+    return worldStopped;
   }
 
   /**

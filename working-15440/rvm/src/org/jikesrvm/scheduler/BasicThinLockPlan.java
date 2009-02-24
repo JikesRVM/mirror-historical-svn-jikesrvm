@@ -29,6 +29,11 @@ import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
+/**
+ * This is a "basic" implementation of thin locks that actually ends up
+ * performing really well.  This was the production thin locking implementation
+ * in RVM before the lock refactoring.
+ */
 public class BasicThinLockPlan extends AbstractThinLockPlan {
   public static BasicThinLockPlan instance;
 
@@ -36,9 +41,18 @@ public class BasicThinLockPlan extends AbstractThinLockPlan {
     instance=this;
   }
   
-  public void init() {}
-  public void boot() {}
-  public void lateBoot() {}
+  public void init() {
+    if (false) {
+      VM.sysWriteln("lock count mask: ",TL_LOCK_COUNT_MASK);
+      VM.sysWriteln("thread id mask: ",TL_THREAD_ID_MASK);
+      VM.sysWriteln("lock id mask: ",TL_LOCK_ID_MASK);
+      VM.sysWriteln("fat lock mask: ",TL_FAT_LOCK_MASK);
+      VM.sysWriteln("unlock mask: ",TL_UNLOCK_MASK);
+    }
+  }
+  
+  public void boot() {
+  }
   
   /**
    * Obtains a lock on the indicated object.  Abbreviated light-weight
@@ -138,7 +152,10 @@ public class BasicThinLockPlan extends AbstractThinLockPlan {
   }
 
   @NoInline
+  @NoNullcheck
   public void lock(Object o, Offset lockOffset) {
+    Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
+    
     for (;;) {
       // the idea:
       // - if the lock is uninflated and unclaimed attempt to grab it the thin way
@@ -147,7 +164,6 @@ public class BasicThinLockPlan extends AbstractThinLockPlan {
       //   do the slow path of acquisition
       // - if the lock is inflated, grab it.
       
-      Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
       Word old = Magic.prepareWord(o, lockOffset);
       Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
       if (id.isZero()) {
@@ -184,12 +200,13 @@ public class BasicThinLockPlan extends AbstractThinLockPlan {
   }
   
   @NoInline
+  @NoNullcheck
   public void unlock(Object o, Offset lockOffset) {
     Magic.sync();
+    Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
     for (;;) {
       Word old = Magic.prepareWord(o, lockOffset);
       Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
-      Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
       if (id.EQ(threadId)) {
         if (old.and(TL_LOCK_COUNT_MASK).isZero()) {
           // release lock

@@ -432,6 +432,7 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
   /**
    * Get the hash code of an object.
    */
+  @Interruptible
   public static int getObjectHashCode(Object o) {
     if (HASH_STATS) hashRequests++;
     return JavaHeader.getObjectHashCode(o);

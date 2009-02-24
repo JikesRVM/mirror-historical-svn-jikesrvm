@@ -36,7 +36,7 @@ import org.vmmagic.unboxed.Word;
 public interface ThinLockConstants extends SizeConstants {
 
   int NUM_BITS_TID = RVMThread.LOG_MAX_THREADS;
-  int NUM_BITS_RC = JavaHeader.NUM_THIN_LOCK_BITS - NUM_BITS_TID;
+  int NUM_BITS_RC = JavaHeader.NUM_THIN_LOCK_BITS - NUM_BITS_TID - 1;
 
   int TL_LOCK_COUNT_SHIFT = JavaHeader.THIN_LOCK_SHIFT;
   int TL_THREAD_ID_SHIFT = TL_LOCK_COUNT_SHIFT + NUM_BITS_RC;
@@ -47,8 +47,8 @@ public interface ThinLockConstants extends SizeConstants {
   Word TL_LOCK_COUNT_MASK = Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - NUM_BITS_RC).lsh(TL_LOCK_COUNT_SHIFT);
   Word TL_THREAD_ID_MASK = Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - NUM_BITS_TID).lsh(TL_THREAD_ID_SHIFT);
   Word TL_LOCK_ID_MASK =
-      Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - (NUM_BITS_RC + NUM_BITS_TID - 1)).lsh(TL_LOCK_ID_SHIFT);
-  Word TL_FAT_LOCK_MASK = Word.one().lsh(JavaHeader.THIN_LOCK_SHIFT + NUM_BITS_RC + NUM_BITS_TID - 1);
+      Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - (NUM_BITS_RC + NUM_BITS_TID)).lsh(TL_LOCK_ID_SHIFT);
+  Word TL_FAT_LOCK_MASK = Word.one().lsh(JavaHeader.THIN_LOCK_SHIFT + NUM_BITS_RC + NUM_BITS_TID);
   Word TL_UNLOCK_MASK = Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - JavaHeader
       .NUM_THIN_LOCK_BITS).lsh(JavaHeader.THIN_LOCK_SHIFT).not();
 }

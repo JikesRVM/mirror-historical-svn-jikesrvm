@@ -492,6 +492,7 @@ public class JavaHeader implements JavaHeaderConstants {
    * Get the hash code of an object.
    */
   @Inline
+  @Interruptible
   public static int getObjectHashCode(Object o) {
     if (ADDRESS_BASED_HASHING) {
       if (MemoryManagerConstants.MOVES_OBJECTS) {
@@ -513,10 +514,17 @@ public class JavaHeader implements JavaHeaderConstants {
           }
         } else {
           // UNHASHED
-          Word tmp;
-          do {
-            tmp = Magic.prepareWord(o, STATUS_OFFSET);
-          } while (!Magic.attemptWord(o, STATUS_OFFSET, tmp, tmp.or(HASH_STATE_HASHED)));
+          if (Locking.lockHeader(o, STATUS_OFFSET)) {
+            Magic.setWordAtOffset(
+              o, STATUS_OFFSET,
+              Magic.getWordAtOffset(o, STATUS_OFFSET).or(HASH_STATE_HASHED));
+          } else {
+            Word tmp;
+            do {
+              tmp = Magic.prepareWord(o, STATUS_OFFSET);
+            } while (!Magic.attemptWord(o, STATUS_OFFSET, tmp, tmp.or(HASH_STATE_HASHED)));
+          }
+          Locking.unlockHeader(o, STATUS_OFFSET);
           if (ObjectModel.HASH_STATS) ObjectModel.hashTransition1++;
           return getObjectHashCode(o);
         }
@@ -534,20 +542,35 @@ public class JavaHeader implements JavaHeaderConstants {
 
   /** Install a new hashcode (only used if !ADDRESS_BASED_HASHING) */
   @NoInline
+  @Interruptible
   protected static int installHashCode(Object o) {
     Word hashCode;
     do {
       hashCodeGenerator = hashCodeGenerator.plus(Word.one().lsh(HASH_CODE_SHIFT));
       hashCode = hashCodeGenerator.and(HASH_CODE_MASK);
     } while (hashCode.isZero());
-    while (true) {
-      Word statusWord = Magic.prepareWord(o, STATUS_OFFSET);
+    if (Locking.lockHeader(o, STATUS_OFFSET)) {
+      Word statusWord = Magic.getWordAtOffset(o, STATUS_OFFSET);
       if (!(statusWord.and(HASH_CODE_MASK).isZero())) // some other thread installed a hashcode
       {
+        Locking.unlockHeader(o, STATUS_OFFSET);
         return statusWord.and(HASH_CODE_MASK).rshl(HASH_CODE_SHIFT).toInt();
       }
-      if (Magic.attemptWord(o, STATUS_OFFSET, statusWord, statusWord.or(hashCode))) {
-        return hashCode.rshl(HASH_CODE_SHIFT).toInt();  // we installed the hash code
+      Magic.setWordAtOffset(o, STATUS_OFFSET, statusWord.or(hashCode));
+      Locking.unlockHeader(o, STATUS_OFFSET);
+      return hashCode.rshl(HASH_CODE_SHIFT).toInt();  // we installed the hash code
+    } else {
+      while (true) {
+        Word statusWord = Magic.prepareWord(o, STATUS_OFFSET);
+        if (!(statusWord.and(HASH_CODE_MASK).isZero())) // some other thread installed a hashcode
+        {
+          Locking.unlockHeader(o, STATUS_OFFSET);
+          return statusWord.and(HASH_CODE_MASK).rshl(HASH_CODE_SHIFT).toInt();
+        }
+        if (Magic.attemptWord(o, STATUS_OFFSET, statusWord, statusWord.or(hashCode))) {
+          Locking.unlockHeader(o, STATUS_OFFSET);
+          return hashCode.rshl(HASH_CODE_SHIFT).toInt();  // we installed the hash code
+        }
       }
     }
   }
@@ -686,6 +709,8 @@ public class JavaHeader implements JavaHeaderConstants {
    * A prepare on the word containing the available bits
    */
   public static Word prepareAvailableBits(Object o) {
+    if (VM.VerifyAssertions) VM._assert(
+      RVMThread.worldStopped() || Locking.allowHeaderCAS(o, STATUS_OFFSET));
     return Magic.prepareWord(o, STATUS_OFFSET);
   }
 
@@ -693,6 +718,8 @@ public class JavaHeader implements JavaHeaderConstants {
    * An attempt on the word containing the available bits
    */
   public static boolean attemptAvailableBits(Object o, Word oldVal, Word newVal) {
+    if (VM.VerifyAssertions) VM._assert(
+      RVMThread.worldStopped() || Locking.allowHeaderCAS(o, STATUS_OFFSET));
     return Magic.attemptWord(o, STATUS_OFFSET, oldVal, newVal);
   }
 
