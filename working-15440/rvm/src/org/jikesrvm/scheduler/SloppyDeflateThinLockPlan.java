@@ -55,82 +55,6 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
     pdt.start();
   }
 
-  @NoInline
-  public void lock(Object o, Offset lockOffset) {
-    for (;;) {
-      // the idea:
-      // - if the lock is uninflated and unclaimed attempt to grab it the thin way
-      // - if the lock is uninflated and claimed by me, attempt to increase rec count
-      // - if the lock is uninflated and claimed by someone else, inflate it and
-      //   do the slow path of acquisition
-      // - if the lock is inflated, grab it.
-      
-      Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
-      Word old = Magic.prepareWord(o, lockOffset);
-      Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
-      if (id.isZero()) {
-        // lock not held, acquire quickly with rec count == 1
-        if (Magic.attemptWord(o, lockOffset, old, old.or(threadId))) {
-          Magic.isync();
-          return;
-        }
-      } else if (id.EQ(threadId)) {
-        // lock held, attempt to increment rec count
-        Word changed = old.toAddress().plus(TL_LOCK_COUNT_UNIT).toWord();
-        if (!changed.and(TL_LOCK_COUNT_MASK).isZero() &&
-            Magic.attemptWord(o, lockOffset, old, changed)) {
-          Magic.isync();
-          return;
-        }
-      } else if (!old.and(TL_FAT_LOCK_MASK).isZero()) {
-        // we have a heavy lock.
-        if (getLock(getLockIndex(old)).lockHeavy(o)) {
-          return;
-        } // else we grabbed someone else's lock
-      } else {
-        // the lock is not fat, is owned by someone else, or else the count wrapped.
-        // attempt to inflate it (this may fail, in which case we'll just harmlessly
-        // loop around).  if it succeeds, we loop around anyway, so that we can
-        // grab the lock the fat way.
-        inflate(o, lockOffset);
-      }
-    }
-  }
-  
-  @NoInline
-  public void unlock(Object o, Offset lockOffset) {
-    Magic.sync();
-    for (;;) {
-      Word old = Magic.prepareWord(o, lockOffset);
-      Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
-      Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
-      if (id.EQ(threadId)) {
-        if (old.and(TL_LOCK_COUNT_MASK).isZero()) {
-          // release lock
-          Word changed = old.and(TL_UNLOCK_MASK);
-          if (Magic.attemptWord(o, lockOffset, old, changed)) {
-            return;
-          }
-        } else {
-          // decrement count
-          Word changed = old.toAddress().minus(TL_LOCK_COUNT_UNIT).toWord();
-          if (Magic.attemptWord(o, lockOffset, old, changed)) {
-            return; // unlock succeeds
-          }
-        }
-      } else {
-        if (old.and(TL_FAT_LOCK_MASK).isZero()) {
-          // someone else holds the lock in thin mode and it's not us.  that indicates
-          // bad use of monitorenter/monitorexit
-          RVMThread.raiseIllegalMonitorStateException("thin unlocking", o);
-        }
-        // fat unlock
-        getLock(getLockIndex(old)).unlockHeavy();
-        return;
-      }
-    }
-  }
-  
   protected SloppyDeflateThinLock inflate(Object o, Offset lockOffset) {
     // the idea:
     // attempt to allocate fat lock, extract the
@@ -146,11 +70,11 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
     // that case, it cannot be deflated.
     
     for (;;) {
-      Word old = Magic.getWordAtOffset(o, lockOffset);
-      Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
+      Word bits = Magic.getWordAtOffset(o, lockOffset);
       
-      if (!old.and(TL_FAT_LOCK_MASK).isZero()) {
-        return (SloppyDeflateThinLock)getLock(getLockIndex(old));
+      if (LockConfig.selectedThinPlan.isFat(bits)) {
+        return (SloppyDeflateThinLock)Magic.eatCast(
+          getLock(LockConfig.selectedThinPlan.getLockIndex(bits)));
       }
       
       SloppyDeflateThinLock l=(SloppyDeflateThinLock)allocate();
@@ -166,12 +90,12 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
       // immediately, since they'll notice that the locked object is not the one they
       // wanted.
       
-      if (id.isZero()) {
+      if (LockConfig.selectedThinPlan.getLockOwner(bits)==0) {
         l.setUnlockedState();
       } else {
         l.setLockedState(
-          old.and(TL_THREAD_ID_MASK).toInt(),
-          old.and(TL_LOCK_COUNT_MASK).rshl(TL_LOCK_COUNT_SHIFT).toInt() + 1);
+          LockConfig.selectedThinPlan.getLockOwner(bits),
+          LockConfig.selectedThinPlan.getRecCount(bits));
         // the lock is now acquired - on behalf of the thread that owned the thin
         // lock.  crazy.  what if that thread then tries to acquire this lock thinking
         // it belongs to a different object?
@@ -189,30 +113,14 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
       // the lock is now "active" - so the deflation detector thingy will see it, but it
       // will also see that the lock is held.
       
-      Word changed=
-        TL_FAT_LOCK_MASK.or(Word.fromIntZeroExtend(l.id).lsh(TL_LOCK_ID_SHIFT))
-        .or(old.and(TL_UNLOCK_MASK));
-      
-      if (Synchronization.tryCompareAndSwap(o, lockOffset, old, changed)) {
+      if (LockConfig.selectedThinPlan.attemptToMarkInflated(
+            o, lockOffset, bits, l.id)) {
         if (trace) VM.tsysWriteln("inflated a lock.");
         return l;
       } else {
         // need to "deactivate" the lock here.
         free(l);
       }
-    }
-  }
-  
-  public AbstractLock getHeavyLock(Object o, Offset lockOffset, boolean create) {
-    Word old = Magic.getWordAtOffset(o, lockOffset);
-    if (!(old.and(TL_FAT_LOCK_MASK).isZero())) { // already a fat lock in place
-      return getLock(getLockIndex(old));
-    } else if (create) {
-      AbstractLock result=inflate(o, lockOffset);
-      if (VM.VerifyAssertions) VM._assert(result!=null);
-      return result;
-    } else {
-      return null;
     }
   }
   
