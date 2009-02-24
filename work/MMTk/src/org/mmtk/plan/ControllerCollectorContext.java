@@ -12,7 +12,9 @@
  */
 package org.mmtk.plan;
 
+import org.mmtk.utility.Log;
 import org.mmtk.utility.heap.HeapGrowthManager;
+import org.mmtk.utility.options.Options;
 import org.mmtk.vm.HeavyCondLock;
 import org.mmtk.vm.VM;
 
@@ -59,12 +61,15 @@ public class ControllerCollectorContext extends CollectorContext {
   public void run() {
     while(true) {
       // Wait for a collection request.
+      if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Waiting for request...]");
       waitForRequest();
+      if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Request recieved.]");
 
       // The start time.
       long startTime = VM.statistics.nanoTime();
 
       // Stop all mutator threads
+      if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Stopping the world...]");
       VM.collection.stopAllMutators();
 
       // Was this user triggered?
@@ -74,10 +79,12 @@ public class ControllerCollectorContext extends CollectorContext {
       clearRequest();
 
       // Trigger GC.
+      if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Triggering worker threads...]");
       workers.triggerCycle();
 
       // Wait for GC threads to complete.
       workers.waitForCycle();
+      if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Worker threads complete!]");
 
       // Heap growth logic
       long elapsedTime = VM.statistics.nanoTime() - startTime;
@@ -85,12 +92,14 @@ public class ControllerCollectorContext extends CollectorContext {
       if (VM.activePlan.global().lastCollectionFullHeap()) {
         if (!userTriggeredCollection) {
           // Don't consider changing the heap size if the application triggered the collection
+          if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Considering heap size.]");
           HeapGrowthManager.considerHeapSize();
         }
         HeapGrowthManager.reset();
       }
 
       // Resume all mutators
+      if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Resuming mutators...]");
       VM.collection.resumeAllMutators();
     }
   }
