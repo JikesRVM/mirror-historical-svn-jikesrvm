@@ -29,13 +29,13 @@ import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
-public class EagerDeflateThinLock extends CommonLock {
+public class EagerDeflateLock extends CommonLock {
   @Entrypoint
   int mutex;
 
   private ThreadQueue entering;
   
-  public EagerDeflateThinLock() {
+  public EagerDeflateLock() {
   }
   
   protected ThreadQueue entering() {
@@ -56,7 +56,7 @@ public class EagerDeflateThinLock extends CommonLock {
   @NoNullCheck
   public final boolean lockHeavy(Object o) {
     if (CommonLockPlan.PROFILE) RVMThread.enterLockingPath();
-    if (EagerDeflateThinLockPlan.tentativeMicrolocking) {
+    if (EagerDeflateLockPlan.tentativeMicrolocking) {
       if (!Synchronization.tryAcquireLock(
             this,Entrypoints.eagerDeflateThinLockMutexField.getOffset())) {
         if (CommonLockPlan.PROFILE) RVMThread.leaveLockingPath();
@@ -163,7 +163,7 @@ public class EagerDeflateThinLock extends CommonLock {
     if (CommonLockPlan.HEAVY_STATS) CommonLockPlan.deflations++;
     LockConfig.selectedThinPlan.markDeflated(o, lockOffset);
     lockedObject = null;
-    EagerDeflateThinLockPlan.instance.free(this);
+    EagerDeflateLockPlan.instance.free(this);
   }
   
   protected final void lockState() {

@@ -29,12 +29,12 @@ import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
-public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
-  public static SloppyDeflateThinLockPlan instance;
+public class SloppyDeflateLockPlan extends CommonThinLockPlan {
+  public static SloppyDeflateLockPlan instance;
   
   protected HeavyCondLock deflateLock;
   
-  public SloppyDeflateThinLockPlan() {
+  public SloppyDeflateLockPlan() {
     instance=this;
   }
   
@@ -55,7 +55,7 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
     pdt.start();
   }
 
-  protected SloppyDeflateThinLock inflate(Object o, Offset lockOffset) {
+  protected SloppyDeflateLock inflate(Object o, Offset lockOffset) {
     // the idea:
     // attempt to allocate fat lock, extract the
     // state of the thin lock and put it into the fat lock, mark the lock as active
@@ -73,11 +73,11 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
       Word bits = Magic.getWordAtOffset(o, lockOffset);
       
       if (LockConfig.selectedThinPlan.isFat(bits)) {
-        return (SloppyDeflateThinLock)Magic.eatCast(
+        return (SloppyDeflateLock)Magic.eatCast(
           getLock(LockConfig.selectedThinPlan.getLockIndex(bits)));
       }
       
-      SloppyDeflateThinLock l=(SloppyDeflateThinLock)allocate();
+      SloppyDeflateLock l=(SloppyDeflateLock)allocate();
       if (l==null) {
         // allocation failed, give up
         return null;
@@ -132,7 +132,7 @@ public class SloppyDeflateThinLockPlan extends CommonThinLockPlan {
     }
     deflateLock.lockNicely();
     for (int i=0;i<numLocks();++i) {
-      SloppyDeflateThinLock l=(SloppyDeflateThinLock)getLock(i);
+      SloppyDeflateLock l=(SloppyDeflateLock)getLock(i);
       if (l!=null) {
         if (l.pollDeflate(useThreshold)) {
           cnt++;

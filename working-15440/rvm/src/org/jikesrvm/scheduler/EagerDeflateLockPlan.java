@@ -28,10 +28,10 @@ import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
-public class EagerDeflateThinLockPlan extends CommonLockPlan {
-  public static EagerDeflateThinLockPlan instance;
+public class EagerDeflateLockPlan extends CommonLockPlan {
+  public static EagerDeflateLockPlan instance;
   
-  public EagerDeflateThinLockPlan() {
+  public EagerDeflateLockPlan() {
     instance=this;
   }
   
@@ -61,16 +61,16 @@ public class EagerDeflateThinLockPlan extends CommonLockPlan {
    * @return the heavy-weight lock on this object
    */
   @NoNullCheck
-  public final EagerDeflateThinLock inflate(Object o, Offset lockOffset) {
+  public final EagerDeflateLock inflate(Object o, Offset lockOffset) {
     if (PROFILE) RVMThread.enterLockingPath();
     if (VM.VerifyAssertions) {
       VM._assert(holdsLock(o, lockOffset, RVMThread.getCurrentThread()));
     }
-    EagerDeflateThinLock l = (EagerDeflateThinLock)Magic.eatCast(allocateActivateAndAdd());
+    EagerDeflateLock l = (EagerDeflateLock)Magic.eatCast(allocateActivateAndAdd());
     if (VM.VerifyAssertions) {
       VM._assert(l != null); // inflate called by wait (or notify) which shouldn't be called during GC
     }
-    EagerDeflateThinLock rtn = attemptToInflate(o, lockOffset, l);
+    EagerDeflateLock rtn = attemptToInflate(o, lockOffset, l);
     if (rtn == l)
       l.unlockState();
     if (PROFILE) RVMThread.leaveLockingPath();
@@ -89,9 +89,9 @@ public class EagerDeflateThinLockPlan extends CommonLockPlan {
    */
   @NoNullCheck
   protected final boolean inflateAndLock(Object o, Offset lockOffset) {
-    EagerDeflateThinLock l = (EagerDeflateThinLock)Magic.eatCast(allocateActivateAndAdd());
+    EagerDeflateLock l = (EagerDeflateLock)Magic.eatCast(allocateActivateAndAdd());
     if (l == null) return false; // can't allocate locks during GC
-    EagerDeflateThinLock rtn = attemptToInflate(o, lockOffset, l);
+    EagerDeflateLock rtn = attemptToInflate(o, lockOffset, l);
     if (l != rtn) {
       l = rtn;
       l.lockState();
@@ -111,9 +111,9 @@ public class EagerDeflateThinLockPlan extends CommonLockPlan {
    *         was inflated by some other thread.
    */
   @NoNullCheck
-  protected final EagerDeflateThinLock attemptToInflate(Object o,
+  protected final EagerDeflateLock attemptToInflate(Object o,
                                                         Offset lockOffset,
-                                                        EagerDeflateThinLock l) {
+                                                        EagerDeflateLock l) {
     if (PROFILE) RVMThread.enterLockingPath();
     Word old;
     l.lockState();
@@ -126,7 +126,7 @@ public class EagerDeflateThinLockPlan extends CommonLockPlan {
                         ": freeing lock ",Magic.objectAsAddress(l),
                         " because we had a double-inflate");
         }
-        EagerDeflateThinLock result = (EagerDeflateThinLock)
+        EagerDeflateLock result = (EagerDeflateLock)
           Magic.eatCast(getLock(LockConfig.selectedThinPlan.getLockIndex(old)));
         if (result==null ||
             result.lockedObject!=o) {

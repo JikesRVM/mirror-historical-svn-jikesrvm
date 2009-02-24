@@ -28,7 +28,7 @@ import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
-public class SloppyDeflateThinLock extends CommonLock {
+public class SloppyDeflateLock extends CommonLock {
   // WARNING: there is some code duplication with MMTk Lock
   
   /** The lock is not held by anyone and the queue is empty. */
@@ -57,7 +57,7 @@ public class SloppyDeflateThinLock extends CommonLock {
   
   protected int numHeavyUses;
   
-  public SloppyDeflateThinLock() {
+  public SloppyDeflateLock() {
     queue = new ThreadQueue();
   }
   
@@ -268,7 +268,7 @@ public class SloppyDeflateThinLock extends CommonLock {
           if (trace) VM.tsysWriteln("decided to deflate a lock.");
           LockConfig.selectedThinPlan.markDeflated(lockedObject, lockOffset);
           deactivate();
-          SloppyDeflateThinLockPlan.instance.free(this);
+          SloppyDeflateLockPlan.instance.free(this);
           return true;
         } else {
           numHeavyUses=0;
