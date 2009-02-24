@@ -45,6 +45,9 @@ public abstract class AbstractLockPlan implements Constants {
   public abstract void lateBoot();
   
   public abstract AbstractLock inflate(Object o, Offset lockOffset);
+  public AbstractLock inflate(Object o) {
+    return inflate(o, Magic.getObjectType(o).getThinLockOffset());
+  }
   
   public AbstractLock getLock(Object o, Offset lockOffset) {
     Word bits=Magic.getWordAtOffset(o,lockOffset);
@@ -55,6 +58,9 @@ public abstract class AbstractLockPlan implements Constants {
       }
     }
     return null;
+  }
+  public AbstractLock getLock(Object o) {
+    return getLock(o, Magic.getObjectType(o).getThinLockOffset());
   }
   
   public boolean inflateAndLock(Object o, Offset lockOffset) {

@@ -46,7 +46,7 @@ public final class Locking implements ThinLockConstants {
   @Entrypoint
   @NoNullCheck
   static void inlineLock(Object o, Offset lockOffset) {
-    LockConfig.selectedPlan.inlineLock(o,lockOffset);
+    LockConfig.selectedThinPlan.inlineLock(o,lockOffset);
   }
 
   /**
@@ -63,7 +63,7 @@ public final class Locking implements ThinLockConstants {
   @Entrypoint
   @NoNullCheck
   static void inlineUnlock(Object o, Offset lockOffset) {
-    LockConfig.selectedPlan.inlineUnlock(o,lockOffset);
+    LockConfig.selectedThinPlan.inlineUnlock(o,lockOffset);
   }
 
   /**
@@ -77,7 +77,7 @@ public final class Locking implements ThinLockConstants {
   @NoInline
   @NoNullCheck
   public static void lock(Object o, Offset lockOffset) {
-    LockConfig.selectedPlan.lock(o,lockOffset);
+    LockConfig.selectedThinPlan.lock(o,lockOffset);
   }
 
   /**
@@ -91,7 +91,7 @@ public final class Locking implements ThinLockConstants {
   @NoInline
   @NoNullCheck
   public static void unlock(Object o, Offset lockOffset) {
-    LockConfig.selectedPlan.unlock(o,lockOffset);
+    LockConfig.selectedThinPlan.unlock(o,lockOffset);
   }
 
   /**
@@ -104,7 +104,7 @@ public final class Locking implements ThinLockConstants {
   @Unpreemptible
   @NoNullCheck
   public static boolean holdsLock(Object obj, Offset lockOffset, RVMThread thread) {
-    return LockConfig.selectedPlan.holdsLock(obj,lockOffset,thread);
+    return LockConfig.selectedThinPlan.holdsLock(obj,lockOffset,thread);
   }
 
   /**
@@ -121,7 +121,11 @@ public final class Locking implements ThinLockConstants {
   public static AbstractLock getHeavyLock(Object o, 
                                           Offset lockOffset, 
                                           boolean create) {
-    return LockConfig.selectedPlan.getHeavyLock(o,lockOffset,create);
+    if (create) {
+      return LockConfig.selectedPlan.inflate(o,lockOffset);
+    } else {
+      return LockConfig.selectedPlan.getLock(o,lockOffset);
+    }
   }
 }
 

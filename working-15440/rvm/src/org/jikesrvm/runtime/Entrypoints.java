@@ -148,17 +148,17 @@ public class Entrypoints {
                "globalLocksFreed",
                int.class);
   
-  public static final RVMField sloppyDeflateThinLockStateField=
+  public static final RVMField sloppyDeflateLockStateField=
       (org.jikesrvm.scheduler.LockConfig.SELECTED ==
-       org.jikesrvm.scheduler.LockConfigs.SloppyDeflateThin)
-      ? getField(org.jikesrvm.scheduler.SloppyDeflateThinLock.class,
+       org.jikesrvm.scheduler.LockConfigs.SloppyDeflate)
+      ? getField(org.jikesrvm.scheduler.SloppyDeflateLock.class,
                  "state", int.class)
       : null;
 
-  public static final RVMField eagerDeflateThinLockMutexField=
+  public static final RVMField eagerDeflateLockMutexField=
       (org.jikesrvm.scheduler.LockConfig.SELECTED ==
-       org.jikesrvm.scheduler.LockConfigs.EagerDeflateThin)
-      ? getField(org.jikesrvm.scheduler.EagerDeflateThinLock.class,
+       org.jikesrvm.scheduler.LockConfigs.EagerDeflate)
+      ? getField(org.jikesrvm.scheduler.EagerDeflateLock.class,
                  "mutex", int.class)
       : null;
 

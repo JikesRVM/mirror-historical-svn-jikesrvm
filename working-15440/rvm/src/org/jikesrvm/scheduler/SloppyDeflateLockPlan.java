@@ -29,7 +29,7 @@ import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
-public class SloppyDeflateLockPlan extends CommonThinLockPlan {
+public class SloppyDeflateLockPlan extends CommonLockPlan {
   public static SloppyDeflateLockPlan instance;
   
   protected HeavyCondLock deflateLock;
@@ -55,7 +55,7 @@ public class SloppyDeflateLockPlan extends CommonThinLockPlan {
     pdt.start();
   }
 
-  protected SloppyDeflateLock inflate(Object o, Offset lockOffset) {
+  public SloppyDeflateLock inflate(Object o, Offset lockOffset) {
     // the idea:
     // attempt to allocate fat lock, extract the
     // state of the thin lock and put it into the fat lock, mark the lock as active

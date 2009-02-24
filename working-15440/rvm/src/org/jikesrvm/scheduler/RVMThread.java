@@ -636,6 +636,16 @@ public class RVMThread extends ThreadContext {
    * Is the thread blocked for handshake?
    */
   boolean isBlockedForHandshake;
+  
+  /**
+   * Should the thread block for a thread-to-thread communication?
+   */
+  boolean shouldBlockForCommunication;
+  
+  /**
+   * Is the thread blocked for thread-to-thread communication?
+   */
+  boolean isBlockedForCommunication;
 
   @Uninterruptible
   @NonMoving
@@ -722,8 +732,41 @@ public class RVMThread extends ThreadContext {
 
   public static final HandshakeBlockAdapter handshakeBlockAdapter = new HandshakeBlockAdapter();
 
+  @Uninterruptible
+  @NonMoving
+  public static class CommunicationBlockAdapter extends BlockAdapter {
+    boolean isBlocked(RVMThread t) {
+      return t.isBlockedForCommunication;
+    }
+
+    void setBlocked(RVMThread t, boolean value) {
+      t.isBlockedForCommunication = value;
+    }
+
+    int requestBlock(RVMThread t) {
+      if (!t.isBlockedForCommunication) {
+        t.shouldBlockForCommunication = true;
+      }
+      return 0;
+    }
+
+    boolean hasBlockRequest(RVMThread t) {
+      return t.shouldBlockForCommunication;
+    }
+
+    boolean hasBlockRequest(RVMThread t, int token) {
+      return t.shouldBlockForCommunication;
+    }
+
+    void clearBlockRequest(RVMThread t) {
+      t.shouldBlockForCommunication = false;
+    }
+  }
+
+  public static final CommunicationBlockAdapter communicationBlockAdapter = new CommunicationBlockAdapter();
+
   static final BlockAdapter[] blockAdapters = new BlockAdapter[] {
-      suspendBlockAdapter, handshakeBlockAdapter };
+    suspendBlockAdapter, handshakeBlockAdapter, communicationBlockAdapter };
 
   /**
    * An enumeration that describes the different manners in which a thread might
@@ -968,6 +1011,8 @@ public class RVMThread extends ThreadContext {
    * </ol>
    */
   private static final NoYieldpointsCondLock[] monitorBySlot = new NoYieldpointsCondLock[MAX_THREADS];
+  
+  private static final HeavyCondLock[] communicationLockBySlot = new HeavyCondLock[MAX_THREADS];
 
   /**
    * Lock (mutex) used for creating and destroying threads as well as thread
@@ -1073,6 +1118,17 @@ public class RVMThread extends ThreadContext {
   public NoYieldpointsCondLock monitor() {
     return monitorForSlot(threadSlot);
   }
+  
+  public HeavyCondLock communicationLockForSlot(int slot) {
+    HeavyCondLock result = communicationLockBySlot[slot];
+    if (VM.VerifyAssertions)
+      VM._assert(result != null);
+    return result;
+  }
+  
+  public HeavyCondLock communicationLock() {
+    return communicationLockForSlot(threadSlot);
+  }
 
   /**
    * Initialize the threading subsystem for the boot image.
@@ -1171,6 +1227,7 @@ public class RVMThread extends ThreadContext {
     handshakeLock = new HeavyCondLock();
     doProfileReport = new Latch(false);
     monitorBySlot[getCurrentThread().threadSlot] = new NoYieldpointsCondLock();
+    communicationLockBySlot[getCurrentThread().threadSlot] = new HeavyCondLock();
     sysCall.sysCreateThreadSpecificDataKeys();
     sysCall.sysStashVmThreadInPthread(getCurrentThread());
 
@@ -1296,6 +1353,9 @@ public class RVMThread extends ThreadContext {
       // it)
       if (monitorBySlot[threadSlot] == null) {
         monitorBySlot[threadSlot] = new NoYieldpointsCondLock();
+      }
+      if (communicationLockBySlot[threadSlot] == null) {
+        communicationLockBySlot[threadSlot] = new HeavyCondLock();
       }
       Magic.sync(); /*
                      * make sure that nobody sees the thread in any of the
@@ -1834,13 +1894,32 @@ public class RVMThread extends ThreadContext {
    * the thread signals to us the intention to die as we are trying to block it,
    * this will return TERMINATED. NOTE: the thread's execStatus will not
    * actually be TERMINATED at that point yet.
+   * <p>
+   * Note that this method is ridiculously dangerous, especially if you pass
+   * asynchronous==false.  Waiting for another thread to stop is not in itself
+   * interruptible - so if you ask another thread to block and they ask you
+   * to block, you might deadlock.  If you want to protect against this,
+   * use safeBlock().
+   * <p>
+   * Note that when stopping the whole world, using hardHandshakeSuspend(),
+   * we call either this method or safeBlock().  It's fine to call this method
+   * instead of block() if:
+   * <ul>
+   * <li>Only one thread may stop the world at a time (hardHanshakeSuspend()
+   *     guarantees this, so this condition is trivially met).
+   * <li>The thread doing the hardHandshakeSuspend() cannot itself be the
+   *     subject of a block() request from anything other than another
+   *     hardHandshakeSuspend().
+   * </ul>
+   * For now, however, we always use safeBlock() since that seems to be
+   * less error-prone.
    */
   @Unpreemptible("Only blocks if the receiver is the current thread, or if asynchronous is set to false and the thread is not already blocked")
   final int block(BlockAdapter ba, boolean asynchronous) {
     int result;
     if (traceBlock)
       VM.sysWriteln("Thread #", getCurrentThread().threadSlot,
-          " is requesting that thread #", threadSlot, " blocks.");
+                    " is requesting that thread #", threadSlot, " blocks.");
     monitor().lock();
     int token = ba.requestBlock(this);
     if (getCurrentThread() == this) {
@@ -1854,7 +1933,7 @@ public class RVMThread extends ThreadContext {
       if (isAboutToTerminate) {
         if (traceBlock)
           VM.sysWriteln("Thread #", threadSlot,
-              " is terminating, returning as if blocked in TERMINATED state.");
+                        " is terminating, returning as if blocked in TERMINATED state.");
         result = TERMINATED;
       } else {
         takeYieldpoint = 1;
@@ -1878,11 +1957,11 @@ public class RVMThread extends ThreadContext {
           if (!asynchronous) {
             if (traceBlock)
               VM.sysWriteln("Thread #", getCurrentThread().threadSlot,
-                  " is waiting for thread #", threadSlot, " to block.");
+                            " is waiting for thread #", threadSlot, " to block.");
             while (ba.hasBlockRequest(this, token) && !ba.isBlocked(this) && !isAboutToTerminate) {
               if (traceBlock)
                 VM.sysWriteln("Thread #", getCurrentThread().threadSlot,
-                    " is calling wait until thread #", threadSlot, " blocks.");
+                              " is calling wait until thread #", threadSlot, " blocks.");
               // will this deadlock when the thread dies?
               if (VM.VerifyAssertions) {
                 // do a timed wait, and assert that the thread did not disappear
@@ -1912,8 +1991,8 @@ public class RVMThread extends ThreadContext {
           // state accordingly and tell anyone who is waiting.
           if (traceBlock)
             VM.sysWriteln("Thread #", getCurrentThread().threadSlot,
-                " has seen thread #", threadSlot,
-                " in native; changing its status accordingly.");
+                          " has seen thread #", threadSlot,
+                          " in native; changing its status accordingly.");
           ba.clearBlockRequest(this);
           ba.setBlocked(this, true);
         }
@@ -1922,7 +2001,7 @@ public class RVMThread extends ThreadContext {
     monitor().unlock();
     if (traceBlock)
       VM.sysWriteln("Thread #", getCurrentThread().threadSlot,
-          " is done telling thread #", threadSlot, " to block.");
+                    " is done telling thread #", threadSlot, " to block.");
     return result;
   }
 
@@ -1943,6 +2022,57 @@ public class RVMThread extends ThreadContext {
   @Unpreemptible("May block if the receiver is the current thread or if the receiver is not yet blocked; otherwise does not perform actions that lead to blocking")
   public final int block(BlockAdapter ba) {
     return block(ba, false);
+  }
+  
+  @Unpreemptible
+  public void beginPairWith(RVMThread other) {
+    HeavyCondLock.lockNicely(communicationLock(),other.communicationLock());
+  }
+  
+  public void endPairWith(RVMThread other) {
+    communicationLock().unlock();
+    other.communicationLock().unlock();
+  }
+  
+  @Unpreemptible
+  public void beginPairWithCurrent() {
+    beginPairWith(getCurrentThread());
+  }
+  
+  public void endPairWithCurrent() {
+    endPairWith(getCurrentThread());
+  }
+  
+  @Unpreemptible
+  final int safeBlock(BlockAdapter ba, boolean asynchronous) {
+    beginPairWithCurrent();
+    int result=block(ba,asynchronous);
+    endPairWithCurrent();
+    return result;
+  }
+  
+  @Unpreemptible
+  public final int safeAsyncBlock(BlockAdapter ba) {
+    if (VM.VerifyAssertions)
+      VM._assert(getCurrentThread() != this);
+    return safeBlock(ba, true);
+  }
+  
+  @Unpreemptible
+  public final int safeBlock(BlockAdapter ba) {
+    return safeBlock(ba, false);
+  }
+  
+  @Unpreemptible
+  public final void beginPairHandshake() {
+    beginPairWithCurrent();
+    block(communicationBlockAdapter);
+  }
+  
+  @Uninterruptible
+  public final void endPairHandshake() {
+    unblock(communicationBlockAdapter);
+    endPairWithCurrent();
   }
 
   /**
@@ -2646,7 +2776,7 @@ public class RVMThread extends ThreadContext {
         throw new IllegalThreadStateException(
             "Cannot suspend a thread that is not running.");
       }
-      block(suspendBlockAdapter);
+      safeBlock(suspendBlockAdapter);
     } catch (Throwable t) {
       rethrow = t;
     } finally {
@@ -3128,7 +3258,7 @@ public class RVMThread extends ThreadContext {
         RVMThread t=handshakeThreads[i];
         t.monitor().lock();
         if (t.blockedFor(handshakeBlockAdapter) ||
-            notRunning(t.asyncBlock(handshakeBlockAdapter))) {
+            notRunning(t.safeAsyncBlock(handshakeBlockAdapter))) {
           // already blocked or not running, remove
           handshakeThreads[i--]=handshakeThreads[--numToHandshake];
           handshakeThreads[numToHandshake]=null; // help GC
@@ -3145,7 +3275,7 @@ public class RVMThread extends ThreadContext {
       if (numToHandshake==0) break;
       for (int i=0;i<numToHandshake;++i) {
         RVMThread t=handshakeThreads[i];
-        observeExecStatusAtSTW(t.block(handshakeBlockAdapter));
+        observeExecStatusAtSTW(t.safeBlock(handshakeBlockAdapter));
         handshakeThreads[i]=null; // help GC
       }
     }

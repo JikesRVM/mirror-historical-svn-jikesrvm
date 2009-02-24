@@ -64,7 +64,8 @@ public class EagerDeflateLockPlan extends CommonLockPlan {
   public final EagerDeflateLock inflate(Object o, Offset lockOffset) {
     if (PROFILE) RVMThread.enterLockingPath();
     if (VM.VerifyAssertions) {
-      VM._assert(holdsLock(o, lockOffset, RVMThread.getCurrentThread()));
+      VM._assert(LockConfig.selectedThinPlan.holdsLock(
+                   o, lockOffset, RVMThread.getCurrentThread()));
     }
     EagerDeflateLock l = (EagerDeflateLock)Magic.eatCast(allocateActivateAndAdd());
     if (VM.VerifyAssertions) {
@@ -88,7 +89,7 @@ public class EagerDeflateLockPlan extends CommonLockPlan {
    * @return whether the object was successfully locked
    */
   @NoNullCheck
-  protected final boolean inflateAndLock(Object o, Offset lockOffset) {
+  public final boolean inflateAndLock(Object o, Offset lockOffset) {
     EagerDeflateLock l = (EagerDeflateLock)Magic.eatCast(allocateActivateAndAdd());
     if (l == null) return false; // can't allocate locks during GC
     EagerDeflateLock rtn = attemptToInflate(o, lockOffset, l);
@@ -112,8 +113,8 @@ public class EagerDeflateLockPlan extends CommonLockPlan {
    */
   @NoNullCheck
   protected final EagerDeflateLock attemptToInflate(Object o,
-                                                        Offset lockOffset,
-                                                        EagerDeflateLock l) {
+                                                    Offset lockOffset,
+                                                    EagerDeflateLock l) {
     if (PROFILE) RVMThread.enterLockingPath();
     Word old;
     l.lockState();
@@ -127,7 +128,7 @@ public class EagerDeflateLockPlan extends CommonLockPlan {
                         " because we had a double-inflate");
         }
         EagerDeflateLock result = (EagerDeflateLock)
-          Magic.eatCast(getLock(LockConfig.selectedThinPlan.getLockIndex(old)));
+          Magic.eatCast(getLock(LockConfig.selectedThinPlan.getLockIndex(bits)));
         if (result==null ||
             result.lockedObject!=o) {
           continue; /* this is nasty.  this will happen when a lock

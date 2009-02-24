@@ -24,6 +24,7 @@ import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Unpreemptible;
+import org.vmmagic.pragma.NoNullCheck;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
@@ -59,7 +60,7 @@ public class BasicThinLockPlan extends AbstractThinLockPlan {
         int threadId = RVMThread.getCurrentThread().getLockingId();
         if (Magic.attemptWord(o, lockOffset, old, old.or(Word.fromIntZeroExtend(threadId)))) {
           Magic.isync(); // don't use stale prefetched data in monitor
-          if (HEAVY_STATS) fastLocks++;
+          if (CommonLockPlan.HEAVY_STATS) CommonLockPlan.fastLocks++;
           return;           // common case: o is now locked
         }
       }
@@ -71,7 +72,7 @@ public class BasicThinLockPlan extends AbstractThinLockPlan {
         int threadId = RVMThread.getCurrentThread().getLockingId();
         if (Magic.attemptWord(o, lockOffset, old, old.or(Word.fromIntZeroExtend(threadId)))) {
           Magic.isync(); // don't use stale prefetched data in monitor
-          if (HEAVY_STATS) fastLocks++;
+          if (CommonLockPlan.HEAVY_STATS) CommonLockPlan.fastLocks++;
           return;           // common case: o is now locked
         }
       } else {
@@ -81,7 +82,7 @@ public class BasicThinLockPlan extends AbstractThinLockPlan {
           if (!changed.and(TL_LOCK_COUNT_MASK).isZero() &&
               Magic.attemptWord(o, lockOffset, old, changed)) {
             Magic.isync();
-            if (HEAVY_STATS) fastLocks++;
+            if (CommonLockPlan.HEAVY_STATS) CommonLockPlan.fastLocks++;
             return;
           }
         }
@@ -166,8 +167,8 @@ public class BasicThinLockPlan extends AbstractThinLockPlan {
       } else if (!old.and(TL_FAT_LOCK_MASK).isZero()) {
         // we have a heavy lock.
         LockConfig.Selected l=(LockConfig.Selected)
-          LockConfig.selectedPlan.getLock(getLockIndexDefinite(old))
-        if (l.lockHeavy(o)) {
+          LockConfig.selectedPlan.getLock(getLockIndex(old));
+        if (l!=null && l.lockHeavy(o)) {
           return;
         } // else we grabbed someone else's lock
       } else {
@@ -211,7 +212,7 @@ public class BasicThinLockPlan extends AbstractThinLockPlan {
         }
         // fat unlock
         LockConfig.Selected l=(LockConfig.Selected)
-          LockConfig.selectedPlan.getLock(getLockIndexDefinite(old))
+          LockConfig.selectedPlan.getLock(getLockIndex(old));
         l.unlockHeavy();
         return;
       }
@@ -235,8 +236,8 @@ public class BasicThinLockPlan extends AbstractThinLockPlan {
       return (bits.and(ThinLockConstants.TL_THREAD_ID_MASK).toInt() == tid);
     } else {
       // if locked, then it is locked with a fat lock
-      int index = getLockIndexDefinite(bits);
-      Lock.Selected l = (Lock.Selected)
+      int index = getLockIndex(bits);
+      LockConfig.Selected l = (LockConfig.Selected)
         Magic.eatCast(LockConfig.selectedPlan.getLock(index));
       return l != null && l.holdsLock(obj, thread);
     }
@@ -245,7 +246,7 @@ public class BasicThinLockPlan extends AbstractThinLockPlan {
   @Inline
   @Unpreemptible
   public final boolean isFat(Word lockWord) {
-    return !bits.and(TL_FAT_LOCK_MASK).isZero();
+    return !lockWord.and(TL_FAT_LOCK_MASK).isZero();
   }
   
   /**
@@ -261,13 +262,13 @@ public class BasicThinLockPlan extends AbstractThinLockPlan {
   public final int getLockIndex(Word lockWord) {
     int index = lockWord.and(TL_LOCK_ID_MASK).rshl(TL_LOCK_ID_SHIFT).toInt();
     if (VM.VerifyAssertions) {
-      if (!(index > 0 && index < numLocks())) {
+      if (!(index > 0 && index < LockConfig.selectedPlan.numLocks())) {
         VM.sysWrite("Lock index out of range! Word: "); VM.sysWrite(lockWord);
         VM.sysWrite(" index: "); VM.sysWrite(index);
-        VM.sysWrite(" locks: "); VM.sysWrite(numLocks());
+        VM.sysWrite(" locks: "); VM.sysWrite(LockConfig.selectedPlan.numLocks());
         VM.sysWriteln();
       }
-      VM._assert(index > 0 && index < numLocks());  // index is in range
+      VM._assert(index > 0 && index < LockConfig.selectedPlan.numLocks());  // index is in range
       VM._assert(!lockWord.and(TL_FAT_LOCK_MASK).isZero());        // fat lock bit is set
     }
     return index;
@@ -276,13 +277,13 @@ public class BasicThinLockPlan extends AbstractThinLockPlan {
   @Inline
   @Unpreemptible
   public final int getLockOwner(Word lockWord) {
-    return bits.and(ThinLockConstants.TL_THREAD_ID_MASK).toInt();
+    return lockWord.and(ThinLockConstants.TL_THREAD_ID_MASK).toInt();
   }
   
   @Inline
   @Unpreemptible
   public final int getRecCount(Word lockWord) {
-    return old.and(TL_LOCK_COUNT_MASK).rshl(TL_LOCK_COUNT_SHIFT).toInt() + 1;
+    return lockWord.and(TL_LOCK_COUNT_MASK).rshl(TL_LOCK_COUNT_SHIFT).toInt() + 1;
   }
   
   @Inline
@@ -292,7 +293,7 @@ public class BasicThinLockPlan extends AbstractThinLockPlan {
                                              int lockId) {
     Word changed=
       TL_FAT_LOCK_MASK.or(Word.fromIntZeroExtend(lockId).lsh(TL_LOCK_ID_SHIFT))
-      .or(old.and(TL_UNLOCK_MASK));
+      .or(oldLockWord.and(TL_UNLOCK_MASK));
     return Synchronization.tryCompareAndSwap(o, lockOffset, oldLockWord, changed);
   }
   

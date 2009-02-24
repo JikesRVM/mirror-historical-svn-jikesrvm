@@ -58,7 +58,7 @@ public class EagerDeflateLock extends CommonLock {
     if (CommonLockPlan.PROFILE) RVMThread.enterLockingPath();
     if (EagerDeflateLockPlan.tentativeMicrolocking) {
       if (!Synchronization.tryAcquireLock(
-            this,Entrypoints.eagerDeflateThinLockMutexField.getOffset())) {
+            this,Entrypoints.eagerDeflateLockMutexField.getOffset())) {
         if (CommonLockPlan.PROFILE) RVMThread.leaveLockingPath();
         return false;
       }
@@ -167,11 +167,11 @@ public class EagerDeflateLock extends CommonLock {
   }
   
   protected final void lockState() {
-    Synchronization.acquireLock(this,Entrypoints.eagerDeflateThinLockMutexField.getOffset());
+    Synchronization.acquireLock(this,Entrypoints.eagerDeflateLockMutexField.getOffset());
   }
   
   protected final void unlockState() {
-    Synchronization.releaseLock(this,Entrypoints.eagerDeflateThinLockMutexField.getOffset());
+    Synchronization.releaseLock(this,Entrypoints.eagerDeflateLockMutexField.getOffset());
   }
   
   protected final void dumpBlockedThreads() {

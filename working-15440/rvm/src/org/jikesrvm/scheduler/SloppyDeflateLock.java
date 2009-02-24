@@ -94,7 +94,7 @@ public class SloppyDeflateLock extends CommonLock {
    * recursion.  Also does not do any Magic synchronization.
    */
   protected void acquireImpl() {
-    Offset offset=Entrypoints.sloppyDeflateThinLockStateField.getOffset();
+    Offset offset=Entrypoints.sloppyDeflateLockStateField.getOffset();
     for (int n=spinLimit();n-->0;) {
       int oldState=Magic.prepareInt(this,offset);
       if ((oldState==CLEAR &&
@@ -134,7 +134,7 @@ public class SloppyDeflateLock extends CommonLock {
    * recursion.  Also does not do any Magic synchronization.
    */
   protected void releaseImpl() {
-    Offset offset=Entrypoints.sloppyDeflateThinLockStateField.getOffset();
+    Offset offset=Entrypoints.sloppyDeflateLockStateField.getOffset();
     for (;;) {
       int oldState=Magic.prepareInt(this,offset);
       if (VM.VerifyAssertions) VM._assert((oldState&~QUEUEING_FLAG)==LOCKED ||
@@ -229,7 +229,7 @@ public class SloppyDeflateLock extends CommonLock {
   }
   
   protected void lockState() {
-    Offset offset=Entrypoints.sloppyDeflateThinLockStateField.getOffset();
+    Offset offset=Entrypoints.sloppyDeflateLockStateField.getOffset();
     for (;;) {
       int oldState=Magic.prepareInt(this,offset);
       if ((oldState&QUEUEING_FLAG)==0 &&

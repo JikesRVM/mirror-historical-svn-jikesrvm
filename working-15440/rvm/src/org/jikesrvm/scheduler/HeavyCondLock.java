@@ -413,10 +413,7 @@ public class HeavyCondLock {
     broadcast();
     unlock();
   }
-  // NOTE: these methods below used to have a purpose but that purpose
-  // disappeared as I was switching around designs.  I'm keeping these
-  // methods here because they may potentially be useful again, but it
-  // might be a good idea to ax them if they are truly without a use.
+
   @NoInline
   @NoOptCompile
   public static void lock(HeavyCondLock m1,Word priority1,
@@ -473,6 +470,70 @@ public class HeavyCondLock {
       return false;
     } else {
       l.lock();
+      return true;
+    }
+  }
+  @NoInline
+  @NoOptCompile
+  @Unpreemptible
+  public static void lockNicely(HeavyCondLock m1,Word priority1,
+                                HeavyCondLock m2,Word priority2) {
+    if (priority1.LE(priority2)) {
+      m1.lockNicely();
+      m2.lockNicely();
+    } else {
+      m2.lockNicely();
+      m1.lockNicely();
+    }
+  }
+  @NoInline
+  @NoOptCompile
+  @Unpreemptible
+  public static void lockNicely(HeavyCondLock m1,
+                                HeavyCondLock m2) {
+    lockNicely(m1,m1.mutex,
+               m2,m2.mutex);
+  }
+  @NoInline
+  @NoOptCompile
+  @Unpreemptible
+  public static void lockNicely(HeavyCondLock m1,Word priority1,
+                                HeavyCondLock m2,Word priority2,
+                                HeavyCondLock m3,Word priority3) {
+    if (priority1.LE(priority2) &&
+        priority1.LE(priority3)) {
+      m1.lockNicely();
+      lockNicely(m2,priority2,
+                 m3,priority3);
+    } else if (priority2.LE(priority1) &&
+               priority2.LE(priority3)) {
+      m2.lockNicely();
+      lockNicely(m1,priority1,
+                 m3,priority3);
+    } else {
+      m3.lockNicely();
+      lockNicely(m1,priority1,
+                 m2,priority2);
+    }
+  }
+  @NoInline
+  @NoOptCompile
+  @Unpreemptible
+  public static void lockNicely(HeavyCondLock m1,
+                                HeavyCondLock m2,
+                                HeavyCondLock m3) {
+    lockNicely(m1,m1.mutex,
+               m2,m2.mutex,
+               m3,m3.mutex);
+  }
+  @NoInline
+  @NoOptCompile
+  @Unpreemptible
+  public static boolean lockNicely(HeavyCondLock l) {
+    if (l==null) {
+      return false;
+    } else {
+      l.lockNicely();
       return true;
     }
   }

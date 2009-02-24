@@ -353,9 +353,9 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   }
 
   protected final void relock(Object o,int recCount) {
-    lock(o);
+    LockConfig.selectedThinPlan.lock(o);
     if (recCount!=1) {
-      ((CommonLock)Magic.eatCast(getHeavyLock(o,true))).setRecursionCount(recCount);
+      ((CommonLock)Magic.eatCast(inflate(o))).setRecursionCount(recCount);
     }
   }
   
@@ -373,7 +373,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     if (t.asyncThrowable != null) {
       throwThis = t.asyncThrowable;
       t.asyncThrowable = null;
-    } else if (!holdsLock(o, t)) {
+    } else if (!t.holdsLock(o)) {
       throw new IllegalMonitorStateException("waiting on " + o);
     } else if (t.hasInterrupt) {
       throwInterrupt = true;
@@ -381,7 +381,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     } else {
       t.waiting = hasTimeout ? RVMThread.Waiting.TIMED_WAITING : RVMThread.Waiting.WAITING;
       // get lock for object
-      CommonLock l = (CommonLock)Magic.eatCast(getHeavyLock(o, true));
+      CommonLock l = (CommonLock)Magic.eatCast(inflate(o));
       // this thread is supposed to own the lock on o
       if (VM.VerifyAssertions)
         VM._assert(l.getOwnerId() == t.getLockingId());
@@ -431,12 +431,14 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   public final void notify(Object o) {
     if (STATS)
       notifyOperations++;
-    CommonLock l=(CommonLock)Magic.eatCast(getHeavyLock(o, false));
-    if (l == null)
-      return;
-    if (l.getOwnerId() != RVMThread.getCurrentThread().getLockingId()) {
+    if (!RVMThread.getCurrentThread().holdsLock(o)) {
       RVMThread.raiseIllegalMonitorStateException("notifying", o);
     }
+    CommonLock l=(CommonLock)Magic.eatCast(getLock(o));
+    if (l == null)
+      return;
+    if (VM.VerifyAssertions)
+      VM._assert(l.getOwnerId() == RVMThread.getCurrentThread().getLockingId());
     l.lockState();
     RVMThread toAwaken = l.waitingDequeue();
     l.unlockState();
@@ -454,12 +456,14 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   public final void notifyAll(Object o) {
     if (STATS)
       notifyAllOperations++;
-    CommonLock l = (CommonLock)Magic.eatCast(getHeavyLock(o, false));
+    if (!RVMThread.getCurrentThread().holdsLock(o)) {
+      RVMThread.raiseIllegalMonitorStateException("notifying", o);
+    }
+    CommonLock l = (CommonLock)Magic.eatCast(getLock(o));
     if (l == null)
       return;
-    if (l.getOwnerId() != RVMThread.getCurrentThread().getLockingId()) {
-      RVMThread.raiseIllegalMonitorStateException("notifyAll", o);
-    }
+    if (VM.VerifyAssertions)
+      VM._assert(l.getOwnerId() == RVMThread.getCurrentThread().getLockingId());
     for (;;) {
       l.lockState();
       RVMThread toAwaken = l.waitingDequeue();

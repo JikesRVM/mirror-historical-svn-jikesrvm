@@ -126,6 +126,7 @@ public abstract class CommonLock extends AbstractLock {
     return lockedObject;
   }
   
+  @UnpreemptibleNoWarn
   public final boolean holdsLock(Object o, RVMThread thread) {
     lockState();
     boolean result = (lockedObject == o && thread.getLockingId()==getOwnerId());
