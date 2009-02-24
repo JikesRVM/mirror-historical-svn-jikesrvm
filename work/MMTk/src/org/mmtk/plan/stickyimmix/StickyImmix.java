@@ -19,7 +19,6 @@ import org.mmtk.utility.Log;
 import org.mmtk.utility.deque.SharedDeque;
 import org.mmtk.utility.options.Options;
 import org.mmtk.utility.statistics.Stats;
-import org.mmtk.vm.Collection;
 
 import org.vmmagic.pragma.*;
 

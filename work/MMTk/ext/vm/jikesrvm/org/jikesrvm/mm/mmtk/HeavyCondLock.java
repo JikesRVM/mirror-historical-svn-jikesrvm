@@ -22,7 +22,7 @@ import org.vmmagic.pragma.Uninterruptible;
 public final class HeavyCondLock extends org.mmtk.vm.HeavyCondLock {
 
   private final org.jikesrvm.scheduler.HeavyCondLock theLock;
-  
+
   public HeavyCondLock(String name) {
     this.theLock = new org.jikesrvm.scheduler.HeavyCondLock();
   }

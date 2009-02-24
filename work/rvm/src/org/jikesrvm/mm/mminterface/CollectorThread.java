@@ -12,26 +12,15 @@
  */
 package org.jikesrvm.mm.mminterface;
 
-import org.jikesrvm.VM;
-import org.jikesrvm.mm.mmtk.Collection;
-import org.jikesrvm.mm.mmtk.MMTk_Events;
 import org.jikesrvm.mm.mmtk.ScanThread;
-import org.jikesrvm.runtime.Magic;
-import org.jikesrvm.runtime.Time;
-import org.jikesrvm.scheduler.Synchronization;
 import org.jikesrvm.scheduler.RVMThread;
 import org.mmtk.plan.CollectorContext;
-import org.mmtk.plan.Plan;
 import org.vmmagic.pragma.BaselineNoRegisters;
 import org.vmmagic.pragma.BaselineSaveLSRegisters;
-import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.NoOptCompile;
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Unpreemptible;
-import org.vmmagic.pragma.UnpreemptibleNoWarn;
-import org.vmmagic.unboxed.Address;
-import org.vmmagic.unboxed.Offset;
 
 /**
  * System thread used to perform garbage collection work.
@@ -43,7 +32,7 @@ public final class CollectorThread extends RVMThread {
    *
    * Class variables
    */
-  
+
   /** The MMTk context associated with this thread */
   private CollectorContext context;
 

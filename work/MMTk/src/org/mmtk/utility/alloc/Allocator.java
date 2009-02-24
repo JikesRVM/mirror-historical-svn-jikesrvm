@@ -49,7 +49,7 @@ public abstract class Allocator implements Constants {
   private static int maxCollectionAttempts;
 
   /**
-   * @return the highest consecutive failure count for any allocating thread. 
+   * @return the highest consecutive failure count for any allocating thread.
    */
   public static int getMaxCollectionAttempts() {
     return maxCollectionAttempts;
@@ -62,7 +62,7 @@ public abstract class Allocator implements Constants {
     maxCollectionAttempts = 1;
     allocationSuccess = false;
   }
-  
+
   /**
    * Return the space this allocator is currently bound to.
    *
@@ -259,7 +259,7 @@ public abstract class Allocator implements Constants {
     while (true) {
       // Information about the previous collection.
       boolean emergencyCollection = Plan.isEmergencyCollection();
-      
+
       // Try to allocate using the slow path
       Address result = current.allocSlowOnce(bytes, alignment, offset);
 
@@ -278,12 +278,12 @@ public abstract class Allocator implements Constants {
         }
         return result;
       }
-      
+
       // Allocation failed!
       attempts++;
-      
+
       if (emergencyCollection) {
-        // Check if we are in an OutOfMemory situation 
+        // Check if we are in an OutOfMemory situation
         oomLock.acquire();
         boolean failWithOOM = !allocationSuccess;
         oomLock.release();
@@ -294,7 +294,7 @@ public abstract class Allocator implements Constants {
           return Address.zero();
         }
       } else if (attempts > 1) {
-        // Do we need to escalate the failure count? 
+        // Do we need to escalate the failure count?
         oomLock.acquire();
         if (attempts > maxCollectionAttempts) {
           maxCollectionAttempts = attempts;

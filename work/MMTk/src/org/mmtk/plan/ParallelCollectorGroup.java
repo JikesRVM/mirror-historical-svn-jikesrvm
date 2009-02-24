@@ -38,19 +38,19 @@ public class ParallelCollectorGroup implements Constants {
 
   /** Lock used to manage group state. */
   private HeavyCondLock lock;
-  
+
   /** The number of cycles triggered */
   private volatile int triggerCount;
-  
+
   /** The number of threads that are currently parked */
   private volatile int contextsParked;
-  
+
   /** Used to count threads during calls to rendezvous() */
   private int[] rendezvousCounter = new int[2];
-  
+
   /** Which rendezvous counter is currently in use */
   private volatile int currentRendezvousCounter;
-  
+
   /****************************************************************************
    *
    * Initialization
@@ -132,7 +132,7 @@ public class ParallelCollectorGroup implements Constants {
 
   /**
    * Is the given context and member of this group.
-   * 
+   *
    * @param context The context to pass.
    * @return True if the context is a member.
    */

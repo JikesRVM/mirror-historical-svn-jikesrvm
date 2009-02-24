@@ -153,7 +153,7 @@ public final class Factory extends org.mmtk.vm.Factory {
       return null; // never get here
     }
   }
-  
+
   /**
    * Create a new Memory instance using the appropriate VM-specific
    * concrete Memory sub-class.

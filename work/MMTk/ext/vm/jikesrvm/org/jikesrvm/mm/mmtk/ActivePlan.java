@@ -19,7 +19,6 @@ import org.mmtk.plan.PlanConstraints;
 import org.mmtk.utility.Log;
 
 import org.jikesrvm.VM;
-import org.jikesrvm.mm.mminterface.CollectorThread;
 import org.jikesrvm.mm.mminterface.Selected;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.RVMThread;

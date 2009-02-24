@@ -19,8 +19,6 @@ import org.mmtk.policy.immix.ImmixSpace;
 import org.mmtk.policy.immix.ObjectHeader;
 import org.mmtk.policy.Space;
 import org.mmtk.utility.heap.VMRequest;
-import org.mmtk.utility.options.Options;
-import org.mmtk.vm.Collection;
 
 import org.vmmagic.pragma.*;
 import org.vmmagic.unboxed.*;

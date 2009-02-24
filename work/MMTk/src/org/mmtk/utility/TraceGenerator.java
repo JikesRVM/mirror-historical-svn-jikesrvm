@@ -22,7 +22,6 @@ import org.mmtk.utility.options.Options;
 import org.mmtk.utility.options.TraceRate;
 
 import org.mmtk.vm.VM;
-import org.mmtk.vm.Collection;
 
 import org.vmmagic.pragma.*;
 import org.vmmagic.unboxed.*;

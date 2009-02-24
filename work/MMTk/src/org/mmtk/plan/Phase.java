@@ -16,7 +16,6 @@ import org.mmtk.utility.Constants;
 import org.mmtk.utility.Log;
 import org.mmtk.utility.options.Options;
 import org.mmtk.utility.statistics.Timer;
-import org.mmtk.vm.Collection;
 import org.mmtk.vm.VM;
 
 import org.vmmagic.pragma.*;
@@ -344,7 +343,7 @@ public abstract class Phase implements Constants {
    */
   public static boolean beginNewPhaseStack(int scheduledPhase) {
     int order = ((ParallelCollector)VM.activePlan.collector()).rendezvous();
-   
+
     if (order == 1) {
       pushScheduledPhase(scheduledPhase);
     }

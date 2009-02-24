@@ -1336,7 +1336,7 @@ public class RVMThread extends ThreadContext {
     */
    public RVMThread(byte[] stack, Thread thread, String name, boolean daemon, boolean system, int priority) {
     this.stack = stack;
-    
+
     this.daemon = daemon;
     this.priority = priority;
 

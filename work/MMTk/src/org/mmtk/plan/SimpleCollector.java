@@ -55,13 +55,6 @@ public abstract class SimpleCollector extends ParallelCollector {
    */
   @Inline
   public void collectionPhase(short phaseId, boolean primary) {
-    if (phaseId == Simple.PREPARE_STACKS) {
-      if (!Plan.stacksPrepared()) {
-        //VM.collection.prepareCollector(this);
-      }
-      return;
-    }
-
     if (phaseId == Simple.PREPARE) {
       // Nothing to do
       return;

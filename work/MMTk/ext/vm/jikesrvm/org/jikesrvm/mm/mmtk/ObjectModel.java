@@ -23,7 +23,6 @@ import org.jikesrvm.classloader.Atom;
 import org.jikesrvm.classloader.RVMArray;
 import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.RVMType;
-import org.jikesrvm.mm.mminterface.Selected;
 import org.jikesrvm.mm.mminterface.DebugUtil;
 import org.jikesrvm.mm.mminterface.MemoryManager;
 

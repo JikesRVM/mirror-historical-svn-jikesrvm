@@ -16,8 +16,6 @@ import org.mmtk.utility.Constants;
 import org.jikesrvm.runtime.Time;
 import static org.jikesrvm.runtime.SysCall.sysCall;
 
-import org.jikesrvm.mm.mminterface.MemoryManager;
-
 import org.vmmagic.pragma.*;
 
 @Uninterruptible public final class Statistics extends org.mmtk.vm.Statistics implements Constants {

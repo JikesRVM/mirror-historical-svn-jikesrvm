@@ -82,7 +82,6 @@ public abstract class Simple extends Plan implements Constants {
 
   /** Ensure stacks are ready to be scanned */
   protected static final short prepareStacks = Phase.createComplex("prepare-stacks", null,
-      Phase.scheduleCollector  (PREPARE_STACKS),
       Phase.scheduleMutator    (PREPARE_STACKS),
       Phase.scheduleGlobal     (PREPARE_STACKS));
 

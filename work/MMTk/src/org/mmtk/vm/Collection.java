@@ -72,7 +72,7 @@ import org.vmmagic.pragma.*;
    */
   @Interruptible
   public abstract void spawnCollectorContext(CollectorContext context);
-  
+
   /**
    * @return The default number of collector threads to use.
    */
@@ -97,7 +97,7 @@ import org.vmmagic.pragma.*;
    * flushed.
    */
   public abstract void requestMutatorFlush();
-  
+
   /**
    * Stop all mutator threads. This is current intended to be run by a single thread.
    *

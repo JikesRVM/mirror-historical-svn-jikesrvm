@@ -76,7 +76,7 @@ public abstract class CollectorContext implements Constants {
 
   /** Used for printing log information in a thread safe manner */
   protected final Log log = new Log();
-  
+
   /****************************************************************************
    *
    * Initialization
@@ -176,7 +176,7 @@ public abstract class CollectorContext implements Constants {
   /**
    * Get the executing context to rendezvous with other contexts working
    * in parallel.
-   * 
+   *
    * @return The order this context reached the rendezvous, starting from 1.
    */
   public int rendezvous() {

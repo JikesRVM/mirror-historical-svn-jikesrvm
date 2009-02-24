@@ -36,7 +36,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    *
    * Class variables
    */
-  
+
   /**
    * Spawn a thread to execute the supplied collector context.
    */
@@ -61,7 +61,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
   public void blockForGC() {
     RVMThread.getCurrentThread().block(RVMThread.gcBlockAdapter);
   }
-  
+
   /***********************************************************************
    *
    * Initialization
@@ -74,7 +74,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
   public void outOfMemory() {
     throw RVMThread.getOutOfMemoryError();
   }
-  
+
   /**
    * Prepare a mutator for a collection.
    *

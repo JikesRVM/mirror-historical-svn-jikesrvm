@@ -12,7 +12,6 @@
  */
 package org.mmtk.plan.nogc;
 
-import org.mmtk.plan.CollectorContext;
 import org.mmtk.plan.ParallelCollector;
 import org.mmtk.plan.TraceLocal;
 import org.mmtk.vm.VM;

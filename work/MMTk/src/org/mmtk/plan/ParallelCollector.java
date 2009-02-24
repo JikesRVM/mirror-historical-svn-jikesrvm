@@ -25,13 +25,13 @@ public abstract class ParallelCollector extends CollectorContext {
   /****************************************************************************
    * Instance fields
    */
-  
+
   /** The group that this collector context is running in (may be null) */
   ParallelCollectorGroup group;
-  
+
   /** Last group trigger index (see CollectorContextGroup) */
   int lastTriggerCount;
-  
+
   /** The index of this thread in the collector context group. */
   int workerOrdinal;
 
@@ -40,7 +40,7 @@ public abstract class ParallelCollector extends CollectorContext {
    */
 
   /**
-   * 
+   *
    */
   @Unpreemptible
   public void run() {
@@ -106,7 +106,7 @@ public abstract class ParallelCollector extends CollectorContext {
   /**
    * Get the executing context to rendezvous with other contexts working
    * in parallel.
-   * 
+   *
    * @return The order this context reached the rendezvous, starting from 1.
    */
   public int rendezvous() {

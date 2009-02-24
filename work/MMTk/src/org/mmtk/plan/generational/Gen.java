@@ -24,7 +24,6 @@ import org.mmtk.utility.options.Options;
 import org.mmtk.utility.sanitychecker.SanityChecker;
 import org.mmtk.utility.statistics.*;
 
-import org.mmtk.vm.Collection;
 import org.mmtk.vm.VM;
 
 import org.vmmagic.pragma.*;

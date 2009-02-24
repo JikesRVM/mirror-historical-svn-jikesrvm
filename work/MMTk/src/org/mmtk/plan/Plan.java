@@ -32,8 +32,6 @@ import org.mmtk.utility.statistics.Timer;
 import org.mmtk.utility.statistics.Stats;
 
 import org.mmtk.vm.VM;
-import org.mmtk.vm.Collection;
-
 
 import org.vmmagic.pragma.*;
 import org.vmmagic.unboxed.*;
@@ -103,7 +101,7 @@ public abstract class Plan implements Constants {
   public static final boolean SCAN_BOOT_IMAGE = true;  // scan it for roots rather than trace it
   public static final boolean REQUIRES_LOS = VM.activePlan.constraints().requiresLOS();
 
-/* Do we support a log bit in the object header?  Some write barriers may use it */
+  /* Do we support a log bit in the object header?  Some write barriers may use it */
   public static final boolean NEEDS_LOG_BIT_IN_HEADER = VM.activePlan.constraints().needsLogBitInHeader();
   public static final Word LOG_SET_MASK = VM.activePlan.constraints().unloggedBit();
   private static final Word LOG_CLEAR_MASK = LOG_SET_MASK.not();
@@ -150,15 +148,12 @@ public abstract class Plan implements Constants {
   /** Performance counters */
   public static final PerfCounter totalPerfCnt = new PerfCounter("perf");
 
-  /** Support for time-limited GCs */
-  protected static long timeCap;
-
   /** Support for allocation-site identification */
   protected static int allocationSiteCount = 0;
 
   /** Global sanity checking state **/
   public static final SanityChecker sanityChecker = new SanityChecker();
-  
+
   /** Default collector context */
   private final Class<?> defaultCollectorContext;
 
@@ -239,19 +234,19 @@ public abstract class Plan implements Constants {
   public void fullyBooted() {
     if (Options.harnessAll.getValue()) harnessBegin();
 
-    // Make sure that if we have not explicitly set threads, then we use the right default. 
+    // Make sure that if we have not explicitly set threads, then we use the right default.
     Options.threads.updateDefaultValue(VM.collection.getDefaultThreads());
-    
+
     // Create our parallel workers
     parallelWorkers.initGroup(Options.threads.getValue(), defaultCollectorContext);
-    
+
     // Create our control thread.
     VM.collection.spawnCollectorContext(controlCollectorContext);
-    
+
     // We are now initialized.
     initialized = true;
   }
-  
+
   private static final ParallelCollectorGroup parallelWorkers = new ParallelCollectorGroup("ParallelWorkers");
   private static final ControllerCollectorContext controlCollectorContext = new ControllerCollectorContext(parallelWorkers);
 
@@ -344,7 +339,6 @@ public abstract class Plan implements Constants {
     VM.assertions.fail("replacePhase not implemented for this plan");
   }
 
-
   /**
    * Insert a phase.
    *
@@ -430,7 +424,7 @@ public abstract class Plan implements Constants {
   protected static boolean stacksPrepared;
 
   private static boolean initialized = false;
-  
+
   @Entrypoint
   private static int gcStatus = NOT_IN_GC; // shared variable
 
@@ -594,14 +588,14 @@ public abstract class Plan implements Constants {
     // Wait for the collection to complete
     VM.collection.blockForGC();
   }
-  
+
   /**
    * @return True if this collection was triggered by application code.
    */
   public boolean isUserTriggeredCollection() {
     return userTriggeredCollection;
   }
-  
+
   /****************************************************************************
    * Harness
    */
@@ -846,7 +840,7 @@ public abstract class Plan implements Constants {
    * @param space
    * @param message
    */
-  private void logPoll(Space space, String message) {
+  protected void logPoll(Space space, String message) {
     if (Options.verbose.getValue() >= 3) {
       Log.write("  [POLL] ");
       Log.write(space.getName());
@@ -956,9 +950,8 @@ public abstract class Plan implements Constants {
   /**
    * Register specialized methods.
    */
-   @Interruptible
-  protected void registerSpecializedMethods() {
-  }
+  @Interruptible
+  protected void registerSpecializedMethods() {}
 
   /**
    * Get the specialized scan with the given id.

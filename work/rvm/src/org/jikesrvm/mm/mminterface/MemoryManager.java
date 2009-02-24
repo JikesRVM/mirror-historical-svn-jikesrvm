@@ -24,7 +24,6 @@ import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.classloader.SpecializedMethod;
 import org.jikesrvm.classloader.RVMType;
 import org.jikesrvm.classloader.TypeReference;
-import org.jikesrvm.mm.mmtk.Collection;
 import org.jikesrvm.mm.mmtk.FinalizableProcessor;
 import org.jikesrvm.mm.mmtk.ReferenceProcessor;
 import org.jikesrvm.mm.mmtk.SynchronizedCounter;

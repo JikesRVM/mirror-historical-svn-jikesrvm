@@ -60,25 +60,25 @@ public class ControllerCollectorContext extends CollectorContext {
     while(true) {
       // Wait for a collection request.
       waitForRequest();
-      
+
       // The start time.
       long startTime = VM.statistics.nanoTime();
-      
+
       // Stop all mutator threads
       VM.collection.stopAllMutators();
-      
+
       // Was this user triggered?
       boolean userTriggeredCollection = VM.activePlan.global().isUserTriggeredCollection();
-      
+
       // Clear the request
       clearRequest();
-      
+
       // Trigger GC.
       workers.triggerCycle();
-      
+
       // Wait for GC threads to complete.
       workers.waitForCycle();
-      
+
       // Heap growth logic
       long elapsedTime = VM.statistics.nanoTime() - startTime;
       HeapGrowthManager.recordGCTime(VM.statistics.nanosToMillis(elapsedTime));
@@ -89,7 +89,7 @@ public class ControllerCollectorContext extends CollectorContext {
         }
         HeapGrowthManager.reset();
       }
-      
+
       // Resume all mutators
       VM.collection.resumeAllMutators();
     }

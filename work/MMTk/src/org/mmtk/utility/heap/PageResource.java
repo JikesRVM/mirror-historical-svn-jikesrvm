@@ -12,7 +12,6 @@
  */
 package org.mmtk.utility.heap;
 
-import org.mmtk.plan.Plan;
 import org.mmtk.policy.Space;
 import org.mmtk.utility.Constants;
 import org.mmtk.utility.options.ProtectOnRelease;

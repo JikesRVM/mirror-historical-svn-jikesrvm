@@ -15,7 +15,6 @@ package org.jikesrvm.mm.mmtk;
 import org.mmtk.plan.TraceLocal;
 import org.mmtk.plan.TransitiveClosure;
 import org.mmtk.utility.Constants;
-import org.mmtk.vm.VM;
 
 import org.jikesrvm.jni.JNIEnvironment;
 import org.jikesrvm.jni.JNIGlobalRefTable;
