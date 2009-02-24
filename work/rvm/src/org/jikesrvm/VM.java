@@ -2231,7 +2231,7 @@ public class VM extends Properties implements Constants, ExitStatus {
     handlePossibleRecursiveCallToSysFail(message);
 
     // print a traceback and die
-    if(!RVMThread.getCurrentThread().isGCThread()) {
+    if(!RVMThread.getCurrentThread().isCollectorThread()) {
       RVMThread.traceback(message);
     } else {
       VM.sysWriteln("Died in GC:");

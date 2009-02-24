@@ -13,7 +13,7 @@
 package org.jikesrvm.mm.mminterface;
 
 import org.jikesrvm.mm.mmtk.ScanThread;
-import org.jikesrvm.scheduler.RVMThread;
+import org.jikesrvm.scheduler.SystemThread;
 import org.mmtk.plan.CollectorContext;
 import org.vmmagic.pragma.BaselineNoRegisters;
 import org.vmmagic.pragma.BaselineSaveLSRegisters;
@@ -26,15 +26,12 @@ import org.vmmagic.pragma.Unpreemptible;
  * System thread used to perform garbage collection work.
  */
 @NonMoving
-public final class CollectorThread extends RVMThread {
+public final class CollectorThread extends SystemThread {
 
   /***********************************************************************
    *
    * Class variables
    */
-
-  /** The MMTk context associated with this thread */
-  private CollectorContext context;
 
   /***********************************************************************
    *
@@ -62,31 +59,13 @@ public final class CollectorThread extends RVMThread {
    */
   public CollectorThread(byte[] stack, CollectorContext context) {
     super(stack, context.getClass().getName() + " [" + nextId + "]");
-    this.context = context;
-    this.context.initCollector(nextId);
-    makeDaemon(true); // this is redundant, but harmless
+    rvmThread.collectorContext = context;
+    rvmThread.collectorContext.initCollector(nextId);
     nextId++;
   }
 
   /** Next collector thread id. Collector threads are not created concurrently. */
   private static int nextId = 0;
-
-  /**
-   * Is this the GC thread?
-   * @return true
-   */
-  @Uninterruptible
-  public boolean isGCThread() {
-    return true;
-  }
-
-  /**
-   * @return this thread's collector context.
-   */
-  @Uninterruptible
-  public CollectorContext getCollectorContext() {
-    return context;
-  }
 
   /**
    * Collection entry point. Delegates the real work to MMTk.
@@ -99,7 +78,7 @@ public final class CollectorThread extends RVMThread {
   // and store all registers from previous method in prologue, so that we can stack access them while scanning this thread.
   @Unpreemptible
   public void run() {
-    context.run();
+    rvmThread.collectorContext.run();
   }
 }
 

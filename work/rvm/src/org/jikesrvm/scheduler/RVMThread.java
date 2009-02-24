@@ -24,7 +24,6 @@ import static org.jikesrvm.ArchitectureSpecific.StackframeLayoutConstants.STACKF
 import static org.jikesrvm.ArchitectureSpecific.StackframeLayoutConstants.STACK_SIZE_GUARD;
 import org.jikesrvm.ArchitectureSpecific.ThreadLocalState;
 import org.jikesrvm.ArchitectureSpecific.StackframeLayoutConstants;
-import org.jikesrvm.ArchitectureSpecific.ArchConstants;
 import org.jikesrvm.VM;
 import org.jikesrvm.Configuration;
 import org.jikesrvm.Services;
@@ -36,6 +35,7 @@ import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.osr.ObjectHolder;
 import org.jikesrvm.adaptive.OSRListener;
 import org.jikesrvm.jni.JNIEnvironment;
+import org.jikesrvm.mm.mminterface.CollectorThread;
 import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.mm.mminterface.ThreadContext;
 import org.jikesrvm.objectmodel.ObjectModel;
@@ -147,7 +147,7 @@ import org.jikesrvm.tuningfork.Feedlet;
  */
 @Uninterruptible
 @NonMoving
-public class RVMThread extends ThreadContext {
+public final class RVMThread extends ThreadContext {
   /*
    * debug and statistics
    */
@@ -369,10 +369,10 @@ public class RVMThread extends ThreadContext {
   public int threadSlot;
 
   /**
-   * Thread is a system thread, that is one used by the system and as such
+   * Non-null indicates this is a system thread, that is one used by the system and as such
    * doesn't have a Runnable...
    */
-  private final boolean systemThread;
+  private final SystemThread systemThread;
 
   /**
    * The boot thread, can't be final so as to allow initialization during boot
@@ -1171,7 +1171,6 @@ public class RVMThread extends ThreadContext {
 
     threadingInitialized = true;
     TimerThread tt = new TimerThread();
-    tt.makeDaemon(true);
     tt.start();
     if (VM.BuildForAdaptiveSystem) {
       ObjectHolder.boot();
@@ -1334,11 +1333,12 @@ public class RVMThread extends ThreadContext {
     * @param system True if this is a system thread.
     * @param priority The threads execution priority.
     */
-   public RVMThread(byte[] stack, Thread thread, String name, boolean daemon, boolean system, int priority) {
+   public RVMThread(byte[] stack, Thread thread, String name, boolean daemon, SystemThread systemThread, int priority) {
     this.stack = stack;
 
     this.daemon = daemon;
     this.priority = priority;
+    this.systemThread = systemThread;
 
     this.contextRegisters = this.contextRegistersShadow = new Registers();
     this.contextRegistersSave = this.contextRegistersSaveShadow = new Registers();
@@ -1359,7 +1359,6 @@ public class RVMThread extends ThreadContext {
       initMutator(threadSlot);
       this.activeMutatorContext = true;
       // Remember the boot thread
-      this.systemThread = true;
       this.execStatus = IN_JAVA;
       this.waiting = Waiting.RUNNABLE;
       // assign final field
@@ -1373,7 +1372,6 @@ public class RVMThread extends ThreadContext {
       // set up wrapper Thread if one exists
       this.thread = thread;
       // Set thread type
-      this.systemThread = system;
 
       this.execStatus = NEW;
       this.waiting = Waiting.RUNNABLE;
@@ -1421,10 +1419,10 @@ public class RVMThread extends ThreadContext {
   /**
    * Create a thread with default stack and with the given name.
    */
-  public RVMThread(String name) {
+  public RVMThread(SystemThread systemThread, String name) {
     this(MemoryManager.newStack(STACK_SIZE_NORMAL), null, // java.lang.Thread
         name, true, // daemon
-        true, // system
+        systemThread,
         Thread.NORM_PRIORITY);
   }
 
@@ -1433,10 +1431,10 @@ public class RVMThread extends ThreadContext {
    * {@link org.jikesrvm.memorymanagers.mminterface.CollectorThread} and the
    * boot image writer for the boot thread.
    */
-  public RVMThread(byte[] stack, String name) {
+  public RVMThread(SystemThread systemThread, byte[] stack, String name) {
     this(stack, null, // java.lang.Thread
         name, true, // daemon
-        true, // system
+        systemThread,
         Thread.NORM_PRIORITY);
   }
 
@@ -1444,12 +1442,11 @@ public class RVMThread extends ThreadContext {
    * Create a thread with ... called by java.lang.VMThread.create. System thread
    * isn't set.
    */
-  public RVMThread(Thread thread, long stacksize, String name, boolean daemon,
-      int priority) {
-    this(MemoryManager.newStack((stacksize <= 0) ? STACK_SIZE_NORMAL : (int) stacksize), thread, name, daemon, false, priority);
+  public RVMThread(Thread thread, long stacksize, String name, boolean daemon, int priority) {
+    this(MemoryManager.newStack((stacksize <= 0) ? STACK_SIZE_NORMAL : (int) stacksize), thread, name, daemon, null, priority);
   }
 
-  final void acknowledgeBlockRequests() {
+  void acknowledgeBlockRequests() {
     boolean hadSome = false;
     if (VM.VerifyAssertions)
       VM._assert(blockAdapters != null);
@@ -1479,7 +1476,7 @@ public class RVMThread extends ThreadContext {
    *
    * @return if the thread is supposed to be blocked
    */
-  public final boolean isBlocked() {
+  public boolean isBlocked() {
     for (int i = 0; i < blockAdapters.length; ++i) {
       if (blockAdapters[i].isBlocked(this)) {
         return true;
@@ -1507,7 +1504,7 @@ public class RVMThread extends ThreadContext {
    *
    * @return if the thread is running Java
    */
-  public final boolean isInJava() {
+  public boolean isInJava() {
     return !isBlocking && !isAboutToTerminate &&
     (execStatus == IN_JAVA || execStatus == IN_JAVA_TO_BLOCK);
   }
@@ -1658,7 +1655,7 @@ public class RVMThread extends ThreadContext {
   @NoOptCompile
   @BaselineSaveLSRegisters
   @Unpreemptible("May block if asked to do so, but otherwise does not actions that would block")
-  final void checkBlock() {
+  void checkBlock() {
     Magic.saveThreadState(contextRegisters);
     checkBlockNoSaveContext();
   }
@@ -1695,34 +1692,34 @@ public class RVMThread extends ThreadContext {
     checkBlockNoSaveContext();
   }
 
-  final void enterNativeBlocked() {
+  void enterNativeBlocked() {
     assertAcceptableStates(IN_JAVA,IN_JAVA_TO_BLOCK);
     enterNativeBlockedImpl(false);
     assertAcceptableStates(IN_NATIVE,BLOCKED_IN_NATIVE);
   }
 
   @Unpreemptible("May block if the thread was asked to do so, but otherwise does no actions that would cause blocking")
-  final void leaveNativeBlocked() {
+  void leaveNativeBlocked() {
     assertAcceptableStates(IN_NATIVE,BLOCKED_IN_NATIVE);
     leaveNativeBlockedImpl();
     assertAcceptableStates(IN_JAVA,IN_JAVA_TO_BLOCK);
   }
 
-  final void enterJNIBlocked() {
+  void enterJNIBlocked() {
     assertAcceptableStates(IN_JAVA,IN_JAVA_TO_BLOCK);
     enterNativeBlockedImpl(true);
     assertAcceptableStates(IN_JNI,BLOCKED_IN_JNI);
   }
 
   @Unpreemptible("May block if the thread was asked to do so, but otherwise does no actions that would cause blocking")
-  final void leaveJNIBlocked() {
+  void leaveJNIBlocked() {
     assertAcceptableStates(IN_JNI,BLOCKED_IN_JNI);
     leaveNativeBlockedImpl();
     assertAcceptableStates(IN_JAVA,IN_JAVA_TO_BLOCK);
   }
 
   @Entrypoint
-  public static final void enterJNIBlockedFromJNIFunctionCall() {
+  public static void enterJNIBlockedFromJNIFunctionCall() {
     RVMThread t=getCurrentThread();
     if (traceReallyBlock) {
       VM.sysWriteln("Thread #",t.getThreadSlot(), " in enterJNIBlockedFromJNIFunctionCall");
@@ -1732,7 +1729,7 @@ public class RVMThread extends ThreadContext {
   }
 
   @Entrypoint
-  public static final void enterJNIBlockedFromCallIntoNative() {
+  public static void enterJNIBlockedFromCallIntoNative() {
     RVMThread t=getCurrentThread();
     if (traceReallyBlock) {
       VM.sysWriteln("Thread #",t.getThreadSlot(), " in enterJNIBlockedFromCallIntoNative");
@@ -1743,7 +1740,7 @@ public class RVMThread extends ThreadContext {
 
   @Entrypoint
   @Unpreemptible("May block if the thread was asked to do so, but otherwise will not block")
-  static final void leaveJNIBlockedFromJNIFunctionCall() {
+  static void leaveJNIBlockedFromJNIFunctionCall() {
     RVMThread t = getCurrentThread();
     if (traceReallyBlock) {
       VM.sysWriteln("Thread #", t.getThreadSlot(),
@@ -1760,7 +1757,7 @@ public class RVMThread extends ThreadContext {
    */
   @Entrypoint
   @Unpreemptible("May block if the thread was asked to do so, but otherwise will not block")
-  public static final void leaveJNIBlockedFromCallIntoNative() {
+  public static void leaveJNIBlockedFromCallIntoNative() {
     RVMThread t = getCurrentThread();
     if (traceReallyBlock) {
       VM.sysWriteln("Thread #", t.getThreadSlot(),
@@ -1801,7 +1798,7 @@ public class RVMThread extends ThreadContext {
    * actually be TERMINATED at that point yet.
    */
   @Unpreemptible("Only blocks if the receiver is the current thread, or if asynchronous is set to false and the thread is not already blocked")
-  final int block(BlockAdapter ba, boolean asynchronous) {
+  int block(BlockAdapter ba, boolean asynchronous) {
     int result;
     if (traceBlock)
       VM.sysWriteln("Thread #", getCurrentThread().threadSlot,
@@ -1889,7 +1886,7 @@ public class RVMThread extends ThreadContext {
     return result;
   }
 
-  public final boolean blockedFor(BlockAdapter ba) {
+  public boolean blockedFor(BlockAdapter ba) {
     monitor().lock();
     boolean result = ba.isBlocked(this);
     monitor().unlock();
@@ -1897,14 +1894,14 @@ public class RVMThread extends ThreadContext {
   }
 
   @UninterruptibleNoWarn("Never blocks; only asynchronously notifies the receiver to do so")
-  public final int asyncBlock(BlockAdapter ba) {
+  public int asyncBlock(BlockAdapter ba) {
     if (VM.VerifyAssertions)
       VM._assert(getCurrentThread() != this);
     return block(ba, true);
   }
 
   @Unpreemptible("May block if the receiver is the current thread or if the receiver is not yet blocked; otherwise does not perform actions that lead to blocking")
-  public final int block(BlockAdapter ba) {
+  public int block(BlockAdapter ba) {
     return block(ba, false);
   }
 
@@ -1987,7 +1984,7 @@ public class RVMThread extends ThreadContext {
     }
   }
 
-  public final void unblock(BlockAdapter ba) {
+  public void unblock(BlockAdapter ba) {
     if (traceBlock)
       VM.sysWriteln("Thread #", getCurrentThread().threadSlot,
           " is requesting that thread #", threadSlot, " unblocks.");
@@ -2024,7 +2021,7 @@ public class RVMThread extends ThreadContext {
   }
 
   @NoCheckStore
-  public static final void checkDebugRequest() {
+  public static void checkDebugRequest() {
     if (debugRequested) {
       debugLock.lock();
       if (debugRequested) {
@@ -2102,7 +2099,7 @@ public class RVMThread extends ThreadContext {
   /**
    * @return the slot of this thread
    */
-  public final int getThreadSlot() {
+  public int getThreadSlot() {
     return threadSlot;
   }
 
@@ -2110,7 +2107,7 @@ public class RVMThread extends ThreadContext {
    * Called during booting to give the boot thread a java.lang.Thread
    */
   @Interruptible
-  public final void setupBootJavaThread() {
+  public void setupBootJavaThread() {
     thread = java.lang.JikesRVMSupport.createThread(this,
         "Jikes_RVM_Boot_Thread");
   }
@@ -2126,39 +2123,39 @@ public class RVMThread extends ThreadContext {
   /**
    * Get the current java.lang.Thread.
    */
-  public final Thread getJavaLangThread() {
+  public Thread getJavaLangThread() {
     return thread;
   }
 
   /**
    * Get current thread's JNI environment.
    */
-  public final JNIEnvironment getJNIEnv() {
+  public JNIEnvironment getJNIEnv() {
     return jniEnv;
   }
 
   /** Get the disable GC depth */
-  public final int getDisableGCDepth() {
+  public int getDisableGCDepth() {
     return disableGCDepth;
   }
 
   /** Modify the disable GC depth */
-  public final void setDisableGCDepth(int d) {
+  public void setDisableGCDepth(int d) {
     disableGCDepth = d;
   }
 
   /** Are allocations allowed by this thread? */
-  public final boolean getDisallowAllocationsByThisThread() {
+  public boolean getDisallowAllocationsByThisThread() {
     return disallowAllocationsByThisThread;
   }
 
   /** Disallow allocations by this thread */
-  public final void setDisallowAllocationsByThisThread() {
+  public void setDisallowAllocationsByThisThread() {
     disallowAllocationsByThisThread = true;
   }
 
   /** Allow allocations by this thread */
-  public final void clearDisallowAllocationsByThisThread() {
+  public void clearDisallowAllocationsByThisThread() {
     disallowAllocationsByThisThread = false;
   }
 
@@ -2166,7 +2163,7 @@ public class RVMThread extends ThreadContext {
    * Initialize JNI environment for system threads. Called by VM.finishBooting
    */
   @Interruptible
-  public final void initializeJNIEnv() {
+  public void initializeJNIEnv() {
     this.jniEnv = this.jniEnvShadow = new JNIEnvironment();
   }
 
@@ -2177,7 +2174,7 @@ public class RVMThread extends ThreadContext {
    * @return false during the prolog of the first Java to C transition true
    *         afterward
    */
-  public final boolean hasNativeStackFrame() {
+  public boolean hasNativeStackFrame() {
     return jniEnv != null && jniEnv.hasNativeStackFrame();
   }
 
@@ -2241,7 +2238,11 @@ public class RVMThread extends ThreadContext {
     }
 
     try {
-      currentThread.run();
+      if (currentThread.systemThread != null) {
+        currentThread.systemThread.run();
+      } else {
+        currentThread.run();
+      }
     } finally {
       if (trace) {
         VM.sysWriteln("Thread.startoff(): finished ", currentThread.toString(), ".run()");
@@ -2257,7 +2258,7 @@ public class RVMThread extends ThreadContext {
    * unspecified virtual processor.
    */
   @Interruptible
-  public final void start() {
+  public void start() {
     // N.B.: cannot hit a yieldpoint between setting execStatus and starting the
     // thread!!
     this.execStatus = IN_JAVA;
@@ -2278,7 +2279,7 @@ public class RVMThread extends ThreadContext {
    * and resuming execution in some other (ready) thread.
    */
   @Interruptible
-  public final void terminate() {
+  public void terminate() {
     if (traceAcct)
       VM.sysWriteln("in terminate() for Thread #", threadSlot);
     if (VM.VerifyAssertions)
@@ -2450,7 +2451,7 @@ public class RVMThread extends ThreadContext {
   }
 
   /** Uninterruptible final portion of thread termination. */
-  final void finishThreadTermination() {
+  void finishThreadTermination() {
     sysCall.sysTerminatePthread();
     if (VM.VerifyAssertions)
       VM._assert(VM.NOT_REACHED);
@@ -2523,7 +2524,7 @@ public class RVMThread extends ThreadContext {
    * caller has appropriate security clearance.
    */
   @UnpreemptibleNoWarn("Exceptions may possibly cause yields")
-  public final void suspend() {
+  public void suspend() {
     ObjectModel.genericUnlock(thread);
     Throwable rethrow = null;
     monitor().lock();
@@ -2550,7 +2551,7 @@ public class RVMThread extends ThreadContext {
    * has appropriate security clearance.
    */
   @Interruptible
-  public final void resume() {
+  public void resume() {
     unblock(suspendBlockAdapter);
   }
 
@@ -2787,7 +2788,7 @@ public class RVMThread extends ThreadContext {
    * Park and unpark support
    */
   @Interruptible
-  public final void park(boolean isAbsolute, long time) throws Throwable {
+  public void park(boolean isAbsolute, long time) throws Throwable {
     if (parkingPermit) {
       // fast path
       parkingPermit = false;
@@ -2834,7 +2835,7 @@ public class RVMThread extends ThreadContext {
   }
 
   @Interruptible
-  public final void unpark() {
+  public void unpark() {
     monitor().lock();
     parkingPermit = true;
     monitor().broadcast();
@@ -2846,7 +2847,7 @@ public class RVMThread extends ThreadContext {
    * thread's slot as returned by {@link #getThreadSlot()}, shifted appropriately
    * so it can be directly used in the ownership tests.
    */
-  public final int getLockingId() {
+  public int getLockingId() {
     if (VM.VerifyAssertions) {
       RVMThread hypotheticalThis=threadBySlot[threadSlot];
       if (hypotheticalThis!=this) {
@@ -3000,7 +3001,7 @@ public class RVMThread extends ThreadContext {
   /**
    * Check and clear the need for a soft handshake rendezvous.
    */
-  public final boolean softRendezvousCheckAndClear() {
+  public boolean softRendezvousCheckAndClear() {
     boolean result = false;
     monitor().lock();
     if (softHandshakeRequested) {
@@ -3014,7 +3015,7 @@ public class RVMThread extends ThreadContext {
   /**
    * Commit the soft handshake rendezvous.
    */
-  public final void softRendezvousCommit() {
+  public void softRendezvousCommit() {
     softHandshakeDataLock.lock();
     softHandshakeLeft--;
     if (softHandshakeLeft == 0) {
@@ -3027,7 +3028,7 @@ public class RVMThread extends ThreadContext {
    * Rendezvous with a soft handshake request. Can only be called when the
    * thread's monitor is held.
    */
-  public final void softRendezvous() {
+  public void softRendezvous() {
     if (softRendezvousCheckAndClear())
       softRendezvousCommit();
   }
@@ -3082,7 +3083,7 @@ public class RVMThread extends ThreadContext {
       int numToHandshake = 0;
       for (int i = 0; i < RVMThread.numThreads; i++) {
         RVMThread t = RVMThread.threads[i];
-        if (!t.isGCThread() && !t.ignoreHandshakesAndGC()) {
+        if (!t.isCollectorThread() && !t.ignoreHandshakesAndGC()) {
           RVMThread.handshakeThreads[numToHandshake++] = t;
         }
       }
@@ -3133,7 +3134,7 @@ public class RVMThread extends ThreadContext {
     int numToHandshake = 0;
     for (int i = 0; i < RVMThread.numThreads; i++) {
       RVMThread t = RVMThread.threads[i];
-      if (!t.isGCThread() && !t.ignoreHandshakesAndGC()) {
+      if (!t.isCollectorThread() && !t.ignoreHandshakesAndGC()) {
         RVMThread.handshakeThreads[numToHandshake++] = t;
       }
     }
@@ -3407,7 +3408,7 @@ public class RVMThread extends ThreadContext {
    * @param delta
    *          displacement to be applied to all interior references
    */
-  public final void fixupMovedStack(Offset delta) {
+  public void fixupMovedStack(Offset delta) {
     if (traceAdjustments)
       VM.sysWrite("Thread: fixupMovedStack\n");
 
@@ -3545,7 +3546,7 @@ public class RVMThread extends ThreadContext {
    *
    * Public so that java.lang.Thread can use it.
    */
-  public final void makeDaemon(boolean on) {
+  public void makeDaemon(boolean on) {
     if (daemon == on) {
       // nothing to do
     } else {
@@ -3595,7 +3596,7 @@ public class RVMThread extends ThreadContext {
   }
 
   /** @return The value of {@link #isBootThread} */
-  public final boolean isBootThread() {
+  public boolean isBootThread() {
     return this == bootThread;
   }
 
@@ -3604,22 +3605,19 @@ public class RVMThread extends ThreadContext {
     return thread instanceof MainThread;
   }
 
-  /**
-   * Is this the GC thread?
-   *
-   * @return false
-   */
-  public boolean isGCThread() {
-    return false;
+  /** Is this a system thread? */
+  public boolean isSystemThread() {
+    return systemThread != null;
   }
 
-  /** Is this a system thread? */
-  public final boolean isSystemThread() {
-    return systemThread;
+  /** Get the collector thread this RVMTHread is running */
+  public CollectorThread getCollectorThread() {
+    if (VM.VerifyAssertions) VM._assert(isCollectorThread());
+    return (CollectorThread)systemThread;
   }
 
   /** Returns the value of {@link #daemon}. */
-  public final boolean isDaemonThread() {
+  public boolean isDaemonThread() {
     return daemon;
   }
 
@@ -3627,11 +3625,12 @@ public class RVMThread extends ThreadContext {
    * Should this thread run concurrently with STW GC and ignore handshakes?
    */
   public boolean ignoreHandshakesAndGC() {
-    return false;
+    if (systemThread == null) return false;
+    return systemThread instanceof TimerThread;
   }
 
   /** Is the thread started and not terminated */
-  public final boolean isAlive() {
+  public boolean isAlive() {
     monitor().lock();
     boolean result = execStatus != NEW && execStatus != TERMINATED && !isAboutToTerminate;
     monitor().unlock();
@@ -3644,7 +3643,7 @@ public class RVMThread extends ThreadContext {
    * @param name the new name for the thread
    * @see java.lang.Thread#setName(String)
    */
-  public final void setName(String name) {
+  public void setName(String name) {
     this.name = name;
   }
 
@@ -3653,7 +3652,7 @@ public class RVMThread extends ThreadContext {
    *
    * @see java.lang.Thread#getName()
    */
-  public final String getName() {
+  public String getName() {
     return name;
   }
 
@@ -3665,7 +3664,7 @@ public class RVMThread extends ThreadContext {
    * @return whether the thread holds the lock
    * @see java.lang.Thread#holdsLock(Object)
    */
-  public final boolean holdsLock(Object obj) {
+  public boolean holdsLock(Object obj) {
     RVMThread mine = getCurrentThread();
     return ObjectModel.holdsLock(obj, mine);
   }
@@ -3676,7 +3675,7 @@ public class RVMThread extends ThreadContext {
    * @return whether the thread has been interrupted
    * @see java.lang.Thread#isInterrupted()
    */
-  public final boolean isInterrupted() {
+  public boolean isInterrupted() {
     return hasInterrupt;
   }
 
@@ -3685,7 +3684,7 @@ public class RVMThread extends ThreadContext {
    *
    * @see java.lang.Thread#interrupted()
    */
-  public final void clearInterrupted() {
+  public void clearInterrupted() {
     hasInterrupt = false;
   }
 
@@ -3695,7 +3694,7 @@ public class RVMThread extends ThreadContext {
    * @see java.lang.Thread#interrupt()
    */
   @Interruptible
-  public final void interrupt() {
+  public void interrupt() {
     monitor().lock();
     hasInterrupt = true;
     monitor().broadcast();
@@ -3708,7 +3707,7 @@ public class RVMThread extends ThreadContext {
    * @return the thread's priority
    * @see java.lang.Thread#getPriority()
    */
-  public final int getPriority() {
+  public int getPriority() {
     return priority;
   }
 
@@ -3718,7 +3717,7 @@ public class RVMThread extends ThreadContext {
    * @param priority
    * @see java.lang.Thread#getPriority()
    */
-  public final void setPriority(int priority) {
+  public void setPriority(int priority) {
     this.priority = priority;
     // @TODO this should be calling a syscall
   }
@@ -3730,7 +3729,7 @@ public class RVMThread extends ThreadContext {
    * @see java.lang.Thread#getState()
    */
   @Interruptible
-  public final Thread.State getState() {
+  public Thread.State getState() {
     monitor().lock();
     try {
       switch (execStatus) {
@@ -3776,7 +3775,7 @@ public class RVMThread extends ThreadContext {
    *          nanoseconds to wait
    */
   @Interruptible
-  public final void join(long ms, int ns) throws InterruptedException {
+  public void join(long ms, int ns) throws InterruptedException {
     RVMThread myThread = getCurrentThread();
     if (VM.VerifyAssertions)
       VM._assert(myThread != this);
@@ -3809,7 +3808,7 @@ public class RVMThread extends ThreadContext {
    * Count the stack frames of this thread
    */
   @Interruptible
-  public final int countStackFrames() {
+  public int countStackFrames() {
     if (!isSuspended) {
       throw new IllegalThreadStateException(
           "Thread.countStackFrames called on non-suspended thread");
@@ -3820,21 +3819,21 @@ public class RVMThread extends ThreadContext {
   /**
    * @return the length of the stack
    */
-  public final int getStackLength() {
+  public int getStackLength() {
     return stack.length;
   }
 
   /**
    * @return the stack
    */
-  public final byte[] getStack() {
+  public byte[] getStack() {
     return stack;
   }
 
   /**
    * @return the thread's exception registers
    */
-  public final Registers getExceptionRegisters() {
+  public Registers getExceptionRegisters() {
     return exceptionRegisters;
   }
 
@@ -3842,37 +3841,37 @@ public class RVMThread extends ThreadContext {
    * @return the thread's context registers (saved registers when thread is
    *         suspended by green-thread scheduler).
    */
-  public final Registers getContextRegisters() {
+  public Registers getContextRegisters() {
     return contextRegisters;
   }
 
   /** Set the initial attempt. */
-  public final void reportCollectionAttempt() {
+  public void reportCollectionAttempt() {
     collectionAttempt++;
   }
 
   /** Set the initial attempt. */
-  public final int getCollectionAttempt() {
+  public int getCollectionAttempt() {
     return collectionAttempt;
   }
 
   /** Resets the attempts. */
-  public final void resetCollectionAttempts() {
+  public void resetCollectionAttempts() {
     collectionAttempt = 0;
   }
 
   /** Get the physical allocation failed flag. */
-  public final boolean physicalAllocationFailed() {
+  public boolean physicalAllocationFailed() {
     return physicalAllocationFailed;
   }
 
   /** Set the physical allocation failed flag. */
-  public final void setPhysicalAllocationFailed() {
+  public void setPhysicalAllocationFailed() {
     physicalAllocationFailed = true;
   }
 
   /** Clear the physical allocation failed flag. */
-  public final void clearPhysicalAllocationFailed() {
+  public void clearPhysicalAllocationFailed() {
     physicalAllocationFailed = false;
   }
 
@@ -3884,7 +3883,7 @@ public class RVMThread extends ThreadContext {
   }
 
   @Interruptible
-  public final void handleUncaughtException(Throwable exceptionObject) {
+  public void handleUncaughtException(Throwable exceptionObject) {
     uncaughtExceptionCount++;
 
     handlePossibleRecursiveException();
@@ -4075,7 +4074,7 @@ public class RVMThread extends ThreadContext {
     if (isMainThread()) {
       offset = Services.sprintf(dest, offset, "-main"); // Main Thread
     }
-    if (isGCThread()) {
+    if (isCollectorThread()) {
       offset = Services.sprintf(dest, offset, "-collector"); // gc thread?
     }
     offset = Services.sprintf(dest, offset, "-");
@@ -4513,10 +4512,9 @@ public class RVMThread extends ThreadContext {
    */
   @Interruptible
   public static RVMThread setupBootThread() {
-    byte[] stack = new byte[ArchConstants.STACK_SIZE_BOOT];
-    if (VM.VerifyAssertions)
-      VM._assert(bootThread == null);
-    bootThread = new RVMThread(stack, "Jikes_RBoot_Thread");
+    if (VM.VerifyAssertions) VM._assert(bootThread == null);
+    BootThread bt = new BootThread();
+    bootThread = bt.getRVMThread();
     bootThread.feedlet = TraceEngine.engine.makeFeedlet(
         "Jikes RVM boot thread",
         "Thread used to execute the initial boot sequence of Jikes RVM");

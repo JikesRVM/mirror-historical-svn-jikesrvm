@@ -12,6 +12,7 @@
  */
 package org.jikesrvm.mm.mmtk;
 
+import org.mmtk.plan.CollectorContext;
 import org.mmtk.plan.TraceLocal;
 import org.mmtk.plan.TransitiveClosure;
 import org.mmtk.utility.Constants;
@@ -19,7 +20,6 @@ import org.mmtk.utility.Constants;
 import org.jikesrvm.jni.JNIEnvironment;
 import org.jikesrvm.jni.JNIGlobalRefTable;
 import org.jikesrvm.mm.mminterface.Selected;
-import org.jikesrvm.mm.mminterface.CollectorThread;
 import org.jikesrvm.mm.mminterface.MemoryManagerConstants;
 import org.jikesrvm.mm.mminterface.SpecializedScanMethod;
 import org.jikesrvm.runtime.Magic;
@@ -126,13 +126,13 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
    */
   public void computeGlobalRoots(TraceLocal trace) {
     /* scan jni functions */
-    CollectorThread ct = Magic.threadAsCollectorThread(RVMThread.getCurrentThread());
+    CollectorContext cc = RVMThread.getCurrentThread().getCollectorContext();
     Address jniFunctions = Magic.objectAsAddress(JNIEnvironment.JNIFunctions);
-    int threads = ct.getCollectorContext().parallelWorkerCount();
+    int threads = cc.parallelWorkerCount();
     int size = JNIEnvironment.JNIFunctions.length();
     int chunkSize = size / threads;
-    int start = (ct.getCollectorContext().parallelWorkerOrdinal() - 1) * chunkSize;
-    int end = (ct.getCollectorContext().parallelWorkerOrdinal() == threads) ? size : ct.getCollectorContext().parallelWorkerOrdinal() * chunkSize;
+    int start = (cc.parallelWorkerOrdinal() - 1) * chunkSize;
+    int end = (cc.parallelWorkerOrdinal() == threads) ? size : cc.parallelWorkerOrdinal() * chunkSize;
 
     for(int i=start; i < end; i++) {
       trace.processRootEdge(jniFunctions.plus(i << LOG_BYTES_IN_ADDRESS), true);
@@ -149,8 +149,8 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
     Address jniGlobalRefs = Magic.objectAsAddress(JNIGlobalRefTable.JNIGlobalRefs);
     size = JNIGlobalRefTable.JNIGlobalRefs.length();
     chunkSize = size / threads;
-    start = (ct.getCollectorContext().parallelWorkerOrdinal() - 1) * chunkSize;
-    end = (ct.getCollectorContext().parallelWorkerOrdinal() == threads) ? size : ct.getCollectorContext().parallelWorkerOrdinal() * chunkSize;
+    start = (cc.parallelWorkerOrdinal() - 1) * chunkSize;
+    end = (cc.parallelWorkerOrdinal() == threads) ? size : cc.parallelWorkerOrdinal() * chunkSize;
 
     for(int i=start; i < end; i++) {
       trace.processRootEdge(jniGlobalRefs.plus(i << LOG_BYTES_IN_ADDRESS), true);
@@ -185,7 +185,7 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
       if (threadIndex > RVMThread.numThreads) break;
 
       RVMThread thread = RVMThread.threads[threadIndex];
-      if (thread == null || thread.isGCThread()) continue;
+      if (thread == null || thread.isCollectorThread()) continue;
 
       /* scan the thread (stack etc.) */
       ScanThread.scanThread(thread, trace, processCodeLocations);

@@ -20,7 +20,6 @@ import org.mmtk.utility.Log;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.mm.mminterface.Selected;
-import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.RVMThread;
 
 import org.vmmagic.pragma.*;
@@ -54,13 +53,13 @@ import org.vmmagic.pragma.*;
   /** @return The active CollectorContext instance. */
   @Inline
   public CollectorContext collector() {
-    return Magic.threadAsCollectorThread(RVMThread.getCurrentThread()).getCollectorContext();
+    return RVMThread.getCurrentThread().getCollectorContext();
   }
 
   /** @return Is the active thread a mutator thread. */
   @Inline
   public boolean isMutator() {
-    return !RVMThread.getCurrentThread().isGCThread();
+    return !RVMThread.getCurrentThread().isCollectorThread();
   }
 
   /** @return The active MutatorContext instance. */

@@ -173,7 +173,7 @@ import org.vmmagic.unboxed.Offset;
     }
 
     /* Grab the ScanThread instance associated with this thread */
-    ScanThread scanner = Magic.threadAsCollectorThread(RVMThread.getCurrentThread()).getThreadScanner();
+    ScanThread scanner = RVMThread.getCurrentThread().getCollectorThread().getThreadScanner();
 
     /* scan the stack */
     scanner.startScan(trace, processCodeLocations, thread, gprs, ip, fp, initialIPLoc, topFrame);
