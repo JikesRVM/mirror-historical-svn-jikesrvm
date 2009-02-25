@@ -17,6 +17,7 @@ import org.mmtk.plan.TraceLocal;
 import org.mmtk.plan.TransitiveClosure;
 import org.mmtk.utility.Constants;
 
+import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.jni.JNIEnvironment;
 import org.jikesrvm.jni.JNIGlobalRefTable;
 import org.jikesrvm.mm.mminterface.Selected;
@@ -91,6 +92,10 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
    */
   public void resetThreadCounter() {
     threadCounter.reset();
+    CompiledMethods.snipObsoleteCompiledMethods();
+    
+    /* flush out any remset entries generated during the above activities */
+    Selected.Mutator.get().flushRememberedSets();
   }
 
   /**
@@ -189,9 +194,6 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
 
       /* scan the thread (stack etc.) */
       ScanThread.scanThread(thread, trace, processCodeLocations);
-
-      /* identify this thread as a root */
-      //trace.processRootEdge(Magic.objectAsAddress(RVMThread.threads).plus(threadIndex<<LOG_BYTES_IN_ADDRESS), false);
     }
 
     /* flush out any remset entries generated during the above activities */

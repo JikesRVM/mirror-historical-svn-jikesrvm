@@ -3895,7 +3895,9 @@ public final class RVMThread extends ThreadContext {
       // This is output like that of the Sun JDK.
       VM.sysWrite("Exception in thread \"", getName(), "\": ");
     }
-    if (VM.fullyBooted) {
+    if (exceptionObject instanceof OutOfMemoryError) {
+      VM.sysWriteln("   <<No stacktrace available>>");
+    } else if (VM.fullyBooted) {
       exceptionObject.printStackTrace();
     }
     getCurrentThread().terminate();

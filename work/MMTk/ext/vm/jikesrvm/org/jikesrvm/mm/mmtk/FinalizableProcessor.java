@@ -212,13 +212,16 @@ public final class FinalizableProcessor extends org.mmtk.vm.FinalizableProcessor
 
       /* Make ready for finalize */
       ref = trace.retainForFinalize(ref);
-
+      
       /* Add to object table */
       Offset offset = Word.fromIntZeroExtend(lastReadyIndex).lsh(LOG_BYTES_IN_ADDRESS).toOffset();
       Selected.Plan.get().storeObjectReference(Magic.objectAsAddress(readyForFinalize).plus(offset), ref);
       lastReadyIndex = (lastReadyIndex + 1) % readyForFinalize.length;
     }
     nurseryIndex = maxIndex = toIndex;
+
+    /* Possible schedule finalizers to run */
+    Collection.scheduleFinalizerThread();
   }
 
   /**

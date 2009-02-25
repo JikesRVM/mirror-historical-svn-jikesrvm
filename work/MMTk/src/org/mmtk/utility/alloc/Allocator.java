@@ -51,16 +51,11 @@ public abstract class Allocator implements Constants {
   /**
    * @return the highest consecutive failure count for any allocating thread.
    */
-  public static int getMaxCollectionAttempts() {
-    return maxCollectionAttempts;
-  }
-
-  /**
-   * Notify a new collection cycle has occurred.
-   */
-  public static void notifyCollectionCycle() {
-    maxCollectionAttempts = 1;
+  public static int getAndClearMaxCollectionAttempts() {
+    int result = maxCollectionAttempts;
     allocationSuccess = false;
+    maxCollectionAttempts = 1;
+    return result;
   }
 
   /**
@@ -263,7 +258,7 @@ public abstract class Allocator implements Constants {
       // Try to allocate using the slow path
       Address result = current.allocSlowOnce(bytes, alignment, offset);
 
-      // Collection allocation always succeeds (or fails inside allocSlow).
+      // Collector allocation always succeeds (or fails inside allocSlow).
       if (!VM.activePlan.isMutator()) {
         if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!result.isZero());
         return result;
@@ -282,24 +277,26 @@ public abstract class Allocator implements Constants {
       // Allocation failed!
       attempts++;
 
-      if (emergencyCollection) {
-        // Check if we are in an OutOfMemory situation
-        oomLock.acquire();
-        boolean failWithOOM = !allocationSuccess;
-        oomLock.release();
-        if (failWithOOM) {
-          // Nobody has successfully allocated since an emergency collection: OutOfMemory
-          VM.collection.outOfMemory();
-          VM.assertions.fail("Not Reached");
-          return Address.zero();
+      if (attempts > 1) {
+        if (emergencyCollection) {
+          // Check if we are in an OutOfMemory situation
+          oomLock.acquire();
+          boolean failWithOOM = !allocationSuccess;
+          oomLock.release();
+          if (failWithOOM) {
+            // Nobody has successfully allocated since an emergency collection: OutOfMemory
+            VM.collection.outOfMemory();
+            VM.assertions.fail("Not Reached");
+            return Address.zero();
+          }
+        } else {
+          // Do we need to escalate the failure count?
+          oomLock.acquire();
+          if (attempts > maxCollectionAttempts) {
+            maxCollectionAttempts = attempts;
+          }
+          oomLock.release();
         }
-      } else if (attempts > 1) {
-        // Do we need to escalate the failure count?
-        oomLock.acquire();
-        if (attempts > maxCollectionAttempts) {
-          maxCollectionAttempts = attempts;
-        }
-        oomLock.release();
       }
 
       /* This is in case a GC occurs, and our mutator context is stale.

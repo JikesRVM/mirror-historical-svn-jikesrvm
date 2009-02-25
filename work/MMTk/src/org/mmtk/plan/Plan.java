@@ -816,6 +816,7 @@ public abstract class Plan implements Constants {
    */
   @LogicallyUninterruptible
   public final boolean poll(boolean spaceFull, Space space) {
+    logPoll(space, "polling");
     if (collectionRequired(spaceFull)) {
       if (space == metaDataSpace) {
         /* In general we must not trigger a GC on metadata allocation since
