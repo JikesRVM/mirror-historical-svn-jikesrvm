@@ -34,24 +34,11 @@ import org.vmmagic.unboxed.Word;
  * performing really well.  This was the production thin locking implementation
  * in RVM before the lock refactoring.
  */
-public class BasicThinLockPlan extends AbstractThinLockPlan {
+public class BasicThinLockPlan extends CommonThinLockPlan {
   public static BasicThinLockPlan instance;
 
   public BasicThinLockPlan() {
     instance=this;
-  }
-  
-  public void init() {
-    if (false) {
-      VM.sysWriteln("lock count mask: ",TL_LOCK_COUNT_MASK);
-      VM.sysWriteln("thread id mask: ",TL_THREAD_ID_MASK);
-      VM.sysWriteln("lock id mask: ",TL_LOCK_ID_MASK);
-      VM.sysWriteln("fat lock mask: ",TL_FAT_LOCK_MASK);
-      VM.sysWriteln("unlock mask: ",TL_UNLOCK_MASK);
-    }
-  }
-  
-  public void boot() {
   }
   
   /**
@@ -153,7 +140,7 @@ public class BasicThinLockPlan extends AbstractThinLockPlan {
 
   @NoInline
   @NoNullcheck
-  public void lock(Object o, Offset lockOffset) {
+  public final void lock(Object o, Offset lockOffset) {
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
     
     for (;;) {
@@ -201,7 +188,7 @@ public class BasicThinLockPlan extends AbstractThinLockPlan {
   
   @NoInline
   @NoNullcheck
-  public void unlock(Object o, Offset lockOffset) {
+  public final void unlock(Object o, Offset lockOffset) {
     Magic.sync();
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
     for (;;) {
@@ -262,37 +249,6 @@ public class BasicThinLockPlan extends AbstractThinLockPlan {
   
   @Inline
   @Unpreemptible
-  public final boolean isFat(Word lockWord) {
-    return !lockWord.and(TL_FAT_LOCK_MASK).isZero();
-  }
-  
-  /**
-   * Return the lock index for a given lock word.  Assert valid index
-   * ranges, that the fat lock bit is set, and that the lock entry
-   * exists.
-   *
-   * @param lockWord The lock word whose lock index is being established
-   * @return the lock index corresponding to the lock workd.
-   */
-  @Inline
-  @Unpreemptible
-  public final int getLockIndex(Word lockWord) {
-    int index = lockWord.and(TL_LOCK_ID_MASK).rshl(TL_LOCK_ID_SHIFT).toInt();
-    if (VM.VerifyAssertions) {
-      if (!(index > 0 && index < LockConfig.selectedPlan.numLocks())) {
-        VM.sysWrite("Lock index out of range! Word: "); VM.sysWrite(lockWord);
-        VM.sysWrite(" index: "); VM.sysWrite(index);
-        VM.sysWrite(" locks: "); VM.sysWrite(LockConfig.selectedPlan.numLocks());
-        VM.sysWriteln();
-      }
-      VM._assert(index > 0 && index < LockConfig.selectedPlan.numLocks());  // index is in range
-      VM._assert(!lockWord.and(TL_FAT_LOCK_MASK).isZero());        // fat lock bit is set
-    }
-    return index;
-  }
-  
-  @Inline
-  @Unpreemptible
   public final int getLockOwner(Word lockWord) {
     return lockWord.and(ThinLockConstants.TL_THREAD_ID_MASK).toInt();
   }
@@ -318,6 +274,8 @@ public class BasicThinLockPlan extends AbstractThinLockPlan {
   @Unpreemptible
   public final boolean attemptToMarkDeflated(Object o, Offset lockOffset,
                                              Word oldLockWord) {
+    // NB: we only need a CAS here because the lock word may be concurrently
+    // modified by GC or hashing.
     return Synchronization.tryCompareAndSwap(
       o, lockOffset, oldLockWord, oldLockWord.and(TL_UNLOCK_MASK));
   }
