@@ -289,6 +289,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
   }
   
   @Inline
+  @Uninterruptible
   public final boolean allowHeaderCAS(Object o, Offset lockOffset) {
     return false;
   }

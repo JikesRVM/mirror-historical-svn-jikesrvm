@@ -139,6 +139,7 @@ public abstract class AbstractThinLockPlan implements Constants, ThinLockConstan
   }
   
   @Inline
+  @Uninterruptible
   public boolean allowHeaderCAS(Object o, Offset lockOffset) {
     return true;
   }

@@ -119,6 +119,7 @@ public final class Locking implements ThinLockConstants {
     LockConfig.selectedThinPlan.unlockHeader(obj, lockOffset);
   }
   
+  @Uninterruptible
   public static boolean allowHeaderCAS(Object obj, Offset lockOffset) {
     return LockConfig.selectedThinPlan.allowHeaderCAS(obj, lockOffset);
   }

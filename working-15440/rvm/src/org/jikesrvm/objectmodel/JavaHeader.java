@@ -701,6 +701,7 @@ public class JavaHeader implements JavaHeaderConstants {
    * Freeze the other bits in the byte containing the available bits
    * so that it is safe to update them using setAvailableBits.
    */
+  @Interruptible
   public static void initializeAvailableByte(Object o) {
     if (!ADDRESS_BASED_HASHING) getObjectHashCode(o);
   }
