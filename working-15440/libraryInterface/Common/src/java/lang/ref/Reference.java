@@ -102,17 +102,19 @@ public abstract class Reference<T> {
     return nextOnQueue != null;
   }
 
-  /*
-   * This method requires external synchronization.
-   * The logically uninterruptible pragma is a bold faced lie;
-   * injecting it for now to avoid a warning message during the build
-   * that users might find confusing. We think the problem is actually
-   * not a 'real' problem...
-   */
-  @UnpreemptibleNoWarn("Call out to ReferenceQueue API")
   public boolean enqueue() {
     if (nextOnQueue == null && queue != null) {
       queue.enqueue(this);
+      queue = null;
+      return true;
+    }
+    return false;
+  }
+
+  @Uninterruptible
+  public boolean enqueueInternal() {
+    if (nextOnQueue == null && queue != null) {
+      queue.enqueueInternal(this);
       queue = null;
       return true;
     }

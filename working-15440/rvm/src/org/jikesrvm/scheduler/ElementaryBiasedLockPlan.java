@@ -189,7 +189,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
       TL_FAT_LOCK_MASK.or(Word.fromIntZeroExtend(lockId).lsh(TL_LOCK_ID_SHIFT))
       .or(oldLockWord.and(TL_UNLOCK_MASK));
     if (id.isZero()) {
-      return Synchronization.tryCompareAndSwap(o, lockOffset,oldLockWord, changed);
+      return Synchronization.tryCompareAndSwap(o, lockOffset, oldLockWord, changed);
     } else {
       RVMThread owner=RVMThread.threadBySlot[id.toInt()>>TL_THREAD_ID_SHIFT];
       if (owner==me) {

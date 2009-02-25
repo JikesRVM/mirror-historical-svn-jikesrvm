@@ -157,7 +157,9 @@ public class Entrypoints {
 
   public static final RVMField eagerDeflateLockMutexField=
       (org.jikesrvm.scheduler.LockConfig.SELECTED ==
-       org.jikesrvm.scheduler.LockConfigs.EagerDeflate)
+       org.jikesrvm.scheduler.LockConfigs.EagerDeflate ||
+       org.jikesrvm.scheduler.LockConfig.SELECTED ==
+       org.jikesrvm.scheduler.LockConfigs.EagerDeflateBiased)
       ? getField(org.jikesrvm.scheduler.EagerDeflateLock.class,
                  "mutex", int.class)
       : null;
