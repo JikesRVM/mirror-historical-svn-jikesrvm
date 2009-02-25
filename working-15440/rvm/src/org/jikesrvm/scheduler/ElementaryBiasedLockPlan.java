@@ -41,14 +41,14 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
   }
   
   @Inline
-  @NoNullcheck
+  @NoNullCheck
   public final void inlineLock(Object o, Offset lockOffset) {
     Word old = Magic.getWordAtOffset(o, lockOffset);
     if (old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK)).EQ(
           Word.fromIntSignExtend(RVMThread.getCurrentThread().getLockingId()))) {
       Word changed = old.toAddress().plus(TL_LOCK_COUNT_UNIT).toWord();
       if (!changed.and(TL_LOCK_COUNT_MASK).isZero()) {
-        Word.setWordAtOffset(o, lockOffset, changed);
+        Magic.setWordAtOffset(o, lockOffset, changed);
         return;
       }
     }
@@ -56,13 +56,13 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
   }
   
   @Inline
-  @NoNullcheck
+  @NoNullCheck
   public final void inlineUnlock(Object o, Offset lockOffset) {
     Word old = Magic.getWordAtOffset(o, lockOffset);
     if (old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK)).EQ(
           Word.fromIntSignExtend(RVMThread.getCurrentThread().getLockingId())) &&
         !old.and(TL_LOCK_COUNT_MASK).isZero()) {
-      Word.setWordAtOffset(
+      Magic.setWordAtOffset(
         o, lockOffset,
         old.toAddress().minus(TL_LOCK_COUNT_UNIT).toWord());
     }
@@ -70,7 +70,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
   }
   
   @NoInline
-  @NoNullcheck
+  @NoNullCheck
   public void lock(Object o, Offset lockOffset) {
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
 
@@ -115,7 +115,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
   }
   
   @NoInline
-  @NoNullcheck
+  @NoNullCheck
   public void unlock(Object o, Offset lockOffset) {
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
     Word old = Magic.getWordAtOffset(o, lockOffset);
@@ -124,7 +124,8 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
       if (old.and(TL_LOCK_COUNT_MASK).isZero()) {
         RVMThread.raiseIllegalMonitorStateException("biased unlocking: we own this object but the count is already zero", o);
       }
-      Magic.setWordAtOffset(old.toAddress().minus(TL_LOCK_COUNT_UNIT).toWord());
+      Magic.setWordAtOffset(o, lockOffset,
+                            old.toAddress().minus(TL_LOCK_COUNT_UNIT).toWord());
     } else {
       if (old.and(TL_FAT_LOCK_MASK).isZero()) {
         RVMThread.raiseIllegalMonitorStateException("biased unlocking: we don't own this object", o);
@@ -137,10 +138,10 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
   }
   
   @Unpreemptible
-  @NoNullcheck
+  @NoNullCheck
   public final boolean holdsLock(Object o, Offset lockOffset, RVMThread thread) {
     int tid = thread.getLockingId();
-    Word bits = Magic.getWordAtOffset(obj, lockOffset);
+    Word bits = Magic.getWordAtOffset(o, lockOffset);
     if (bits.and(TL_FAT_LOCK_MASK).isZero()) {
       // if locked, then it is locked with a thin lock
       return
@@ -151,7 +152,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
       int index = getLockIndex(bits);
       LockConfig.Selected l = (LockConfig.Selected)
         Magic.eatCast(LockConfig.selectedPlan.getLock(index));
-      return l != null && l.holdsLock(obj, thread);
+      return l != null && l.holdsLock(o, thread);
     }
   }
 
@@ -165,8 +166,6 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
     }
   }
   
-  @Inline
-  @Unpreemptible
   @Inline
   @Unpreemptible
   public final int getRecCount(Word lockWord) {
@@ -190,7 +189,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
       TL_FAT_LOCK_MASK.or(Word.fromIntZeroExtend(lockId).lsh(TL_LOCK_ID_SHIFT))
       .or(oldLockWord.and(TL_UNLOCK_MASK));
     if (id.isZero()) {
-      return Synchronization.tryCompareAndSwap(o, lockOffset,oldLockWord, changed)) {
+      return Synchronization.tryCompareAndSwap(o, lockOffset,oldLockWord, changed);
     } else {
       RVMThread owner=RVMThread.threadBySlot[id.toInt()>>TL_THREAD_ID_SHIFT];
       if (owner==me) {
@@ -217,10 +216,11 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
     // NB: we disallow concurrent modifications of the lock word, so this
     // doesn't require a CAS.
     Magic.setWordAtOffset(o, lockOffset, oldLockWord.and(TL_UNLOCK_MASK));
+    return true;
   }
   
   @NoInline
-  @NoNullcheck
+  @NoNullCheck
   public boolean lockHeader(Object o, Offset lockOffset) {
     // what do we do here?  if we have the bias, then it's easy.  but what
     // if we don't?  in that case we need to be ultra-careful.  what we can
@@ -268,14 +268,15 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
   }
   
   @NoInline
-  @NoNullcheck
-  public final boolean unlockHeader(Object o, Offset lockOffset) {
+  @NoNullCheck
+  public final void unlockHeader(Object o, Offset lockOffset) {
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
     Word old = Magic.getWordAtOffset(o, lockOffset);
     Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
     if (id.EQ(threadId)) {
       if (VM.VerifyAssertions) VM._assert(!old.and(TL_LOCK_COUNT_MASK).isZero());
-      Magic.setWordAtOffset(old.toAddress().minus(TL_LOCK_COUNT_UNIT).toWord());
+      Magic.setWordAtOffset(o, lockOffset,
+                            old.toAddress().minus(TL_LOCK_COUNT_UNIT).toWord());
     } else {
       if (VM.VerifyAssertions) VM._assert(!old.and(TL_FAT_LOCK_MASK).isZero());
       // fat unlock
