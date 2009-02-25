@@ -174,6 +174,10 @@ public class EagerDeflateLock extends CommonLock {
     Synchronization.releaseLock(this,Entrypoints.eagerDeflateLockMutexField.getOffset());
   }
   
+  protected final boolean stateIsLocked() {
+    return mutex!=0;
+  }
+  
   protected final void dumpBlockedThreads() {
     VM.sysWrite(" entering: ");
     entering.dump();

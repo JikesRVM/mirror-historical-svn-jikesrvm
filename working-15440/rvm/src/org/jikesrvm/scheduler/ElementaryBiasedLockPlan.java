@@ -134,7 +134,6 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
         LockConfig.selectedPlan.getLock(getLockIndex(old));
       l.unlockHeavy();
     }
-    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);
   }
   
   @Unpreemptible
@@ -220,6 +219,8 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
     Magic.setWordAtOffset(o, lockOffset, oldLockWord.and(TL_UNLOCK_MASK));
   }
   
+  @NoInline
+  @NoNullcheck
   public boolean lockHeader(Object o, Offset lockOffset) {
     // what do we do here?  if we have the bias, then it's easy.  but what
     // if we don't?  in that case we need to be ultra-careful.  what we can
@@ -227,7 +228,68 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
     // 1) if the lock is biased in our favor, then lock it
     // 2) if the lock is unbiased, then bias it in our favor an lock it
     // 3) if the lock is biased in someone else's favor, stop them
-    // 4) if the lock is fat, prevent the lock from being deflated...???
+    // 4) if the lock is fat, lock its state
+    Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
+    for (;;) {
+      Word old = Magic.getWordAtOffset(o, lockOffset);
+      Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
+      if (id.isZero()) {
+        // lock is unbiased, bias it in our favor and grab it
+        if (Synchronization.tryCompareAndSwap(
+              o, lockOffset,
+              old,
+              old.or(threadId).toAddress().plus(TL_LOCK_COUNT_UNIT).toWord())) {
+          Magic.isync();
+          return true;
+        }
+      } else if (id.EQ(threadId)) {
+        // lock is biased in our favor, so grab it
+        Word changed = old.toAddress().plus(TL_LOCK_COUNT_UNIT).toWord();
+        if (!changed.and(TL_LOCK_COUNT_MASK).isZero()) {
+          Magic.setWordAtOffset(o, lockOffset, changed);
+          return true;
+        }
+      } else if (!old.and(TL_FAT_LOCK_MASK).isZero()) {
+        // lock is fat.  lock its state.
+        LockConfig.Selected l=(LockConfig.Selected)
+          LockConfig.selectedPlan.getLock(getLockIndex(old));
+        if (l!=null) {
+          l.lockState();
+          if (l.lockedObject==o && Magic.getWordAtOffset(o, lockOffset)==old) {
+            return true; // cannot deflate the lock, so the header really is locked
+          }
+          l.unlockState();
+        }
+      } else {
+        // lock is biased to someone else.  inflate it.
+        LockConfig.selectedPlan.inflate(o,lockOffset);
+      }
+    }
+  }
+  
+  @NoInline
+  @NoNullcheck
+  public final boolean unlockHeader(Object o, Offset lockOffset) {
+    Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
+    Word old = Magic.getWordAtOffset(o, lockOffset);
+    Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
+    if (id.EQ(threadId)) {
+      if (VM.VerifyAssertions) VM._assert(!old.and(TL_LOCK_COUNT_MASK).isZero());
+      Magic.setWordAtOffset(old.toAddress().minus(TL_LOCK_COUNT_UNIT).toWord());
+    } else {
+      if (VM.VerifyAssertions) VM._assert(!old.and(TL_FAT_LOCK_MASK).isZero());
+      // fat unlock
+      LockConfig.Selected l=(LockConfig.Selected)
+        LockConfig.selectedPlan.getLock(getLockIndex(old));
+      if (VM.VerifyAssertions) VM._assert(l!=null);
+      if (VM.VerifyAssertions) VM._assert(l.stateIsLocked());
+      l.unlockState();
+    }
+  }
+  
+  @Inline
+  public final boolean allowHeaderCAS(Object o, Offset lockOffset) {
+    return false;
   }
 }
 

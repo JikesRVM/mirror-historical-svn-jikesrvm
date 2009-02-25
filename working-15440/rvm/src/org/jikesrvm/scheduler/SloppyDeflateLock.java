@@ -250,6 +250,10 @@ public class SloppyDeflateLock extends CommonLock {
     state=(state&~QUEUEING_FLAG);
   }
   
+  protected final boolean stateIsLocked() {
+    return (state&QUEUEING_FLAG)!=0;
+  }
+  
   /**
    * Can this lock be deflated right now?  Only call this after calling lockWaiting(),
    * and if you do deflate it, make sure you do so prior to calling unlockWaiting().
