@@ -139,7 +139,7 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
   }
 
   @NoInline
-  @NoNullcheck
+  @NoNullCheck
   public final void lock(Object o, Offset lockOffset) {
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
     
@@ -187,7 +187,7 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
   }
   
   @NoInline
-  @NoNullcheck
+  @NoNullCheck
   public final void unlock(Object o, Offset lockOffset) {
     Magic.sync();
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());

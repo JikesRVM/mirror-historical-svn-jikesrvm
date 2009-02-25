@@ -227,7 +227,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
     // do:
     // 1) if the lock is biased in our favor, then lock it
     // 2) if the lock is unbiased, then bias it in our favor an lock it
-    // 3) if the lock is biased in someone else's favor, stop them
+    // 3) if the lock is biased in someone else's favor, inflate it (so we can do (4))
     // 4) if the lock is fat, lock its state
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
     for (;;) {

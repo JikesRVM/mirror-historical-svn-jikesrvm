@@ -29,7 +29,7 @@ import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
-public class CommonThinLockPlan extends AbstractThinLockPlan {
+public abstract class CommonThinLockPlan extends AbstractThinLockPlan {
   public static CommonThinLockPlan instance;
   
   public CommonThinLockPlan() {
