@@ -54,6 +54,7 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
   @Inline
   @NoNullCheck
   public final void inlineLock(Object o, Offset lockOffset) {
+    if (false) VM.tsysWriteln("in inlineLock with o = ",Magic.objectAsAddress(o)," and offset = ",lockOffset);
     if (!LockConfig.USE_REC_FASTPATH) {
       Word old = Magic.prepareWord(o, lockOffset);
       if (old.rshl(TL_THREAD_ID_SHIFT).isZero()) {
@@ -62,6 +63,7 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
         if (Magic.attemptWord(o, lockOffset, old, old.or(Word.fromIntZeroExtend(threadId)))) {
           Magic.isync(); // don't use stale prefetched data in monitor
           if (CommonLockPlan.HEAVY_STATS) CommonLockPlan.fastLocks++;
+          if (false) VM.tsysWriteln("Done with inlineLock (fast1).");
           return;           // common case: o is now locked
         }
       }
@@ -74,6 +76,7 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
         if (Magic.attemptWord(o, lockOffset, old, old.or(Word.fromIntZeroExtend(threadId)))) {
           Magic.isync(); // don't use stale prefetched data in monitor
           if (CommonLockPlan.HEAVY_STATS) CommonLockPlan.fastLocks++;
+          if (false) VM.tsysWriteln("Done with inlineLock (fast2).");
           return;           // common case: o is now locked
         }
       } else {
@@ -84,12 +87,15 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
               Magic.attemptWord(o, lockOffset, old, changed)) {
             Magic.isync();
             if (CommonLockPlan.HEAVY_STATS) CommonLockPlan.fastLocks++;
+            if (false) VM.tsysWriteln("Done with inlineLock (fast3).");
             return;
           }
         }
       }
     }
+    if (false) VM.tsysWriteln("going into slow path...");
     lock(o, lockOffset); // uncommon case: default to out-of-line lock()
+    if (false) VM.tsysWriteln("Done with inlineLock.");
   }
 
   /**
@@ -105,6 +111,7 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
   @Inline
   @NoNullCheck
   public final void inlineUnlock(Object o, Offset lockOffset) {
+    if (false) VM.tsysWriteln("in inlineUnlock with o = ",Magic.objectAsAddress(o)," and offset = ",lockOffset);
     if (!LockConfig.USE_REC_FASTPATH) {
       Word old = Magic.prepareWord(o, lockOffset);
       Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());

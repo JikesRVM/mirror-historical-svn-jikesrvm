@@ -178,6 +178,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
                                              Word oldLockWord,
                                              int lockId) {
     if (VM.VerifyAssertions) VM._assert(oldLockWord.and(TL_FAT_LOCK_MASK).isZero());
+    if (true) VM.sysWriteln("attemptToMarkInflated with oldLockWord = ",oldLockWord);
     // what this needs to do:
     // 1) if the lock is unbiased, CAS in the inflation
     // 2) if the lock is biased in our favor, store the lock without CAS
@@ -191,13 +192,30 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
     if (id.isZero()) {
       return Synchronization.tryCompareAndSwap(o, lockOffset, oldLockWord, changed);
     } else {
-      RVMThread owner=RVMThread.threadBySlot[id.toInt()>>TL_THREAD_ID_SHIFT];
-      if (owner==me) {
-        Magic.setWordAtOffset(o, lockOffset, changed);
-        return true;
-      } else {
+      if (true) VM.sysWriteln("id = ",id);
+      int slot=id.toInt()>>TL_THREAD_ID_SHIFT;
+      if (true) VM.sysWriteln("slot = ",slot);
+      RVMThread owner=RVMThread.threadBySlot[slot];
+      if (owner==me /* I own it, so I can unbias it trivially.  This occurs
+                       when we are inflating due to, for example, wait() */ ||
+          owner==null /* the thread that owned it is dead, so it's safe to
+                         unbias. */) {
+        // note that we use a CAS here, but it's only needed in the case
+        // that owner==null, since in that case some other thread may also
+        // be unbiasing.
+        return Synchronization.tryCompareAndSwap(
+          o, lockOffset, oldLockWord, changed);
+      } else if (owner!=null) {
         boolean result=false;
+        
+        // NB. this may stop a thread other than the one that had the bias,
+        // if that thread died and some other thread took its slot.  either
+        // way, this effectively gives us a lock on this lock word (anyone
+        // else trying to unbias this object will end up doing this same
+        // handshake, which will require acquiring the same lock on the same
+        // thread)
         owner.beginPairHandshake();
+        
         Word newLockWord=Magic.getWordAtOffset(o, lockOffset);
         if (newLockWord.EQ(oldLockWord)) {
           Magic.setWordAtOffset(o, lockOffset, changed);

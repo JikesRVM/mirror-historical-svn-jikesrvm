@@ -38,14 +38,16 @@ public class EagerDeflateLock extends CommonLock {
   public EagerDeflateLock() {
   }
   
-  protected ThreadQueue entering() {
+  protected final ThreadQueue entering() {
     if (entering==null) entering=new ThreadQueue();
     return entering;
   }
   
-  protected boolean enteringIsEmpty() {
+  protected final boolean enteringIsEmpty() {
     return entering==null || entering.isEmpty();
   }
+  
+  public final void activate() {}
 
   /**
    * Acquires this heavy-weight lock on the indicated object.

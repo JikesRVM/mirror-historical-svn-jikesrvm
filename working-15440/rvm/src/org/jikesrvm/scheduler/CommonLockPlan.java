@@ -135,28 +135,31 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   
   private void growLocksIfNeeded() {
     if (true || trace) VM.sysWriteln("stopping all threads to grow locks");
-    RVMThread.handshakeLock.lockNicely();
-    try {
-      if (freeHead==null && nextLockID==locks.length) {
-        RVMThread.hardHandshakeSuspend(RVMThread.allButGC);
-        if (trace) VM.sysWriteln("all threads stopped");
-        
-        try {
-          if (freeHead==null && nextLockID==locks.length) {
-            CommonLock[] newLocks=new CommonLock[nextLockSize(locks.length)];
-            System.arraycopy(locks,0,
-                             newLocks,0,
-                             locks.length);
-            locks=newLocks;
+    int oldLocksLength=locks.length;
+    if (freeHead==null && nextLockID==oldLocksLength) {
+      CommonLock[] newLocks=new CommonLock[nextLockSize(oldLocksLength)];
+      RVMThread.handshakeLock.lockNicely();
+      try {
+        if (freeHead==null && newLocks.length>locks.length) {
+          RVMThread.hardHandshakeSuspend(RVMThread.allButGC);
+          if (trace) VM.sysWriteln("all threads stopped");
+          
+          try {
+            if (freeHead==null && newLocks.length>locks.length) {
+              System.arraycopy(locks,0,
+                               newLocks,0,
+                               locks.length);
+              locks=newLocks;
+            }
+          } finally {
+            if (trace) VM.sysWriteln("resuming all threads");
+            RVMThread.hardHandshakeResume(RVMThread.allButGC);
           }
-        } finally {
-          if (trace) VM.sysWriteln("resuming all threads");
-          RVMThread.hardHandshakeResume(RVMThread.allButGC);
         }
+      } finally {
+        RVMThread.handshakeLock.unlock();
+        if (trace) VM.sysWriteln("all threads resumed");
       }
-    } finally {
-      RVMThread.handshakeLock.unlock();
-      if (trace) VM.sysWriteln("all threads resumed");
     }
   }
   

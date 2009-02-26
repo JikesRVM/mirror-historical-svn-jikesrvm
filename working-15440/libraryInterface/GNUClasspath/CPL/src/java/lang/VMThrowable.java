@@ -72,6 +72,7 @@ public final class VMThrowable {
     } catch (Throwable t) {
       VM.sysWriteln("Error calling StackTrace.getStackTrace: dumping stack using scheduler");
       RVMThread.dumpStack();
+      VM.sysWriteln("the error was: "+t);
       return zeroLengthStackTrace;
     }
     if (vmElements == null) {

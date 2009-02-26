@@ -1545,6 +1545,17 @@ public class VM extends Properties implements Constants, ExitStatus {
   }
 
   @NoInline
+  public static void sysWriteln(String s1, Address a,String s2, Offset o) {
+    swLock();
+    write(s1);
+    write(a);
+    write(s2);
+    write(o);
+    writeln();
+    swUnlock();
+  }
+
+  @NoInline
   public static void sysWrite(String s1, String s2, int i) {
     swLock();
     write(s1);
@@ -2219,6 +2230,18 @@ public class VM extends Properties implements Constants, ExitStatus {
     write(a1);
     write(s2);
     write(a2);
+    writeln();
+    swUnlock();
+  }
+
+  @NoInline
+  public static void tsysWriteln(String s1, Address a1, String s2, Offset o1) {
+    swLock();
+    showThread();
+    write(s1);
+    write(a1);
+    write(s2);
+    write(o1);
     writeln();
     swUnlock();
   }

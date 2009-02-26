@@ -128,8 +128,7 @@ public abstract class CommonLock extends AbstractLock {
     return lockedObject!=null;
   }
   
-  protected void activate() {
-  }
+  protected abstract void activate();
 
   protected final void dumpWaitingThreads() {
     VM.sysWrite(" waiting: ");

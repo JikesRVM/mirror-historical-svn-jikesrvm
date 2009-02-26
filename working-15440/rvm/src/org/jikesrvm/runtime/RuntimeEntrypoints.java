@@ -77,7 +77,7 @@ import org.vmmagic.unboxed.Offset;
  */
 public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.StackframeLayoutConstants {
 
-  private static final boolean traceAthrow = true;
+  private static final boolean traceThrow = true;
   // Trap codes for communication with C trap handler.
   //
   public static final int TRAP_UNKNOWN = -1;
@@ -616,7 +616,7 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
   @Entrypoint
   @Unpreemptible("Deliver exception possibly from unpreemptible code")
   public static void athrow(Throwable exceptionObject) {
-    if (traceAthrow) {
+    if (traceThrow) {
       VM.sysWriteln("in athrow.");
       RVMThread.dumpStack();
     }
@@ -965,6 +965,10 @@ public class RuntimeEntrypoints implements Constants, ArchitectureSpecific.Stack
    */
   @Unpreemptible("Deliver exception trying to avoid preemption")
   private static void deliverException(Throwable exceptionObject, Registers exceptionRegisters) {
+    if (traceThrow) {
+      VM.sysWriteln("in deliverException, with ",Magic.getObjectType(exceptionObject).getDescriptor());
+      RVMThread.dumpStack();
+    }
     if (VM.TraceExceptionDelivery) {
       VM.sysWriteln("RuntimeEntrypoints.deliverException() entered; just got an exception object.");
     }

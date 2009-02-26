@@ -2797,14 +2797,24 @@ public class BootImageWriter extends BootImageWriterMessages
         }
       } else if (jdkObject instanceof java.lang.ref.ReferenceQueue) {
         if(rvmFieldName.equals("lock")) {
-          // cause reference queues in the boot image to lock upon themselves
-          Address imageAddress = BootImageMap.findOrCreateEntry(jdkObject).imageAddress;
-          if (imageAddress.EQ(OBJECT_NOT_PRESENT) || imageAddress.EQ(OBJECT_NOT_ALLOCATED) || imageAddress.EQ(Address.zero())) {
-            throw new Error("Trying to copy known field into unavailable object!");
+          VM.sysWriteln("writing the lock field.");
+          Object value = new org.jikesrvm.scheduler.LightCondLock();
+          if (verbose>=2) traceContext.push(value.getClass().getName(),
+                                            "java.lang.ref.ReferenceQueue",
+                                            "lock");
+          Address imageAddress = BootImageMap.findOrCreateEntry(value).imageAddress;
+          if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
+            if (verbose >= 2) traceContext.traceObjectNotInBootImage();
+            throw new Error("Failed to populate lock in ReferenceQueue");
+          } else if (imageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
+            imageAddress = copyToBootImage(value, false, Address.max(), jdkObject, false);
+            if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
+            bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, false);
           } else {
             if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
             bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, false);
           }
+          if (verbose>=2) traceContext.pop();
           return true;
         } else if (rvmFieldName.equals("first")){
           return false;

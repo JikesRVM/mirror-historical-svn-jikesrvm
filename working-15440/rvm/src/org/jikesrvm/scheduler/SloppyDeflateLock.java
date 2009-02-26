@@ -61,13 +61,12 @@ public class SloppyDeflateLock extends CommonLock {
     queue = new ThreadQueue();
   }
   
-  protected void activate() {
+  protected final void activate() {
     numHeavyUses=1;
     Magic.sync();
-    super.activate();
   }
   
-  protected void deactivate() {
+  protected final void deactivate() {
     if (VM.VerifyAssertions) {
       VM._assert(waitingIsEmpty());
       VM._assert(queue.isEmpty());
@@ -93,7 +92,7 @@ public class SloppyDeflateLock extends CommonLock {
    * Implementation of lock acquisition.  Does not deal with locked objects or with
    * recursion.  Also does not do any Magic synchronization.
    */
-  protected void acquireImpl() {
+  protected final void acquireImpl() {
     Offset offset=Entrypoints.sloppyDeflateLockStateField.getOffset();
     for (int n=spinLimit();n-->0;) {
       int oldState=Magic.prepareInt(this,offset);
@@ -133,7 +132,7 @@ public class SloppyDeflateLock extends CommonLock {
    * Implementation of lock release.  Does not deal with locked objects or with
    * recursion.  Also does not do any Magic synchronization.
    */
-  protected void releaseImpl() {
+  protected final void releaseImpl() {
     Offset offset=Entrypoints.sloppyDeflateLockStateField.getOffset();
     for (;;) {
       int oldState=Magic.prepareInt(this,offset);
@@ -162,13 +161,13 @@ public class SloppyDeflateLock extends CommonLock {
     }
   }
   
-  protected void setUnlockedState() {
+  protected final void setUnlockedState() {
     VM.tsysWriteln("inflating unlocked: ",id);
     ownerId=0;
     recursionCount=0;
   }
   
-  protected void setLockedState(int ownerId,int recursionCount) {
+  protected final void setLockedState(int ownerId,int recursionCount) {
     VM.tsysWriteln("inflating locked: ",id);
     acquireImpl();
     // at this point only the *owner* of the lock can mess with it.
@@ -177,7 +176,7 @@ public class SloppyDeflateLock extends CommonLock {
     VM.tsysWriteln("done inflating locked: ",id);
   }
   
-  public boolean lockHeavy(Object o) {
+  public final boolean lockHeavy(Object o) {
     VM.tsysWriteln("locking heavy: ",id);
     int myId=RVMThread.getCurrentThread().getLockingId();
     if (myId == ownerId) {
@@ -209,7 +208,7 @@ public class SloppyDeflateLock extends CommonLock {
     }
   }
   
-  public void unlockHeavy() {
+  public final void unlockHeavy() {
     if (recursionCount==0) {
       RVMThread.raiseIllegalMonitorStateException("unlocking unlocked lock",lockedObject);
     }
@@ -223,12 +222,12 @@ public class SloppyDeflateLock extends CommonLock {
     }
   }
   
-  protected int enqueueWaitingAndUnlockCompletely(RVMThread toWait) {
+  protected final int enqueueWaitingAndUnlockCompletely(RVMThread toWait) {
     numHeavyUses++;
     return super.enqueueWaitingAndUnlockCompletely(toWait);
   }
   
-  protected void lockState() {
+  protected final void lockState() {
     Offset offset=Entrypoints.sloppyDeflateLockStateField.getOffset();
     for (;;) {
       int oldState=Magic.prepareInt(this,offset);
@@ -243,7 +242,7 @@ public class SloppyDeflateLock extends CommonLock {
     Magic.isync();
   }
   
-  protected void unlockState() {
+  protected final void unlockState() {
     Magic.sync();
     // don't need CAS since the state field cannot change while the QUEUEING_FLAG
     // is set.
@@ -258,11 +257,11 @@ public class SloppyDeflateLock extends CommonLock {
    * Can this lock be deflated right now?  Only call this after calling lockWaiting(),
    * and if you do deflate it, make sure you do so prior to calling unlockWaiting().
    */
-  private boolean canDeflate() {
+  private final boolean canDeflate() {
     return (state&~QUEUEING_FLAG) == CLEAR && waitingIsEmpty();
   }
   
-  protected boolean pollDeflate(int useThreshold) {
+  protected final boolean pollDeflate(int useThreshold) {
     if (lockedObject!=null) {
       Offset lockOffset=Magic.getObjectType(lockedObject).getThinLockOffset();
       if (numHeavyUses<0 || numHeavyUses<useThreshold || useThreshold<0) {
@@ -285,7 +284,7 @@ public class SloppyDeflateLock extends CommonLock {
     return false;
   }
   
-  protected void dumpBlockedThreads() {
+  protected final void dumpBlockedThreads() {
     VM.sysWrite(" entering: ");
     queue.dump();
   }

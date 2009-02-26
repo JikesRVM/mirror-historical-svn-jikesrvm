@@ -38,6 +38,13 @@ exception statement from your version. */
 
 package java.lang.ref;
 
+import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Unpreemptible;
+import static org.jikesrvm.runtime.SysCall.sysCall;
+import org.jikesrvm.scheduler.LightCondLock;
+import org.jikesrvm.runtime.Magic;
+import org.jikesrvm.VM;
+
 /**
  * This is the queue, where references can enqueue themselve on.  Each
  * reference may be registered to a queue at initialization time and
@@ -66,7 +73,7 @@ public class ReferenceQueue<T>
    * This is the lock that protects our linked list and is used to signal
    * a thread waiting in remove().
    */
-  private final Object lock = new Object();
+  private LightCondLock lock = new LightCondLock();
 
   /**
    * Creates a new empty reference queue.
@@ -84,11 +91,14 @@ public class ReferenceQueue<T>
    */
   public Reference<? extends T> poll()
   { 
+    if (false) VM.sysWriteln("in poll");
     return dequeue();
   }
   
   @Uninterruptible
   private boolean enqueueImpl(Reference<? extends T> ref) {
+    if (false) VM.sysWriteln("enqueueing");
+    
     if (ref.queue != this)
       return false;
     
@@ -104,18 +114,16 @@ public class ReferenceQueue<T>
    * @param ref the reference that should be enqueued.
    * @return true if successful, false if not.
    */
-  final boolean enqueue(Reference<? extends T> ref)
-    {
-    synchronized (lock)
-      {
-        if (enqueueImpl(ref)) {
-          /* this wakes only one remove thread. */
-          lock.notify();
-          return true;
-        } else {
-          return false;
-        }
-      }
+  @Uninterruptible
+  final boolean enqueueInternal(Reference<? extends T> ref)
+  {
+    if (enqueueImpl(ref)) {
+      /* this wakes only one remove thread. */
+      lock.broadcast();
+      return true;
+    } else {
+      return false;
+    }
   }
   
   /**
@@ -123,20 +131,18 @@ public class ReferenceQueue<T>
    * @param ref the reference that should be enqueued.
    * @return true if successful, false if not.
    */
-  @Uninterruptible
-  final boolean enqueueInternal(Reference<? extends T> ref)
+  @Unpreemptible
+  final boolean enqueue(Reference<? extends T> ref)
   {
-    if (enqueueImpl(ref)) {
-      /* this wakes only one remove thread. */
-      lock.notify(); // FIXME!!!  need an internal notify() mechanism.
-      return true;
-    } else {
-      return false;
-    }
+    lock.lockNicely();
+    boolean result=enqueueInternal(ref);
+    lock.unlock();
+    return result;
   }
   
   @Uninterruptible
   private Reference<? extends T> dequeueImpl() {
+    if (false) VM.sysWriteln("dequeueImpl");
     if (first == null)
       return null;
     
@@ -152,10 +158,12 @@ public class ReferenceQueue<T>
    */
   private Reference<? extends T> dequeue()
   {
-    synchronized (lock)
-      {
-        return dequeueImpl();
-      }
+    if (false) VM.sysWriteln("in dequeue, this = ",Magic.objectAsAddress(this));
+    lock.lockNicely();
+    if (false) VM.sysWriteln("locked.");
+    Reference<? extends T> result=dequeueImpl();
+    lock.unlock();
+    return result;
   }
 
   /**
@@ -170,14 +178,18 @@ public class ReferenceQueue<T>
   public Reference<? extends T> remove(long timeout)
     throws InterruptedException
   {
-    synchronized (lock)
-      {
-        // FIXME: this is totally bogus.
-        if (first == null)
-          lock.wait(timeout);
+    long whenAwake=sysCall.sysNanoTime()+timeout*1000L*1000L;
+    lock.lockNicely();
+    while (first==null && (timeout==0 || sysCall.sysNanoTime() < whenAwake)) {
+      if (whenAwake==0) {
+        lock.waitInterruptibly();
+      } else {
+        lock.timedWaitAbsoluteInterruptibly(whenAwake);
       }
-
-    return dequeue();
+    }
+    Reference<? extends T> result=dequeue();
+    lock.unlock();
+    return result;
   }
     
 

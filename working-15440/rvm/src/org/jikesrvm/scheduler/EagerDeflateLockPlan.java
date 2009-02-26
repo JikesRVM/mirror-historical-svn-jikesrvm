@@ -117,7 +117,7 @@ public class EagerDeflateLockPlan extends CommonLockPlan {
                                                     EagerDeflateLock l) {
     if (PROFILE) RVMThread.enterLockingPath();
     Word old;
-    VM.sysWriteln("l = ",Magic.objectAsAddress(l));
+    if (false) VM.sysWriteln("l = ",Magic.objectAsAddress(l));
     l.lockState();
     do {
       Word bits = Magic.getWordAtOffset(o, lockOffset);

@@ -597,6 +597,8 @@ public class RVMThread extends ThreadContext {
 
   /** Count of recursive uncaught exceptions, we need to bail out at some point */
   private int uncaughtExceptionCount = 0;
+  
+  private LightCondLock joinLock = new LightCondLock();
 
   /**
    * A cached free lock id.
@@ -2427,7 +2429,7 @@ public class RVMThread extends ThreadContext {
    */
   @Interruptible
   @Entrypoint
-  public synchronized void run() {
+  public void run() {
     try {
       synchronized (thread) {
         Throwable t = java.lang.JikesRVMSupport.getStillBorn(thread);
@@ -2617,13 +2619,11 @@ public class RVMThread extends ThreadContext {
     if (traceAcct)
       VM.sysWriteln("making joinable...");
 
-    // this works.  we use synchronized because we cannot use the thread's
-    // monitor().  see comment in join().  this is fine, because we're still
-    // "running" from the standpoint of GC.
-    synchronized (this) {
-      isJoinable = true;
-      notifyAll();
-    }
+    joinLock.lockNicely();
+    isJoinable=true;
+    joinLock.broadcast();
+    joinLock.unlock();
+
     if (traceAcct)
       VM.sysWriteln("Thread #", threadSlot, " is joinable.");
 
@@ -3956,27 +3956,23 @@ public class RVMThread extends ThreadContext {
       VM._assert(myThread != this);
     if (traceBlock)
       VM.sysWriteln("Joining on Thread #", threadSlot);
-    // this uses synchronized because we cannot have one thread acquire
-    // another thread's lock using the Nicely scheme, as that would result
-    // in a thread holding two threads' monitor()s.  using synchronized
-    // turns out to be just fine - see comment in terminate().
-    synchronized (this) {
-      if (ms == 0 && ns == 0) {
-        while (!isJoinable) {
-          wait(this);
-          if (traceBlock)
-            VM.sysWriteln("relooping in join on Thread #", threadSlot);
-        }
-      } else {
-        long startNano = Time.nanoTime();
-        long whenWakeup = startNano + ms * 1000L * 1000L + ns;
-        if (isAlive()) {
-          do {
-            waitAbsoluteNanos(this, whenWakeup);
-          } while (isAlive() && Time.nanoTime() < whenWakeup);
-        }
+    joinLock.lockNicely();
+    if (ms == 0 && ns == 0) {
+      while (!isJoinable) {
+        joinLock.waitInterruptibly();
+        if (traceBlock)
+          VM.sysWriteln("relooping in join on Thread #", threadSlot);
+      }
+    } else {
+      long startNano = Time.nanoTime();
+      long whenWakeup = startNano + ms * 1000L * 1000L + ns;
+      if (isAlive()) {
+        do {
+          joinLock.timedWaitAbsoluteInterruptibly(whenWakeup);
+        } while (isAlive() && Time.nanoTime() < whenWakeup);
       }
     }
+    joinLock.unlock();
   }
 
   /**
