@@ -65,6 +65,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
       Magic.setWordAtOffset(
         o, lockOffset,
         old.toAddress().minus(TL_LOCK_COUNT_UNIT).toWord());
+      return;
     }
     unlock(o, lockOffset);
   }

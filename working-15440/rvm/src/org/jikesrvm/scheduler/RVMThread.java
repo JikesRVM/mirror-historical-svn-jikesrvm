@@ -156,7 +156,7 @@ public class RVMThread extends ThreadContext {
   protected static final boolean traceBlock = false;
 
   /** Trace when a thread is really blocked */
-  protected static final boolean traceReallyBlock = true || traceBlock;
+  protected static final boolean traceReallyBlock = false || traceBlock;
 
   protected static final boolean traceAboutToTerminate = false;
 
@@ -2021,16 +2021,16 @@ public class RVMThread extends ThreadContext {
   
   @Unpreemptible
   public void beginPairWith(RVMThread other) {
-    VM.sysWriteln("attempting to pair ",threadSlot," with ",other.threadSlot);
+    if (traceBlock) VM.sysWriteln("attempting to pair ",threadSlot," with ",other.threadSlot);
     HeavyCondLock.lockNicely(
       communicationLock(),Word.fromIntSignExtend(threadSlot),
-      other.communicationLock(),Word.fromIntSignExtend(threadSlot));
+      other.communicationLock(),Word.fromIntSignExtend(other.threadSlot));
   }
   
   public void endPairWith(RVMThread other) {
     communicationLock().unlock();
     other.communicationLock().unlock();
-    VM.sysWriteln("unpairing ",threadSlot," from ",other.threadSlot);
+    if (traceBlock) VM.sysWriteln("unpairing ",threadSlot," from ",other.threadSlot);
   }
   
   @Unpreemptible

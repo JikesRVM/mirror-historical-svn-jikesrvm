@@ -432,8 +432,17 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     CommonLock l=(CommonLock)Magic.eatCast(getLock(o));
     if (l == null)
       return;
-    if (VM.VerifyAssertions)
-      VM._assert(l.getOwnerId() == RVMThread.getCurrentThread().getLockingId());
+    if (VM.VerifyAssertions) {
+      if (l.getOwnerId() != RVMThread.getCurrentThread().getLockingId()) {
+        VM.sysWriteln("fat lock owner doesn't match current thread ID");
+        VM.sysWriteln("lock word = ",Magic.getWordAtOffset(o, Magic.getObjectType(o).getThinLockOffset()));
+        VM.sysWriteln("lock id = ",l.id);
+        VM.sysWriteln("cur thread id = ",RVMThread.getCurrentThreadSlot());
+        VM.sysWriteln("lock owner = ",l.getOwnerId());
+        VM.sysWriteln("lock rec cont = ",l.getRecursionCount());
+        VM._assert(false);
+      }
+    }
     l.lockState();
     RVMThread toAwaken = l.waitingDequeue();
     l.unlockState();
