@@ -156,7 +156,7 @@ public class RVMThread extends ThreadContext {
   protected static final boolean traceBlock = false;
 
   /** Trace when a thread is really blocked */
-  protected static final boolean traceReallyBlock = false || traceBlock;
+  protected static final boolean traceReallyBlock = true || traceBlock;
 
   protected static final boolean traceAboutToTerminate = false;
 
@@ -644,12 +644,12 @@ public class RVMThread extends ThreadContext {
   /**
    * Should the thread block for a thread-to-thread communication?
    */
-  boolean shouldBlockForCommunication;
+  boolean shouldBlockForGC;
   
   /**
    * Is the thread blocked for thread-to-thread communication?
    */
-  boolean isBlockedForCommunication;
+  boolean isBlockedForGC;
 
   @Uninterruptible
   @NonMoving
@@ -738,39 +738,39 @@ public class RVMThread extends ThreadContext {
 
   @Uninterruptible
   @NonMoving
-  public static class CommunicationBlockAdapter extends BlockAdapter {
+  public static class GCBlockAdapter extends BlockAdapter {
     boolean isBlocked(RVMThread t) {
-      return t.isBlockedForCommunication;
+      return t.isBlockedForGC;
     }
 
     void setBlocked(RVMThread t, boolean value) {
-      t.isBlockedForCommunication = value;
+      t.isBlockedForGC = value;
     }
 
     int requestBlock(RVMThread t) {
-      if (!t.isBlockedForCommunication) {
-        t.shouldBlockForCommunication = true;
+      if (!t.isBlockedForGC) {
+        t.shouldBlockForGC = true;
       }
       return 0;
     }
 
     boolean hasBlockRequest(RVMThread t) {
-      return t.shouldBlockForCommunication;
+      return t.shouldBlockForGC;
     }
 
     boolean hasBlockRequest(RVMThread t, int token) {
-      return t.shouldBlockForCommunication;
+      return t.shouldBlockForGC;
     }
 
     void clearBlockRequest(RVMThread t) {
-      t.shouldBlockForCommunication = false;
+      t.shouldBlockForGC = false;
     }
   }
 
-  public static final CommunicationBlockAdapter communicationBlockAdapter = new CommunicationBlockAdapter();
+  public static final GCBlockAdapter gcBlockAdapter = new GCBlockAdapter();
 
   static final BlockAdapter[] blockAdapters = new BlockAdapter[] {
-    suspendBlockAdapter, handshakeBlockAdapter, communicationBlockAdapter };
+    suspendBlockAdapter, handshakeBlockAdapter, gcBlockAdapter };
 
   /**
    * An enumeration that describes the different manners in which a thread might
@@ -1084,7 +1084,7 @@ public class RVMThread extends ThreadContext {
    * Preallocated array for use in handshakes. Protected by handshakeLock.
    */
   public static final RVMThread[] handshakeThreads = new RVMThread[MAX_THREADS];
-
+  
   /**
    * Preallocated array for use in debug requested. Protected by debugLock.
    */
@@ -1360,9 +1360,11 @@ public class RVMThread extends ThreadContext {
       if (monitorBySlot[threadSlot] == null) {
         monitorBySlot[threadSlot] = new NoYieldpointsCondLock();
       }
+      handshakeLock.lockNicely();
       if (communicationLockBySlot[threadSlot] == null) {
         communicationLockBySlot[threadSlot] = new HeavyCondLock();
       }
+      handshakeLock.unlock();
       Magic.sync(); /*
                      * make sure that nobody sees the thread in any of the
                      * tables until the thread slot is inited
@@ -1905,21 +1907,7 @@ public class RVMThread extends ThreadContext {
    * Note that this method is ridiculously dangerous, especially if you pass
    * asynchronous==false.  Waiting for another thread to stop is not in itself
    * interruptible - so if you ask another thread to block and they ask you
-   * to block, you might deadlock.  If you want to protect against this,
-   * use safeBlock().
-   * <p>
-   * Note that when stopping the whole world, using hardHandshakeSuspend(),
-   * we call either this method or safeBlock().  It's fine to call this method
-   * instead of block() if:
-   * <ul>
-   * <li>Only one thread may stop the world at a time (hardHanshakeSuspend()
-   *     guarantees this, so this condition is trivially met).
-   * <li>The thread doing the hardHandshakeSuspend() cannot itself be the
-   *     subject of a block() request from anything other than another
-   *     hardHandshakeSuspend().
-   * </ul>
-   * For now, however, we always use safeBlock() since that seems to be
-   * less error-prone.
+   * to block, you might deadlock.
    */
   @Unpreemptible("Only blocks if the receiver is the current thread, or if asynchronous is set to false and the thread is not already blocked")
   final int block(BlockAdapter ba, boolean asynchronous) {
@@ -2006,7 +1994,7 @@ public class RVMThread extends ThreadContext {
       }
     }
     monitor().unlock();
-    if (traceBlock)
+    if (traceReallyBlock)
       VM.sysWriteln("Thread #", getCurrentThread().threadSlot,
                     " is done telling thread #", threadSlot, " to block.");
     return result;
@@ -2033,12 +2021,16 @@ public class RVMThread extends ThreadContext {
   
   @Unpreemptible
   public void beginPairWith(RVMThread other) {
-    HeavyCondLock.lockNicely(communicationLock(),other.communicationLock());
+    VM.sysWriteln("attempting to pair ",threadSlot," with ",other.threadSlot);
+    HeavyCondLock.lockNicely(
+      communicationLock(),Word.fromIntSignExtend(threadSlot),
+      other.communicationLock(),Word.fromIntSignExtend(threadSlot));
   }
   
   public void endPairWith(RVMThread other) {
     communicationLock().unlock();
     other.communicationLock().unlock();
+    VM.sysWriteln("unpairing ",threadSlot," from ",other.threadSlot);
   }
   
   @Unpreemptible
@@ -2073,12 +2065,12 @@ public class RVMThread extends ThreadContext {
   @Unpreemptible
   public final void beginPairHandshake() {
     beginPairWithCurrent();
-    block(communicationBlockAdapter);
+    block(handshakeBlockAdapter);
   }
   
   @Uninterruptible
   public final void endPairHandshake() {
-    unblock(communicationBlockAdapter);
+    unblock(handshakeBlockAdapter);
     endPairWithCurrent();
   }
 
@@ -3228,13 +3220,20 @@ public class RVMThread extends ThreadContext {
   
   public static final AllButGCHardHandshakeVisitor allButGC=
     new AllButGCHardHandshakeVisitor();
-
+  
   @Unpreemptible
   @NoCheckStore
-  public static void hardHandshakeSuspend(HardHandshakeVisitor hhv) {
+  public static void hardHandshakeSuspend(BlockAdapter ba,
+                                          HardHandshakeVisitor hhv) {
     RVMThread current=getCurrentThread();
     
     handshakeLock.lockNicely();
+    for (int i=0;i<nextSlot;++i) {
+      HeavyCondLock l=communicationLockBySlot[i];
+      if (l!=null) {
+        l.lockNicely();
+      }
+    }
     // fixpoint until there are no threads that we haven't blocked.
     // fixpoint is needed in case some thread spawns another thread
     // while we're waiting.  that is unlikely but possible.
@@ -3254,8 +3253,8 @@ public class RVMThread extends ThreadContext {
       for (int i=0;i<numToHandshake;++i) {
         RVMThread t=handshakeThreads[i];
         t.monitor().lock();
-        if (t.blockedFor(handshakeBlockAdapter) ||
-            notRunning(t.safeAsyncBlock(handshakeBlockAdapter))) {
+        if (t.blockedFor(ba) ||
+            notRunning(t.asyncBlock(ba))) {
           // already blocked or not running, remove
           handshakeThreads[i--]=handshakeThreads[--numToHandshake];
           handshakeThreads[numToHandshake]=null; // help GC
@@ -3272,12 +3271,11 @@ public class RVMThread extends ThreadContext {
       if (numToHandshake==0) break;
       for (int i=0;i<numToHandshake;++i) {
         RVMThread t=handshakeThreads[i];
-        observeExecStatusAtSTW(t.safeBlock(handshakeBlockAdapter));
+        observeExecStatusAtSTW(t.block(ba));
         handshakeThreads[i]=null; // help GC
       }
     }
     worldStopped=true;
-    handshakeLock.unlock();
 
     processAboutToTerminate(); /*
                                 * ensure that any threads that died while
@@ -3288,9 +3286,9 @@ public class RVMThread extends ThreadContext {
   
   @NoCheckStore
   @Unpreemptible
-  public static void hardHandshakeResume(HardHandshakeVisitor hhv) {
+  public static void hardHandshakeResume(BlockAdapter ba,
+                                         HardHandshakeVisitor hhv) {
     RVMThread current=getCurrentThread();
-    handshakeLock.lockNicely();
     worldStopped=false;
     acctLock.lock();
     int numToHandshake=0;
@@ -3304,8 +3302,14 @@ public class RVMThread extends ThreadContext {
     }
     acctLock.unlock();
     for (int i=0;i<numToHandshake;++i) {
-      handshakeThreads[i].unblock(handshakeBlockAdapter);
+      handshakeThreads[i].unblock(ba);
       handshakeThreads[i]=null; // help GC
+    }
+    for (int i=0;i<nextSlot;++i) {
+      HeavyCondLock l=communicationLockBySlot[i];
+      if (l!=null) {
+        l.unlock();
+      }
     }
     handshakeLock.unlock();
   }

@@ -351,7 +351,7 @@ public final class CollectorThread extends RVMThread {
       if (gcOrdinal == GC_ORDINAL_BASE) {
         if (verbose>=2) VM.sysWriteln("Thread #",getThreadSlot()," is about to block a bunch of threads.");
         
-        RVMThread.hardHandshakeSuspend(RVMThread.allButGC);
+        RVMThread.hardHandshakeSuspend(RVMThread.gcBlockAdapter,RVMThread.allButGC);
         
         if (verbose>=2) {
           VM.sysWriteln("Thread #",getThreadSlot()," just blocked a bunch of threads.");
@@ -457,7 +457,7 @@ public final class CollectorThread extends RVMThread {
 
         if (verbose>=2) VM.sysWriteln("Thread #",getThreadSlot()," is unblocking a bunch of threads.");
         // and now unblock all threads
-        RVMThread.hardHandshakeResume(RVMThread.allButGC);
+        RVMThread.hardHandshakeResume(RVMThread.gcBlockAdapter,RVMThread.allButGC);
         if (verbose>=2) VM.sysWriteln("Thread #",getThreadSlot()," just unblocked a bunch of threads.");
 
         /* schedule the FinalizerThread, if there is work to do & it is idle */

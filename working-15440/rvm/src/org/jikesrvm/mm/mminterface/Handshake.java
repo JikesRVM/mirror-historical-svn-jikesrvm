@@ -71,7 +71,7 @@ public class Handshake {
     t.assertAcceptableStates(RVMThread.IN_JAVA,
                              RVMThread.IN_JAVA_TO_BLOCK);
     RVMThread.observeExecStatusAtSTW(t.getExecStatus());
-    t.block(RVMThread.handshakeBlockAdapter);
+    t.block(RVMThread.gcBlockAdapter);
     if (verbose >= 1) VM.sysWriteln("GC Message: Handshake.requestAndAwaitCompletion - mutator running");
   }
 

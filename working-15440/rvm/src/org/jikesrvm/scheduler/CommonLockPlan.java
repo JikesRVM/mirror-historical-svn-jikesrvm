@@ -138,27 +138,19 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     int oldLocksLength=locks.length;
     if (freeHead==null && nextLockID==oldLocksLength) {
       CommonLock[] newLocks=new CommonLock[nextLockSize(oldLocksLength)];
-      RVMThread.handshakeLock.lockNicely();
+      RVMThread.hardHandshakeSuspend(RVMThread.handshakeBlockAdapter,RVMThread.allButGC);
+      if (trace) VM.sysWriteln("all threads stopped");
+      
       try {
         if (freeHead==null && newLocks.length>locks.length) {
-          RVMThread.hardHandshakeSuspend(RVMThread.allButGC);
-          if (trace) VM.sysWriteln("all threads stopped");
-          
-          try {
-            if (freeHead==null && newLocks.length>locks.length) {
-              System.arraycopy(locks,0,
-                               newLocks,0,
-                               locks.length);
-              locks=newLocks;
-            }
-          } finally {
-            if (trace) VM.sysWriteln("resuming all threads");
-            RVMThread.hardHandshakeResume(RVMThread.allButGC);
-          }
+          System.arraycopy(locks,0,
+                           newLocks,0,
+                           locks.length);
+          locks=newLocks; // what if there is a barrier here?  shouldn't be a problem...
         }
       } finally {
-        RVMThread.handshakeLock.unlock();
-        if (trace) VM.sysWriteln("all threads resumed");
+        if (trace) VM.sysWriteln("resuming all threads");
+        RVMThread.hardHandshakeResume(RVMThread.handshakeBlockAdapter,RVMThread.allButGC);
       }
     }
   }
