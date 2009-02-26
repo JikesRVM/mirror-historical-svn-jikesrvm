@@ -19,7 +19,7 @@
   <!-- in target patch-classpath-web                                -->
   <property name="classpath.version" value="98"/>
   <!-- Change this whenever you alter the patches. It will let people know classpath has changed. -->
-  <property name="classpath.patchlevel" value="1"/>
+  <property name="classpath.patchlevel" value="2"/>
   <property name="classpath.description" value="GNU Classpath"/>
 
   <property name="classpath.component.dir" location="${components.dir}/classpath"/>
@@ -115,6 +115,8 @@
            dir="${classpath.package.dir}/classpath/" strip="0"/>
     <patch patchfile="${components.patch.dir}/classpath-cvs.RVM-732.patch"
            dir="${classpath.package.dir}/classpath/" strip="0"/>
+    <patch patchfile="${components.patch.dir}/classpath-cvs.RVM-781.patch"
+           dir="${classpath.package.dir}/classpath/" strip="0"/>
     <patch patchfile="${components.patch.dir}/classpath-cvs.RVM-787.patch"
            dir="${classpath.package.dir}/classpath/" strip="0"/>
   </target>
@@ -126,6 +128,8 @@
     <patch patchfile="${components.patch.dir}/classpath-web.RVM-644.patch"
            dir="${classpath.package.dir}/classpath/" strip="0"/>
     <patch patchfile="${components.patch.dir}/classpath-web.RVM-732.patch"
+           dir="${classpath.package.dir}/classpath/" strip="0"/>
+    <patch patchfile="${components.patch.dir}/classpath-web.RVM-781.patch"
            dir="${classpath.package.dir}/classpath/" strip="0"/>
     <patch patchfile="${components.patch.dir}/classpath-web.RVM-787.patch"
            dir="${classpath.package.dir}/classpath/" strip="0"/>
