@@ -902,16 +902,12 @@ public final class VMChannel
         throw new IOException("invalid file descriptor");
       try
       {
-        VM.sysWriteln("calling VMChannel.close");
         VMChannel.close(native_fd);
-        VM.sysWriteln("VMChannel.close returned normally");
       }
       finally
       {
-        VM.sysWriteln("closing.");
         valid = false;
         closed = true;
-        VM.sysWriteln("closed.");
       }
     }
 
