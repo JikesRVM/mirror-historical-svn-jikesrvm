@@ -63,10 +63,6 @@ public class EagerDeflateLockPlan extends CommonLockPlan {
   @NoNullCheck
   public final EagerDeflateLock inflate(Object o, Offset lockOffset) {
     if (PROFILE) RVMThread.enterLockingPath();
-    if (VM.VerifyAssertions) {
-      VM._assert(LockConfig.selectedThinPlan.holdsLock(
-                   o, lockOffset, RVMThread.getCurrentThread()));
-    }
     EagerDeflateLock l = (EagerDeflateLock)Magic.eatCast(allocateActivateAndAdd());
     if (VM.VerifyAssertions) {
       VM._assert(l != null); // inflate called by wait (or notify) which shouldn't be called during GC
