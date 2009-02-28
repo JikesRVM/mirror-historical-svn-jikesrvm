@@ -157,8 +157,8 @@ public class VM extends Properties implements Constants, ExitStatus {
 
     // get pthread_id from OS and store into vm_processor field
     //
-    sysCall.sysPthreadSetupSignalHandling();
-    RVMThread.getCurrentThread().pthread_id = sysCall.sysPthreadSelf();
+    sysCall.sysSetupHardwareTrapHandler();
+    RVMThread.getCurrentThread().pthread_id = sysCall.sysGetThreadId();
 
     // Set up buffer locks used by Thread for logging and status dumping.
     //    This can happen at any point before we start running
@@ -2279,6 +2279,11 @@ public class VM extends Properties implements Constants, ExitStatus {
   @UnpreemptibleNoWarn("We need to do preemptible operations but are accessed from unpreemptible code")
   public static void sysExit(int value) {
     handlePossibleRecursiveCallToSysExit();
+
+    if (VM.countThreadTransitions) {
+      RVMThread.reportThreadTransitionCounts();
+    }
+
     if (Options.stackTraceAtExit) {
       VM.sysWriteln("[Here is the context of the call to VM.sysExit(", value, ")...:");
       VM.disableGC();

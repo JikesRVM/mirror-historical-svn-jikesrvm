@@ -14,7 +14,7 @@ package org.mmtk.plan;
 
 import org.mmtk.utility.Constants;
 
-import org.mmtk.vm.HeavyCondLock;
+import org.mmtk.vm.Monitor;
 import org.mmtk.vm.VM;
 
 import org.vmmagic.pragma.*;
@@ -37,7 +37,7 @@ public class ParallelCollectorGroup implements Constants {
   private ParallelCollector[] contexts;
 
   /** Lock used to manage group state. */
-  private HeavyCondLock lock;
+  private Monitor lock;
 
   /** The number of cycles triggered */
   private volatile int triggerCount;

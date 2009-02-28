@@ -138,18 +138,19 @@ public final class Factory extends org.mmtk.vm.Factory {
   }
 
   /**
-   * Create a new HeavyCondLock instance using the appropriate VM-specific
+   * Create a new Monitor instance using the appropriate VM-specific
    * concrete Lock sub-class.
    *
-   * @see Lock
-   * @param name The string to be associated with this lock instance
-   * @return A concrete VM-specific HeavyCondLock instance.
+   * @see Monitor
+   *
+   * @param name The string to be associated with this monitor instance
+   * @return A concrete VM-specific Monitor instance.
    */
-  public org.mmtk.vm.HeavyCondLock newHeavyCondLock(String name) {
+  public org.mmtk.vm.Monitor newMonitor(String name) {
     try {
-      return new HeavyCondLock(name);
+      return new Monitor(name);
     } catch (Exception e) {
-      VM.sysFail("Failed to allocate new Lock!");
+      VM.sysFail("Failed to allocate new Monitor!");
       return null; // never get here
     }
   }

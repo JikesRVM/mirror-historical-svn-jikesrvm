@@ -194,13 +194,13 @@ public final class VM {
    * Create a new HeavyCondLock instance using the appropriate VM-specific
    * concrete Lock sub-class.
    *
-   * @see HeavyCondLock
+   * @see Monitor
    *
    * @param name The string to be associated with this instance
    * @return A concrete VM-specific HeavyCondLock instance.
    */
-  public static HeavyCondLock newHeavyCondLock(String name) {
-    return factory.newHeavyCondLock(name);
+  public static Monitor newHeavyCondLock(String name) {
+    return factory.newMonitor(name);
   }
 
   /**

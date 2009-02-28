@@ -19,7 +19,7 @@ import org.vmmagic.pragma.Uninterruptible;
  * Functionally similar to Java monitors, but safe in the darker corners of runtime code.
  */
 @Uninterruptible
-public abstract class HeavyCondLock {
+public abstract class Monitor {
 
   /**
    * Block until the lock is acquired.

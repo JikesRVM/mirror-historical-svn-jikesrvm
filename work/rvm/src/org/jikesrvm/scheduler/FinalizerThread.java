@@ -36,10 +36,10 @@ public class FinalizerThread extends SystemThread {
 
   private final Object[] none = new Object[0];
   private static boolean shouldRun;
-  private static HeavyCondLock schedLock;
+  private static Monitor schedLock;
 
   public static void boot() {
-    schedLock=new HeavyCondLock();
+    schedLock=new Monitor();
     FinalizerThread ft = new FinalizerThread();
     ft.start();
   }
@@ -70,6 +70,9 @@ public class FinalizerThread extends SystemThread {
         // places objects on the finalizer queue and notifies.
         schedLock.lock();
         if (!shouldRun) {
+          if (verbose>=1) {
+            VM.sysWriteln("finalizer thread sleeping.");
+          }
           schedLock.waitNicely();
         }
         shouldRun=false;

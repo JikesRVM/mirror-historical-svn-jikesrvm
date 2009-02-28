@@ -13,10 +13,7 @@
 package org.jikesrvm.scheduler;
 
 import org.jikesrvm.VM;
-import org.jikesrvm.runtime.Magic;
-import org.jikesrvm.runtime.Entrypoints;
 import static org.jikesrvm.runtime.SysCall.sysCall;
-import org.vmmagic.unboxed.Offset;
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.UninterruptibleNoWarn;
@@ -42,29 +39,28 @@ public class TimerThread extends SystemThread {
     super("TimerThread");
   }
   // NOTE: this runs concurrently with stop-the-world GC
+  // TODO: consider allowing GC to be sampled to enable profile-directed optimization of MMTk.
   @Override
   public void run() {
     VM.disableYieldpoints();
-    if (verbose >= 1) VM.sysWriteln("TimerThread", "run routine entered");
+    if (verbose>=1) VM.sysWriteln("TimerThread run routine entered");
     try {
       for (;;) {
-        sysCall.sysNanosleep(1000L*1000L*(long)VM.interruptQuantum);
+        sysCall.sysNanoSleep(1000L*1000L*(long)VM.interruptQuantum);
+
+        // grab the lock to prevent threads from getting GC'd while we are
+        // iterating (since this thread doesn't stop for GC)
+        RVMThread.acctLock.lock();
         RVMThread.timerTicks++;
-        // FIXME: this is wrong.  when we get the candidate from the list,
-        // there is no guarantee that said candidate won't get GC'd.
         for (int i=0;i<RVMThread.numThreads;++i) {
           RVMThread candidate=RVMThread.threads[i];
-          if (candidate!=null) {
-            for (;;) {
-              Offset offset=Entrypoints.timeSliceExpiredField.getOffset();
-              int oldValue=Magic.prepareInt(candidate,offset);
-              if (Magic.attemptInt(candidate,offset,oldValue,oldValue+1)) {
-                break;
-              }
-            }
+          if (candidate!=null && candidate.shouldBeSampled()) {
+            candidate.timeSliceExpired++;
             candidate.takeYieldpoint=1;
           }
         }
+        RVMThread.acctLock.unlock();
+
         RVMThread.checkDebugRequest();
       }
     } catch (Throwable e) {

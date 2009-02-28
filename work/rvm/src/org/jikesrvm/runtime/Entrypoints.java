@@ -191,8 +191,7 @@ public class Entrypoints {
       getField(org.jikesrvm.scheduler.RVMThread.class, "scratchStorage", double.class);
   public static final RVMField takeYieldpointField =
       getField(org.jikesrvm.scheduler.RVMThread.class, "takeYieldpoint", int.class);
-  public static final RVMField timeSliceExpiredField =
-      getField(org.jikesrvm.scheduler.RVMThread.class, "timeSliceExpired", int.class);
+
   public static final RVMField execStatusField = getField(org.jikesrvm.scheduler.RVMThread.class, "execStatus", int.class);
 
   public static final RVMField referenceReferentField =
@@ -357,15 +356,6 @@ public class Entrypoints {
 
   public static final RVMField edgeCountersField =
       getField(org.jikesrvm.compilers.baseline.EdgeCounts.class, "data", int[][].class);
-
-  public static final RVMField inetAddressAddressField = VM.BuildForGnuClasspath ?
-      getField(java.net.InetAddress.class, "address", int.class) : null;
-  public static final RVMField inetAddressFamilyField = VM.BuildForGnuClasspath ?
-      getField(java.net.InetAddress.class, "family", int.class) : null;
-
-  public static final RVMField socketImplAddressField =
-      getField(java.net.SocketImpl.class, "address", java.net.InetAddress.class);
-  public static final RVMField socketImplPortField = getField(java.net.SocketImpl.class, "port", int.class);
 
   //////////////////
   // Entrypoints that are valid only when the opt compiler is included in the build

@@ -13,7 +13,6 @@
 package org.jikesrvm.scheduler;
 
 import static org.jikesrvm.runtime.SysCall.sysCall;
-import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.VM;
 
 import org.vmmagic.pragma.Uninterruptible;
@@ -22,7 +21,6 @@ import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.NoOptCompile;
 import org.vmmagic.pragma.BaselineSaveLSRegisters;
-import org.vmmagic.pragma.Untraced;
 import org.vmmagic.unboxed.Word;
 
 /**
@@ -60,10 +58,9 @@ import org.vmmagic.unboxed.Word;
  */
 @Uninterruptible
 @NonMoving
-public class HeavyCondLock {
-  Word mutex;
-  Word cond;
-  @Untraced RVMThread holder;
+public class Monitor {
+  Word monitor;
+  int holderSlot=-1; // use the slot so that we're even more GC safe
   int recCount;
   public int acquireCount;
   /**
@@ -71,9 +68,8 @@ public class HeavyCondLock {
    * allocating stuff in C that never gets deallocated.  Thus, don't
    * instantiate too many of these.
    */
-  public HeavyCondLock() {
-    mutex=sysCall.sysPthreadMutexCreate();
-    cond=sysCall.sysPthreadCondCreate();
+  public Monitor() {
+    monitor = sysCall.sysMonitorCreate();
   }
   /**
    * Wait until it is possible to acquire the lock and then acquire it.
@@ -90,11 +86,15 @@ public class HeavyCondLock {
    * method unblocks.  If this sounds like it might be undesirable, call
    * lockNicely instead.
    */
+  @NoInline
+  @NoOptCompile
   public void lock() {
-    RVMThread t = RVMThread.getCurrentThread();
-    if (t != holder) {
-      sysCall.sysPthreadMutexLock(mutex);
-      holder = t;
+    int mySlot = RVMThread.getCurrentThreadSlot();
+    if (mySlot != holderSlot) {
+      sysCall.sysMonitorEnter(monitor);
+      if (VM.VerifyAssertions) VM._assert(holderSlot==-1);
+      if (VM.VerifyAssertions) VM._assert(recCount==0);
+      holderSlot = mySlot;
     }
     recCount++;
     acquireCount++;
@@ -102,9 +102,13 @@ public class HeavyCondLock {
   /**
    * Relock the mutex after using unlockCompletely.
    */
+  @NoInline
+  @NoOptCompile
   public void relock(int recCount) {
-    sysCall.sysPthreadMutexLock(mutex);
-    holder=RVMThread.getCurrentThread();
+    sysCall.sysMonitorEnter(monitor);
+    if (VM.VerifyAssertions) VM._assert(holderSlot==-1);
+    if (VM.VerifyAssertions) VM._assert(this.recCount==0);
+    holderSlot=RVMThread.getCurrentThreadSlot();
     this.recCount=recCount;
     acquireCount++;
   }
@@ -132,11 +136,15 @@ public class HeavyCondLock {
    * since most VM locks are held for short periods of time.
    */
   @Unpreemptible("If the lock cannot be acquired, this method will allow the thread to be asynchronously blocked")
+  @NoInline
+  @NoOptCompile
   public void lockNicely() {
-    RVMThread t = RVMThread.getCurrentThread();
-    if (t != holder) {
+    int mySlot = RVMThread.getCurrentThreadSlot();
+    if (mySlot != holderSlot) {
       lockNicelyNoRec();
-      holder = t;
+      if (VM.VerifyAssertions) VM._assert(holderSlot==-1);
+      if (VM.VerifyAssertions) VM._assert(recCount==0);
+      holderSlot = mySlot;
     }
     recCount++;
     acquireCount++;
@@ -146,19 +154,20 @@ public class HeavyCondLock {
   @BaselineSaveLSRegisters
   @Unpreemptible
   private void lockNicelyNoRec() {
-    Magic.saveThreadState(RVMThread.getCurrentThread().contextRegisters);
+    RVMThread.saveThreadState();
     lockNicelyNoRecImpl();
   }
   @NoInline
   @Unpreemptible
+  @NoOptCompile
   private void lockNicelyNoRecImpl() {
     for (;;) {
       RVMThread.enterNative();
-      sysCall.sysPthreadMutexLock(mutex);
+      sysCall.sysMonitorEnter(monitor);
       if (RVMThread.attemptLeaveNativeNoBlock()) {
         return;
       } else {
-        sysCall.sysPthreadMutexUnlock(mutex);
+        sysCall.sysMonitorExit(monitor);
         RVMThread.leaveNative();
       }
     }
@@ -171,23 +180,26 @@ public class HeavyCondLock {
   @BaselineSaveLSRegisters
   @Unpreemptible("If the lock cannot be reacquired, this method may allow the thread to be asynchronously blocked")
   public void relockNicely(int recCount) {
-    Magic.saveThreadState(RVMThread.getCurrentThread().contextRegisters);
+    RVMThread.saveThreadState();
     relockNicelyImpl(recCount);
   }
   @NoInline
   @Unpreemptible
+  @NoOptCompile
   private void relockNicelyImpl(int recCount) {
     for (;;) {
       RVMThread.enterNative();
-      sysCall.sysPthreadMutexLock(mutex);
+      sysCall.sysMonitorEnter(monitor);
       if (RVMThread.attemptLeaveNativeNoBlock()) {
         break;
       } else {
-        sysCall.sysPthreadMutexUnlock(mutex);
+        sysCall.sysMonitorExit(monitor);
         RVMThread.leaveNative();
       }
     }
-    holder=RVMThread.getCurrentThread();
+    if (VM.VerifyAssertions) VM._assert(holderSlot==-1);
+    if (VM.VerifyAssertions) VM._assert(this.recCount==0);
+    holderSlot=RVMThread.getCurrentThreadSlot();
     this.recCount=recCount;
   }
   /**
@@ -195,21 +207,25 @@ public class HeavyCondLock {
    * and, as such, it does not notify the threading subsystem that it is
    * blocking.
    */
+  @NoInline
+  @NoOptCompile
   public void unlock() {
     if (--recCount==0) {
-      holder=null;
-      sysCall.sysPthreadMutexUnlock(mutex);
+      holderSlot=-1;
+      sysCall.sysMonitorExit(monitor);
     }
   }
   /**
    * Completely release the lock, ignoring recursion.  Returns the
    * recursion count.
    */
+  @NoInline
+  @NoOptCompile
   public int unlockCompletely() {
     int result=recCount;
     recCount=0;
-    holder=null;
-    sysCall.sysPthreadMutexUnlock(mutex);
+    holderSlot=-1;
+    sysCall.sysMonitorExit(monitor);
     return result;
   }
   /**
@@ -221,13 +237,17 @@ public class HeavyCondLock {
    * method unblocks.  If this sounds like it might be undesirable, call
    * waitNicely instead.
    */
+  @NoInline
+  @NoOptCompile
   public void await() {
     int recCount=this.recCount;
     this.recCount=0;
-    holder=null;
-    sysCall.sysPthreadCondWait(cond,mutex);
+    holderSlot=-1;
+    sysCall.sysMonitorWait(monitor);
+    if (VM.VerifyAssertions) VM._assert(holderSlot==-1);
+    if (VM.VerifyAssertions) VM._assert(this.recCount==0);
     this.recCount=recCount;
-    holder=RVMThread.getCurrentThread();
+    holderSlot=RVMThread.getCurrentThreadSlot();
   }
   /**
    * Wait until someone calls broadcast, or until the clock reaches the
@@ -239,13 +259,17 @@ public class HeavyCondLock {
    * method unblocks.  If this sounds like it might be undesirable, call
    * timedWaitAbsoluteNicely instead.
    */
+  @NoInline
+  @NoOptCompile
   public void timedWaitAbsolute(long whenWakeupNanos) {
     int recCount=this.recCount;
     this.recCount=0;
-    holder=null;
-    sysCall.sysPthreadCondTimedWait(cond,mutex,whenWakeupNanos);
+    holderSlot=-1;
+    sysCall.sysMonitorTimedWaitAbsolute(monitor, whenWakeupNanos);
+    if (VM.VerifyAssertions) VM._assert(holderSlot==-1);
+    if (VM.VerifyAssertions) VM._assert(this.recCount==0);
     this.recCount=recCount;
-    holder=RVMThread.getCurrentThread();
+    holderSlot=RVMThread.getCurrentThreadSlot();
   }
   /**
    * Wait until someone calls broadcast, or until at least the given
@@ -257,6 +281,8 @@ public class HeavyCondLock {
    * method unblocks.  If this sounds like it might be undesirable, call
    * timedWaitRelativeNicely instead.
    */
+  @NoInline
+  @NoOptCompile
   public void timedWaitRelative(long delayNanos) {
     long now=sysCall.sysNanoTime();
     timedWaitAbsolute(now+delayNanos);
@@ -280,16 +306,12 @@ public class HeavyCondLock {
   @BaselineSaveLSRegisters
   @Unpreemptible("While the thread is waiting, this method may allow the thread to be asynchronously blocked")
   public void waitNicely() {
-    RVMThread t=RVMThread.getCurrentThread();
-    Magic.saveThreadState(t.contextRegisters);
-    if (VM.VerifyAssertions && VM.BuildForIA32) t.contextRegistersSave.copyFrom(t.contextRegisters);
+    RVMThread.saveThreadState();
     waitNicelyImpl();
-    // assert that moving GC didn't modify the context registers, as that would
-    // indicate that we failed to save that register on the stack.
-    if (VM.VerifyAssertions && VM.BuildForIA32) t.contextRegistersSave.assertSame(t.contextRegisters);
   }
   @NoInline
   @Unpreemptible
+  @NoOptCompile
   private void waitNicelyImpl() {
     RVMThread.enterNative();
     await();
@@ -317,11 +339,12 @@ public class HeavyCondLock {
   @BaselineSaveLSRegisters
   @Unpreemptible("While the thread is waiting, this method may allow the thread to be asynchronously blocked")
   public void timedWaitAbsoluteNicely(long whenWakeupNanos) {
-    Magic.saveThreadState(RVMThread.getCurrentThread().contextRegisters);
+    RVMThread.saveThreadState();
     timedWaitAbsoluteNicelyImpl(whenWakeupNanos);
   }
   @NoInline
   @Unpreemptible
+  @NoOptCompile
   private void timedWaitAbsoluteNicelyImpl(long whenWakeupNanos) {
     RVMThread.enterNative();
     timedWaitAbsolute(whenWakeupNanos);
@@ -349,11 +372,12 @@ public class HeavyCondLock {
   @BaselineSaveLSRegisters
   @Unpreemptible("While the thread is waiting, this method may allow the thread to be asynchronously blocked")
   public void timedWaitRelativeNicely(long delayNanos) {
-    Magic.saveThreadState(RVMThread.getCurrentThread().contextRegisters);
+    RVMThread.saveThreadState();
     timedWaitRelativeNicelyImpl(delayNanos);
   }
   @NoInline
   @Unpreemptible
+  @NoOptCompile
   private void timedWaitRelativeNicelyImpl(long delayNanos) {
     RVMThread.enterNative();
     timedWaitRelative(delayNanos);
@@ -368,8 +392,10 @@ public class HeavyCondLock {
    * non-blocking, and, as such, it does not notify the threading subsystem
    * that it is blocking.
    */
+  @NoInline
+  @NoOptCompile
   public void broadcast() {
-    sysCall.sysPthreadCondBroadcast(cond);
+    sysCall.sysMonitorBroadcast(monitor);
   }
   /**
    * Send a broadcast after first acquiring the lock.  Release the lock
@@ -378,62 +404,16 @@ public class HeavyCondLock {
    * condition that the other thread(s) are waiting on, you want to call
    * this method instead of <code>broadcast</code>.
    */
+  @NoInline
+  @NoOptCompile
   public void lockedBroadcast() {
     lock();
     broadcast();
     unlock();
   }
-  // NOTE: these methods below used to have a purpose but that purpose
-  // disappeared as I was switching around designs.  I'm keeping these
-  // methods here because they may potentially be useful again, but it
-  // might be a good idea to ax them if they are truly without a use.
+
   @NoInline
-  public static void lock(HeavyCondLock m1,Word priority1,
-                          HeavyCondLock m2,Word priority2) {
-    if (priority1.LE(priority2)) {
-      m1.lock();
-      m2.lock();
-    } else {
-      m2.lock();
-      m1.lock();
-    }
-  }
-  @NoInline
-  public static void lock(HeavyCondLock m1,
-                          HeavyCondLock m2) {
-    lock(m1,m1.mutex,
-         m2,m2.mutex);
-  }
-  @NoInline
-  public static void lock(HeavyCondLock m1,Word priority1,
-                          HeavyCondLock m2,Word priority2,
-                          HeavyCondLock m3,Word priority3) {
-    if (priority1.LE(priority2) &&
-        priority1.LE(priority3)) {
-      m1.lock();
-      lock(m2,priority2,
-           m3,priority3);
-    } else if (priority2.LE(priority1) &&
-               priority2.LE(priority3)) {
-      m2.lock();
-      lock(m1,priority1,
-           m3,priority3);
-    } else {
-      m3.lock();
-      lock(m1,priority1,
-           m2,priority2);
-    }
-  }
-  @NoInline
-  public static void lock(HeavyCondLock m1,
-                          HeavyCondLock m2,
-                          HeavyCondLock m3) {
-    lock(m1,m1.mutex,
-         m2,m2.mutex,
-         m3,m3.mutex);
-  }
-  @NoInline
-  public static boolean lock(HeavyCondLock l) {
+  public static boolean lock(Monitor l) {
     if (l==null) {
       return false;
     } else {
@@ -442,7 +422,7 @@ public class HeavyCondLock {
     }
   }
   @NoInline
-  public static void unlock(boolean b,HeavyCondLock l) {
+  public static void unlock(boolean b, Monitor l) {
     if (b) l.unlock();
   }
 }

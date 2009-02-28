@@ -93,7 +93,7 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
   public void resetThreadCounter() {
     threadCounter.reset();
     CompiledMethods.snipObsoleteCompiledMethods();
-    
+
     /* flush out any remset entries generated during the above activities */
     Selected.Mutator.get().flushRememberedSets();
   }

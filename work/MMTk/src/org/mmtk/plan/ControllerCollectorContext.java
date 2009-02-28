@@ -15,7 +15,7 @@ package org.mmtk.plan;
 import org.mmtk.utility.Log;
 import org.mmtk.utility.heap.HeapGrowthManager;
 import org.mmtk.utility.options.Options;
-import org.mmtk.vm.HeavyCondLock;
+import org.mmtk.vm.Monitor;
 import org.mmtk.vm.VM;
 
 import org.vmmagic.pragma.*;
@@ -24,7 +24,7 @@ import org.vmmagic.pragma.*;
 public class ControllerCollectorContext extends CollectorContext {
 
   /** The lock to use to manage collection */
-  private HeavyCondLock lock;
+  private Monitor lock;
 
   /** The set of worker threads to use */
   private ParallelCollectorGroup workers;

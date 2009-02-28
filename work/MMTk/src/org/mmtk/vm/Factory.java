@@ -93,14 +93,14 @@ public abstract class Factory {
   public abstract Lock newLock(String name);
 
   /**
-   * Create a new HeavyCondLock instance using the appropriate VM-specific
+   * Create a new Monitor instance using the appropriate VM-specific
    * concrete Lock sub-class.
    *
-   * @see Lock
-   * @param name The string to be associated with this lock instance
-   * @return A concrete VM-specific HeavyCondLock instance.
+   * @see Monitor
+   * @param name The string to be associated with this monitor instance
+   * @return A concrete VM-specific Monitor instance.
    */
-  public abstract HeavyCondLock newHeavyCondLock(String name);
+  public abstract Monitor newMonitor(String name);
 
   /**
    * Create a new Memory instance using the appropriate VM-specific

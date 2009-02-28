@@ -19,12 +19,12 @@ import org.vmmagic.pragma.Uninterruptible;
  * Functionally similar to Java monitors, but safe in the darker corners of runtime code.
  */
 @Uninterruptible
-public final class HeavyCondLock extends org.mmtk.vm.HeavyCondLock {
+public final class Monitor extends org.mmtk.vm.Monitor {
 
-  private final org.jikesrvm.scheduler.HeavyCondLock theLock;
+  private final org.jikesrvm.scheduler.Monitor theLock;
 
-  public HeavyCondLock(String name) {
-    this.theLock = new org.jikesrvm.scheduler.HeavyCondLock();
+  public Monitor(String name) {
+    this.theLock = new org.jikesrvm.scheduler.Monitor();
   }
 
   /**
