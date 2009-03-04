@@ -161,7 +161,7 @@ public class SloppyDeflateLockPlan extends CommonLockPlan {
   
   @NonMoving
   static class PollDeflateThread extends RVMThread {
-    public PollDeflateThread() {
+    PollDeflateThread() {
       super("PollDeflateThread");
     }
     

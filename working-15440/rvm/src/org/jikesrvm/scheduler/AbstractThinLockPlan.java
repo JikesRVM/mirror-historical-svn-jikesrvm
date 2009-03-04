@@ -135,7 +135,7 @@ public abstract class AbstractThinLockPlan implements Constants, ThinLockConstan
   }
   
   @Inline
-  public void unlockHeader(Object obj, Offset lockOffset) {
+  public void unlockHeader(Object obj, Offset lockOffset,boolean lockHeaderResult) {
   }
   
   @Inline

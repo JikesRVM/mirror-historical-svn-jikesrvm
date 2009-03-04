@@ -514,7 +514,8 @@ public class JavaHeader implements JavaHeaderConstants {
           }
         } else {
           // UNHASHED
-          if (Locking.lockHeader(o, STATUS_OFFSET)) {
+          boolean lhr=Locking.lockHeader(o, STATUS_OFFSET);
+          if (lhr) {
             Magic.setWordAtOffset(
               o, STATUS_OFFSET,
               Magic.getWordAtOffset(o, STATUS_OFFSET).or(HASH_STATE_HASHED));
@@ -524,7 +525,7 @@ public class JavaHeader implements JavaHeaderConstants {
               tmp = Magic.prepareWord(o, STATUS_OFFSET);
             } while (!Magic.attemptWord(o, STATUS_OFFSET, tmp, tmp.or(HASH_STATE_HASHED)));
           }
-          Locking.unlockHeader(o, STATUS_OFFSET);
+          Locking.unlockHeader(o, STATUS_OFFSET, lhr);
           if (ObjectModel.HASH_STATS) ObjectModel.hashTransition1++;
           return getObjectHashCode(o);
         }
@@ -553,22 +554,22 @@ public class JavaHeader implements JavaHeaderConstants {
       Word statusWord = Magic.getWordAtOffset(o, STATUS_OFFSET);
       if (!(statusWord.and(HASH_CODE_MASK).isZero())) // some other thread installed a hashcode
       {
-        Locking.unlockHeader(o, STATUS_OFFSET);
+        Locking.unlockHeader(o, STATUS_OFFSET, true);
         return statusWord.and(HASH_CODE_MASK).rshl(HASH_CODE_SHIFT).toInt();
       }
       Magic.setWordAtOffset(o, STATUS_OFFSET, statusWord.or(hashCode));
-      Locking.unlockHeader(o, STATUS_OFFSET);
+      Locking.unlockHeader(o, STATUS_OFFSET, true);
       return hashCode.rshl(HASH_CODE_SHIFT).toInt();  // we installed the hash code
     } else {
       while (true) {
         Word statusWord = Magic.prepareWord(o, STATUS_OFFSET);
         if (!(statusWord.and(HASH_CODE_MASK).isZero())) // some other thread installed a hashcode
         {
-          Locking.unlockHeader(o, STATUS_OFFSET);
+          Locking.unlockHeader(o, STATUS_OFFSET, false);
           return statusWord.and(HASH_CODE_MASK).rshl(HASH_CODE_SHIFT).toInt();
         }
         if (Magic.attemptWord(o, STATUS_OFFSET, statusWord, statusWord.or(hashCode))) {
-          Locking.unlockHeader(o, STATUS_OFFSET);
+          Locking.unlockHeader(o, STATUS_OFFSET, false);
           return hashCode.rshl(HASH_CODE_SHIFT).toInt();  // we installed the hash code
         }
       }

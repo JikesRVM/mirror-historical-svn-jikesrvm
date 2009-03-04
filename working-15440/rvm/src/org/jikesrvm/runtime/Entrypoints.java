@@ -159,7 +159,9 @@ public class Entrypoints {
       (org.jikesrvm.scheduler.LockConfig.SELECTED ==
        org.jikesrvm.scheduler.LockConfigs.EagerDeflate ||
        org.jikesrvm.scheduler.LockConfig.SELECTED ==
-       org.jikesrvm.scheduler.LockConfigs.EagerDeflateBiased)
+       org.jikesrvm.scheduler.LockConfigs.EagerDeflateBiased ||
+       org.jikesrvm.scheduler.LockConfig.SELECTED ==
+       org.jikesrvm.scheduler.LockConfigs.EagerDeflateHybrid)
       ? getField(org.jikesrvm.scheduler.EagerDeflateLock.class,
                  "mutex", int.class)
       : null;

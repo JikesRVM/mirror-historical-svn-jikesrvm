@@ -35,21 +35,49 @@ import org.vmmagic.unboxed.Word;
  */
 public interface ThinLockConstants extends SizeConstants {
 
-  int NUM_BITS_TID = RVMThread.LOG_MAX_THREADS;
-  int NUM_BITS_RC = JavaHeader.NUM_THIN_LOCK_BITS - NUM_BITS_TID - 1;
+  int TL_NUM_BITS_TID = RVMThread.LOG_MAX_THREADS;
+  int TL_NUM_BITS_RC = JavaHeader.NUM_THIN_LOCK_BITS - TL_NUM_BITS_TID - 1;
 
   int TL_LOCK_COUNT_SHIFT = JavaHeader.THIN_LOCK_SHIFT;
-  int TL_THREAD_ID_SHIFT = TL_LOCK_COUNT_SHIFT + NUM_BITS_RC;
+  int TL_THREAD_ID_SHIFT = TL_LOCK_COUNT_SHIFT + TL_NUM_BITS_RC;
   int TL_LOCK_ID_SHIFT = JavaHeader.THIN_LOCK_SHIFT;
 
   int TL_LOCK_COUNT_UNIT = 1 << TL_LOCK_COUNT_SHIFT;
 
-  Word TL_LOCK_COUNT_MASK = Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - NUM_BITS_RC).lsh(TL_LOCK_COUNT_SHIFT);
-  Word TL_THREAD_ID_MASK = Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - NUM_BITS_TID).lsh(TL_THREAD_ID_SHIFT);
+  Word TL_LOCK_COUNT_MASK = Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - TL_NUM_BITS_RC).lsh(TL_LOCK_COUNT_SHIFT);
+  Word TL_THREAD_ID_MASK = Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - TL_NUM_BITS_TID).lsh(TL_THREAD_ID_SHIFT);
   Word TL_LOCK_ID_MASK =
-      Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - (NUM_BITS_RC + NUM_BITS_TID)).lsh(TL_LOCK_ID_SHIFT);
-  Word TL_FAT_LOCK_MASK = Word.one().lsh(JavaHeader.THIN_LOCK_SHIFT + NUM_BITS_RC + NUM_BITS_TID);
+      Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - (TL_NUM_BITS_RC + TL_NUM_BITS_TID)).lsh(TL_LOCK_ID_SHIFT);
+  Word TL_FAT_LOCK_MASK = Word.one().lsh(JavaHeader.THIN_LOCK_SHIFT + TL_NUM_BITS_RC + TL_NUM_BITS_TID);
   Word TL_UNLOCK_MASK = Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - JavaHeader
       .NUM_THIN_LOCK_BITS).lsh(JavaHeader.THIN_LOCK_SHIFT).not();
+
+  // BL status bits:
+  // 00 -> thin biasable, and biased if TID is non-zero
+  // 01 -> thin unbiasable
+  // 10 -> fat unbiasable
+  
+  int BL_NUM_BITS_STAT = 2;
+  int BL_NUM_BITS_TID = RVMThread.LOG_MAX_THREADS;
+  int BL_NUM_BITS_RC = JavaHeader.NUM_THIN_LOCK_BITS - BL_NUM_BITS_TID - BL_NUM_BITS_STAT;
+
+  int BL_LOCK_COUNT_SHIFT = JavaHeader.THIN_LOCK_SHIFT;
+  int BL_THREAD_ID_SHIFT = BL_LOCK_COUNT_SHIFT + BL_NUM_BITS_RC;
+  int BL_STAT_SHIFT = BL_THREAD_ID_SHIFT + BL_NUM_BITS_TID;
+  int BL_LOCK_ID_SHIFT = JavaHeader.THIN_LOCK_SHIFT;
+  
+  int BL_LOCK_COUNT_UNIT = 1 << BL_LOCK_COUNT_SHIFT;
+
+  Word BL_LOCK_COUNT_MASK = Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - BL_NUM_BITS_RC).lsh(BL_LOCK_COUNT_SHIFT);
+  Word BL_THREAD_ID_MASK = Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - BL_NUM_BITS_TID).lsh(BL_THREAD_ID_SHIFT);
+  Word BL_LOCK_ID_MASK =
+      Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - (BL_NUM_BITS_RC + BL_NUM_BITS_TID)).lsh(BL_LOCK_ID_SHIFT);
+  Word BL_STAT_MASK = Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - BL_NUM_BITS_TID).lsh(BL_STAT_SHIFT);
+  Word BL_UNLOCK_MASK = Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - JavaHeader
+      .NUM_THIN_LOCK_BITS).lsh(JavaHeader.THIN_LOCK_SHIFT).not();
+  
+  Word BL_STAT_BIASABLE = Word.fromIntSignExtend(0).lsh(BL_STAT_SHIFT);
+  Word BL_STAT_THIN = Word.fromIntSignExtend(1).lsh(BL_STAT_SHIFT);
+  Word BL_STAT_FAT = Word.fromIntSignExtend(2).lsh(BL_STAT_SHIFT);
 }
 

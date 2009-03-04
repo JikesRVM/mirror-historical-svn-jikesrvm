@@ -12,12 +12,4 @@
  */
 package org.jikesrvm.scheduler;
 
-public final class LockConfigs {
-  public static final int EagerDeflate = 1;
-  public static final int SloppyDeflate = 2;
-  public static final int EagerDeflateBiased = 3;
-  public static final int EagerDeflateHybrid = 4;
-}
-
-
-
+public class EagerDeflateHybridThinLockPlan extends HybridBiasedLockPlan {}

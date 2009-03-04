@@ -25,6 +25,7 @@ import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.pragma.NoNullCheck;
+import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
@@ -36,8 +37,24 @@ import org.vmmagic.unboxed.Word;
 public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
   public static ElementaryBiasedLockPlan instance;
   
+  static final boolean STATS=false;
+  
+  static int numHeaderLocks;
+  static int numHeaderLocksSlow;
+  static int numLocks;
+  static int numLocksSlow;
+  static int numRevocations;
+  
   public ElementaryBiasedLockPlan() {
     instance=this;
+  }
+  
+  public void lateBoot() {
+    if (STATS) {
+      StatsThread st=new StatsThread();
+      st.makeDaemon(true);
+      st.start();
+    }
   }
   
   @Inline
@@ -73,6 +90,8 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
   @NoInline
   @NoNullCheck
   public void lock(Object o, Offset lockOffset) {
+    if (STATS) numLocks++;
+        
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
 
     for (;;) {
@@ -102,6 +121,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
           return;
         }
       } else {
+        if (STATS) numLocksSlow++;
         // the lock is not fat, is owned by someone else, or else the count wrapped.
         // attempt to inflate it (this may fail, in which case we'll just harmlessly
         // loop around) and lock it (may also fail, if we get the wrong lock).  if it
@@ -183,7 +203,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
     // what this needs to do:
     // 1) if the lock is unbiased, CAS in the inflation
     // 2) if the lock is biased in our favor, store the lock without CAS
-    // 2) if the lock is biased but to someone else, enter the pair handshake
+    // 3) if the lock is biased but to someone else, enter the pair handshake
     //    to unbias it and install the inflated lock
     RVMThread me=RVMThread.getCurrentThread();
     Word id=oldLockWord.and(TL_THREAD_ID_MASK);
@@ -207,6 +227,8 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
         return Synchronization.tryCompareAndSwap(
           o, lockOffset, oldLockWord, changed);
       } else {
+        if (STATS) numRevocations++;
+        
         boolean result=false;
         
         // NB. this may stop a thread other than the one that had the bias,
@@ -244,6 +266,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
   
   @NoNullCheck
   public boolean lockHeader(Object o, Offset lockOffset) {
+    if (STATS) numHeaderLocks++;
     // what do we do here?  if we have the bias, then it's easy.  but what
     // if we don't?  in that case we need to be ultra-careful.  what we can
     // do:
@@ -276,13 +299,21 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
         LockConfig.Selected l=(LockConfig.Selected)
           LockConfig.selectedPlan.getLock(getLockIndex(old));
         if (l!=null) {
-          l.lockState();
-          if (l.lockedObject==o && Magic.getWordAtOffset(o, lockOffset)==old) {
-            return true; // cannot deflate the lock, so the header really is locked
+          if (l.getOwnerId()==RVMThread.getCurrentThread().getLockingId()) {
+            // we own the lock so increment the rec count
+            if (l.lockHeavy(o)) {
+              return true;
+            }
+          } else {
+            l.lockState();
+            if (l.lockedObject==o && Magic.getWordAtOffset(o, lockOffset)==old) {
+              return true; // cannot deflate the lock, so the header really is locked
+            }
+            l.unlockState();
           }
-          l.unlockState();
         }
       } else {
+        if (STATS) numHeaderLocksSlow++;
         // lock is biased to someone else.  inflate it.
         LockConfig.selectedPlan.inflate(o,lockOffset);
       }
@@ -290,7 +321,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
   }
   
   @NoNullCheck
-  public final void unlockHeader(Object o, Offset lockOffset) {
+  public final void unlockHeader(Object o, Offset lockOffset,boolean lockHeaderResult) {
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
     Word old = Magic.getWordAtOffset(o, lockOffset);
     Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
@@ -301,11 +332,26 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
     } else {
       if (VM.VerifyAssertions) VM._assert(!old.and(TL_FAT_LOCK_MASK).isZero());
       // fat unlock
+      // two possibilities:
+      // 1) we had locked the lock's state, in which case we unlock the state
+      // 2) we had incremented the lock's rec count, in which case we dec it
+      // 3) we had incremented the bias rec count but the lock got inflated,
+      //    so we unlock it
+      // FIXME: if we had biased the lock in our favor but it got inflated,
+      // then in here we should unlock the lock rather than unlocking the
+      // state!!
       LockConfig.Selected l=(LockConfig.Selected)
         LockConfig.selectedPlan.getLock(getLockIndex(old));
       if (VM.VerifyAssertions) VM._assert(l!=null);
-      if (VM.VerifyAssertions) VM._assert(l.stateIsLocked());
-      l.unlockState();
+      if (VM.VerifyAssertions) VM._assert(l.getLockedObject()==o);
+      if (l.getOwnerId()==RVMThread.getCurrentThread().getLockingId()) {
+        // case (2) or (3)
+        l.unlockHeavy();
+      } else {
+        // case (1)
+        if (VM.VerifyAssertions) VM._assert(l.stateIsLocked());
+        l.unlockState();
+      }
     }
   }
   
@@ -313,6 +359,38 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
   @Uninterruptible
   public final boolean allowHeaderCAS(Object o, Offset lockOffset) {
     return false;
+  }
+  
+  @NonMoving
+  static class StatsThread extends RVMThread {
+    StatsThread() {
+      super("StatsThread");
+    }
+    
+    @Override
+    public void run() {
+      try {
+        for (;;) {
+          RVMThread.sleep(1000L*1000L*1000L);
+
+          VM.sysWriteln("periodic biased locking stats report:");
+          VM.sysWriteln("   numHeaderLocks = ",numHeaderLocks);
+          VM.sysWriteln("   numHeaderLocksSlow = ",numHeaderLocksSlow);
+          VM.sysWriteln("   numLocks = ",numLocks);
+          VM.sysWriteln("   numLocksSlow = ",numLocksSlow);
+          VM.sysWriteln("   numRevocations = ",numRevocations);
+          
+          numHeaderLocks=0;
+          numHeaderLocksSlow=0;
+          numLocks=0;
+          numLocksSlow=0;
+          numRevocations=0;
+        }
+      } catch (Throwable e) {
+        VM.printExceptionAndDie("stats thread",e);
+      }
+      VM.sysFail("should never get here");
+    }
   }
 }
 

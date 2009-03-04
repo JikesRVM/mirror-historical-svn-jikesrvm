@@ -1378,7 +1378,7 @@ public class RVMThread extends ThreadContext {
 
       acctLock.unlock();
     }
-    lockingId = threadSlot << ThinLockConstants.TL_THREAD_ID_SHIFT;
+    lockingId = threadSlot << LockConfig.THREAD_ID_SHIFT;
     if (traceAcct) {
       VM.sysWriteln("Thread #", threadSlot, " at ", Magic.objectAsAddress(this));
       VM.sysWriteln("stack at ", Magic.objectAsAddress(stack), " up to ", Magic.objectAsAddress(stack).plus(stack.length));

@@ -115,8 +115,8 @@ public final class Locking implements ThinLockConstants {
     return LockConfig.selectedThinPlan.lockHeader(obj, lockOffset);
   }
   
-  public static void unlockHeader(Object obj, Offset lockOffset) {
-    LockConfig.selectedThinPlan.unlockHeader(obj, lockOffset);
+  public static void unlockHeader(Object obj, Offset lockOffset,boolean lockHeaderResult) {
+    LockConfig.selectedThinPlan.unlockHeader(obj, lockOffset, lockHeaderResult);
   }
   
   @Uninterruptible

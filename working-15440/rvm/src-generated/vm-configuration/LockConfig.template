@@ -12,14 +12,22 @@
  */
 package org.jikesrvm.scheduler;
 
+import org.jikesrvm.objectmodel.ThinLockConstants;
+
 public final class LockConfig {
   public static final int SELECTED = LockConfigs.@_SELECTED_@;
   
   public static final boolean CACHE_LOCKS =
       SELECTED==LockConfigs.EagerDeflate ||
-      SELECTED==LockConfigs.EagerDeflateBiased;
+      SELECTED==LockConfigs.EagerDeflateBiased ||
+      SELECTED==LockConfigs.EagerDeflateHybrid;
       
   public static final boolean USE_REC_FASTPATH = false;
+  
+  public static final int THREAD_ID_SHIFT =
+      (SELECTED==LockConfigs.EagerDeflateHybrid)
+      ? ThinLockConstants.BL_THREAD_ID_SHIFT
+      : ThinLockConstants.TL_THREAD_ID_SHIFT;
   
   public static final class Selected extends @_SELECTED_@Lock {}
   public static final class SelectedPlan extends @_SELECTED_@LockPlan {}
