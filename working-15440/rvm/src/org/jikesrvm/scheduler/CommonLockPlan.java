@@ -287,7 +287,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
    * Return the number of lock slots that have been allocated. This provides
    * the range of valid lock ids.
    */
-  @Unpreemptible
+  @Uninterruptible
   public final int numLocks() {
     return nextLockID;
   }
@@ -299,7 +299,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
    * @return The lock object.
    */
   @Inline
-  @Unpreemptible
+  @Uninterruptible
   @NoNullCheck
   public final AbstractLock getLock(int id) {
     return locks[id];
@@ -319,7 +319,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   /**
    * Dump the lock table.
    */
-  @UninterruptibleNoWarn // FIXME
+  @Uninterruptible
   public final void dumpLocks() {
     for (int i = 0; i < numLocks(); i++) {
       CommonLock l = (CommonLock)Magic.eatCast(getLock(i));

@@ -158,6 +158,8 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
       //   do the slow path of acquisition
       // - if the lock is inflated, grab it.
       
+      boolean attemptToInflate=false;
+      
       Word old = Magic.prepareWord(o, lockOffset);
       Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
       if (id.isZero()) {
@@ -169,8 +171,9 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
       } else if (id.EQ(threadId)) {
         // lock held, attempt to increment rec count
         Word changed = old.toAddress().plus(TL_LOCK_COUNT_UNIT).toWord();
-        if (!changed.and(TL_LOCK_COUNT_MASK).isZero() &&
-            Magic.attemptWord(o, lockOffset, old, changed)) {
+        if (changed.and(TL_LOCK_COUNT_MASK).isZero()) {
+          attemptToInflate=true;
+        } else if (Magic.attemptWord(o, lockOffset, old, changed)) {
           Magic.isync();
           return;
         }
@@ -182,6 +185,10 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
           return;
         } // else we grabbed someone else's lock
       } else {
+        attemptToInflate=true;
+      }
+      
+      if (attemptToInflate) {
         // the lock is not fat, is owned by someone else, or else the count wrapped.
         // attempt to inflate it (this may fail, in which case we'll just harmlessly
         // loop around) and lock it (may also fail, if we get the wrong lock).  if it

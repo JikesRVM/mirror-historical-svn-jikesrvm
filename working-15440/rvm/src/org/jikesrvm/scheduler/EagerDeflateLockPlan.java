@@ -112,7 +112,6 @@ public class EagerDeflateLockPlan extends CommonLockPlan {
                                                     Offset lockOffset,
                                                     EagerDeflateLock l) {
     if (PROFILE) RVMThread.enterLockingPath();
-    Word old;
     if (false) VM.sysWriteln("l = ",Magic.objectAsAddress(l));
     l.lockState();
     do {
@@ -143,6 +142,8 @@ public class EagerDeflateLockPlan extends CommonLockPlan {
         l.setOwnerId(LockConfig.selectedThinPlan.getLockOwner(bits));
         if (l.getOwnerId() != 0) {
           l.setRecursionCount(LockConfig.selectedThinPlan.getRecCount(bits));
+        } else {
+          if (VM.VerifyAssertions) VM._assert(l.getRecursionCount()==0);
         }
         if (PROFILE) RVMThread.leaveLockingPath();
         return l;

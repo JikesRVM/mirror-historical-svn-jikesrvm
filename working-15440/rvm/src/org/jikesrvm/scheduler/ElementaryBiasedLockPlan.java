@@ -95,6 +95,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
 
     for (;;) {
+      boolean attemptToInflate=false;
       Word old = Magic.getWordAtOffset(o, lockOffset);
       Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
       if (id.isZero()) {
@@ -112,6 +113,8 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
         if (!changed.and(TL_LOCK_COUNT_MASK).isZero()) {
           Magic.setWordAtOffset(o, lockOffset, changed);
           return;
+        } else {
+          attemptToInflate=true;
         }
       } else if (!old.and(TL_FAT_LOCK_MASK).isZero()) {
         // lock is fat.  contend on it.
@@ -121,6 +124,10 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
           return;
         }
       } else {
+        attemptToInflate=true;
+      }
+      
+      if (attemptToInflate) {
         if (STATS) numLocksSlow++;
         // the lock is not fat, is owned by someone else, or else the count wrapped.
         // attempt to inflate it (this may fail, in which case we'll just harmlessly
@@ -276,6 +283,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
     // 4) if the lock is fat, lock its state
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
     for (;;) {
+      boolean attemptToInflate=false;
       Word old = Magic.getWordAtOffset(o, lockOffset);
       Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
       if (id.isZero()) {
@@ -293,6 +301,8 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
         if (!changed.and(TL_LOCK_COUNT_MASK).isZero()) {
           Magic.setWordAtOffset(o, lockOffset, changed);
           return true;
+        } else {
+          attemptToInflate=true;
         }
       } else if (!old.and(TL_FAT_LOCK_MASK).isZero()) {
         // lock is fat.  lock its state.
@@ -313,6 +323,10 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
           }
         }
       } else {
+        attemptToInflate=true;
+      }
+      
+      if (attemptToInflate) {
         if (STATS) numHeaderLocksSlow++;
         // lock is biased to someone else.  inflate it.
         LockConfig.selectedPlan.inflate(o,lockOffset);

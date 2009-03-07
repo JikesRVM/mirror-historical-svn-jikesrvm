@@ -2253,6 +2253,8 @@ public class RVMThread extends ThreadContext {
         // it.  hence it is dangerous.  leaving it as-is for now, since it's
         // only meant to be used for debugging.
 
+        LockConfig.selectedPlan.dumpLocks();
+        
         VM.sysWriteln("Timer ticks = ", timerTicks);
         doProfileReport.openDangerously();
         // snapshot the threads

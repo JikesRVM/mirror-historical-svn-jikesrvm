@@ -91,7 +91,7 @@ public abstract class CommonLock extends AbstractLock {
     ownerId=id;
   }
   
-  @Unpreemptible
+  @Uninterruptible
   public final int getOwnerId() {
     return ownerId;
   }
@@ -100,6 +100,7 @@ public abstract class CommonLock extends AbstractLock {
     recursionCount=c;
   }
   
+  @Uninterruptible
   public final int getRecursionCount() {
     return recursionCount;
   }
@@ -108,6 +109,7 @@ public abstract class CommonLock extends AbstractLock {
     lockedObject=o;
   }
   
+  @Uninterruptible
   public final Object getLockedObject() {
     return lockedObject;
   }
@@ -120,19 +122,26 @@ public abstract class CommonLock extends AbstractLock {
     return result;
   }
   
+  @Uninterruptible
   public final int getLockId() {
     return id;
   }
   
+  @Uninterruptible
   public final boolean isActive() {
     return lockedObject!=null;
   }
   
   protected abstract void activate();
 
+  @Uninterruptible
   protected final void dumpWaitingThreads() {
     VM.sysWrite(" waiting: ");
-    waiting().dump();
+    if (waiting==null) {
+      VM.sysWriteln();
+    } else {
+      waiting.dump();
+    }
   }
 }
 

@@ -32,8 +32,10 @@ import org.vmmagic.unboxed.Offset;
  */
 public abstract class AbstractLock implements Constants {
   
+  @Uninterruptible
   public abstract boolean isActive();
   
+  @Uninterruptible
   public abstract int getLockId();
   
   /**
@@ -57,9 +59,10 @@ public abstract class AbstractLock implements Constants {
   /** Set the thread that owns ("holds") the lock. */
   protected abstract void setOwnerId(int id);
   
-  @Unpreemptible
+  @Uninterruptible
   public abstract int getOwnerId();
   
+  @Uninterruptible
   public abstract int getRecursionCount();
   
   @Unpreemptible
@@ -79,6 +82,7 @@ public abstract class AbstractLock implements Constants {
    * no guarantees in this regard (for example: lockHeavy() may already do this
    * fast check).
    */
+  @Uninterruptible
   public abstract Object getLockedObject();
   
   /**
@@ -97,11 +101,15 @@ public abstract class AbstractLock implements Constants {
   
   protected abstract boolean stateIsLocked();
   
+  @Uninterruptible
   protected abstract void dumpBlockedThreads();
+  @Uninterruptible
   protected abstract void dumpWaitingThreads();
   
+  @Uninterruptible
   protected void dumpImplementationSpecific() {}
   
+  @Uninterruptible
   public void dump() {
     if (!isActive()) {
       return;
@@ -112,7 +120,9 @@ public abstract class AbstractLock implements Constants {
     VM.sysWrite(" lockedObject: ");
     VM.sysWriteHex(Magic.objectAsAddress(getLockedObject()));
     VM.sysWrite("   thin lock = ");
-    VM.sysWriteHex(Magic.objectAsAddress(getLockedObject()).loadAddress(ObjectModel.defaultThinLockOffset()));
+    Word thinbits=Magic.getWordAtOffset(getLockedObject(),ObjectModel.defaultThinLockOffset());
+    VM.sysWrite(thinbits);
+    VM.sysWrite(" id = ",getLockId(),", ",LockConfig.selectedThinPlan.getLockIndex(thinbits));
     VM.sysWrite(" object type = ");
     VM.sysWrite(Magic.getObjectType(getLockedObject()).getDescriptor());
     VM.sysWriteln();

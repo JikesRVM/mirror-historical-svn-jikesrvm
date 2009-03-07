@@ -163,7 +163,7 @@ public class EagerDeflateLock extends CommonLock {
       VM._assert(waitingIsEmpty());
     }
     if (CommonLockPlan.HEAVY_STATS) CommonLockPlan.deflations++;
-    LockConfig.selectedThinPlan.markDeflated(o, lockOffset);
+    LockConfig.selectedThinPlan.markDeflated(o, lockOffset, id);
     lockedObject = null;
     EagerDeflateLockPlan.instance.free(this);
   }
@@ -180,6 +180,7 @@ public class EagerDeflateLock extends CommonLock {
     return mutex!=0;
   }
   
+  @Uninterruptible
   protected final void dumpBlockedThreads() {
     VM.sysWrite(" entering: ");
     entering.dump();

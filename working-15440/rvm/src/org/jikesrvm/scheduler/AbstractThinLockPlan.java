@@ -88,7 +88,7 @@ public abstract class AbstractThinLockPlan implements Constants, ThinLockConstan
    * Extract the current fat lock index.  This is only valid if the lock
    * is fat.
    */
-  @Unpreemptible
+  @Uninterruptible
   public abstract int getLockIndex(Word lockWord);
   
   /**
@@ -120,9 +120,11 @@ public abstract class AbstractThinLockPlan implements Constants, ThinLockConstan
   public abstract boolean attemptToMarkDeflated(Object o, Offset lockOffset,
                                                 Word oldLockWord);
   
-  public final void markDeflated(Object o, Offset lockOffset) {
+  public final void markDeflated(Object o, Offset lockOffset, int id) {
     for (;;) {
       Word bits=Magic.getWordAtOffset(o, lockOffset);
+      if (VM.VerifyAssertions) VM._assert(isFat(bits));
+      if (VM.VerifyAssertions) VM._assert(getLockIndex(bits)==id);
       if (attemptToMarkDeflated(o, lockOffset, bits)) {
         return;
       }

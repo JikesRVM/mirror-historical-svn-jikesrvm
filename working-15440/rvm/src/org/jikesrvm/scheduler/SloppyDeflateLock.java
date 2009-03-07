@@ -269,7 +269,7 @@ public class SloppyDeflateLock extends CommonLock {
         if ((numHeavyUses<0 || numHeavyUses<useThreshold || useThreshold<0) &&
             canDeflate()) {
           if (trace) VM.tsysWriteln("decided to deflate a lock.");
-          LockConfig.selectedThinPlan.markDeflated(lockedObject, lockOffset);
+          LockConfig.selectedThinPlan.markDeflated(lockedObject, lockOffset, id);
           deactivate();
           SloppyDeflateLockPlan.instance.free(this);
           return true;
@@ -284,6 +284,7 @@ public class SloppyDeflateLock extends CommonLock {
     return false;
   }
   
+  @Uninterruptible
   protected final void dumpBlockedThreads() {
     VM.sysWrite(" entering: ");
     queue.dump();

@@ -61,7 +61,7 @@ public abstract class CommonThinLockPlan extends AbstractThinLockPlan {
    * @return the lock index corresponding to the lock workd.
    */
   @Inline
-  @Unpreemptible
+  @Uninterruptible
   public final int getLockIndex(Word lockWord) {
     int index = lockWord.and(TL_LOCK_ID_MASK).rshl(TL_LOCK_ID_SHIFT).toInt();
     if (VM.VerifyAssertions) {

@@ -79,9 +79,9 @@ public abstract class AbstractLockPlan implements Constants {
   
   /** Upper bound on the number of locks; typically this is only used for
       assertions. */
-  @Unpreemptible
+  @Uninterruptible
   public abstract int numLocks();
-  @Unpreemptible
+  @Uninterruptible
   public abstract AbstractLock getLock(int id);
   
   public abstract int countLocksHeldByThread(int id);

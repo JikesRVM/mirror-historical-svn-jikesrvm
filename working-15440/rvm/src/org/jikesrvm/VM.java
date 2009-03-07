@@ -1507,6 +1507,81 @@ public class VM extends Properties implements Constants, ExitStatus {
   }
 
   @NoInline
+  public static void sysWriteln(String s1, Word w1, String s2, Word w2) {
+    swLock();
+    write(s1);
+    write(w1);
+    write(s2);
+    write(w2);
+    writeln();
+    swUnlock();
+  }
+
+  @NoInline
+  public static void sysWriteln(String s1, Word w1, String s2, int i1, String s3, int i2) {
+    swLock();
+    write(s1);
+    write(w1);
+    write(s2);
+    write(i1);
+    write(s3);
+    write(i2);
+    writeln();
+    swUnlock();
+  }
+
+  @NoInline
+  public static void sysWriteln(String s1, Word w1, String s2, int i1, String s3, int i2, String s4, Word w2) {
+    swLock();
+    write(s1);
+    write(w1);
+    write(s2);
+    write(i1);
+    write(s3);
+    write(i2);
+    write(s4);
+    write(w2);
+    writeln();
+    swUnlock();
+  }
+
+  @NoInline
+  public static void sysWriteln(String s1, Word w1, String s2, int i1, String s3, int i2, String s4, Word w2, String s5, int i3) {
+    swLock();
+    write(s1);
+    write(w1);
+    write(s2);
+    write(i1);
+    write(s3);
+    write(i2);
+    write(s4);
+    write(w2);
+    write(s5);
+    write(i3);
+    writeln();
+    swUnlock();
+  }
+
+  @NoInline
+  public static void sysWriteln(String s0, Address a1, String s1, Word w1, String s2, int i1, String s3, int i2, String s4, Word w2, String s5, int i3) {
+    swLock();
+    write(s0);
+    write(a1);
+    write(s1);
+    write(w1);
+    write(s2);
+    write(i1);
+    write(s3);
+    write(i2);
+    write(s4);
+    write(w2);
+    write(s5);
+    write(i3);
+    writeln();
+    swUnlock();
+  }
+
+  @NoInline
   public static void sysWrite(String s1, String s2, Address a) {
     swLock();
     write(s1);
@@ -2051,6 +2126,30 @@ public class VM extends Properties implements Constants, ExitStatus {
     write(a1);
     write(s2);
     write(a2);
+    writeln();
+    swUnlock();
+  }
+
+  @NoInline
+  public static void sysWriteln(String s1, Address a1, String s2, Word w1) {
+    swLock();
+    write(s1);
+    write(a1);
+    write(s2);
+    write(w1);
+    writeln();
+    swUnlock();
+  }
+
+  @NoInline
+  public static void sysWriteln(String s1, Address a1, String s2, Word w1, String s3, Word w2) {
+    swLock();
+    write(s1);
+    write(a1);
+    write(s2);
+    write(w1);
+    write(s3);
+    write(w2);
     writeln();
     swUnlock();
   }
