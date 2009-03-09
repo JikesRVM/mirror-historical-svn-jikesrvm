@@ -30,8 +30,7 @@ import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
 public class EagerDeflateLock extends CommonLock {
-  @Entrypoint
-  int mutex;
+  private InterruptibleSpinLock mutex=new InterruptibleSpinLock();
 
   private ThreadQueue entering;
   
@@ -59,8 +58,7 @@ public class EagerDeflateLock extends CommonLock {
   public final boolean lockHeavy(Object o) {
     if (CommonLockPlan.PROFILE) RVMThread.enterLockingPath();
     if (EagerDeflateLockPlan.tentativeMicrolocking) {
-      if (!Synchronization.tryAcquireLock(
-            this,Entrypoints.eagerDeflateLockMutexField.getOffset())) {
+      if (!mutex.tryLock()) {
         if (CommonLockPlan.PROFILE) RVMThread.leaveLockingPath();
         return false;
       }
@@ -169,15 +167,15 @@ public class EagerDeflateLock extends CommonLock {
   }
   
   protected final void lockState() {
-    Synchronization.acquireLock(this,Entrypoints.eagerDeflateLockMutexField.getOffset());
+    mutex.lock();
   }
   
   protected final void unlockState() {
-    Synchronization.releaseLock(this,Entrypoints.eagerDeflateLockMutexField.getOffset());
+    mutex.unlock();
   }
   
   protected final boolean stateIsLocked() {
-    return mutex!=0;
+    return mutex.lockHeld();
   }
   
   @Uninterruptible

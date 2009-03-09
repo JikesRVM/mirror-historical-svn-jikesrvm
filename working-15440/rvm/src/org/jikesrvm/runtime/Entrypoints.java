@@ -155,17 +155,6 @@ public class Entrypoints {
                  "state", int.class)
       : null;
 
-  public static final RVMField eagerDeflateLockMutexField=
-      (org.jikesrvm.scheduler.LockConfig.SELECTED ==
-       org.jikesrvm.scheduler.LockConfigs.EagerDeflate ||
-       org.jikesrvm.scheduler.LockConfig.SELECTED ==
-       org.jikesrvm.scheduler.LockConfigs.EagerDeflateBiased ||
-       org.jikesrvm.scheduler.LockConfig.SELECTED ==
-       org.jikesrvm.scheduler.LockConfigs.EagerDeflateHybrid)
-      ? getField(org.jikesrvm.scheduler.EagerDeflateLock.class,
-                 "mutex", int.class)
-      : null;
-
   public static final NormalMethod lazyMethodInvokerMethod =
       getMethod(org.jikesrvm.runtime.DynamicLinker.class, "lazyMethodInvoker", "()V");
   public static final NormalMethod unimplementedNativeMethodMethod =

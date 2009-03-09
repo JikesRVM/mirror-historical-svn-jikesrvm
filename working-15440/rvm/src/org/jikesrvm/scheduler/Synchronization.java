@@ -225,8 +225,8 @@ public class Synchronization {
   @Interruptible
   public static void acquireLock(Object base, Offset offset) {
     for (;;) {
-      Magic.prepareInt(base, offset);
-      if (Magic.attemptInt(base, offset, 0, 1)) {
+      if (Magic.prepareInt(base, offset)==0 &&
+          Magic.attemptInt(base, offset, 0, 1)) {
         Magic.isync();
         return;
       }
@@ -242,8 +242,8 @@ public class Synchronization {
    */
   @Inline
   public static boolean tryAcquireLock(Object base, Offset offset) {
-    Magic.prepareInt(base, offset);
-    if (Magic.attemptInt(base, offset, 0, 1)) {
+    if (Magic.prepareInt(base, offset)==0 &&
+        Magic.attemptInt(base, offset, 0, 1)) {
       Magic.isync();
       return true;
     }

@@ -346,6 +346,7 @@ public class RVMThread extends ThreadContext {
   // to handle contention for spin locks
   //
   SpinLock awaitingSpinLock;
+  InterruptibleSpinLock awaitingInterruptibleSpinLock;
 
   RVMThread contenderLink;
 
