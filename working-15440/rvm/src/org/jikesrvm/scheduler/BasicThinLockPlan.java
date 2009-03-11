@@ -147,10 +147,10 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
 
   @NoInline
   @NoNullCheck
-  public final void lock(Object o, Offset lockOffset) {
+  public void lock(Object o, Offset lockOffset) {
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
-    
-    for (;;) {
+
+    for (int cnt=0;;cnt++) {
       // the idea:
       // - if the lock is uninflated and unclaimed attempt to grab it the thin way
       // - if the lock is uninflated and claimed by me, attempt to increase rec count
@@ -184,7 +184,7 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
         if (l!=null && l.lockHeavy(o)) {
           return;
         } // else we grabbed someone else's lock
-      } else {
+      } else if (cnt>LockConfig.RETRY_LIMIT) {
         attemptToInflate=true;
       }
       
@@ -196,13 +196,15 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
         if (LockConfig.selectedPlan.inflateAndLock(o, lockOffset)) {
           return;
         }
+      } else {
+        RVMThread.yield();
       }
     }
   }
   
   @NoInline
   @NoNullCheck
-  public final void unlock(Object o, Offset lockOffset) {
+  public void unlock(Object o, Offset lockOffset) {
     Magic.sync();
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
     for (;;) {

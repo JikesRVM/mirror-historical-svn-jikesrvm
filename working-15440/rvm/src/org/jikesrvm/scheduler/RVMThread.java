@@ -3224,10 +3224,15 @@ public class RVMThread extends ThreadContext {
   public static final AllButGCHardHandshakeVisitor allButGC=
     new AllButGCHardHandshakeVisitor();
   
+  static long totalSuspendTime;
+  static long totalResumeTime;
+  
   @Unpreemptible
   @NoCheckStore
   public static void hardHandshakeSuspend(BlockAdapter ba,
                                           HardHandshakeVisitor hhv) {
+    long before=sysCall.sysNanoTime();
+    
     RVMThread current=getCurrentThread();
     
     handshakeLock.lockNicely();
@@ -3285,12 +3290,20 @@ public class RVMThread extends ThreadContext {
                                 * we were stopping the world notify us
                                 * that they had stopped.
                                 */
+
+    if (false) {
+      long after=sysCall.sysNanoTime();
+      totalSuspendTime+=after-before;
+      VM.sysWriteln("Stopping the world took ",(after-before)," ns (",totalSuspendTime," ns total)");
+    }
   }
   
   @NoCheckStore
   @Unpreemptible
   public static void hardHandshakeResume(BlockAdapter ba,
                                          HardHandshakeVisitor hhv) {
+    long before=sysCall.sysNanoTime();
+    
     RVMThread current=getCurrentThread();
     worldStopped=false;
     acctLock.lock();
@@ -3315,6 +3328,12 @@ public class RVMThread extends ThreadContext {
       }
     }
     handshakeLock.unlock();
+    
+    if (false) {
+      long after=sysCall.sysNanoTime();
+      totalResumeTime+=after-before;
+      VM.sysWriteln("Resuming the world took ",(after-before)," ns (",totalResumeTime," ns total)");
+    }
   }
   
   public static boolean worldStopped() {

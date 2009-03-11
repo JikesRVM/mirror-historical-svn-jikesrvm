@@ -32,13 +32,12 @@ import org.vmmagic.unboxed.Word;
 public class EagerDeflateLock extends CommonLock {
   private InterruptibleSpinLock mutex=new InterruptibleSpinLock();
 
-  private ThreadQueue entering;
+  private ThreadQueue entering=new ThreadQueue();
   
   public EagerDeflateLock() {
   }
   
   protected final ThreadQueue entering() {
-    if (entering==null) entering=new ThreadQueue();
     return entering;
   }
   
@@ -73,7 +72,7 @@ public class EagerDeflateLock extends CommonLock {
   /** Complete the task of acquiring the heavy lock, assuming that the mutex
       is already acquired (locked). */
   @NoNullCheck
-  @Inline
+  @NoInline
   protected final boolean lockHeavyLocked(Object o) {
     if (CommonLockPlan.PROFILE) RVMThread.enterLockingPath();
     if (lockedObject != o) { // lock disappeared before we got here

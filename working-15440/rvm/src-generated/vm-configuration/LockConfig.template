@@ -28,6 +28,8 @@ public final class LockConfig {
       (SELECTED==LockConfigs.EagerDeflateHybrid)
       ? ThinLockConstants.BL_THREAD_ID_SHIFT
       : ThinLockConstants.TL_THREAD_ID_SHIFT;
+      
+  public static final int RETRY_LIMIT = 40;
   
   public static final class Selected extends @_SELECTED_@Lock {}
   public static final class SelectedPlan extends @_SELECTED_@LockPlan {}

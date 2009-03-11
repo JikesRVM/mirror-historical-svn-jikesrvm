@@ -79,3 +79,12 @@
 
 [Lorg/vmmagic/pragma/Inline$When;
 Lsun/misc/Unsafe;
+
+Lorg/jikesrvm/scheduler/EagerDeflateLock;
+Lorg/jikesrvm/scheduler/EagerDeflateLockPlan;
+Lorg/jikesrvm/scheduler/BasicThinLockPlan;
+Lorg/jikesrvm/scheduler/Locking;
+Lorg/jikesrvm/scheduler/LockConfig$Selected;
+Lorg/jikesrvm/scheduler/LockConfig$SelectedPlan;
+Lorg/jikesrvm/scheduler/LockConfig$SelectedThinPlan;
+

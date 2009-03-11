@@ -130,7 +130,7 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
         
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
 
-    for (;;) {
+    for (int cnt=0;;cnt++) {
       Word old = Magic.getWordAtOffset(o, lockOffset);
       Word stat = old.and(BL_STAT_MASK);
       boolean tryToInflate=false;
@@ -174,7 +174,7 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
             Magic.isync();
             return;
           }
-        } else {
+        } else if (cnt>LockConfig.RETRY_LIMIT) {
           tryToInflate=true;
         }
       } else {
@@ -198,6 +198,8 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
         if (LockConfig.selectedPlan.inflateAndLock(o, lockOffset)) {
           return;
         }
+      } else {
+        RVMThread.yield();
       }
     }
   }
