@@ -184,7 +184,7 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
         if (l!=null && l.lockHeavy(o)) {
           return;
         } // else we grabbed someone else's lock
-      } else if (cnt>LockConfig.RETRY_LIMIT) {
+      } else if (cnt>VM.thinRetryLimit) {
         attemptToInflate=true;
       }
       
@@ -196,7 +196,7 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
         if (LockConfig.selectedPlan.inflateAndLock(o, lockOffset)) {
           return;
         }
-      } else {
+      } else if (VM.thinYieldOnContention) {
         RVMThread.yield();
       }
     }
@@ -279,7 +279,8 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
   @Unpreemptible
   public final boolean attemptToMarkInflated(Object o, Offset lockOffset,
                                              Word oldLockWord,
-                                             int lockId) {
+                                             int lockId,
+                                             int cnt) {
     Word changed=
       TL_FAT_LOCK_MASK.or(Word.fromIntZeroExtend(lockId).lsh(TL_LOCK_ID_SHIFT))
       .or(oldLockWord.and(TL_UNLOCK_MASK));

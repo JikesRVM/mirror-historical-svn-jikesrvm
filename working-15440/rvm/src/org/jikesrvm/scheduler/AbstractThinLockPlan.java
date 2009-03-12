@@ -110,7 +110,8 @@ public abstract class AbstractThinLockPlan implements Constants, ThinLockConstan
    */
   @Unpreemptible
   public abstract boolean attemptToMarkInflated(Object o, Offset lockOffset,
-                                                Word oldLockWord, int lockId);
+                                                Word oldLockWord, int lockId,
+                                                int cnt);
   
   /**
    * Attempt to deflate the thin lock.  This makes the thin lock unlocked
@@ -145,6 +146,8 @@ public abstract class AbstractThinLockPlan implements Constants, ThinLockConstan
   public boolean allowHeaderCAS(Object o, Offset lockOffset) {
     return true;
   }
+  
+  public void poll(RVMThread t) {}
 }
 
 

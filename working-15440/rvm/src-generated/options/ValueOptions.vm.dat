@@ -72,3 +72,11 @@ V forceOneCPU int -1
 Force all threads to run on one CPU.  The argument specifies which CPU (starting from 0).
 
 
+V thinRetryLimit int 40
+The number of times to spin on a thin lock before inflating it into a fat lock.
+
+
+V biasRevokeRetryLimit int 40
+The number of times to spin on a thin lock before inflating it into a fat lock.
+
+

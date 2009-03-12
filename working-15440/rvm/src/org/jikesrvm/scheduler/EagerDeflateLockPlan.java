@@ -114,7 +114,7 @@ public class EagerDeflateLockPlan extends CommonLockPlan {
     if (PROFILE) RVMThread.enterLockingPath();
     if (false) VM.sysWriteln("l = ",Magic.objectAsAddress(l));
     l.lockState();
-    do {
+    for (int cnt=0;;++cnt) {
       Word bits = Magic.getWordAtOffset(o, lockOffset);
       // check to see if another thread has already created a fat lock
       if (LockConfig.selectedThinPlan.isFat(bits)) {
@@ -137,7 +137,7 @@ public class EagerDeflateLockPlan extends CommonLockPlan {
       }
       if (VM.VerifyAssertions) VM._assert(l!=null);
       if (LockConfig.selectedThinPlan.attemptToMarkInflated(
-            o, lockOffset, bits, l.id)) {
+            o, lockOffset, bits, l.id, cnt)) {
         l.setLockedObject(o);
         l.setOwnerId(LockConfig.selectedThinPlan.getLockOwner(bits));
         if (l.getOwnerId() != 0) {
@@ -149,7 +149,7 @@ public class EagerDeflateLockPlan extends CommonLockPlan {
         return l;
       }
       // contention detected, try again
-    } while (true);
+    }
   }
 
   /**

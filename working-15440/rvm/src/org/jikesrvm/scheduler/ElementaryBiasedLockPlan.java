@@ -204,7 +204,8 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
   @Unpreemptible
   public final boolean attemptToMarkInflated(Object o, Offset lockOffset,
                                              Word oldLockWord,
-                                             int lockId) {
+                                             int lockId,
+                                             int cnt) {
     if (VM.VerifyAssertions) VM._assert(oldLockWord.and(TL_FAT_LOCK_MASK).isZero());
     if (false) VM.sysWriteln("attemptToMarkInflated with oldLockWord = ",oldLockWord);
     // what this needs to do:

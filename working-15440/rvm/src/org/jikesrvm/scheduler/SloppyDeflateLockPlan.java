@@ -69,7 +69,7 @@ public class SloppyDeflateLockPlan extends CommonLockPlan {
     // no.  you're only allowed to ask for the fat lock when the object is locked.  in
     // that case, it cannot be deflated.
     
-    for (;;) {
+    for (int cnt=0;;cnt++) {
       Word bits = Magic.getWordAtOffset(o, lockOffset);
       
       if (LockConfig.selectedThinPlan.isFat(bits)) {
@@ -114,7 +114,7 @@ public class SloppyDeflateLockPlan extends CommonLockPlan {
       // will also see that the lock is held.
       
       if (LockConfig.selectedThinPlan.attemptToMarkInflated(
-            o, lockOffset, bits, l.id)) {
+            o, lockOffset, bits, l.id, cnt)) {
         if (trace) VM.tsysWriteln("inflated a lock.");
         return l;
       } else {

@@ -174,7 +174,7 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
             Magic.isync();
             return;
           }
-        } else if (cnt>LockConfig.RETRY_LIMIT) {
+        } else if (cnt>VM.thinRetryLimit) {
           tryToInflate=true;
         }
       } else {
@@ -198,7 +198,7 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
         if (LockConfig.selectedPlan.inflateAndLock(o, lockOffset)) {
           return;
         }
-      } else {
+      } else if (VM.thinYieldOnContention) {
         RVMThread.yield();
       }
     }
@@ -338,7 +338,8 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
   @Unpreemptible
   public final boolean attemptToMarkInflated(Object o, Offset lockOffset,
                                              Word oldLockWord,
-                                             int lockId) {
+                                             int lockId,
+                                             int cnt) {
     if (VM.VerifyAssertions) VM._assert(oldLockWord.and(BL_STAT_MASK).NE(BL_STAT_FAT));
     if (false) VM.sysWriteln("attemptToMarkInflated with oldLockWord = ",oldLockWord);
     // what this needs to do:
@@ -386,31 +387,78 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
         } else {
           if (STATS) numRevocations++;
           
-          boolean result=false;
-          
-          // NB. this may stop a thread other than the one that had the bias,
-          // if that thread died and some other thread took its slot.  that's
-          // why we do a CAS below.  it's only needed if some other thread
-          // had seen the owner be null (which may happen if we came here after
-          // a new thread took the slot while someone else came here when the
-          // slot was still null).  if it was the case that everyone else had
-          // seen a non-null owner, then the pair handshake would serve as
-          // sufficient synchronization (the id would identify the set of threads
-          // that shared that id's communicationLock).  oddly, that means that
-          // this whole thing could be "simplified" to acquire the
-          // communicationLock even if the owner was null.  but that would be
-          // goofy.
-          if (false) VM.sysWriteln("entering pair handshake");
-          owner.beginPairHandshake();
-          if (false) VM.sysWriteln("done with that");
-          
-          Word newLockWord=Magic.getWordAtOffset(o, lockOffset);
-          result=Synchronization.tryCompareAndSwap(
-            o, lockOffset, oldLockWord, changed);
-          owner.endPairHandshake();
-          if (false) VM.sysWriteln("that worked.");
-          return result;
+          if (VM.biasSpinToRevoke && cnt==0) {
+            owner.objectToUnbias=o;
+            owner.takeYieldpoint=1;
+            
+            for (int limit=VM.biasRevokeRetryLimit;limit-->0;) {
+              if (Magic.getWordAtOffset(o,lockOffset)!=oldLockWord) {
+                break;
+              }
+              if (VM.thinYieldOnContention) RVMThread.yield();
+            }
+            
+            owner.objectToUnbias=null;
+            return false;
+          } else {
+            
+            boolean result=false;
+            
+            // NB. this may stop a thread other than the one that had the bias,
+            // if that thread died and some other thread took its slot.  that's
+            // why we do a CAS below.  it's only needed if some other thread
+            // had seen the owner be null (which may happen if we came here after
+            // a new thread took the slot while someone else came here when the
+            // slot was still null).  if it was the case that everyone else had
+            // seen a non-null owner, then the pair handshake would serve as
+            // sufficient synchronization (the id would identify the set of threads
+            // that shared that id's communicationLock).  oddly, that means that
+            // this whole thing could be "simplified" to acquire the
+            // communicationLock even if the owner was null.  but that would be
+            // goofy.
+            if (false) VM.sysWriteln("entering pair handshake");
+            owner.beginPairHandshake();
+            if (false) VM.sysWriteln("done with that");
+            
+            Word newLockWord=Magic.getWordAtOffset(o, lockOffset);
+            result=Synchronization.tryCompareAndSwap(
+              o, lockOffset, oldLockWord, changed);
+            owner.endPairHandshake();
+            if (false) VM.sysWriteln("that worked.");
+            
+            return result;
+          }
         }
+      }
+    }
+  }
+  
+  public final void poll(RVMThread t) {
+    Object o=t.objectToUnbias;
+    t.objectToUnbias=null;
+    
+    if (o!=null) {
+      Offset lockOffset=Magic.getObjectType(o).getThinLockOffset();
+      
+      Word bits=Magic.getWordAtOffset(o, lockOffset);
+      
+      if (bits.and(BL_STAT_MASK).EQ(BL_STAT_BIASABLE)) {
+        int lockOwner=getLockOwner(bits);
+        
+        Word changed=bits.and(BL_UNLOCK_MASK).or(BL_STAT_THIN);
+        
+        if (lockOwner!=0) {
+          int recCount=getRecCount(bits);
+          changed=changed
+            .or(Word.fromIntZeroExtend(lockOwner))
+            .or(Word.fromIntZeroExtend(recCount-1).lsh(BL_LOCK_COUNT_SHIFT));
+        }
+        
+        if (false) VM.sysWriteln("unbiasing in poll: ",bits," -> ",changed);
+        
+        if (VM.VerifyAssertions) VM._assert(Magic.getWordAtOffset(o, lockOffset)==bits);
+        
+        Magic.setWordAtOffset(o,lockOffset,changed);
       }
     }
   }

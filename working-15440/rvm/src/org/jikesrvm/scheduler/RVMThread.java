@@ -612,6 +612,8 @@ public class RVMThread extends ThreadContext {
   CommonLock cachedFreeLock=null;
   
   boolean noMoreLocking=false;
+  
+  Object objectToUnbias;
 
   /*
    * Wait/notify fields
@@ -3381,6 +3383,9 @@ public class RVMThread extends ThreadContext {
     int takeYieldpointVal = t.takeYieldpoint;
     if (takeYieldpointVal != 0) {
       t.takeYieldpoint = 0;
+      
+      LockConfig.selectedThinPlan.poll(t);
+      
       // do two things: check if we should be blocking, and act upon
       // handshake requests. This also has the effect of reasserting that
       // we are in fact IN_JAVA (as opposed to IN_JAVA_TO_BLOCK).
