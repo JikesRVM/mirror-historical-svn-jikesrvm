@@ -109,6 +109,7 @@ public class SloppyDeflateLockPlan extends CommonLockPlan {
       
       if (LockConfig.selectedThinPlan.attemptToMarkInflated(
             o, lockOffset, bits, l.id, cnt)) {
+        if (VM.monitorSloppyInflations) inflations++;
         addLock(l);
         return l;
       } else {
@@ -158,6 +159,8 @@ public class SloppyDeflateLockPlan extends CommonLockPlan {
     return VM.sloppyQuantumMult;
   }
   
+  static int lastInflations;
+  
   @NonMoving
   static class PollDeflateThread extends RVMThread {
     PollDeflateThread() {
@@ -172,6 +175,10 @@ public class SloppyDeflateLockPlan extends CommonLockPlan {
             1000L*1000L*instance.interruptQuantumMultiplier()*VM.interruptQuantum);
           
           instance.deflateAsMuchAsPossible(VM.sloppyUseThreshold);
+          if (VM.monitorSloppyInflations) {
+            VM.tsysWriteln("saw ",inflations-lastInflations," inflations.");
+            lastInflations=inflations;
+          }
         }
       } catch (Throwable e) {
         VM.printExceptionAndDie("poll deflate thread",e);

@@ -80,3 +80,8 @@
 [Lorg/vmmagic/pragma/Inline$When;
 Lsun/misc/Unsafe;
 
+Lorg/jikesrvm/scheduler/LockConfig;
+Lorg/jikesrvm/scheduler/LockConfig$Selected;
+Lorg/jikesrvm/scheduler/LockConfig$SelectedPlan;
+Lorg/jikesrvm/scheduler/LockConfig$SelectedThinPlan;
+Lorg/jikesrvm/scheduler/Spinning;

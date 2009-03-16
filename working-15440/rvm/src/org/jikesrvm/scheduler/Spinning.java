@@ -33,24 +33,21 @@ import org.vmmagic.unboxed.Word;
 public class Spinning {
   private Spinning() {}
   
-  public static AbstractSpinPlan plan;
-  
   public static void boot() {
     if (VM.spinPlan==null || VM.spinPlan.equals("yield")) {
-      plan=new YieldingSpinPlan();
-    } else if (VM.spinPlan.equals("wait")) {
-      plan=new WaitingSpinPlan();
-    } else if (VM.spinPlan.equals("nop")) {
-      plan=new NopSpinPlan();
-    } else if (VM.spinPlan.equals("pause")) {
-      plan=new PausingSpinPlan();
-    } else if (VM.spinPlan.equals("hybrid")) {
-      plan=new HybridSpinPlan();
-    } else if (VM.spinPlan.equals("adaptive")) {
-      plan=new AdaptiveSpinPlan();
+      // ok, good
     } else {
-      VM.sysFail("Bad value for spinPlan.  Please use either yield, nop, pause, wait, or exp.");
+      VM.sysFail("Bad value for spinPlan.");
     }
+  }
+  
+  public static void interruptibly(int cnt,int latestContenderID) {
+    RVMThread.yield();
+  }
+  
+  @Uninterruptible
+  public static void uninterruptibly(int cnt,int latestContenderID) {
+    RVMThread.yield();
   }
 }
 

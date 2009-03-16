@@ -13,30 +13,20 @@
 package org.jikesrvm.scheduler;
 
 import org.jikesrvm.VM;
-import org.jikesrvm.Constants;
 import org.jikesrvm.Services;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.objectmodel.ThinLockConstants;
 import org.jikesrvm.runtime.Magic;
+import org.jikesrvm.runtime.Entrypoints;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
-import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Unpreemptible;
-import org.vmmagic.pragma.NoNullCheck;
-import org.vmmagic.pragma.NonMoving;
+import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
-public class NopSpinPlan extends AbstractSpinPlan {
-  protected void interruptibleSpin() {
-  }
-  
-  @Uninterruptible
-  protected void uninterruptibleSpin() {
-  }
-}
-
+public class SloppyDeflateInlineThinLockPlan extends SloppyDeflateThinLockPlan {}
 

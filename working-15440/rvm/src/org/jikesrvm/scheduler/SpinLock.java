@@ -230,7 +230,7 @@ public final class SpinLock implements Constants {
     Magic.pause();    // reduce overhead of spin wait on IA
     if (n <= 0) return;  // method call overhead is delay enough
     if (true) {
-      Spinning.plan.uninterruptibleSpin(n,0);
+      Spinning.uninterruptibly(n,0);
     } else {
       if (n > 100) {
         // PNT: FIXME: we're dying here ... maybe we're deadlocking?

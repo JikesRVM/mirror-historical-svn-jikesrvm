@@ -65,7 +65,7 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
         if (false) VM.tsysWriteln("Done with inlineLock (fast1).");
         return;           // common case: o is now locked
       }
-    } else if (!old.and(TL_FAT_LOCK_MASK).isZero()) {
+    } else if (LockConfig.INLINE_INFLATED && !old.and(TL_FAT_LOCK_MASK).isZero()) {
       if (LockConfig.selectedPlan.inlineLockInflated(old, o, threadId)) {
         return;
       }
@@ -96,7 +96,7 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
       if (Magic.attemptWord(o, lockOffset, old, old.and(TL_UNLOCK_MASK))) {
         return; // common case: o is now unlocked
       }
-    } else if (!old.and(TL_FAT_LOCK_MASK).isZero()) {
+    } else if (LockConfig.INLINE_INFLATED && !old.and(TL_FAT_LOCK_MASK).isZero()) {
       if (LockConfig.selectedPlan.inlineUnlockInflated(old)) {
         return;
       }
@@ -156,7 +156,7 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
           return;
         }
       } else {
-        Spinning.plan.interruptibleSpin(cnt,old.and(TL_THREAD_ID_MASK).toInt());
+        Spinning.interruptibly(cnt,old.and(TL_THREAD_ID_MASK).toInt());
       }
     }
   }
@@ -197,7 +197,7 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
           return;
         } // else the lock was inflated but hasn't been added yet.  this is ultra-rare.
       }
-      Spinning.plan.interruptibleSpin(cnt,0);
+      Spinning.interruptibly(cnt,0);
     }
   }
   

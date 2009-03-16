@@ -47,3 +47,9 @@ In the case of revocation, spin to allow the thread that owns the lock to revoke
 traceSloppyDeflations false
 Print information about the deflation of sloppy deflate locks.
 
+monitorSloppyInflations false
+Print periodic information about inflations.
+
+monitorBiasing false
+Print periodic information about bias revocations.
+

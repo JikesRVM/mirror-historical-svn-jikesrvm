@@ -168,7 +168,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
           return;
         }
       }
-      Spinning.plan.interruptibleSpin(cnt,0);
+      Spinning.interruptibly(cnt,0);
     }
   }
   
@@ -377,7 +377,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
           }
         }
       }
-      Spinning.plan.interruptibleSpin(cnt,0);
+      Spinning.interruptibly(cnt,0);
     }
   }
   

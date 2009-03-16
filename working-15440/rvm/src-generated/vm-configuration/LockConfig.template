@@ -22,7 +22,8 @@ public final class LockConfig {
       SELECTED==LockConfigs.EagerDeflateBiased ||
       SELECTED==LockConfigs.EagerDeflateHybrid;
       
-  public static final boolean USE_REC_FASTPATH = false;
+  public static final boolean INLINE_INFLATED =
+      SELECTED==LockConfigs.SloppyDeflateInline;
   
   public static final int THREAD_ID_SHIFT =
       (SELECTED==LockConfigs.EagerDeflateHybrid)

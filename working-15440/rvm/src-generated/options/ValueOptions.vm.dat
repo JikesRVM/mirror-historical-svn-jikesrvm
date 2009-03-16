@@ -81,7 +81,7 @@ The number of times to spin on a thin lock before inflating it into a fat lock.
 
 
 V spinPlan String null
-The algorithm to use for spinning.  By default, we use wait.  Possible values are: yield, nop, pause, wait, and exp.
+The algorithm to use for spinning.  By default, we use yield.  Currently that's all that is supported.
 
 
 V waitSpinAmount int 1000

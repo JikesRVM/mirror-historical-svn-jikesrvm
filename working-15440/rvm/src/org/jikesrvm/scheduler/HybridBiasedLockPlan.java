@@ -37,14 +37,15 @@ import org.vmmagic.unboxed.Word;
 public class HybridBiasedLockPlan extends AbstractThinLockPlan {
   public static HybridBiasedLockPlan instance;
   
-  static final boolean STATS=false;
+  static final boolean HEAVY_STATS=false;
   
   static int numHeaderLocks;
   static int numHeaderLocksSlow;
   static int numLocks;
   static int numLocksSlow;
   static int numThinInflates;
-  static int numRevocations;
+  static int numSpinRevocations;
+  static int numSlowRevocations;
   
   public HybridBiasedLockPlan() {
     instance=this;
@@ -72,7 +73,7 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
   }
   
   public void lateBoot() {
-    if (STATS) {
+    if (HEAVY_STATS || VM.monitorBiasing) {
       StatsThread st=new StatsThread();
       st.makeDaemon(true);
       st.start();
@@ -97,6 +98,10 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
         Magic.isync();
         return;
       }
+    } else if (LockConfig.INLINE_INFLATED && !old.and(BL_STAT_FAT).isZero()) {
+      if (LockConfig.selectedPlan.inlineLockInflated(old, o, tid)) {
+        return;
+      }
     }
     lock(o, lockOffset);
   }
@@ -119,6 +124,10 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
       if (Magic.attemptWord(o, lockOffset, old, old.and(BL_UNLOCK_MASK).or(BL_STAT_THIN))) {
         return;
       }
+    } else if (LockConfig.INLINE_INFLATED && !old.and(BL_STAT_FAT).isZero()) {
+      if (LockConfig.selectedPlan.inlineUnlockInflated(old)) {
+        return;
+      }
     }
     unlock(o, lockOffset);
   }
@@ -126,7 +135,7 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
   @NoInline
   @NoNullCheck
   public void lock(Object o, Offset lockOffset) {
-    if (STATS) numLocks++;
+    if (HEAVY_STATS) numLocks++;
         
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
 
@@ -188,7 +197,7 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
       }
       
       if (tryToInflate) {
-        if (STATS) numLocksSlow++;
+        if (HEAVY_STATS) numLocksSlow++;
         // the lock is not fat, is owned by someone else, or else the count wrapped.
         // attempt to inflate it (this may fail, in which case we'll just harmlessly
         // loop around) and lock it (may also fail, if we get the wrong lock).  if it
@@ -199,7 +208,7 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
           return;
         }
       } else {
-        Spinning.plan.interruptibleSpin(cnt,old.and(BL_THREAD_ID_MASK).toInt());
+        Spinning.interruptibly(cnt,old.and(BL_THREAD_ID_MASK).toInt());
       }
     }
   }
@@ -254,7 +263,7 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
           return;
         }
       }
-      Spinning.plan.interruptibleSpin(cnt,0);
+      Spinning.interruptibly(cnt,0);
     }
   }
   
@@ -365,7 +374,7 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
     if (false) VM.sysWriteln("changed = ",changed);
     if (oldLockWord.and(BL_STAT_MASK).EQ(BL_STAT_THIN)) {
       if (false) VM.sysWriteln("it's thin, inflating the easy way.");
-      if (STATS) numThinInflates++;
+      if (HEAVY_STATS) numThinInflates++;
       return Synchronization.tryCompareAndSwap(
         o, lockOffset, oldLockWord, changed);
     } else {
@@ -388,23 +397,22 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
           return Synchronization.tryCompareAndSwap(
             o, lockOffset, oldLockWord, changed);
         } else {
-          if (STATS) numRevocations++;
-          
           if (VM.biasSpinToRevoke && cnt==0) {
             owner.objectToUnbias=o;
             owner.takeYieldpoint=1;
             
             int limit=VM.biasRevokeRetryLimit;
-            for (int cnt=0;cnt<limit;++cnt) {
+            for (int cnt2=0;cnt2<limit;++cnt2) {
               if (Magic.getWordAtOffset(o,lockOffset)!=oldLockWord) {
                 break;
               }
-              Spinning.plan.interruptibleSpin(cnt,0);
+              Spinning.interruptibly(cnt2,0);
             }
             
             owner.objectToUnbias=null;
             return false;
           } else {
+            numSlowRevocations++;
             
             boolean result=false;
             
@@ -464,6 +472,8 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
         if (VM.VerifyAssertions) VM._assert(Magic.getWordAtOffset(o, lockOffset)==bits);
         
         Magic.setWordAtOffset(o,lockOffset,changed);
+        
+        numSpinRevocations++;
       }
     }
   }
@@ -481,7 +491,7 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
   
   @NoNullCheck
   public boolean lockHeader(Object o, Offset lockOffset) {
-    if (STATS) numHeaderLocks++;
+    if (HEAVY_STATS) numHeaderLocks++;
     // what this should do:
     // 1) take advantage of the fact that if a lock is fat it can only go back to
     //    being thin, so concurrent modification of the lock word is allowed.
@@ -526,7 +536,7 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
         }
         
         if (attemptToInflate) {
-          if (STATS) numHeaderLocksSlow++;
+          numHeaderLocksSlow++;
           // lock is biased to someone else.  inflate it.
           LockConfig.selectedPlan.inflate(o,lockOffset);
         }
@@ -563,19 +573,25 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
           RVMThread.sleep(1000L*1000L*1000L);
 
           VM.sysWriteln("periodic biased locking stats report:");
-          VM.sysWriteln("   numHeaderLocks = ",numHeaderLocks);
+          if (HEAVY_STATS) {
+            VM.sysWriteln("   numHeaderLocks     = ",numHeaderLocks);
+          }
           VM.sysWriteln("   numHeaderLocksSlow = ",numHeaderLocksSlow);
-          VM.sysWriteln("   numLocks = ",numLocks);
-          VM.sysWriteln("   numLocksSlow = ",numLocksSlow);
-          VM.sysWriteln("   numThinInflates = ",numThinInflates);
-          VM.sysWriteln("   numRevocations = ",numRevocations);
+          if (HEAVY_STATS) {
+            VM.sysWriteln("   numLocks           = ",numLocks);
+            VM.sysWriteln("   numLocksSlow       = ",numLocksSlow);
+            VM.sysWriteln("   numThinInflates    = ",numThinInflates);
+          }
+          VM.sysWriteln("   numSpinRevocations = ",numSpinRevocations);
+          VM.sysWriteln("   numSlowRevocations = ",numSlowRevocations);
           
           numHeaderLocks=0;
           numHeaderLocksSlow=0;
           numLocks=0;
           numLocksSlow=0;
           numThinInflates=0;
-          numRevocations=0;
+          numSpinRevocations=0;
+          numSlowRevocations=0;
         }
       } catch (Throwable e) {
         VM.printExceptionAndDie("stats thread",e);

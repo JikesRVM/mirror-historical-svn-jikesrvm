@@ -95,7 +95,7 @@ public class SloppyDeflateLock extends CommonLock {
            Magic.attemptInt(state,Offset.zero(),CLEAR_QUEUED,LOCKED_QUEUED))) {
         return; // acquired
       }
-      Spinning.plan.interruptibleSpin(i,0);
+      Spinning.interruptibly(i,0);
     }
     for (int i=n;;i++) {
       int oldState=Magic.prepareInt(state,Offset.zero());
@@ -117,7 +117,7 @@ public class SloppyDeflateLock extends CommonLock {
         }
         me.monitor().unlock();
       }
-      Spinning.plan.interruptibleSpin(i,0);
+      Spinning.interruptibly(i,0);
     }
   }
   
