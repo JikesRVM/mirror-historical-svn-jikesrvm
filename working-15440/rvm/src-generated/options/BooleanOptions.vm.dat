@@ -41,9 +41,9 @@ Count, and report, the number of thread state transitions.  This works better on
 reportRuntimeProfile false
 Report profiling information from the runtime.
 
-thinYieldOnContention true
-Yield on contention in the thin lock implementation.
-
 biasSpinToRevoke false
 In the case of revocation, spin to allow the thread that owns the lock to revoke its bias quickly before using the heavier mechanism.
+
+traceSloppyDeflations false
+Print information about the deflation of sloppy deflate locks.
 

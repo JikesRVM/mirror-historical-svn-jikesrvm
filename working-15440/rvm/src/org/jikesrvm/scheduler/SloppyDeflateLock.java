@@ -52,8 +52,8 @@ public class SloppyDeflateLock extends CommonLock {
   protected static final int QUEUEING_FLAG   = 4;
   
   protected ThreadQueue queue;
-  @Entrypoint
-  protected int state;
+
+  protected int[] state=new int[1];
   
   protected int numHeavyUses;
   
@@ -61,12 +61,12 @@ public class SloppyDeflateLock extends CommonLock {
     queue = new ThreadQueue();
   }
   
-  protected final void activate() {
+  protected final void init() {
     numHeavyUses=1;
     Magic.sync();
   }
   
-  protected final void deactivate() {
+  protected final void destroy() {
     if (VM.VerifyAssertions) {
       VM._assert(waitingIsEmpty());
       VM._assert(queue.isEmpty());
@@ -75,17 +75,10 @@ public class SloppyDeflateLock extends CommonLock {
     }
 
     lockedObject=null;
-    Magic.sync();
-
-    numHeavyUses=0;
-
-    Magic.sync();
-    state=CLEAR;
   }
   
   protected int spinLimit() {
-    return 0;
-    // return 1000;
+    return VM.sloppySpinLimit;
   }
   
   /**
@@ -93,38 +86,38 @@ public class SloppyDeflateLock extends CommonLock {
    * recursion.  Also does not do any Magic synchronization.
    */
   protected final void acquireImpl() {
-    Offset offset=Entrypoints.sloppyDeflateLockStateField.getOffset();
-    for (int n=spinLimit();n-->0;) {
-      int oldState=Magic.prepareInt(this,offset);
+    int n=spinLimit();
+    for (int i=0;i<n;++i) {
+      int oldState=Magic.prepareInt(state,Offset.zero());
       if ((oldState==CLEAR &&
-           Magic.attemptInt(this,offset,CLEAR,LOCKED)) ||
+           Magic.attemptInt(state,Offset.zero(),CLEAR,LOCKED)) ||
           (oldState==CLEAR_QUEUED &&
-           Magic.attemptInt(this,offset,CLEAR_QUEUED,LOCKED_QUEUED))) {
+           Magic.attemptInt(state,Offset.zero(),CLEAR_QUEUED,LOCKED_QUEUED))) {
         return; // acquired
       }
-      Magic.pause();
+      Spinning.plan.interruptibleSpin(i,0);
     }
-    for (;;) {
-      int oldState=Magic.prepareInt(this,offset);
+    for (int i=n;;i++) {
+      int oldState=Magic.prepareInt(state,Offset.zero());
       if ((oldState==CLEAR &&
-           Magic.attemptInt(this,offset,CLEAR,LOCKED)) ||
+           Magic.attemptInt(state,Offset.zero(),CLEAR,LOCKED)) ||
           (oldState==CLEAR_QUEUED &&
-           Magic.attemptInt(this,offset,CLEAR_QUEUED,LOCKED_QUEUED))) {
+           Magic.attemptInt(state,Offset.zero(),CLEAR_QUEUED,LOCKED_QUEUED))) {
         return;
       } else if ((oldState==LOCKED || oldState==LOCKED_QUEUED) &&
-                 Magic.attemptInt(this,offset,oldState,oldState|QUEUEING_FLAG)) {
+                 Magic.attemptInt(state,Offset.zero(),oldState,oldState|QUEUEING_FLAG)) {
         numHeavyUses++;
         RVMThread me=RVMThread.getCurrentThread();
         queue.enqueue(me);
         Magic.sync();
-        state=LOCKED_QUEUED;
+        state[0]=LOCKED_QUEUED;
         me.monitor().lock();
         while (queue.isQueued(me)) {
           me.monitor().waitNicely();
         }
         me.monitor().unlock();
       }
-      Magic.pause();
+      Spinning.plan.interruptibleSpin(i,0);
     }
   }
   
@@ -133,16 +126,15 @@ public class SloppyDeflateLock extends CommonLock {
    * recursion.  Also does not do any Magic synchronization.
    */
   protected final void releaseImpl() {
-    Offset offset=Entrypoints.sloppyDeflateLockStateField.getOffset();
     for (;;) {
-      int oldState=Magic.prepareInt(this,offset);
+      int oldState=Magic.prepareInt(state,Offset.zero());
       if (VM.VerifyAssertions) VM._assert((oldState&~QUEUEING_FLAG)==LOCKED ||
                                           (oldState&~QUEUEING_FLAG)==LOCKED_QUEUED);
       if (oldState==LOCKED &&
-          Magic.attemptInt(this,offset,LOCKED,CLEAR)) {
+          Magic.attemptInt(state,Offset.zero(),LOCKED,CLEAR)) {
         return;
       } else if (oldState==LOCKED_QUEUED &&
-                 Magic.attemptInt(this,offset,
+                 Magic.attemptInt(state,Offset.zero(),
                                   LOCKED_QUEUED,
                                   LOCKED_QUEUED|QUEUEING_FLAG)) {
         RVMThread toAwaken=queue.dequeue();
@@ -150,9 +142,9 @@ public class SloppyDeflateLock extends CommonLock {
         boolean queueEmpty=queue.isEmpty();
         Magic.sync();
         if (queueEmpty) {
-          state=CLEAR;
+          state[0]=CLEAR;
         } else {
-          state=CLEAR_QUEUED;
+          state[0]=CLEAR_QUEUED;
         }
         toAwaken.monitor().lockedBroadcast();
         return;
@@ -162,22 +154,22 @@ public class SloppyDeflateLock extends CommonLock {
   }
   
   protected final void setUnlockedState() {
-    VM.tsysWriteln("inflating unlocked: ",id);
+    if (false) VM.tsysWriteln("inflating unlocked: ",id);
     ownerId=0;
     recursionCount=0;
   }
   
   protected final void setLockedState(int ownerId,int recursionCount) {
-    VM.tsysWriteln("inflating locked: ",id);
+    if (false) VM.tsysWriteln("inflating locked: ",id);
     acquireImpl();
     // at this point only the *owner* of the lock can mess with it.
     this.ownerId=ownerId;
     this.recursionCount=recursionCount;
-    VM.tsysWriteln("done inflating locked: ",id);
+    if (false) VM.tsysWriteln("done inflating locked: ",id);
   }
   
   public final boolean lockHeavy(Object o) {
-    VM.tsysWriteln("locking heavy: ",id);
+    if (false) VM.tsysWriteln("locking heavy: ",id);
     int myId=RVMThread.getCurrentThread().getLockingId();
     if (myId == ownerId) {
       if (VM.VerifyAssertions) {
@@ -200,7 +192,7 @@ public class SloppyDeflateLock extends CommonLock {
         return true;
       } else {
         // oops!  acquired the lock of the wrong object!
-        VM.tsysWriteln("acquired the lock of the wrong object!");
+        if (false) VM.tsysWriteln("acquired the lock of the wrong object!");
         Magic.sync();
         releaseImpl();
         return false;
@@ -213,13 +205,54 @@ public class SloppyDeflateLock extends CommonLock {
       RVMThread.raiseIllegalMonitorStateException("unlocking unlocked lock",lockedObject);
     }
     if (--recursionCount==0) {
-      VM.tsysWriteln("locking heavy completely: ",id);
+      if (false) VM.tsysWriteln("locking heavy completely: ",id);
       ownerId = 0;
       Magic.sync();
       releaseImpl();
     } else {
-      VM.tsysWriteln("locking heavy recursively: ",id);
+      if (false) VM.tsysWriteln("locking heavy recursively: ",id);
     }
+  }
+  
+  @NoInline
+  void rescueBadLock() {
+    releaseImpl();
+  }
+  
+  final boolean inlineLock(Object o, Word myId) {
+    if (Synchronization.tryCompareAndSwap(
+          state,Offset.zero(),CLEAR,LOCKED)) {
+      Magic.isync();
+      if (lockedObject==o) {
+        ownerId = myId.toInt();
+        recursionCount = 1;
+        return true;
+      } else {
+        rescueBadLock();
+        return false;
+      }
+    }
+    return false;
+  }
+  
+  @NoInline
+  void rescueBadUnlock() {
+    releaseImpl();
+  }
+  
+  @Inline
+  final boolean inlineUnlock() {
+    if (recursionCount==1) {
+      recursionCount = 0;
+      ownerId = 0;
+      Magic.sync();
+      if (!Synchronization.tryCompareAndSwap(
+            state, Offset.zero(), LOCKED, CLEAR)) {
+        rescueBadUnlock();
+      }
+      return true;
+    }
+    return false;
   }
   
   protected final int enqueueWaitingAndUnlockCompletely(RVMThread toWait) {
@@ -228,11 +261,10 @@ public class SloppyDeflateLock extends CommonLock {
   }
   
   protected final void lockState() {
-    Offset offset=Entrypoints.sloppyDeflateLockStateField.getOffset();
     for (;;) {
-      int oldState=Magic.prepareInt(this,offset);
+      int oldState=Magic.prepareInt(state,Offset.zero());
       if ((oldState&QUEUEING_FLAG)==0 &&
-          Magic.attemptInt(this,offset,
+          Magic.attemptInt(state,Offset.zero(),
                            oldState,
                            oldState|QUEUEING_FLAG)) {
         break;
@@ -246,11 +278,11 @@ public class SloppyDeflateLock extends CommonLock {
     Magic.sync();
     // don't need CAS since the state field cannot change while the QUEUEING_FLAG
     // is set.
-    state=(state&~QUEUEING_FLAG);
+    state[0]=(state[0]&~QUEUEING_FLAG);
   }
   
   protected final boolean stateIsLocked() {
-    return (state&QUEUEING_FLAG)!=0;
+    return (state[0]&QUEUEING_FLAG)!=0;
   }
   
   /**
@@ -258,30 +290,31 @@ public class SloppyDeflateLock extends CommonLock {
    * and if you do deflate it, make sure you do so prior to calling unlockWaiting().
    */
   private final boolean canDeflate() {
-    return (state&~QUEUEING_FLAG) == CLEAR && waitingIsEmpty();
+    return (state[0]&~QUEUEING_FLAG) == CLEAR && waitingIsEmpty();
   }
   
   protected final boolean pollDeflate(int useThreshold) {
+    boolean result=false;
     if (lockedObject!=null) {
       Offset lockOffset=Magic.getObjectType(lockedObject).getThinLockOffset();
-      if (numHeavyUses<0 || numHeavyUses<useThreshold || useThreshold<0) {
+      if (numHeavyUses<useThreshold || useThreshold<0) {
         lockState();
-        if ((numHeavyUses<0 || numHeavyUses<useThreshold || useThreshold<0) &&
+        if ((numHeavyUses<useThreshold || useThreshold<0) &&
             canDeflate()) {
           if (trace) VM.tsysWriteln("decided to deflate a lock.");
           LockConfig.selectedThinPlan.markDeflated(lockedObject, lockOffset, id);
-          deactivate();
+          destroy();
           SloppyDeflateLockPlan.instance.free(this);
-          return true;
+          result=true;
         } else {
           numHeavyUses=0;
-          unlockState();
         }
+        unlockState();
       } else {
         numHeavyUses=0;
       }
     }
-    return false;
+    return result;
   }
   
   @Uninterruptible

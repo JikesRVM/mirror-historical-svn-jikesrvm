@@ -198,8 +198,8 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
         if (LockConfig.selectedPlan.inflateAndLock(o, lockOffset)) {
           return;
         }
-      } else if (VM.thinYieldOnContention) {
-        RVMThread.yield();
+      } else {
+        Spinning.plan.interruptibleSpin(cnt,old.and(BL_THREAD_ID_MASK).toInt());
       }
     }
   }
@@ -208,7 +208,7 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
   @NoNullCheck
   public void unlock(Object o, Offset lockOffset) {
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
-    for (;;) {
+    for (int cnt=0;;cnt++) {
       Word old = Magic.getWordAtOffset(o, lockOffset);
       Word stat = old.and(BL_STAT_MASK);
       if (stat.EQ(BL_STAT_BIASABLE)) {
@@ -249,9 +249,12 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
         // fat unlock
         LockConfig.Selected l=(LockConfig.Selected)
           LockConfig.selectedPlan.getLock(getLockIndex(old));
-        l.unlockHeavy();
-        return;
+        if (l!=null) {
+          l.unlockHeavy();
+          return;
+        }
       }
+      Spinning.plan.interruptibleSpin(cnt,0);
     }
   }
   
@@ -391,11 +394,12 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
             owner.objectToUnbias=o;
             owner.takeYieldpoint=1;
             
-            for (int limit=VM.biasRevokeRetryLimit;limit-->0;) {
+            int limit=VM.biasRevokeRetryLimit;
+            for (int cnt=0;cnt<limit;++cnt) {
               if (Magic.getWordAtOffset(o,lockOffset)!=oldLockWord) {
                 break;
               }
-              if (VM.thinYieldOnContention) RVMThread.yield();
+              Spinning.plan.interruptibleSpin(cnt,0);
             }
             
             owner.objectToUnbias=null;
@@ -433,6 +437,7 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
     }
   }
   
+  @Unpreemptible
   public final void poll(RVMThread t) {
     Object o=t.objectToUnbias;
     t.objectToUnbias=null;

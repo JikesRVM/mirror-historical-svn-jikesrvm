@@ -996,6 +996,27 @@ sysNativeThreadStartup(void *args)
     }
 }
 
+extern "C" int
+sysLikelyProcessor(void) {
+#ifndef RVM_FOR_POWERPC
+  unsigned id=0;
+  __asm__ __volatile__ (
+    "pushl %%ebx\n"
+    "pushl %%ecx\n"
+    "pushl %%eax\n"
+    "movl $1, %%eax\n"
+    "cpuid\n"
+    "popl %%eax\n"
+    "popl %%ecx\n"
+    "movl %%ebx, %%edx\n"
+    "popl %%ebx\n"
+    : "=d"(id));
+  return (id>>24)&0xff;
+#else
+  return 0;
+#endif
+}
+
 
 // Thread-specific data key in which to stash the id of
 // the pthread's RVMThread.  This allows the system call library

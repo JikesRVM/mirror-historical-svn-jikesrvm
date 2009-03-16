@@ -90,6 +90,11 @@ public abstract class AbstractLockPlan implements Constants {
     return false; /* by default implementations cannot spontaneously deflate
                      some locks. */
   }
+  
+  @Inline
+  public boolean inlineLockInflated(Word bits,Object o,Word myId) { return false; }
+  @Inline
+  public boolean inlineUnlockInflated(Word bits) { return false; }
 
   @Uninterruptible
   public void dumpLocks() {}

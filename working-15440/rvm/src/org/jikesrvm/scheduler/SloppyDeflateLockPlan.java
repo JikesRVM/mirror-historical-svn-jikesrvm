@@ -54,21 +54,22 @@ public class SloppyDeflateLockPlan extends CommonLockPlan {
     pdt.makeDaemon(true);
     pdt.start();
   }
+  
+  @Inline
+  public final boolean inlineLockInflated(Word old, Object o, Word myId) {
+    SloppyDeflateLock l=(SloppyDeflateLock)
+      Magic.eatCast(getLock(LockConfig.selectedThinPlan.getLockIndex(old)));
+    return l!=null && l.inlineLock(o, myId);
+  }
+
+  @Inline
+  public final boolean inlineUnlockInflated(Word old) {
+    SloppyDeflateLock l=(SloppyDeflateLock)
+      Magic.eatCast(getLock(LockConfig.selectedThinPlan.getLockIndex(old)));
+    return l!=null && l.inlineUnlock();
+  }
 
   public SloppyDeflateLock inflate(Object o, Offset lockOffset) {
-    // the idea:
-    // attempt to allocate fat lock, extract the
-    // state of the thin lock and put it into the fat lock, mark the lock as active
-    // (allowing it to be deflated) and attempt CAS to replace
-    // the thin lock with a pointer to the fat lock.
-    
-    // nb:
-    // what about when someone asks for the lock to be inflated, holds onto the fat
-    // lock, and then does stuff to it?  won't the autodeflater deflate it at that
-    // point?
-    // no.  you're only allowed to ask for the fat lock when the object is locked.  in
-    // that case, it cannot be deflated.
-    
     for (int cnt=0;;cnt++) {
       Word bits = Magic.getWordAtOffset(o, lockOffset);
       
@@ -96,29 +97,22 @@ public class SloppyDeflateLockPlan extends CommonLockPlan {
         l.setLockedState(
           LockConfig.selectedThinPlan.getLockOwner(bits),
           LockConfig.selectedThinPlan.getRecCount(bits));
-        // the lock is now acquired - on behalf of the thread that owned the thin
-        // lock.  crazy.  what if that thread then tries to acquire this lock thinking
-        // it belongs to a different object?
-        
-        // even crazier: what if the thread that owns the thin lock is trying to
-        // acquire the fat lock thinking it belongs to a different object?  if it
-        // decides to do that right now, it'll deadlock.
       }
       
       Magic.sync();
-      l.setLockedObject(o);
       
-      l.activate();
+      l.init();
+      l.setLockedObject(o); // this activates the lock
       
       // the lock is now "active" - so the deflation detector thingy will see it, but it
       // will also see that the lock is held.
       
       if (LockConfig.selectedThinPlan.attemptToMarkInflated(
             o, lockOffset, bits, l.id, cnt)) {
-        if (trace) VM.tsysWriteln("inflated a lock.");
+        addLock(l);
         return l;
       } else {
-        // need to "deactivate" the lock here.
+        l.setLockedObject(null); // mark the lock dead
         free(l);
       }
     }
@@ -127,7 +121,7 @@ public class SloppyDeflateLockPlan extends CommonLockPlan {
   protected boolean deflateAsMuchAsPossible(int useThreshold) {
     int cnt=0,cntno=0;
     long before=0;
-    if (true || trace) {
+    if (trace) {
       before=sysCall.sysNanoTime();
     }
     deflateLock.lockNicely();
@@ -142,11 +136,16 @@ public class SloppyDeflateLockPlan extends CommonLockPlan {
       }
     }
     deflateLock.unlock();
-    if ((true || trace) && cnt>0) {
-      long after=sysCall.sysNanoTime();
+    if ((trace || VM.traceSloppyDeflations) && cnt>0) {
+      long after=0;
+      if (trace) {
+        after=sysCall.sysNanoTime();
+      }
       VM.tsysWriteln("deflated ",cnt," but skipped ",cntno," locks with useThreshold = ",useThreshold);
       VM.tsysWriteln("lock list is ",numLocks()," long");
-      VM.tsysWriteln("and it took ",after-before," nanos");
+      if (trace) {
+        VM.tsysWriteln("and it took ",after-before," nanos");
+      }
     }
     return cnt>0;
   }
@@ -156,7 +155,7 @@ public class SloppyDeflateLockPlan extends CommonLockPlan {
   }
   
   protected long interruptQuantumMultiplier() {
-    return 2;
+    return VM.sloppyQuantumMult;
   }
   
   @NonMoving
@@ -172,7 +171,7 @@ public class SloppyDeflateLockPlan extends CommonLockPlan {
           RVMThread.sleep(
             1000L*1000L*instance.interruptQuantumMultiplier()*VM.interruptQuantum);
           
-          instance.deflateAsMuchAsPossible((int)(1000*instance.interruptQuantumMultiplier()*VM.interruptQuantum));
+          instance.deflateAsMuchAsPossible(VM.sloppyUseThreshold);
         }
       } catch (Throwable e) {
         VM.printExceptionAndDie("poll deflate thread",e);

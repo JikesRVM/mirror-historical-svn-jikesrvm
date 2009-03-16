@@ -614,7 +614,9 @@ public class RVMThread extends ThreadContext {
   boolean noMoreLocking=false;
   
   Object objectToUnbias;
-
+  
+  int likelyProcessor;
+  
   /*
    * Wait/notify fields
    */
@@ -3383,6 +3385,8 @@ public class RVMThread extends ThreadContext {
     int takeYieldpointVal = t.takeYieldpoint;
     if (takeYieldpointVal != 0) {
       t.takeYieldpoint = 0;
+      
+      t.likelyProcessor=sysCall.sysLikelyProcessor();
       
       LockConfig.selectedThinPlan.poll(t);
       

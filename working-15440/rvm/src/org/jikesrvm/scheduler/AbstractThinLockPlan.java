@@ -147,6 +147,7 @@ public abstract class AbstractThinLockPlan implements Constants, ThinLockConstan
     return true;
   }
   
+  @Unpreemptible
   public void poll(RVMThread t) {}
 }
 

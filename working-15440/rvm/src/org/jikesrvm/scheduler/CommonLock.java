@@ -134,7 +134,7 @@ public abstract class CommonLock extends AbstractLock {
     return lockedObject!=null;
   }
   
-  protected abstract void activate();
+  protected abstract void init();
 
   @Uninterruptible
   protected final void dumpWaitingThreads() {

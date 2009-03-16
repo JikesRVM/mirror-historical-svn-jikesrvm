@@ -39,6 +39,7 @@ import org.jikesrvm.runtime.SysCall;
 
 import static org.jikesrvm.runtime.SysCall.sysCall;
 import org.jikesrvm.scheduler.LockConfig;
+import org.jikesrvm.scheduler.Spinning;
 import org.jikesrvm.scheduler.MainThread;
 import org.jikesrvm.scheduler.Synchronization;
 import org.jikesrvm.scheduler.RVMThread;
@@ -265,6 +266,7 @@ public class VM extends Properties implements Constants, ExitStatus {
       runClassInitializer("java.security.AccessController");
     }
     if (verboseBoot >= 1) VM.sysWriteln("Booting Lock");
+    Spinning.boot();
     LockConfig.selectedPlan.boot();
     LockConfig.selectedThinPlan.boot();
 

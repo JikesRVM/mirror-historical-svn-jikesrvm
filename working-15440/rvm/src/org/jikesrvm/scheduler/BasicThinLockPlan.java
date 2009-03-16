@@ -55,42 +55,19 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
   @NoNullCheck
   public final void inlineLock(Object o, Offset lockOffset) {
     if (false) VM.tsysWriteln("in inlineLock with o = ",Magic.objectAsAddress(o)," and offset = ",lockOffset);
-    if (!LockConfig.USE_REC_FASTPATH) {
-      Word old = Magic.prepareWord(o, lockOffset);
-      if (old.rshl(TL_THREAD_ID_SHIFT).isZero()) {
-        // implies that fatbit == 0 & threadid == 0
-        int threadId = RVMThread.getCurrentThread().getLockingId();
-        if (Magic.attemptWord(o, lockOffset, old, old.or(Word.fromIntZeroExtend(threadId)))) {
-          Magic.isync(); // don't use stale prefetched data in monitor
-          if (CommonLockPlan.HEAVY_STATS) CommonLockPlan.fastLocks++;
-          if (false) VM.tsysWriteln("Done with inlineLock (fast1).");
-          return;           // common case: o is now locked
-        }
+    Word old = Magic.prepareWord(o, lockOffset);
+    Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
+    if (old.rshl(TL_THREAD_ID_SHIFT).isZero()) {
+      // implies that fatbit == 0 & threadid == 0
+      if (Magic.attemptWord(o, lockOffset, old, old.or(threadId))) {
+        Magic.isync(); // don't use stale prefetched data in monitor
+        if (CommonLockPlan.HEAVY_STATS) CommonLockPlan.fastLocks++;
+        if (false) VM.tsysWriteln("Done with inlineLock (fast1).");
+        return;           // common case: o is now locked
       }
-    } else {
-      Word old = Magic.prepareWord(o, lockOffset);
-      Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
-      if (id.isZero()) {
-        // implies that fatbit == 0 & threadid == 0
-        int threadId = RVMThread.getCurrentThread().getLockingId();
-        if (Magic.attemptWord(o, lockOffset, old, old.or(Word.fromIntZeroExtend(threadId)))) {
-          Magic.isync(); // don't use stale prefetched data in monitor
-          if (CommonLockPlan.HEAVY_STATS) CommonLockPlan.fastLocks++;
-          if (false) VM.tsysWriteln("Done with inlineLock (fast2).");
-          return;           // common case: o is now locked
-        }
-      } else {
-        Word threadId = Word.fromIntSignExtend(RVMThread.getCurrentThread().getLockingId());
-        if (id.EQ(threadId)) {
-          Word changed=old.toAddress().plus(TL_LOCK_COUNT_UNIT).toWord();
-          if (!changed.and(TL_LOCK_COUNT_MASK).isZero() &&
-              Magic.attemptWord(o, lockOffset, old, changed)) {
-            Magic.isync();
-            if (CommonLockPlan.HEAVY_STATS) CommonLockPlan.fastLocks++;
-            if (false) VM.tsysWriteln("Done with inlineLock (fast3).");
-            return;
-          }
-        }
+    } else if (!old.and(TL_FAT_LOCK_MASK).isZero()) {
+      if (LockConfig.selectedPlan.inlineLockInflated(old, o, threadId)) {
+        return;
       }
     }
     if (false) VM.tsysWriteln("going into slow path...");
@@ -112,34 +89,16 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
   @NoNullCheck
   public final void inlineUnlock(Object o, Offset lockOffset) {
     if (false) VM.tsysWriteln("in inlineUnlock with o = ",Magic.objectAsAddress(o)," and offset = ",lockOffset);
-    if (!LockConfig.USE_REC_FASTPATH) {
-      Word old = Magic.prepareWord(o, lockOffset);
-      Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
-      if (old.xor(threadId).rshl(TL_LOCK_COUNT_SHIFT).isZero()) { // implies that fatbit == 0 && count == 0 && lockid == me
-        Magic.sync(); // memory barrier: subsequent locker will see previous writes
-        if (Magic.attemptWord(o, lockOffset, old, old.and(TL_UNLOCK_MASK))) {
-          return; // common case: o is now unlocked
-        }
+    Word old = Magic.prepareWord(o, lockOffset);
+    Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
+    if (old.xor(threadId).rshl(TL_LOCK_COUNT_SHIFT).isZero()) { // implies that fatbit == 0 && count == 0 && lockid == me
+      Magic.sync(); // memory barrier: subsequent locker will see previous writes
+      if (Magic.attemptWord(o, lockOffset, old, old.and(TL_UNLOCK_MASK))) {
+        return; // common case: o is now unlocked
       }
-    } else {
-      Word old = Magic.prepareWord(o, lockOffset);
-      Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
-      Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
-      if (id.EQ(threadId)) {
-        Magic.sync();
-        if (old.and(TL_LOCK_COUNT_MASK).isZero()) {
-          // release lock
-          Word changed = old.and(TL_UNLOCK_MASK);
-          if (Magic.attemptWord(o, lockOffset, old, changed)) {
-            return;
-          }
-        } else {
-          // decrement count
-          Word changed = old.toAddress().minus(TL_LOCK_COUNT_UNIT).toWord();
-          if (Magic.attemptWord(o, lockOffset, old, changed)) {
-            return; // unlock succeeds
-          }
-        }
+    } else if (!old.and(TL_FAT_LOCK_MASK).isZero()) {
+      if (LockConfig.selectedPlan.inlineUnlockInflated(old)) {
+        return;
       }
     }
     unlock(o, lockOffset);  // uncommon case: default to non inlined unlock()
@@ -196,8 +155,8 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
         if (LockConfig.selectedPlan.inflateAndLock(o, lockOffset)) {
           return;
         }
-      } else if (VM.thinYieldOnContention) {
-        RVMThread.yield();
+      } else {
+        Spinning.plan.interruptibleSpin(cnt,old.and(TL_THREAD_ID_MASK).toInt());
       }
     }
   }
@@ -207,7 +166,7 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
   public void unlock(Object o, Offset lockOffset) {
     Magic.sync();
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
-    for (;;) {
+    for (int cnt=0;;cnt++) {
       Word old = Magic.prepareWord(o, lockOffset);
       Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
       if (id.EQ(threadId)) {
@@ -233,9 +192,12 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
         // fat unlock
         LockConfig.Selected l=(LockConfig.Selected)
           LockConfig.selectedPlan.getLock(getLockIndex(old));
-        l.unlockHeavy();
-        return;
+        if (l!=null) {
+          l.unlockHeavy();
+          return;
+        } // else the lock was inflated but hasn't been added yet.  this is ultra-rare.
       }
+      Spinning.plan.interruptibleSpin(cnt,0);
     }
   }
   

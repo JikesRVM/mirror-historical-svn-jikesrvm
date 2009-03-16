@@ -274,6 +274,8 @@ public class BootRecord {
   public Address sysPthreadCondTimedWaitIP;
   public Address sysPthreadCondWaitIP;
   public Address sysPthreadCondBroadcastIP;
+  
+  public Address sysLikelyProcessorIP;
 
   // arithmetic
   @Entrypoint

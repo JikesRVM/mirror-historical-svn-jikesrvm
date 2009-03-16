@@ -126,10 +126,12 @@ public final class InterruptibleSpinLock implements Constants {
         } else {
           continue; // don't handle contention
         }
-      } else if (MCS_Locking && Magic.objectAsAddress(p).NE(IN_FLUX)) { // lock is owned, but not being changed
-        if (Magic.attemptAddress(this, latestContenderOffset, Magic.objectAsAddress(p), IN_FLUX)) {
-          Magic.isync(); // so subsequent instructions wont see stale values
-          break;
+      } else {
+        if (MCS_Locking && Magic.objectAsAddress(p).NE(IN_FLUX)) { // lock is owned, but not being changed
+          if (Magic.attemptAddress(this, latestContenderOffset, Magic.objectAsAddress(p), IN_FLUX)) {
+            Magic.isync(); // so subsequent instructions wont see stale values
+            break;
+          }
         }
       }
       handleMicrocontention(attempts++);
@@ -221,27 +223,31 @@ public final class InterruptibleSpinLock implements Constants {
   private void handleMicrocontention(int n) {
     Magic.pause();    // reduce overhead of spin wait on IA
     if (n <= 0) return;  // method call overhead is delay enough
-    if (n > 100) {
-      // PNT: FIXME: we're dying here ... maybe we're deadlocking?
-      VM.sysWriteln("Unexpectedly large spin lock contention on ",Magic.objectAsAddress(this));
-      RVMThread t=latestContender;
-      if (t==null) {
-        VM.sysWriteln("Unexpectedly large spin lock contention in ",RVMThread.getCurrentThreadSlot(),"; lock held by nobody");
-      } else {
-        VM.sysWriteln("Unexpectedly large spin lock contention in ",RVMThread.getCurrentThreadSlot(),"; lock held by ",t.getThreadSlot());
-        if (t!=RVMThread.getCurrentThread()) {
-          VM.sysWriteln("But -- at least the spin lock is held by a different thread.");
+    if (true) {
+      Spinning.plan.interruptibleSpin(n,0);
+    } else {
+      if (n > 100) {
+        // PNT: FIXME: we're dying here ... maybe we're deadlocking?
+        VM.sysWriteln("Unexpectedly large spin lock contention on ",Magic.objectAsAddress(this));
+        RVMThread t=latestContender;
+        if (t==null) {
+          VM.sysWriteln("Unexpectedly large spin lock contention in ",RVMThread.getCurrentThreadSlot(),"; lock held by nobody");
+        } else {
+          VM.sysWriteln("Unexpectedly large spin lock contention in ",RVMThread.getCurrentThreadSlot(),"; lock held by ",t.getThreadSlot());
+          if (t!=RVMThread.getCurrentThread()) {
+            VM.sysWriteln("But -- at least the spin lock is held by a different thread.");
+          }
         }
+        RVMThread.dumpStack();
+        VM.sysFail("Unexpectedly large spin lock contention");
       }
-      RVMThread.dumpStack();
-      VM.sysFail("Unexpectedly large spin lock contention");
+      // PNT: this is weird.
+      int pid = RVMThread.getCurrentThread().getThreadSlot(); // delay a different amount in each thread
+      delayIndex = (delayIndex + pid) % delayCount.length;
+      int delay = delayCount[delayIndex] * delayMultiplier; // pseudorandom backoff component
+      delay += delayBase << (n - 1);                     // exponential backoff component
+      for (int i = delay; i > 0; i--) ;                        // delay a different amount of time on each thread
     }
-    // PNT: this is weird.
-    int pid = RVMThread.getCurrentThread().getThreadSlot(); // delay a different amount in each thread
-    delayIndex = (delayIndex + pid) % delayCount.length;
-    int delay = delayCount[delayIndex] * delayMultiplier; // pseudorandom backoff component
-    delay += delayBase << (n - 1);                     // exponential backoff component
-    for (int i = delay; i > 0; i--) ;                        // delay a different amount of time on each thread
   }
 
   private static final int delayMultiplier = 10;

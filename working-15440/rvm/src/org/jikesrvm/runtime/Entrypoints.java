@@ -148,13 +148,6 @@ public class Entrypoints {
                "globalLocksFreed",
                int.class);
   
-  public static final RVMField sloppyDeflateLockStateField=
-      (org.jikesrvm.scheduler.LockConfig.SELECTED ==
-       org.jikesrvm.scheduler.LockConfigs.SloppyDeflate)
-      ? getField(org.jikesrvm.scheduler.SloppyDeflateLock.class,
-                 "state", int.class)
-      : null;
-
   public static final NormalMethod lazyMethodInvokerMethod =
       getMethod(org.jikesrvm.runtime.DynamicLinker.class, "lazyMethodInvoker", "()V");
   public static final NormalMethod unimplementedNativeMethodMethod =

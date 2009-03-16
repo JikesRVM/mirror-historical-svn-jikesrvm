@@ -241,6 +241,10 @@ public abstract class SysCall {
   public abstract void sysPthreadCondWait(Word cond,Word mutex);
   @SysCallTemplate
   public abstract void sysPthreadCondBroadcast(Word cond);
+
+  @SysCallTemplate
+  public abstract int sysLikelyProcessor();
+
   // arithmetic
   @SysCallTemplate
   public abstract long sysLongDivide(long x, long y);

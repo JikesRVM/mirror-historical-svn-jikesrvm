@@ -45,7 +45,7 @@ public class EagerDeflateLock extends CommonLock {
     return entering==null || entering.isEmpty();
   }
   
-  public final void activate() {}
+  public final void init() {}
 
   /**
    * Acquires this heavy-weight lock on the indicated object.

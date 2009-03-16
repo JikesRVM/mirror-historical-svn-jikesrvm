@@ -244,7 +244,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
   
   protected final CommonLock allocateActivateAndAdd() {
     LockConfig.Selected l=(LockConfig.Selected)Magic.eatCast(allocate());
-    l.activate();
+    l.init();
     addLock(l);
     return l;
   }

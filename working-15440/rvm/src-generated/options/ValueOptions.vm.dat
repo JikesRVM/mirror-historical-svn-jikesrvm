@@ -80,3 +80,23 @@ V biasRevokeRetryLimit int 40
 The number of times to spin on a thin lock before inflating it into a fat lock.
 
 
+V spinPlan String null
+The algorithm to use for spinning.  By default, we use wait.  Possible values are: yield, nop, pause, wait, and exp.
+
+
+V waitSpinAmount int 1000
+The amount of times to spin in the wait spin plan.  Default is 1000.
+
+
+V sloppySpinLimit int 10
+The amount of times to spin when acquiring a sloppy deflate lock.  Default is 10.
+
+
+V sloppyUseThreshold int 100000
+The amount of times that a lock should have been contended in the last quantum to stay inflated.  Default is 100000.
+
+
+V sloppyQuantumMult int 10
+The period with which we check which locks to deflate, in units of interrupt quantum.  The default is 10.
+
+
