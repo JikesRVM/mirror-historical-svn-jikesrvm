@@ -406,7 +406,7 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
               if (Magic.getWordAtOffset(o,lockOffset)!=oldLockWord) {
                 break;
               }
-              Spinning.interruptibly(cnt2,0);
+              Spinning.uninterruptibly(cnt2,0);
             }
             
             owner.objectToUnbias=null;
