@@ -24,6 +24,7 @@ import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.UnpreemptibleNoWarn;
 import org.vmmagic.pragma.Unpreemptible;
+import org.vmmagic.pragma.Untraced;
 import org.vmmagic.pragma.NoNullCheck;
 import org.vmmagic.unboxed.Word;
 import org.vmmagic.unboxed.Offset;
@@ -34,11 +35,15 @@ import org.vmmagic.unboxed.Offset;
  */
 public abstract class CommonLock extends AbstractLock {
   protected static final boolean trace = CommonLockPlan.trace;
+static {
+  if (!LockConfig.USING_SLOPPY) org.jikesrvm.classloader.RVMType.LockedObjectField.makeTraced();  
+}
   
   protected int recursionCount;
   protected int ownerId;
 
-  protected Object lockedObject;
+  @Untraced
+  public Object lockedObject;
   protected int id;
   
   private ThreadQueue waiting;

@@ -59,7 +59,7 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     return result;
   }
 
-  protected static CommonLock[] locks;
+  public static CommonLock[] locks;
   
   // ugh.  making this public so that Entrypoints can see it.
   public static class FreeID {

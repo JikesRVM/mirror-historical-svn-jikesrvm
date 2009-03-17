@@ -104,6 +104,8 @@ public abstract class RVMType extends AnnotatedElement
   public static final RVMClass JavaIoSerializableType;
   public static final RVMClass JavaLangRefReferenceType;
   public static final RVMField JavaLangRefReferenceReferenceField;
+  public static final RVMClass CommonLockType;
+  public static final RVMField LockedObjectField;
   public static final RVMClass MagicType;
   public static final UnboxedType WordType;
   public static final RVMArray WordArrayType;
@@ -168,6 +170,8 @@ public abstract class RVMType extends AnnotatedElement
     JavaIoSerializableType = TypeReference.JavaIoSerializable.resolve().asClass();
     JavaLangRefReferenceType = TypeReference.JavaLangRefReference.resolve().asClass();
     JavaLangRefReferenceReferenceField = JavaLangRefReferenceType.findDeclaredField(Atom.findAsciiAtom("_referent"));
+    CommonLockType = TypeReference.CommonLock.resolve().asClass();
+    LockedObjectField = CommonLockType.findDeclaredField(Atom.findAsciiAtom("lockedObject"));
   }
 
   /**

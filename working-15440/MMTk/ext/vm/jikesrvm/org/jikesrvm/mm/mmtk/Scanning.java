@@ -29,6 +29,8 @@ import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.runtime.Entrypoints;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.RVMThread;
+import org.jikesrvm.scheduler.CommonLock;
+import org.jikesrvm.scheduler.CommonLockPlan;
 
 import org.vmmagic.unboxed.*;
 import org.vmmagic.pragma.*;
@@ -346,6 +348,22 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
    */
   public void computeBootImageRoots(TraceLocal trace) {
     ScanBootImage.scanBootImage(trace);
+  }
+
+  public void processLocks(TraceLocal trace) {
+    if (!org.jikesrvm.scheduler.LockConfig.USING_SLOPPY) return;
+    for(int i=0;i<CommonLockPlan.locks.length;i++) {
+      CommonLock l = CommonLockPlan.locks[i];
+      if (l != null) {
+        ObjectReference o = ObjectReference.fromObject(l.lockedObject);
+        if (!o.isNull() && trace.isLive(o)) {
+          o = trace.traceObject(o);
+          l.lockedObject = o.toObject();
+        } else {
+          CommonLockPlan.locks[i] = null;
+        }
+      } 
+    }
   }
 }
 

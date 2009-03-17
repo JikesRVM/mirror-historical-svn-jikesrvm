@@ -135,6 +135,7 @@ public abstract class SimpleCollector extends CollectorContext {
     }
 
     if (phaseId == Simple.FORWARD_FINALIZABLE) {
+      if (primary) VM.scanning.processLocks(getCurrentTrace());
       if (primary && !Options.noFinalizer.getValue() &&
           VM.activePlan.constraints().needsForwardAfterLiveness()) {
         VM.finalizableProcessor.forward(getCurrentTrace(),global().isCurrentGCNursery());
