@@ -35,9 +35,10 @@ import org.vmmagic.unboxed.Offset;
  */
 public abstract class CommonLock extends AbstractLock {
   protected static final boolean trace = CommonLockPlan.trace;
-static {
-  if (!LockConfig.USING_SLOPPY) org.jikesrvm.classloader.RVMType.LockedObjectField.makeTraced();  
-}
+
+  static {
+    if (!LockConfig.USING_SLOPPY) org.jikesrvm.classloader.RVMType.LockedObjectField.makeTraced();  
+  }
   
   protected int recursionCount;
   protected int ownerId;
