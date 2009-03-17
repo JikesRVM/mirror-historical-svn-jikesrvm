@@ -34,7 +34,7 @@ public final class LockConfig {
   public static final boolean USING_SLOPPY =
       SELECTED==LockConfigs.SloppyDeflate ||
       SELECTED==LockConfigs.SloppyDeflateInline ||
-      SELECTED==LockConfigs.SloopyDeflateHybrid;
+      SELECTED==LockConfigs.SloppyDeflateHybrid;
       
   public static final class Selected extends @_SELECTED_@Lock {}
   public static final class SelectedPlan extends @_SELECTED_@LockPlan {}
