@@ -301,6 +301,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
               old,
               old.or(threadId).toAddress().plus(TL_LOCK_COUNT_UNIT).toWord())) {
           Magic.isync();
+          if (false) VM.sysWriteln("locked header by cas.");
           return true;
         }
       } else if (id.EQ(threadId)) {
@@ -308,6 +309,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
         Word changed = old.toAddress().plus(TL_LOCK_COUNT_UNIT).toWord();
         if (!changed.and(TL_LOCK_COUNT_MASK).isZero()) {
           Magic.setWordAtOffset(o, lockOffset, changed);
+          if (false) VM.sysWriteln("locked header by inc.");
           return true;
         } else {
           attemptToInflate=true;
@@ -320,11 +322,13 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
           if (l.getOwnerId()==RVMThread.getCurrentThread().getLockingId()) {
             // we own the lock so increment the rec count
             if (l.lockHeavy(o)) {
+              if (false) VM.sysWriteln("locked header by lockHeavy.");
               return true;
             }
           } else {
             l.lockState();
             if (l.lockedObject==o && Magic.getWordAtOffset(o, lockOffset)==old) {
+              if (false) VM.sysWriteln("locked header by lockState.");
               return true; // cannot deflate the lock, so the header really is locked
             }
             l.unlockState();
@@ -352,6 +356,7 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
         if (VM.VerifyAssertions) VM._assert(!old.and(TL_LOCK_COUNT_MASK).isZero());
         Magic.setWordAtOffset(o, lockOffset,
                               old.toAddress().minus(TL_LOCK_COUNT_UNIT).toWord());
+        return;
       } else {
         if (VM.VerifyAssertions) VM._assert(!old.and(TL_FAT_LOCK_MASK).isZero());
         // fat unlock
@@ -360,9 +365,6 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
         // 2) we had incremented the lock's rec count, in which case we dec it
         // 3) we had incremented the bias rec count but the lock got inflated,
         //    so we unlock it
-        // FIXME: if we had biased the lock in our favor but it got inflated,
-        // then in here we should unlock the lock rather than unlocking the
-        // state!!
         LockConfig.Selected l=(LockConfig.Selected)
           LockConfig.selectedPlan.getLock(getLockIndex(old));
         if (l!=null) {
@@ -370,10 +372,12 @@ public class ElementaryBiasedLockPlan extends CommonThinLockPlan {
           if (l.getOwnerId()==RVMThread.getCurrentThread().getLockingId()) {
             // case (2) or (3)
             l.unlockHeavy();
+            return;
           } else {
             // case (1)
             if (VM.VerifyAssertions) VM._assert(l.stateIsLocked());
             l.unlockState();
+            return;
           }
         }
       }
