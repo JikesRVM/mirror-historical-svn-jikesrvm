@@ -30,6 +30,11 @@ public final class LockConfig {
        SELECTED==LockConfigs.SloppyDeflateHybrid)
       ? ThinLockConstants.BL_THREAD_ID_SHIFT
       : ThinLockConstants.TL_THREAD_ID_SHIFT;
+
+  public static final boolean USING_SLOPPY =
+      SELECTED==LockConfigs.SloppyDeflate ||
+      SELECTED==LockConfigs.SloppyDeflateInline ||
+      SELECTED==LockConfigs.SloopyDeflateHybrid;
       
   public static final class Selected extends @_SELECTED_@Lock {}
   public static final class SelectedPlan extends @_SELECTED_@LockPlan {}

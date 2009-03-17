@@ -164,6 +164,8 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
             tryToInflate=true;
           }
         } else {
+          // FIXME: don't inflate.  just unbias it by turning it into a thin
+          // lock.
           tryToInflate=true;
         }
       } else if (stat.EQ(BL_STAT_THIN)) {
