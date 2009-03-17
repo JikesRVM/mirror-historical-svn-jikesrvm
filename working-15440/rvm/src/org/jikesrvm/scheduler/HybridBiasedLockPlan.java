@@ -164,9 +164,9 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
             tryToInflate=true;
           }
         } else {
-          // FIXME: don't inflate.  just unbias it by turning it into a thin
-          // lock.
-          tryToInflate=true;
+          if (casFromBiased(o, lockOffset, old, biasBitsToThinBits(old), cnt)) {
+            continue; // don't spin, since it's thin now
+          }
         }
       } else if (stat.EQ(BL_STAT_THIN)) {
         Word id = old.and(BL_THREAD_ID_MASK);
@@ -348,6 +348,78 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
     }
   }
   
+  @NoInline
+  @Unpreemptible
+  public final boolean casFromBiased(Object o, Offset lockOffset,
+                                     Word oldLockWord, Word changed,
+                                     int cnt) {
+    RVMThread me=RVMThread.getCurrentThread();
+    Word id=oldLockWord.and(BL_THREAD_ID_MASK);
+    if (id.isZero()) {
+      if (false) VM.sysWriteln("id is zero - easy case.");
+      return Synchronization.tryCompareAndSwap(o, lockOffset, oldLockWord, changed);
+    } else {
+      if (false) VM.sysWriteln("id = ",id);
+      int slot=id.toInt()>>BL_THREAD_ID_SHIFT;
+      if (false) VM.sysWriteln("slot = ",slot);
+      RVMThread owner=RVMThread.threadBySlot[slot];
+      if (owner==me /* I own it, so I can unbias it trivially.  This occurs
+                       when we are inflating due to, for example, wait() */ ||
+          owner==null /* the thread that owned it is dead, so it's safe to
+                         unbias. */) {
+        // note that we use a CAS here, but it's only needed in the case
+        // that owner==null, since in that case some other thread may also
+        // be unbiasing.
+        return Synchronization.tryCompareAndSwap(
+          o, lockOffset, oldLockWord, changed);
+      } else {
+        if (VM.biasSpinToRevoke && cnt==0) {
+          owner.objectToUnbias=o;
+          owner.takeYieldpoint=1;
+          
+          int limit=VM.biasRevokeRetryLimit;
+          for (int cnt2=0;cnt2<limit;++cnt2) {
+            if (Magic.getWordAtOffset(o,lockOffset)!=oldLockWord) {
+              break;
+            }
+            Spinning.uninterruptibly(cnt2,0);
+          }
+          
+          owner.objectToUnbias=null;
+          return false;
+        } else {
+          numSlowRevocations++;
+          
+          boolean result=false;
+          
+          // NB. this may stop a thread other than the one that had the bias,
+          // if that thread died and some other thread took its slot.  that's
+          // why we do a CAS below.  it's only needed if some other thread
+          // had seen the owner be null (which may happen if we came here after
+          // a new thread took the slot while someone else came here when the
+          // slot was still null).  if it was the case that everyone else had
+          // seen a non-null owner, then the pair handshake would serve as
+          // sufficient synchronization (the id would identify the set of threads
+          // that shared that id's communicationLock).  oddly, that means that
+          // this whole thing could be "simplified" to acquire the
+          // communicationLock even if the owner was null.  but that would be
+          // goofy.
+          if (false) VM.sysWriteln("entering pair handshake");
+          owner.beginPairHandshake();
+          if (false) VM.sysWriteln("done with that");
+          
+          Word newLockWord=Magic.getWordAtOffset(o, lockOffset);
+          result=Synchronization.tryCompareAndSwap(
+            o, lockOffset, oldLockWord, changed);
+          owner.endPairHandshake();
+          if (false) VM.sysWriteln("that worked.");
+          
+          return result;
+        }
+      }
+    }
+  }
+  
   @Inline
   @Unpreemptible
   public final boolean attemptToMarkInflated(Object o, Offset lockOffset,
@@ -362,7 +434,6 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
     // 3) if the lock is biased in our favor, store the lock without CAS
     // 4) if the lock is biased but to someone else, enter the pair handshake
     //    to unbias it and install the inflated lock
-    RVMThread me=RVMThread.getCurrentThread();
     Word changed=
       BL_STAT_FAT.or(Word.fromIntZeroExtend(lockId).lsh(BL_LOCK_ID_SHIFT))
       .or(oldLockWord.and(BL_UNLOCK_MASK));
@@ -380,71 +451,23 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
       return Synchronization.tryCompareAndSwap(
         o, lockOffset, oldLockWord, changed);
     } else {
-      Word id=oldLockWord.and(BL_THREAD_ID_MASK);
-      if (id.isZero()) {
-        if (false) VM.sysWriteln("id is zero - easy case.");
-        return Synchronization.tryCompareAndSwap(o, lockOffset, oldLockWord, changed);
-      } else {
-        if (false) VM.sysWriteln("id = ",id);
-        int slot=id.toInt()>>BL_THREAD_ID_SHIFT;
-        if (false) VM.sysWriteln("slot = ",slot);
-        RVMThread owner=RVMThread.threadBySlot[slot];
-        if (owner==me /* I own it, so I can unbias it trivially.  This occurs
-                         when we are inflating due to, for example, wait() */ ||
-            owner==null /* the thread that owned it is dead, so it's safe to
-                           unbias. */) {
-          // note that we use a CAS here, but it's only needed in the case
-          // that owner==null, since in that case some other thread may also
-          // be unbiasing.
-          return Synchronization.tryCompareAndSwap(
-            o, lockOffset, oldLockWord, changed);
-        } else {
-          if (VM.biasSpinToRevoke && cnt==0) {
-            owner.objectToUnbias=o;
-            owner.takeYieldpoint=1;
-            
-            int limit=VM.biasRevokeRetryLimit;
-            for (int cnt2=0;cnt2<limit;++cnt2) {
-              if (Magic.getWordAtOffset(o,lockOffset)!=oldLockWord) {
-                break;
-              }
-              Spinning.uninterruptibly(cnt2,0);
-            }
-            
-            owner.objectToUnbias=null;
-            return false;
-          } else {
-            numSlowRevocations++;
-            
-            boolean result=false;
-            
-            // NB. this may stop a thread other than the one that had the bias,
-            // if that thread died and some other thread took its slot.  that's
-            // why we do a CAS below.  it's only needed if some other thread
-            // had seen the owner be null (which may happen if we came here after
-            // a new thread took the slot while someone else came here when the
-            // slot was still null).  if it was the case that everyone else had
-            // seen a non-null owner, then the pair handshake would serve as
-            // sufficient synchronization (the id would identify the set of threads
-            // that shared that id's communicationLock).  oddly, that means that
-            // this whole thing could be "simplified" to acquire the
-            // communicationLock even if the owner was null.  but that would be
-            // goofy.
-            if (false) VM.sysWriteln("entering pair handshake");
-            owner.beginPairHandshake();
-            if (false) VM.sysWriteln("done with that");
-            
-            Word newLockWord=Magic.getWordAtOffset(o, lockOffset);
-            result=Synchronization.tryCompareAndSwap(
-              o, lockOffset, oldLockWord, changed);
-            owner.endPairHandshake();
-            if (false) VM.sysWriteln("that worked.");
-            
-            return result;
-          }
-        }
-      }
+      return casFromBiased(o, lockOffset, oldLockWord, changed, cnt);
     }
+  }
+  
+  private Word biasBitsToThinBits(Word bits) {
+    int lockOwner=getLockOwner(bits);
+    
+    Word changed=bits.and(BL_UNLOCK_MASK).or(BL_STAT_THIN);
+    
+    if (lockOwner!=0) {
+      int recCount=getRecCount(bits);
+      changed=changed
+        .or(Word.fromIntZeroExtend(lockOwner))
+        .or(Word.fromIntZeroExtend(recCount-1).lsh(BL_LOCK_COUNT_SHIFT));
+    }
+    
+    return changed;
   }
   
   @Unpreemptible
@@ -458,16 +481,7 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
       Word bits=Magic.getWordAtOffset(o, lockOffset);
       
       if (bits.and(BL_STAT_MASK).EQ(BL_STAT_BIASABLE)) {
-        int lockOwner=getLockOwner(bits);
-        
-        Word changed=bits.and(BL_UNLOCK_MASK).or(BL_STAT_THIN);
-        
-        if (lockOwner!=0) {
-          int recCount=getRecCount(bits);
-          changed=changed
-            .or(Word.fromIntZeroExtend(lockOwner))
-            .or(Word.fromIntZeroExtend(recCount-1).lsh(BL_LOCK_COUNT_SHIFT));
-        }
+        Word changed=biasBitsToThinBits(bits);
         
         if (false) VM.sysWriteln("unbiasing in poll: ",bits," -> ",changed);
         
