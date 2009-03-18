@@ -53,3 +53,6 @@ Print periodic information about inflations.
 monitorBiasing false
 Print periodic information about bias revocations.
 
+sloppyEagerDeflate true
+Deflate sloppy deflate locks eagerly.  Default is true.
+

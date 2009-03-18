@@ -17,8 +17,7 @@ public final class LockConfigs {
   public static final int SloppyDeflate = 2;
   public static final int EagerDeflateBiased = 3;
   public static final int EagerDeflateHybrid = 4;
-  public static final int SloppyDeflateInline = 5;
-  public static final int SloppyDeflateHybrid = 6;
+  public static final int SloppyDeflateHybrid = 5;
 }
 
 

@@ -132,6 +132,10 @@ public abstract class AbstractThinLockPlan implements Constants, ThinLockConstan
     }
   }
   
+  public final void markDeflated(Object o, int id) {
+    markDeflated(o, Magic.getObjectType(o).getThinLockOffset(), id);
+  }
+  
   @Inline
   public boolean lockHeader(Object obj, Offset lockOffset) {
     return false;

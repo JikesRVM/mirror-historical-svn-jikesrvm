@@ -52,7 +52,7 @@ public abstract class CommonLock extends AbstractLock {
   }
   
   protected final boolean waitingIsEmpty() {
-    return waiting==null || waiting.isEmpty();
+    return waiting.isEmpty();
   }
   
   protected final RVMThread waitingDequeue() {

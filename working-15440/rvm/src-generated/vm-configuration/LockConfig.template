@@ -22,8 +22,7 @@ public final class LockConfig {
       SELECTED==LockConfigs.EagerDeflateBiased ||
       SELECTED==LockConfigs.EagerDeflateHybrid;
       
-  public static final boolean INLINE_INFLATED =
-      SELECTED==LockConfigs.SloppyDeflateInline;
+  public static final boolean INLINE_INFLATED = false;
   
   public static final int THREAD_ID_SHIFT =
       (SELECTED==LockConfigs.EagerDeflateHybrid ||
@@ -33,7 +32,6 @@ public final class LockConfig {
 
   public static final boolean USING_SLOPPY =
       SELECTED==LockConfigs.SloppyDeflate ||
-      SELECTED==LockConfigs.SloppyDeflateInline ||
       SELECTED==LockConfigs.SloppyDeflateHybrid;
       
   public static final class Selected extends @_SELECTED_@Lock {}

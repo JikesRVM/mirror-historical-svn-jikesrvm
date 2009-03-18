@@ -92,11 +92,11 @@ V sloppySpinLimit int 10
 The amount of times to spin when acquiring a sloppy deflate lock.  Default is 10.
 
 
-V sloppyUseThreshold int 100000
-The amount of times that a lock should have been contended in the last quantum to stay inflated.  Default is 100000.
+V sloppyUseThreshold int 1
+The amount of times that a lock should have been contended in the last quantum to stay inflated.  Default is 1.
 
 
-V sloppyQuantumMult int 10
-The period with which we check which locks to deflate, in units of interrupt quantum.  The default is 10.
+V sloppyQuantumMult int 100
+The period with which we check which locks to deflate, in units of interrupt quantum.  The default is 100.
 
 

@@ -23,20 +23,25 @@ import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Unpreemptible;
-import org.vmmagic.pragma.NoNullCheck;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
-public class SloppyDeflateLock extends SloppyDeflateLockBase {
+public class SloppyDeflateSimpleLock extends CommonLock {
   // WARNING: there is some code duplication with MMTk Lock
   
+  /** The lock is not held by anyone and the queue is empty. */
+  protected static final int CLEAR           = 0;
+  
   /** The lock is held, but the queue is empty. */
-  protected static final int LOCKED    = 1;
+  protected static final int LOCKED          = 1;
   
   /** The lock is not held but the queue still has stuff in it. */
-  protected static final int QUEUED    = 2;
+  protected static final int CLEAR_QUEUED    = 2;
+  
+  /** The lock is held and the queue has someone in it. */
+  protected static final int LOCKED_QUEUED   = 3;
   
   /**
    * This flag, OR'd into the state, indicates that the lock's entire state is
@@ -44,19 +49,15 @@ public class SloppyDeflateLock extends SloppyDeflateLockBase {
    * acquiring the lock; in other words, no state transitions may occur when
    * this bit is set.
    */
-  protected static final int QUEUEING   = 4;
-  
-  /** there is stuff on the waiting queue */
-  protected static final int WAITING    = 8;
-  
-  /** the lock is destroyed */
-  protected static final int DESTROYED  = 16;
+  protected static final int QUEUEING_FLAG   = 4;
   
   protected ThreadQueue queue;
 
   protected int[] state=new int[1];
   
-  public SloppyDeflateLock() {
+  protected int numHeavyUses;
+  
+  public SloppyDeflateSimpleLock() {
     queue = new ThreadQueue();
   }
   
@@ -66,35 +67,32 @@ public class SloppyDeflateLock extends SloppyDeflateLockBase {
    */
   @NoNullCheck
   @Inline
-  protected final boolean acquireImpl() {
+  protected final void acquireImpl() {
     int n=spinLimit();
     for (int i=0;i<n;++i) {
       int oldState=Magic.prepareInt(state,Offset.zero());
-      if ((oldState&(DESTROYED|LOCKED|QUEUEING))==0 &&
-          Magic.attemptInt(state,Offset.zero(),oldState,oldState|LOCKED)) {
-        return true; // acquired
-      } else if ((oldState&DESTROYED)!=0) {
-        return false;
+      if ((oldState==CLEAR &&
+           Magic.attemptInt(state,Offset.zero(),CLEAR,LOCKED)) ||
+          (oldState==CLEAR_QUEUED &&
+           Magic.attemptInt(state,Offset.zero(),CLEAR_QUEUED,LOCKED_QUEUED))) {
+        return; // acquired
       }
       Spinning.interruptibly(i,0);
     }
     for (int i=n;;i++) {
       int oldState=Magic.prepareInt(state,Offset.zero());
-      if ((oldState&DESTROYED)!=0) {
-        return false;
-      } else if ((oldState&(LOCKED|QUEUEING))==0 &&
-                 Magic.attemptInt(state,Offset.zero(),oldState,oldState|LOCKED)) {
-        return true;
-      } else if ((oldState&(LOCKED|QUEUEING))==LOCKED &&
-                 Magic.attemptInt(state,Offset.zero(),oldState,oldState|QUEUEING)) {
-        if (VM.VerifyAssertions) VM._assert((state[0]&QUEUEING)!=0);
-        if (VM.VerifyAssertions) VM._assert((state[0]&LOCKED)!=0);
-        if (VM.VerifyAssertions) VM._assert((state[0]&DESTROYED)==0);
+      if ((oldState==CLEAR &&
+           Magic.attemptInt(state,Offset.zero(),CLEAR,LOCKED)) ||
+          (oldState==CLEAR_QUEUED &&
+           Magic.attemptInt(state,Offset.zero(),CLEAR_QUEUED,LOCKED_QUEUED))) {
+        return;
+      } else if ((oldState==LOCKED || oldState==LOCKED_QUEUED) &&
+                 Magic.attemptInt(state,Offset.zero(),oldState,oldState|QUEUEING_FLAG)) {
         numHeavyUses++;
         RVMThread me=RVMThread.getCurrentThread();
         queue.enqueue(me);
         Magic.sync();
-        state[0]=(oldState|QUEUED);
+        state[0]=LOCKED_QUEUED;
         me.monitor().lock();
         while (queue.isQueued(me)) {
           me.monitor().waitNicely();
@@ -112,48 +110,84 @@ public class SloppyDeflateLock extends SloppyDeflateLockBase {
   @NoNullCheck
   @Inline
   protected final void releaseImpl() {
-    for (int cnt=0;;++cnt) {
+    for (;;) {
       int oldState=Magic.prepareInt(state,Offset.zero());
-      if (VM.VerifyAssertions) {
-        if ((oldState&(DESTROYED|LOCKED))!=LOCKED) {
-          VM.sysWriteln("observed bad state in releaseImpl: ",oldState,"  for ",Magic.objectAsAddress(this));
-          VM._assert(VM.NOT_REACHED);
-        }
-      }
-      if ((oldState&(LOCKED|QUEUED|QUEUEING))==LOCKED &&
-          Magic.attemptInt(state,Offset.zero(),oldState,oldState&~LOCKED)) {
+      if (VM.VerifyAssertions) VM._assert((oldState&~QUEUEING_FLAG)==LOCKED ||
+                                          (oldState&~QUEUEING_FLAG)==LOCKED_QUEUED);
+      if (oldState==LOCKED &&
+          Magic.attemptInt(state,Offset.zero(),LOCKED,CLEAR)) {
         return;
-      } else if ((oldState&(LOCKED|QUEUED|QUEUEING))==(LOCKED|QUEUED) &&
+      } else if (oldState==LOCKED_QUEUED &&
                  Magic.attemptInt(state,Offset.zero(),
-                                  oldState,
-                                  oldState|QUEUEING)) {
+                                  LOCKED_QUEUED,
+                                  LOCKED_QUEUED|QUEUEING_FLAG)) {
         RVMThread toAwaken=queue.dequeue();
         if (VM.VerifyAssertions) VM._assert(toAwaken!=null);
         boolean queueEmpty=queue.isEmpty();
         Magic.sync();
         if (queueEmpty) {
-          state[0]=(oldState&~(QUEUED|LOCKED));
+          state[0]=CLEAR;
         } else {
-          state[0]=(oldState&~LOCKED);
+          state[0]=CLEAR_QUEUED;
         }
         toAwaken.monitor().lockedBroadcast();
         return;
       }
-      Spinning.interruptibly(cnt,0);
+      Magic.pause();
     }
   }
   
+  @NoInline
+  void rescueBadLock() {
+    releaseImpl();
+  }
+  
+  final boolean inlineLock(Object o, Word myId) {
+    if (Synchronization.tryCompareAndSwap(
+          state,Offset.zero(),CLEAR,LOCKED)) {
+      Magic.isync();
+      if (lockedObject==o) {
+        ownerId = myId.toInt();
+        recursionCount = 1;
+        return true;
+      } else {
+        rescueBadLock();
+        return false;
+      }
+    }
+    return false;
+  }
+  
+  @NoInline
+  void rescueBadUnlock() {
+    releaseImpl();
+  }
+  
+  @Inline
+  final boolean inlineUnlock() {
+    if (recursionCount==1) {
+      recursionCount = 0;
+      ownerId = 0;
+      Magic.sync();
+      if (!Synchronization.tryCompareAndSwap(
+            state, Offset.zero(), LOCKED, CLEAR)) {
+        rescueBadUnlock();
+      }
+      return true;
+    }
+    return false;
+  }
+  
   protected final void lockState() {
-    for (int cnt=0;;++cnt) {
+    for (;;) {
       int oldState=Magic.prepareInt(state,Offset.zero());
-      if (VM.VerifyAssertions) VM._assert((oldState&DESTROYED)==0);
-      if ((oldState&QUEUEING)==0 &&
+      if ((oldState&QUEUEING_FLAG)==0 &&
           Magic.attemptInt(state,Offset.zero(),
                            oldState,
-                           oldState|QUEUEING)) {
+                           oldState|QUEUEING_FLAG)) {
         break;
       }
-      Spinning.interruptibly(cnt,0);
+      Magic.pause();
     }
     Magic.isync();
   }
@@ -162,50 +196,23 @@ public class SloppyDeflateLock extends SloppyDeflateLockBase {
     Magic.sync();
     // don't need CAS since the state field cannot change while the QUEUEING_FLAG
     // is set.
-    int oldState=state[0];
-    int newState=oldState;
-    if (VM.VerifyAssertions) VM._assert((newState&DESTROYED)==0);
-    if (VM.VerifyAssertions) VM._assert((newState&QUEUEING)!=0);
-    newState&=~QUEUEING;
-    if (waitingIsEmpty()) {
-      newState&=~WAITING;
-    } else {
-      newState|=WAITING;
-    }
-    if (VM.VerifyAssertions) {
-      if ((newState&~(QUEUEING|WAITING))!=(oldState&~(QUEUEING|WAITING))) {
-        VM.sysWriteln("oldState = ",oldState,", newState = ",newState);
-        VM._assert(VM.NOT_REACHED);
-      }
-      int newOldState=state[0];
-      if ((newState&~(QUEUEING|WAITING))!=(newOldState&~(QUEUEING|WAITING))) {
-        VM.sysWriteln("newOldState = ",newOldState,", newState = ",newState);
-        VM._assert(VM.NOT_REACHED);
-      }
-    }
-    state[0]=newState;
+    state[0]=(state[0]&~QUEUEING_FLAG);
   }
   
   protected final boolean stateIsLocked() {
-    return (state[0]&QUEUEING)!=0;
+    return (state[0]&QUEUEING_FLAG)!=0;
   }
   
   /**
    * Can this lock be deflated right now?  Only call this after calling lockWaiting(),
    * and if you do deflate it, make sure you do so prior to calling unlockWaiting().
    */
-  protected final boolean canDeflate() {
-    return state[0]==0;
-  }
-  
-  protected final boolean assertDeflate() {
-    return Synchronization.tryCompareAndSwap(
-      state,Offset.zero(),0,DESTROYED);
+  private final boolean canDeflate() {
+    return (state[0]&~QUEUEING_FLAG) == CLEAR && waitingIsEmpty();
   }
   
   @Uninterruptible
   protected final void dumpBlockedThreads() {
-    VM.sysWriteln(" state: ",state[0]);
     VM.sysWrite(" entering: ");
     queue.dump();
   }
