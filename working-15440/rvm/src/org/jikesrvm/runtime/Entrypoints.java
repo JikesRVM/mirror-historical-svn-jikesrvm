@@ -125,6 +125,11 @@ public class Entrypoints {
                 "inlineUnlock",
                 "(Ljava/lang/Object;Lorg/vmmagic/unboxed/Offset;)V");
   
+  public static final RVMField futexFutexField=
+      getField(org.jikesrvm.scheduler.Futex.class,
+               "futex",
+               int.class);
+  
   public static final RVMField commonLockFreeHeadField=
       getField(org.jikesrvm.scheduler.CommonLockPlan.class,
                "freeHead",

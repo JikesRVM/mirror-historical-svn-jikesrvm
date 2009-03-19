@@ -20,6 +20,7 @@ public final class LockConfigs {
   public static final int SloppyDeflateHybrid = 5;
   public static final int JUC = 6;
   public static final int JUCHybrid = 7;
+  public static final int BargingCascadeFutex = 8;
 }
 
 

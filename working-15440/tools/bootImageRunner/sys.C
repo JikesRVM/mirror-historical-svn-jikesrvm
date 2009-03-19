@@ -104,6 +104,11 @@ extern "C" int     incinterval(timer_t id, itimerstruc_t *newvalue, itimerstruc_
 #include <sys/events.h>
 #endif
 
+/* FIXME guard this appropriately */
+#include <linux/futex.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+
 #define NEED_VIRTUAL_MACHINE_DECLARATIONS
 #define NEED_EXIT_STATUS_CODES
 #include "InterfaceDeclarations.h"
@@ -1017,6 +1022,22 @@ sysLikelyProcessor(void) {
 #endif
 }
 
+/* FIXME guard this appropriately */
+static int __futex(int *addr,int op,int val,
+                 const struct timespec *timeout,
+                 int *addr2,int val2) {
+  return syscall(SYS_futex,addr,op,val,timeout,addr2,val2);
+}
+
+extern "C" int
+sysFutexWait(int *addr, int expected) {
+  return __futex(addr, FUTEX_WAIT, expected, NULL, NULL, 0);
+}
+
+extern "C" int
+sysFutexWake(int *addr, int num) {
+  return __futex(addr, FUTEX_WAKE, num, NULL, NULL, 0);
+}
 
 // Thread-specific data key in which to stash the id of
 // the pthread's RVMThread.  This allows the system call library

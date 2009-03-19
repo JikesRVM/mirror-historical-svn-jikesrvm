@@ -276,6 +276,9 @@ public class BootRecord {
   public Address sysPthreadCondBroadcastIP;
   
   public Address sysLikelyProcessorIP;
+  
+  public Address sysFutexWaitIP;
+  public Address sysFutexWakeIP;
 
   // arithmetic
   @Entrypoint

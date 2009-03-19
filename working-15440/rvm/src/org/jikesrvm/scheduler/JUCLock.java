@@ -211,7 +211,7 @@ public class JUCLock extends SloppyDeflateLockBase {
   
   @Uninterruptible
   protected final void dumpBlockedThreads() {
-    VM.sysWriteln("I got nothin'");
+    VM.sysWriteln("state = ",s.getState_());
   }
   
   protected int enqueueWaitingAndUnlockCompletely(RVMThread toWait) {

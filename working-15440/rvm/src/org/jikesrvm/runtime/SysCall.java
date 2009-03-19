@@ -244,6 +244,12 @@ public abstract class SysCall {
 
   @SysCallTemplate
   public abstract int sysLikelyProcessor();
+  
+  @SysCallTemplate
+  public abstract int sysFutexWait(Address futexAddr, int expected);
+  
+  @SysCallTemplate
+  public abstract int sysFutexWake(Address futexAddr, int numThreads);
 
   // arithmetic
   @SysCallTemplate

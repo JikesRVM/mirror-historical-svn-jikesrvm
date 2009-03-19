@@ -35,7 +35,7 @@ public class SloppyDeflateLock extends SloppyDeflateLockBase {
   /** The lock is held, but the queue is empty. */
   protected static final int LOCKED    = 1;
   
-  /** The lock is not held but the queue still has stuff in it. */
+  /** The lock queue (our queue - not the waiting queue) has threads on it. */
   protected static final int QUEUED    = 2;
   
   /**
