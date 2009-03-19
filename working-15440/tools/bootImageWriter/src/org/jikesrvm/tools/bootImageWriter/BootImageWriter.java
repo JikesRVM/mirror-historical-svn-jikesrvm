@@ -47,6 +47,7 @@ import org.jikesrvm.VM;
 import org.jikesrvm.ArchitectureSpecific.CodeArray;
 import org.jikesrvm.ArchitectureSpecific.LazyCompilationTrampoline;
 import org.jikesrvm.ArchitectureSpecific.OutOfLineMachineCode;
+import org.jikesrvm.classloader.Atom;
 import org.jikesrvm.classloader.BootstrapClassLoader;
 import org.jikesrvm.classloader.RVMArray;
 import org.jikesrvm.classloader.RVMClass;
@@ -1582,6 +1583,47 @@ public class BootImageWriter extends BootImageWriterMessages
           Offset rvmFieldOffset = rvmField.getOffset();
           String   rvmFieldName = rvmField.getName().toString();
           Field    jdkFieldAcc  = null;
+
+          if (jdkType!=null &&
+              jdkType.equals(java.util.concurrent.locks.AbstractQueuedSynchronizer.class)) {
+            RVMClass c=(RVMClass)rvmType;
+            System.out.println("doing stuff to "+jdkType+" . "+rvmFieldName);
+            if (rvmFieldName.equals("stateOffset")) {
+              Statics.setSlotContents(
+                rvmFieldOffset,
+                c.findDeclaredField(Atom.findOrCreateAsciiAtom("state")).getOffset().toLong());
+              continue;
+            } else if (rvmFieldName.equals("headOffset")) {
+              Statics.setSlotContents(
+                rvmFieldOffset,
+                c.findDeclaredField(Atom.findOrCreateAsciiAtom("head")).getOffset().toLong());
+              continue;
+            } else if (rvmFieldName.equals("tailOffset")) {
+              Statics.setSlotContents(
+                rvmFieldOffset,
+                c.findDeclaredField(Atom.findOrCreateAsciiAtom("tail")).getOffset().toLong());
+              continue;
+            } else if (rvmFieldName.equals("waitStatusOffset")) {
+              try {
+              Statics.setSlotContents(
+                rvmFieldOffset,
+                ((RVMClass)getRvmType(Class.forName("java.util.concurrent.locks.AbstractQueuedSynchronizer$Node"))).findDeclaredField(Atom.findOrCreateAsciiAtom("waitStatus")).getOffset().toLong());
+              } catch (ClassNotFoundException e) {
+                throw new Error(e);
+              }
+              continue;
+            }
+          } else if (jdkType!=null &&
+                     jdkType.equals(java.util.concurrent.locks.LockSupport.class)) {
+            RVMClass c=(RVMClass)rvmType;
+            System.out.println("doing stuff to "+jdkType+" . "+rvmFieldName);
+            if (rvmFieldName.equals("parkBlockerOffset")) {
+              Statics.setSlotContents(
+                rvmFieldOffset,
+                ((RVMClass)getRvmType(java.lang.Thread.class)).findDeclaredField(Atom.findOrCreateAsciiAtom("parkBlocker")).getOffset().toLong());
+              continue;
+            }
+          }
 
           if (jdkType != null)
             jdkFieldAcc = getJdkFieldAccessor(jdkType, j, STATIC_FIELD);

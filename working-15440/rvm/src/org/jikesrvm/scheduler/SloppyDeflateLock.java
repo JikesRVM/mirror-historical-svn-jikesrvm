@@ -146,7 +146,6 @@ public class SloppyDeflateLock extends SloppyDeflateLockBase {
   protected final void lockState() {
     for (int cnt=0;;++cnt) {
       int oldState=Magic.prepareInt(state,Offset.zero());
-      if (VM.VerifyAssertions) VM._assert((oldState&DESTROYED)==0);
       if ((oldState&QUEUEING)==0 &&
           Magic.attemptInt(state,Offset.zero(),
                            oldState,
@@ -164,7 +163,6 @@ public class SloppyDeflateLock extends SloppyDeflateLockBase {
     // is set.
     int oldState=state[0];
     int newState=oldState;
-    if (VM.VerifyAssertions) VM._assert((newState&DESTROYED)==0);
     if (VM.VerifyAssertions) VM._assert((newState&QUEUEING)!=0);
     newState&=~QUEUEING;
     if (waitingIsEmpty()) {

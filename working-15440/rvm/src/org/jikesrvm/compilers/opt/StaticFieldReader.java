@@ -87,8 +87,10 @@ public abstract class StaticFieldReader implements SizeConstants {
     } else {
       try {
         String cn = field.getDeclaringClass().toString();
-        Field f = Class.forName(cn).getDeclaredField(field.getName().toString());
+        String fn = field.getName().toString();
+        Field f = Class.forName(cn).getDeclaredField(fn);
         f.setAccessible(true);
+
         if (type.isReferenceType() && (!type.isMagicType() || type.isUnboxedArrayType())) {
           Object value = f.get(obj);
           if (value != null) {
@@ -160,6 +162,35 @@ public abstract class StaticFieldReader implements SizeConstants {
                  "Error reading field " + field);
     }
 
+    String cn = field.getDeclaringClass().toString();
+    String fn = field.getName().toString();
+    // super-evil-hack.  on sooooo many levels.  FIXME revisit this.
+    if (cn.equals("java.util.concurrent.locks.AbstractQueuedSynchronizer")) {
+      if (VM.BuildFor32Addr) {
+        VM.sysWriteln("dude, I'm doing the super-evil-hack for ",fn);
+        if (fn.equals("headOffset")) {
+          return new LongConstantOperand(0);
+        } else if (fn.equals("tailOffset")) {
+          return new LongConstantOperand(4);
+        } else if (fn.equals("stateOffset")) {
+          return new LongConstantOperand(8);
+        } else if (fn.equals("waitStatusOffset")) {
+          return new LongConstantOperand(-4);
+        }
+      } else {
+        throw new Error("figure it out");
+      }
+    } else if (cn.equals("java.util.concurrent.locks.LockSupport")) {
+      if (VM.BuildFor32Addr) {
+        VM.sysWriteln("dude, I'm doing the super-evil-hack for ",fn);
+        if (fn.equals("parkBlockerOffset")) {
+          return new LongConstantOperand(0x2c);
+        }
+      } else {
+        throw new Error("figure it out");
+      }
+    }
+    
     TypeReference fieldType = field.getType();
     Offset off = field.getOffset();
     if ((fieldType == TypeReference.Address) ||
@@ -264,7 +295,7 @@ public abstract class StaticFieldReader implements SizeConstants {
    * @param field a static field
    * @return the current value of the field
    */
-  public static long getLongStaticFieldValue(RVMField field) throws NoSuchFieldException {
+  private static long getLongStaticFieldValue(RVMField field) throws NoSuchFieldException {
     if (VM.runningVM) {
       return Statics.getSlotContentsAsLong(field.getOffset());
     } else {

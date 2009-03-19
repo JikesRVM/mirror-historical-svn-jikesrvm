@@ -573,3 +573,7 @@ Lgnu/java/net/protocol/file/Connection;
 Lgnu/java/net/protocol/file/Connection$StaticData;
 Ljava/io/FilePermission;
 Lgnu/java/nio/charset/EncodingHelper;
+
+Ljava/util/concurrent/locks/AbstractQueuedSynchronizer;
+Ljava/util/concurrent/locks/AbstractQueuedSynchronizer$Node;
+Ljava/util/concurrent/locks/LockSupport;

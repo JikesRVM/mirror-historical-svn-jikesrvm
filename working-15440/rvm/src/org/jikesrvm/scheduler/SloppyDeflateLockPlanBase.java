@@ -57,12 +57,12 @@ public abstract class SloppyDeflateLockPlanBase extends CommonLockPlan {
     }
   }
   
-  public SloppyDeflateLock inflate(Object o, Offset lockOffset) {
+  public SloppyDeflateLockBase inflate(Object o, Offset lockOffset) {
     for (int cnt=0;;cnt++) {
       Word bits = Magic.getWordAtOffset(o, lockOffset);
       
       if (LockConfig.selectedThinPlan.isFat(bits)) {
-        return (SloppyDeflateLock)Magic.eatCast(
+        return (SloppyDeflateLockBase)Magic.eatCast(
           getLock(LockConfig.selectedThinPlan.getLockIndex(bits)));
       }
       
@@ -118,7 +118,7 @@ public abstract class SloppyDeflateLockPlanBase extends CommonLockPlan {
       }
       deflateLock.lockNicely();
       for (int i=0;i<numLocks();++i) {
-        SloppyDeflateLock l=(SloppyDeflateLock)Magic.eatCast(getLock(i));
+        SloppyDeflateLockBase l=(SloppyDeflateLockBase)Magic.eatCast(getLock(i));
         if (l!=null) {
           if (l.pollDeflate(useThreshold)) {
             cnt++;

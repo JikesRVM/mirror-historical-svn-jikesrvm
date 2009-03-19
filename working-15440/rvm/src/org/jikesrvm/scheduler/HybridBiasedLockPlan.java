@@ -455,6 +455,8 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
     }
   }
   
+  @Inline
+  @Unpreemptible
   private Word biasBitsToThinBits(Word bits) {
     int lockOwner=getLockOwner(bits);
     

@@ -1569,19 +1569,26 @@ public final class BC2IR
           break;
 
         case JBC_getstatic: {
+          boolean trace=false;
           // field resolution
           FieldReference ref = bcodes.getFieldReference();
+          if (gc.method.getName().toString().equals("compareAndSetState")) {
+            VM.sysWriteln("tracing getstatic on "+ref.getName().toString()+" in compareAndSetState in "+gc.method.getDeclaringClass().getDescriptor().toString());
+            trace=true;
+          }
           boolean unresolved = ref.needsDynamicLink(bcodes.getMethod());
           LocationOperand fieldOp = makeStaticFieldRef(ref);
           Operand offsetOp;
           TypeReference fieldType = ref.getFieldContentsType();
           RegisterOperand t = gc.temps.makeTemp(fieldType);
           if (unresolved) {
+            if (trace) VM.sysWriteln("it didn't get resolved");
             RegisterOperand offsetrop = gc.temps.makeTempOffset();
             appendInstruction(Unary.create(RESOLVE_MEMBER, offsetrop.copyRO(), fieldOp.copy()));
             offsetOp = offsetrop;
             rectifyStateWithErrorHandler();
           } else {
+            if (trace) VM.sysWriteln("resolved.");
             RVMField field = ref.peekResolvedField();
             offsetOp = new AddressConstantOperand(field.getOffset());
 
@@ -1605,14 +1612,18 @@ public final class BC2IR
             // RVM bootimage class, then get the value at compile
             // time.
             if (gc.options.SIMPLIFY_CHASE_FINAL_FIELDS && field.isFinal()) {
+              if (trace) VM.sysWriteln("it's a final field");
               RVMClass declaringClass = field.getDeclaringClass();
               if (declaringClass.isInitialized() || declaringClass.isInBootImage()) {
                 try {
+                  if (trace) VM.sysWriteln("calling into getStaticFieldValue");
                   ConstantOperand rhs = StaticFieldReader.getStaticFieldValue(field);
+                  if (trace) VM.sysWriteln("that worked, got "+rhs);
                   // VM.sysWrite("Replaced getstatic of "+field+" with "+rhs+"\n");
                   push(rhs, fieldType);
                   break;
                 } catch (NoSuchFieldException e) {
+                  if (trace) VM.sysWriteln("got some manner of error");
                   if (VM.runningVM) { // this is unexpected
                     throw new Error("Unexpected exception", e);
                   } else {
@@ -1622,6 +1633,7 @@ public final class BC2IR
                 }
               }
             } else if (field.isRuntimeFinal()) {
+              if (trace) VM.sysWriteln("doing the other thing");
               if (VM.VerifyAssertions) VM._assert(fieldType.isBooleanType());
               boolean rhsBool = field.getRuntimeFinalValue();
               push(new IntConstantOperand(rhsBool? 1 : 0));
@@ -1629,6 +1641,7 @@ public final class BC2IR
             }
           }
 
+          if (trace) VM.sysWriteln("creating an actual GETSTATIC");
           s = GetStatic.create(GETSTATIC, t, offsetOp, fieldOp);
           push(t.copyD2U(), fieldType);
         }

@@ -228,6 +228,7 @@ public class VM extends Properties implements Constants, ExitStatus {
     runClassInitializer("java.lang.Runtime");
     runClassInitializer("java.lang.System");
     runClassInitializer("sun.misc.Unsafe");
+    runClassInitializer("java.util.concurrent.locks.AbstractQueuedSynchronizer");
 
     runClassInitializer("java.lang.Character");
     runClassInitializer("org.jikesrvm.classloader.TypeReferenceVector");
@@ -1317,6 +1318,17 @@ public class VM extends Properties implements Constants, ExitStatus {
     swLock();
     write(s);
     write(a);
+    writeln();
+    swUnlock();
+  }
+
+  @NoInline
+  public static void sysWriteln(String s1, Atom a1, String s2, Atom a2) {
+    swLock();
+    write(s1);
+    write(a1);
+    write(s2);
+    write(a2);
     writeln();
     swUnlock();
   }

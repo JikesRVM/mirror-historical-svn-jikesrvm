@@ -76,9 +76,9 @@ public abstract class CommonLock extends AbstractLock {
   
   protected final void removeFromWaitQueue(RVMThread wasWaiting) {
     if (isWaiting(wasWaiting)) {
-      lockState();
+      lockStateInactive();
       waiting().remove(wasWaiting);
-      unlockState();
+      unlockStateInactive();
     }
   }
   

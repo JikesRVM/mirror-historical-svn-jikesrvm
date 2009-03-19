@@ -140,7 +140,7 @@ public abstract class SloppyDeflateLockBase extends CommonLock {
     }
   }
   
-  protected final int enqueueWaitingAndUnlockCompletely(RVMThread toWait) {
+  protected int enqueueWaitingAndUnlockCompletely(RVMThread toWait) {
     numHeavyUses++;
     return super.enqueueWaitingAndUnlockCompletely(toWait);
   }
@@ -157,7 +157,7 @@ public abstract class SloppyDeflateLockBase extends CommonLock {
       if (trace) VM.tsysWriteln("decided to deflate a lock: ",Magic.objectAsAddress(this));
       LockConfig.selectedThinPlan.markDeflated(lockedObject, id);
       destroy();
-      SloppyDeflateLockPlan.instance.free(this);
+      SloppyDeflateLockPlanBase.instance.free(this);
       if (VM.monitorSloppyInflations) SloppyDeflateLockPlanBase.deflations++;
       result=true;
     }

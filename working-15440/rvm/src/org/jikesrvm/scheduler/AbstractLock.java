@@ -93,11 +93,17 @@ public abstract class AbstractLock implements Constants {
    */
   protected abstract void lockState();
   
+  /** Lock the lock's state, accepting that it may already be inactive. */
+  protected void lockStateInactive() { lockState(); }
+  
   /**
    * Unlock the lock's waiting state.  Used by all subclasses of CommonLock
    * after changing the waiting queue.
    */
   protected abstract void unlockState();
+  
+  /** Lock the lock's state, accepting that it may already be inactive. */
+  protected void unlockStateInactive() { unlockState(); }
   
   protected abstract boolean stateIsLocked();
   

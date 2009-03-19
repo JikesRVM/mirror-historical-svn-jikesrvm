@@ -14,6 +14,7 @@ package sun.misc;
 
 import java.lang.reflect.Field;
 
+import org.jikesrvm.VM;
 import org.jikesrvm.classloader.RVMField;
 import org.jikesrvm.classloader.RVMType;
 import org.jikesrvm.runtime.Magic;
@@ -24,12 +25,16 @@ import org.vmmagic.unboxed.Offset;
 public final class Unsafe {
   private static final Unsafe unsafe = new Unsafe();
 
-  private Unsafe() {}
+  private Unsafe() {
+    if (false) VM.sysWriteln("Initializing instance of Unsafe");
+  }
 
   public static Unsafe getUnsafe() {
+    if (false) VM.sysWriteln("returning instance of unsafe");
     SecurityManager sm = System.getSecurityManager();
     if (sm != null)
       sm.checkPropertiesAccess();
+    if (false) VM.sysWriteln("returning instance of unsafe");
     return unsafe;
   }
 
@@ -39,12 +44,18 @@ public final class Unsafe {
 
   public long objectFieldOffset(Field field) {
     RVMField vmfield = java.lang.reflect.JikesRVMSupport.getFieldOf(field);
+    if (false) VM.sysWriteln("getting offset of ",vmfield.getName()," in ",vmfield.getDeclaringClass().getDescriptor());
+    if (false) VM.sysWriteln("returning ",vmfield.getOffset());
     return vmfield.getOffset().toLong();
   }
 
   public boolean compareAndSwapInt(Object obj,long offset,int expect,int update) {
     Offset off = longToOffset(offset);
-    return Synchronization.tryCompareAndSwap(obj, off, expect, update);
+    if (false) VM.sysWriteln("CAS on ",Magic.objectAsAddress(obj)," + ",off);
+    if (false) VM.sysWriteln(expect," -> ",update);
+    boolean result=Synchronization.tryCompareAndSwap(obj, off, expect, update);
+    if (false) VM.sysWriteln("result = ",result);
+    return result;
   }
 
   public boolean compareAndSwapLong(Object obj,long offset,long expect,long update) {
