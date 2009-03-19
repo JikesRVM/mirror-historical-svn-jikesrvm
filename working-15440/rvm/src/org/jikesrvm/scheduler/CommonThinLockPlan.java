@@ -37,7 +37,7 @@ public abstract class CommonThinLockPlan extends AbstractThinLockPlan {
   }
   
   public void init() {
-    if (false) {
+    if (true) {
       VM.sysWriteln("lock count mask: ",TL_LOCK_COUNT_MASK);
       VM.sysWriteln("thread id mask: ",TL_THREAD_ID_MASK);
       VM.sysWriteln("lock id mask: ",TL_LOCK_ID_MASK);

@@ -211,17 +211,22 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
   @Unpreemptible
   @NoNullCheck
   public final boolean holdsLock(Object obj, Offset lockOffset, RVMThread thread) {
-    int tid = thread.getLockingId();
-    Word bits = Magic.getWordAtOffset(obj, lockOffset);
-    if (bits.and(TL_FAT_LOCK_MASK).isZero()) {
-      // if locked, then it is locked with a thin lock
-      return (bits.and(ThinLockConstants.TL_THREAD_ID_MASK).toInt() == tid);
-    } else {
-      // if locked, then it is locked with a fat lock
-      int index = getLockIndex(bits);
-      LockConfig.Selected l = (LockConfig.Selected)
-        Magic.eatCast(LockConfig.selectedPlan.getLock(index));
-      return l != null && l.holdsLock(obj, thread);
+    for (int cnt=0;;++cnt) {
+      int tid = thread.getLockingId();
+      Word bits = Magic.getWordAtOffset(obj, lockOffset);
+      if (bits.and(TL_FAT_LOCK_MASK).isZero()) {
+        // if locked, then it is locked with a thin lock
+        return (bits.and(ThinLockConstants.TL_THREAD_ID_MASK).toInt() == tid);
+      } else {
+        // if locked, then it is locked with a fat lock
+        int index = getLockIndex(bits);
+        LockConfig.Selected l = (LockConfig.Selected)
+          Magic.eatCast(LockConfig.selectedPlan.getLock(index));
+        if (l!=null) {
+          return l.holdsLock(obj, thread);
+        }
+      }
+      Spinning.uninterruptibly(cnt, 0);
     }
   }
   

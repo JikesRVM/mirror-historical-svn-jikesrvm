@@ -272,22 +272,25 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
   @Unpreemptible
   @NoNullCheck
   public final boolean holdsLock(Object o, Offset lockOffset, RVMThread thread) {
-    int tid = thread.getLockingId();
-    Word bits = Magic.getWordAtOffset(o, lockOffset);
-    if (bits.and(BL_STAT_MASK).EQ(BL_STAT_BIASABLE)) {
-      // if locked, then it is locked with a thin lock
-      return
-        bits.and(BL_THREAD_ID_MASK).toInt() == tid &&
-        !bits.and(BL_LOCK_COUNT_MASK).isZero();
-    } else if (bits.and(BL_STAT_MASK).EQ(BL_STAT_THIN)) {
-      return bits.and(BL_THREAD_ID_MASK).toInt()==tid;
-    } else {
-      if (VM.VerifyAssertions) VM._assert(bits.and(BL_STAT_MASK).EQ(BL_STAT_FAT));
-      // if locked, then it is locked with a fat lock
-      int index = getLockIndex(bits);
-      LockConfig.Selected l = (LockConfig.Selected)
-        Magic.eatCast(LockConfig.selectedPlan.getLock(index));
-      return l != null && l.holdsLock(o, thread);
+    for (int cnt=0;;++cnt) {
+      int tid = thread.getLockingId();
+      Word bits = Magic.getWordAtOffset(o, lockOffset);
+      if (bits.and(BL_STAT_MASK).EQ(BL_STAT_BIASABLE)) {
+        // if locked, then it is locked with a thin lock
+        return
+          bits.and(BL_THREAD_ID_MASK).toInt() == tid &&
+          !bits.and(BL_LOCK_COUNT_MASK).isZero();
+      } else if (bits.and(BL_STAT_MASK).EQ(BL_STAT_THIN)) {
+        return bits.and(BL_THREAD_ID_MASK).toInt()==tid;
+      } else {
+        if (VM.VerifyAssertions) VM._assert(bits.and(BL_STAT_MASK).EQ(BL_STAT_FAT));
+        // if locked, then it is locked with a fat lock
+        int index = getLockIndex(bits);
+        LockConfig.Selected l = (LockConfig.Selected)
+          Magic.eatCast(LockConfig.selectedPlan.getLock(index));
+        if (l!=null) return l.holdsLock(o, thread);
+      }
+      Spinning.uninterruptibly(cnt, 0);
     }
   }
 

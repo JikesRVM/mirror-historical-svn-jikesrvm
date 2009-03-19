@@ -427,6 +427,13 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     if (STATS)
       notifyOperations++;
     if (!RVMThread.getCurrentThread().holdsLock(o)) {
+      AbstractLock l=getLock(o);
+      VM.tsysWriteln("bad monitor state.");
+      if (l!=null) {
+        l.dump();
+      } else {
+        VM.sysWriteln("no fat lock; thin bits = ",Magic.getWordAtOffset(o,Magic.getObjectType(o).getThinLockOffset()));
+      }
       RVMThread.raiseIllegalMonitorStateException("notifying", o);
     }
     CommonLock l=(CommonLock)Magic.eatCast(getLock(o));
@@ -461,6 +468,13 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     if (STATS)
       notifyAllOperations++;
     if (!RVMThread.getCurrentThread().holdsLock(o)) {
+      VM.tsysWriteln("bad monitor state.");
+      AbstractLock l=getLock(o);
+      if (l!=null) {
+        l.dump();
+      } else {
+        VM.sysWriteln("no fat lock; thin bits = ",Magic.getWordAtOffset(o,Magic.getObjectType(o).getThinLockOffset()));
+      }
       RVMThread.raiseIllegalMonitorStateException("notifying", o);
     }
     CommonLock l = (CommonLock)Magic.eatCast(getLock(o));
