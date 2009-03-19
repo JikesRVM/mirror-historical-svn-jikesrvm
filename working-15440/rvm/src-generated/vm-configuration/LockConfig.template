@@ -27,7 +27,8 @@ public final class LockConfig {
   public static final int THREAD_ID_SHIFT =
       (SELECTED==LockConfigs.EagerDeflateHybrid ||
        SELECTED==LockConfigs.SloppyDeflateHybrid ||
-       SELECTED==LockConfigs.JUCHybrid)
+       SELECTED==LockConfigs.JUCHybrid ||
+       SELECTED==LockConfigs.BargingCascadeFutexHybrid)
       ? ThinLockConstants.BL_THREAD_ID_SHIFT
       : ThinLockConstants.TL_THREAD_ID_SHIFT;
 
