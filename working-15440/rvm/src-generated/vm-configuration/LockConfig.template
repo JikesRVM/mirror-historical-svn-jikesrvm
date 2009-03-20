@@ -28,9 +28,12 @@ public final class LockConfig {
       (SELECTED==LockConfigs.EagerDeflateHybrid ||
        SELECTED==LockConfigs.SloppyDeflateHybrid ||
        SELECTED==LockConfigs.JUCHybrid ||
-       SELECTED==LockConfigs.BargingCascadeFutexHybrid)
-      ? ThinLockConstants.BL_THREAD_ID_SHIFT
-      : ThinLockConstants.TL_THREAD_ID_SHIFT;
+       SELECTED==LockConfigs.BargingCascadeFutexHybrid ||
+       SELECTED==LockConfigs.BargingCascadeFutexHybridFutex)
+      ? ThinLockConstants.BL_THREAD_ID_SHIFT :
+      (SELECTED==LockConfigs.BargingCascadeFutexFutex)
+      ? ThinLockConstants.TLF_THREAD_ID_SHIFT :
+        ThinLockConstants.TL_THREAD_ID_SHIFT;
 
   public static final boolean USING_SLOPPY =
       SELECTED==LockConfigs.SloppyDeflate ||

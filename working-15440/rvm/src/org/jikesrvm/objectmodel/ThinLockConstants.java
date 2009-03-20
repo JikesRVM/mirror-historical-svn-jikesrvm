@@ -51,7 +51,7 @@ public interface ThinLockConstants extends SizeConstants {
   Word TL_FAT_LOCK_MASK = Word.one().lsh(JavaHeader.THIN_LOCK_SHIFT + TL_NUM_BITS_RC + TL_NUM_BITS_TID);
   Word TL_UNLOCK_MASK = Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - JavaHeader
       .NUM_THIN_LOCK_BITS).lsh(JavaHeader.THIN_LOCK_SHIFT).not();
-
+  
   // BL status bits:
   // 00 -> thin biasable, and biased if TID is non-zero
   // 01 -> thin unbiasable
@@ -79,5 +79,34 @@ public interface ThinLockConstants extends SizeConstants {
   Word BL_STAT_BIASABLE = Word.fromIntSignExtend(0).lsh(BL_STAT_SHIFT);
   Word BL_STAT_THIN = Word.fromIntSignExtend(1).lsh(BL_STAT_SHIFT);
   Word BL_STAT_FAT = Word.fromIntSignExtend(2).lsh(BL_STAT_SHIFT);
+  Word BL_STAT_THIN_WAIT = Word.fromIntSignExtend(3).lsh(BL_STAT_SHIFT);
+
+  // TLF status bits:
+  // 00 -> thin, no waiters
+  // 01 -> thin, waiters
+  // 10 -> fat
+  
+  int TLF_NUM_BITS_STAT = 2;
+  int TLF_NUM_BITS_TID = RVMThread.LOG_MAX_THREADS;
+  int TLF_NUM_BITS_RC = JavaHeader.NUM_THIN_LOCK_BITS - TLF_NUM_BITS_TID - TLF_NUM_BITS_STAT;
+
+  int TLF_LOCK_COUNT_SHIFT = JavaHeader.THIN_LOCK_SHIFT;
+  int TLF_THREAD_ID_SHIFT = TLF_LOCK_COUNT_SHIFT + TLF_NUM_BITS_RC;
+  int TLF_STAT_SHIFT = TLF_THREAD_ID_SHIFT + TLF_NUM_BITS_TID;
+  int TLF_LOCK_ID_SHIFT = JavaHeader.THIN_LOCK_SHIFT;
+  
+  int TLF_LOCK_COUNT_UNIT = 1 << TLF_LOCK_COUNT_SHIFT;
+
+  Word TLF_LOCK_COUNT_MASK = Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - TLF_NUM_BITS_RC).lsh(TLF_LOCK_COUNT_SHIFT);
+  Word TLF_THREAD_ID_MASK = Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - TLF_NUM_BITS_TID).lsh(TLF_THREAD_ID_SHIFT);
+  Word TLF_LOCK_ID_MASK =
+      Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - (TLF_NUM_BITS_RC + TLF_NUM_BITS_TID)).lsh(TLF_LOCK_ID_SHIFT);
+  Word TLF_STAT_MASK = Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - TLF_NUM_BITS_TID).lsh(TLF_STAT_SHIFT);
+  Word TLF_UNLOCK_MASK = Word.fromIntSignExtend(-1).rshl(BITS_IN_ADDRESS - JavaHeader
+      .NUM_THIN_LOCK_BITS).lsh(JavaHeader.THIN_LOCK_SHIFT).not();
+  
+  Word TLF_STAT_THIN = Word.fromIntSignExtend(0).lsh(TLF_STAT_SHIFT);
+  Word TLF_STAT_THIN_WAIT = Word.fromIntSignExtend(1).lsh(TLF_STAT_SHIFT);
+  Word TLF_STAT_FAT = Word.fromIntSignExtend(2).lsh(TLF_STAT_SHIFT);
 }
 

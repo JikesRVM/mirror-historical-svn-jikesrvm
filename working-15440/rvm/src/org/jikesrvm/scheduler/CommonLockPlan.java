@@ -540,6 +540,8 @@ public abstract class CommonLockPlan extends AbstractLockPlan {
     VM.sysWriteln();
 
     dumpLockStats();
+    
+    LockConfig.selectedThinPlan.dumpStats();
   }
 
   /**

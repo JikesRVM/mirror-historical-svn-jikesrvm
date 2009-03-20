@@ -35,16 +35,32 @@ import org.vmmagic.unboxed.Word;
  * performing really well.  This was the production thin locking implementation
  * in RVM before the lock refactoring.
  */
-public class BasicThinLockPlan extends CommonThinLockPlan {
-  public static BasicThinLockPlan instance;
+public class FutexThinLockPlan extends AbstractThinLockPlan {
+  public static FutexThinLockPlan instance;
   
-  private static boolean INFLATE_STATS=false;
-  
-  static int movableInfl=0;
-  static int pinnedInfl=0;
-
-  public BasicThinLockPlan() {
+  public FutexThinLockPlan() {
     instance=this;
+  }
+  
+  public void boot() {
+    if (false) {
+      VM.sysWriteln("TLF_NUM_BITS_STAT    = ",TLF_NUM_BITS_STAT);
+      VM.sysWriteln("TLF_NUM_BITS_TID     = ",TLF_NUM_BITS_TID);
+      VM.sysWriteln("TLF_NUM_BITS_RC      = ",TLF_NUM_BITS_RC);
+      VM.sysWriteln("TLF_LOCK_COUNT_SHIFT = ",TLF_LOCK_COUNT_SHIFT);
+      VM.sysWriteln("TLF_THREAD_ID_SHIFT  = ",TLF_THREAD_ID_SHIFT);
+      VM.sysWriteln("TLF_STAT_SHIFT       = ",TLF_STAT_SHIFT);
+      VM.sysWriteln("TLF_LOCK_ID_SHIFT    = ",TLF_LOCK_ID_SHIFT);
+      VM.sysWriteln("TLF_LOCK_COUNT_UNIT  = ",TLF_LOCK_COUNT_UNIT);
+      VM.sysWriteln("TLF_LOCK_COUNT_MASK  = ",TLF_LOCK_COUNT_MASK);
+      VM.sysWriteln("TLF_THREAD_ID_MASK   = ",TLF_THREAD_ID_MASK);
+      VM.sysWriteln("TLF_LOCK_ID_MASK     = ",TLF_LOCK_ID_MASK);
+      VM.sysWriteln("TLF_STAT_MASK        = ",TLF_STAT_MASK);
+      VM.sysWriteln("TLF_UNLOCK_MASK      = ",TLF_UNLOCK_MASK);
+      VM.sysWriteln("TLF_STAT_THIN        = ",TLF_STAT_THIN);
+      VM.sysWriteln("TLF_STAT_THIN_WAIT   = ",TLF_STAT_THIN_WAIT);
+      VM.sysWriteln("TLF_STAT_FAT         = ",TLF_STAT_FAT);
+    }
   }
   
   /**
@@ -63,17 +79,13 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
     if (false) VM.tsysWriteln("in inlineLock with o = ",Magic.objectAsAddress(o)," and offset = ",lockOffset);
     Word old = Magic.prepareWord(o, lockOffset);
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
-    if (old.rshl(TL_THREAD_ID_SHIFT).isZero()) {
+    if (old.and(TLF_THREAD_ID_MASK.or(TLF_STAT_FAT)).isZero()) {
       // implies that fatbit == 0 & threadid == 0
       if (Magic.attemptWord(o, lockOffset, old, old.or(threadId))) {
         Magic.isync(); // don't use stale prefetched data in monitor
         if (CommonLockPlan.HEAVY_STATS) CommonLockPlan.fastLocks++;
         if (false) VM.tsysWriteln("Done with inlineLock (fast1).");
         return;           // common case: o is now locked
-      }
-    } else if (LockConfig.INLINE_INFLATED && !old.and(TL_FAT_LOCK_MASK).isZero()) {
-      if (LockConfig.selectedPlan.inlineLockInflated(old, o, threadId)) {
-        return;
       }
     }
     if (false) VM.tsysWriteln("going into slow path...");
@@ -97,14 +109,10 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
     if (false) VM.tsysWriteln("in inlineUnlock with o = ",Magic.objectAsAddress(o)," and offset = ",lockOffset);
     Word old = Magic.prepareWord(o, lockOffset);
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
-    if (old.xor(threadId).rshl(TL_LOCK_COUNT_SHIFT).isZero()) { // implies that fatbit == 0 && count == 0 && lockid == me
+    if (old.xor(threadId).rshl(TLF_LOCK_COUNT_SHIFT).isZero()) { // implies that fatbit == 0 && waitbit == 0 && count == 0 && lockid == me
       Magic.sync(); // memory barrier: subsequent locker will see previous writes
-      if (Magic.attemptWord(o, lockOffset, old, old.and(TL_UNLOCK_MASK))) {
+      if (Magic.attemptWord(o, lockOffset, old, old.and(TLF_UNLOCK_MASK))) {
         return; // common case: o is now unlocked
-      }
-    } else if (LockConfig.INLINE_INFLATED && !old.and(TL_FAT_LOCK_MASK).isZero()) {
-      if (LockConfig.selectedPlan.inlineUnlockInflated(old)) {
-        return;
       }
     }
     unlock(o, lockOffset);  // uncommon case: default to non inlined unlock()
@@ -113,6 +121,8 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
   @NoInline
   @NoNullCheck
   public void lock(Object o, Offset lockOffset) {
+    if (false) VM.tsysWriteln("in lock with o = ",Magic.objectAsAddress(o)," and offset = ",lockOffset);
+
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
 
     for (int cnt=0;;cnt++) {
@@ -126,80 +136,94 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
       boolean attemptToInflate=false;
       
       Word old = Magic.prepareWord(o, lockOffset);
-      Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
+      Word id = old.and(TLF_THREAD_ID_MASK.or(TLF_STAT_FAT));
       if (id.isZero()) {
         // lock not held, acquire quickly with rec count == 1
         if (Magic.attemptWord(o, lockOffset, old, old.or(threadId))) {
           Magic.isync();
-          return;
+          break;
         }
       } else if (id.EQ(threadId)) {
         // lock held, attempt to increment rec count
-        Word changed = old.toAddress().plus(TL_LOCK_COUNT_UNIT).toWord();
-        if (changed.and(TL_LOCK_COUNT_MASK).isZero()) {
+        Word changed = old.toAddress().plus(TLF_LOCK_COUNT_UNIT).toWord();
+        if (changed.and(TLF_LOCK_COUNT_MASK).isZero()) {
           attemptToInflate=true;
         } else if (Magic.attemptWord(o, lockOffset, old, changed)) {
           Magic.isync();
-          return;
+          break;
         }
-      } else if (!old.and(TL_FAT_LOCK_MASK).isZero()) {
+      } else if (!old.and(TLF_STAT_FAT).isZero()) {
         // we have a heavy lock.
         LockConfig.Selected l=(LockConfig.Selected)
           LockConfig.selectedPlan.getLock(getLockIndex(old));
         if (l!=null && l.lockHeavy(o)) {
-          return;
+          break;
         } // else we grabbed someone else's lock
       } else if (cnt>VM.thinRetryLimit) {
-        attemptToInflate=true;
+        // grab it using futex
+        if (Magic.attemptWord(o, lockOffset, old, old.or(TLF_STAT_THIN_WAIT))) {
+          if (false) VM.tsysWriteln("using futex");
+          int res=FutexUtils.waitNicely(o, lockOffset, old.or(TLF_STAT_THIN_WAIT));
+          // should this guy wake on the old address?
+          FutexUtils.wake(o, lockOffset, 1);
+          if (res==0) continue; // don't spin if we were awakened.
+        }
       }
       
       if (attemptToInflate) {
-        if (INFLATE_STATS) {
-          if (MemoryManager.willNeverMove(o)) {
-            pinnedInfl++;
-          } else {
-            movableInfl++;
-          }
-        }
         // the lock is not fat, is owned by someone else, or else the count wrapped.
         // attempt to inflate it (this may fail, in which case we'll just harmlessly
         // loop around) and lock it (may also fail, if we get the wrong lock).  if it
         // succeeds, we're done.
+        if (false) VM.tsysWriteln("doing inflation");
         if (LockConfig.selectedPlan.inflateAndLock(o, lockOffset)) {
-          return;
+          break;
         }
       } else {
-        Spinning.interruptibly(cnt,old.and(TL_THREAD_ID_MASK).toInt());
+        Spinning.interruptibly(cnt,old.and(TLF_THREAD_ID_MASK).toInt());
       }
     }
+    
+    if (false) VM.tsysWriteln("locked with bits = ",Magic.getWordAtOffset(o, lockOffset));
   }
   
   @NoInline
   @NoNullCheck
   public void unlock(Object o, Offset lockOffset) {
+    if (false) VM.tsysWriteln("in unlock with o = ",Magic.objectAsAddress(o)," and offset = ",lockOffset);
+
     Magic.sync();
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
     for (int cnt=0;;cnt++) {
       Word old = Magic.prepareWord(o, lockOffset);
-      Word id = old.and(TL_THREAD_ID_MASK.or(TL_FAT_LOCK_MASK));
+      Word id = old.and(TLF_THREAD_ID_MASK.or(TLF_STAT_FAT));
       if (id.EQ(threadId)) {
-        if (old.and(TL_LOCK_COUNT_MASK).isZero()) {
+        if (old.and(TLF_LOCK_COUNT_MASK.or(TLF_STAT_THIN_WAIT)).isZero()) {
           // release lock
-          Word changed = old.and(TL_UNLOCK_MASK);
+          Word changed = old.and(TLF_UNLOCK_MASK);
           if (Magic.attemptWord(o, lockOffset, old, changed)) {
+            return;
+          }
+        } else if (old.and(TLF_LOCK_COUNT_MASK).isZero()) {
+          // release the lock and wake somebody up
+          Word changed = old.and(TLF_UNLOCK_MASK);
+          if (Magic.attemptWord(o, lockOffset, old, changed)) {
+            FutexUtils.wake(o, lockOffset, 1);
             return;
           }
         } else {
           // decrement count
-          Word changed = old.toAddress().minus(TL_LOCK_COUNT_UNIT).toWord();
+          Word changed = old.toAddress().minus(TLF_LOCK_COUNT_UNIT).toWord();
           if (Magic.attemptWord(o, lockOffset, old, changed)) {
             return; // unlock succeeds
           }
         }
       } else {
-        if (old.and(TL_FAT_LOCK_MASK).isZero()) {
+        if (old.and(TLF_STAT_FAT).isZero()) {
           // someone else holds the lock in thin mode and it's not us.  that indicates
           // bad use of monitorenter/monitorexit
+          VM.tsysWriteln("illegal monitor state: ",old);
+          VM.sysWriteln("for object ",Magic.objectAsAddress(o));
           RVMThread.raiseIllegalMonitorStateException("thin unlocking", o);
         }
         // fat unlock
@@ -227,9 +251,9 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
     for (int cnt=0;;++cnt) {
       int tid = thread.getLockingId();
       Word bits = Magic.getWordAtOffset(obj, lockOffset);
-      if (bits.and(TL_FAT_LOCK_MASK).isZero()) {
+      if (bits.and(TLF_STAT_FAT).isZero()) {
         // if locked, then it is locked with a thin lock
-        return (bits.and(ThinLockConstants.TL_THREAD_ID_MASK).toInt() == tid);
+        return (bits.and(ThinLockConstants.TLF_THREAD_ID_MASK).toInt() == tid);
       } else {
         // if locked, then it is locked with a fat lock
         int index = getLockIndex(bits);
@@ -245,14 +269,45 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
   
   @Inline
   @Unpreemptible
+  public final boolean isFat(Word lockWord) {
+    return !lockWord.and(TLF_STAT_FAT).isZero();
+  }
+  
+  /**
+   * Return the lock index for a given lock word.  Assert valid index
+   * ranges, that the fat lock bit is set, and that the lock entry
+   * exists.
+   *
+   * @param lockWord The lock word whose lock index is being established
+   * @return the lock index corresponding to the lock workd.
+   */
+  @Inline
+  @Uninterruptible
+  public final int getLockIndex(Word lockWord) {
+    int index = lockWord.and(TLF_LOCK_ID_MASK).rshl(TLF_LOCK_ID_SHIFT).toInt();
+    if (VM.VerifyAssertions) {
+      if (!(index > 0 && index < LockConfig.selectedPlan.numLocks())) {
+        VM.sysWrite("Lock index out of range! Word: "); VM.sysWrite(lockWord);
+        VM.sysWrite(" index: "); VM.sysWrite(index);
+        VM.sysWrite(" locks: "); VM.sysWrite(LockConfig.selectedPlan.numLocks());
+        VM.sysWriteln();
+      }
+      VM._assert(index > 0 && index < LockConfig.selectedPlan.numLocks());  // index is in range
+      VM._assert(!lockWord.and(TLF_STAT_FAT).isZero());        // fat lock bit is set
+    }
+    return index;
+  }
+
+  @Inline
+  @Unpreemptible
   public final int getLockOwner(Word lockWord) {
-    return lockWord.and(ThinLockConstants.TL_THREAD_ID_MASK).toInt();
+    return lockWord.and(ThinLockConstants.TLF_THREAD_ID_MASK).toInt();
   }
   
   @Inline
   @Unpreemptible
   public final int getRecCount(Word lockWord) {
-    return lockWord.and(TL_LOCK_COUNT_MASK).rshl(TL_LOCK_COUNT_SHIFT).toInt() + 1;
+    return lockWord.and(TLF_LOCK_COUNT_MASK).rshl(TLF_LOCK_COUNT_SHIFT).toInt() + 1;
   }
   
   @Inline
@@ -262,9 +317,16 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
                                              int lockId,
                                              int cnt) {
     Word changed=
-      TL_FAT_LOCK_MASK.or(Word.fromIntZeroExtend(lockId).lsh(TL_LOCK_ID_SHIFT))
-      .or(oldLockWord.and(TL_UNLOCK_MASK));
-    return Synchronization.tryCompareAndSwap(o, lockOffset, oldLockWord, changed);
+      TLF_STAT_FAT.or(Word.fromIntZeroExtend(lockId).lsh(TLF_LOCK_ID_SHIFT))
+      .or(oldLockWord.and(TLF_UNLOCK_MASK));
+    if (Synchronization.tryCompareAndSwap(o, lockOffset, oldLockWord, changed)) {
+      if (!oldLockWord.and(TLF_STAT_THIN_WAIT).isZero()) {
+        FutexUtils.wake(o, lockOffset, 1); // this wakes everybody up.
+      }
+      return true;
+    } else {
+      return false;
+    }
   }
   
   @Inline
@@ -274,14 +336,10 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
     // NB: we only need a CAS here because the lock word may be concurrently
     // modified by GC or hashing.
     return Synchronization.tryCompareAndSwap(
-      o, lockOffset, oldLockWord, oldLockWord.and(TL_UNLOCK_MASK));
+      o, lockOffset, oldLockWord, oldLockWord.and(TLF_UNLOCK_MASK));
   }
   
   public void dumpStats() {
-    if (INFLATE_STATS) {
-      VM.sysWriteln("movable inflations = ",movableInfl);
-      VM.sysWriteln("pinned inflations = ",pinnedInfl);
-    }
   }
 }
 

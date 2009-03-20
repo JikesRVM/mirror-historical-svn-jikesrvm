@@ -617,6 +617,8 @@ public class RVMThread extends ThreadContext {
   
   int likelyProcessor;
   
+  Address waitingOnFutex;
+  
   /*
    * Wait/notify fields
    */
@@ -3228,6 +3230,18 @@ public class RVMThread extends ThreadContext {
   public static final AllButGCHardHandshakeVisitor allButGC=
     new AllButGCHardHandshakeVisitor();
   
+  @Uninterruptible
+  @NonMoving
+  static class AllButGCWakeFutexHardHandshakeVisitor extends HardHandshakeVisitor {
+    public boolean includeThread(RVMThread t) {
+      t.wakeFutex();
+      return !t.isGCThread();
+    }
+  }
+  
+  public static final AllButGCWakeFutexHardHandshakeVisitor allButGCWakeFutex=
+    new AllButGCWakeFutexHardHandshakeVisitor();
+  
   static long totalSuspendTime;
   static long totalResumeTime;
   
@@ -3338,6 +3352,22 @@ public class RVMThread extends ThreadContext {
       totalResumeTime+=after-before;
       VM.sysWriteln("Resuming the world took ",(after-before)," ns (",totalResumeTime," ns total)");
     }
+  }
+  
+  @Uninterruptible
+  public void wakeFutex() {
+    if (waitingOnFutex.NE(Address.zero())) {
+      FutexUtils.wake(waitingOnFutex,1);
+    }
+  }
+  
+  @Uninterruptible
+  public static void wakeAllFutexes() {
+    acctLock.lock();
+    for (int i=0;i<numThreads;++i) {
+      threads[i].wakeFutex();
+    }
+    acctLock.unlock();
   }
   
   public static boolean worldStopped() {

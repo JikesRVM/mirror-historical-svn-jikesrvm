@@ -22,6 +22,8 @@ public final class LockConfigs {
   public static final int JUCHybrid = 7;
   public static final int BargingCascadeFutex = 8;
   public static final int BargingCascadeFutexHybrid = 9;
+  public static final int BargingCascadeFutexFutex = 10;
+  public static final int BargingCascadeFutexHybridFutex = 11;
 }
 
 

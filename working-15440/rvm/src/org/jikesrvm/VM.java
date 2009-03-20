@@ -2338,6 +2338,16 @@ public class VM extends Properties implements Constants, ExitStatus {
   }
 
   @NoInline
+  public static void tsysWriteln(String s, Word w) {
+    swLock();
+    showThread();
+    write(s);
+    write(w);
+    writeln();
+    swUnlock();
+  }
+
+  @NoInline
   public static void tsysWriteln(String s, Address a) {
     swLock();
     showThread();

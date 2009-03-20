@@ -58,6 +58,7 @@ public abstract class SloppyDeflateLockPlanBase extends CommonLockPlan {
   }
   
   public SloppyDeflateLockBase inflate(Object o, Offset lockOffset) {
+    if (false) RVMThread.dumpStack();
     for (int cnt=0;;cnt++) {
       Word bits = Magic.getWordAtOffset(o, lockOffset);
       
