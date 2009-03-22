@@ -349,17 +349,9 @@ public final class ThinLock implements ThinLockConstants {
       return (bits.and(ThinLockConstants.TL_THREAD_ID_MASK).toInt() == tid);
     } else {
       // if locked, then it is locked with a fat lock
-      // but, if it's locked by someone else, the fat lock may get deflated,
-      // and then reinflated on this thread's behalf.  so we need to be careful.
       int index = getLockIndex(bits);
       Lock l = Lock.getLock(index);
-      boolean result=false;
-      if (l!=null) {
-        l.mutex.lock();
-        result = (l.getOwnerId()==tid && l.getLockedObject()==obj);
-        l.mutex.unlock();
-      }
-      return result;
+      return l != null && l.getOwnerId() == tid;
     }
   }
 
