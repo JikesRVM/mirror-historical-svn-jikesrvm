@@ -21,6 +21,7 @@ import org.jikesrvm.mm.mmtk.ScanThread;
 import org.jikesrvm.mm.mmtk.Scanning;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.Time;
+import static org.jikesrvm.runtime.SysCall.sysCall;
 import org.jikesrvm.scheduler.Synchronization;
 import org.jikesrvm.scheduler.RVMThread;
 import org.mmtk.plan.Plan;
