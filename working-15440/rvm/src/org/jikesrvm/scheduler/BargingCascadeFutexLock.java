@@ -53,18 +53,24 @@ public class BargingCascadeFutexLock extends SloppyDeflateLockBase {
   @NoNullCheck
   @Inline
   protected final boolean acquireImpl() {
+    int lockedBits=LOCKED;
     for (int cnt=0;;++cnt) {
       int old = futex.load();
       if ((old&(DESTROYED|LOCKED))==0 &&
-          futex.cas(old,old|LOCKED)) {
+          futex.cas(old,old|lockedBits)) {
         return true;
       } else if ((old&DESTROYED)!=0) {
         return false;
       } else if ((old&DESTROYED|LOCKED)==LOCKED &&
-                 cnt>2 &&
-                 futex.cas(old, old|QUEUED)) {
+                 cnt>VM.thinRetryLimit &&
+                 ((old&QUEUED)!=0 ||
+                  futex.cas(old, old|QUEUED))) {
         int res=futex.waitNicely(old|QUEUED);
-        futex.wake(1);
+        if (LockConfig.LATE_WAKE_FUTEX) {
+          lockedBits|=QUEUED;
+        } else {
+          futex.wake(1);
+        }
         if (res==0) continue;
       }
       Spinning.interruptibly(cnt,0);

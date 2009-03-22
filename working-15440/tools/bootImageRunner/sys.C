@@ -105,7 +105,8 @@ extern "C" int     incinterval(timer_t id, itimerstruc_t *newvalue, itimerstruc_
 #endif
 
 /* FIXME guard this appropriately */
-#include <linux/futex.h>
+#define FUTEX_WAIT 0
+#define FUTEX_WAKE 1
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -1024,8 +1025,8 @@ sysLikelyProcessor(void) {
 
 /* FIXME guard this appropriately */
 static int __futex(int *addr,int op,int val,
-                 const struct timespec *timeout,
-                 int *addr2,int val2) {
+                   const struct timespec *timeout,
+                   int *addr2,int val2) {
   return syscall(SYS_futex,addr,op,val,timeout,addr2,val2);
 }
 

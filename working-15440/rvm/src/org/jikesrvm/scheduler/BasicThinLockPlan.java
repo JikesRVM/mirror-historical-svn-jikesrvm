@@ -210,7 +210,7 @@ public class BasicThinLockPlan extends CommonThinLockPlan {
           return;
         } // else the lock was inflated but hasn't been added yet.  this is ultra-rare.
       }
-      Spinning.interruptibly(cnt,0);
+      if (LockConfig.SPIN_UNLOCK) Spinning.interruptibly(cnt,0);
     }
   }
   

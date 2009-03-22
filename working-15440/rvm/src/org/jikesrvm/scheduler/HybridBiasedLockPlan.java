@@ -265,7 +265,7 @@ public class HybridBiasedLockPlan extends AbstractThinLockPlan {
           return;
         }
       }
-      Spinning.interruptibly(cnt,0);
+      if (LockConfig.SPIN_UNLOCK) Spinning.interruptibly(cnt,0);
     }
   }
   

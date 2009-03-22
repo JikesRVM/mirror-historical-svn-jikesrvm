@@ -140,6 +140,8 @@ public class HybridFutexBiasedLockPlan extends AbstractThinLockPlan {
         
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
 
+    Word thinLockFlags = Word.zero();
+
     for (int cnt=0;;cnt++) {
       Word old = Magic.getWordAtOffset(o, lockOffset);
       Word stat = old.and(BL_STAT_MASK);
@@ -174,7 +176,7 @@ public class HybridFutexBiasedLockPlan extends AbstractThinLockPlan {
         Word id = old.and(BL_THREAD_ID_MASK);
         if (id.isZero()) {
           if (Synchronization.tryCompareAndSwap(
-                o, lockOffset, old, old.or(threadId))) {
+                o, lockOffset, old, old.or(threadId).or(thinLockFlags))) {
             Magic.isync();
             return;
           }
@@ -189,11 +191,16 @@ public class HybridFutexBiasedLockPlan extends AbstractThinLockPlan {
           }
         } else if (cnt>VM.thinRetryLimit) {
           // grab it using futex
-          if (Magic.attemptWord(o, lockOffset, old, old.or(BL_STAT_THIN_WAIT))) {
+          if (!old.and(BL_STAT_THIN_WAIT).isZero() ||
+              Magic.attemptWord(o, lockOffset, old, old.or(BL_STAT_THIN_WAIT))) {
             if (false) VM.tsysWriteln("using futex");
             int res=FutexUtils.waitNicely(o, lockOffset, old.or(BL_STAT_THIN_WAIT));
-            // should this guy wake on the old address?
-            FutexUtils.wake(o, lockOffset, 1);
+            if (LockConfig.LATE_WAKE_FUTEX) {
+              thinLockFlags=BL_STAT_THIN_WAIT;
+            } else {
+              // should this guy wake on the old address?
+              FutexUtils.wake(o, lockOffset, 1);
+            }
             if (res==0) continue; // don't spin if we were awakened.
           }
         }
@@ -281,7 +288,7 @@ public class HybridFutexBiasedLockPlan extends AbstractThinLockPlan {
           return;
         }
       }
-      Spinning.interruptibly(cnt,0);
+      if (LockConfig.SPIN_UNLOCK) Spinning.interruptibly(cnt,0);
     }
   }
   
@@ -469,8 +476,14 @@ public class HybridFutexBiasedLockPlan extends AbstractThinLockPlan {
         oldLockWord.and(BL_STAT_MASK).EQ(BL_STAT_THIN_WAIT)) {
       if (false) VM.sysWriteln("it's thin, inflating the easy way.");
       if (HEAVY_STATS) numThinInflates++;
-      return Synchronization.tryCompareAndSwap(
-        o, lockOffset, oldLockWord, changed);
+      if (Synchronization.tryCompareAndSwap(
+            o, lockOffset, oldLockWord, changed)) {
+        if (!oldLockWord.and(TLF_STAT_THIN_WAIT).isZero()) {
+          FutexUtils.wake(o, lockOffset, RVMThread.numThreads);
+        }
+      } else {
+        return false;
+      }
     } else {
       return casFromBiased(o, lockOffset, oldLockWord, changed, cnt);
     }

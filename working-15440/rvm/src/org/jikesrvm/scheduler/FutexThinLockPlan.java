@@ -125,6 +125,8 @@ public class FutexThinLockPlan extends AbstractThinLockPlan {
 
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
 
+    Word thinLockFlags = Word.zero();
+    
     for (int cnt=0;;cnt++) {
       // the idea:
       // - if the lock is uninflated and unclaimed attempt to grab it the thin way
@@ -139,7 +141,7 @@ public class FutexThinLockPlan extends AbstractThinLockPlan {
       Word id = old.and(TLF_THREAD_ID_MASK.or(TLF_STAT_FAT));
       if (id.isZero()) {
         // lock not held, acquire quickly with rec count == 1
-        if (Magic.attemptWord(o, lockOffset, old, old.or(threadId))) {
+        if (Magic.attemptWord(o, lockOffset, old, old.or(threadId).or(thinLockFlags))) {
           Magic.isync();
           break;
         }
@@ -161,11 +163,16 @@ public class FutexThinLockPlan extends AbstractThinLockPlan {
         } // else we grabbed someone else's lock
       } else if (cnt>VM.thinRetryLimit) {
         // grab it using futex
-        if (Magic.attemptWord(o, lockOffset, old, old.or(TLF_STAT_THIN_WAIT))) {
+        if (!old.and(TLF_STAT_THIN_WAIT).isZero() ||
+            Magic.attemptWord(o, lockOffset, old, old.or(TLF_STAT_THIN_WAIT))) {
           if (false) VM.tsysWriteln("using futex");
           int res=FutexUtils.waitNicely(o, lockOffset, old.or(TLF_STAT_THIN_WAIT));
-          // should this guy wake on the old address?
-          FutexUtils.wake(o, lockOffset, 1);
+          if (LockConfig.LATE_WAKE_FUTEX) {
+            thinLockFlags=TLF_STAT_THIN_WAIT;
+          } else {
+            // should this guy wake on the old address?
+            FutexUtils.wake(o, lockOffset, 1);
+          }
           if (res==0) continue; // don't spin if we were awakened.
         }
       }
@@ -234,7 +241,7 @@ public class FutexThinLockPlan extends AbstractThinLockPlan {
           return;
         } // else the lock was inflated but hasn't been added yet.  this is ultra-rare.
       }
-      Spinning.interruptibly(cnt,0);
+      if (LockConfig.SPIN_UNLOCK) Spinning.interruptibly(cnt,0);
     }
   }
   
@@ -321,7 +328,7 @@ public class FutexThinLockPlan extends AbstractThinLockPlan {
       .or(oldLockWord.and(TLF_UNLOCK_MASK));
     if (Synchronization.tryCompareAndSwap(o, lockOffset, oldLockWord, changed)) {
       if (!oldLockWord.and(TLF_STAT_THIN_WAIT).isZero()) {
-        FutexUtils.wake(o, lockOffset, 1); // this wakes everybody up.
+        FutexUtils.wake(o, lockOffset, RVMThread.numThreads); // this wakes everybody up.  nasty!
       }
       return true;
     } else {
