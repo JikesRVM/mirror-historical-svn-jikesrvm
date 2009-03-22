@@ -478,7 +478,7 @@ public class HybridFutexBiasedLockPlan extends AbstractThinLockPlan {
       if (HEAVY_STATS) numThinInflates++;
       if (Synchronization.tryCompareAndSwap(
             o, lockOffset, oldLockWord, changed)) {
-        if (!oldLockWord.and(TLF_STAT_THIN_WAIT).isZero()) {
+        if (!oldLockWord.and(BL_STAT_THIN_WAIT).isZero()) {
           FutexUtils.wake(o, lockOffset, RVMThread.numThreads);
         }
       } else {
