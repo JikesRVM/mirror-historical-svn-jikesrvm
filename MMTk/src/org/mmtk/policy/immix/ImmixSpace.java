@@ -132,6 +132,9 @@ public final class ImmixSpace extends Space implements Constants {
     allocBlockSentinel = allocBlockCursor;
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(ImmixSpace.isRecycleAllocChunkAligned(allocBlockSentinel));
     exhaustedReusableSpace = false;
+    if (VM.VERIFY_ASSERTIONS && Options.verbose.getValue() >= 9) {
+      Log.write("gr[allocBlockCursor: "); Log.write(allocBlockCursor); Log.write(" allocBlockSentinel: "); Log.write(allocBlockSentinel); Log.writeln("]");
+    }
 
     /* really just want this to happen once after options are booted, but no harm in re-doing it */
     reusableMarkStateThreshold = (short) (Options.lineReuseRatio.getValue() * MAX_BLOCK_MARK_STATE);
@@ -231,7 +234,11 @@ public final class ImmixSpace extends Space implements Constants {
     if (!rtn.isZero()) {
       Block.setBlockAsInUse(rtn);
       Chunk.updateHighWater(rtn);
+      if (VM.VERIFY_ASSERTIONS && Options.verbose.getValue() >= 9) {
+        Log.write("gs["); Log.write(rtn); Log.write(" -> "); Log.write(rtn.plus(BYTES_IN_BLOCK-1)); Log.write(" copy: "); Log.write(copy); Log.writeln("]");
+      }
     }
+
     return rtn;
   }
 
@@ -271,9 +278,16 @@ public final class ImmixSpace extends Space implements Constants {
       allocBlockCursor = allocBlockCursor.plus(BYTES_IN_RECYCLE_ALLOC_CHUNK);
       if (allocBlockCursor.GT(Chunk.getHighWater(lastAllocChunk)))
         allocBlockCursor = chunkMap.nextChunk(lastAllocChunk);
+      if (VM.VERIFY_ASSERTIONS && Options.verbose.getValue() >= 9) {
+        Log.write("arb[ rtn: "); Log.write(rtn); Log.write(" allocBlockCursor: "); Log.write(allocBlockCursor); Log.write(" allocBlockSentinel: "); Log.write(allocBlockSentinel); Log.writeln("]");
+      }
 
-      if (allocBlockCursor.isZero() || allocBlockCursor.EQ(allocBlockSentinel))
+      if (allocBlockCursor.isZero() || allocBlockCursor.EQ(allocBlockSentinel)) {
         exhaustedReusableSpace = true;
+        if (VM.VERIFY_ASSERTIONS && Options.verbose.getValue() >= 9) {
+          Log.writeln("[Reusable space exhausted]");
+        }
+      }
     }
     unlock();
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(ImmixSpace.isRecycleAllocChunkAligned(rtn));
@@ -336,8 +350,7 @@ public final class ImmixSpace extends Space implements Constants {
   @Inline
   public void postCopy(ObjectReference object, int bytes, boolean majorGC) {
     ObjectHeader.writeMarkState(object, markState, bytes > BYTES_IN_LINE);
-    if (!MARK_LINE_AT_SCAN_TIME && majorGC)
-      markLines(object);
+    if (!MARK_LINE_AT_SCAN_TIME && majorGC) markLines(object);
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!ObjectHeader.isForwardedOrBeingForwarded(object));
     if (VM.VERIFY_ASSERTIONS && Plan.NEEDS_LOG_BIT_IN_HEADER) VM.assertions._assert(ObjectHeader.isUnloggedObject(object));
   }
@@ -491,6 +504,13 @@ public final class ImmixSpace extends Space implements Constants {
           /* forward */
           newObject = ObjectHeader.forwardObject(object, allocator);
           if (VM.VERIFY_ASSERTIONS && Plan.NEEDS_LOG_BIT_IN_HEADER) VM.assertions._assert(ObjectHeader.isUnloggedObject(newObject));
+        }
+        if (VM.VERIFY_ASSERTIONS && Options.verbose.getValue() >= 9) {
+          Log.write("C["); Log.write(object); Log.write("/");
+          Log.write(getName()); Log.write("] -> ");
+          Log.write(newObject); Log.write("/");
+          Log.write(Space.getSpaceForObject(newObject).getName());
+          Log.writeln("]");
         }
         if (!MARK_LINE_AT_SCAN_TIME)
           ImmixSpace.markLines(newObject);

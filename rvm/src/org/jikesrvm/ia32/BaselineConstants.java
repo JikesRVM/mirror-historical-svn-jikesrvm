@@ -27,7 +27,7 @@ public interface BaselineConstants extends Constants, ArchConstants {
   // Dedicated registers.
   //
   RegisterConstants.GPR SP = ESP;
-  RegisterConstants.GPR PR = PROCESSOR_REGISTER;
+  RegisterConstants.GPR TR = THREAD_REGISTER;
 
   // Volatile (parameter) registers.
   //
@@ -47,16 +47,17 @@ public interface BaselineConstants extends Constants, ArchConstants {
   // frames, and most register as saved in the
   // dynamic bridge frames.
   int STACKFRAME_FIRST_PARAMETER_OFFSET = STACKFRAME_REG_SAVE_OFFSET - (2 * WORDSIZE);
-  // bridge frames save 3 additional GPRs
-  int BRIDGE_FRAME_EXTRA_SIZE = (SSE2_FULL ? XMM_STATE_SIZE : FPU_STATE_SIZE) + 8;
+  // bridge frames save 2 additional GPRs
+  int BRIDGE_FRAME_EXTRA_SIZE = (SSE2_FULL ? XMM_STATE_SIZE : FPU_STATE_SIZE) + (2 * WORDSIZE);
 
   int SAVED_GPRS = 2; // EDI and EBX are nonvolatile registers used by baseline compiler
+  int SAVED_GPRS_FOR_SAVE_LS_REGISTERS = 3; // save all non-volatiles
   Offset EDI_SAVE_OFFSET = Offset.fromIntSignExtend(STACKFRAME_REG_SAVE_OFFSET);
   Offset EBX_SAVE_OFFSET = Offset.fromIntSignExtend(STACKFRAME_REG_SAVE_OFFSET).minus(WORDSIZE);
+  Offset EBP_SAVE_OFFSET = Offset.fromIntSignExtend(STACKFRAME_REG_SAVE_OFFSET).minus(WORDSIZE*2);
   Offset T0_SAVE_OFFSET = Offset.fromIntSignExtend(STACKFRAME_FIRST_PARAMETER_OFFSET);
   Offset T1_SAVE_OFFSET = Offset.fromIntSignExtend(STACKFRAME_FIRST_PARAMETER_OFFSET).minus(WORDSIZE);
   Offset FPU_SAVE_OFFSET = T1_SAVE_OFFSET.minus(FPU_STATE_SIZE);
   Offset XMM_SAVE_OFFSET = T1_SAVE_OFFSET.minus(XMM_STATE_SIZE);
-
 }
 

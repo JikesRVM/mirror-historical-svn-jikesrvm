@@ -152,20 +152,9 @@ import org.vmmagic.pragma.*;
   public abstract int activeGCThreadOrdinal();
 
   /**
-   * Ensure all concurrent worker threads are scheduled.
-   */
-  public abstract void scheduleConcurrentWorkers();
-
-  /**
    * Request each mutator flush remembered sets. This method
    * will trigger the flush and then yield until all processors have
    * flushed.
    */
   public abstract void requestMutatorFlush();
-
-  /**
-   * Possibly yield the current concurrent collector thread. Return
-   * true if yielded.
-   */
-  public abstract boolean yieldpoint();
 }

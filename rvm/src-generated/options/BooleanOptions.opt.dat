@@ -117,7 +117,7 @@ Compile the method assuming the invokee is thread-local. Cannot be properly set 
 ##########
 # SSA optimizations
 ##########
-SSA 2 false
+SSA 3 false
 Should SSA form be constructed on the HIR?
 
 SSA_EXPRESSION_FOLDING 3 false

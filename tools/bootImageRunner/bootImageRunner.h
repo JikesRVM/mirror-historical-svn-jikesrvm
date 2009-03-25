@@ -24,6 +24,8 @@
 #include <mach/mach_time.h>
 #endif
 
+#include <setjmp.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -66,6 +68,9 @@ extern char *Me;		// Defined in libvm.C
 extern uint64_t initialHeapSize;
 extern uint64_t maximumHeapSize;
 
+/* defined in libvm.c, used in sys.C */
+extern jmp_buf primordial_jb;
+
 /* Defined in RunBootImage.C */
 #ifdef __cplusplus
 unsigned int parse_memory_size(
@@ -76,8 +81,12 @@ unsigned int parse_memory_size(
 
 extern int verboseBoot;
 
+/* define in sys.c, used in libvm.c */
+extern void sysInitialize();
+
 /* Defined in libvm.C; used in RunBootImage.C */
 extern int createVM(int);
+
 /* Used in libvm.C; Defined in sys.C */
 extern int getArrayLength(void* ptr);
 
@@ -94,9 +103,17 @@ extern void bootThread(int jtoc,int pr, int ti_or_ip, int fp); // assembler rout
 extern int bootThread(void *ip, void *pr, void *sp); // assembler routine
 #endif
 
+#ifdef RVM_FOR_HARMONY
+#define TLS_KEY_TYPE hythread_tls_key_t
+#define GET_THREAD_LOCAL(key) hythread_tls_get(hythread_self(), key)
+#else
+#include <pthread.h>
+#define TLS_KEY_TYPE pthread_key_t
+#define GET_THREAD_LOCAL(key) pthread_getspecific(key) 
+#endif
+
 // These are defined in libvm.C.
 extern void *getJTOC(void);
-extern Offset getProcessorsOffset(void);
 
 /* These are defined in sys.C; used in syswrap.C */
 extern jint GetEnv(JavaVM *, void **, jint);
@@ -105,6 +122,8 @@ extern jint GetEnv(JavaVM *, void **, jint);
 extern void sysSyncCache(void *, size_t size);
 // Defined in sys.C.  Used in libvm.C.
 extern void processTimerTick(void);
+// Defined in sys.C.  Used in libvm.C.
+extern void* getThreadId();
 
 #ifdef __MACH__
 // Defined in sys.C; intiialized in RunBootImage.C

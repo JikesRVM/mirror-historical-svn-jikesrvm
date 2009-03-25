@@ -69,8 +69,8 @@ public class GenCopyMutator extends GenMutator {
    * Called before the MutatorContext is used, but after the context has been
    * fully registered and is visible to collection.
    */
-  public void initMutator() {
-    super.initMutator();
+  public void initMutator(int id) {
+    super.initMutator(id);
     mature.rebind(GenCopy.toSpace());
   }
 
@@ -111,24 +111,6 @@ public class GenCopyMutator extends GenMutator {
     // nothing to be done
     if (allocator == GenCopy.ALLOC_MATURE) return;
     super.postAlloc(object, typeRef, bytes, allocator);
-  }
-
-  /**
-   * Return the space into which an allocator is allocating.  This
-   * particular method will match against those spaces defined at this
-   * level of the class hierarchy.  Subclasses must deal with spaces
-   * they define and refer to superclasses appropriately.  This exists
-   * to support {@link org.mmtk.plan.MutatorContext#getOwnAllocator(Allocator)}.
-   *
-   * @see org.mmtk.plan.MutatorContext#getOwnAllocator(Allocator)
-   * @param a An allocator
-   * @return The space into which <code>a</code> is allocating, or
-   *         <code>null</code> if there is no space associated with
-   *         <code>a</code>.
-   */
-  public final Space getSpaceFromAllocator(Allocator a) {
-    if (a == mature) return GenCopy.toSpace();
-    return super.getSpaceFromAllocator(a);
   }
 
   /**

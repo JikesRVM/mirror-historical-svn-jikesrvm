@@ -160,14 +160,7 @@ public abstract class PhysicalRegisterSet extends GenericPhysicalRegisterSet
     }
 
     // 7. set properties on some special registers
-    reg[PROCESSOR_REGISTER].setSpansBasicBlock();
-    reg[PROCESSOR_REGISTER].setSSA();
-    if (VM.BuildFor32Addr) {
-      reg[PROCESSOR_REGISTER].clearInteger();
-    } else {
-      reg[PROCESSOR_REGISTER].clearLong();
-    }
-    reg[PROCESSOR_REGISTER].setAddress();
+    reg[THREAD_REGISTER].setSpansBasicBlock();
     reg[FRAME_POINTER].setSpansBasicBlock();
     reg[JTOC_POINTER].setSpansBasicBlock();
 
@@ -232,7 +225,7 @@ public abstract class PhysicalRegisterSet extends GenericPhysicalRegisterSet
    */
   public boolean isAllocatable(Register r) {
     switch (r.number) {
-      case PROCESSOR_REGISTER:
+      case THREAD_REGISTER:
       case FRAME_POINTER:
       case JTOC_POINTER:
         return false;
@@ -298,10 +291,10 @@ public abstract class PhysicalRegisterSet extends GenericPhysicalRegisterSet
   }
 
   /**
-   * @return the processor register
+   * @return the thread register
    */
-  public Register getPR() {
-    return reg[PROCESSOR_REGISTER];
+  public Register getTR() {
+    return reg[THREAD_REGISTER];
   }
 
   /**
@@ -531,7 +524,7 @@ public abstract class PhysicalRegisterSet extends GenericPhysicalRegisterSet
     }
     regName[JTOC_POINTER] = "JTOC";
     regName[FRAME_POINTER] = "FP";
-    regName[PROCESSOR_REGISTER] = "PR";
+    regName[THREAD_REGISTER] = "TR";
     regName[XER] = "XER";
     regName[LR] = "LR";
     regName[CTR] = "CTR";

@@ -122,7 +122,7 @@ public final class TypeReference {
   public static final TypeReference ITableArray = findOrCreate(org.jikesrvm.objectmodel.ITableArray.class);
   public static final TypeReference ITable = findOrCreate(org.jikesrvm.objectmodel.ITable.class);
   public static final TypeReference IMT = findOrCreate(org.jikesrvm.objectmodel.IMT.class);
-  public static final TypeReference ProcessorTable = findOrCreate(org.jikesrvm.scheduler.ProcessorTable.class);
+  public static final TypeReference Thread = findOrCreate(org.jikesrvm.scheduler.RVMThread.class);
   public static final TypeReference FunctionTable = findOrCreate(org.jikesrvm.jni.FunctionTable.class);
   public static final TypeReference LinkageTripletTable = findOrCreate(org.jikesrvm.jni.LinkageTripletTable.class);
 
@@ -132,6 +132,7 @@ public final class TypeReference {
   public static final TypeReference JavaLangCloneable = findOrCreate(java.lang.Cloneable.class);
   public static final TypeReference JavaIoSerializable = findOrCreate(java.io.Serializable.class);
   public static final TypeReference JavaLangRefReference = findOrCreate(java.lang.ref.Reference.class);
+  public static final TypeReference JavaLangSystem = findOrCreate(java.lang.System.class);
 
   public static final TypeReference JavaLangObjectArray = findOrCreate(java.lang.Object[].class);
 
@@ -149,7 +150,6 @@ public final class TypeReference {
   public static final TypeReference JavaLangIllegalMonitorStateException =
       findOrCreate(java.lang.IllegalMonitorStateException.class);
 
-  public static final TypeReference Processor = findOrCreate(org.jikesrvm.scheduler.Processor.class);
   public static final TypeReference Type = findOrCreate(org.jikesrvm.classloader.RVMType.class);
   public static final TypeReference Class = findOrCreate(org.jikesrvm.classloader.RVMClass.class);
 
@@ -161,10 +161,11 @@ public final class TypeReference {
       findOrCreate(org.vmmagic.pragma.LogicallyUninterruptible.class);
   public static final TypeReference Preemptible = findOrCreate(org.vmmagic.pragma.Preemptible.class);
   public static final TypeReference UninterruptibleNoWarn =
-    findOrCreate(org.vmmagic.pragma.UninterruptibleNoWarn.class);
+      findOrCreate(org.vmmagic.pragma.UninterruptibleNoWarn.class);
   public static final TypeReference UnpreemptibleNoWarn =
-    findOrCreate(org.vmmagic.pragma.UnpreemptibleNoWarn.class);
+      findOrCreate(org.vmmagic.pragma.UnpreemptibleNoWarn.class);
   public static final TypeReference Uninterruptible = findOrCreate(org.vmmagic.pragma.Uninterruptible.class);
+  public static final TypeReference NoCheckStore = findOrCreate(org.vmmagic.pragma.NoCheckStore.class);
   public static final TypeReference Unpreemptible = findOrCreate(org.vmmagic.pragma.Unpreemptible.class);
   public static final TypeReference SpecializedMethodInvoke = findOrCreate(org.vmmagic.pragma.SpecializedMethodInvoke.class);
   public static final TypeReference Untraced = findOrCreate(org.vmmagic.pragma.Untraced.class);
@@ -172,6 +173,7 @@ public final class TypeReference {
   public static final TypeReference NonMovingAllocation = findOrCreate(org.vmmagic.pragma.NonMovingAllocation.class);
   public static final TypeReference BaselineNoRegisters = findOrCreate(org.vmmagic.pragma.BaselineNoRegisters.class);
   public static final TypeReference BaselineSaveLSRegisters = findOrCreate(org.vmmagic.pragma.BaselineSaveLSRegisters.class);
+
 
   public static final TypeReference ReferenceMaps =
       findOrCreate(org.jikesrvm.compilers.baseline.ReferenceMaps.class);
@@ -536,7 +538,7 @@ public final class TypeReference {
   @Uninterruptible
   public boolean isRuntimeTable() {
     return this == IMT || this == TIB || this == ITable || this == ITableArray ||
-           this == ProcessorTable || this == FunctionTable || this == LinkageTripletTable;
+           this == FunctionTable || this == LinkageTripletTable;
   }
 
   /**
@@ -774,8 +776,7 @@ public final class TypeReference {
         } catch (ClassNotFoundException cnf) {
           NoClassDefFoundError ncdfe =
               new NoClassDefFoundError("Could not find the class " + myName + ":\n\t" + cnf.getMessage());
-          ncdfe.initCause(cnf); // in dubious taste, but helps us debug Jikes
-          // RVM
+          ncdfe.initCause(cnf); // in dubious taste, but helps us debug Jikes RVM
           throw ncdfe;
         }
 

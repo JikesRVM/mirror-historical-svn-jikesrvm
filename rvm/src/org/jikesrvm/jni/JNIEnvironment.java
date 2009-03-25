@@ -15,12 +15,11 @@ package org.jikesrvm.jni;
 import org.jikesrvm.VM;
 import org.jikesrvm.SizeConstants;
 import org.jikesrvm.mm.mminterface.MemoryManager;
-import org.jikesrvm.runtime.Entrypoints;
+import org.jikesrvm.classloader.RVMMethod;
+import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.RuntimeEntrypoints;
-import org.jikesrvm.runtime.SysCall;
-import org.jikesrvm.scheduler.Processor;
-import org.jikesrvm.scheduler.Synchronization;
+import org.jikesrvm.scheduler.RVMThread;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
@@ -65,15 +64,6 @@ public final class JNIEnvironment implements SizeConstants {
   public static LinkageTripletTable LinkageTriplets;
 
   /**
-   * Stash the JTOC somewhere we can find it later
-   * when we are making a C => Java transition.
-   * We mainly need this for OSX/Linux but it is also nice to have on AIX.
-   */
-  @SuppressWarnings({"unused", "UnusedDeclaration"})
-  // used by native code
-  private final Address savedJTOC = VM.BuildForPowerPC ? Magic.getTocPointer() : Address.zero();
-
-  /**
    * This is the pointer to the shared JNIFunction table.
    * When we invoke a native method, we adjust the pointer we
    * pass to the native code such that this field is at offset 0.
@@ -93,7 +83,15 @@ public final class JNIEnvironment implements SizeConstants {
    */
   @Entrypoint
   @Untraced
-  protected Processor savedPRreg;
+  protected RVMThread savedTRreg;
+
+  /**
+   * For saving JTOC register on entry to native,
+   * to be restored on JNI call from native (only used on PowerPC)
+   */
+  @Entrypoint
+  @Untraced
+  private final Address savedJTOC = VM.BuildForPowerPC ? Magic.getTocPointer() : Address.zero();
 
   /**
    * When native code doesn't maintain a base pointer we can't chain
@@ -205,6 +203,8 @@ public final class JNIEnvironment implements SizeConstants {
    */
   @Unpreemptible("Deallocate environment but may contend with environment being allocated")
   public static synchronized void deallocateEnvironment(JNIEnvironment env) {
+    env.savedTRreg = null; /* make sure that we don't have a reference back to
+                              the thread, once the thread has died. */
     env.next = pool;
     pool = env;
   }
@@ -331,13 +331,25 @@ public final class JNIEnvironment implements SizeConstants {
   @Entrypoint
   public void entryToJNI(int encodedReferenceOffsets) {
     // Save processor
-    savedPRreg = Magic.getProcessorRegister();
+    savedTRreg = Magic.getThreadRegister();
 
     // Save frame pointer of calling routine, once so that native stack frames
     // are skipped and once for use by GC
     Address callersFP = Magic.getCallerFramePointer(Magic.getFramePointer());
     basePointerOnEntryToNative = callersFP; // NB old value saved on call stack
     JNITopJavaFP = callersFP;
+
+    if (VM.traceJNI) {
+      RVMMethod m=
+        CompiledMethods.getCompiledMethod(
+          Magic.getCompiledMethodID(callersFP)).getMethod();
+      VM.sysWrite("calling JNI from ");
+      VM.sysWrite(m.getDeclaringClass().getDescriptor());
+      VM.sysWrite(" ");
+      VM.sysWrite(m.getName());
+      VM.sysWrite(m.getDescriptor());
+      VM.sysWriteln();
+    }
 
     // Save current JNI ref stack pointer
     int oldJNIRefsSavedFP = JNIRefsSavedFP;
@@ -355,11 +367,8 @@ public final class JNIEnvironment implements SizeConstants {
       }
       encodedReferenceOffsets >>>= 1;
     }
-    // Transition processor from IN_JAVA to IN_NATIVE
-    while(!Synchronization.tryCompareAndSwap(Magic.getProcessorRegister(),
-        Entrypoints.vpStatusField.getOffset(), Processor.IN_JAVA, Processor.IN_NATIVE)) {
-      SysCall.sysCall.sysVirtualProcessorYield();
-    }
+    // Transition processor from IN_JAVA to IN_JNI
+    RVMThread.enterJNIFromCallIntoNative();
   }
 
   /**
@@ -374,11 +383,9 @@ public final class JNIEnvironment implements SizeConstants {
   "Code can throw exceptions so not uninterruptible.")
   @Entrypoint
   public Object exitFromJNI(int offset) {
-    // Transition processor from IN_NATIVE to IN_JAVA
-    while(!Synchronization.tryCompareAndSwap(Magic.getProcessorRegister(),
-        Entrypoints.vpStatusField.getOffset(), Processor.IN_NATIVE, Processor.IN_JAVA)) {
-      SysCall.sysCall.sysVirtualProcessorYield();
-    }
+    // Transition processor from IN_JNI to IN_JAVA
+    RVMThread.leaveJNIFromCallIntoNative();
+
     // Restore JNI ref top and saved frame pointer
     JNIRefsTop = JNIRefsSavedFP;
     if (JNIRefsTop > 0) {
@@ -416,7 +423,7 @@ public final class JNIEnvironment implements SizeConstants {
       VM.sysWrite("(top is ");
       VM.sysWrite(JNIRefsTop);
       VM.sysWrite(")\n");
-      org.jikesrvm.scheduler.Scheduler.dumpStack();
+      RVMThread.dumpStack();
       return null;
     }
     if (offset < 0) {

@@ -48,20 +48,19 @@
 
 [Lorg/jikesrvm/runtime/DynamicLibrary;
 
-[Lorg/jikesrvm/scheduler/Processor;
 [Lorg/jikesrvm/scheduler/RVMThread;
+[Lorg/jikesrvm/scheduler/Monitor;
+[Lorg/jikesrvm/scheduler/NoYieldpointsMonitor;
+[[Lorg/jikesrvm/scheduler/RVMThread;
+[Lorg/jikesrvm/scheduler/RVMThread$BlockAdapter;
+[[Lorg/jikesrvm/scheduler/RVMThread$BlockAdapter;
 [Lorg/jikesrvm/scheduler/Lock;
 [[Lorg/jikesrvm/scheduler/Lock;
-[Lorg/jikesrvm/scheduler/greenthreads/GreenProcessor;
-[Lorg/jikesrvm/scheduler/greenthreads/GreenThread;
-[Lorg/jikesrvm/scheduler/greenthreads/GreenLock;
-[Lorg/jikesrvm/scheduler/Scheduler$ThreadModel;
 
 [Lorg/jikesrvm/util/AbstractHashMapRVM$AbstractBucket;
 [Lorg/jikesrvm/util/AbstractHashSetRVM$AbstractBucket;
 
 [Lorg/jikesrvm/mm/mminterface/CollectorThread;
-[Lorg/jikesrvm/mm/mminterface/ConcurrentCollectorThread;
 [Lorg/jikesrvm/mm/mminterface/Selected$Collector;
 [Lorg/jikesrvm/mm/mminterface/Selected$Mutator;
 
@@ -76,7 +75,7 @@
 [Lorg/mmtk/utility/statistics/Timer;
 [Lorg/mmtk/vm/ReferenceProcessor$Semantics;
 
-[Lorg/jikesrvm/scheduler/RVMThread$State;
+[Lorg/jikesrvm/scheduler/RVMThread$Waiting;
 
 [Lorg/vmmagic/pragma/Inline$When;
 Lsun/misc/Unsafe;

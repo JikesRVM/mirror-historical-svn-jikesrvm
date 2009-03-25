@@ -14,11 +14,14 @@ package org.jikesrvm.ia32;
 
 import org.jikesrvm.runtime.ArchEntrypoints;
 import org.jikesrvm.runtime.Magic;
+import org.jikesrvm.scheduler.RVMThread;
+import org.jikesrvm.VM;
 import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Untraced;
 import org.vmmagic.unboxed.Address;
+import org.vmmagic.unboxed.Word;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.WordArray;
 
@@ -54,6 +57,53 @@ public abstract class Registers implements RegisterConstants {
   public Registers() {
     gprs = gprsShadow = MemoryManager.newNonMovingWordArray(NUM_GPRS);
     fprs = fprsShadow = MemoryManager.newNonMovingDoubleArray(NUM_FPRS);
+  }
+  public final void copyFrom(Registers other) {
+    for (int i=0;i<NUM_GPRS;++i) {
+      gprs.set(i,other.gprs.get(i));
+    }
+    for (int i=0;i<NUM_FPRS;++i) {
+      fprs[i]=other.fprs[i];
+    }
+    ip=other.ip;
+    fp=other.fp;
+  }
+  public final void clear() {
+    for (int i=0;i<NUM_GPRS;++i) {
+      gprs.set(i,Word.zero());
+    }
+    for (int i=0;i<NUM_FPRS;++i) {
+      fprs[i]=0.;
+    }
+    ip=Address.zero();
+    fp=Address.zero();
+  }
+  public final void assertSame(Registers other) {
+    boolean fail=false;
+    for (int i=0;i<NUM_GPRS;++i) {
+      if (gprs.get(i).NE(other.gprs.get(i))) {
+        VM.sysWriteln("Registers not equal: GPR #",i);
+        fail=true;
+      }
+    }
+    for (int i=0;i<NUM_FPRS;++i) {
+      if (fprs[i]!=other.fprs[i]) {
+        VM.sysWriteln("Registers not equal: FPR #",i);
+        fail=true;
+      }
+    }
+    if (ip.NE(other.ip)) {
+      VM.sysWriteln("Registers not equal: IP");
+      fail=true;
+    }
+    if (fp.NE(other.fp)) {
+      VM.sysWriteln("Registers not equal: FP");
+      fail=true;
+    }
+    if (fail) {
+      RVMThread.dumpStack();
+      VM.sysFail("Registers.assertSame() failed");
+    }
   }
 
   /**
@@ -103,4 +153,15 @@ public abstract class Registers implements RegisterConstants {
     Offset ipOffset = ArchEntrypoints.registersIPField.getOffset();
     return Magic.objectAsAddress(this).plus(ipOffset);
   }
+  public final void dump() {
+    for (int i=0;i<NUM_GPRS;++i) {
+      VM.sysWriteln("gprs[",i,"] = ",gprs.get(i));
+    }
+    for (int i=0;i<NUM_FPRS;++i) {
+      VM.sysWriteln("fprs[",i,"] = ",fprs[i]);
+    }
+    VM.sysWriteln("ip = ",ip);
+    VM.sysWriteln("fp = ",fp);
+  }
 }
+

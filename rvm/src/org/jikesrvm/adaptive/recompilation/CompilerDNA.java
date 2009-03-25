@@ -35,7 +35,7 @@ import org.jikesrvm.compilers.common.RuntimeCompiler;
  * There is an AOS command-line option to set the compiler DNA.  The method
  * {@link CompilerDNA#readDNA} contains a comment on the expected format.
  *
- * This DNA was gathered on Dec 2, 2008 using revision r15215 + the patch for RVM-657 to enable Scalar SSA.
+ * This DNA was gathered on July 9, 2008 using revision r14679 + the bugfix in r14688.
  * The PowerPC data was gathered on piccolo.watson.ibm.com (JS21, machine type 8884; ppc64-aix).
  * The IA32 data was gathered on lyric.watson.ibm.com (LS41, machine type 7972; x86_64-linux).
  */
@@ -59,11 +59,11 @@ public class CompilerDNA implements Constants {
 
   static {
     if (VM.BuildForPowerPC) {
-      compilationRates = new double[]{667.32,               // base
+      compilationRates = new double[]{667.32,             // base
                                       26.36, 13.41, 12.73}; // opt 0...2
     } else if (VM.BuildForIA32) {
-      compilationRates = new double[]{932.35,               // base
-                                      36.45, 16.12, 12.47}; // opt 0...2
+      compilationRates = new double[]{909.46,               // base
+                                      39.53, 18.48, 17.28}; // opt 0...2
     } else {
       if (VM.VerifyAssertions) VM._assert(NOT_REACHED);
       compilationRates = null;
@@ -77,11 +77,11 @@ public class CompilerDNA implements Constants {
 
   static {
     if (VM.BuildForPowerPC) {
-      speedupRates = new double[]{1.00,                 // base
+      speedupRates = new double[]{1.00,               // base
                                   7.87, 12.23, 12.29};  // opt 0...2
     } else if (VM.BuildForIA32) {
       speedupRates = new double[]{1.00,               // base
-                                  4.43, 6.21, 6.04};  // opt 0...2
+                                  4.03, 5.88, 5.93};  // opt 0...2
     } else {
       if (VM.VerifyAssertions) VM._assert(NOT_REACHED);
       speedupRates = null;

@@ -1061,18 +1061,10 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    */
   @Override
   protected final void emit_aastore() {
-    asm.emitLAddrToc(T0, Entrypoints.checkstoreMethod.getOffset());
-    asm.emitMTCTR(T0);
-    peekAddr(T1, 0);    // T1 is value to store
-    peekAddr(T0, 2);    // T0 is array ref
-    asm.emitBCCTRL();   // checkstore(arrayref, value)
-    popAddr(T2);        // T2 is value to store
-    genBoundsCheck();
-    if (MemoryManagerConstants.NEEDS_WRITE_BARRIER) {
-      Barriers.compileArrayStoreBarrier(this);
+    if (doesCheckStore) {
+      emit_resolved_invokestatic((MethodReference)Entrypoints.aastoreMethod.getMemberRef());
     } else {
-      asm.emitSLWI(T1, T1, LOG_BYTES_IN_ADDRESS);  // convert index to offset
-      asm.emitSTAddrX(T2, T0, T1);  // store ref value in array
+      emit_resolved_invokestatic((MethodReference)Entrypoints.aastoreUninterruptibleMethod.getMemberRef());
     }
   }
 
@@ -1783,17 +1775,17 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     } else {
       popInt(T0);               // TO is X  (an int)
       asm.emitLFDtoc(F0, Entrypoints.IEEEmagicField.getOffset(), T1);  // F0 is MAGIC
-      asm.emitSTFDoffset(F0, PROCESSOR_REGISTER, Entrypoints.scratchStorageField.getOffset());
-      asm.emitSTWoffset(T0, PROCESSOR_REGISTER, Entrypoints.scratchStorageField.getOffset().plus(4));
+      asm.emitSTFDoffset(F0, THREAD_REGISTER, Entrypoints.scratchStorageField.getOffset());
+      asm.emitSTWoffset(T0, THREAD_REGISTER, Entrypoints.scratchStorageField.getOffset().plus(4));
       asm.emitCMPI(T0, 0);                // is X < 0
       ForwardReference fr = asm.emitForwardBC(GE);
-      asm.emitLIntOffset(T0, PROCESSOR_REGISTER, Entrypoints.scratchStorageField.getOffset());
+      asm.emitLIntOffset(T0, THREAD_REGISTER, Entrypoints.scratchStorageField.getOffset());
       asm.emitADDI(T0, -1, T0);            // decrement top of MAGIC
       asm.emitSTWoffset(T0,
-                        PROCESSOR_REGISTER,
+                        THREAD_REGISTER,
                         Entrypoints.scratchStorageField.getOffset()); // MAGIC + X in scratch field
       fr.resolve(asm);
-      asm.emitLFDoffset(F1, PROCESSOR_REGISTER, Entrypoints.scratchStorageField.getOffset()); // F1 is MAGIC + X
+      asm.emitLFDoffset(F1, THREAD_REGISTER, Entrypoints.scratchStorageField.getOffset()); // F1 is MAGIC + X
       asm.emitFSUB(F1, F1, F0);            // F1 is X
       pushFloat(F1);                         // float(X) is on stack
     }
@@ -1868,8 +1860,8 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     if (VM.BuildFor64Addr) {
       pushLowDoubleAsInt(F0);
     } else {
-      asm.emitSTFDoffset(F0, PROCESSOR_REGISTER, Entrypoints.scratchStorageField.getOffset());
-      asm.emitLIntOffset(T0, PROCESSOR_REGISTER, Entrypoints.scratchStorageField.getOffset().plus(4));
+      asm.emitSTFDoffset(F0, THREAD_REGISTER, Entrypoints.scratchStorageField.getOffset());
+      asm.emitLIntOffset(T0, THREAD_REGISTER, Entrypoints.scratchStorageField.getOffset().plus(4));
       pushInt(T0);
     }
     ForwardReference fr2 = asm.emitForwardB();
@@ -2307,9 +2299,9 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     int bTarget = biStart + defaultval;
     int mTarget = bytecodeMap[bTarget];
     int n = high - low + 1;       // n = number of normal cases (0..n-1)
-    int firstCounter = edgeCounterIdx; // only used if options.EDGE_COUNTERS;
+    int firstCounter = edgeCounterIdx; // only used if options.PROFILE_EDGE_COUNTERS;
 
-    if (options.EDGE_COUNTERS) {
+    if (options.PROFILE_EDGE_COUNTERS) {
       edgeCounterIdx += n + 1; // allocate n+1 counters
 
       // Load counter array for this method
@@ -2326,7 +2318,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     asm.emitLVAL(T3, n);
     asm.emitCMPL(T0, T3);
 
-    if (options.EDGE_COUNTERS) {
+    if (options.PROFILE_EDGE_COUNTERS) {
       ForwardReference fr = asm.emitForwardBC(LT); // jump around jump to default target
       incEdgeCounter(T2, S0, firstCounter + n);
       asm.emitB(mTarget, bTarget);
@@ -2350,7 +2342,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     fr1.resolve(asm);
     asm.emitMFLR(T1);         // T1 is base of table
     asm.emitSLWI(T0, T0, LOG_BYTES_IN_INT); // convert to bytes
-    if (options.EDGE_COUNTERS) {
+    if (options.PROFILE_EDGE_COUNTERS) {
       incEdgeCounterIdx(T2, S0, firstCounter, T0);
     }
     asm.emitLIntX(T0, T0, T1); // T0 is relative offset of desired case
@@ -2365,7 +2357,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    * @param npairs number of pairs in the lookup switch
    */
   protected final void emit_lookupswitch(int defaultval, int npairs) {
-    if (options.EDGE_COUNTERS) {
+    if (options.PROFILE_EDGE_COUNTERS) {
       // Load counter array for this method
       loadCounterArray(T2);
     }
@@ -2382,7 +2374,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
       int offset = bcodes.getLookupSwitchOffset(i);
       int bTarget = biStart + offset;
       int mTarget = bytecodeMap[bTarget];
-      if (options.EDGE_COUNTERS) {
+      if (options.PROFILE_EDGE_COUNTERS) {
         // Flip conditions so we can jump over the increment of the taken counter.
         ForwardReference fr = asm.emitForwardBC(NE);
         // Increment counter & jump to target
@@ -2400,7 +2392,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     bcodes.skipLookupSwitchPairs(npairs);
     int bTarget = biStart + defaultval;
     int mTarget = bytecodeMap[bTarget];
-    if (options.EDGE_COUNTERS) {
+    if (options.PROFILE_EDGE_COUNTERS) {
       incEdgeCounter(T2, S0, edgeCounterIdx++);
     }
     asm.emitB(mTarget, bTarget);
@@ -2535,26 +2527,26 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    * @param fieldRef the referenced field
    */
   protected final void emit_unresolved_putstatic(FieldReference fieldRef) {
-    emitDynamicLinkingSequence(T0, fieldRef, true);
+    emitDynamicLinkingSequence(T1, fieldRef, true);
     if (MemoryManagerConstants.NEEDS_PUTSTATIC_WRITE_BARRIER && !fieldRef.getFieldContentsType().isPrimitiveType()) {
       Barriers.compilePutstaticBarrier(this, fieldRef.getId()); // NOTE: offset is in T0 from emitDynamicLinkingSequence
       discardSlots(1);
       return;
     }
     if (fieldRef.getSize() <= BYTES_IN_INT) { // field is one word
-      popInt(T1);
-      asm.emitSTWX(T1, T0, JTOC);
+      popInt(T0);
+      asm.emitSTWX(T0, T1, JTOC);
     } else { // field is two words (double or long (or address on PPC64))
       if (VM.VerifyAssertions) VM._assert(fieldRef.getSize() == BYTES_IN_LONG);
       if (VM.BuildFor64Addr) {
         if (fieldRef.getNumberOfStackSlots() == 1) {    //address only 1 stackslot!!!
-          popAddr(T1);
-          asm.emitSTDX(T1, T0, JTOC);
+          popAddr(T0);
+          asm.emitSTDX(T0, T1, JTOC);
           return;
         }
       }
       popDouble(F0);
-      asm.emitSTFDX(F0, T0, JTOC);
+      asm.emitSTFDX(F0, T1, JTOC);
     }
   }
 
@@ -2692,51 +2684,51 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    */
   protected final void emit_unresolved_putfield(FieldReference fieldRef) {
     TypeReference fieldType = fieldRef.getFieldContentsType();
-    // T1 = field offset from emitDynamicLinkingSequence()
-    emitDynamicLinkingSequence(T1, fieldRef, true);
+    // T2 = field offset from emitDynamicLinkingSequence()
+    emitDynamicLinkingSequence(T2, fieldRef, true);
     if (fieldType.isReferenceType()) {
       // 32/64bit reference store
       if (MemoryManagerConstants.NEEDS_WRITE_BARRIER) {
-        // NOTE: offset is in T1 from emitDynamicLinkingSequence
+        // NOTE: offset is in T2 from emitDynamicLinkingSequence
         Barriers.compilePutfieldBarrier(this, fieldRef.getId());
         discardSlots(2);
       } else {
         popAddr(T0);                // T0 = address value
-        popAddr(T2);                // T2 = object reference
-        if (VM.ExplicitlyGuardLowMemory) asm.emitNullCheck(T2);
-        asm.emitSTAddrX(T0, T2, T1);
+        popAddr(T1);                // T1 = object reference
+        if (VM.ExplicitlyGuardLowMemory) asm.emitNullCheck(T1);
+        asm.emitSTAddrX(T0, T1, T2);
       }
     } else if (fieldType.isWordType()) {
       // 32/64bit word store
       popAddr(T0);                // T0 = value
-      popAddr(T2);                // T2 = object reference
-      if (VM.ExplicitlyGuardLowMemory) asm.emitNullCheck(T2);
-      asm.emitSTAddrX(T0, T2, T1);
+      popAddr(T1);                // T1 = object reference
+      if (VM.ExplicitlyGuardLowMemory) asm.emitNullCheck(T1);
+      asm.emitSTAddrX(T0, T1, T2);
     } else if (fieldType.isBooleanType() || fieldType.isByteType()) {
       // 8bit store
       popInt(T0); // T0 = value
-      popAddr(T2); // T2 = object reference
-      if (VM.ExplicitlyGuardLowMemory) asm.emitNullCheck(T2);
-      asm.emitSTBX(T0, T2, T1);
+      popAddr(T1); // T1 = object reference
+      if (VM.ExplicitlyGuardLowMemory) asm.emitNullCheck(T1);
+      asm.emitSTBX(T0, T1, T2);
     } else if (fieldType.isShortType() || fieldType.isCharType()) {
       // 16bit store
       popInt(T0); // T0 = value
-      popAddr(T2); // T2 = object reference
-      if (VM.ExplicitlyGuardLowMemory) asm.emitNullCheck(T2);
-      asm.emitSTHX(T0, T2, T1);
+      popAddr(T1); // T1 = object reference
+      if (VM.ExplicitlyGuardLowMemory) asm.emitNullCheck(T1);
+      asm.emitSTHX(T0, T1, T2);
     } else if (fieldType.isIntType() || fieldType.isFloatType()) {
       // 32bit store
       popInt(T0); // T0 = value
-      popAddr(T2); // T2 = object reference
-      if (VM.ExplicitlyGuardLowMemory) asm.emitNullCheck(T2);
-      asm.emitSTWX(T0, T2, T1);
+      popAddr(T1); // T1 = object reference
+      if (VM.ExplicitlyGuardLowMemory) asm.emitNullCheck(T1);
+      asm.emitSTWX(T0, T1, T2);
     } else {
       // 64bit store
       if (VM.VerifyAssertions) VM._assert(fieldType.isLongType() || fieldType.isDoubleType());
       popDouble(F0);     // F0 = doubleword value
-      popAddr(T2);       // T2 = object reference
-      if (VM.ExplicitlyGuardLowMemory) asm.emitNullCheck(T2);
-      asm.emitSTFDX(F0, T2, T1);
+      popAddr(T1);       // T1 = object reference
+      if (VM.ExplicitlyGuardLowMemory) asm.emitNullCheck(T1);
+      asm.emitSTFDX(F0, T1, T2);
     }
   }
 
@@ -3640,7 +3632,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
         asm.emitSTAddr(i, offset -= BYTES_IN_ADDRESS, FP);
       }
     } else {
-      // Restore non-volatile registers.
+      // save non-volatile registers.
       int offset = frameSize;
       for (int i = lastFloatStackRegister; i >= FIRST_FLOAT_LOCAL_REGISTER; --i) {
         asm.emitSTFD(i, offset -= BYTES_IN_DOUBLE, FP);
@@ -3771,7 +3763,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    * @param bTarget the target bytecode index
    */
   private void genCondBranch(int cc, int bTarget) {
-    if (options.EDGE_COUNTERS) {
+    if (options.PROFILE_EDGE_COUNTERS) {
       // Allocate 2 counters, taken and not taken
       int entry = edgeCounterIdx;
       edgeCounterIdx += 2;
@@ -3832,7 +3824,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     if (isInterruptible) {
       ForwardReference fr;
       // yield if takeYieldpoint is non-zero.
-      asm.emitLIntOffset(S0, PROCESSOR_REGISTER, Entrypoints.takeYieldpointField.getOffset());
+      asm.emitLIntOffset(S0, THREAD_REGISTER, Entrypoints.takeYieldpointField.getOffset());
       asm.emitCMPI(S0, 0);
       if (whereFrom == RVMThread.PROLOGUE) {
         // Take yieldpoint if yieldpoint flag is non-zero (either 1 or -1)
@@ -4558,10 +4550,10 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
       pushAddr(T2);                                  // push frame pointer of caller frame
     } else if (methodName == MagicNames.getTocPointer || methodName == MagicNames.getJTOC) {
       pushAddr(JTOC);
-    } else if (methodName == MagicNames.getProcessorRegister) {
-      pushAddr(PROCESSOR_REGISTER);
-    } else if (methodName == MagicNames.setProcessorRegister) {
-      popAddr(PROCESSOR_REGISTER);
+    } else if (methodName == MagicNames.getThreadRegister) {
+      pushAddr(THREAD_REGISTER);
+    } else if (methodName == MagicNames.setThreadRegister) {
+      popAddr(THREAD_REGISTER);
     } else if (methodName == MagicNames.getTimeBase) {
       if (VM.BuildFor64Addr) {
         asm.emitMFTB(T1);      // T1 := time base
@@ -4718,7 +4710,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
         (VM.BuildFor32Addr && (methodName == MagicNames.prepareWord))) {
       popInt(T1); // pop offset
       popAddr(T0); // pop object
-      asm.emitLWARX(T0, T1, T0); // *(object+offset), setting processor's reservation address
+      asm.emitLWARX(T0, T1, T0); // *(object+offset), setting thread's reservation address
       // this Integer is not sign extended !!
       pushInt(T0); // push *(object+offset)
     } else if ((methodName == MagicNames.prepareLong) ||
@@ -4728,7 +4720,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
       popInt(T1); // pop offset
       popAddr(T0); // pop object
       if (VM.BuildFor64Addr) {
-        asm.emitLDARX(T0, T1, T0); // *(object+offset), setting processor's reservation address
+        asm.emitLDARX(T0, T1, T0); // *(object+offset), setting thread's reservation address
       } else {
         // TODO: handle 64bit prepares in 32bit environment
       }
@@ -4813,7 +4805,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
         asm.emitLAddr(i, offset -= BYTES_IN_ADDRESS, FP);
       }
 
-      // skip saved thread-id, processor, and scratch registers
+      // skip saved thread-id, thread, and scratch registers
       offset -= (FIRST_NONVOLATILE_GPR - LAST_VOLATILE_GPR - 1) * BYTES_IN_ADDRESS;
 
       // restore volatile gprs
@@ -4836,8 +4828,6 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
                methodName == MagicNames.objectAsType ||
                methodName == MagicNames.objectAsShortArray ||
                methodName == MagicNames.objectAsIntArray ||
-               methodName == MagicNames.objectAsProcessor ||
-               methodName == MagicNames.processorAsGreenProcessor ||
                methodName == MagicNames.objectAsThread ||
                methodName == MagicNames.threadAsCollectorThread ||
                methodName == MagicNames.floatAsIntBits ||

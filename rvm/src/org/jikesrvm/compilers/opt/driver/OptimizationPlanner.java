@@ -47,7 +47,6 @@ import org.jikesrvm.compilers.opt.hir2lir.ConvertHIRtoLIR;
 import org.jikesrvm.compilers.opt.hir2lir.ExpandRuntimeServices;
 import org.jikesrvm.compilers.opt.ir.IR;
 import org.jikesrvm.compilers.opt.regalloc.CoalesceMoves;
-import org.jikesrvm.compilers.opt.ssa.EnsureScalarSSA;
 import org.jikesrvm.compilers.opt.ssa.GCP;
 import org.jikesrvm.compilers.opt.ssa.LeaveSSA;
 import org.jikesrvm.compilers.opt.ssa.LiveRangeSplitting;
@@ -288,7 +287,7 @@ public class OptimizationPlanner {
    *
    * @param p the plan under construction
    */
-  private static void SSAinHIRHistorcial(ArrayList<OptimizationPlanElement> p) {
+  private static void SSAinHIR(ArrayList<OptimizationPlanElement> p) {
     composeComponents(p, "SSA", new Object[]{
         // Use the LST to estimate basic block frequency from branch probabilities
         new OptimizationPlanCompositeElement("Basic Block Frequency Estimation",
@@ -355,65 +354,13 @@ public class OptimizationPlanner {
         }});
   }
 
-
-  /**
-   * This method defines the optimization plan elements that
-   * are to be performed with SSA form on HIR.
-   *
-   * @param p the plan under construction
-   */
-  private static void SSAinHIR(ArrayList<OptimizationPlanElement> p) {
-    composeComponents(p, "SSA", new Object[]{
-        // Use the LST to estimate basic block frequency from branch probabilities
-        new OptimizationPlanCompositeElement("Basic Block Frequency Estimation",
-                                                 new Object[]{new BuildLST(), new EstimateBlockFrequencies()}) {
-          public boolean shouldPerform(OptOptions options) {
-            return options.getOptLevel() >= 2;
-          }
-        },
-
-        new OptimizationPlanCompositeElement("HIR SSA transformations", new Object[]{
-            // Local copy propagation
-            new LocalCopyProp(),
-            // Local constant propagation
-            new LocalConstantProp(),
-            // branch optimization
-            new BranchOptimizations(2, true, true),
-            // Compute dominators
-            new DominatorsPhase(true),
-            // compute dominance frontier
-            new DominanceFrontier(),
-            // Enter SSA Form
-            new EnsureScalarSSA(),
-            // Leave SSA
-            new LeaveSSA()}) {
-          public boolean shouldPerform(OptOptions options) {
-            return options.getOptLevel() >= 2;
-          }
-        },
-        // Coalesce moves
-        new CoalesceMoves(),
-
-        // SSA reveals new opportunities for the following
-        new OptimizationPlanCompositeElement("Post SSA cleanup",
-                                                 new Object[]{new LocalCopyProp(),
-                                                              new LocalConstantProp(),
-                                                              new Simple(2, true, true, false, false),
-                                                              new EscapeTransformations(),
-                                                              new BranchOptimizations(2, true, true)}) {
-          public boolean shouldPerform(OptOptions options) {
-            return options.getOptLevel() >= 2;
-          }
-        }});
-  }
-
   /**
    * This method defines the optimization plan elements that
    * are to be performed with SSA form on LIR.
    *
    * @param p the plan under construction
    */
-  private static void SSAinLIRHistorical(ArrayList<OptimizationPlanElement> p) {
+  private static void SSAinLIR(ArrayList<OptimizationPlanElement> p) {
     composeComponents(p, "SSA", new Object[]{
         // Use the LST to estimate basic block frequency from branch probabilities
         new OptimizationPlanCompositeElement("Basic Block Frequency Estimation",
@@ -452,47 +399,6 @@ public class OptimizationPlanner {
                                                               new BranchOptimizations(3, true, true)}) {
           public boolean shouldPerform(OptOptions options) {
             return options.getOptLevel() >= 3;
-          }
-        }});
-  }
-
-  /**
-   * This method defines the optimization plan elements that
-   * are to be performed with SSA form on LIR.
-   *
-   * @param p the plan under construction
-   */
-  private static void SSAinLIR(ArrayList<OptimizationPlanElement> p) {
-    composeComponents(p, "SSA", new Object[]{
-        // Use the LST to estimate basic block frequency from branch probabilities
-        new OptimizationPlanCompositeElement("Basic Block Frequency Estimation",
-                                                 new Object[]{new BuildLST(), new EstimateBlockFrequencies()}) {
-          public boolean shouldPerform(OptOptions options) {
-            return options.getOptLevel() >= 2;
-          }
-        },
-
-        new OptimizationPlanCompositeElement("LIR SSA transformations", new Object[]{
-            // Compute dominators
-            new DominatorsPhase(true),
-            // compute dominance frontier
-            new DominanceFrontier(),
-            // enter SSA Form
-            new EnsureScalarSSA(),
-            new LeaveSSA()}) {
-          public boolean shouldPerform(OptOptions options) {
-            return options.getOptLevel() >= 2;
-          }
-        },
-
-        // SSA reveals new opportunites for the following
-        new OptimizationPlanCompositeElement("Post SSA cleanup",
-                                                 new Object[]{new LocalCopyProp(),
-                                                              new LocalConstantProp(),
-                                                              new Simple(2, true, true, false, false),
-                                                              new BranchOptimizations(2, true, true)}) {
-          public boolean shouldPerform(OptOptions options) {
-            return options.getOptLevel() >= 2;
           }
         }});
   }
