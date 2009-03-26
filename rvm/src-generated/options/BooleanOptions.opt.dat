@@ -133,7 +133,7 @@ Assume PEIs do not throw or state is not observable
 SSA_LOAD_ELIMINATION 3 false
 Should we perform redundant load elimination during SSA pass?
 
-SSA_COALESCE_AFTER 3 false
+SSA_COALESCE_AFTER 2 false
 Should we coalesce move instructions after leaving SSA?
 
 SSA_LOOP_VERSIONING -1 false
