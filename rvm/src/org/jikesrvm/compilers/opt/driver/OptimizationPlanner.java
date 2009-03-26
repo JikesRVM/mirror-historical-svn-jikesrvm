@@ -484,6 +484,11 @@ public class OptimizationPlanner {
             return options.getOptLevel() >= 2;
           }
         },
+        // Live range splitting
+        new LiveRangeSplitting(),
+
+        // Coalesce moves
+        new CoalesceMoves(),
 
         // SSA reveals new opportunites for the following
         new OptimizationPlanCompositeElement("Post SSA cleanup",
