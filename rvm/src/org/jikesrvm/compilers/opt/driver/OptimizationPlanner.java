@@ -383,9 +383,18 @@ public class OptimizationPlanner {
             new DominatorsPhase(true),
             // compute dominance frontier
             new DominanceFrontier(),
-            // Enter SSA Form
-            new EnsureScalarSSA(),
-            // Leave SSA
+
+            // load elimination: Will build HEAP-SSA form
+            new LoadElimination(1),
+            // load elimination
+            new LoadElimination(2),
+            // load elimination
+            new LoadElimination(3),
+            // load elimination
+            new LoadElimination(4),
+            // load elimination
+            new LoadElimination(5),
+
             new LeaveSSA()}) {
           public boolean shouldPerform(OptOptions options) {
             return options.getOptLevel() >= 2;
