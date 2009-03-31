@@ -71,7 +71,10 @@ public class BargingCascadeFutexLock extends SloppyDeflateLockBase {
         } else {
           futex.wake(1);
         }
-        if (res==0) continue;
+        if (res==0) {
+          if (LockConfig.FUTEX_REHEAT) cnt=0;
+          continue;
+        }
       }
       Spinning.interruptibly(cnt,0);
     }

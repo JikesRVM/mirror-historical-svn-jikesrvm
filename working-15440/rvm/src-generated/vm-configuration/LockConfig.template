@@ -42,6 +42,7 @@ public final class LockConfig {
   public static final boolean SPIN_UNLOCK = false;
   
   public static final boolean LATE_WAKE_FUTEX = true;
+  public static final boolean FUTEX_REHEAT = true;
       
   public static final class Selected extends @_SELECTED_@Lock {}
   public static final class SelectedPlan extends @_SELECTED_@LockPlan {}

@@ -173,7 +173,10 @@ public class FutexThinLockPlan extends AbstractThinLockPlan {
             // should this guy wake on the old address?
             FutexUtils.wake(o, lockOffset, 1);
           }
-          if (res==0) continue; // don't spin if we were awakened.
+          if (res==0) {
+            if (LockConfig.FUTEX_REHEAT) cnt=0;
+            continue; // don't spin if we were awakened.
+          }
         }
       }
       
