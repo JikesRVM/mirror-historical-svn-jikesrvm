@@ -39,6 +39,7 @@ import org.jikesrvm.compilers.opt.ir.Operators;
 import static org.jikesrvm.compilers.opt.ir.Operators.ARRAYLENGTH_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.ATTEMPT_ADDR_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.ATTEMPT_INT_opcode;
+import static org.jikesrvm.compilers.opt.ir.Operators.ATTEMPT_LONG_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.BBEND_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.BYTE_ALOAD_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.BYTE_ASTORE_opcode;
@@ -57,6 +58,8 @@ import static org.jikesrvm.compilers.opt.ir.Operators.INT_ALOAD_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.INT_ASTORE_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.INT_LOAD_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.INT_STORE_opcode;
+import static org.jikesrvm.compilers.opt.ir.Operators.FLOAT_LOAD_opcode;
+import static org.jikesrvm.compilers.opt.ir.Operators.FLOAT_STORE_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.LABEL_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.LONG_ALOAD_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.LONG_ASTORE_opcode;
@@ -73,6 +76,7 @@ import static org.jikesrvm.compilers.opt.ir.Operators.PHI;
 import static org.jikesrvm.compilers.opt.ir.Operators.PHI_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.PREPARE_ADDR_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.PREPARE_INT_opcode;
+import static org.jikesrvm.compilers.opt.ir.Operators.PREPARE_LONG_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.PUTFIELD_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.PUTSTATIC_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.READ_CEILING_opcode;
@@ -851,8 +855,10 @@ public final class SSADictionary {
       case MONITORENTER_opcode:
       case MONITOREXIT_opcode:
       case PREPARE_INT_opcode:
+      case PREPARE_LONG_opcode:
       case PREPARE_ADDR_opcode:
       case ATTEMPT_INT_opcode:
+      case ATTEMPT_LONG_opcode:
       case ATTEMPT_ADDR_opcode:
       case READ_CEILING_opcode:
       case WRITE_FLOOR_opcode:
@@ -863,6 +869,7 @@ public final class SSADictionary {
       case USHORT_LOAD_opcode:
       case SHORT_LOAD_opcode:
       case INT_LOAD_opcode:
+      case FLOAT_LOAD_opcode:
       case LONG_LOAD_opcode:
       case DOUBLE_LOAD_opcode:
       case REF_LOAD_opcode:
@@ -872,6 +879,7 @@ public final class SSADictionary {
       case SHORT_STORE_opcode:
       case REF_STORE_opcode:
       case INT_STORE_opcode:
+      case FLOAT_STORE_opcode:
       case LONG_STORE_opcode:
       case DOUBLE_STORE_opcode:
         // !!TODO: how to handle this special case?
