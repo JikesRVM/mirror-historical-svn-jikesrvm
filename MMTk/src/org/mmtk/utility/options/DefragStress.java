@@ -10,19 +10,18 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.mmtk.plan.semispace.gctrace;
-
-import org.mmtk.plan.semispace.SSConstraints;
-
-import org.vmmagic.pragma.*;
+package org.mmtk.utility.options;
 
 /**
- * GCTrace constants.
+ * Should we force degfrag every time the immix space is collected?
  */
-@Uninterruptible
-public class GCTraceConstraints extends SSConstraints {
-  @Override
-  public boolean needsWriteBarrier() { return true; }
-  @Override
-  public boolean generateGCTrace() { return true; }
+public final class DefragStress extends org.vmutil.options.BooleanOption {
+  /**
+   * Create the option.
+   */
+  public DefragStress() {
+    super(Options.set, "Defrag Stress",
+        "Should we force degfrag every time the immix space is collected?",
+        false);
+  }
 }

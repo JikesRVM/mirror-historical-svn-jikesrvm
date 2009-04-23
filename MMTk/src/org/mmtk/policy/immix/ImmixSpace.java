@@ -20,7 +20,6 @@ import org.mmtk.policy.Space;
 import org.mmtk.utility.heap.*;
 import org.mmtk.utility.options.LineReuseRatio;
 import org.mmtk.utility.options.Options;
-import org.mmtk.utility.statistics.BooleanCounter;
 import org.mmtk.utility.Constants;
 import org.mmtk.utility.Log;
 
@@ -49,18 +48,13 @@ public final class ImmixSpace extends Space implements Constants {
    */
   private static short reusableMarkStateThreshold = 0;
 
-  /* statistics */
-  public static BooleanCounter fullHeap = new BooleanCounter("majorGC", true, true);
-  public static int TMPreusableLineCount = 0;
-  public static int TMPreusedLineCount = 0;
-  public static int TMPreusableBlockCount = 0;
-  public static int TMPreusedBlockCount = 0;
-
   /****************************************************************************
    *
    * Instance variables
    */
   private Word markState = ObjectHeader.MARK_BASE_VALUE;
+          byte lineMarkState = RESET_LINE_MARK_STATE;
+  private byte lineUnavailState = RESET_LINE_MARK_STATE;
   private boolean inCollection;
   private int linesConsumed = 0;
 
@@ -111,7 +105,11 @@ public final class ImmixSpace extends Space implements Constants {
    * Prepare for a new collection increment.
    */
   public void prepare(boolean majorGC) {
-    if (majorGC) markState = ObjectHeader.deltaMarkState(markState, true);
+    if (majorGC) {
+      markState = ObjectHeader.deltaMarkState(markState, true);
+        lineMarkState++;
+        if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(lineMarkState <= MAX_LINE_MARK_STATE);
+    }
     chunkMap.reset();
     defrag.prepare(chunkMap, this);
     inCollection = true;
@@ -121,8 +119,15 @@ public final class ImmixSpace extends Space implements Constants {
 
   /**
    * A new collection increment has completed.  Release global resources.
+   * @param majorGC TODO
    */
-  public void globalRelease() {
+  public boolean release(boolean majorGC) {
+    boolean didDefrag = defrag.inDefrag();
+    if (majorGC) {
+      if (lineMarkState == MAX_LINE_MARK_STATE)
+        lineMarkState = RESET_LINE_MARK_STATE;
+     lineUnavailState = lineMarkState;
+    }
     chunkMap.reset();
     defrag.globalRelease();
     inCollection = false;
@@ -130,7 +135,7 @@ public final class ImmixSpace extends Space implements Constants {
     /* set up reusable space */
     if (allocBlockCursor.isZero()) allocBlockCursor = chunkMap.getHeadChunk();
     allocBlockSentinel = allocBlockCursor;
-    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(ImmixSpace.isRecycleAllocChunkAligned(allocBlockSentinel));
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(isRecycleAllocChunkAligned(allocBlockSentinel));
     exhaustedReusableSpace = false;
     if (VM.VERIFY_ASSERTIONS && Options.verbose.getValue() >= 9) {
       Log.write("gr[allocBlockCursor: "); Log.write(allocBlockCursor); Log.write(" allocBlockSentinel: "); Log.write(allocBlockSentinel); Log.writeln("]");
@@ -141,6 +146,7 @@ public final class ImmixSpace extends Space implements Constants {
     Defrag.defragReusableMarkStateThreshold = (short) (Options.defragLineReuseRatio.getValue() * MAX_BLOCK_MARK_STATE);
 
     linesConsumed = 0;
+    return didDefrag;
   }
 
   /**
@@ -152,8 +158,8 @@ public final class ImmixSpace extends Space implements Constants {
    * @param requiredAtStart How much space is required?
    * @param userTriggered Is this a user-triggered collection?
    */
-  public void setCollectionKind(boolean emergencyCollection, boolean collectWholeHeap, int collectionAttempt, int requiredAtStart, boolean userTriggered) {
-    defrag.setCollectionKind(emergencyCollection, collectWholeHeap, collectionAttempt, requiredAtStart, userTriggered, exhaustedReusableSpace);
+  public void decideWhetherToDefrag(boolean emergencyCollection, boolean collectWholeHeap, int collectionAttempt, int collectionTrigger) {
+    defrag.decideWhetherToDefrag(emergencyCollection, collectWholeHeap, collectionAttempt, collectionTrigger, exhaustedReusableSpace);
   }
 
  /****************************************************************************
@@ -264,8 +270,8 @@ public final class ImmixSpace extends Space implements Constants {
 
   public Address acquireReusableBlocks() {
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(ImmixSpace.isRecycleAllocChunkAligned(allocBlockCursor));
-      VM.assertions._assert(ImmixSpace.isRecycleAllocChunkAligned(allocBlockSentinel));
+      VM.assertions._assert(isRecycleAllocChunkAligned(allocBlockCursor));
+      VM.assertions._assert(isRecycleAllocChunkAligned(allocBlockSentinel));
     }
     Address rtn;
 
@@ -290,7 +296,7 @@ public final class ImmixSpace extends Space implements Constants {
       }
     }
     unlock();
-    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(ImmixSpace.isRecycleAllocChunkAligned(rtn));
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(isRecycleAllocChunkAligned(rtn));
     return rtn;
   }
 
@@ -452,7 +458,7 @@ public final class ImmixSpace extends Space implements Constants {
     if (VM.VERIFY_ASSERTIONS)  VM.assertions._assert(!defrag.inDefrag() || defrag.spaceExhausted() || !isDefragSource(object));
     if (oldMarkState != markValue) {
       if (!MARK_LINE_AT_SCAN_TIME)
-        ImmixSpace.markLines(object);
+        markLines(object);
       trace.processNode(object);
     }
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!ObjectHeader.isForwardedOrBeingForwarded(object));
@@ -513,7 +519,7 @@ public final class ImmixSpace extends Space implements Constants {
           Log.writeln("]");
         }
         if (!MARK_LINE_AT_SCAN_TIME)
-          ImmixSpace.markLines(newObject);
+          markLines(newObject);
         trace.processNode(newObject);
         if (VM.VERIFY_ASSERTIONS) {
           if (!((getSpaceForObject(newObject) != this) ||
@@ -550,11 +556,19 @@ public final class ImmixSpace extends Space implements Constants {
    * @param object The object which is live and for which the associated lines
    * must be marked.
    */
-  public static void markLines(ObjectReference object) {
+  public void markLines(ObjectReference object) {
     Address address = VM.objectModel.objectStartRef(object);
-    Line.mark(address);
+    Line.mark(address, lineMarkState);
     if (ObjectHeader.isStraddlingObject(object))
-      Line.markMultiLine(address, object);
+      Line.markMultiLine(address, object, lineMarkState);
+  }
+
+  public int getNextUnavailableLine(Address baseLineAvailAddress, int line) {
+    return Line.getNextUnavailable(baseLineAvailAddress, line, lineUnavailState);
+  }
+
+  public int getNextAvailableLine(Address baseLineAvailAddress, int line) {
+    return Line.getNextAvailable(baseLineAvailAddress, line, lineUnavailState);
   }
 
   /****************************************************************************

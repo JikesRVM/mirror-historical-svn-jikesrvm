@@ -221,9 +221,9 @@ public class ImmixAllocator extends Allocator implements Constants {
 
   private boolean acquireRecyclableLines(int bytes, int align, int offset) {
     while (line < LINES_IN_BLOCK || acquireRecyclableBlock()) {
-      line = Line.getNextUnused(markTable, line);
+      line = space.getNextAvailableLine(markTable, line);
       if (line < LINES_IN_BLOCK) {
-        int endLine = Line.getNextUsed(markTable, line);
+        int endLine = space.getNextUnavailableLine(markTable, line);
         cursor = recyclableBlock.plus(Extent.fromIntSignExtend(line<<LOG_BYTES_IN_LINE));
         limit = recyclableBlock.plus(Extent.fromIntSignExtend(endLine<<LOG_BYTES_IN_LINE));
         if (SANITY_CHECK_LINE_MARKS) {
