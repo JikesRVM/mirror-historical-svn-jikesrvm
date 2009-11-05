@@ -1,19 +1,19 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
 package org.mmtk.plan;
 
+import org.mmtk.policy.SegregatedFreeListSpace;
 import org.vmmagic.pragma.*;
-import org.vmmagic.unboxed.Word;
 
 /**
  * This class and its subclasses communicate to the host VM/Runtime
@@ -22,20 +22,68 @@ import org.vmmagic.unboxed.Word;
  * issues with ordering of static initialization.
  */
 @Uninterruptible public abstract class PlanConstraints {
-  /** @return True if this Plan requires write barriers. */
-  public boolean needsWriteBarrier() { return false; }
+  /** @return True of this Plan requires read barriers on java.lang.reference types. */
+  public boolean needsJavaLangReferenceReadBarrier() { return false; }
 
-  /** @return True of this Plan requires read barriers on reference types. */
-  public boolean needsReferenceTypeReadBarrier() { return false; }
+  /** @return True if this Plan requires write barriers on booleans. */
+  public boolean needsBooleanWriteBarrier() { return false; }
 
-  /** @return True of this Plan requires read barriers. */
-  public boolean needsReadBarrier() { return false; }
+  /** @return True of this Plan requires read barriers on booleans. */
+  public boolean needsBooleanReadBarrier() { return false; }
 
-  /** @return True if this Plan requires static write barriers. */
-  public boolean needsStaticWriteBarrier() { return false;}
+  /** @return True if this Plan requires write barriers on bytes. */
+  public boolean needsByteWriteBarrier() { return false; }
 
-  /** @return True if this Plan requires static read barriers. */
-  public boolean needsStaticReadBarrier() { return false; }
+  /** @return True of this Plan requires read barriers on bytes. */
+  public boolean needsByteReadBarrier() { return false; }
+
+  /** @return True if this Plan requires write barriers on chars. */
+  public boolean needsCharWriteBarrier() { return false; }
+
+  /** @return True of this Plan requires read barriers on chars. */
+  public boolean needsCharReadBarrier() { return false; }
+
+  /** @return True if this Plan requires write barriers on shorts. */
+  public boolean needsShortWriteBarrier() { return false; }
+
+  /** @return True of this Plan requires read barriers on shorts. */
+  public boolean needsShortReadBarrier() { return false; }
+
+  /** @return True if this Plan requires write barriers on ints. */
+  public boolean needsIntWriteBarrier() { return false; }
+
+  /** @return True of this Plan requires read barriers on ints. */
+  public boolean needsIntReadBarrier() { return false; }
+
+  /** @return True if this Plan requires write barriers on longs. */
+  public boolean needsLongWriteBarrier() { return false; }
+
+  /** @return True of this Plan requires read barriers on longs. */
+  public boolean needsLongReadBarrier() { return false; }
+
+  /** @return True if this Plan requires write barriers on floats. */
+  public boolean needsFloatWriteBarrier() { return false; }
+
+  /** @return True of this Plan requires read barriers on floats. */
+  public boolean needsFloatReadBarrier() { return false; }
+
+  /** @return True if this Plan requires write barriers on doubles. */
+  public boolean needsDoubleWriteBarrier() { return false; }
+
+  /** @return True of this Plan requires read barriers on doubles. */
+  public boolean needsDoubleReadBarrier() { return false; }
+
+  /** @return True if this Plan requires write barriers on object references. */
+  public boolean needsObjectReferenceWriteBarrier() { return false; }
+
+  /** @return True of this Plan requires read barriers on object references. */
+  public boolean needsObjectReferenceReadBarrier() { return false; }
+
+  /** @return True if this Plan requires non-heap write barriers on object references. */
+  public boolean needsObjectReferenceNonHeapWriteBarrier() { return false;}
+
+  /** @return True if this Plan requires non-heap read barriers on object references. */
+  public boolean needsObjectReferenceNonHeapReadBarrier() { return false; }
 
   /** @return True if this Plan requires linear scanning. */
   public boolean needsLinearScan() { return org.mmtk.utility.Constants.SUPPORT_CARD_SCANNING;}
@@ -43,8 +91,14 @@ import org.vmmagic.unboxed.Word;
   /** @return True if this Plan moves objects. */
   public boolean movesObjects() { return false;}
 
-  /** @return True if this Plan *must* use an LOS (for example it has a size-constrained primary allocator) */
-  public boolean requiresLOS() { return false;}
+  /** @return Size (in bytes) beyond which new regular objects must be allocated to the LOS */
+  public int maxNonLOSDefaultAllocBytes() { return org.mmtk.utility.Constants.MAX_INT;}
+
+  /** @return Size (in bytes) beyond which new non-moving objects must be allocated to the LOS */
+  public int maxNonLOSNonMovingAllocBytes() { return SegregatedFreeListSpace.MAX_FREELIST_OBJECT_BYTES;}
+
+  /** @return Size (in bytes) beyond which copied objects must be copied to the LOS */
+  public int maxNonLOSCopyBytes() { return org.mmtk.utility.Constants.MAX_INT;}
 
   /** @return True if this object forwards objects <i>after</i>
    * determining global object liveness (e.g. many compacting collectors). */
@@ -73,10 +127,4 @@ import org.vmmagic.unboxed.Word;
 
   /** @return True if this Plan requires a header bit for object logging */
   public boolean needsLogBitInHeader() { return false; }
-
-  /** @return A bit which represents that a header is unlogged */
-  public Word unloggedBit() {return Word.zero(); }
-
-  /** @return A bit which represents that a header is unlogged */
-  public Word logSetBitMask() {return Word.zero(); }
 }

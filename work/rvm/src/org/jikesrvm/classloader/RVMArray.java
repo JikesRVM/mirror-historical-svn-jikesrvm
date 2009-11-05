@@ -1,21 +1,22 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
 package org.jikesrvm.classloader;
 
+import static org.jikesrvm.mm.mminterface.Barriers.*;
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.VM;
 import org.jikesrvm.Constants;
-import org.jikesrvm.mm.mminterface.MemoryManagerConstants;
+import org.jikesrvm.mm.mminterface.Barriers;
 import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.objectmodel.TIB;
@@ -1024,9 +1025,9 @@ public final class RVMArray extends RVMType implements Constants, ClassLoaderCon
     Offset dstOffset = Offset.fromIntZeroExtend(dstIdx << LOG_BYTES_IN_ADDRESS);
     int bytes = len << LOG_BYTES_IN_ADDRESS;
 
-    if (!MemoryManagerConstants.NEEDS_READ_BARRIER && ((src != dst) || loToHi)) {
-      if (!MemoryManagerConstants.NEEDS_WRITE_BARRIER ||
-          !MemoryManager.arrayCopyWriteBarrier(src, srcOffset, dst, dstOffset, bytes)) {
+    if (!NEEDS_OBJECT_ALOAD_BARRIER && ((src != dst) || loToHi)) {
+      if (!NEEDS_OBJECT_ASTORE_BARRIER ||
+          !Barriers.objectBulkCopy(src, srcOffset, dst, dstOffset, bytes)) {
         Memory.alignedWordCopy(Magic.objectAsAddress(dst).plus(dstOffset),
                                   Magic.objectAsAddress(src).plus(srcOffset),
                                   bytes);
@@ -1045,13 +1046,13 @@ public final class RVMArray extends RVMType implements Constants, ClassLoaderCon
       // perform the copy
       while (len-- != 0) {
         Object value;
-        if (MemoryManagerConstants.NEEDS_READ_BARRIER) {
-          value = MemoryManager.arrayLoadReadBarrier(src, srcOffset.toInt() >> LOG_BYTES_IN_ADDRESS);
+        if (NEEDS_OBJECT_GETFIELD_BARRIER) {
+          value = Barriers.objectArrayRead(src, srcOffset.toInt() >> LOG_BYTES_IN_ADDRESS);
         } else {
           value = Magic.getObjectAtOffset(src, srcOffset);
         }
-        if (MemoryManagerConstants.NEEDS_WRITE_BARRIER) {
-          MemoryManager.arrayStoreWriteBarrier(dst, dstOffset.toInt() >> LOG_BYTES_IN_ADDRESS, value);
+        if (NEEDS_OBJECT_PUTFIELD_BARRIER) {
+          Barriers.objectArrayWrite(dst, dstOffset.toInt() >> LOG_BYTES_IN_ADDRESS, value);
         } else {
           Magic.setObjectAtOffset(dst, dstOffset, value);
         }

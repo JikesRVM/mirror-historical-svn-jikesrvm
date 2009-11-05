@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -16,12 +16,16 @@ import java.util.ArrayList;
 
 import org.mmtk.harness.options.*;
 import org.mmtk.harness.scheduler.AbstractPolicy;
+import org.mmtk.harness.scheduler.MMTkThread;
 import org.mmtk.harness.vm.*;
 
 import org.mmtk.utility.Log;
 import org.mmtk.utility.heap.HeapGrowthManager;
 import org.mmtk.utility.options.Options;
-import org.vmmagic.unboxed.ArchitecturalWord;
+import org.vmmagic.unboxed.Address;
+import org.vmmagic.unboxed.harness.ArchitecturalWord;
+import org.vmmagic.unboxed.harness.SimulatedMemory;
+import org.vmutil.options.BooleanOption;
 
 /**
  * This is the central class for the MMTk test harness.
@@ -64,14 +68,30 @@ public class Harness {
   /** Interval for the fixed scheduler policies */
   public static final YieldInterval yieldInterval = new YieldInterval();
 
-  /** Parameters for the random scheduler policy */
+  /* Parameters for the random scheduler policy */
+  /** Length of the pseudo-random yield interval sequence */
   public static final RandomPolicyLength randomPolicyLength = new RandomPolicyLength();
+  /** Seed for the pseudo-random yield interval sequence */
   public static final RandomPolicySeed randomPolicySeed = new RandomPolicySeed();
+  /** Minimum value of each entry in the pseudo-random yield interval sequence */
   public static final RandomPolicyMin randomPolicyMin = new RandomPolicyMin();
+  /** Maximum value of each entry in the pseudo-random yield interval sequence */
   public static final RandomPolicyMax randomPolicyMax = new RandomPolicyMax();
 
   /** Print yield policy statistics on exit */
   public static final PolicyStats policyStats = new PolicyStats();
+
+  /** A set of objects to watch */
+  public static final WatchObject watchObject = new WatchObject();
+
+  /** A set of addresses to watch */
+  public static final WatchAddress watchAddress = new WatchAddress();
+
+  /** Timeout on unreasonably long GC */
+  public static final Timeout timeout = new Timeout();
+
+  /** Whether the Harness sanity checker uses the read barrier */
+  public static final BooleanOption sanityUsesReadBarrier = new SanityUsesReadBarrier();
 
   private static boolean isInitialized = false;
 
@@ -80,6 +100,7 @@ public class Harness {
    * and starting off the collector threads.
    *
    * After calling this it is possible to begin creating mutator threads.
+   * @param args Command-line arguments
    */
   public static void init(String... args) {
     if (isInitialized) {
@@ -99,7 +120,7 @@ public class Harness {
         options.process(arg);
       }
     }
-    ArchitecturalWord.init();  // Reads 'bits'
+    ArchitecturalWord.init(Harness.bits.getValue());
     for(String arg: args) {
       if (!options.process(arg)) newArgs.add(arg);
     }
@@ -107,11 +128,17 @@ public class Harness {
     gcEvery.apply();
     org.mmtk.harness.scheduler.Scheduler.init();
 
+    for (Address watchAddr : watchAddress.getAddresses()) {
+      System.err.printf("Setting watch at %s%n",watchAddr);
+      SimulatedMemory.addWatch(watchAddr);
+    }
+
     /*
      * Perform MMTk initialization in a minimal environment, specifically to
      * give it a per-thread 'Log' object
      */
     MMTkThread m = new MMTkThread() {
+      @Override
       public void run() {
 
         /* Get MMTk breathing */
@@ -122,7 +149,6 @@ public class Harness {
 
         /* Override some defaults */
         Options.noFinalizer.setValue(true);
-        Options.noReferenceTypes.setValue(true);
         Options.variableSizeHeap.setValue(false);
 
         /* Process command line options */
@@ -134,7 +160,6 @@ public class Harness {
 
         /* Check options */
         assert Options.noFinalizer.getValue(): "noFinalizer must be true";
-        assert Options.noReferenceTypes.getValue(): "noReferenceTypes must be true";
 
         /* Finish starting up MMTk */
         ActivePlan.plan.postBoot();
@@ -150,9 +175,15 @@ public class Harness {
 
     org.mmtk.harness.scheduler.Scheduler.initCollectors();
 
+    for (int value : watchObject.getValue()) {
+      System.out.printf("Setting watch for object %d%n", value);
+      org.mmtk.harness.vm.ObjectModel.watchObject(value);
+    }
+
     /* Add exit handler to print yield stats */
     if (policyStats.getValue()) {
       Runtime.getRuntime().addShutdownHook(new Thread() {
+        @Override
         public void run() {
           AbstractPolicy.printStats();
         }

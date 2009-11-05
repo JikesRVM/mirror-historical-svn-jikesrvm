@@ -1,18 +1,18 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
 package org.mmtk.harness.lang.runtime;
 
-import org.mmtk.harness.lang.ast.Type;
+import org.mmtk.harness.lang.type.Type;
 import org.mmtk.plan.TraceLocal;
 import org.vmmagic.unboxed.ObjectReference;
 
@@ -21,12 +21,15 @@ import org.vmmagic.unboxed.ObjectReference;
  */
 public class ObjectValue extends Value {
 
-  public static final ObjectValue NULL = new ObjectValue();
+  /**
+   * The null object - actually uses a subtype so that it can have type NULL
+   */
+  public static final ObjectValue NULL = NullValue.NULL;
 
   /**
    * The reference to the heap object
    *
-   * Not final because it may change during GC
+   * Not final because it may change during GC.
    */
   private ObjectReference value;
 
@@ -39,7 +42,7 @@ public class ObjectValue extends Value {
 
   /**
    * An object value with the given initial value
-   * @param value
+   * @param value Initial value
    */
   public ObjectValue(ObjectReference value) {
     this.value = value;
@@ -48,6 +51,7 @@ public class ObjectValue extends Value {
   /**
    * Get this value as an object.
    */
+  @Override
   public ObjectReference getObjectValue() {
     return value;
   }
@@ -55,6 +59,7 @@ public class ObjectValue extends Value {
   /**
    * Get this value as a boolean.
    */
+  @Override
   public boolean getBoolValue() {
     return !value.isNull();
   }
@@ -80,9 +85,21 @@ public class ObjectValue extends Value {
 
   /**
    * GC-time processing of the contained object
+   * @param trace The trace object
    */
   public void traceObject(TraceLocal trace) {
     value = trace.traceObject(value, true);
+  }
+
+  /**
+   * @see org.mmtk.harness.lang.runtime.Value#marshall(java.lang.Class)
+   */
+  @Override
+  public Object marshall(Class<?> klass) {
+    if (klass.isAssignableFrom(ObjectValue.class)) {
+      return this;
+    }
+    throw new RuntimeException("Can't marshall an object into a Java Object");
   }
 
   /**
@@ -90,12 +107,16 @@ public class ObjectValue extends Value {
    */
   @Override
   public boolean equals(Object other) {
-    return (other instanceof ObjectValue && value.toAddress().EQ(((ObjectValue)other).value.toAddress()));
+    return (other instanceof ObjectValue && value.equals(((ObjectValue)other).value));
   }
 
+  /**
+   * Use the hash code of the underlying ObjectReference
+   * @see org.mmtk.harness.lang.runtime.Value#hashCode()
+   */
   @Override
   public int hashCode() {
-    return value.toAddress().hashCode();
+    return value.hashCode();
   }
 
 }

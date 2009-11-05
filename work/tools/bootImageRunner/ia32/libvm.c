@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -963,7 +963,7 @@ mapImageFile(const char *fileName, const void *targetAddress, int prot,
 
 /* Returns 1 upon any errors.   Never returns except to report an error. */
 int
-createVM(int UNUSED vmInSeparateThread)
+createVM(void)
 {
     /* don't buffer trace or error message output */
     setbuf (SysErrorFile, 0);
@@ -1190,7 +1190,10 @@ createVM(int UNUSED vmInSeparateThread)
     // setup place that we'll return to when we're done
     if (setjmp(primordial_jb)) {
 	*(int*)(tr + RVMThread_execStatus_offset) = RVMThread_TERMINATED;
-	// cannot return or else the process will exit
+         // cannot return or else the process will exit.  this is how pthreads
+         // work on the platforms I've tried (OS X and Linux).  So, when the
+         // primordial thread is done, we just have it idle.  When the process
+         // is supposed to exit, it'll call exit().
 #ifdef HARMONY
         hythread_detach(NULL);
 #endif

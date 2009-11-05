@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -22,8 +22,12 @@ import org.mmtk.harness.lang.Trace.Item;
 import org.mmtk.harness.lang.runtime.BoolValue;
 import org.mmtk.harness.lang.runtime.IntValue;
 import org.mmtk.harness.lang.runtime.ObjectValue;
+import org.mmtk.harness.lang.runtime.PhantomReferenceValue;
+import org.mmtk.harness.lang.runtime.SoftReferenceValue;
 import org.mmtk.harness.lang.runtime.StringValue;
 import org.mmtk.harness.lang.runtime.Value;
+import org.mmtk.harness.lang.runtime.WeakReferenceValue;
+import org.mmtk.harness.lang.type.Type;
 
 /**
  * A method that is implemented directly in Java rather than in the scripting language.
@@ -64,8 +68,14 @@ public class IntrinsicMethod extends Method {
       return Type.BOOLEAN;
     } else if (externalType.equals(void.class)) {
       return Type.VOID;
+    } else if (externalType.equals(WeakReferenceValue.class)) {
+      return Type.WEAKREF;
+    } else if (externalType.equals(SoftReferenceValue.class)) {
+      return Type.SOFTREF;
+    } else if (externalType.equals(PhantomReferenceValue.class)) {
+      return Type.PHANTOMREF;
     }
-    return null;
+    throw new RuntimeException("Invalid return type for intrinsic method, "+externalType.getCanonicalName());
   }
 
   /**
@@ -146,6 +156,10 @@ public class IntrinsicMethod extends Method {
 
   /**
    * Constructor
+   * @param name The name of the method in the scripting language
+   * @param className The class that implements the method
+   * @param methodName The name of the method in the implementing class
+   * @param params The types of the parameters
    */
   public IntrinsicMethod(String name, String className, String methodName, List<String> params) {
     this(name,className, methodName,classesForParams(params));
@@ -198,56 +212,17 @@ public class IntrinsicMethod extends Method {
   }
 
   /**
-   * Take a script-language value and return the corresponding Java value.
-   * This can only be done for a limited number of types ...
-   *
-   * @param v The script-language value
-   * @param klass The Java target type
-   * @return An object of type Class<klass>.
-   */
-  private Object marshall(Value v, Class<?> klass) {
-    switch (v.type()) {
-      case INT:
-        if (klass.isAssignableFrom(IntValue.class)) {
-          return v;
-        } else {
-          return Integer.valueOf(v.getIntValue());
-        }
-      case BOOLEAN:
-        if (klass.isAssignableFrom(BoolValue.class)) {
-          return v;
-        } else {
-          return Boolean.valueOf(v.getBoolValue());
-        }
-      case STRING:
-        if (klass.isAssignableFrom(StringValue.class)) {
-          return v;
-        } else {
-          return v.getStringValue();
-        }
-      case OBJECT:
-        if (klass.isAssignableFrom(ObjectValue.class)) {
-          return v;
-        } else {
-          throw new RuntimeException("Can't marshall an object into a Java Object");
-        }
-      default:
-        throw new RuntimeException("Unknown type in intrinsic call");
-    }
-  }
-
-  /**
    * Marshall an array of values, adding the mandatory Env value.
    * @param env
-   * @param params
+   * @param values
    * @return
    */
-  private Object[] marshall(Env env, Value[] params) {
-    assert params.length == signature.length : "Signature doesn't match params";
-    Object[] marshalled = new Object[params.length+1];
+  private Object[] marshall(Env env, Value[] values) {
+    assert values.length == signature.length : "Signature doesn't match params";
+    Object[] marshalled = new Object[values.length+1];
     marshalled[0] = env;
-    for (int i=0; i < params.length; i++) {
-      marshalled[i+1] = marshall(params[i], signature[i]);
+    for (int i=0; i < values.length; i++) {
+      marshalled[i+1] = values[i].marshall(signature[i]);
     }
     return marshalled;
   }
@@ -269,6 +244,8 @@ public class IntrinsicMethod extends Method {
     } else if (obj instanceof Boolean) {
       assert returnType == Type.BOOLEAN : "mismatched return types";
       return BoolValue.valueOf(((Boolean)obj).booleanValue());
+    } else if (obj instanceof Value) {
+      return (Value)obj;
     }
     throw new RuntimeException("Can't unmarshall a "+obj.getClass().getCanonicalName());
   }
@@ -318,8 +295,8 @@ public class IntrinsicMethod extends Method {
    * Accept visitors
    */
   @Override
-  public void accept(Visitor v) {
-    v.visit(this);
+  public Object accept(Visitor v) {
+    return v.visit(this);
   }
 
   /**

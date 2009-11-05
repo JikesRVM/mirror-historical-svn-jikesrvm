@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -105,11 +105,6 @@ public abstract class BaselineCompiler extends TemplateCompilerFramework {
     if (options.hasMETHOD_TO_PRINT() && options.fuzzyMatchMETHOD_TO_PRINT("???")) {
       VM.sysWrite("??? is not a sensible string to specify for method name");
     }
-    if (!VM.BuildForAdaptiveSystem && options.PRELOAD_CLASS != null) {
-      VM.sysWrite("Option preload_class should only be used when the optimizing compiler is the runtime");
-      VM.sysWrite(" compiler or in an adaptive system\n");
-      VM.sysExit(VM.EXIT_STATUS_BOGUS_COMMAND_LINE_ARG);
-    }
     fullyBootedVM = true;
   }
 
@@ -171,6 +166,8 @@ public abstract class BaselineCompiler extends TemplateCompilerFramework {
    * @return the generated CompiledMethod for said NormalMethod.
    */
   public static CompiledMethod compile(NormalMethod method) {
+    if (VM.VerifyAssertions) VM._assert(!method.getDeclaringClass().hasSaveVolatileAnnotation(), "Baseline compiler doesn't implement SaveVolatile");
+
     BaselineCompiledMethod cm =
         (BaselineCompiledMethod) CompiledMethods.createCompiledMethod(method, CompiledMethod.BASELINE);
     cm.compile();

@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -196,6 +196,15 @@ public final class Magic {
   }
 
   /**
+   * Get char at arbitrary (byte) offset from object. The most
+   * significant 16bits will be 0.
+   */
+  public static char getCharAtOffset(Object object, Offset offset) {
+    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+    return (char) -1;
+  }
+
+  /**
    * Get short at arbitrary (byte) offset from object. The most
    * significant 16bits will be the same as the most significant bit
    * in the short.
@@ -203,15 +212,6 @@ public final class Magic {
   public static short getShortAtOffset(Object object, Offset offset) {
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
     return (short) -1;
-  }
-
-  /**
-   * Get char at arbitrary (byte) offset from object. The most
-   * significant 16bits will be 0.
-   */
-  public static char getCharAtOffset(Object object, Offset offset) {
-    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
-    return (char) -1;
   }
 
   /**
@@ -224,12 +224,29 @@ public final class Magic {
   }
 
   /**
-   * Get Word at arbitrary (byte) offset from object.
-   * Use getWordAtOffset(obj, ofs) instead of getMemoryWord(objectAsAddress(obj)+ofs)
+   * Get long at arbitrary (byte) offset from object.
+   * Use getlongAtOffset(obj, ofs) instead of two getIntAtOffset
    */
-  public static Word getWordAtOffset(Object object, Offset offset) {
+  public static long getLongAtOffset(Object object, Offset offset) {
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
-    return Word.max();
+    return -1;
+  }
+
+  /**
+   * Get float at arbitrary (byte) offset from object.
+   */
+  public static float getFloatAtOffset(Object object, Offset offset) {
+    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+    return -1;
+  }
+
+  /**
+   * Get double at arbitrary (byte) offset from object.
+   * Use getDoubleAtOffset(obj, ofs) instead of two getIntAtOffset
+   */
+  public static double getDoubleAtOffset(Object object, Offset offset) {
+    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+    return -1;
   }
 
   /**
@@ -254,6 +271,15 @@ public final class Magic {
 
   /**
    * Get Word at arbitrary (byte) offset from object.
+   * Use getWordAtOffset(obj, ofs) instead of getMemoryWord(objectAsAddress(obj)+ofs)
+   */
+  public static Word getWordAtOffset(Object object, Offset offset) {
+    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+    return Word.max();
+  }
+
+  /**
+   * Get Word at arbitrary (byte) offset from object.
    */
   public static Word getWordAtOffset(Object object, Offset offset, int locationMetadata) {
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
@@ -271,24 +297,6 @@ public final class Magic {
   }
 
   /**
-   * Get long at arbitrary (byte) offset from object.
-   * Use getlongAtOffset(obj, ofs) instead of two getIntAtOffset
-   */
-  public static long getLongAtOffset(Object object, Offset offset) {
-    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
-    return -1;
-  }
-
-  /**
-   * Get double at arbitrary (byte) offset from object.
-   * Use getDoubleAtOffset(obj, ofs) instead of two getIntAtOffset
-   */
-  public static double getDoubleAtOffset(Object object, Offset offset) {
-    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
-    return -1;
-  }
-
-  /**
    * Set byte at arbitrary (byte) offset from object.
    */
   public static void setByteAtOffset(Object object, Offset offset, byte newvalue) {
@@ -303,10 +311,40 @@ public final class Magic {
   }
 
   /**
+   * Set short at arbitrary (byte) offset from object.
+   */
+  public static void setShortAtOffset(Object object, Offset offset, short newvalue) {
+    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+  }
+
+  /**
    * Set int at arbitrary (byte) offset from object.
    * Use setIntAtOffset(obj, ofs, new) instead of setMemoryWord(objectAsAddress(obj)+ofs, new)
    */
   public static void setIntAtOffset(Object object, Offset offset, int newvalue) {
+    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+  }
+
+  /**
+   * Set long at arbitrary (byte) offset from object.
+   * Use setlongAtOffset(obj, ofs) instead of two setIntAtOffset
+   */
+  public static void setLongAtOffset(Object object, Offset offset, long newvalue) {
+    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+  }
+
+  /**
+   * Set float at arbitrary (byte) offset from object.
+   */
+  public static void setFloatAtOffset(Object object, Offset offset, float newvalue) {
+    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+  }
+
+  /**
+   * Set double at arbitrary (byte) offset from object.
+   * Use setDoubleAtOffset(obj, ofs) instead of two setIntAtOffset
+   */
+  public static void setDoubleAtOffset(Object object, Offset offset, double newvalue) {
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
   }
 
@@ -341,21 +379,6 @@ public final class Magic {
     if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
   }
 
-  /**
-   * Set long at arbitrary (byte) offset from object.
-   * Use setlongAtOffset(obj, ofs) instead of two setIntAtOffset
-   */
-  public static void setLongAtOffset(Object object, Offset offset, long newvalue) {
-    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
-  }
-
-  /**
-   * Set double at arbitrary (byte) offset from object.
-   * Use setDoubleAtOffset(obj, ofs) instead of two setIntAtOffset
-   */
-  public static void setDoubleAtOffset(Object object, Offset offset, double newvalue) {
-    if (VM.VerifyAssertions) VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
-  }
 
   //---------------------------------------//
   //    Atomic Memory Access Primitives.   //
@@ -884,5 +907,25 @@ public final class Magic {
     }
     return -1.0d; // which should upset them even if assertions aren't enabled ...
   }
-}
 
+  /**
+   * How deeply inlined is this method (0 means no inlining).
+   */
+  public static int getInlineDepth() {
+    if (VM.runningVM && VM.VerifyAssertions) {
+      VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+    }
+    return 0;
+  }
+
+  /**
+   * Is the specified parameter constant (due to either inlining or specialization).
+   * Count starts at zero and includes the 'this' parameter for instance methods.
+   */
+  public static boolean isConstantParameter(int index) {
+    if (VM.runningVM && VM.VerifyAssertions) {
+      VM._assert(VM.NOT_REACHED);  // call site should have been hijacked by magic in compiler
+    }
+    return false;
+  }
+}

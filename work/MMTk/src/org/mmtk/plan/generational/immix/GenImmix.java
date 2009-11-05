@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -71,6 +71,7 @@ public class GenImmix extends Gen {
    */
   /* The trace class for a full-heap collection */
   public final Trace matureTrace = new Trace(metaDataSpace);
+  private boolean lastGCWasDefrag = false;
 
   /*****************************************************************************
    *
@@ -86,7 +87,7 @@ public class GenImmix extends Gen {
     if (phaseId == SET_COLLECTION_KIND) {
       super.collectionPhase(phaseId);
       if (gcFullHeap) {
-        immixSpace.setCollectionKind(emergencyCollection, true, collectionAttempt, userTriggeredCollection);
+        immixSpace.decideWhetherToDefrag(emergencyCollection, true, collectionAttempt, userTriggeredCollection);
       }
       return;
     }
@@ -106,12 +107,22 @@ public class GenImmix extends Gen {
 
       if (phaseId == RELEASE) {
         matureTrace.release();
-        immixSpace.globalRelease();
+        lastGCWasDefrag = immixSpace.release(true);
         super.collectionPhase(phaseId);
         return;
       }
-    }
+    } else
+      lastGCWasDefrag = false;
+
     super.collectionPhase(phaseId);
+  }
+
+  /**
+   * @return Whether last GC was an exhaustive attempt to collect the heap.  For many collectors this is the same as asking whether the last GC was a full heap collection.
+   */
+  @Override
+  public boolean lastCollectionWasExhaustive() {
+    return lastGCWasDefrag;
   }
 
   /*****************************************************************************

@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -20,8 +20,9 @@ import org.mmtk.policy.Space;
 import org.mmtk.utility.heap.*;
 import org.mmtk.utility.options.LineReuseRatio;
 import org.mmtk.utility.options.Options;
-import org.mmtk.utility.statistics.BooleanCounter;
 import org.mmtk.utility.Constants;
+import org.mmtk.utility.ForwardingWord;
+import org.mmtk.utility.HeaderByte;
 import org.mmtk.utility.Log;
 
 import org.mmtk.vm.Lock;
@@ -49,18 +50,13 @@ public final class ImmixSpace extends Space implements Constants {
    */
   private static short reusableMarkStateThreshold = 0;
 
-  /* statistics */
-  public static BooleanCounter fullHeap = new BooleanCounter("majorGC", true, true);
-  public static int TMPreusableLineCount = 0;
-  public static int TMPreusedLineCount = 0;
-  public static int TMPreusableBlockCount = 0;
-  public static int TMPreusedBlockCount = 0;
-
   /****************************************************************************
    *
    * Instance variables
    */
-  private Word markState = ObjectHeader.MARK_BASE_VALUE;
+  private byte markState = ObjectHeader.MARK_BASE_VALUE;
+          byte lineMarkState = RESET_LINE_MARK_STATE;
+  private byte lineUnavailState = RESET_LINE_MARK_STATE;
   private boolean inCollection;
   private int linesConsumed = 0;
 
@@ -111,7 +107,11 @@ public final class ImmixSpace extends Space implements Constants {
    * Prepare for a new collection increment.
    */
   public void prepare(boolean majorGC) {
-    if (majorGC) markState = ObjectHeader.deltaMarkState(markState, true);
+    if (majorGC) {
+      markState = ObjectHeader.deltaMarkState(markState, true);
+        lineMarkState++;
+        if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(lineMarkState <= MAX_LINE_MARK_STATE);
+    }
     chunkMap.reset();
     defrag.prepare(chunkMap, this);
     inCollection = true;
@@ -121,8 +121,15 @@ public final class ImmixSpace extends Space implements Constants {
 
   /**
    * A new collection increment has completed.  Release global resources.
+   * @param majorGC TODO
    */
-  public void globalRelease() {
+  public boolean release(boolean majorGC) {
+    boolean didDefrag = defrag.inDefrag();
+    if (majorGC) {
+      if (lineMarkState == MAX_LINE_MARK_STATE)
+        lineMarkState = RESET_LINE_MARK_STATE;
+     lineUnavailState = lineMarkState;
+    }
     chunkMap.reset();
     defrag.globalRelease();
     inCollection = false;
@@ -130,14 +137,18 @@ public final class ImmixSpace extends Space implements Constants {
     /* set up reusable space */
     if (allocBlockCursor.isZero()) allocBlockCursor = chunkMap.getHeadChunk();
     allocBlockSentinel = allocBlockCursor;
-    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(ImmixSpace.isRecycleAllocChunkAligned(allocBlockSentinel));
-    exhaustedReusableSpace = false;
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(isRecycleAllocChunkAligned(allocBlockSentinel));
+    exhaustedReusableSpace = allocBlockCursor.isZero();
+    if (VM.VERIFY_ASSERTIONS && Options.verbose.getValue() >= 9) {
+      Log.write("gr[allocBlockCursor: "); Log.write(allocBlockCursor); Log.write(" allocBlockSentinel: "); Log.write(allocBlockSentinel); Log.writeln("]");
+    }
 
     /* really just want this to happen once after options are booted, but no harm in re-doing it */
     reusableMarkStateThreshold = (short) (Options.lineReuseRatio.getValue() * MAX_BLOCK_MARK_STATE);
     Defrag.defragReusableMarkStateThreshold = (short) (Options.defragLineReuseRatio.getValue() * MAX_BLOCK_MARK_STATE);
 
     linesConsumed = 0;
+    return didDefrag;
   }
 
   /**
@@ -146,11 +157,10 @@ public final class ImmixSpace extends Space implements Constants {
    * @param emergencyCollection Is this collection an emergency (last did not yield enough)?
    * @param collectWholeHeap Is this a whole heap collection?
    * @param collectionAttempt Which attempt is this to collect?
-   * @param requiredAtStart How much space is required?
-   * @param userTriggered Is this a user-triggered collection?
+   * @param userTriggeredCollection Was this collection requested by the user?
    */
-  public void setCollectionKind(boolean emergencyCollection, boolean collectWholeHeap, int collectionAttempt,  boolean userTriggered) {
-    defrag.setCollectionKind(emergencyCollection, collectWholeHeap, collectionAttempt, userTriggered, exhaustedReusableSpace);
+  public void decideWhetherToDefrag(boolean emergencyCollection, boolean collectWholeHeap, int collectionAttempt, boolean userTriggeredCollection) {
+    defrag.decideWhetherToDefrag(emergencyCollection, collectWholeHeap, collectionAttempt, userTriggeredCollection, exhaustedReusableSpace);
   }
 
  /****************************************************************************
@@ -231,7 +241,11 @@ public final class ImmixSpace extends Space implements Constants {
     if (!rtn.isZero()) {
       Block.setBlockAsInUse(rtn);
       Chunk.updateHighWater(rtn);
+      if (VM.VERIFY_ASSERTIONS && Options.verbose.getValue() >= 9) {
+        Log.write("gs["); Log.write(rtn); Log.write(" -> "); Log.write(rtn.plus(BYTES_IN_BLOCK-1)); Log.write(" copy: "); Log.write(copy); Log.writeln("]");
+      }
     }
+
     return rtn;
   }
 
@@ -257,8 +271,8 @@ public final class ImmixSpace extends Space implements Constants {
 
   public Address acquireReusableBlocks() {
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(ImmixSpace.isRecycleAllocChunkAligned(allocBlockCursor));
-      VM.assertions._assert(ImmixSpace.isRecycleAllocChunkAligned(allocBlockSentinel));
+      VM.assertions._assert(isRecycleAllocChunkAligned(allocBlockCursor));
+      VM.assertions._assert(isRecycleAllocChunkAligned(allocBlockSentinel));
     }
     Address rtn;
 
@@ -271,12 +285,19 @@ public final class ImmixSpace extends Space implements Constants {
       allocBlockCursor = allocBlockCursor.plus(BYTES_IN_RECYCLE_ALLOC_CHUNK);
       if (allocBlockCursor.GT(Chunk.getHighWater(lastAllocChunk)))
         allocBlockCursor = chunkMap.nextChunk(lastAllocChunk);
+      if (VM.VERIFY_ASSERTIONS && Options.verbose.getValue() >= 9) {
+        Log.write("arb[ rtn: "); Log.write(rtn); Log.write(" allocBlockCursor: "); Log.write(allocBlockCursor); Log.write(" allocBlockSentinel: "); Log.write(allocBlockSentinel); Log.writeln("]");
+      }
 
-      if (allocBlockCursor.isZero() || allocBlockCursor.EQ(allocBlockSentinel))
+      if (allocBlockCursor.isZero() || allocBlockCursor.EQ(allocBlockSentinel)) {
         exhaustedReusableSpace = true;
+        if (VM.VERIFY_ASSERTIONS && Options.verbose.getValue() >= 9) {
+          Log.writeln("[Reusable space exhausted]");
+        }
+      }
     }
     unlock();
-    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(ImmixSpace.isRecycleAllocChunkAligned(rtn));
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(isRecycleAllocChunkAligned(rtn));
     return rtn;
   }
 
@@ -322,7 +343,7 @@ public final class ImmixSpace extends Space implements Constants {
     if (bytes > BYTES_IN_LINE)
       ObjectHeader.markAsStraddling(object);
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(ObjectHeader.isNewObject(object));
-    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!ObjectHeader.isForwardedOrBeingForwarded(object));
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!ForwardingWord.isForwardedOrBeingForwarded(object));
   }
 
  /**
@@ -336,10 +357,9 @@ public final class ImmixSpace extends Space implements Constants {
   @Inline
   public void postCopy(ObjectReference object, int bytes, boolean majorGC) {
     ObjectHeader.writeMarkState(object, markState, bytes > BYTES_IN_LINE);
-    if (!MARK_LINE_AT_SCAN_TIME && majorGC)
-      markLines(object);
-    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!ObjectHeader.isForwardedOrBeingForwarded(object));
-    if (VM.VERIFY_ASSERTIONS && Plan.NEEDS_LOG_BIT_IN_HEADER) VM.assertions._assert(ObjectHeader.isUnloggedObject(object));
+    if (!MARK_LINE_AT_SCAN_TIME && majorGC) markLines(object);
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!ForwardingWord.isForwardedOrBeingForwarded(object));
+    if (VM.VERIFY_ASSERTIONS && HeaderByte.NEEDS_UNLOGGED_BIT) VM.assertions._assert(HeaderByte.isUnlogged(object));
   }
 
   /****************************************************************************
@@ -434,16 +454,16 @@ public final class ImmixSpace extends Space implements Constants {
    */
   @Inline
   private void traceObjectWithoutMoving(TransitiveClosure trace, ObjectReference object) {
-    Word markValue = Plan.NEEDS_LOG_BIT_IN_HEADER ? markState.or(ObjectHeader.UNLOGGED_BIT) : markState;
-    Word oldMarkState = ObjectHeader.testAndMark(object, markValue);
+    byte markValue = markState;
+    byte oldMarkState = ObjectHeader.testAndMark(object, markValue);
     if (VM.VERIFY_ASSERTIONS)  VM.assertions._assert(!defrag.inDefrag() || defrag.spaceExhausted() || !isDefragSource(object));
     if (oldMarkState != markValue) {
       if (!MARK_LINE_AT_SCAN_TIME)
-        ImmixSpace.markLines(object);
+        markLines(object);
       trace.processNode(object);
     }
-    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!ObjectHeader.isForwardedOrBeingForwarded(object));
-    if (VM.VERIFY_ASSERTIONS  && Plan.NEEDS_LOG_BIT_IN_HEADER) VM.assertions._assert(ObjectHeader.isUnloggedObject(object));
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!ForwardingWord.isForwardedOrBeingForwarded(object));
+    if (VM.VERIFY_ASSERTIONS  && HeaderByte.NEEDS_UNLOGGED_BIT) VM.assertions._assert(HeaderByte.isUnlogged(object));
   }
 
   /**
@@ -461,39 +481,48 @@ public final class ImmixSpace extends Space implements Constants {
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(nurseryCollection || (defrag.determined(true) && isDefragSource(object)));
 
     /* now race to be the (potential) forwarder */
-    Word priorForwardingWord = ObjectHeader.attemptToBeForwarder(object);
-    if (ObjectHeader.isForwardedOrBeingForwarded(priorForwardingWord)) {
+    Word priorStatusWord = ForwardingWord.attemptToForward(object);
+    if (ForwardingWord.stateIsForwardedOrBeingForwarded(priorStatusWord)) {
       /* We lost the race; the object is either forwarded or being forwarded by another thread. */
       /* Note that the concurrent attempt to forward the object may fail, so the object may remain in-place */
-      ObjectReference rtn = ObjectHeader.spinAndGetForwardedObject(object, priorForwardingWord);
+      ObjectReference rtn = ForwardingWord.spinAndGetForwardedObject(object, priorStatusWord);
       if (VM.VERIFY_ASSERTIONS && rtn == object) VM.assertions._assert((nurseryCollection && ObjectHeader.testMarkState(object, markState)) || defrag.spaceExhausted() || ObjectHeader.isPinnedObject(object));
       if (VM.VERIFY_ASSERTIONS && rtn != object) VM.assertions._assert(nurseryCollection || !isDefragSource(rtn));
-      if (VM.VERIFY_ASSERTIONS && Plan.NEEDS_LOG_BIT_IN_HEADER) VM.assertions._assert(ObjectHeader.isUnloggedObject(rtn));
+      if (VM.VERIFY_ASSERTIONS && HeaderByte.NEEDS_UNLOGGED_BIT) VM.assertions._assert(HeaderByte.isUnlogged(rtn));
       return rtn;
     } else {
+      byte priorState = (byte) (priorStatusWord.toInt() & 0xFF);
       /* the object is unforwarded, either because this is the first thread to reach it, or because the object can't be forwarded */
-      if (ObjectHeader.testMarkState(priorForwardingWord, markState)) {
+      if (ObjectHeader.testMarkState(priorState, markState)) {
         /* the object has not been forwarded, but has the correct mark state; unlock and return unmoved object */
         /* Note that in a sticky mark bits collector, the mark state does not change at each GC, so correct mark state does not imply another thread got there first */
         if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(nurseryCollection || defrag.spaceExhausted() || ObjectHeader.isPinnedObject(object));
-        ObjectHeader.setForwardingWordAndEnsureUnlogged(object, priorForwardingWord); // return to uncontested state
-        if (VM.VERIFY_ASSERTIONS && Plan.NEEDS_LOG_BIT_IN_HEADER) VM.assertions._assert(ObjectHeader.isUnloggedObject(object));
+        ObjectHeader.returnToPriorStateAndEnsureUnlogged(object, priorState); // return to uncontested state
+        if (VM.VERIFY_ASSERTIONS && Plan.NEEDS_LOG_BIT_IN_HEADER) VM.assertions._assert(HeaderByte.isUnlogged(object));
         return object;
       } else {
         /* we are the first to reach the object; either mark in place or forward it */
         ObjectReference newObject;
         if (ObjectHeader.isPinnedObject(object) || defrag.spaceExhausted()) {
           /* mark in place */
-          ObjectHeader.setMarkStateUnlogAndUnlock(object, priorForwardingWord, markState);
+          ObjectHeader.setMarkStateUnlogAndUnlock(object, priorState, markState);
           newObject = object;
-          if (VM.VERIFY_ASSERTIONS && Plan.NEEDS_LOG_BIT_IN_HEADER) VM.assertions._assert(ObjectHeader.isUnloggedObject(newObject));
+          if (VM.VERIFY_ASSERTIONS && Plan.NEEDS_LOG_BIT_IN_HEADER) VM.assertions._assert(HeaderByte.isUnlogged(newObject));
         } else {
           /* forward */
-          newObject = ObjectHeader.forwardObject(object, allocator);
-          if (VM.VERIFY_ASSERTIONS && Plan.NEEDS_LOG_BIT_IN_HEADER) VM.assertions._assert(ObjectHeader.isUnloggedObject(newObject));
+          if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(!ObjectHeader.isPinnedObject(object));
+          newObject = ForwardingWord.forwardObject(object, allocator);
+          if (VM.VERIFY_ASSERTIONS && Plan.NEEDS_LOG_BIT_IN_HEADER) VM.assertions._assert(HeaderByte.isUnlogged(newObject));
+        }
+        if (VM.VERIFY_ASSERTIONS && Options.verbose.getValue() >= 9) {
+          Log.write("C["); Log.write(object); Log.write("/");
+          Log.write(getName()); Log.write("] -> ");
+          Log.write(newObject); Log.write("/");
+          Log.write(Space.getSpaceForObject(newObject).getName());
+          Log.writeln("]");
         }
         if (!MARK_LINE_AT_SCAN_TIME)
-          ImmixSpace.markLines(newObject);
+          markLines(newObject);
         trace.processNode(newObject);
         if (VM.VERIFY_ASSERTIONS) {
           if (!((getSpaceForObject(newObject) != this) ||
@@ -530,11 +559,19 @@ public final class ImmixSpace extends Space implements Constants {
    * @param object The object which is live and for which the associated lines
    * must be marked.
    */
-  public static void markLines(ObjectReference object) {
+  public void markLines(ObjectReference object) {
     Address address = VM.objectModel.objectStartRef(object);
-    Line.mark(address);
+    Line.mark(address, lineMarkState);
     if (ObjectHeader.isStraddlingObject(object))
-      Line.markMultiLine(address, object);
+      Line.markMultiLine(address, object, lineMarkState);
+  }
+
+  public int getNextUnavailableLine(Address baseLineAvailAddress, int line) {
+    return Line.getNextUnavailable(baseLineAvailAddress, line, lineUnavailState);
+  }
+
+  public int getNextAvailableLine(Address baseLineAvailAddress, int line) {
+    return Line.getNextAvailable(baseLineAvailAddress, line, lineUnavailState);
   }
 
   /****************************************************************************
@@ -624,7 +661,7 @@ public final class ImmixSpace extends Space implements Constants {
   @Inline
   public boolean isLive(ObjectReference object) {
     if (defrag.inDefrag() && isDefragSource(object))
-      return ObjectHeader.isForwardedOrBeingForwarded(object) || ObjectHeader.testMarkState(object, markState);
+      return ForwardingWord.isForwardedOrBeingForwarded(object) || ObjectHeader.testMarkState(object, markState);
     else
       return ObjectHeader.testMarkState(object, markState);
   }
@@ -637,7 +674,7 @@ public final class ImmixSpace extends Space implements Constants {
    */
   @Inline
   public boolean copyNurseryIsLive(ObjectReference object) {
-    return ObjectHeader.isForwardedOrBeingForwarded(object) || ObjectHeader.testMarkState(object, markState);
+    return ForwardingWord.isForwardedOrBeingForwarded(object) || ObjectHeader.testMarkState(object, markState);
   }
 
   /**

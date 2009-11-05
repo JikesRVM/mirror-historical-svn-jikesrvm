@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -135,12 +135,13 @@ public class Factory extends org.mmtk.vm.Factory {
   /**
    * Create a new ReferenceProcessor instance using the appropriate VM-specific
    * concrete ReferenceProcessor sub-class.
+   * @param semantics The reference semantics for this processor
    *
    * @see ReferenceProcessor
    * @return A concrete VM-specific ReferenceProcessor instance.
    */
   public ReferenceProcessor newReferenceProcessor(ReferenceProcessor.Semantics semantics) {
-    return new ReferenceProcessor();
+    return ReferenceProcessor.getProcessorFor(semantics);
   }
 
   /**
@@ -395,5 +396,10 @@ public class Factory extends org.mmtk.vm.Factory {
   @Override
   public org.mmtk.vm.MMTk_Events newEvents() {
     return new MMTkEvents();
+  }
+
+  @Override
+  public Debug newDebug() {
+    return new Debug();
   }
 }

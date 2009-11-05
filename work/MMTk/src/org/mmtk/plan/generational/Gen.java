@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -55,11 +55,16 @@ public abstract class Gen extends StopTheWorld {
   protected static final float MATURE_FRACTION = 0.5f; // est yield
   private static final float WORST_CASE_COPY_EXPANSION = 1.5f; // worst case for addition of one word overhead due to address based hashing
   public static final boolean IGNORE_REMSETS = false;
-  public static final boolean USE_STATIC_WRITE_BARRIER = false;
+  public static final boolean USE_NON_HEAP_OBJECT_REFERENCE_WRITE_BARRIER = false;
   public static final boolean USE_OBJECT_BARRIER_FOR_AASTORE = false; // choose between slot and object barriers
   public static final boolean USE_OBJECT_BARRIER_FOR_PUTFIELD = false; // choose between slot and object barriers
   public static final boolean USE_OBJECT_BARRIER = USE_OBJECT_BARRIER_FOR_AASTORE || USE_OBJECT_BARRIER_FOR_PUTFIELD;
-  private static final boolean USE_DISCONTIGUOUS_NURSERY = false;
+
+  /** Fraction of available virtual memory to give to the nursery (if contiguous) */
+  protected static final float NURSERY_VM_FRACTION = 0.15f;
+
+  /** Switch between a contiguous and discontiguous nursery (experimental) */
+  static final boolean USE_DISCONTIGUOUS_NURSERY = false;
 
   // Allocators
   public static final int ALLOC_NURSERY        = ALLOC_DEFAULT;
@@ -84,7 +89,7 @@ public abstract class Gen extends StopTheWorld {
   public static final SizeCounter nurseryCons;
 
   /** The nursery space is where all new objects are allocated by default */
-  private static final VMRequest vmRequest = USE_DISCONTIGUOUS_NURSERY ? VMRequest.create() : VMRequest.create(0.15f, true);
+  private static final VMRequest vmRequest = USE_DISCONTIGUOUS_NURSERY ? VMRequest.create() : VMRequest.create(NURSERY_VM_FRACTION, true);
   public static final CopySpace nurserySpace = new CopySpace("nursery", DEFAULT_POLL_FREQUENCY, false, vmRequest);
 
   public static final int NURSERY = nurserySpace.getDescriptor();

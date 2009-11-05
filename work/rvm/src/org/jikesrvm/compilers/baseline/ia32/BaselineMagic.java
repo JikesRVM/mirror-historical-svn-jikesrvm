@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -297,6 +297,7 @@ final class BaselineMagic {
     generators.put(getMethodReference(Address.class, MagicNames.prepareInt, Offset.class, int.class), g);
     generators.put(getMethodReference(Address.class, MagicNames.loadFloat, Offset.class, float.class), g);
     generators.put(getMethodReference(Magic.class, MagicNames.getIntAtOffset, Object.class, Offset.class, int.class), g);
+    generators.put(getMethodReference(Magic.class, MagicNames.getFloatAtOffset, Object.class, Offset.class, float.class), g);
     generators.put(getMethodReference(Magic.class, MagicNames.getWordAtOffset, Object.class, Offset.class, Word.class), g);
     generators.put(getMethodReference(Magic.class, MagicNames.prepareInt, Object.class, Offset.class, int.class), g);
     generators.put(getMethodReference(Magic.class, MagicNames.prepareAddress, Object.class, Offset.class, Address.class), g);
@@ -577,6 +578,7 @@ final class BaselineMagic {
   static {
     MagicGenerator g = new Magic_Store32();
     generators.put(getMethodReference(Magic.class, MagicNames.setIntAtOffset, Object.class, Offset.class, int.class, void.class), g);
+    generators.put(getMethodReference(Magic.class, MagicNames.setFloatAtOffset, Object.class, Offset.class, float.class, void.class), g);
     generators.put(getMethodReference(Magic.class, MagicNames.setWordAtOffset, Object.class, Offset.class, Word.class, void.class), g);
     if (VALIDATE_OBJECT_REFERENCES) {
       g = new EarlyReferenceCheckDecorator(NO_SLOT, g);
@@ -694,13 +696,12 @@ final class BaselineMagic {
     MagicGenerator g = new Store16_Offset();
     generators.put(getMethodReference(Address.class, MagicNames.store, short.class, Offset.class, void.class), g);
     generators.put(getMethodReference(Address.class, MagicNames.store, char.class, Offset.class, void.class), g);
-
   }
 
   /**
-   * Store a char to an address plus offset in the format used in {@link Magic}
+   * Store a 16 bit quantity to an address plus offset in the format used in {@link Magic}
    */
-  private static final class Magic_StoreChar extends MagicGenerator {
+  private static final class Magic_Store16 extends MagicGenerator {
     @Override
     void generateMagic(Assembler asm, MethodReference m, RVMMethod cm, Offset sd) {
       asm.emitPOP_Reg(T0);                   // value
@@ -710,8 +711,9 @@ final class BaselineMagic {
     }
   }
   static {
-    MagicGenerator g = new Magic_StoreChar();
+    MagicGenerator g = new Magic_Store16();
     generators.put(getMethodReference(Magic.class, MagicNames.setCharAtOffset, Object.class, Offset.class, char.class, void.class), g);
+    generators.put(getMethodReference(Magic.class, MagicNames.setShortAtOffset, Object.class, Offset.class, short.class, void.class), g);
   }
 
   /**
@@ -750,13 +752,13 @@ final class BaselineMagic {
       // Store at offset
       if (VM.BuildFor32Addr) {
         asm.emitPOP_Reg(T0);                          // T0 = offset
-        asm.emitADD_Reg_RegDisp(T0, SP, THREE_SLOTS); // T0 = base+offset
+        asm.emitADD_Reg_RegDisp(T0, SP, TWO_SLOTS); // T0 = base+offset
         asm.emitPOP_RegInd(T0);                       // [T0]   <- value low
         asm.emitPOP_RegDisp(T0, ONE_SLOT);            // [T0+4] <- value high
         asm.emitPOP_Reg(T0);                          // throw away slot
       } else {
         asm.emitPOP_Reg(T0);                               // offset
-        asm.emitADD_Reg_RegDisp_Quad(T0, SP, THREE_SLOTS); // T0 = base+offset
+        asm.emitADD_Reg_RegDisp_Quad(T0, SP, TWO_SLOTS); // T0 = base+offset
         asm.emitPOP_RegInd(T0);                            // T0 <- value
         asm.emitPOP_Reg(T0);                               // throw away slot
         asm.emitPOP_Reg(T0);                               // throw away slot
@@ -2091,5 +2093,34 @@ final class BaselineMagic {
   static {
     MagicGenerator g = new Dsqrt();
     generators.put(getMethodReference(Magic.class, MagicNames.sqrt, double.class, double.class), g);
+  }
+
+  /**
+   * Return the current inlining depth (always 0 for baseline)
+   */
+  private static final class GetInlineDepth extends MagicGenerator {
+    @Override
+    void generateMagic(Assembler asm, MethodReference m, RVMMethod cm, Offset sd) {
+      asm.emitPUSH_Imm(0);
+    }
+  }
+  static {
+    MagicGenerator g = new GetInlineDepth();
+    generators.put(getMethodReference(Magic.class, MagicNames.getInlineDepth, int.class), g);
+  }
+
+  /**
+   * Is the requested parameter a constant? Always false for baseline.
+   */
+  private static final class IsConstantParameter extends MagicGenerator {
+    @Override
+    void generateMagic(Assembler asm, MethodReference m, RVMMethod cm, Offset sd) {
+      asm.emitPOP_Reg(T0);
+      asm.emitPUSH_Imm(0);
+    }
+  }
+  static {
+    MagicGenerator g = new IsConstantParameter();
+    generators.put(getMethodReference(Magic.class, MagicNames.isConstantParameter, int.class, boolean.class), g);
   }
 }

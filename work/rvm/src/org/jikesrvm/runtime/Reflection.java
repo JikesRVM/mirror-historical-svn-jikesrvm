@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -25,7 +25,6 @@ import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.WordArray;
-import java.lang.reflect.InvocationTargetException;
 
 import static org.jikesrvm.Configuration.BuildForSSE2Full;
 
@@ -66,7 +65,7 @@ public class Reflection implements Constants {
   @Inline
   public static Object invoke(RVMMethod method, ReflectionBase invoker,
                               Object thisArg, Object[] otherArgs,
-                              boolean isNonvirtual) throws InvocationTargetException {
+                              boolean isNonvirtual) {
     // NB bytecode reflection doesn't care about isNonvirtual
     if (!bytecodeReflection && !cacheInvokerInJavaLangReflect) {
       return outOfLineInvoke(method, thisArg, otherArgs, isNonvirtual);
@@ -149,9 +148,18 @@ public class Reflection implements Constants {
     if (isNonvirtual || method.isStatic() || method.isObjectInitializer()) {
       targetMethod = method;
     } else {
-      int tibIndex = method.getOffset().toInt() >>> LOG_BYTES_IN_ADDRESS;
-      targetMethod =
-          Magic.getObjectType(thisArg).asClass().getVirtualMethods()[tibIndex - TIB_FIRST_VIRTUAL_METHOD_INDEX];
+      RVMClass C = Magic.getObjectType(thisArg).asClass();
+      if (!method.getDeclaringClass().isInterface()) {
+        int tibIndex = method.getOffset().toInt() >>> LOG_BYTES_IN_ADDRESS;
+        targetMethod = C.getVirtualMethods()[tibIndex - TIB_FIRST_VIRTUAL_METHOD_INDEX];
+      } else {
+        RVMClass I = method.getDeclaringClass();
+        if (!RuntimeEntrypoints.isAssignableWith(I, C))
+          throw new IncompatibleClassChangeError();
+        targetMethod = C.findVirtualMethod(method.getName(), method.getDescriptor());
+        if (targetMethod == null)
+          throw new IncompatibleClassChangeError();
+      }
     }
 
     // getCurrentCompiledMethod is synchronized but Unpreemptible.

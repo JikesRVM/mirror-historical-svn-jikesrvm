@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -27,8 +27,11 @@ import org.jikesrvm.compilers.baseline.BaselineBootImageCompiler;
  */
 public abstract class BootImageCompiler {
 
-  private static BootImageCompiler compiler =
-      VM.BuildWithBaseBootImageCompiler ? new BaselineBootImageCompiler() : new org.jikesrvm.compilers.opt.driver.OptimizingBootImageCompiler();
+  protected static BootImageCompiler baseCompiler = new BaselineBootImageCompiler();
+  protected static BootImageCompiler optCompiler = VM.BuildForAdaptiveSystem ? new org.jikesrvm.compilers.opt.driver.OptimizingBootImageCompiler() : null;
+
+  protected static BootImageCompiler compiler = VM.BuildWithBaseBootImageCompiler ? baseCompiler : optCompiler;
+
 
   /**
    * Initialize boot image compiler.
@@ -50,6 +53,12 @@ public abstract class BootImageCompiler {
   public static void init(String[] args) {
     try {
       compiler.initCompiler(args);
+      if (VM.BuildForAdaptiveSystem && VM.BuildWithBaseBootImageCompiler) {
+        // We have to use the opt compiler to compile the org.jikesrvm.compiler.opt.OptSaveVolatile class,
+        // so if we're building a baseline compiled configuration that includes AOS, we also need to init
+        // the optimizing bootimage compiler so it can be invoked to compile this class.
+        optCompiler.initCompiler(args);
+      }
     } catch (Throwable e) {
       while (e != null) {
         e.printStackTrace();
@@ -59,7 +68,12 @@ public abstract class BootImageCompiler {
   }
 
   public static CompiledMethod compile(NormalMethod method, TypeReference[] params) {
-    return compiler.compileMethod(method, params);
+    if (VM.BuildForAdaptiveSystem && VM.BuildWithBaseBootImageCompiler && method.getDeclaringClass().hasSaveVolatileAnnotation()) {
+      // Force opt compilation of SaveVolatile methods.
+      return optCompiler.compileMethod(method, params);
+    } else {
+      return compiler.compileMethod(method, params);
+    }
   }
 
   public static CompiledMethod compile(NormalMethod method) {

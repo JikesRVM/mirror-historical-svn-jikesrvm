@@ -1,20 +1,20 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
 package org.mmtk.plan.generational;
 
-import org.mmtk.plan.Plan;
 import org.mmtk.plan.TraceLocal;
 import org.mmtk.plan.Trace;
+import org.mmtk.utility.HeaderByte;
 import org.mmtk.utility.deque.*;
 
 import org.mmtk.vm.VM;
@@ -124,7 +124,7 @@ public abstract class GenMatureTraceLocal extends TraceLocal {
     logMessage(5, "clearing modbuf");
     ObjectReference obj;
     while (!(obj = modbuf.pop()).isNull()) {
-      Plan.markAsUnlogged(obj);
+      HeaderByte.markAsUnlogged(obj);
     }
     logMessage(5, "clearing remset");
     while (!remset.isEmpty()) {

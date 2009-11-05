@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -95,7 +95,7 @@ import org.vmmagic.pragma.*;
 
     if (phaseId == StopTheWorld.ROOTS) {
       VM.scanning.computeGlobalRoots(getCurrentTrace());
-      if (!Gen.USE_STATIC_WRITE_BARRIER || global().traceFullHeap()) {
+      if (!Gen.USE_NON_HEAP_OBJECT_REFERENCE_WRITE_BARRIER || global().traceFullHeap()) {
         VM.scanning.computeStaticRoots(getCurrentTrace());
       }
       if (Plan.SCAN_BOOT_IMAGE && global().traceFullHeap()) {

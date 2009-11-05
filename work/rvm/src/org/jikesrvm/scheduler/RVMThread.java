@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -140,7 +140,6 @@ import org.jikesrvm.tuningfork.Feedlet;
  * they allow the thread to perform async activities (such as mutator flushes or
  * isyncs), while GC safe code will not necessarily perform either.
  *
- * @see org.jikesrvm.scheduler.greenthreads.GreenThread
  * @see org.jikesrvm.mm.mminterface.CollectorThread
  * @see FinalizerThread
  * @see org.jikesrvm.adaptive.measurements.organizers.Organizer
@@ -205,8 +204,6 @@ public final class RVMThread extends ThreadContext {
   /**
    * Thread has not yet started. This state holds right up until just before we
    * call pthread_create().
-   *
-   * @TODO: make javadoc thread model agnostic
    */
   public static final int NEW = 0;
 
@@ -391,11 +388,13 @@ public final class RVMThread extends ThreadContext {
   private int priority;
 
   /**
-   * Index of this thread in {@link threads}[]. This value must be non-zero
+   * Index of this thread in {@link #threadBySlot}[]. This value must be non-zero
    * because it is shifted and used in {@link Object} lock ownership tests.
    */
   @Entrypoint
   public int threadSlot;
+
+  public int lockingId;
 
   /**
    * Non-null indicates this is a system thread, that is one used by the system and as such
@@ -651,28 +650,63 @@ public final class RVMThread extends ThreadContext {
   boolean isSuspended;
 
   /**
-   * Should the thread block for GC?
+   * Should the thread block for handshake?
+   */
+  boolean shouldBlockForHandshake;
+
+  /**
+   * Is the thread blocked for handshake?
+   */
+  boolean isBlockedForHandshake;
+
+  /**
+   * Should the thread block for a thread-to-thread communication?
    */
   boolean shouldBlockForGC;
 
   /**
-   * Is the thread blocked for GC?
+   * Is the thread blocked for thread-to-thread communication?
    */
   boolean isBlockedForGC;
 
+  /**
+   * A block adapter specifies the reason for blocking or unblocking a thread.  A thread
+   * remains blocked so long as any of the block adapters say that it should be blocked.
+   * Block adapters are statically allocated, and store their state in instance fields of
+   * RVMThread.
+   */
   @Uninterruptible
   @NonMoving
   public abstract static class BlockAdapter {
+    /** Should the given thread be blocked for this block adapter?  If this returns true,
+        the thread is guaranteed to block. */
     abstract boolean isBlocked(RVMThread t);
 
+    /** Specify that the thread is either blocked (value == true) or not blocked
+        (value == false) for this block adapter.  This call indicates a statement of
+        fact by the thread itself - it's used either to acknowledge a block request
+        (see hasBlockRequest below) or to respond to a request to unblock. */
     abstract void setBlocked(RVMThread t, boolean value);
 
+    /** Request that the thread block, for this block adapter, at its earliest
+        convenience.  Called from RVMThread.block() and associated methods.  Some
+        block adapters allow for multiple requests to block; in that case this will
+        return a "token" that can be passed to hasBlockRequest() to check, not only
+        whether there is a block request, but whether that block request is still
+        associated with a particular call to requestBlock().  This is used to prevent
+        a suspend() call from stalling due to a concurrent resume() and second
+        suspend().  Note that most block adapers don't care about this scenario, and
+        will just return 0 (or some other meaningless number) here. */
     abstract int requestBlock(RVMThread t);
 
+    /** Does the thread have a request to block for this block adapter? */
     abstract boolean hasBlockRequest(RVMThread t);
 
+    /** Does the thread have a request to block associated with the given requestBlock()
+        call? */
     abstract boolean hasBlockRequest(RVMThread t, int token);
 
+    /** Clear any blocking requests. */
     abstract void clearBlockRequest(RVMThread t);
   }
 
@@ -714,6 +748,39 @@ public final class RVMThread extends ThreadContext {
 
   @Uninterruptible
   @NonMoving
+  public static class HandshakeBlockAdapter extends BlockAdapter {
+    boolean isBlocked(RVMThread t) {
+      return t.isBlockedForHandshake;
+    }
+
+    void setBlocked(RVMThread t, boolean value) {
+      t.isBlockedForHandshake = value;
+    }
+
+    int requestBlock(RVMThread t) {
+      if (!t.isBlockedForHandshake) {
+        t.shouldBlockForHandshake = true;
+      }
+      return 0;
+    }
+
+    boolean hasBlockRequest(RVMThread t) {
+      return t.shouldBlockForHandshake;
+    }
+
+    boolean hasBlockRequest(RVMThread t, int token) {
+      return t.shouldBlockForHandshake;
+    }
+
+    void clearBlockRequest(RVMThread t) {
+      t.shouldBlockForHandshake = false;
+    }
+  }
+
+  public static final HandshakeBlockAdapter handshakeBlockAdapter = new HandshakeBlockAdapter();
+
+  @Uninterruptible
+  @NonMoving
   public static class GCBlockAdapter extends BlockAdapter {
     boolean isBlocked(RVMThread t) {
       return t.isBlockedForGC;
@@ -746,7 +813,7 @@ public final class RVMThread extends ThreadContext {
   public static final GCBlockAdapter gcBlockAdapter = new GCBlockAdapter();
 
   static final BlockAdapter[] blockAdapters = new BlockAdapter[] {
-      suspendBlockAdapter, gcBlockAdapter };
+    suspendBlockAdapter, handshakeBlockAdapter, gcBlockAdapter };
 
   /**
    * An enumeration that describes the different manners in which a thread might
@@ -950,6 +1017,8 @@ public final class RVMThread extends ThreadContext {
   /** In dump stack and dying */
   protected static boolean exitInProgress = false;
 
+  private static boolean worldStopped;
+
   /** Extra debug from traces */
   protected static final boolean traceDetails = false;
 
@@ -960,7 +1029,7 @@ public final class RVMThread extends ThreadContext {
   public static final int PRIMORDIAL_THREAD_INDEX = 1;
 
   /** Maximum number of RVMThread's that we can support. */
-  public static final int LOG_MAX_THREADS = 14;
+  public static final int LOG_MAX_THREADS = 10;
 
   public static final int MAX_THREADS = 1 << LOG_MAX_THREADS;
 
@@ -988,9 +1057,18 @@ public final class RVMThread extends ThreadContext {
    */
   private static final NoYieldpointsMonitor[] monitorBySlot = new NoYieldpointsMonitor[MAX_THREADS];
 
+  private static final Monitor[] communicationLockBySlot = new Monitor[MAX_THREADS];
+
   /**
    * Lock (mutex) used for creating and destroying threads as well as thread
-   * accounting.
+   * accounting.  This mutex should not be held while thread monitors (see monitorBySlot)
+   * are held.  Use this mutex only to protect accesses to:
+   * <ul>
+   * <li>the global thread lists, such as threadBySlot, aboutToTerminate, threads, and
+   *     freeLots</li>
+   * <li>threadIdx field of RVMThread</li>
+   * <li>numThreads, numActiveThreads, numActiveDaemons static fields of RVMThread</li>
+   * </ul>
    */
   public static NoYieldpointsMonitor acctLock;
 
@@ -1093,6 +1171,17 @@ public final class RVMThread extends ThreadContext {
     return monitorForSlot(threadSlot);
   }
 
+  public Monitor communicationLockForSlot(int slot) {
+    Monitor result = communicationLockBySlot[slot];
+    if (VM.VerifyAssertions)
+      VM._assert(result != null);
+    return result;
+  }
+
+  public Monitor communicationLock() {
+    return communicationLockForSlot(threadSlot);
+  }
+
   /**
    * Initialize the threading subsystem for the boot image.
    */
@@ -1190,6 +1279,7 @@ public final class RVMThread extends ThreadContext {
     handshakeLock = new Monitor();
     doProfileReport = new Latch(false);
     monitorBySlot[getCurrentThread().threadSlot] = new NoYieldpointsMonitor();
+    communicationLockBySlot[getCurrentThread().threadSlot] = new Monitor();
     sysCall.sysCreateThreadSpecificDataKeys();
     sysCall.sysStashVMThread(getCurrentThread());
 
@@ -1200,8 +1290,9 @@ public final class RVMThread extends ThreadContext {
     bindIfRequested();
 
     threadingInitialized = true;
+    // Always run timer thread, so we can respond to debug requests
+    new TimerThread().start();
     if (VM.BuildForAdaptiveSystem) {
-      new TimerThread().start();
       ObjectHolder.boot();
     }
 
@@ -1215,7 +1306,7 @@ public final class RVMThread extends ThreadContext {
    * before they finish terminating.
    */
   private void addAboutToTerminate() {
-    monitor().lock();
+    monitor().lockNoHandshake();
     isAboutToTerminate = true;
     activeMutatorContext = false;
     monitor().broadcast();
@@ -1237,7 +1328,7 @@ public final class RVMThread extends ThreadContext {
 
     softRendezvous();
 
-    acctLock.lock();
+    acctLock.lockNoHandshake();
     aboutToTerminate[aboutToTerminateN++] = threadSlot;
     acctLock.unlock();
   }
@@ -1255,7 +1346,7 @@ public final class RVMThread extends ThreadContext {
     if (!neverKillThreads) {
       restart: while(true) {
         int notKilled = 0;
-        acctLock.lock();
+        acctLock.lockNoHandshake();
         for (int i = 0; i < aboutToTerminateN; ++i) {
           RVMThread t = threadBySlot[aboutToTerminate[i]];
           if (t.getExecStatus() == TERMINATED) {
@@ -1291,7 +1382,7 @@ public final class RVMThread extends ThreadContext {
       numThreads = 1;
     } else {
       processAboutToTerminate();
-      acctLock.lock();
+      acctLock.lockNoHandshake();
       if (freeSlotN > 0) {
         threadSlot = freeSlots[--freeSlotN];
       } else {
@@ -1309,12 +1400,17 @@ public final class RVMThread extends ThreadContext {
       if (monitorBySlot[threadSlot] == null) {
         monitorBySlot[threadSlot] = new NoYieldpointsMonitor();
       }
+      handshakeLock.lockWithHandshake();
+      if (communicationLockBySlot[threadSlot] == null) {
+        communicationLockBySlot[threadSlot] = new Monitor();
+      }
+      handshakeLock.unlock();
       Magic.sync(); /*
                      * make sure that nobody sees the thread in any of the
                      * tables until the thread slot is inited
                      */
 
-      acctLock.lock();
+      acctLock.lockNoHandshake();
       threadBySlot[threadSlot] = this;
 
       threadIdx = numThreads++;
@@ -1322,6 +1418,7 @@ public final class RVMThread extends ThreadContext {
 
       acctLock.unlock();
     }
+    lockingId = threadSlot << ThinLockConstants.TL_THREAD_ID_SHIFT;
     if (traceAcct) {
       VM.sysWriteln("Thread #", threadSlot, " at ", Magic.objectAsAddress(this));
       VM.sysWriteln("stack at ", Magic.objectAsAddress(stack), " up to ", Magic.objectAsAddress(stack).plus(stack.length));
@@ -1333,7 +1430,7 @@ public final class RVMThread extends ThreadContext {
    */
   @NoCheckStore
   void releaseThreadSlot() {
-    acctLock.lock();
+    acctLock.lockNoHandshake();
     RVMThread replacementThread = threads[numThreads - 1];
     threads[threadIdx] = replacementThread;
     replacementThread.threadIdx = threadIdx;
@@ -1462,7 +1559,7 @@ public final class RVMThread extends ThreadContext {
 
   /**
    * Create a thread with the given stack and name. Used by
-   * {@link org.jikesrvm.memorymanagers.mminterface.CollectorThread} and the
+   * {@link org.jikesrvm.mm.mminterface.CollectorThread} and the
    * boot image writer for the boot thread.
    */
   public RVMThread(SystemThread systemThread, byte[] stack, String name) {
@@ -1572,7 +1669,7 @@ public final class RVMThread extends ThreadContext {
     // NB: anything this method calls CANNOT change the contextRegisters
     // or the JNI env. as well, this code will be running concurrently
     // with stop-the-world GC!
-    monitor().lock();
+    monitor().lockNoHandshake();
     isBlocking = true;
     if (traceBlock)
       VM.sysWriteln("Thread #", threadSlot,
@@ -1596,7 +1693,7 @@ public final class RVMThread extends ThreadContext {
       // for block requests.
       int recCount = monitor().unlockCompletely();
       softRendezvousCommit();
-      monitor().relock(recCount);
+      monitor().relockNoHandshake(recCount);
     }
 
     if (traceBlock)
@@ -1626,7 +1723,7 @@ public final class RVMThread extends ThreadContext {
       // request?
       // answer: we get awoken, reloop, and acknowledge the GC block
       // request.
-      monitor().await();
+      monitor().waitNoHandshake();
 
       if (traceBlock)
         VM.sysWriteln("Thread #", threadSlot,
@@ -1678,26 +1775,26 @@ public final class RVMThread extends ThreadContext {
    * distinct actions, all of which individually require the monitor() lock -
    * but the monitor() lock does not have to be held contiguously. Thus, the
    * loss of atomicity from calling checkBlock() is fine.
-   * <li>The "Nicely" methods of HeavyCondLock. These methods allow you to
+   * <li>The "WithHandshake" methods of HeavyCondLock. These methods allow you to
    * block on a mutex or condition variable while notifying the system that you
    * are not executing Java code. When these blocking methods return, they check
    * if there had been a request to block, and if so, they call checkBlock().
    * Why it's safe: This is subtle. Two cases exist. The first case is when a
-   * Nicely method is called on a HeavyCondLock instance that is not a thread
+   * WithHandshake method is called on a HeavyCondLock instance that is not a thread
    * monitor(). In this case, it does not matter that checkBlock() may acquire
    * and then completely release the monitor(), since the user was not holding
    * the monitor(). However, this will break if the user is <i>also</i> holding
-   * the monitor() when calling the Nicely method on a different lock. This case
+   * the monitor() when calling the WithHandshake method on a different lock. This case
    * should never happen because no other locks should ever be acquired when the
    * monitor() is held. Additionally: there is the concern that some other locks
    * should never be held while attempting to acquire the monitor(); the
    * HeavyCondLock ensures that checkBlock() is only called when that lock
-   * itself is released. The other case is when a Nicely method is called on the
+   * itself is released. The other case is when a WithHandshake method is called on the
    * monitor() itself. This should only be done when using <i>your own</i>
    * monitor() - that is the monitor() of the thread your are running on. In
-   * this case, the Nicely methods work because: (i) lockNicely() only calls
+   * this case, the WithHandshake methods work because: (i) lockWithHandshake() only calls
    * checkBlock() on the initial lock entry (not on recursive entry), so
-   * atomicity is not broken, and (ii) waitNicely() and friends only call
+   * atomicity is not broken, and (ii) waitWithHandshake() and friends only call
    * checkBlock() after wait() returns - at which point it is safe to release
    * and reacquire the lock, since there cannot be a race with broadcast() once
    * we have committed to not calling wait() again.
@@ -1717,6 +1814,13 @@ public final class RVMThread extends ThreadContext {
     checkBlockNoSaveContext();
   }
 
+  /**
+   * Enter one of the "native" states (JNI or NATIVE) while acknowledging a GC block request.
+   * this thread will not actually blow, it will continue to do useful work so long as it
+   * does not try to come back to running IN_JAVA.  This is a slow call; you should almost
+   * always call enterNative(), enterJNIFromCallIntoNative(), or enterJNIFromJNIFunctionCall()
+   * instead.
+   */
   private void enterNativeBlockedImpl(boolean jni) {
     if (traceReallyBlock)
       VM.sysWriteln("Thread #", threadSlot, " entering native blocked.");
@@ -1724,7 +1828,7 @@ public final class RVMThread extends ThreadContext {
     // or the JNI env. as well, this code will be running concurrently
     // with stop-the-world GC!
     boolean commitSoftRendezvous;
-    monitor().lock();
+    monitor().lockNoHandshake();
     if (jni) {
       jniEnteredBlocked++;
       setExecStatus(BLOCKED_IN_JNI);
@@ -1749,27 +1853,27 @@ public final class RVMThread extends ThreadContext {
     checkBlockNoSaveContext();
   }
 
-  void enterNativeBlocked() {
+  private void enterNativeBlocked() {
     assertAcceptableStates(IN_JAVA,IN_JAVA_TO_BLOCK);
     enterNativeBlockedImpl(false);
     assertAcceptableStates(IN_NATIVE,BLOCKED_IN_NATIVE);
   }
 
   @Unpreemptible("May block if the thread was asked to do so, but otherwise does no actions that would cause blocking")
-  void leaveNativeBlocked() {
+  private void leaveNativeBlocked() {
     assertAcceptableStates(IN_NATIVE,BLOCKED_IN_NATIVE);
     leaveNativeBlockedImpl();
     assertAcceptableStates(IN_JAVA,IN_JAVA_TO_BLOCK);
   }
 
-  void enterJNIBlocked() {
+  private void enterJNIBlocked() {
     assertAcceptableStates(IN_JAVA,IN_JAVA_TO_BLOCK);
     enterNativeBlockedImpl(true);
     assertAcceptableStates(IN_JNI,BLOCKED_IN_JNI);
   }
 
   @Unpreemptible("May block if the thread was asked to do so, but otherwise does no actions that would cause blocking")
-  void leaveJNIBlocked() {
+  private void leaveJNIBlocked() {
     assertAcceptableStates(IN_JNI,BLOCKED_IN_JNI);
     leaveNativeBlockedImpl();
     assertAcceptableStates(IN_JAVA,IN_JAVA_TO_BLOCK);
@@ -1852,6 +1956,11 @@ public final class RVMThread extends ThreadContext {
    * the thread signals to us the intention to die as we are trying to block it,
    * this will return TERMINATED. NOTE: the thread's execStatus will not
    * actually be TERMINATED at that point yet.
+   * <p>
+   * Note that this method is ridiculously dangerous, especially if you pass
+   * asynchronous==false.  Waiting for another thread to stop is not in itself
+   * interruptible - so if you ask another thread to block and they ask you
+   * to block, you might deadlock.
    */
   @Unpreemptible("Only blocks if the receiver is the current thread, or if asynchronous is set to false and the thread is not already blocked")
   int block(BlockAdapter ba, boolean asynchronous) {
@@ -1859,7 +1968,7 @@ public final class RVMThread extends ThreadContext {
     if (traceBlock)
       VM.sysWriteln("Thread #", getCurrentThread().threadSlot,
           " is requesting that thread #", threadSlot, " blocks.");
-    monitor().lock();
+    monitor().lockNoHandshake();
     int token = ba.requestBlock(this);
     if (getCurrentThread() == this) {
       if (traceBlock)
@@ -1905,14 +2014,14 @@ public final class RVMThread extends ThreadContext {
               if (VM.VerifyAssertions) {
                 // do a timed wait, and assert that the thread did not disappear
                 // into native in the meantime
-                monitor().timedWaitRelative(1000L * 1000L * 1000L); // 1 sec
+                monitor().timedWaitRelativeNoHandshake(1000L * 1000L * 1000L); // 1 sec
                 if (traceReallyBlock) {
                   VM.sysWriteln("Thread #", threadSlot, "'s status is ",
                                 getExecStatus());
                 }
                 assertUnacceptableStates(IN_NATIVE);
               } else {
-                monitor().await();
+                monitor().waitNoHandshake();
               }
               if (traceBlock)
                 VM.sysWriteln("Thread #", getCurrentThread().threadSlot,
@@ -1938,14 +2047,14 @@ public final class RVMThread extends ThreadContext {
       }
     }
     monitor().unlock();
-    if (traceBlock)
+    if (traceReallyBlock)
       VM.sysWriteln("Thread #", getCurrentThread().threadSlot,
           " is done telling thread #", threadSlot, " to block.");
     return result;
   }
 
   public boolean blockedFor(BlockAdapter ba) {
-    monitor().lock();
+    monitor().lockNoHandshake();
     boolean result = ba.isBlocked(this);
     monitor().unlock();
     return result;
@@ -1961,6 +2070,65 @@ public final class RVMThread extends ThreadContext {
   @Unpreemptible("May block if the receiver is the current thread or if the receiver is not yet blocked; otherwise does not perform actions that lead to blocking")
   public int block(BlockAdapter ba) {
     return block(ba, false);
+  }
+
+  @Unpreemptible
+  public void beginPairWith(RVMThread other) {
+    if (traceBlock) VM.sysWriteln("attempting to pair ",threadSlot," with ",other.threadSlot);
+    Monitor.lockWithHandshake(
+      communicationLock(),Word.fromIntSignExtend(threadSlot),
+      other.communicationLock(),Word.fromIntSignExtend(other.threadSlot));
+  }
+
+  public void endPairWith(RVMThread other) {
+    communicationLock().unlock();
+    other.communicationLock().unlock();
+    if (traceBlock) VM.sysWriteln("unpairing ",threadSlot," from ",other.threadSlot);
+  }
+
+  @Unpreemptible
+  public void beginPairWithCurrent() {
+    beginPairWith(getCurrentThread());
+  }
+
+  public void endPairWithCurrent() {
+    endPairWith(getCurrentThread());
+  }
+
+  @Unpreemptible
+  private int safeBlock(BlockAdapter ba, boolean asynchronous) {
+    if (VM.VerifyAssertions)
+      VM._assert(getCurrentThread() != this);
+    beginPairWithCurrent();
+    int result=block(ba,asynchronous);
+    endPairWithCurrent();
+    return result;
+  }
+
+  @Unpreemptible
+  public int safeAsyncBlock(BlockAdapter ba) {
+    return safeBlock(ba, true);
+  }
+
+  @Unpreemptible
+  public int safeBlock(BlockAdapter ba) {
+    if (getCurrentThread()==this) {
+      return block(ba,false);
+    } else {
+      return safeBlock(ba, false);
+    }
+  }
+
+  @Unpreemptible
+  public void beginPairHandshake() {
+    beginPairWithCurrent();
+    block(handshakeBlockAdapter);
+  }
+
+  @Uninterruptible
+  public void endPairHandshake() {
+    unblock(handshakeBlockAdapter);
+    endPairWithCurrent();
   }
 
   /**
@@ -2014,7 +2182,8 @@ public final class RVMThread extends ThreadContext {
   }
 
   /**
-   * Attempt to transition from IN_JNI or IN_NATIVE to IN_JAVA, fail if execStatus is blocked.
+   * Attempt to transition from IN_JNI or IN_NATIVE to IN_JAVA, fail if execStatus is
+   * anything but IN_JNI or IN_NATIVE.
    *
    * @return true if thread transitioned to IN_JAVA, otherwise false
    */
@@ -2096,7 +2265,7 @@ public final class RVMThread extends ThreadContext {
     if (traceBlock)
       VM.sysWriteln("Thread #", getCurrentThread().threadSlot,
           " is requesting that thread #", threadSlot, " unblocks.");
-    monitor().lock();
+    monitor().lockNoHandshake();
     ba.clearBlockRequest(this);
     ba.setBlocked(this, false);
     monitor().broadcast();
@@ -2107,8 +2276,8 @@ public final class RVMThread extends ThreadContext {
   }
 
   private void handleDebugRequestForThread() {
-    monitor().lock();
-    dumpLock.lock();
+    monitor().lockNoHandshake();
+    dumpLock.lockNoHandshake();
     extDump();
     if (!isAboutToTerminate) {
       setBlockedExecStatus();
@@ -2131,7 +2300,7 @@ public final class RVMThread extends ThreadContext {
   @NoCheckStore
   public static void checkDebugRequest() {
     if (debugRequested) {
-      debugLock.lock();
+      debugLock.lockNoHandshake();
       if (debugRequested) {
         debugRequested = false;
         VM.sysWriteln("=== Debug requested - attempting safe VM dump ===");
@@ -2143,9 +2312,9 @@ public final class RVMThread extends ThreadContext {
         // only meant to be used for debugging.
 
         VM.sysWriteln("Timer ticks = ", timerTicks);
-        doProfileReport.openDangerously();
+        doProfileReport.openNoHandshake();
         // snapshot the threads
-        acctLock.lock();
+        acctLock.lockNoHandshake();
         int numDebugThreads = numThreads;
         for (int i = 0; i < numThreads; ++i) {
           debugThreads[i] = threads[i];
@@ -2158,6 +2327,13 @@ public final class RVMThread extends ThreadContext {
         }
       }
       debugLock.unlock();
+    }
+  }
+
+  void timerTick() {
+    if (shouldBeSampled()) {
+      timeSliceExpired++;
+      takeYieldpoint=1;
     }
   }
 
@@ -2301,7 +2477,7 @@ public final class RVMThread extends ThreadContext {
    */
   @Interruptible
   @Entrypoint
-  public synchronized void run() {
+  public void run() {
     try {
       synchronized (thread) {
         Throwable t = java.lang.JikesRVMSupport.getStillBorn(thread);
@@ -2378,7 +2554,7 @@ public final class RVMThread extends ThreadContext {
     // N.B.: cannot hit a yieldpoint between setting execStatus and starting the
     // thread!!
     setExecStatus(IN_JAVA);
-    acctLock.lock();
+    acctLock.lockNoHandshake();
     numActiveThreads++;
     if (daemon) {
       numActiveDaemons++;
@@ -2423,7 +2599,7 @@ public final class RVMThread extends ThreadContext {
 
     if (traceAcct)
       VM.sysWriteln("doing accounting...");
-    acctLock.lock();
+    acctLock.lockNoHandshake();
 
     // if the thread terminated because of an exception, remove
     // the mark from the exception register object, or else the
@@ -2643,22 +2819,20 @@ public final class RVMThread extends ThreadContext {
    */
   @UnpreemptibleNoWarn("Exceptions may possibly cause yields")
   public void suspend() {
+    if (false) VM.sysWriteln("Thread #",getCurrentThreadSlot()," suspending Thread #",getThreadSlot());
     ObjectModel.genericUnlock(thread);
     Throwable rethrow = null;
-    monitor().lock();
     try {
       observeExecStatus();
       if (execStatus != IN_JAVA && execStatus != IN_JAVA_TO_BLOCK &&
           execStatus != IN_NATIVE && execStatus != BLOCKED_IN_NATIVE &&
           execStatus != BLOCKED_IN_JNI && execStatus != IN_JNI) {
         throw new IllegalThreadStateException(
-            "Cannot suspend a thread that is not running.");
+          "Cannot suspend a thread that is not running.");
       }
       block(suspendBlockAdapter);
     } catch (Throwable t) {
       rethrow = t;
-    } finally {
-      monitor().unlock();
     }
     ObjectModel.genericLock(thread);
     if (rethrow != null)
@@ -2683,15 +2857,15 @@ public final class RVMThread extends ThreadContext {
    * fraction).
    */
   @Interruptible
-  public static void sleep(long millis, int ns) throws InterruptedException {
+  public static void sleep(long ns) throws InterruptedException {
     RVMThread t = getCurrentThread();
     t.waiting = Waiting.TIMED_WAITING;
     long atStart = sysCall.sysNanoTime();
-    long whenEnd = atStart + (long) ns + millis * 1000L * 1000L;
-    t.monitor().lock();
+    long whenEnd = atStart + ns;
+    t.monitor().lockNoHandshake();
     while (!t.hasInterrupt && t.asyncThrowable == null &&
         sysCall.sysNanoTime() < whenEnd) {
-      t.monitor().timedWaitAbsoluteNicely(whenEnd);
+      t.monitor().timedWaitAbsoluteWithHandshake(whenEnd);
     }
     boolean throwInterrupt = false;
     Throwable throwThis = null;
@@ -2711,6 +2885,15 @@ public final class RVMThread extends ThreadContext {
     if (throwInterrupt) {
       throw new InterruptedException("sleep interrupted");
     }
+  }
+
+  /**
+   * Suspend execution of current thread for specified number of seconds (or
+   * fraction).
+   */
+  @Interruptible
+  public static void sleep(long millis, int ns) throws InterruptedException {
+    sleep((long) ns + millis * 1000L * 1000L);
   }
 
   /*
@@ -2749,16 +2932,16 @@ public final class RVMThread extends ThreadContext {
       // if there was a thread waiting, awaken it
       if (toAwaken != null) {
         // is this where the problem is coming from?
-        toAwaken.monitor().lockedBroadcast();
+        toAwaken.monitor().lockedBroadcastNoHandshake();
       }
       // block
-      monitor().lock();
+      monitor().lockNoHandshake();
       while (l.waiting.isQueued(this) && !hasInterrupt && asyncThrowable == null &&
              (!hasTimeout || sysCall.sysNanoTime() < whenWakeupNanos)) {
         if (hasTimeout) {
-          monitor().timedWaitAbsoluteNicely(whenWakeupNanos);
+          monitor().timedWaitAbsoluteWithHandshake(whenWakeupNanos);
         } else {
-          monitor().waitNicely();
+          monitor().waitWithHandshake();
         }
       }
       // figure out if anything special happened while we were blocked
@@ -2842,7 +3025,7 @@ public final class RVMThread extends ThreadContext {
 
   @UnpreemptibleNoWarn("Possible context when generating exception")
   public static void raiseIllegalMonitorStateException(String msg, Object o) {
-    throw new IllegalMonitorStateException(msg + o.toString());
+    throw new IllegalMonitorStateException(msg + (o == null ? "<null>" : o.toString()));
   }
 
   /**
@@ -2865,7 +3048,7 @@ public final class RVMThread extends ThreadContext {
     RVMThread toAwaken = l.waiting.dequeue();
     l.mutex.unlock();
     if (toAwaken != null) {
-      toAwaken.monitor().lockedBroadcast();
+      toAwaken.monitor().lockedBroadcastNoHandshake();
     }
   }
 
@@ -2891,12 +3074,12 @@ public final class RVMThread extends ThreadContext {
       l.mutex.unlock();
       if (toAwaken == null)
         break;
-      toAwaken.monitor().lockedBroadcast();
+      toAwaken.monitor().lockedBroadcastNoHandshake();
     }
   }
 
   public void stop(Throwable cause) {
-    monitor().lock();
+    monitor().lockNoHandshake();
     asyncThrowable = cause;
     takeYieldpoint = 1;
     monitor().broadcast();
@@ -2927,14 +3110,14 @@ public final class RVMThread extends ThreadContext {
       whenWakeupNanos = sysCall.sysNanoTime() + time;
     }
     Throwable throwThis = null;
-    monitor().lock();
+    monitor().lockNoHandshake();
     waiting = hasTimeout ? Waiting.TIMED_WAITING : Waiting.WAITING;
     while (!parkingPermit && !hasInterrupt && asyncThrowable == null &&
            (!hasTimeout || sysCall.sysNanoTime() < whenWakeupNanos)) {
       if (hasTimeout) {
-        monitor().timedWaitAbsoluteNicely(whenWakeupNanos);
+        monitor().timedWaitAbsoluteWithHandshake(whenWakeupNanos);
       } else {
-        monitor().waitNicely();
+        monitor().waitWithHandshake();
       }
     }
     waiting = Waiting.RUNNABLE;
@@ -2955,7 +3138,7 @@ public final class RVMThread extends ThreadContext {
 
   @Interruptible
   public void unpark() {
-    monitor().lock();
+    monitor().lockNoHandshake();
     parkingPermit = true;
     monitor().broadcast();
     monitor().unlock();
@@ -2967,15 +3150,7 @@ public final class RVMThread extends ThreadContext {
    * so it can be directly used in the ownership tests.
    */
   public int getLockingId() {
-    if (VM.VerifyAssertions) {
-      RVMThread hypotheticalThis=threadBySlot[threadSlot];
-      if (hypotheticalThis!=this) {
-        VM.sysWriteln("this = ",Magic.objectAsAddress(this));
-        VM.sysWriteln("hypothetical this = ",Magic.objectAsAddress(hypotheticalThis));
-      }
-      VM._assert(hypotheticalThis == this);
-    }
-    return threadSlot << ThinLockConstants.TL_THREAD_ID_SHIFT;
+    return lockingId;
   }
 
   @Uninterruptible
@@ -3006,7 +3181,7 @@ public final class RVMThread extends ThreadContext {
   @NoCheckStore
   public static int snapshotHandshakeThreads() {
     // figure out which threads to consider
-    acctLock.lock(); /* get a consistent view of which threads are live. */
+    acctLock.lockNoHandshake(); /* get a consistent view of which threads are live. */
 
     int numToHandshake = 0;
     for (int i = 0; i < numThreads; ++i) {
@@ -3034,10 +3209,10 @@ public final class RVMThread extends ThreadContext {
   @NoCheckStore
   @Unpreemptible("Does not perform actions that lead to blocking, but may wait for threads to rendezvous with the soft handshake")
   public static void softHandshake(SoftHandshakeVisitor v) {
-    handshakeLock.lockNicely(); /*
-                                 * prevent multiple (soft or hard) handshakes
-                                 * from proceeding concurrently
-                                 */
+    handshakeLock.lockWithHandshake(); /*
+                                        * prevent multiple (soft or hard) handshakes
+                                        * from proceeding concurrently
+                                        */
 
     int numToHandshake = snapshotHandshakeThreads();
     if (VM.VerifyAssertions)
@@ -3048,7 +3223,7 @@ public final class RVMThread extends ThreadContext {
     for (int i = 0; i < numToHandshake; ++i) {
       RVMThread t = handshakeThreads[i];
       handshakeThreads[i] = null; // help GC
-      t.monitor().lock();
+      t.monitor().lockNoHandshake();
       boolean waitForThisThread = false;
       if (!t.isAboutToTerminate && v.checkAndSignal(t)) {
         // CAS the execStatus field
@@ -3092,21 +3267,21 @@ public final class RVMThread extends ThreadContext {
       // this is unlikely and completely harmless.
 
       if (waitForThisThread) {
-        softHandshakeDataLock.lock();
+        softHandshakeDataLock.lockNoHandshake();
         softHandshakeLeft++;
         softHandshakeDataLock.unlock();
       }
     }
 
     // wait for all threads to reach the handshake
-    softHandshakeDataLock.lock();
+    softHandshakeDataLock.lockNoHandshake();
     if (VM.VerifyAssertions)
       VM._assert(softHandshakeLeft >= 0);
     while (softHandshakeLeft > 0) {
       // wait and tell the world that we're off in native land. this way
       // if someone tries to block us at this point (suspend() or GC),
       // they'll know not to wait for us.
-      softHandshakeDataLock.waitNicely();
+      softHandshakeDataLock.waitWithHandshake();
     }
     if (VM.VerifyAssertions)
       VM._assert(softHandshakeLeft == 0);
@@ -3123,7 +3298,7 @@ public final class RVMThread extends ThreadContext {
    */
   public boolean softRendezvousCheckAndClear() {
     boolean result = false;
-    monitor().lock();
+    monitor().lockNoHandshake();
     if (softHandshakeRequested) {
       softHandshakeRequested = false;
       result = true;
@@ -3137,7 +3312,7 @@ public final class RVMThread extends ThreadContext {
    * that leads to a write barrier or allocation.
    */
   public void softRendezvousCommit() {
-    softHandshakeDataLock.lock();
+    softHandshakeDataLock.lockNoHandshake();
     softHandshakeLeft--;
     if (softHandshakeLeft == 0) {
       softHandshakeDataLock.broadcast();
@@ -3184,7 +3359,7 @@ public final class RVMThread extends ThreadContext {
     // not really a "soft handshake" request but we handle it here anyway
     if (asyncDebugRequestedForThisThread) {
       asyncDebugRequestedForThisThread = false;
-      dumpLock.lock();
+      dumpLock.lockNoHandshake();
       VM.sysWriteln("Handling async stack trace request...");
       dump();
       VM.sysWriteln();
@@ -3202,10 +3377,10 @@ public final class RVMThread extends ThreadContext {
   @NoCheckStore
   @Unpreemptible
   public static void blockAllMutatorsForGC() {
-    RVMThread.handshakeLock.lock();
+    RVMThread.handshakeLock.lockNoHandshake();
     while (true) {
       // (1) Find all the threads that need to be blocked for GC
-      RVMThread.acctLock.lock();
+      RVMThread.acctLock.lockNoHandshake();
       int numToHandshake = 0;
       for (int i = 0; i < RVMThread.numThreads; i++) {
         RVMThread t = RVMThread.threads[i];
@@ -3218,7 +3393,7 @@ public final class RVMThread extends ThreadContext {
       // (2) Remove any threads that have already been blocked from the list.
       for (int i = 0; i < numToHandshake; i++) {
         RVMThread t = RVMThread.handshakeThreads[i];
-        t.monitor().lock();
+        t.monitor().lockNoHandshake();
         if (t.blockedFor(RVMThread.gcBlockAdapter) || RVMThread.notRunning(t.asyncBlock(RVMThread.gcBlockAdapter))) {
           // Already blocked or not running, remove.
           RVMThread.handshakeThreads[i--] = RVMThread.handshakeThreads[--numToHandshake];
@@ -3256,8 +3431,8 @@ public final class RVMThread extends ThreadContext {
   @NoCheckStore
   @Unpreemptible
   public static void unblockAllMutatorsForGC() {
-    RVMThread.handshakeLock.lock();
-    RVMThread.acctLock.lock();
+    RVMThread.handshakeLock.lockNoHandshake();
+    RVMThread.acctLock.lockNoHandshake();
     int numToHandshake = 0;
     for (int i = 0; i < RVMThread.numThreads; i++) {
       RVMThread t = RVMThread.threads[i];
@@ -3271,6 +3446,161 @@ public final class RVMThread extends ThreadContext {
       RVMThread.handshakeThreads[i] = null; // Help GC
     }
     RVMThread.handshakeLock.unlock();
+  }
+
+  @Uninterruptible
+  public static class HardHandshakeVisitor {
+    public boolean includeThread(RVMThread t) {
+      return true;
+    }
+  }
+
+  @Uninterruptible
+  @NonMoving
+  static class AllButGCHardHandshakeVisitor extends HardHandshakeVisitor {
+    public boolean includeThread(RVMThread t) {
+      return !t.isCollectorThread();
+    }
+  }
+
+  public static final AllButGCHardHandshakeVisitor allButGC=
+    new AllButGCHardHandshakeVisitor();
+
+  static long totalSuspendTime;
+  static long totalResumeTime;
+
+  @Unpreemptible
+  @NoCheckStore
+  public static void hardHandshakeSuspend(BlockAdapter ba,
+                                          HardHandshakeVisitor hhv) {
+    long before=sysCall.sysNanoTime();
+
+    RVMThread current=getCurrentThread();
+
+    handshakeLock.lockWithHandshake();
+    int numLockedLocks=0;
+    for (int i=0;i<nextSlot;++i) {
+      Monitor l=communicationLockBySlot[i];
+      if (l!=null) {
+        l.lockWithHandshake();
+        numLockedLocks++;
+      }
+    }
+
+    // fixpoint until there are no threads that we haven't blocked.
+    // fixpoint is needed in case some thread spawns another thread
+    // while we're waiting.  that is unlikely but possible.
+    for (;;) {
+      acctLock.lockNoHandshake();
+      int numToHandshake=0;
+      for (int i=0;i<numThreads;++i) {
+        RVMThread t=threads[i];
+        if (t!=current &&
+            !t.ignoreHandshakesAndGC() &&
+            hhv.includeThread(t)) {
+          handshakeThreads[numToHandshake++]=t;
+        }
+      }
+      acctLock.unlock();
+
+      for (int i=0;i<numToHandshake;++i) {
+        RVMThread t=handshakeThreads[i];
+        t.monitor().lockNoHandshake();
+        if (t.blockedFor(ba) ||
+            notRunning(t.asyncBlock(ba))) {
+          // already blocked or not running, remove
+          handshakeThreads[i--]=handshakeThreads[--numToHandshake];
+          handshakeThreads[numToHandshake]=null; // help GC
+        }
+        t.monitor().unlock();
+      }
+      // quit trying to block threads if all threads are either blocked
+      // or not running (a thread is "not running" if it is NEW or TERMINATED;
+      // in the former case it means that the thread has not had start()
+      // called on it while in the latter case it means that the thread
+      // is either in the TERMINATED state or is about to be in that state
+      // real soon now, and will not perform any heap-related stuff before
+      // terminating).
+      if (numToHandshake==0) break;
+      for (int i=0;i<numToHandshake;++i) {
+        RVMThread t=handshakeThreads[i];
+        observeExecStatusAtSTW(t.block(ba));
+        handshakeThreads[i]=null; // help GC
+      }
+    }
+    worldStopped=true;
+
+    processAboutToTerminate(); /*
+                                * ensure that any threads that died while
+                                * we were stopping the world notify us
+                                * that they had stopped.
+                                */
+
+    int numUnlockedLocks=0;
+    for (int i=0;i<nextSlot;++i) {
+      Monitor l=communicationLockBySlot[i];
+      if (l!=null) {
+        l.unlock();
+        numUnlockedLocks++;
+      }
+    }
+    if (VM.VerifyAssertions) VM._assert(numLockedLocks==numUnlockedLocks);
+    handshakeLock.unlock();
+
+    if (false) {
+      long after=sysCall.sysNanoTime();
+      totalSuspendTime+=after-before;
+      VM.sysWriteln("Stopping the world took ",(after-before)," ns (",totalSuspendTime," ns total)");
+    }
+  }
+
+  @NoCheckStore
+  @Unpreemptible
+  public static void hardHandshakeResume(BlockAdapter ba,
+                                         HardHandshakeVisitor hhv) {
+    long before=sysCall.sysNanoTime();
+
+    handshakeLock.lockWithHandshake();
+
+    RVMThread current=getCurrentThread();
+    worldStopped=false;
+    acctLock.lockNoHandshake();
+    int numToHandshake=0;
+    for (int i=0;i<numThreads;++i) {
+      RVMThread t=threads[i];
+      if (t!=current &&
+          !t.ignoreHandshakesAndGC() &&
+          hhv.includeThread(t)) {
+        handshakeThreads[numToHandshake++]=t;
+      }
+    }
+    acctLock.unlock();
+    for (int i=0;i<numToHandshake;++i) {
+      handshakeThreads[i].unblock(ba);
+      handshakeThreads[i]=null; // help GC
+    }
+
+    handshakeLock.unlock();
+
+    if (false) {
+      long after=sysCall.sysNanoTime();
+      totalResumeTime+=after-before;
+      VM.sysWriteln("Resuming the world took ",(after-before)," ns (",totalResumeTime," ns total)");
+    }
+  }
+
+  @Unpreemptible
+  public static void hardHandshakeSuspend() {
+    hardHandshakeSuspend(handshakeBlockAdapter,allButGC);
+  }
+
+  @Unpreemptible
+  public static void hardHandshakeResume() {
+    hardHandshakeResume(handshakeBlockAdapter,allButGC);
+  }
+
+  public static boolean worldStopped() {
+    return worldStopped;
   }
 
   /**
@@ -3308,7 +3638,7 @@ public final class RVMThread extends ThreadContext {
     t.yieldpointsTakenFully++;
 
     Throwable throwThis = null;
-    t.monitor().lock();
+    t.monitor().lockNoHandshake();
 
     int takeYieldpointVal = t.takeYieldpoint;
     if (takeYieldpointVal != 0) {
@@ -3682,7 +4012,7 @@ public final class RVMThread extends ThreadContext {
         // thread will start as a daemon
       } else {
         boolean terminateSystem = false;
-        acctLock.lock();
+        acctLock.lockNoHandshake();
         numActiveDaemons += on ? 1 : -1;
         if (numActiveDaemons == numActiveThreads) {
           terminateSystem = true;
@@ -3758,7 +4088,7 @@ public final class RVMThread extends ThreadContext {
 
   /** Is the thread started and not terminated */
   public boolean isAlive() {
-    monitor().lock();
+    monitor().lockNoHandshake();
     observeExecStatus();
     boolean result = execStatus != NEW && execStatus != TERMINATED && !isAboutToTerminate;
     monitor().unlock();
@@ -3823,7 +4153,7 @@ public final class RVMThread extends ThreadContext {
    */
   @Interruptible
   public void interrupt() {
-    monitor().lock();
+    monitor().lockNoHandshake();
     hasInterrupt = true;
     monitor().broadcast();
     monitor().unlock();
@@ -3858,7 +4188,7 @@ public final class RVMThread extends ThreadContext {
    */
   @Interruptible
   public Thread.State getState() {
-    monitor().lock();
+    monitor().lockNoHandshake();
     try {
       observeExecStatus();
       switch (execStatus) {
@@ -3911,7 +4241,7 @@ public final class RVMThread extends ThreadContext {
     if (traceBlock)
       VM.sysWriteln("Joining on Thread #", threadSlot);
     // this uses synchronized because we cannot have one thread acquire
-    // another thread's lock using the Nicely scheme, as that would result
+    // another thread's lock using the WithHandshake scheme, as that would result
     // in a thread holding two threads' monitor()s.  using synchronized
     // turns out to be just fine - see comment in terminate().
     synchronized (this) {
@@ -3924,7 +4254,7 @@ public final class RVMThread extends ThreadContext {
       } else {
         long startNano = Time.nanoTime();
         long whenWakeup = startNano + ms * 1000L * 1000L + ns;
-        if (isAlive()) {
+        if (!isJoinable) {
           do {
             waitAbsoluteNanos(this, whenWakeup);
           } while (isAlive() && Time.nanoTime() < whenWakeup);
@@ -4112,8 +4442,8 @@ public final class RVMThread extends ThreadContext {
   }
 
   public static void dumpAcct() {
-    acctLock.lock();
-    dumpLock.lock();
+    acctLock.lockNoHandshake();
+    dumpLock.lockNoHandshake();
     VM.sysWriteln("====== Begin Thread Accounting Dump ======");
     dumpThreadArray("threadBySlot", threadBySlot, nextSlot);
     dumpThreadSlotArray("aboutToTerminate", aboutToTerminate, aboutToTerminateN);
@@ -4281,7 +4611,7 @@ public final class RVMThread extends ThreadContext {
    * multiple threads.
    */
   public static void trace(String who, String what) {
-    outputLock.lock();
+    outputLock.lockNoHandshake();
     VM.sysWrite("[");
     RVMThread t = getCurrentThread();
     t.dump();
@@ -4321,7 +4651,7 @@ public final class RVMThread extends ThreadContext {
   }
 
   public static void trace(String who, String what, Address addr) {
-    outputLock.lock();
+    outputLock.lockNoHandshake();
     VM.sysWrite("[");
     getCurrentThread().dump();
     VM.sysWrite("] ");
@@ -4342,7 +4672,7 @@ public final class RVMThread extends ThreadContext {
   }
 
   private static void _trace(String who, String what, int howmany, boolean hex) {
-    outputLock.lock();
+    outputLock.lockNoHandshake();
     VM.sysWrite("[");
     // VM.sysWriteInt(RVMThread.getCurrentThread().getThreadSlot());
     getCurrentThread().dump();
@@ -4375,7 +4705,7 @@ public final class RVMThread extends ThreadContext {
    */
   public static void traceback(String message) {
     if (VM.runningVM) {
-      outputLock.lock();
+      outputLock.lockNoHandshake();
     }
     VM.sysWriteln(message);
     tracebackWithoutLock();
@@ -4386,7 +4716,7 @@ public final class RVMThread extends ThreadContext {
 
   public static void traceback(String message, int number) {
     if (VM.runningVM) {
-      outputLock.lock();
+      outputLock.lockNoHandshake();
     }
     VM.sysWriteln(message, number);
     tracebackWithoutLock();
@@ -4443,7 +4773,7 @@ public final class RVMThread extends ThreadContext {
    * @param fp frame pointer for first frame to dump
    */
   public static void dumpStack(Address ip, Address fp) {
-    boolean b = Monitor.lock(dumpLock);
+    boolean b = Monitor.lockNoHandshake(dumpLock);
     RVMThread t = getCurrentThread();
     ++t.inDumpStack;
     if (t.inDumpStack > 1 &&
@@ -4680,7 +5010,7 @@ public final class RVMThread extends ThreadContext {
    * Dump state of virtual machine.
    */
   public static void dumpVirtualMachine() {
-    boolean b = Monitor.lock(dumpLock);
+    boolean b = Monitor.lockNoHandshake(dumpLock);
     getCurrentThread().disableYieldpoints();
     VM.sysWrite("\n-- Threads --\n");
     for (int i = 0; i < numThreads; ++i) {

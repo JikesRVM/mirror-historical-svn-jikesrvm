@@ -1,18 +1,18 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
 package org.mmtk.harness.lang.runtime;
 
-import org.mmtk.harness.lang.ast.Type;
+import org.mmtk.harness.lang.type.Type;
 import org.vmmagic.unboxed.ObjectReference;
 
 /**
@@ -54,9 +54,23 @@ public abstract class Value {
     throw new RuntimeException("Invalid use of " + type() + " as a string");
   }
 
+  /**
+   * Marshall a value of this type into the equivalent Java value
+   * @param klass The target class
+   * @return
+   */
+  public Object marshall(Class<?> klass) {
+    if (klass.isAssignableFrom(this.getClass())) {
+      return this;
+    }
+    throw new RuntimeException(getClass()+" cannot be marshalled into a Java Object");
+  }
+
   @Override
   public abstract int hashCode();
 
   @Override
   public abstract boolean equals(Object o);
+
+
 }

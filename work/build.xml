@@ -1,18 +1,18 @@
 <!--
  ~  This file is part of the Jikes RVM project (http://jikesrvm.org).
  ~
- ~  This file is licensed to You under the Common Public License (CPL);
+ ~  This file is licensed to You under the Eclipse Public License (EPL);
  ~  You may not use this file except in compliance with the License. You
  ~  may obtain a copy of the License at
  ~
- ~      http://www.opensource.org/licenses/cpl1.0.php
+ ~      http://www.opensource.org/licenses/eclipse-1.0.php
  ~
  ~  See the COPYRIGHT.txt file distributed with this work for information
  ~  regarding copyright ownership.
  -->
 <project name="JikesRVM" default="main" basedir=".">
 
-  <property name="rvm.version" value="3.0.1+svn"/>
+  <property name="rvm.version" value="3.1.0+svn"/>
   <!-- <property name="svn.revision" value="XXX"/> -->
 
   <property name="jikesrvm.dir" location="${basedir}"/>
@@ -188,7 +188,7 @@
     <test-file name="harmony.lib.dir" location="${components.file}"/>
     <property file="${harmony.lib.dir}/constants.properties"/>
     <property name="config.portable-native-sync" value="false"/> <!-- has no meaning for Harmony -->
-    <property name="build.extra.rt.jars" value=":${harmony.lib.dir}/yoko-rmi-impl.jar:${harmony.lib.dir}/instrument.jar:${harmony.lib.dir}/beans.jar:${harmony.lib.dir}/xml-apis.jar:${harmony.lib.dir}/mx4j.jar:${harmony.lib.dir}/nio.jar:${harmony.lib.dir}/xalan.jar:${harmony.lib.dir}/resolver.jar:${harmony.lib.dir}/logging.jar:${harmony.lib.dir}/bcprov.jar:${harmony.lib.dir}/security.jar:${harmony.lib.dir}/sql.jar:${harmony.lib.dir}/print.jar:${harmony.lib.dir}/mx4j-remote.jar:${harmony.lib.dir}/concurrent.jar:${harmony.lib.dir}/luni-kernel-stubs.jar:${harmony.lib.dir}/misc.jar:${harmony.lib.dir}/accessibility.jar:${harmony.lib.dir}/crypto.jar:${harmony.lib.dir}/yoko.jar:${harmony.lib.dir}/rmi.jar:${harmony.lib.dir}/security-kernel-stubs.jar:${harmony.lib.dir}/x-net.jar:${harmony.lib.dir}/icu4j-charsets-3_8.jar:${harmony.lib.dir}/imageio.jar:${harmony.lib.dir}/nio_char.jar:${harmony.lib.dir}/lang-management.jar:${harmony.lib.dir}/regex.jar:${harmony.lib.dir}/applet.jar:${harmony.lib.dir}/prefs.jar:${harmony.lib.dir}/annotation.jar:${harmony.lib.dir}/math.jar:${harmony.lib.dir}/luni.jar:${harmony.lib.dir}/archive.jar:${harmony.lib.dir}/awt.jar:${harmony.lib.dir}/nio_char-src.jar:${harmony.lib.dir}/xercesImpl.jar:${harmony.lib.dir}/yoko-rmi-spec.jar:${harmony.lib.dir}/swing.jar:${harmony.lib.dir}/auth.jar:${harmony.lib.dir}/yoko-core.jar:${harmony.lib.dir}/text.jar:${harmony.lib.dir}/jndi.jar:${harmony.lib.dir}/suncompat.jar:${harmony.lib.dir}/sound.jar:${harmony.lib.dir}/icu4j-3_8.jar:${harmony.lib.dir}/bcel-5.2.jar"/>
+    <property name="build.extra.rt.jars" value=":${harmony.lib.dir}/yoko-rmi-impl.jar:${harmony.lib.dir}/instrument.jar:${harmony.lib.dir}/beans.jar:${harmony.lib.dir}/xml-apis.jar:${harmony.lib.dir}/mx4j.jar:${harmony.lib.dir}/nio.jar:${harmony.lib.dir}/xalan.jar:${harmony.lib.dir}/resolver.jar:${harmony.lib.dir}/logging.jar:${harmony.lib.dir}/bcprov.jar:${harmony.lib.dir}/security.jar:${harmony.lib.dir}/sql.jar:${harmony.lib.dir}/print.jar:${harmony.lib.dir}/mx4j-remote.jar:${harmony.lib.dir}/concurrent.jar:${harmony.lib.dir}/luni-kernel-stubs.jar:${harmony.lib.dir}/misc.jar:${harmony.lib.dir}/accessibility.jar:${harmony.lib.dir}/crypto.jar:${harmony.lib.dir}/yoko.jar:${harmony.lib.dir}/rmi.jar:${harmony.lib.dir}/security-kernel-stubs.jar:${harmony.lib.dir}/x-net.jar:${harmony.lib.dir}/icu4j-charsets-4_0.jar:${harmony.lib.dir}/imageio.jar:${harmony.lib.dir}/nio_char.jar:${harmony.lib.dir}/lang-management.jar:${harmony.lib.dir}/regex.jar:${harmony.lib.dir}/applet.jar:${harmony.lib.dir}/prefs.jar:${harmony.lib.dir}/annotation.jar:${harmony.lib.dir}/math.jar:${harmony.lib.dir}/luni.jar:${harmony.lib.dir}/archive.jar:${harmony.lib.dir}/awt.jar:${harmony.lib.dir}/nio_char-src.jar:${harmony.lib.dir}/xercesImpl.jar:${harmony.lib.dir}/yoko-rmi-spec.jar:${harmony.lib.dir}/swing.jar:${harmony.lib.dir}/auth.jar:${harmony.lib.dir}/yoko-core.jar:${harmony.lib.dir}/text.jar:${harmony.lib.dir}/jndi.jar:${harmony.lib.dir}/suncompat.jar:${harmony.lib.dir}/sound.jar:${harmony.lib.dir}/icu4j-4_0.jar:${harmony.lib.dir}/bcel-5.2.jar"/>
   </target>
 
   <target name="check-mmtk-properties"  depends="check-host-name">
@@ -257,6 +257,14 @@
       </conditions>
       <sequential>
         <ant antfile="build/components/harmony.xml" target="ensure"/>
+      </sequential>
+    </if>
+    <if>
+      <conditions>
+        <equals arg1="${config.with-profile}" arg2="true"/>
+      </conditions>
+      <sequential>
+        <ant antfile="build/components/dacapo.xml" target="ensure"/>
       </sequential>
     </if>
     <ant antfile="build/components/checkstyle.xml" target="ensure"/>
@@ -344,7 +352,7 @@ Check to make sure all required properties are specified. This includes properti
     <condition property="os.filter" value="-DRVM_FOR_AIX=1">
       <equals arg1="${target.os}" arg2="AIX"/>
     </condition>
-    <condition property="os.filter" value="-DRVM_FOR_LINUX=1">
+    <condition property="os.filter" value="-DRVM_FOR_LINUX=1 -DLINUX=1">
       <equals arg1="${target.os}" arg2="Linux"/>
     </condition>
     <condition property="os.filter" value="-DRVM_FOR_OSX=1">
@@ -352,6 +360,14 @@ Check to make sure all required properties are specified. This includes properti
     </condition>
     <condition property="os.filter" value="-DRVM_FOR_SOLARIS=1">
       <equals arg1="${target.os}" arg2="Solaris"/>
+    </condition>
+
+    <condition property="classlib.filter" value="-DRVM_FOR_HARMONY=1">
+      <equals arg1="${classlib.provider}" arg2="Harmony"/>
+    </condition>
+
+    <condition property="classlib.filter" value="-DRVM_FOR_GNU_CLASSPATH=1">
+      <equals arg1="${classlib.provider}" arg2="GNU Classpath"/>
     </condition>
 
     <condition property="gctrace.filter" value="-DRVM_WITH_GCTRACE=1" else="">
@@ -369,7 +385,7 @@ Check to make sure all required properties are specified. This includes properti
       <equals arg1="${config.include.perfctr}" arg2="true"/>
     </condition>
 
-    <property name="filter" value="${arch.filter} ${os.filter} ${addr.filter} ${gctrace.filter} ${gcspy.filter} ${alignment-checking.filter} ${perfctr.filter}"/>
+    <property name="filter" value="${arch.filter} ${os.filter} ${addr.filter} ${gctrace.filter} ${gcspy.filter} ${alignment-checking.filter} ${perfctr.filter} ${classlib.filter}"/>
   </target>
 
   <!-- **************************************************************************** -->
@@ -1025,7 +1041,7 @@ Check to make sure all required properties are specified. This includes properti
         <equals arg1="${classlib.provider}" arg2="GNU Classpath"/>
       </conditions>
       <sequential>
-        <property name="classlib.library-interface.cpl.java" location="libraryInterface/GNUClasspath/CPL/src"/>
+        <property name="classlib.library-interface.cpl.java" location="libraryInterface/GNUClasspath/EPL/src"/>
         <property name="classlib.library-interface.non-cpl.java" location="libraryInterface/GNUClasspath/LGPL/src"/>
         <property name="classlib.library-interface.non-cpl2.java" location="libraryInterface/GNUClasspath/PD/src"/>
       </sequential>
@@ -1035,7 +1051,7 @@ Check to make sure all required properties are specified. This includes properti
         <equals arg1="${classlib.provider}" arg2="Harmony"/>
       </conditions>
       <sequential>
-        <property name="classlib.library-interface.cpl.java" location="libraryInterface/Harmony/CPL/src"/>
+        <property name="classlib.library-interface.cpl.java" location="libraryInterface/Harmony/EPL/src"/>
         <property name="classlib.library-interface.non-cpl.java" location="libraryInterface/Harmony/ASF/src"/>
       </sequential>
     </if>
@@ -1520,7 +1536,7 @@ Check to make sure all required properties are specified. This includes properti
     <property name="rvm.includes"
               value="-I${bl.dir} -I${basedir}/include -I${dist.base}/include ${gcspy.includes.dir} ${arch.includes} ${classlib.includes}"/>
 
-    <property name="rvm.defines" value="-D_REENTRANT ${filter} "/>
+    <property name="rvm.defines" value="-D_REENTRANT -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE ${filter} "/>
 
     <condition property="rvm.sse.args" value="" else="-mfpmath=sse">
         <equals arg1="${target.arch.sse2}" arg2="none"/>
@@ -1597,7 +1613,7 @@ Check to make sure all required properties are specified. This includes properti
       </conditions>
       <sequential>
         <exec executable="${c.exe}" failonerror="true">
-          <arg line="-DLINUX=1 ${rvm.c++.args} -lpthread ${c++.librt} -L${harmony.lib.dir} -lhyprt -lhyarchive -lhyzlib"/>
+          <arg line="${rvm.c++.args} -lpthread ${c++.librt} -L${harmony.lib.dir} -lhyprt -lhyarchive -lhyzlib"/>
           <arg value="-o"/>
           <arg value="${build.base}/${vmi.dll}"/>
           <arg value="${bl.dir}/harmony.c"/>
@@ -1643,7 +1659,7 @@ Check to make sure all required properties are specified. This includes properti
       </conditions>
       <sequential>
         <exec executable="${c++.exe}" failonerror="true">
-          <arg line="${c++.args} -DLINUX=1 -DHARMONY=1 ${rvm.common.args} ${gcspy.lib.dir} -lpthread ${perfctr.lib} ${c++.librt} ${rvm.src} ${c++.rdynamic} -g"/>
+          <arg line="${c++.args} ${rvm.common.args} ${gcspy.lib.dir} -lpthread ${perfctr.lib} ${c++.librt} ${rvm.src} ${c++.rdynamic} -g"/>
           <arg value="-o"/>
           <arg value="${build.base}/JikesRVM"/>
           <arg value="-L${build.base}"/>
@@ -1983,7 +1999,7 @@ target.jni-suffix=${target.jni-suffix}
       <fileset dir="common/vmmagic" includes="**/*.java"/>
       <fileset dir="common/options" includes="**/*.java"/>
       <fileset dir="libraryInterface/Common" includes="**/*.java"/>
-      <fileset dir="libraryInterface/GNUClasspath/CPL" includes="**/*.java"/>
+      <fileset dir="libraryInterface/GNUClasspath/EPL" includes="**/*.java"/>
       <fileset dir="tools" includes="**/*.java"/>
     </checkstyle>
 
@@ -2196,7 +2212,7 @@ target.jni-suffix=${target.jni-suffix}
     <record name="${build.dir}/javadoc/JavadocReport.txt" action="stop"/>
   </target>
 
-  <target name="mmtk-harness-eclipse-project">
+  <target name="mmtk-harness-eclipse-project" depends="mmtk-harness">
     <delete dir="eclipse"/>
     <delete file=".project"/>
     <delete file=".classpath"/>

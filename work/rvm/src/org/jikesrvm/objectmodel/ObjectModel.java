@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -432,6 +432,7 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
   /**
    * Get the hash code of an object.
    */
+  @Interruptible
   public static int getObjectHashCode(Object o) {
     if (HASH_STATS) hashRequests++;
     return JavaHeader.getObjectHashCode(o);
@@ -547,6 +548,7 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
    * Freeze the other bits in the byte containing the available bits
    * so that it is safe to update them using setAvailableBits.
    */
+  @Interruptible
   public static void initializeAvailableByte(Object o) {
     JavaHeader.initializeAvailableByte(o);
   }

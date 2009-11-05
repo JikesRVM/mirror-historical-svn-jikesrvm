@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -39,7 +39,7 @@ import org.jikesrvm.compilers.common.assembler.ppc.Assembler;
 import org.jikesrvm.compilers.common.assembler.ppc.AssemblerConstants;
 import org.jikesrvm.jni.ppc.JNICompiler;
 import org.jikesrvm.jni.ppc.JNIStackframeLayoutConstants;
-import org.jikesrvm.mm.mminterface.MemoryManagerConstants;
+import static org.jikesrvm.mm.mminterface.Barriers.*;
 import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.ppc.BaselineConstants;
@@ -965,7 +965,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
   @Override
   protected final void emit_aaload() {
     genBoundsCheck();
-    if (MemoryManagerConstants.NEEDS_READ_BARRIER) {
+    if (NEEDS_OBJECT_ALOAD_BARRIER) {
       Barriers.compileArrayLoadBarrier(this);
       pushAddr(T0);
     } else {
@@ -2470,7 +2470,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
   protected final void emit_unresolved_getstatic(FieldReference fieldRef) {
     emitDynamicLinkingSequence(T0, fieldRef, true);
     TypeReference fieldType = fieldRef.getFieldContentsType();
-    if (MemoryManagerConstants.NEEDS_GETSTATIC_READ_BARRIER && fieldType.isReferenceType()) {
+    if (NEEDS_OBJECT_GETSTATIC_BARRIER && fieldType.isReferenceType()) {
       Barriers.compileGetstaticBarrier(this, fieldType.getId());
       pushAddr(T0);
       return;
@@ -2500,7 +2500,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     RVMField field = fieldRef.peekResolvedField();
     Offset fieldOffset = field.getOffset();
     TypeReference fieldType = fieldRef.getFieldContentsType();
-    if (MemoryManagerConstants.NEEDS_GETSTATIC_READ_BARRIER && fieldType.isReferenceType() && !field.isUntraced()) {
+    if (NEEDS_OBJECT_GETSTATIC_BARRIER && fieldType.isReferenceType() && !field.isUntraced()) {
       Barriers.compileGetstaticBarrierImm(this, fieldOffset, fieldType.getId());
       pushAddr(T0);
       return;
@@ -2528,7 +2528,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    */
   protected final void emit_unresolved_putstatic(FieldReference fieldRef) {
     emitDynamicLinkingSequence(T1, fieldRef, true);
-    if (MemoryManagerConstants.NEEDS_PUTSTATIC_WRITE_BARRIER && !fieldRef.getFieldContentsType().isPrimitiveType()) {
+    if (NEEDS_OBJECT_PUTSTATIC_BARRIER && !fieldRef.getFieldContentsType().isPrimitiveType()) {
       Barriers.compilePutstaticBarrier(this, fieldRef.getId()); // NOTE: offset is in T0 from emitDynamicLinkingSequence
       discardSlots(1);
       return;
@@ -2557,7 +2557,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
   protected final void emit_resolved_putstatic(FieldReference fieldRef) {
     RVMField field = fieldRef.peekResolvedField();
     Offset fieldOffset = field.getOffset();
-    if (MemoryManagerConstants.NEEDS_PUTSTATIC_WRITE_BARRIER && !fieldRef.getFieldContentsType().isPrimitiveType() && !field.isUntraced()) {
+    if (NEEDS_OBJECT_PUTSTATIC_BARRIER && !fieldRef.getFieldContentsType().isPrimitiveType() && !field.isUntraced()) {
       Barriers.compilePutstaticBarrierImm(this, fieldOffset, fieldRef.getId());
       discardSlots(1);
       return;
@@ -2587,7 +2587,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     TypeReference fieldType = fieldRef.getFieldContentsType();
     // T1 = field offset from emitDynamicLinkingSequence()
     emitDynamicLinkingSequence(T1, fieldRef, true);
-    if (MemoryManagerConstants.NEEDS_READ_BARRIER && fieldType.isReferenceType()) {
+    if (NEEDS_OBJECT_GETFIELD_BARRIER && fieldType.isReferenceType()) {
       Barriers.compileGetfieldBarrier(this, fieldType.getId());
       discardSlots(1);
       pushAddr(T0);
@@ -2637,7 +2637,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     RVMField field = fieldRef.peekResolvedField();
     TypeReference fieldType = fieldRef.getFieldContentsType();
     Offset fieldOffset = field.getOffset();
-    if (MemoryManagerConstants.NEEDS_READ_BARRIER && fieldType.isReferenceType() && !field.isUntraced()) {
+    if (NEEDS_OBJECT_GETFIELD_BARRIER && fieldType.isReferenceType() && !field.isUntraced()) {
       Barriers.compileGetfieldBarrierImm(this, fieldOffset, fieldType.getId());
       discardSlots(1);
       pushAddr(T0);
@@ -2688,7 +2688,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     emitDynamicLinkingSequence(T2, fieldRef, true);
     if (fieldType.isReferenceType()) {
       // 32/64bit reference store
-      if (MemoryManagerConstants.NEEDS_WRITE_BARRIER) {
+      if (NEEDS_OBJECT_PUTFIELD_BARRIER) {
         // NOTE: offset is in T2 from emitDynamicLinkingSequence
         Barriers.compilePutfieldBarrier(this, fieldRef.getId());
         discardSlots(2);
@@ -2742,7 +2742,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
     TypeReference fieldType = fieldRef.getFieldContentsType();
     if (fieldType.isReferenceType()) {
       // 32/64bit reference store
-      if (MemoryManagerConstants.NEEDS_WRITE_BARRIER && !field.isUntraced()) {
+      if (NEEDS_OBJECT_PUTFIELD_BARRIER && !field.isUntraced()) {
         Barriers.compilePutfieldBarrierImm(this, fieldOffset, fieldRef.getId());
         discardSlots(2);
       } else {
@@ -3743,7 +3743,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
    * @param reg The register to hold the counter array.
    */
   private void loadCounterArray(int reg) {
-    if (MemoryManagerConstants.NEEDS_READ_BARRIER) {
+    if (NEEDS_OBJECT_ALOAD_BARRIER) {
       asm.emitLAddrToc(T0, Entrypoints.edgeCountersField.getOffset());
       asm.emitLVAL(T1, getEdgeCounterIndex());
       Barriers.compileArrayLoadBarrier(this);
@@ -4615,6 +4615,13 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
       popAddr(T0); // pop object
       asm.emitLIntX(T0, T1, T0); // *(object+offset)
       pushInt(T0); // push *(object+offset)
+    } else if (methodName == MagicNames.getFloatAtOffset) {
+      popInt(T1); // pop offset
+      popAddr(T0); // pop object
+      asm.emitLWZX(T0, T1, T0); // *(object+offset)
+      pushInt(T0); // push *(object+offset),
+//    asm.emitLFSX  (F0, T1, T0); // *(object+offset)
+//    pushFloat(F0);
     } else if (methodName == MagicNames.getObjectAtOffset ||
                methodName == MagicNames.getWordAtOffset ||
                methodName == MagicNames.getTIBAtOffset) {
@@ -4651,6 +4658,11 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
       popInt(T1); // pop offset
       popAddr(T0); // pop object
       asm.emitSTWX(T2, T1, T0); // *(object+offset) = newvalue
+    } else if (methodName == MagicNames.setFloatAtOffset) {
+      popInt(T2); // pop newvalue
+      popInt(T1); // pop offset
+      popAddr(T0); // pop object
+      asm.emitSTWX(T2, T1, T0); // *(object+offset) = newvalue
     } else if (methodName == MagicNames.setObjectAtOffset || methodName == MagicNames.setWordAtOffset) {
       if (methodToBeCalled.getParameterTypes().length == 4) {
         discardSlot(); // discard locationMetadata parameter
@@ -4664,7 +4676,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
       popInt(T1); // pop offset
       popAddr(T0); // pop object
       asm.emitSTBX(T2, T1, T0); // *(object+offset) = newvalue
-    } else if (methodName == MagicNames.setCharAtOffset) {
+    } else if (methodName == MagicNames.setCharAtOffset || methodName == MagicNames.setShortAtOffset) {
       popInt(T2); // pop newvalue
       popInt(T1); // pop offset
       popAddr(T0); // pop object
@@ -4881,6 +4893,9 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler
         asm.emitFSQRT(F0, F0);
         pushDouble(F0);
       }
+    } else if (methodName == MagicNames.getInlineDepth ||
+               methodName == MagicNames.isConstantParameter) {
+      emit_iconst(0);
     } else if (methodName == MagicNames.wordToInt ||
                methodName == MagicNames.wordToAddress ||
                methodName == MagicNames.wordToOffset ||

@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -14,6 +14,7 @@ package org.mmtk.harness;
 
 import java.util.ArrayList;
 
+import org.mmtk.harness.sanity.Sanity;
 import org.mmtk.harness.scheduler.Scheduler;
 import org.mmtk.harness.vm.ActivePlan;
 import org.mmtk.plan.CollectorContext;
@@ -32,13 +33,15 @@ public final class Collector implements Runnable {
 
   /**
    * Get a collector by id.
+   * @param id The ID of the collector
+   * @return The collector
    */
   public static Collector get(int id) {
     return collectors.get(id);
   }
 
   /**
-   * Get the currently executing collector.
+   * @return the currently executing collector.
    */
   public static Collector current() {
     Collector c = Scheduler.currentCollector();
@@ -47,14 +50,15 @@ public final class Collector implements Runnable {
   }
 
   /**
-   * The number of collector threads that have been created.
+   * @return The number of collector threads that have been created.
    */
   public static int count() {
     return collectors.size();
   }
 
   /**
-   * Register a collector thread, returning the allocated id.
+   * Register a collector thread
+   * @return the allocated id.
    */
   public static synchronized int allocateCollectorId() {
     int id = collectors.size();
@@ -64,6 +68,7 @@ public final class Collector implements Runnable {
 
   /**
    * Initialise numCollector collector threads.
+   * @param numCollectors # collectors
    */
   public static void init(int numCollectors) {
     for(int i = 0; i < numCollectors; i++) {
@@ -100,6 +105,9 @@ public final class Collector implements Runnable {
   /** The number of collections that have occurred */
   private static int collectionCount;
 
+  /**
+   * @return The number of GCs commenced so far
+   */
   public static int getCollectionCount() {
     return collectionCount;
   }
@@ -107,6 +115,9 @@ public final class Collector implements Runnable {
   /** The current base count of collection attempts */
   private static int collectionAttemptBase;
 
+  /**
+   * @return The current base count of collection attempts
+   */
   public static int getCollectionAttemptBase() {
     return collectionAttemptBase;
   }
@@ -123,13 +134,14 @@ public final class Collector implements Runnable {
 
   /**
    * Trigger a collection for the given reason
+   * @param why Reason (as defined by MMTk VM interface)
    */
   public static void triggerGC(int why) {
     Scheduler.triggerGC(why);
   }
 
   /**
-   * Return the MMTk CollectorContext for this collector.
+   * @return the MMTk CollectorContext for this collector.
    */
   public CollectorContext getContext() {
     return context;
@@ -138,6 +150,8 @@ public final class Collector implements Runnable {
   /**
    * Rendezvous with all other processors, returning the rank
    * (that is, the order this processor arrived at the barrier).
+   * @param where An identifier for the rendezvous point
+   * @return The order of arrival
    */
   public static int rendezvous(int where) {
     return Scheduler.rendezvous(where);
@@ -166,18 +180,96 @@ public final class Collector implements Runnable {
   }
 
   /**
+   * A timeout thread.  Exit the harness if it isn't cancelled in time.
+   */
+  private static final class TimeoutThread implements Runnable {
+    private static final boolean VERBOSE = false;
+    private static final int MILLIS_PER_SECOND = 1000;
+    private final long timeout;
+    private boolean cancelled = false;
+    private volatile boolean started = false;
+
+    /**
+     * Create a timeout object and start it running in its own
+     * thread.
+     * @param seconds Timeout in seconds
+     */
+    private TimeoutThread(int seconds) {
+      this.timeout = seconds * MILLIS_PER_SECOND;
+      new Thread(this).start();
+      synchronized (this) {
+        while (!started) {
+          try {
+            /* Wait for the timeout thread to start running */
+            wait();
+          } catch (InterruptedException e) {
+          }
+        }
+      }
+    }
+
+    /**
+     * @see java.lang.Thread#run()
+     */
+    @Override
+    public void run() {
+      long startTime = System.currentTimeMillis();
+      synchronized (this) {
+        /* Inform the caller that the timeout thread has started */
+        started = true;
+        notify();
+
+        while (!cancelled) {
+          try {
+            /* Sleep until woken by a cancel or the timer has expired */
+            long now = System.currentTimeMillis();
+            if (now - startTime >= timeout) {
+              System.err.printf("Collection exceeded timeout %dms%n",timeout);
+              System.exit(1);
+            }
+            long sleepTime = Math.max(1,timeout - (now - startTime));
+            if (VERBOSE) {
+              System.err.printf("Collection timeout: sleeping for %dms%n",sleepTime);
+            }
+            wait(sleepTime);
+          } catch (InterruptedException e) {
+            // Ignore interruptions
+          }
+        }
+      }
+    }
+
+    /** Cancel the timeout */
+    public void cancel() {
+      synchronized (this) {
+        if (VERBOSE) {
+          System.err.printf("Collection timeout: cancelled%n");
+        }
+        cancelled = true;
+        notify();
+      }
+    }
+  }
+
+  /**
    * Perform a GC
    */
   private void collect() {
     boolean primary = context.getId() == 0;
+    Sanity sanity = null;
+    TimeoutThread timeout = null;
+    rendezvous(5000);
     if (primary) {
       Plan.setCollectionTrigger(Scheduler.getTriggerReason());
+      sanity = new Sanity();
+      sanity.snapshotBefore();
+      timeout = new TimeoutThread(Harness.timeout.getValue());
     }
+    rendezvous(5001);
 
     long startTime = System.nanoTime();
     boolean internalPhaseTriggered = (Scheduler.getTriggerReason() == Collection.INTERNAL_PHASE_GC_TRIGGER);
     boolean userTriggered = (Scheduler.getTriggerReason() == Collection.EXTERNAL_GC_TRIGGER);
-    rendezvous(5000);
 
     do {
       context.collect();
@@ -220,8 +312,7 @@ public final class Collector implements Runnable {
       if (Plan.isEmergencyCollection()) {
         boolean gcFailed = ActivePlan.plan.lastCollectionFailed();
         // Allocate OOMEs (some of which *may* not get used)
-        for(int m=0; m < Mutator.count(); m++) {
-          Mutator mutator = Mutator.get(m);
+        for (Mutator mutator : Mutators.getAll()) {
           if (mutator.getCollectionAttempts() > 0) {
             /* this thread was allocating */
             if (gcFailed || mutator.isPhysicalAllocationFailure()) {
@@ -232,7 +323,10 @@ public final class Collector implements Runnable {
       }
     }
 
+    rendezvous(5202);
     if (primary) {
+      sanity.snapshotAfter();
+      sanity.assertSanity();
       collectionAttemptBase = 0;
 
       /* This is where we would schedule Finalization, if we supported it. */
@@ -240,11 +334,10 @@ public final class Collector implements Runnable {
         Mutator.dumpHeap();
         heapDumpRequested = false;
       }
-    }
-    rendezvous(5202);
-    if (primary) {
       Plan.collectionComplete();
+      timeout.cancel();
     }
+    rendezvous(5203);
   }
 
 }

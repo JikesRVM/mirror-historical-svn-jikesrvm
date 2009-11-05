@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -311,9 +311,10 @@ public final class JNIEnvironment implements SizeConstants {
     }
 
     // Save current JNI ref stack pointer
-    int oldJNIRefsSavedFP = JNIRefsSavedFP;
-    JNIRefsSavedFP = JNIRefsTop;
-    uninterruptiblePushJNIRef(Address.fromIntSignExtend(oldJNIRefsSavedFP), false);
+    if (JNIRefsTop > 0) {
+      uninterruptiblePushJNIRef(Address.fromIntSignExtend(JNIRefsSavedFP), false);
+      JNIRefsSavedFP = JNIRefsTop;
+    }
 
     // Convert arguments on stack from objects to JNI references
     Address fp = Magic.getFramePointer();
@@ -346,9 +347,10 @@ public final class JNIEnvironment implements SizeConstants {
     RVMThread.leaveJNIFromCallIntoNative();
 
     // Restore JNI ref top and saved frame pointer
-    JNIRefsTop = JNIRefsSavedFP;
-    if (JNIRefsTop > 0) {
-      JNIRefsSavedFP = JNIRefs.get((JNIRefsTop >> LOG_BYTES_IN_ADDRESS) + 1).toInt();
+    JNIRefsTop = 0;
+    if (JNIRefsSavedFP > 0) {
+      JNIRefsTop = JNIRefsSavedFP - BYTES_IN_ADDRESS;
+      JNIRefsSavedFP = JNIRefs.get(JNIRefsSavedFP >> LOG_BYTES_IN_ADDRESS).toInt();
     }
 
     // Throw and clear any pending exceptions

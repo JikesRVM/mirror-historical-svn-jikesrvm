@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -619,6 +619,7 @@ public abstract class RVMMethod extends RVMMember implements BytecodeConstants {
     if (hasInterruptibleAnnotation()) return false;
     if (hasPreemptibleAnnotation()) return false;
     if (hasUnpreemptibleAnnotation()) return false;
+    if (hasUnpreemptibleNoWarnAnnotation()) return false;
     if (hasUninterruptibleAnnotation()) return true;
     if (hasUninterruptibleNoWarnAnnotation()) return true;
     return getDeclaringClass().hasUninterruptibleAnnotation();
@@ -928,12 +929,21 @@ public abstract class RVMMethod extends RVMMember implements BytecodeConstants {
     TypeReference[] parameters = getParameterTypes();
     int numParams = parameters.length;
     byte[] bytecodes;
+    boolean interfaceCall = false;
     int curBC = 0;
     if (!isStatic()) {
-      bytecodes = new byte[8 * numParams + 8];
+      if (!getDeclaringClass().isInterface()) {
+        // virtual call
+        bytecodes = new byte[8 * numParams + 8];
+      } else {
+        // interface call
+        bytecodes = new byte[8 * numParams + 10];
+        interfaceCall = true;
+      }
       bytecodes[curBC] = JBC_aload_1;
       curBC++;
     } else {
+      // static call
       bytecodes = new byte[8 * numParams + 7];
     }
     for (int i=0; i < numParams; i++) {
@@ -1012,12 +1022,18 @@ public abstract class RVMMethod extends RVMMember implements BytecodeConstants {
       bytecodes[curBC] = (byte)JBC_invokestatic;
     } else if (isObjectInitializer() || isPrivate()) {
       bytecodes[curBC] = (byte)JBC_invokespecial;
+    } else if (interfaceCall) {
+      bytecodes[curBC] = (byte)JBC_invokeinterface;
     } else {
       bytecodes[curBC] = (byte)JBC_invokevirtual;
     }
     constantPool[numParams+1] = ClassFileReader.packCPEntry(CP_MEMBER, getId());
     bytecodes[curBC+1] = (byte)((numParams+1) >>> 8);
     bytecodes[curBC+2] = (byte)(numParams+1);
+    if (interfaceCall) {
+      // invokeinterface bytecodes are historically longer than others
+      curBC+=2;
+    }
     TypeReference returnType = getReturnType();
     if (!returnType.isPrimitiveType() || returnType.isWordType()) {
       bytecodes[curBC+3] = (byte)JBC_nop;

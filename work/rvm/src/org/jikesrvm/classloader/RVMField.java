@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -15,12 +15,12 @@ package org.jikesrvm.classloader;
 import java.io.DataInputStream;
 import java.io.IOException;
 import org.jikesrvm.VM;
-import org.jikesrvm.mm.mminterface.MemoryManagerConstants;
-import org.jikesrvm.mm.mminterface.MemoryManager;
+import org.jikesrvm.mm.mminterface.Barriers;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.runtime.Statics;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.Word;
+import static org.jikesrvm.mm.mminterface.Barriers.*;
 
 /**
  * A field of a java class.
@@ -295,14 +295,14 @@ public final class RVMField extends RVMMember {
    */
   public Object getObjectValueUnchecked(Object obj) {
     if (isStatic()) {
-      if (MemoryManagerConstants.NEEDS_GETSTATIC_READ_BARRIER && !isUntraced()) {
-        return MemoryManager.getstaticReadBarrier(getOffset(), getId());
+      if (NEEDS_OBJECT_GETSTATIC_BARRIER && !isUntraced()) {
+        return Barriers.objectStaticRead(getOffset(), getId());
       } else {
         return Statics.getSlotContentsAsObject(getOffset());
       }
     } else {
-      if (MemoryManagerConstants.NEEDS_READ_BARRIER && !isUntraced()) {
-        return MemoryManager.getfieldReadBarrier(obj, getOffset(), getId());
+      if (NEEDS_OBJECT_GETFIELD_BARRIER && !isUntraced()) {
+        return Barriers.objectFieldRead(obj, getOffset(), getId());
       } else {
         return Magic.getObjectAtOffset(obj, getOffset());
       }
@@ -390,14 +390,14 @@ public final class RVMField extends RVMMember {
    */
   public void setObjectValueUnchecked(Object obj, Object ref) {
     if (isStatic()) {
-      if (MemoryManagerConstants.NEEDS_PUTSTATIC_WRITE_BARRIER && !isUntraced()) {
-        MemoryManager.putstaticWriteBarrier(ref, getOffset(), getId());
+      if (NEEDS_OBJECT_PUTSTATIC_BARRIER && !isUntraced()) {
+        Barriers.objectStaticWrite(ref, getOffset(), getId());
       } else {
         Statics.setSlotContents(getOffset(), ref);
       }
     } else {
-      if (MemoryManagerConstants.NEEDS_WRITE_BARRIER && !isUntraced()) {
-        MemoryManager.putfieldWriteBarrier(obj, ref, getOffset(), getId());
+      if (NEEDS_OBJECT_PUTFIELD_BARRIER && !isUntraced()) {
+        Barriers.objectFieldWrite(obj, ref, getOffset(), getId());
       } else {
         Magic.setObjectAtOffset(obj, getOffset(), ref);
       }

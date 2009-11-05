@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -13,6 +13,7 @@
 package org.jikesrvm.compilers.baseline.ia32;
 
 import org.jikesrvm.SizeConstants;
+import static org.jikesrvm.mm.mminterface.Barriers.*;
 import org.jikesrvm.VM;
 import org.jikesrvm.adaptive.AosEntrypoints;
 import org.jikesrvm.adaptive.recompilation.InvocationCounts;
@@ -40,7 +41,6 @@ import org.jikesrvm.ia32.BaselineConstants;
 import org.jikesrvm.ia32.ThreadLocalState;
 import org.jikesrvm.jni.ia32.JNICompiler;
 import org.jikesrvm.mm.mminterface.MemoryManager;
-import org.jikesrvm.mm.mminterface.MemoryManagerConstants;
 import org.jikesrvm.objectmodel.JavaHeaderConstants;
 import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.runtime.ArchEntrypoints;
@@ -576,7 +576,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
     asm.emitPOP_Reg(T0); // T0 is array index
     asm.emitPOP_Reg(T1); // T1 is array ref
     genBoundsCheck(asm, T0, T1); // T0 is index, T1 is address of array
-    if (MemoryManagerConstants.NEEDS_READ_BARRIER) {
+    if (NEEDS_OBJECT_ALOAD_BARRIER) {
       // rewind 2 args on stack
       asm.emitPUSH_Reg(T1); // T1 is array ref
       asm.emitPUSH_Reg(T0); // T0 is array index
@@ -754,7 +754,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
    */
   @Override
   protected final void emit_lastore() {
-    Barriers.compileModifyCheck(asm, 3*WORDSIZE);
+    Barriers.compileModifyCheck(asm, 12);
     if (VM.BuildFor32Addr) {
       if (SSE2_BASE) {
         asm.emitMOVQ_Reg_RegInd(XMM0,SP); // XMM0 is the value
@@ -2582,7 +2582,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
   @Override
   protected final void emit_unresolved_getstatic(FieldReference fieldRef) {
     emitDynamicLinkingSequence(asm, T0, fieldRef, true);
-    if (MemoryManagerConstants.NEEDS_GETSTATIC_READ_BARRIER && !fieldRef.getFieldContentsType().isPrimitiveType()) {
+    if (NEEDS_OBJECT_GETSTATIC_BARRIER && !fieldRef.getFieldContentsType().isPrimitiveType()) {
       Barriers.compileGetstaticBarrier(asm, T0, fieldRef.getId());
       return;
     }
@@ -2616,7 +2616,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
   protected final void emit_resolved_getstatic(FieldReference fieldRef) {
     RVMField field = fieldRef.peekResolvedField();
     Offset fieldOffset = field.getOffset();
-    if (MemoryManagerConstants.NEEDS_GETSTATIC_READ_BARRIER && !fieldRef.getFieldContentsType().isPrimitiveType() && !field.isUntraced()) {
+    if (NEEDS_OBJECT_GETSTATIC_BARRIER && !fieldRef.getFieldContentsType().isPrimitiveType() && !field.isUntraced()) {
       Barriers.compileGetstaticBarrierImm(asm, fieldOffset, fieldRef.getId());
       return;
     }
@@ -2648,7 +2648,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
   @Override
   protected final void emit_unresolved_putstatic(FieldReference fieldRef) {
     emitDynamicLinkingSequence(asm, T0, fieldRef, true);
-    if (MemoryManagerConstants.NEEDS_PUTSTATIC_WRITE_BARRIER && fieldRef.getFieldContentsType().isReferenceType()) {
+    if (NEEDS_OBJECT_PUTSTATIC_BARRIER && fieldRef.getFieldContentsType().isReferenceType()) {
       Barriers.compilePutstaticBarrier(asm, T0, fieldRef.getId());
     } else {
       if (fieldRef.getSize() <= BYTES_IN_INT) { // field is one word
@@ -2681,7 +2681,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
   protected final void emit_resolved_putstatic(FieldReference fieldRef) {
     RVMField field = fieldRef.peekResolvedField();
     Offset fieldOffset = field.getOffset();
-    if (MemoryManagerConstants.NEEDS_PUTSTATIC_WRITE_BARRIER && field.isReferenceType() && !field.isUntraced()) {
+    if (NEEDS_OBJECT_PUTSTATIC_BARRIER && field.isReferenceType() && !field.isUntraced()) {
       Barriers.compilePutstaticBarrierImm(asm, fieldOffset, fieldRef.getId());
     } else {
       if (field.getSize() <= BYTES_IN_INT) { // field is one word
@@ -2716,7 +2716,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
     emitDynamicLinkingSequence(asm, T0, fieldRef, true);
     if (fieldType.isReferenceType()) {
       // 32/64bit reference load
-      if (MemoryManagerConstants.NEEDS_READ_BARRIER) {
+      if (NEEDS_OBJECT_GETFIELD_BARRIER) {
         Barriers.compileGetfieldBarrier(asm, T0, fieldRef.getId());
       } else {
         asm.emitPOP_Reg(S0);                                  // S0 is object reference
@@ -2785,7 +2785,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
     Offset fieldOffset = field.getOffset();
     if (field.isReferenceType()) {
       // 32/64bit reference load
-      if (MemoryManagerConstants.NEEDS_READ_BARRIER && !field.isUntraced()) {
+      if (NEEDS_OBJECT_GETFIELD_BARRIER && !field.isUntraced()) {
         Barriers.compileGetfieldBarrierImm(asm, fieldOffset, fieldRef.getId());
       } else {
         asm.emitPOP_Reg(T0);                   // T0 is object reference
@@ -2850,11 +2850,12 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
    */
   @Override
   protected final void emit_unresolved_putfield(FieldReference fieldRef) {
+    Barriers.compileModifyCheck(asm, fieldRef.getNumberOfStackSlots() * WORDSIZE);
     TypeReference fieldType = fieldRef.getFieldContentsType();
     emitDynamicLinkingSequence(asm, T0, fieldRef, true);
     if (fieldType.isReferenceType()) {
       // 32/64bit reference store
-      if (MemoryManagerConstants.NEEDS_WRITE_BARRIER) {
+      if (NEEDS_OBJECT_PUTFIELD_BARRIER) {
         Barriers.compilePutfieldBarrier(asm, T0, fieldRef.getId());
       } else {
         asm.emitPOP_Reg(T1);  // T1 is the value to be stored
@@ -2920,12 +2921,12 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
    */
   @Override
   protected final void emit_resolved_putfield(FieldReference fieldRef) {
+    Barriers.compileModifyCheck(asm, fieldRef.getNumberOfStackSlots() * WORDSIZE);
     RVMField field = fieldRef.peekResolvedField();
     Offset fieldOffset = field.getOffset();
-    Barriers.compileModifyCheck(asm, 4);
     if (field.isReferenceType()) {
       // 32/64bit reference store
-      if (MemoryManagerConstants.NEEDS_WRITE_BARRIER && !field.isUntraced()) {
+      if (NEEDS_OBJECT_PUTFIELD_BARRIER && !field.isUntraced()) {
         Barriers.compilePutfieldBarrierImm(asm, fieldOffset, fieldRef.getId());
       } else {
         asm.emitPOP_Reg(T0);  // T0 is the value to be stored
@@ -3790,7 +3791,7 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
 
       if (!VM.runningTool && ((BaselineCompiledMethod) compiledMethod).hasCounterArray()) {
         // use (nonvolatile) EBX to hold base of this method's counter array
-        if (MemoryManagerConstants.NEEDS_READ_BARRIER) {
+        if (NEEDS_OBJECT_ALOAD_BARRIER) {
           asm.emitPUSH_Abs(Magic.getTocPointer().plus(Entrypoints.edgeCountersField.getOffset()));
           asm.emitPUSH_Imm(getEdgeCounterIndex());
           Barriers.compileArrayLoadBarrier(asm, false);
@@ -3920,29 +3921,22 @@ public abstract class BaselineCompilerImpl extends BaselineCompiler implements B
   }
 
   /**
-   * Generate an explicit null check, trapping if the register is null
-   * otherwise falling through.
+   * Generate an explicit null check (compare to zero).
+   *
    * @param asm the assembler to generate into
-   * @param objRefReg the register containing the array reference
+   * @param objRefReg the register containing the reference
    */
   @Inline
-  static void genNullCheck(Assembler asm, GPR objRefReg) {
-    boolean cheapTest = true;
-    if (cheapTest) {
-      // perform load to cause trap
-      asm.emitTEST_RegInd_Reg(objRefReg, objRefReg);
-    } else {
-      // compare to zero
-      asm.emitTEST_Reg_Reg(objRefReg, objRefReg);
-      // Jmp around trap if index is OK
-      asm.emitBranchLikelyNextInstruction();
-      ForwardReference fr = asm.forwardJcc(Assembler.NE);
-      // trap
-      asm.emitINT_Imm(RuntimeEntrypoints.TRAP_NULL_POINTER + RVM_TRAP_BASE);
-      fr.resolve(asm);
-    }
+  private static void genNullCheck(Assembler asm, GPR objRefReg) {
+    // compare to zero
+    asm.emitTEST_Reg_Reg(objRefReg, objRefReg);
+    // Jmp around trap if index is OK
+    asm.emitBranchLikelyNextInstruction();
+    ForwardReference fr = asm.forwardJcc(Assembler.NE);
+    // trap
+    asm.emitINT_Imm(RuntimeEntrypoints.TRAP_NULL_POINTER + RVM_TRAP_BASE);
+    fr.resolve(asm);
   }
-
 
   /**
    * Generate an array bounds check trapping if the array bound check fails,

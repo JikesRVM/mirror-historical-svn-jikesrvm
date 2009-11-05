@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -62,6 +62,8 @@ import static org.jikesrvm.compilers.opt.ir.Operators.DOUBLE_LOAD_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.DOUBLE_STORE_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.FLOAT_ALOAD_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.FLOAT_ASTORE_opcode;
+import static org.jikesrvm.compilers.opt.ir.Operators.FLOAT_LOAD_opcode;
+import static org.jikesrvm.compilers.opt.ir.Operators.FLOAT_STORE_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.GETFIELD_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.GETSTATIC_opcode;
 import static org.jikesrvm.compilers.opt.ir.Operators.GET_CAUGHT_EXCEPTION_opcode;
@@ -411,6 +413,7 @@ class SimpleEscape extends CompilerPhase {
       case REF_ALOAD_opcode:
       case INT_LOAD_opcode:
       case LONG_LOAD_opcode:
+      case FLOAT_LOAD_opcode:
       case DOUBLE_LOAD_opcode:
       case REF_LOAD_opcode:
         // all is OK, unless we load this register from memory
@@ -431,6 +434,7 @@ class SimpleEscape extends CompilerPhase {
       case REF_STORE_opcode:
       case INT_STORE_opcode:
       case LONG_STORE_opcode:
+      case FLOAT_STORE_opcode:
       case DOUBLE_STORE_opcode:
         // as long as we don't store this operand elsewhere, all
         // is OK. TODO: add more smarts.
@@ -485,6 +489,10 @@ class SimpleEscape extends CompilerPhase {
         }
         // pure methods don't let object escape
         if (mop.getTarget().isPure()) {
+          return false;
+        }
+        // Assume non-annotated native methods let object escape
+        if (mop.getTarget().isNative()) {
           return false;
         }
         // try to get a method summary for the called method
@@ -607,6 +615,7 @@ class SimpleEscape extends CompilerPhase {
       case REF_ALOAD_opcode:
       case INT_LOAD_opcode:
       case LONG_LOAD_opcode:
+      case FLOAT_LOAD_opcode:
       case DOUBLE_LOAD_opcode:
       case REF_LOAD_opcode:
         // all is OK, unless we load this register from memory
@@ -627,6 +636,7 @@ class SimpleEscape extends CompilerPhase {
       case REF_STORE_opcode:
       case INT_STORE_opcode:
       case LONG_STORE_opcode:
+      case FLOAT_STORE_opcode:
       case DOUBLE_STORE_opcode:
         // as long as we don't store this operand elsewhere, all
         // is OK. TODO: add more smarts.

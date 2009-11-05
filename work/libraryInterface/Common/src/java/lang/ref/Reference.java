@@ -1,23 +1,21 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
 package java.lang.ref;
 
-import org.jikesrvm.mm.mminterface.MemoryManagerConstants;
-import org.jikesrvm.mm.mminterface.MemoryManager;
+import org.jikesrvm.mm.mminterface.Barriers;
 import org.jikesrvm.runtime.Magic;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Uninterruptible;
-import org.vmmagic.pragma.UnpreemptibleNoWarn;
 import org.vmmagic.unboxed.Address;
 
 /**
@@ -87,8 +85,8 @@ public abstract class Reference<T> {
     } else {
       Object ref = Magic.addressAsObject(tmp);
 
-      if (MemoryManagerConstants.NEEDS_REFTYPE_READ_BARRIER) {
-        ref = MemoryManager.referenceTypeReadBarrier(ref);
+      if (Barriers.NEEDS_JAVA_LANG_REFERENCE_READ_BARRIER) {
+        ref = Barriers.javaLangReferenceReadBarrier(ref);
       }
       return ref;
     }
@@ -109,10 +107,19 @@ public abstract class Reference<T> {
    * that users might find confusing. We think the problem is actually
    * not a 'real' problem...
    */
-  @UnpreemptibleNoWarn("Call out to ReferenceQueue API")
   public boolean enqueue() {
     if (nextOnQueue == null && queue != null) {
       queue.enqueue(this);
+      queue = null;
+      return true;
+    }
+    return false;
+  }
+
+  @Uninterruptible
+  public boolean enqueueInternal() {
+    if (nextOnQueue == null && queue != null) {
+      queue.enqueueInternal(this);
       queue = null;
       return true;
     }

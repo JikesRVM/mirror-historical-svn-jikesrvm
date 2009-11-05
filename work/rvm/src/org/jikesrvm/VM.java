@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -406,7 +406,6 @@ public class VM extends Properties implements Constants, ExitStatus {
       runClassInitializer("gnu.java.nio.charset.EncodingHelper");
       runClassInitializer("java.lang.reflect.Proxy");
       runClassInitializer("java.lang.reflect.Proxy$ProxySignature");
-      runClassInitializer("java.net.InetAddress");
     }
     runClassInitializer("java.util.logging.Logger");
     if (VM.BuildForHarmony) {
@@ -1401,6 +1400,17 @@ public class VM extends Properties implements Constants, ExitStatus {
   }
 
   @NoInline
+  public static void sysWriteln(String s1, long i1,String s2, long i2) {
+    swLock();
+    write(s1);
+    write(i1);
+    write(s2);
+    write(i2);
+    writeln();
+    swUnlock();
+  }
+
+  @NoInline
   public static void sysWrite(int i, String s) {
     swLock();
     write(i);
@@ -1884,6 +1894,18 @@ public class VM extends Properties implements Constants, ExitStatus {
   }
 
   @NoInline
+  public static void sysWriteln(String s1, long l1, String s2, long l2, String s3) {
+    swLock();
+    write(s1);
+    write(l1);
+    write(s2);
+    write(l2);
+    write(s3);
+    writeln();
+    swUnlock();
+  }
+
+  @NoInline
   public static void sysWrite(String s1, String s2, int i1, String s3) {
     swLock();
     write(s1);
@@ -2032,6 +2054,25 @@ public class VM extends Properties implements Constants, ExitStatus {
     write(a);
     write(s2);
     write(i);
+    writeln();
+    swUnlock();
+  }
+
+  @NoInline
+  public static void sysWriteln(String s0, Address a1, String s1, Word w1, String s2, int i1, String s3, int i2, String s4, Word w2, String s5, int i3) {
+    swLock();
+    write(s0);
+    write(a1);
+    write(s1);
+    write(w1);
+    write(s2);
+    write(i1);
+    write(s3);
+    write(i2);
+    write(s4);
+    write(w2);
+    write(s5);
+    write(i3);
     writeln();
     swUnlock();
   }
@@ -2276,7 +2317,7 @@ public class VM extends Properties implements Constants, ExitStatus {
    * @param value  value to pass to host o/s
    */
   @NoInline
-  @UnpreemptibleNoWarn("We need to do preemptible operations but are accessed from unpreemptible code")
+  @UninterruptibleNoWarn("We're never returning to the caller, so even though this code is preemptible it is safe to call from any context")
   public static void sysExit(int value) {
     handlePossibleRecursiveCallToSysExit();
 

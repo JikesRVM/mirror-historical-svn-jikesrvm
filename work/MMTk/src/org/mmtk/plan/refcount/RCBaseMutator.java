@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -238,13 +238,13 @@ public class RCBaseMutator extends StopTheWorldMutator {
    * @param mode The context in which the store occurred
    */
   @Inline
-  public void writeBarrier(ObjectReference src, Address slot,
+  public void objectReferenceWrite(ObjectReference src, Address slot,
                            ObjectReference tgt, Word metaDataA,
                            Word metaDataB, int mode) {
     if (RCHeader.logRequired(src)) {
       coalescingWriteBarrierSlow(src);
     }
-    VM.barriers.performWriteInBarrier(src,slot,tgt, metaDataA, metaDataB, mode);
+    VM.barriers.objectReferenceWrite(src,tgt,metaDataA, metaDataB, mode);
   }
 
   /**
@@ -265,13 +265,13 @@ public class RCBaseMutator extends StopTheWorldMutator {
    * @return True if the swap was successful.
    */
   @Inline
-  public boolean tryCompareAndSwapWriteBarrier(ObjectReference src, Address slot,
+  public boolean objectReferenceTryCompareAndSwap(ObjectReference src, Address slot,
                                                ObjectReference old, ObjectReference tgt, Word metaDataA,
                                                Word metaDataB, int mode) {
     if (RCHeader.logRequired(src)) {
       coalescingWriteBarrierSlow(src);
     }
-    return VM.barriers.tryCompareAndSwapWriteInBarrier(src,slot,old,tgt,metaDataA,metaDataB,mode);
+    return VM.barriers.objectReferenceTryCompareAndSwap(src,old,tgt,metaDataA,metaDataB,mode);
   }
 
   /**
@@ -293,7 +293,7 @@ public class RCBaseMutator extends StopTheWorldMutator {
    * left to the caller (always false in this case).
    */
   @Inline
-  public boolean writeBarrier(ObjectReference src, Offset srcOffset,
+  public boolean objectReferenceBulkCopy(ObjectReference src, Offset srcOffset,
                               ObjectReference dst, Offset dstOffset, int bytes) {
     if (RCHeader.logRequired(dst)) {
       coalescingWriteBarrierSlow(dst);

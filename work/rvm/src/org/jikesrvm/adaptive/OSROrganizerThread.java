@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -38,9 +38,9 @@ public final class OSROrganizerThread extends SystemThread {
   @Override
   public void run() {
     while (true) {
-      rvmThread.monitor().lock();
+      rvmThread.monitor().lockNoHandshake();
       if (!this.osr_flag) {
-        rvmThread.monitor().waitNicely();
+        rvmThread.monitor().waitWithHandshake();
       }
       this.osr_flag=false; /* if we get another activation after here
                               then we should rescan the threads array */
@@ -55,7 +55,7 @@ public final class OSROrganizerThread extends SystemThread {
    */
   @Uninterruptible
   public void activate() {
-    rvmThread.monitor().lock();
+    rvmThread.monitor().lockNoHandshake();
     osr_flag=true;
     rvmThread.monitor().broadcast();
     rvmThread.monitor().unlock();
@@ -69,7 +69,7 @@ public final class OSROrganizerThread extends SystemThread {
       RVMThread t=RVMThread.threads[i];
       if (t!=null) {
         boolean go=false;
-        t.monitor().lock();
+        t.monitor().lockNoHandshake();
         // NOTE: if threads are being removed, we may see a thread twice
         if (t.requesting_osr) {
           t.requesting_osr=false;

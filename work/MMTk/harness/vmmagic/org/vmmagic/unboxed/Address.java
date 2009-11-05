@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -14,6 +14,8 @@ package org.vmmagic.unboxed;
 
 import org.vmmagic.Unboxed;
 import org.vmmagic.pragma.RawStorage;
+import org.vmmagic.unboxed.harness.ArchitecturalWord;
+import org.vmmagic.unboxed.harness.SimulatedMemory;
 
 /**
  * <b>Stub</b> implementation of an Address type, intended only to
@@ -597,105 +599,105 @@ public final class Address {
    * Stores the address value in the memory location pointed to by the
    * current instance.
    *
-   * @param value The address value to store.
+   * @param val The address value to store.
    */
-  public void store(ObjectReference value) {
-    SimulatedMemory.setWord(this, value.value);
+  public void store(ObjectReference val) {
+    SimulatedMemory.setWord(this, val.value);
   }
 
   /**
    * Stores the object reference value in the memory location pointed
    * to by the current instance.
    *
-   * @param value The object reference value to store.
+   * @param val The object reference value to store.
    * @param offset the offset to the value.
    */
-  public void store(ObjectReference value, Offset offset) {
-    this.plus(offset).store(value);
+  public void store(ObjectReference val, Offset offset) {
+    this.plus(offset).store(val);
   }
 
   /**
    * Stores the address value in the memory location pointed to by the
    * current instance.
    *
-   * @param value The address value to store.
+   * @param val The address value to store.
    */
-  public void store(Address value) {
-    SimulatedMemory.setWord(this, value.value);
+  public void store(Address val) {
+    SimulatedMemory.setWord(this, val.value);
   }
 
   /**
    * Stores the address value in the memory location pointed to by the
    * current instance.
    *
-   * @param value The address value to store.
+   * @param val The address value to store.
    * @param offset the offset to the value.
    */
-  public void store(Address value, Offset offset) {
-    this.plus(offset).store(value);
+  public void store(Address val, Offset offset) {
+    this.plus(offset).store(val);
   }
 
   /**
    * Stores the float value in the memory location pointed to by the
    * current instance.
    *
-   * @param value The float value to store.
+   * @param val The float value to store.
    */
-  public void store(float value) {
-    SimulatedMemory.setFloat(this, value);
+  public void store(float val) {
+    SimulatedMemory.setFloat(this, val);
   }
 
   /**
    * Stores the float value in the memory location pointed to by the
    * current instance.
    *
-   * @param value The float value to store.
+   * @param val The float value to store.
    * @param offset the offset to the value.
    */
-  public void store(float value, Offset offset) {
-    this.plus(offset).store(value);
+  public void store(float val, Offset offset) {
+    this.plus(offset).store(val);
   }
 
   /**
    * Stores the word value in the memory location pointed to by the
    * current instance.
    *
-   * @param value The word value to store.
+   * @param val The word value to store.
    */
-  public void store(Word value) {
-    SimulatedMemory.setWord(this, value.value);
+  public void store(Word val) {
+    SimulatedMemory.setWord(this, val.value);
   }
 
   /**
    * Stores the word value in the memory location pointed to by the
    * current instance.
    *
-   * @param value The word value to store.
+   * @param val The word value to store.
    * @param offset the offset to the value.
    */
-  public void store(Word value, Offset offset) {
-    this.plus(offset).store(value);
+  public void store(Word val, Offset offset) {
+    this.plus(offset).store(val);
   }
 
   /**
    * Stores the byte value in the memory location pointed to by the
    * current instance.
    *
-   * @param value The byte value to store.
+   * @param val The byte value to store.
    */
-  public void store(byte value) {
-    SimulatedMemory.setByte(this, value);
+  public void store(byte val) {
+    SimulatedMemory.setByte(this, val);
   }
 
   /**
    * Stores the byte value in the memory location pointed to by the
    * current instance.
    *
-   * @param value The byte value to store.
+   * @param val The byte value to store.
    * @param offset the offset to the value.
    */
-  public void store(byte value, Offset offset) {
-    this.plus(offset).store(value);
+  public void store(byte val, Offset offset) {
+    this.plus(offset).store(val);
   }
 
 
@@ -703,42 +705,42 @@ public final class Address {
    * Stores an int value in memory location pointed to by the
    * current instance.
    *
-   * @param value The int value to store.
+   * @param val The int value to store.
    */
-  public void store(int value) {
-    SimulatedMemory.setInt(this, value);
+  public void store(int val) {
+    SimulatedMemory.setInt(this, val);
   }
 
   /**
    * Stores an int value in memory location pointed to by the
    * current instance.
    *
-   * @param value The int value to store.
+   * @param val The int value to store.
    * @param offset the offset to the value.
    */
-  public void store(int value, Offset offset) {
-    this.plus(offset).store(value);
+  public void store(int val, Offset offset) {
+    this.plus(offset).store(val);
   }
 
   /**
    * Stores a double value in memory location pointed to by the
    * current instance.
    *
-   * @param value The double value to store.
+   * @param val The double value to store.
    */
-  public void store(double value) {
-    SimulatedMemory.setDouble(this, value);
+  public void store(double val) {
+    SimulatedMemory.setDouble(this, val);
   }
 
   /**
    * Stores a double value in memory location pointed to by the
    * current instance.
    *
-   * @param value The double value to store.
+   * @param val The double value to store.
    * @param offset the offset to the value.
    */
-  public void store(double value, Offset offset) {
-    this.plus(offset).store(value);
+  public void store(double val, Offset offset) {
+    this.plus(offset).store(val);
   }
 
 
@@ -746,63 +748,63 @@ public final class Address {
    * Stores a double value in memory location pointed to by the
    * current instance.
    *
-   * @param value The double value to store.
+   * @param val The double value to store.
    */
-  public void store(long value) {
-    SimulatedMemory.setLong(this, value);
+  public void store(long val) {
+    SimulatedMemory.setLong(this, val);
   }
 
   /**
    * Stores a double value in memory location pointed to by the
    * current instance.
    *
-   * @param value The double value to store.
+   * @param val The double value to store.
    * @param offset the offset to the value.
    */
-  public void store(long value, Offset offset) {
-    this.plus(offset).store(value);
+  public void store(long val, Offset offset) {
+    this.plus(offset).store(val);
   }
 
   /**
    * Stores a char value in the memory location pointed to by the
    * current instance.
    *
-   * @param value the char value to store.
+   * @param val the char value to store.
    */
-  public void store(char value) {
-    SimulatedMemory.setChar(this, value);
+  public void store(char val) {
+    SimulatedMemory.setChar(this, val);
   }
 
   /**
    * Stores a char value in the memory location pointed to by the
    * current instance.
    *
-   * @param value the char value to store.
+   * @param val the char value to store.
    * @param offset the offset to the value.
    */
-  public void store(char value, Offset offset) {
-    this.plus(offset).store(value);
+  public void store(char val, Offset offset) {
+    this.plus(offset).store(val);
   }
 
   /**
    * Stores a short value in the memory location pointed to by the
    * current instance.
    *
-   * @param value the short value to store.
+   * @param val the short value to store.
    */
-  public void store(short value) {
-    SimulatedMemory.setShort(this, value);
+  public void store(short val) {
+    SimulatedMemory.setShort(this, val);
   }
 
   /**
    * Stores a short value in the memory location pointed to by the
    * current instance.
    *
-   * @param value the short value to store.
+   * @param val the short value to store.
    * @param offset the offset to the value.
    */
-  public void store(short value, Offset offset) {
-    this.plus(offset).store(value);
+  public void store(short val, Offset offset) {
+    this.plus(offset).store(val);
   }
 
   /****************************************************************************
@@ -899,11 +901,11 @@ public final class Address {
    * related call to prepare.
    *
    * @param old the old value.
-   * @param value the new value.
+   * @param val the new value.
    * @return true if the attempt was successful.
    */
-  public boolean attempt(int old, int value) {
-    return SimulatedMemory.exchangeInt(this, old, value);
+  public boolean attempt(int old, int val) {
+    return SimulatedMemory.exchangeInt(this, old, val);
   }
 
   /**
@@ -911,12 +913,12 @@ public final class Address {
    * related call to prepare.
    *
    * @param old the old value.
-   * @param value the new value.
+   * @param val the new value.
    * @param offset the offset to the value.
    * @return true if the attempt was successful.
    */
-  public boolean attempt(int old, int value, Offset offset) {
-    return this.plus(offset).attempt(old,value);
+  public boolean attempt(int old, int val, Offset offset) {
+    return this.plus(offset).attempt(old,val);
   }
 
   /**
@@ -924,11 +926,11 @@ public final class Address {
    * related call to prepare.
    *
    * @param old the old value.
-   * @param value the new value.
+   * @param val the new value.
    * @return true if the attempt was successful.
    */
-  public boolean attempt(Word old, Word value) {
-    return SimulatedMemory.exchangeWord(this, old.value, value.value);
+  public boolean attempt(Word old, Word val) {
+    return SimulatedMemory.exchangeWord(this, old.value, val.value);
   }
 
   /**
@@ -936,12 +938,12 @@ public final class Address {
    * related call to prepare.
    *
    * @param old the old value.
-   * @param value the new value.
+   * @param val the new value.
    * @param offset the offset to the value.
    * @return true if the attempt was successful.
    */
-  public boolean attempt(Word old, Word value, Offset offset) {
-    return this.plus(offset).attempt(old,value);
+  public boolean attempt(Word old, Word val, Offset offset) {
+    return this.plus(offset).attempt(old,val);
   }
 
   /**
@@ -949,11 +951,11 @@ public final class Address {
    * related call to prepare.
    *
    * @param old the old value.
-   * @param value the new value.
+   * @param val the new value.
    * @return true if the attempt was successful.
    */
-  public boolean attempt(ObjectReference old, ObjectReference value) {
-    return SimulatedMemory.exchangeWord(this, old.value, value.value);
+  public boolean attempt(ObjectReference old, ObjectReference val) {
+    return SimulatedMemory.exchangeWord(this, old.value, val.value);
   }
 
   /**
@@ -961,12 +963,12 @@ public final class Address {
    * related call to prepare.
    *
    * @param old the old value.
-   * @param value the new value.
+   * @param val the new value.
    * @param offset the offset to the value.
    * @return true if the attempt was successful.
    */
-  public boolean attempt(ObjectReference old, ObjectReference value, Offset offset) {
-    return this.plus(offset).attempt(old,value);
+  public boolean attempt(ObjectReference old, ObjectReference val, Offset offset) {
+    return this.plus(offset).attempt(old,val);
   }
 
   /**
@@ -974,11 +976,11 @@ public final class Address {
    * related call to prepare.
    *
    * @param old the old value.
-   * @param value the new value.
+   * @param val the new value.
    * @return true if the attempt was successful.
    */
-  public boolean attempt(Address old, Address value) {
-    return SimulatedMemory.exchangeWord(this, old.value, value.value);
+  public boolean attempt(Address old, Address val) {
+    return SimulatedMemory.exchangeWord(this, old.value, val.value);
   }
 
   /**
@@ -986,12 +988,12 @@ public final class Address {
    * related call to prepare.
    *
    * @param old the old value.
-   * @param value the new value.
+   * @param val the new value.
    * @param offset the offset to the value.
    * @return true if the attempt was successful.
    */
-  public boolean attempt(Address old, Address value, Offset offset) {
-    return this.plus(offset).attempt(old,value);
+  public boolean attempt(Address old, Address val, Offset offset) {
+    return this.plus(offset).attempt(old,val);
   }
 
   /**

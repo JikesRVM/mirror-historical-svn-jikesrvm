@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -16,6 +16,9 @@ import static org.junit.Assert.*;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mmtk.harness.Harness;
+import org.vmmagic.unboxed.harness.ArchitecturalWord;
+import org.vmmagic.unboxed.harness.Architecture;
 
 /**
  * Basic tests of the address type, specifically those that don't require the
@@ -25,7 +28,8 @@ public class AddressTestBasic {
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
-    ArchitecturalWord.init();
+//    Harness.bits.setValue(64);
+    ArchitecturalWord.init(Harness.bits.getValue());
   }
 
   private static boolean is64bit() {
@@ -163,6 +167,7 @@ public class AddressTestBasic {
 
   @Test
   public void testLT() {
+    assertTrue(Address.fromIntZeroExtend(0x20000000).LT(Address.fromIntZeroExtend(0xa0000000)));
     assertTrue(zero.LT(one));
     assertTrue(one.LT(large));
     assertTrue(large.LT(veryLarge));
@@ -197,6 +202,7 @@ public class AddressTestBasic {
 
   @Test
   public void testGT() {
+    assertFalse(Address.fromIntZeroExtend(0x20000000).GT(Address.fromIntZeroExtend(0xa0000000)));
     assertFalse(zero.GT(one));
     assertFalse(one.GT(large));
     assertFalse(large.GT(veryLarge));

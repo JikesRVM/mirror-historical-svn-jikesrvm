@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -413,14 +413,20 @@ public abstract class Phase implements Constants {
         /* Global phase */
         case SCHEDULE_GLOBAL: {
           if (logDetails) Log.writeln(" as Global...");
-          if (primary) plan.collectionPhase(phaseId);
+          if (primary) {
+            if (VM.DEBUG) VM.debugging.globalPhase(phaseId,true);
+            plan.collectionPhase(phaseId);
+            if (VM.DEBUG) VM.debugging.globalPhase(phaseId,false);
+          }
           break;
         }
 
         /* Collector phase */
         case SCHEDULE_COLLECTOR: {
           if (logDetails) Log.writeln(" as Collector...");
+          if (VM.DEBUG) VM.debugging.collectorPhase(phaseId,order,true);
           collector.collectionPhase(phaseId, primary);
+          if (VM.DEBUG) VM.debugging.collectorPhase(phaseId,order,false);
           break;
         }
 
@@ -430,7 +436,9 @@ public abstract class Phase implements Constants {
           /* Iterate through all mutator contexts */
           MutatorContext mutator;
           while ((mutator = VM.activePlan.getNextMutator()) != null) {
+            if (VM.DEBUG) VM.debugging.mutatorPhase(phaseId,mutator.getId(),true);
             mutator.collectionPhase(phaseId, primary);
+            if (VM.DEBUG) VM.debugging.mutatorPhase(phaseId,mutator.getId(),false);
           }
           break;
         }

@@ -1,19 +1,21 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
 package org.vmmagic.unboxed;
 
+
 import org.vmmagic.Unboxed;
 import org.vmmagic.pragma.RawStorage;
+import org.vmmagic.unboxed.harness.ArchitecturalWord;
 
 /**
  * (Mistakes in) comments by Robin Garner
@@ -51,6 +53,7 @@ public final class Word {
    * @param val
    * @return
    */
+  @SuppressWarnings("cast")
   public static Word fromIntZeroExtend(int val) {
     return new Word(((long)val) & 0xFFFFFFFFL);
   }
@@ -326,6 +329,10 @@ public final class Word {
     return new Word(value.rsha(amt));
   }
 
+  /**
+   * The natural string representation of a word, a series of hex digits.
+   */
+  @Override
   public String toString() {
     return value.toString();
   }

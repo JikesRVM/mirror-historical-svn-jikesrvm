@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -42,8 +42,11 @@
 #include <strings.h> /* bzero */
 #include <libgen.h>  /* basename */
 #include <sys/utsname.h>        // for uname(2)
-#if (defined __linux__) || (defined __MACH__) || (defined (__SVR4) && defined (__sun))
+#if (defined __linux__) || (defined (__SVR4) && defined (__sun))
 #include <ucontext.h>
+#include <signal.h>
+#elif (defined __MACH__)
+#include <sys/ucontext.h>
 #include <signal.h>
 #else
 #include <sys/cache.h>
@@ -489,7 +492,7 @@ main(int argc, const char **argv)
     (void) mach_timebase_info(&timebaseInfo);
 #endif
 
-    int ret = createVM(0);
+    int ret = createVM();
     if (ret == 1) {
 	fprintf(SysErrorFile, "%s: Could not create the virtual machine; goodbye\n", Me);
 	exit(EXIT_STATUS_MISC_TROUBLE);

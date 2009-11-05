@@ -1,20 +1,20 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
 package org.mmtk.harness.lang;
 
-import org.mmtk.harness.lang.ast.Type;
 import org.mmtk.harness.lang.parser.Symbol;
 import org.mmtk.harness.lang.runtime.Value;
+import org.mmtk.harness.lang.type.Type;
 
 /**
  * A variable declaration
@@ -23,22 +23,15 @@ public class Declaration {
   /** Name of the variable */
   private final Symbol symbol;
 
-  /** Initial value - actually holds the value for the lifetime of the variable */
-  private final Value initial;
-
   /** Stack frame slot */
   private final int slot;
 
   /**
    * Constructor
-   *
-   * @param name
-   * @param initial
-   * @param slot
+   * @param symbol The symbol to declare
    */
-  public Declaration(Symbol symbol, Value initial) {
+  public Declaration(Symbol symbol) {
     this.symbol = symbol;
-    this.initial = initial;
     this.slot = symbol.getLocation();
   }
 
@@ -51,7 +44,7 @@ public class Declaration {
   }
 
   public Value getInitial() {
-    return initial;
+    return symbol.getType().initialValue();
   }
 
   public int getSlot() {

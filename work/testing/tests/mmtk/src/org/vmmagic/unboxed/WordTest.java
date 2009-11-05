@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -16,20 +16,23 @@ import static org.junit.Assert.*;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mmtk.harness.Harness;
+import org.vmmagic.unboxed.harness.ArchitecturalWord;
+import org.vmmagic.unboxed.harness.MemoryConstants;
 
 public class WordTest {
 
   private static boolean is32bit() {
-    return SimulatedMemory.BYTES_IN_WORD == 4;
+    return MemoryConstants.BYTES_IN_WORD == 4;
   }
 
   private static boolean is64bit() {
-    return SimulatedMemory.BYTES_IN_WORD == 8;
+    return MemoryConstants.BYTES_IN_WORD == 8;
   }
 
   @Before
   public void setUp() throws Exception {
-    ArchitecturalWord.init();
+    ArchitecturalWord.init(Harness.bits.getValue());
   }
 
   @Test
@@ -92,21 +95,21 @@ public class WordTest {
 
   @Test
   public void testToLong() {
-    for (int i=0; i < 8*SimulatedMemory.BYTES_IN_WORD; i++) {
+    for (int i=0; i < 8*MemoryConstants.BYTES_IN_WORD; i++) {
       assertTrue(Word.fromLong(1L<<i).toLong() == (1L<<i));
     }
   }
 
   @Test
   public void testToAddress() {
-    for (int i=0; i < 8*SimulatedMemory.BYTES_IN_WORD; i++) {
+    for (int i=0; i < 8*MemoryConstants.BYTES_IN_WORD; i++) {
       assertTrue(Word.fromLong(1L<<i).toAddress().EQ(Address.fromLong(1L<<i)));
     }
   }
 
   @Test
   public void testToOffset() {
-    for (int i=0; i < 8*SimulatedMemory.BYTES_IN_WORD; i++) {
+    for (int i=0; i < 8*MemoryConstants.BYTES_IN_WORD; i++) {
       assertTrue(Word.fromLong(1L<<i).toOffset().EQ(
           Address.fromLong(1L<<i).diff(Address.zero())));
     }

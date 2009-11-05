@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -47,6 +47,7 @@ import org.jikesrvm.VM;
 import org.jikesrvm.ArchitectureSpecific.CodeArray;
 import org.jikesrvm.ArchitectureSpecific.LazyCompilationTrampoline;
 import org.jikesrvm.ArchitectureSpecific.OutOfLineMachineCode;
+import org.jikesrvm.classloader.Atom;
 import org.jikesrvm.classloader.BootstrapClassLoader;
 import org.jikesrvm.classloader.RVMArray;
 import org.jikesrvm.classloader.RVMClass;
@@ -1583,6 +1584,45 @@ public class BootImageWriter extends BootImageWriterMessages
           String   rvmFieldName = rvmField.getName().toString();
           Field    jdkFieldAcc  = null;
 
+          if (jdkType!=null &&
+              jdkType.equals(java.util.concurrent.locks.AbstractQueuedSynchronizer.class)) {
+            RVMClass c=(RVMClass)rvmType;
+            if (rvmFieldName.equals("stateOffset")) {
+              Statics.setSlotContents(
+                rvmFieldOffset,
+                c.findDeclaredField(Atom.findOrCreateAsciiAtom("state")).getOffset().toLong());
+              continue;
+            } else if (rvmFieldName.equals("headOffset")) {
+              Statics.setSlotContents(
+                rvmFieldOffset,
+                c.findDeclaredField(Atom.findOrCreateAsciiAtom("head")).getOffset().toLong());
+              continue;
+            } else if (rvmFieldName.equals("tailOffset")) {
+              Statics.setSlotContents(
+                rvmFieldOffset,
+                c.findDeclaredField(Atom.findOrCreateAsciiAtom("tail")).getOffset().toLong());
+              continue;
+            } else if (rvmFieldName.equals("waitStatusOffset")) {
+              try {
+              Statics.setSlotContents(
+                rvmFieldOffset,
+                ((RVMClass)getRvmType(Class.forName("java.util.concurrent.locks.AbstractQueuedSynchronizer$Node"))).findDeclaredField(Atom.findOrCreateAsciiAtom("waitStatus")).getOffset().toLong());
+              } catch (ClassNotFoundException e) {
+                throw new Error(e);
+              }
+              continue;
+            }
+          } else if (jdkType!=null &&
+                     jdkType.equals(java.util.concurrent.locks.LockSupport.class)) {
+            RVMClass c=(RVMClass)rvmType;
+            if (rvmFieldName.equals("parkBlockerOffset")) {
+              Statics.setSlotContents(
+                rvmFieldOffset,
+                ((RVMClass)getRvmType(java.lang.Thread.class)).findDeclaredField(Atom.findOrCreateAsciiAtom("parkBlocker")).getOffset().toLong());
+              continue;
+            }
+          }
+
           if (jdkType != null)
             jdkFieldAcc = getJdkFieldAccessor(jdkType, j, STATIC_FIELD);
 
@@ -1590,11 +1630,10 @@ public class BootImageWriter extends BootImageWriterMessages
             // we failed to get a reflective field accessors
             if (jdkType != null) {
               // we know the type - probably a private field of a java.lang class
-              if(!copyKnownClasspathStaticField(jdkType,
-                                                rvmFieldName,
-                                                rvmFieldType,
-                                                rvmFieldOffset
-                                                )) {
+              if(!copyKnownStaticField(jdkType,
+                                       rvmFieldName,
+                                       rvmFieldType,
+                                       rvmFieldOffset)) {
                 // we didn't know the field so nullify
                 if (verbose >= 2) {
                   traceContext.push(rvmFieldType.toString(),
@@ -1783,7 +1822,7 @@ public class BootImageWriter extends BootImageWriterMessages
     } else {
       BootImageMap.Entry mapEntry = BootImageMap.findOrCreateEntry(referencedObject);
       if (mapEntry.imageAddress.EQ(OBJECT_NOT_PRESENT)) {
-        if (rvmFieldName == null || !copyKnownClasspathInstanceField(parentObject, rvmFieldName, rvmFieldType, fieldLocation)) {
+        if (rvmFieldName == null || !copyKnownInstanceField(parentObject, rvmFieldName, rvmFieldType, fieldLocation)) {
           // object not part of bootimage: install null reference
           if (verbose >= 2) traceContext.traceObjectNotInBootImage();
           bootImage.setNullAddressWord(fieldLocation, objField, root, false);
@@ -1806,7 +1845,7 @@ public class BootImageWriter extends BootImageWriterMessages
         }
         if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
           if (verbose >= 2) traceContext.traceObjectNotInBootImage();
-          if (!copyKnownClasspathInstanceField(parentObject, rvmFieldName, rvmFieldType, fieldLocation)) {
+          if (!copyKnownInstanceField(parentObject, rvmFieldName, rvmFieldType, fieldLocation)) {
             // object not part of bootimage: install null reference
             if (verbose >= 2) traceContext.traceObjectNotInBootImage();
             bootImage.setNullAddressWord(fieldLocation, objField, root, false);
@@ -1846,7 +1885,7 @@ public class BootImageWriter extends BootImageWriterMessages
     BootImageMap.Entry.LinkInfo info = mapEntry.removeLinkingAddress();
     while(info != null) {
       if (mapEntry.imageAddress.EQ(OBJECT_NOT_PRESENT)) {
-        if (info.rvmFieldName == null || !copyKnownClasspathInstanceField(info.parent, info.rvmFieldName, info.rvmFieldType, info.addressToFixup)) {
+        if (info.rvmFieldName == null || !copyKnownInstanceField(info.parent, info.rvmFieldName, info.rvmFieldType, info.addressToFixup)) {
           // object not part of bootimage: install null reference
           if (verbose >= 2) traceContext.traceObjectNotInBootImage();
           bootImage.setNullAddressWord(info.addressToFixup, info.objField, info.root, false);
@@ -2032,7 +2071,7 @@ public class BootImageWriter extends BootImageWriterMessages
 
       if (jdkFieldAcc == null) {
         // Field not found via reflection
-        if (!copyKnownClasspathInstanceField(jdkObject, rvmFieldName, rvmFieldType, rvmFieldAddress)) {
+        if (!copyKnownInstanceField(jdkObject, rvmFieldName, rvmFieldType, rvmFieldAddress)) {
           // Field wasn't a known Classpath field so write null
           if (verbose >= 2) traceContext.push(rvmFieldType.toString(),
               jdkType.getName(), rvmFieldName);
@@ -2344,25 +2383,61 @@ public class BootImageWriter extends BootImageWriterMessages
    * @param rvmFieldName the name of the field
    * @param rvmFieldType the type reference of the field
    */
-  private static boolean copyKnownClasspathStaticField(Class<?> jdkType, String rvmFieldName,
-                                                       TypeReference rvmFieldType,
-                                                       Offset rvmFieldOffset) {
+  private static boolean copyKnownStaticField(Class<?> jdkType, String rvmFieldName,
+                                              TypeReference rvmFieldType,
+                                              Offset rvmFieldOffset) {
     if (classLibrary == "harmony") {
-      if (jdkType.equals(java.lang.ref.ReferenceQueue.class) &&
-          rvmFieldName.equals("DEFAULT_QUEUE_SIZE") &&
-          rvmFieldType.isIntType()) {
-        Statics.setSlotContents(rvmFieldOffset, 128);
-        return true;
-      } else if (jdkType.equals(java.lang.Byte.class) &&
-                 rvmFieldName.equals("CACHE") && rvmFieldType.isArrayType()) {
-        Statics.setSlotContents(rvmFieldOffset, new Byte[256]);
-        return true;
-      } else if (jdkType.equals(java.lang.Throwable.class) &&
-                 rvmFieldName.equals("zeroLengthStackTrace") && rvmFieldType.isArrayType()) {
-        Statics.setSlotContents(rvmFieldOffset, new StackTraceElement[0]);
-        return true;
+      if (jdkType.equals(java.lang.Number.class)) {
+        throw new Error("Unknown field in java.lang.Number " + rvmFieldName + " " + rvmFieldType);
+      } else if (jdkType.equals(java.lang.Boolean.class)) {
+        throw new Error("Unknown field in java.lang.Boolean "+ rvmFieldName + " " + rvmFieldType);
+      } else if (jdkType.equals(java.lang.Byte.class)) {
+        if (rvmFieldName.equals("CACHE") && rvmFieldType.isArrayType()) {
+          Statics.setSlotContents(rvmFieldOffset, new Byte[256]);
+          return true;
+        } else {
+          throw new Error("Unknown field in java.lang.Byte " + rvmFieldName + " " + rvmFieldType);
+        }
+      } else if (jdkType.equals(java.lang.Double.class)) {
+        throw new Error("Unknown field in java.lang.Double " + rvmFieldName + " " + rvmFieldType);
+      } else if (jdkType.equals(java.lang.Float.class)) {
+        throw new Error("Unknown field in java.lang.Float " + rvmFieldName + " " + rvmFieldType);
+      } else if (jdkType.equals(java.lang.Integer.class)) {
+        if (rvmFieldName.equals("decimalScale") && rvmFieldType.isArrayType()) {
+          int[] java_lang_Integer_decimalScale = new int[] { 1000000000, 100000000, 10000000, 1000000, 100000, 10000, 1000, 100, 10, 1 };
+          Statics.setSlotContents(rvmFieldOffset, java_lang_Integer_decimalScale);
+          return true;
+        } else {
+          throw new Error("Unknown field in java.lang.Integer " + rvmFieldName + " " + rvmFieldType);
+        }
+      } else if (jdkType.equals(java.lang.Long.class)) {
+          throw new Error("Unknown field in java.lang.Long " + rvmFieldName + " " + rvmFieldType);
+      } else if (jdkType.equals(java.lang.Short.class)) {
+          throw new Error("Unknown field in java.lang.Short " + rvmFieldName + " " + rvmFieldType);
+      } else if (jdkType.equals(java.util.HashMap.class)) {
+        if (rvmFieldName.equals("DEFAULT_SIZE") && rvmFieldType.isIntType()) {
+          Statics.setSlotContents(rvmFieldOffset, 16);
+          return true;
+        } else {
+          throw new Error("Unknown field in java.util.HashMap " + rvmFieldName + " " + rvmFieldType);
+        }
+      } else if (jdkType.equals(java.util.AbstractMap.class)) {
+        throw new Error("Unknown field in java.util.AbstractMap " + rvmFieldName + " " + rvmFieldType);
+      } else if (jdkType.equals(java.lang.ref.ReferenceQueue.class)) {
+        if (rvmFieldName.equals("DEFAULT_QUEUE_SIZE") && rvmFieldType.isIntType()) {
+          Statics.setSlotContents(rvmFieldOffset, 128);
+          return true;
+        } else {
+          throw new Error("Unknown field in java.lang.ref.ReferenceQueue " + rvmFieldName + " " + rvmFieldType);
+        }
+      } else if (jdkType.equals(java.lang.Throwable.class)) {
+        if (rvmFieldName.equals("zeroLengthStackTrace") && rvmFieldType.isArrayType()) {
+          Statics.setSlotContents(rvmFieldOffset, new StackTraceElement[0]);
+          return true;
+        } else {
+          throw new Error("Unknown field in java.lang.Throwable " + rvmFieldName + " " + rvmFieldType);
+        }
       } else {
-        // unknown static field
         return false;
       }
     } else if (classLibrary == "classpath") {
@@ -2537,7 +2612,7 @@ public class BootImageWriter extends BootImageWriterMessages
    * @param rvmFieldType the type reference of the field
    * @param rvmFieldAddress the address that the field is being written to
    */
-  private static boolean copyKnownClasspathInstanceField(Object jdkObject, String rvmFieldName, TypeReference rvmFieldType, Address rvmFieldAddress)
+  private static boolean copyKnownInstanceField(Object jdkObject, String rvmFieldName, TypeReference rvmFieldType, Address rvmFieldAddress)
     throws IllegalAccessException {
 
     // Class library independent objects
@@ -2797,14 +2872,24 @@ public class BootImageWriter extends BootImageWriterMessages
         }
       } else if (jdkObject instanceof java.lang.ref.ReferenceQueue) {
         if(rvmFieldName.equals("lock")) {
-          // cause reference queues in the boot image to lock upon themselves
-          Address imageAddress = BootImageMap.findOrCreateEntry(jdkObject).imageAddress;
-          if (imageAddress.EQ(OBJECT_NOT_PRESENT) || imageAddress.EQ(OBJECT_NOT_ALLOCATED) || imageAddress.EQ(Address.zero())) {
-            throw new Error("Trying to copy known field into unavailable object!");
+          VM.sysWriteln("writing the lock field.");
+          Object value = new org.jikesrvm.scheduler.LightMonitor();
+          if (verbose>=2) traceContext.push(value.getClass().getName(),
+                                            "java.lang.ref.ReferenceQueue",
+                                            "lock");
+          Address imageAddress = BootImageMap.findOrCreateEntry(value).imageAddress;
+          if (imageAddress.EQ(OBJECT_NOT_PRESENT)) {
+            if (verbose >= 2) traceContext.traceObjectNotInBootImage();
+            throw new Error("Failed to populate lock in ReferenceQueue");
+          } else if (imageAddress.EQ(OBJECT_NOT_ALLOCATED)) {
+            imageAddress = copyToBootImage(value, false, Address.max(), jdkObject, false);
+            if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
+            bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, false);
           } else {
             if (verbose >= 3) traceContext.traceObjectFoundThroughKnown();
             bootImage.setAddressWord(rvmFieldAddress, imageAddress.toWord(), true, false);
           }
+          if (verbose>=2) traceContext.pop();
           return true;
         } else if (rvmFieldName.equals("first")){
           return false;

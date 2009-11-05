@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -15,6 +15,7 @@ package org.mmtk.plan.generational;
 import org.mmtk.plan.*;
 import org.mmtk.policy.CopyLocal;
 import org.mmtk.policy.Space;
+import org.mmtk.utility.HeaderByte;
 import org.mmtk.utility.deque.*;
 import org.mmtk.utility.alloc.Allocator;
 import org.mmtk.utility.statistics.Stats;
@@ -142,11 +143,11 @@ import org.vmmagic.unboxed.*;
   @Inline
   private void fastPath(ObjectReference src, Address slot, ObjectReference tgt, int mode) {
     if (Gen.GATHER_WRITE_BARRIER_STATS) Gen.wbFast.inc();
-    if ((mode == AASTORE_WRITE_BARRIER && USE_OBJECT_BARRIER_FOR_AASTORE) ||
-        (mode == PUTFIELD_WRITE_BARRIER && USE_OBJECT_BARRIER_FOR_PUTFIELD)) {
-      if (Plan.logRequired(src)) {
+    if ((mode == ARRAY_ELEMENT && USE_OBJECT_BARRIER_FOR_AASTORE) ||
+        (mode == INSTANCE_FIELD && USE_OBJECT_BARRIER_FOR_PUTFIELD)) {
+      if (HeaderByte.isUnlogged(src)) {
         if (Gen.GATHER_WRITE_BARRIER_STATS) Gen.wbSlow.inc();
-        Plan.markAsLogged(src);
+        HeaderByte.markAsLogged(src);
         modbuf.insert(src);
       }
     } else {
@@ -174,11 +175,51 @@ import org.vmmagic.unboxed.*;
    * @param mode The mode of the store (eg putfield, putstatic etc)
    */
   @Inline
-  public final void writeBarrier(ObjectReference src, Address slot,
+  public final void objectReferenceWrite(ObjectReference src, Address slot,
       ObjectReference tgt, Word metaDataA,
       Word metaDataB, int mode) {
     fastPath(src, slot, tgt, mode);
-    VM.barriers.performWriteInBarrier(src, slot, tgt, metaDataA, metaDataB, mode);
+    VM.barriers.objectReferenceWrite(src, tgt, metaDataA, metaDataB, mode);
+  }
+
+
+  /**
+   * Perform the root write barrier fast path, which may involve remembering
+   * a reference if necessary.
+   *
+   * @param slot The address into which the new reference will be
+   * stored.
+   * @param tgt The target of the new reference
+   * @param mode The mode of the store (eg putfield, putstatic etc)
+   */
+  @Inline
+  private void fastPath(Address slot, ObjectReference tgt) {
+    if (Gen.GATHER_WRITE_BARRIER_STATS) Gen.wbFast.inc();
+    if (Gen.inNursery(tgt)) {
+      if (Gen.GATHER_WRITE_BARRIER_STATS) Gen.wbSlow.inc();
+      remset.insert(slot);
+    }
+  }
+
+  /**
+   * A new reference is about to be created in a location that is not
+   * a regular heap object.  Take appropriate write barrier actions.<p>
+   *
+   * In this case, we remember the address of the source of the
+   * pointer if the new reference points into the nursery from
+   * non-nursery space.
+   *
+   * @param slot The address into which the new reference will be
+   * stored.
+   * @param tgt The target of the new reference
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   */
+  @Inline
+  public final void objectReferenceNonHeapWrite(Address slot, ObjectReference tgt,
+      Word metaDataA, Word metaDataB) {
+    fastPath(slot, tgt);
+    VM.barriers.objectReferenceNonHeapWrite(slot, tgt, metaDataA, metaDataB);
   }
 
   /**
@@ -201,10 +242,9 @@ import org.vmmagic.unboxed.*;
    * @return True if the swap was successful.
    */
   @Inline
-  public boolean tryCompareAndSwapWriteBarrier(ObjectReference src, Address slot,
-      ObjectReference old, ObjectReference tgt, Word metaDataA,
-      Word metaDataB, int mode) {
-    boolean result = VM.barriers.tryCompareAndSwapWriteInBarrier(src, slot, old, tgt, metaDataA, metaDataB, mode);
+  public boolean objectReferenceTryCompareAndSwap(ObjectReference src, Address slot, ObjectReference old, ObjectReference tgt,
+      Word metaDataA, Word metaDataB, int mode) {
+    boolean result = VM.barriers.objectReferenceTryCompareAndSwap(src, old, tgt, metaDataA, metaDataB, mode);
     if (result)
       fastPath(src, slot, tgt, mode);
     return result;
@@ -232,7 +272,7 @@ import org.vmmagic.unboxed.*;
    * left to the caller (always false in this case).
    */
   @Inline
-  public final boolean writeBarrier(ObjectReference src, Offset srcOffset,
+  public final boolean objectReferenceBulkCopy(ObjectReference src, Offset srcOffset,
       ObjectReference dst, Offset dstOffset,
       int bytes) {
     // We can ignore when src is in old space, right?

@@ -1,19 +1,18 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
 package org.jikesrvm;
 
-import org.jikesrvm.mm.mminterface.MemoryManagerConstants;
-import org.jikesrvm.mm.mminterface.MemoryManager;
+import org.jikesrvm.mm.mminterface.Barriers;
 import org.jikesrvm.runtime.Entrypoints;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.Synchronization;
@@ -336,8 +335,8 @@ public class Services implements SizeConstants {
   @Inline
   public static void setArrayUninterruptible(Object[] dst, int index, Object value) {
     if (VM.runningVM) {
-      if (MemoryManagerConstants.NEEDS_WRITE_BARRIER) {
-        MemoryManager.arrayStoreWriteBarrier(dst, index, value);
+      if (Barriers.NEEDS_OBJECT_ASTORE_BARRIER) {
+        Barriers.objectArrayWrite(dst, index, value);
       } else {
         Magic.setObjectAtOffset(dst, Offset.fromIntZeroExtend(index << LOG_BYTES_IN_ADDRESS), value);
       }

@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -84,11 +84,8 @@ extern int verboseBoot;
 /* define in sys.c, used in libvm.c */
 extern void sysInitialize();
 
-/* defined in sys.c, used in jvm.c */
-extern void * getVmThread();
-
 /* Defined in libvm.C; used in RunBootImage.C */
-extern int createVM(int);
+extern int createVM(void);
 
 /* Used in libvm.C; Defined in sys.C */
 extern int getArrayLength(void* ptr);
@@ -104,6 +101,15 @@ extern void findMappable(void);
 extern void bootThread(int jtoc,int pr, int ti_or_ip, int fp); // assembler routine
 #else
 extern int bootThread(void *ip, void *pr, void *sp); // assembler routine
+#endif
+
+#ifdef RVM_FOR_HARMONY
+#define TLS_KEY_TYPE hythread_tls_key_t
+#define GET_THREAD_LOCAL(key) hythread_tls_get(hythread_self(), key)
+#else
+#include <pthread.h>
+#define TLS_KEY_TYPE pthread_key_t
+#define GET_THREAD_LOCAL(key) pthread_getspecific(key) 
 #endif
 
 // These are defined in libvm.C.

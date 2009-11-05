@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -18,6 +18,9 @@ import org.mmtk.harness.lang.Trace;
 import org.mmtk.harness.lang.Trace.Item;
 import org.mmtk.utility.Log;
 
+/**
+ * Abstract implementation of a threading model.
+ */
 public abstract class ThreadModel {
 
   /**
@@ -26,7 +29,15 @@ public abstract class ThreadModel {
   private boolean running = false;
 
   /** The global state of the scheduler */
-  public enum State { MUTATOR, BEGIN_GC, GC, END_GC, RENDEZVOUS }
+  public enum State {
+    /** Mutator threads are running */
+    MUTATOR,
+    /** GC requested, GC will start once all mutators have yielded */
+    BEGIN_GC,
+    /** GC in progress */
+    GC,
+    /** Waiting on all GC threads to hibernate */
+    END_GC }
 
   private static volatile State state = State.MUTATOR;
 
@@ -55,28 +66,30 @@ public abstract class ThreadModel {
 
   protected abstract void waitForGCStart();
 
-  public abstract boolean noThreadsInGC();
+  protected abstract boolean noThreadsInGC();
 
-  public abstract boolean gcTriggered();
+  protected abstract boolean gcTriggered();
 
-  public abstract int rendezvous(int where);
+  protected abstract int rendezvous(int where);
 
-  public abstract Collector currentCollector();
+  protected abstract int mutatorRendezvous(String where, int expected);
 
-  public abstract void waitForGC();
+  protected abstract Collector currentCollector();
 
-  public int getTriggerReason() {
+  protected abstract void waitForGC();
+
+  protected int getTriggerReason() {
     return triggerReason;
   }
 
-  public abstract void schedule();
+  protected abstract void schedule();
 
-  public abstract void scheduleGcThreads();
+  protected abstract void scheduleGcThreads();
 
   /**
    * An MMTk lock
    */
-  public abstract Lock newLock(String name);
+  protected abstract Lock newLock(String name);
 
   protected void setState(State state) {
     Trace.trace(Item.SCHEDULER,"State changing from %s to %s",ThreadModel.state,state);
@@ -87,8 +100,8 @@ public abstract class ThreadModel {
     return state;
   }
 
-  protected boolean isState(State state) {
-    return ThreadModel.state == state;
+  protected boolean isState(State s) {
+    return state == s;
   }
 
   protected boolean isRunning() {

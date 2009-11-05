@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -18,7 +18,7 @@ import org.mmtk.plan.Plan;
 import org.mmtk.plan.TraceLocal;
 import org.mmtk.plan.Trace;
 import org.mmtk.policy.Space;
-import org.mmtk.policy.immix.ImmixSpace;
+import org.mmtk.utility.HeaderByte;
 import org.mmtk.utility.deque.ObjectReferenceDeque;
 import org.mmtk.vm.VM;
 
@@ -90,6 +90,15 @@ public final class ImmixDefragTraceLocal extends TraceLocal {
     return super.traceObject(object);
   }
 
+  /**
+   * Return true if this object is guaranteed not to move during this
+   * collection (i.e. this object is defintely not an unforwarded
+   * object).
+   *
+   * @param object
+   * @return True if this object is guaranteed not to move during this
+   *         collection.
+   */
   @Override
   public boolean willNotMoveInCurrentCollection(ObjectReference object) {
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(Immix.immixSpace.inImmixDefragCollection());
@@ -115,7 +124,7 @@ public final class ImmixDefragTraceLocal extends TraceLocal {
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(Immix.immixSpace.inImmixDefragCollection());
     super.scanObject(object);
     if (MARK_LINE_AT_SCAN_TIME && Space.isInSpace(Immix.IMMIX, object))
-       ImmixSpace.markLines(object);
+      Immix.immixSpace.markLines(object);
   }
 
   /**
@@ -128,7 +137,7 @@ public final class ImmixDefragTraceLocal extends TraceLocal {
       logMessage(5, "clearing modBuffer");
       while (!modBuffer.isEmpty()) {
         ObjectReference src = modBuffer.pop();
-        Plan.markAsUnlogged(src);
+        HeaderByte.markAsUnlogged(src);
       }
     }
   }

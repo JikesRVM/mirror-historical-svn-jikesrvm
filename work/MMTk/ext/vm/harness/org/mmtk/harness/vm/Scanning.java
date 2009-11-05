@@ -1,32 +1,43 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
 package org.mmtk.harness.vm;
 
+import java.util.concurrent.BlockingQueue;
+
 import org.mmtk.harness.Mutator;
+import org.mmtk.harness.Mutators;
+import org.mmtk.harness.lang.Trace;
+import org.mmtk.harness.lang.Trace.Item;
 import org.mmtk.plan.TraceLocal;
 import org.mmtk.plan.TransitiveClosure;
 
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.unboxed.*;
 
+/**
+ *
+ *
+ */
 @Uninterruptible
 public class Scanning extends org.mmtk.vm.Scanning {
   /**
    * Delegated scanning of a object, processing each pointer field
    * encountered.
+   * @param trace The trace
    *
    * @param object The object to be scanned.
    */
+  @Override
   public void scanObject(TransitiveClosure trace, ObjectReference object) {
     int refs = ObjectModel.getRefs(object);
 
@@ -44,12 +55,10 @@ public class Scanning extends org.mmtk.vm.Scanning {
    * @param trace The trace the method has been specialized for
    * @param object The object to be scanned
    */
+  @Override
   public void specializedScanObject(int id, TransitiveClosure trace, ObjectReference object) {
     scanObject(trace, object);
   }
-
-  /** Counter for computeThreadRoots **/
-  private int threadCounter;
 
   /**
    * Prepares for using the <code>computeAllRoots</code> method.  The
@@ -58,8 +67,10 @@ public class Scanning extends org.mmtk.vm.Scanning {
    * parallel GC threads were not important, the thread counter could
    * simply be replaced by a for loop).
    */
+  @Override
   public synchronized void resetThreadCounter() {
-    threadCounter = 0;
+    assert mutatorsToScan.size() == 0;
+    mutatorsToScan = null;
   }
 
   /**
@@ -77,6 +88,7 @@ public class Scanning extends org.mmtk.vm.Scanning {
    *
    * @param trace The trace to use for computing roots.
    */
+  @Override
   public void computeStaticRoots(TraceLocal trace) {
     /* None */
   }
@@ -96,9 +108,12 @@ public class Scanning extends org.mmtk.vm.Scanning {
    *
    * @param trace The trace to use for computing roots.
    */
+  @Override
   public void computeGlobalRoots(TraceLocal trace) {
     /* None */
   }
+
+  private BlockingQueue<Mutator> mutatorsToScan = null;
 
   /**
    * Computes roots pointed to by threads, their associated registers
@@ -116,18 +131,21 @@ public class Scanning extends org.mmtk.vm.Scanning {
    *
    * @param trace The trace to use for computing roots.
    */
+  @Override
   public void computeThreadRoots(TraceLocal trace) {
+    Trace.trace(Item.COLLECT,"Computing roots for mutators");
+    synchronized(this) {
+      if (mutatorsToScan == null) {
+        mutatorsToScan = Mutators.getAll();
+      }
+    }
     while(true) {
-      int myIndex;
-      synchronized(this) {
-        myIndex = threadCounter++;
-      }
-
-      if (myIndex >= Mutator.count()) {
+      Trace.trace(Item.COLLECT,"mutators to scan: %d",mutatorsToScan.size());
+      Mutator m = mutatorsToScan.poll();
+      if (m == null)
         break;
-      }
-
-      Mutator.get(myIndex).computeThreadRoots(trace);
+      Trace.trace(Item.COLLECT,"Computing roots for mutator");
+      m.computeThreadRoots(trace);
     }
   }
 
@@ -143,6 +161,7 @@ public class Scanning extends org.mmtk.vm.Scanning {
    *
    * @param trace The trace object to use to report root locations.
    */
+  @Override
   public void computeBootImageRoots(TraceLocal trace) {
     /* None */
   }

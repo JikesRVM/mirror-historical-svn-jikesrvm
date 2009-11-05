@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -14,6 +14,9 @@ package org.mmtk.harness.vm;
 
 import org.vmmagic.pragma.Uninterruptible;
 
+/**
+ * MMTk Harness implementation of Assert
+ */
 @Uninterruptible
 public class Assert extends org.mmtk.vm.Assert {
 
@@ -29,6 +32,7 @@ public class Assert extends org.mmtk.vm.Assert {
    *
    * @param message the string to log
    */
+  @Override
   public void fail(String message) {
     throw new RuntimeException("Assertion Failed: " + message);
   }
@@ -40,6 +44,7 @@ public class Assert extends org.mmtk.vm.Assert {
    *
    * @param cond the condition to be checked
    */
+  @Override
   public void _assert(boolean cond) {
     if (!cond) fail("");
   }
@@ -52,6 +57,7 @@ public class Assert extends org.mmtk.vm.Assert {
    * @param cond the condition to be checked
    * @param message the message to print
    */
+  @Override
   public void _assert(boolean cond, String message) {
     if (!cond) fail(message);
   }
@@ -59,6 +65,7 @@ public class Assert extends org.mmtk.vm.Assert {
   /**
    * Print a stack trace
    */
+  @Override
   public void dumpStack() {
     new Exception().printStackTrace();
   }
@@ -70,11 +77,13 @@ public class Assert extends org.mmtk.vm.Assert {
    *
    * @return <code>true</code> if the virtual machine is running
    */
+  @Override
   public boolean runningVM() {
     return true;
   }
 
   /** @return true if assertions should be verified */
+  @Override
   protected boolean getVerifyAssertionsConstant() {
     return true;
   }

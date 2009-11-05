@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -89,12 +89,12 @@ import org.vmmagic.pragma.*;
    * @param mode The mode of the store (eg putfield, putstatic etc)
    */
   @Inline
-  public final void writeBarrier(ObjectReference src, Address slot,
+  public final void objectReferenceWrite(ObjectReference src, Address slot,
       ObjectReference tgt, Word metaDataA,
       Word metaDataB, int mode) {
-    TraceGenerator.processPointerUpdate(mode == PUTFIELD_WRITE_BARRIER,
+    TraceGenerator.processPointerUpdate(mode == INSTANCE_FIELD,
         src, slot, tgt);
-    VM.barriers.performWriteInBarrier(src, slot, tgt, metaDataA, metaDataB, mode);
+    VM.barriers.objectReferenceWrite(src, tgt, metaDataA, metaDataB, mode);
   }
 
   /**
@@ -115,12 +115,12 @@ import org.vmmagic.pragma.*;
    * @return True if the swap was successful.
    */
   @Inline
-  public boolean tryCompareAndSwapWriteBarrier(ObjectReference src, Address slot,
+  public boolean objectReferenceTryCompareAndSwap(ObjectReference src, Address slot,
       ObjectReference old, ObjectReference tgt, Word metaDataA,
       Word metaDataB, int mode) {
-    boolean result = VM.barriers.tryCompareAndSwapWriteInBarrier(src, slot, old, tgt, metaDataA, metaDataB, mode);
+    boolean result = VM.barriers.objectReferenceTryCompareAndSwap(src, old, tgt, metaDataA, metaDataB, mode);
     if (result) {
-      TraceGenerator.processPointerUpdate(mode == PUTFIELD_WRITE_BARRIER, src, slot, tgt);
+      TraceGenerator.processPointerUpdate(mode == INSTANCE_FIELD, src, slot, tgt);
     }
     return result;
   }
@@ -143,7 +143,7 @@ import org.vmmagic.pragma.*;
    * @return True if the update was performed by the barrier, false if
    * left to the caller (always false in this case).
    */
-  public boolean writeBarrier(ObjectReference src, Offset srcOffset,
+  public boolean objectReferenceBulkCopy(ObjectReference src, Offset srcOffset,
       ObjectReference dst, Offset dstOffset, int bytes) {
     /* These names seem backwards, but are defined to be compatable with the
      * previous writeBarrier method. */

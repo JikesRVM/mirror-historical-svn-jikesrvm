@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -115,7 +115,7 @@ SpinLock}, have been investigate, then a larger performance issue
  */
 
 @Uninterruptible
-public class Lock implements Constants {
+public final class Lock implements Constants {
   /****************************************************************************
    * Constants
    */
@@ -245,9 +245,9 @@ public class Lock implements Constants {
     } else {
       entering.enqueue(me);
       mutex.unlock();
-      me.monitor().lock();
+      me.monitor().lockNoHandshake();
       while (entering.isQueued(me)) {
-        me.monitor().waitNicely(); // this may spuriously return
+        me.monitor().waitWithHandshake(); // this may spuriously return
       }
       me.monitor().unlock();
       return false;
@@ -266,6 +266,7 @@ public class Lock implements Constants {
    *
    * @param o the object to be unlocked
    */
+  @Unpreemptible
   public void unlockHeavy(Object o) {
     boolean deflated = false;
     mutex.lock(); // Note: thread switching is not allowed while mutex is held.
@@ -292,7 +293,7 @@ public class Lock implements Constants {
     }
     mutex.unlock(); // does a Magic.sync();  (thread-switching benign)
     if (toAwaken != null) {
-      toAwaken.monitor().lockedBroadcast();
+      toAwaken.monitor().lockedBroadcastNoHandshake();
     }
   }
 
@@ -311,7 +312,7 @@ public class Lock implements Constants {
       VM._assert(waiting.isEmpty());
     }
     if (STATS) deflations++;
-    ThinLock.deflate(o, lockOffset, this);
+    ThinLock.markDeflated(o, lockOffset, index);
     lockedObject = null;
     free(this);
   }

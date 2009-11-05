@@ -1,11 +1,11 @@
 /*
  *  This file is part of the Jikes RVM project (http://jikesrvm.org).
  *
- *  This file is licensed to You under the Common Public License (CPL);
+ *  This file is licensed to You under the Eclipse Public License (EPL);
  *  You may not use this file except in compliance with the License. You
  *  may obtain a copy of the License at
  *
- *      http://www.opensource.org/licenses/cpl1.0.php
+ *      http://www.opensource.org/licenses/eclipse-1.0.php
  *
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
@@ -15,8 +15,7 @@ package org.jikesrvm.runtime;
 import org.jikesrvm.VM;
 import org.jikesrvm.Constants;
 import org.jikesrvm.ArchitectureSpecific.CodeArray;
-import org.jikesrvm.mm.mminterface.MemoryManagerConstants;
-import org.jikesrvm.mm.mminterface.MemoryManager;
+import org.jikesrvm.mm.mminterface.Barriers;
 import org.jikesrvm.objectmodel.TIB;
 import org.jikesrvm.util.BitVector;
 import org.jikesrvm.util.ImmutableEntryIdentityHashMapRVM;
@@ -618,8 +617,8 @@ public class Statics implements Constants {
     // happen as the fault would only ever occur when not running the
     // VM. We suppress the warning as we know the error can't happen.
 
-    if (VM.runningVM && MemoryManagerConstants.NEEDS_PUTSTATIC_WRITE_BARRIER) {
-      MemoryManager.putstaticWriteBarrier(object, offset, 0);
+    if (VM.runningVM && Barriers.NEEDS_OBJECT_PUTSTATIC_BARRIER) {
+      Barriers.objectStaticWrite(object, offset, 0);
     } else {
       setSlotContents(offset, Magic.objectAsAddress(object).toWord());
     }
