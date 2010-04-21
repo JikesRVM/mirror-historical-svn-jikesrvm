@@ -147,6 +147,10 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
         t.flush();
         t.flushRequested=false;
       }
+      @Uninterruptible
+      public boolean includeThread(RVMThread t) {
+        return !t.isCollectorThread();
+      }
     };
 
   /**

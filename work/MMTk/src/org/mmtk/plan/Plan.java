@@ -154,7 +154,7 @@ public abstract class Plan implements Constants {
   public static final SanityChecker sanityChecker = new SanityChecker();
 
   /** Default collector context */
-  private final Class<?> defaultCollectorContext;
+  protected final Class<? extends ParallelCollector> defaultCollectorContext;
 
   /****************************************************************************
    * Constructor.
@@ -181,18 +181,19 @@ public abstract class Plan implements Constants {
     registerSpecializedMethods();
 
     // Determine the default collector context.
-    Class<?> klass = this.getClass();
-    while(!klass.getName().startsWith("org.mmtk.plan")) {
-      klass = klass.getSuperclass();
+    Class<? extends Plan> mmtkPlanClass = this.getClass().asSubclass(Plan.class);
+    while(!mmtkPlanClass.getName().startsWith("org.mmtk.plan")) {
+      mmtkPlanClass = mmtkPlanClass.getSuperclass().asSubclass(Plan.class);
     }
-    String contextClassName = klass.getName() + "Collector";
+    String contextClassName = mmtkPlanClass.getName() + "Collector";
+    Class<? extends ParallelCollector> mmtkCollectorClass = null;
     try {
-      klass = (Class<?>)Class.forName(contextClassName);
+      mmtkCollectorClass = Class.forName(contextClassName).asSubclass(ParallelCollector.class);
     } catch (Throwable t) {
       t.printStackTrace();
       System.exit(-1);
     }
-    defaultCollectorContext = klass;
+    defaultCollectorContext = mmtkCollectorClass;
   }
 
   /****************************************************************************
@@ -239,6 +240,11 @@ public abstract class Plan implements Constants {
     // Create our parallel workers
     parallelWorkers.initGroup(Options.threads.getValue(), defaultCollectorContext);
 
+    // Create the concurrent worker threads.
+    if (VM.activePlan.constraints().needsConcurrentWorkers()) {
+      concurrentWorkers.initGroup(Options.threads.getValue(), defaultCollectorContext);
+    }
+
     // Create our control thread.
     VM.collection.spawnCollectorContext(controlCollectorContext);
 
@@ -246,9 +252,10 @@ public abstract class Plan implements Constants {
     initialized = true;
   }
 
-  private static final ParallelCollectorGroup parallelWorkers = new ParallelCollectorGroup("ParallelWorkers");
-  private static final ControllerCollectorContext controlCollectorContext = new ControllerCollectorContext(parallelWorkers);
-
+  public static final ParallelCollectorGroup parallelWorkers = new ParallelCollectorGroup("ParallelWorkers");
+  public static final ParallelCollectorGroup concurrentWorkers = new ParallelCollectorGroup("ConcurrentWorkers");
+  public static final ControllerCollectorContext controlCollectorContext = new ControllerCollectorContext(parallelWorkers);
+  
   /**
    * The VM is about to exit. Perform any clean up operations.
    *
@@ -406,6 +413,8 @@ public abstract class Plan implements Constants {
    */
 
   protected static boolean userTriggeredCollection;
+  protected static boolean internalTriggeredCollection;
+  protected static boolean lastInternalTriggeredCollection;
   protected static boolean emergencyCollection;
   protected static boolean stacksPrepared;
 
@@ -562,7 +571,7 @@ public abstract class Plan implements Constants {
    * The application code has requested a collection.
    */
   @Unpreemptible
-  public void handleUserCollectionRequest() {
+  public static void handleUserCollectionRequest() {
     if (Options.ignoreSystemGC.getValue()) {
       // Ignore the user GC request.
       return;
@@ -576,10 +585,37 @@ public abstract class Plan implements Constants {
   }
 
   /**
+   * MMTK has requested stop-the-world activity (e.g., stw within a concurrent gc).
+   */
+  @Unpreemptible
+  public static void triggerInternalCollectionRequest() {
+    // Mark this as a user triggered collection
+    internalTriggeredCollection = lastInternalTriggeredCollection = true;
+    // Request the collection
+    controlCollectorContext.request();
+  }
+
+  /**
+   * Reset collection state information.
+   */
+  public static void resetCollectionTrigger() {
+    lastInternalTriggeredCollection = internalTriggeredCollection;
+    internalTriggeredCollection = false;
+    userTriggeredCollection = false;
+  }
+
+  /**
    * @return True if this collection was triggered by application code.
    */
-  public boolean isUserTriggeredCollection() {
+  public static boolean isUserTriggeredCollection() {
     return userTriggeredCollection;
+  }
+
+  /**
+   * @return True if this collection was triggered internally.
+   */
+  public static boolean isInternalTriggeredCollection() {
+    return lastInternalTriggeredCollection;
   }
 
   /****************************************************************************
@@ -819,6 +855,19 @@ public abstract class Plan implements Constants {
       return true;
     }
 
+    if (concurrentCollectionRequired()) {
+      if (space == metaDataSpace) {
+        logPoll(space, "Triggering async concurrent collection");
+        triggerInternalCollectionRequest();
+        return false;
+      } else {
+        logPoll(space, "Triggering concurrent collection");
+        triggerInternalCollectionRequest();
+        VM.collection.blockForGC();
+        return true;
+      }
+    }
+
     return false;
   }
 
@@ -828,7 +877,7 @@ public abstract class Plan implements Constants {
    * @param message
    */
   protected void logPoll(Space space, String message) {
-    if (Options.verbose.getValue() >= 3) {
+    if (Options.verbose.getValue() >= 5) {
       Log.write("  [POLL] ");
       Log.write(space.getName());
       Log.write(": ");
@@ -848,6 +897,16 @@ public abstract class Plan implements Constants {
     boolean heapFull = getPagesReserved() > getTotalPages();
 
     return spaceFull || stressForceGC || heapFull;
+  }
+
+  /**
+   * This method controls the triggering of an atomic phase of a concurrent
+   * collection. It is called periodically during allocation.
+   *
+   * @return True if a collection is requested by the plan.
+   */
+  protected boolean concurrentCollectionRequired() {
+    return false;
   }
 
   /**

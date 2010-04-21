@@ -27,7 +27,7 @@ public abstract class ParallelCollector extends CollectorContext {
    */
 
   /** The group that this collector context is running in (may be null) */
-  ParallelCollectorGroup group;
+  protected ParallelCollectorGroup group;
 
   /** Last group trigger index (see CollectorContextGroup) */
   int lastTriggerCount;
@@ -39,9 +39,6 @@ public abstract class ParallelCollector extends CollectorContext {
    * Collection.
    */
 
-  /**
-   *
-   */
   @Unpreemptible
   public void run() {
     while(true) {

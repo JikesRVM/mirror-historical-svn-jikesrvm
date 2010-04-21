@@ -3176,17 +3176,27 @@ public final class RVMThread extends ThreadContext {
      */
     public void notifyStuckInNative(RVMThread t) {
     }
+
+    /**
+     * Check whether to include the specified thread in the soft handshake.
+     * 
+     * @param t The thread to check for inclusion
+     * @return True if the thread should be included.
+     */
+    public boolean includeThread(RVMThread t) {
+      return true;
+    }
   }
 
   @NoCheckStore
-  public static int snapshotHandshakeThreads() {
+  public static int snapshotHandshakeThreads(SoftHandshakeVisitor v) {
     // figure out which threads to consider
     acctLock.lockNoHandshake(); /* get a consistent view of which threads are live. */
 
     int numToHandshake = 0;
     for (int i = 0; i < numThreads; ++i) {
       RVMThread t = threads[i];
-      if (t != RVMThread.getCurrentThread() && !t.ignoreHandshakesAndGC()) {
+      if (t != RVMThread.getCurrentThread() && !t.ignoreHandshakesAndGC() && v.includeThread(t)) {
         handshakeThreads[numToHandshake++] = t;
       }
     }
@@ -3214,7 +3224,7 @@ public final class RVMThread extends ThreadContext {
                                         * from proceeding concurrently
                                         */
 
-    int numToHandshake = snapshotHandshakeThreads();
+    int numToHandshake = snapshotHandshakeThreads(v);
     if (VM.VerifyAssertions)
       VM._assert(softHandshakeLeft == 0);
 

@@ -75,6 +75,13 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
    */
 
   /**
+   * Should reference values be overwritten as the heap is traced?
+   */
+  protected boolean overwriteReferenceDuringTrace() {
+    return true;
+  }
+  
+  /**
    * Trace a reference during GC.  This involves determining which
    * collection policy applies and calling the appropriate
    * <code>trace</code> method.
@@ -87,7 +94,9 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
   public final void processEdge(ObjectReference source, Address slot) {
     ObjectReference object = VM.activePlan.global().loadObjectReference(slot);
     ObjectReference newObject = traceObject(object, false);
-    VM.activePlan.global().storeObjectReference(slot, newObject);
+    if (overwriteReferenceDuringTrace()) {
+      VM.activePlan.global().storeObjectReference(slot, newObject);
+    }
   }
 
   /**
@@ -120,8 +129,10 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
     if (untraced) object = slot.loadObjectReference();
     else     object = VM.activePlan.global().loadObjectReference(slot);
     ObjectReference newObject = traceObject(object, true);
-    if (untraced) slot.store(newObject);
-    else     VM.activePlan.global().storeObjectReference(slot, newObject);
+    if (overwriteReferenceDuringTrace()) {
+      if (untraced) slot.store(newObject);
+      else     VM.activePlan.global().storeObjectReference(slot, newObject);
+    }
   }
 
   /**
@@ -147,7 +158,9 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
         VM.assertions._assert(false);
       }
     }
-    slot.store(newTarget.toAddress().plus(offset));
+    if (overwriteReferenceDuringTrace()) {
+      slot.store(newTarget.toAddress().plus(offset));
+    }
   }
 
   /**

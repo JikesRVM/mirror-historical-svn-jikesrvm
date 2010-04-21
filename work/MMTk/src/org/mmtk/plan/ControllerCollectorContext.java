@@ -37,6 +37,9 @@ public class ControllerCollectorContext extends CollectorContext {
 
   /** The request index that was last completed */
   private int lastRequestCount = -1;
+  
+  /** Is there concurrent collection activity */
+  private boolean concurrentCollection = false;
 
   /**
    * Create a controller context.
@@ -68,40 +71,69 @@ public class ControllerCollectorContext extends CollectorContext {
       // The start time.
       long startTime = VM.statistics.nanoTime();
 
+      if (concurrentCollection) {
+        if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Stopping concurrent collectors...]");
+        Plan.concurrentWorkers.abortCycle();
+        Plan.concurrentWorkers.waitForCycle();
+        Phase.clearConcurrentPhase();
+        // Collector must re-request concurrent collection in this case.
+        concurrentCollection = false;
+      }
+
       // Stop all mutator threads
       if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Stopping the world...]");
       VM.collection.stopAllMutators();
 
       // Was this user triggered?
-      boolean userTriggeredCollection = VM.activePlan.global().isUserTriggeredCollection();
+      boolean userTriggeredCollection = Plan.isUserTriggeredCollection();
+      boolean internalTriggeredCollection = Plan.isInternalTriggeredCollection();
 
       // Clear the request
       clearRequest();
 
       // Trigger GC.
       if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Triggering worker threads...]");
+      //Log.writeln(BlockAllocator.checkBlockMeta(Address.fromIntZeroExtend(0x686a700c).toObjectReference()) ? "CHECKED" : "UNCHECKED");
       workers.triggerCycle();
 
       // Wait for GC threads to complete.
       workers.waitForCycle();
       if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Worker threads complete!]");
 
-      // Heap growth logic
-      long elapsedTime = VM.statistics.nanoTime() - startTime;
-      HeapGrowthManager.recordGCTime(VM.statistics.nanosToMillis(elapsedTime));
-      if (VM.activePlan.global().lastCollectionFullHeap()) {
-        if (!userTriggeredCollection) {
-          // Don't consider changing the heap size if the application triggered the collection
-          if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Considering heap size.]");
-          HeapGrowthManager.considerHeapSize();
+      if (!internalTriggeredCollection) {
+        // Heap growth logic
+        long elapsedTime = VM.statistics.nanoTime() - startTime;
+        HeapGrowthManager.recordGCTime(VM.statistics.nanosToMillis(elapsedTime));
+        if (VM.activePlan.global().lastCollectionFullHeap()) {
+          if (!userTriggeredCollection) {
+            // Don't consider changing the heap size if the application triggered the collection
+            if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Considering heap size.]");
+            HeapGrowthManager.considerHeapSize();
+          }
+          HeapGrowthManager.reset();
         }
-        HeapGrowthManager.reset();
       }
+
+      // Reset the triggering information.
+      Plan.resetCollectionTrigger();
 
       // Resume all mutators
       if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Resuming mutators...]");
       VM.collection.resumeAllMutators();
+      
+      // Start threads that will perform concurrent collection work alongside mutators.
+      if (concurrentCollection) {
+        if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Triggering concurrent collectors...]");
+        Plan.concurrentWorkers.triggerCycle();
+      }
     }
+  }
+
+  /**
+   * Request that concurrent collection is performed after this stop-the-world increment.
+   */
+  public void requestConcurrentCollection() {
+    concurrentCollection = true;
   }
 
   /**

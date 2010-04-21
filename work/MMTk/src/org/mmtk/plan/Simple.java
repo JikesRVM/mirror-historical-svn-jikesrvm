@@ -243,7 +243,6 @@ public abstract class Simple extends Plan implements Constants {
     if (phaseId == COMPLETE) {
       setGCStatus(NOT_IN_GC);
       Space.clearAllAllocationFailed();
-      userTriggeredCollection = false;
       return;
     }
 

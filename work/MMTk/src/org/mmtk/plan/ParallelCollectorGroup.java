@@ -45,6 +45,9 @@ public class ParallelCollectorGroup implements Constants {
   /** The number of threads that are currently parked */
   private volatile int contextsParked;
 
+  /** Is there an abort request outstanding? */
+  private volatile boolean aborted;
+
   /** Used to count threads during calls to rendezvous() */
   private int[] rendezvousCounter = new int[2];
 
@@ -55,7 +58,7 @@ public class ParallelCollectorGroup implements Constants {
    *
    * Initialization
    */
-  protected ParallelCollectorGroup(String name) {
+  public ParallelCollectorGroup(String name) {
     this.name = name;
   }
 
@@ -73,13 +76,13 @@ public class ParallelCollectorGroup implements Constants {
    * @param klass The type of collector context to create.
    */
   @Interruptible
-  public void initGroup(int size, Class<?> klass) {
+  public void initGroup(int size, Class<? extends ParallelCollector> klass) {
     this.lock = VM.newHeavyCondLock("CollectorContextGroup");
     this.triggerCount = 1;
     this.contexts = new ParallelCollector[size];
     for(int i = 0; i < size; i++) {
       try {
-        contexts[i] = (ParallelCollector)klass.newInstance();
+        contexts[i] = klass.newInstance();
         contexts[i].group = this;
         contexts[i].workerOrdinal = i + 1;
         VM.collection.spawnCollectorContext(contexts[i]);
@@ -98,6 +101,24 @@ public class ParallelCollectorGroup implements Constants {
     contextsParked = 0;
     lock.broadcast();
     lock.unlock();
+  }
+
+  /**
+   * Signal that you would like the threads to park abruptly. Has no effect if no cycle is active.
+   */
+  public void abortCycle() {
+    lock.lock();
+    if (contextsParked < contexts.length) {
+      aborted = true;
+    }
+    lock.unlock();
+  }
+
+  /**
+   * Has the cycle been aborted?
+   */
+  public boolean isAborted() {
+    return aborted;
   }
 
   /**
@@ -122,6 +143,9 @@ public class ParallelCollectorGroup implements Constants {
     context.lastTriggerCount++;
     if (context.lastTriggerCount == triggerCount) {
       contextsParked++;
+      if (contextsParked == contexts.length) {
+        aborted = false;
+      }
       lock.broadcast();
       while (context.lastTriggerCount == triggerCount) {
         lock.await();
@@ -136,7 +160,7 @@ public class ParallelCollectorGroup implements Constants {
    * @param context The context to pass.
    * @return True if the context is a member.
    */
-  private boolean isMember(CollectorContext context) {
+  public boolean isMember(CollectorContext context) {
     for(CollectorContext c: contexts) {
       if (c == context) {
         return true;

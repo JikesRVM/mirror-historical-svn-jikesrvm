@@ -275,7 +275,7 @@ public abstract class Allocator implements Constants {
       }
 
       // Allocation failed!
-      attempts++;
+      if (!Plan.isInternalTriggeredCollection()) attempts++;
 
       if (attempts > 1) {
         if (emergencyCollection) {

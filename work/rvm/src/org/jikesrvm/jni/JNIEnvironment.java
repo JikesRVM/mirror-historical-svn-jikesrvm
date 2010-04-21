@@ -246,15 +246,22 @@ public final class JNIEnvironment implements SizeConstants {
       JNIRefsTop += BYTES_IN_ADDRESS;
       if (JNIRefsTop >= JNIRefsMax) {
         JNIRefsMax *= 2;
-        AddressArray newrefs = AddressArray.create((JNIRefsMax >> LOG_BYTES_IN_ADDRESS) + JNIREFS_FUDGE_LENGTH);
-        for (int i = 0; i < JNIRefs.length(); i++) {
-          newrefs.set(i, JNIRefs.get(i));
-        }
-        JNIRefs = newrefs;
+        replaceJNIRefs(AddressArray.create((JNIRefsMax >> LOG_BYTES_IN_ADDRESS) + JNIREFS_FUDGE_LENGTH));
       }
       JNIRefs.set(JNIRefsTop >> LOG_BYTES_IN_ADDRESS, Magic.objectAsAddress(ref));
       return JNIRefsTop;
     }
+  }
+
+  /**
+   * Atomically copy and install a new JNIRefArray
+   */
+  @Uninterruptible
+  private void replaceJNIRefs(AddressArray newrefs) {
+    for (int i = 0; i < JNIRefs.length(); i++) {
+      newrefs.set(i, JNIRefs.get(i));
+    }
+    JNIRefs = JNIRefsShadow = newrefs;
   }
 
   /**
