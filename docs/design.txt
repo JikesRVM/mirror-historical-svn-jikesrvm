@@ -1,1 +1,144 @@
-Describe here how Sapphire is suppose to work
+Based on my understanding of Sapphire: Copying Garbage Collection without 
+Stopping the World, Hudson, Richard L and Moss, J Eliot B, Concurrency and 
+Computation: Practice & Experience, Wiley, 2003, 15, 223-261 ...
+
+I believe the Sapphire algorithm works in the following way:
+
+The paper describes three spaces:
+* "Uncoll" which is for objects that will not be collected during this GC.  
+    Conceptually this space also includes objects that will never be collected 
+    and things like Java statics (the JTOC).  We always allocate into this space
+* "Old" for objects that may or not be live during the current GC
+* "New" for replicas of "Old" objects that are still live
+
+In MMTk we might actually have 4 spaces:
+* "STWOnly" - a space where objects are never concurrently collected
+* "Nursery" - where objects are freshly allocated
+// the 2 above spaces combined are equivalent to "Uncoll"
+* "Old" - At GC time existing "Nursery" objects become "Old" and eligible for GC
+* "New" - for replicas of "Old" objects that are still live
+
+= Mutator Phase 0: No concurrent GC in progress =
+* No need for any mutator write barriers (WB)
+
+// GC thread decides it is time to GC and soft handshakes with each mutator 
+// thread indicating that they should transition to phase 1.
+// Each mutator thread only needs to acknowledge the handshake before continuing
+
+= Mutator Phase 1: Mark =
+* For each mutator, the nursery becomes "Old" and we obtain a new nursery
+* Mutator insertion barrier catches references to unmarked "Old" objects and 
+    stick them on a GC work queue
+
+// Once all mutator threads are in phase 1, the GC tread can transitively close
+// the heap, marking all reachable "Old" objects.
+// Mutator thread stacks need to be scanned Incremental Update style to ensure
+// all "Old" references are found.
+// Termination is when all mutator work queues are empty, and a transitive
+// closure of the heap and stacks does not find any unmarked "Old" objects.
+// GC thread can now transition mutators to phase 2
+
+= Mutator Phase 2: Wait for GC to allocate (replicate) =
+* No mutator WB is needed in this phase as no mutator can have any reference
+    to an unmarked "Old" object
+* Mutator locking/hashing code must be wary of GC installing a FP (see below)
+    
+// GC thread (linear) scans for marked "Old" objects and allocates space in
+// "New" for a replica.  GC thread must CAS in a forwarding pointer (FP) to the
+// "Old" object status word pointing to the "New" copy.  GC maintains a side 
+// table of back pointers (BP) from "New" to "Old".  When there are no more
+// replicated marked "Old" objects this phase is complete and the GC can soft
+// handshake with mutator threads to transition to phase 3.
+
+= Mutator Phase 3: Maintain replica dynamic consistency =
+* Mutator requires a WB for all writes (primitive and reference).  If writing to
+    an "Old" object the mutator must also update the same slot in the "New"
+    replica.  If a reference write and the target is an "Old" reference then 
+    the value written into the "New" copy must point to the "New" replica of the
+    original "Old" target.
+* Mutator locking / hashing code must cope with FP's in object status word
+
+// The GC thread iterates through all of the "new" replicas, reading the
+// equivalent "Old" slot value and propagating this value to the "new" replica.
+// The GC thread must take care not to write a stale value to the "new" replica
+// The suggests way is ensure not writing a stale value is Lamports algorithm,
+// correct implementation of which will require careful consideration of memory
+// fences, the copy-word loop falls back to a LL/SC to help ensure progress.
+// pg 236 of the journal paper states that CAS'ing is not suitable due to
+// looping, although it is not clear to me what this means at the moment...
+
+--------------------------------------------------------------------------------
+Once the GC thread has propagated values to all "new" replicas then we can
+perform a STW phase here, updating all threads to point to "New" objects instead
+of "old" ones.  "Old" objects can then be deleted and "new" becomes the new
+"old"
+--------------------------------------------------------------------------------
+
+// Once all "new" slots contain a value the GC thread can transistion the 
+// mutators onto phase 4
+
+= Mutator Phase 4: Start flipping heap =
+* The mutator WB's must continue to maintain dynamic consistency between "old"
+    and "new".  Now however any attempt to install a "Old" pointer must actually
+    install a "new" pointer.
+* Locking and hashing must still contend with FP's
+* Mutators can now read "new" references, pointer equivalence tests (if_acmpeq
+    and if_acmpne) must be updated in the compilers to deal with checking
+    if a "old" reference and a "new" reference are to the same object
+    
+    
+// Once all mutators are in phase 4 the collector can process all heap slots
+// (STWonly, Nursery & Old) and update "Old" references to their "New" replica.
+// Like in the previous GC phase care must be taken not to write a stale value.
+// The journal paper uses CAS for this which seems correct but inconsistent with
+// what is stated about copy-word (collector phase 3 above)
+// When no heap slots refer to "Old" objects the GC may transition mutators
+// one thread at a time to phase 5
+
+= Mutator Phase 5: Have my thread flipped =
+// Upon entering this phase the GC will have stopped this thread, scanned its
+// stack and updated all "Old" references to refer to the "new" replica
+// Essentially this thread now no longer see's or reads from "Old" objects
+* The mutator write barrier must now use BP's to update the "Old" version of
+    an object on a write
+* Locking and hashing are now simpler because all objects the mutator can see
+    have the normal status word (no FP is visible)
+    
+// Once all mutators are in phase 5, it is possible to start transitioning the
+// mutators back to phase 0 (no concurrent GC in progress).  Once all mutators
+// are back in phase 0 it is possible to blow "old" space away as no thread has
+// any references to it.
+
+--------------------------------------------------------------------------------
+
+Section 3 of the journal paper documents how to merge phases of the algorithm
+together, but for the moment I shall ignore this. Simpler phases should 
+hopefully be easier to debug and also provide more chances for assertions and
+sanity checking.
+
+Currently with biased locking a thread that owns the bias on a lock may update
+the (upper bits) of the status word without a CAS.  In mutator phase 2 the
+mutator must use a CAS because the GC needs to be able to install a FP (also the
+locking code must handle using the FP to find the actual status word).
+
+Sapphire suggests the use of read and write barriers on volatile fields to lock
+access to the field and stop the value being replicated whilst read/written.
+This will require the implementation of primitive read barriers, therefore as
+a starting point it is much simpler to just allocate objects with volatile
+fields in the STWOnly space. 
+
+* We need to think about if java.lang.ref processing and finalization cause 
+    difficulties - initially we can probably disable them
+
+Sapphire uses the concept that a marked object is Black, unless it is on a
+explicit grey list (GC or mutator work queue).  An unmarked object is white.
+
+= Optimisations =
+* Threads that have not run since the last stack scan need not be scanned again
+
+= Experiments = 
+* Explore efficient back pointer mechanisms (tables, hash maps, trees)
+* Could use logging rather than double writes to maintain dynamic consistency
+    but this would involve flushing the logs at all Java memory model
+    synchronization points (which involves hacking the compilers for example)
+ 
