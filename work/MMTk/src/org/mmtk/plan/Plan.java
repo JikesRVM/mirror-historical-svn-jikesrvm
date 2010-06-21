@@ -156,6 +156,8 @@ public abstract class Plan implements Constants {
   /** Default collector context */
   protected final Class<? extends ParallelCollector> defaultCollectorContext;
 
+  public static long startTime; // used by heap growth manager
+
   /****************************************************************************
    * Constructor.
    */
@@ -313,6 +315,11 @@ public abstract class Plan implements Constants {
    * Perform a (global) collection phase.
    */
   public abstract void collectionPhase(short phase);
+
+  /**
+   * Perform a (global) unpreemptible collection phase.
+   */
+  public abstract void unpreemptibleCollectionPhase(short phase);
 
   /**
    * Replace a phase.

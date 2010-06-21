@@ -35,6 +35,7 @@ public abstract class StopTheWorldCollector extends SimpleCollector {
    */
 
   /** Perform garbage collection */
+  @Unpreemptible
   public void collect() {
     Phase.beginNewPhaseStack(Phase.scheduleComplex(global().collection));
   }

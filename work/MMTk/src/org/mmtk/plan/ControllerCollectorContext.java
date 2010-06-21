@@ -13,7 +13,6 @@
 package org.mmtk.plan;
 
 import org.mmtk.utility.Log;
-import org.mmtk.utility.heap.HeapGrowthManager;
 import org.mmtk.utility.options.Options;
 import org.mmtk.vm.Monitor;
 import org.mmtk.vm.VM;
@@ -39,7 +38,8 @@ public class ControllerCollectorContext extends CollectorContext {
   private int lastRequestCount = -1;
   
   /** Is there concurrent collection activity */
-  private boolean concurrentCollection = false;
+  private volatile boolean concurrentCollection = false; // LPJH: Should be volatile as value can change behind this
+                                                         // threads back whilst we wait for the worker threads
 
   /**
    * Create a controller context.
@@ -64,15 +64,12 @@ public class ControllerCollectorContext extends CollectorContext {
   public void run() {
     while(true) {
       // Wait for a collection request.
-      if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Waiting for request...]");
-      waitForRequest();
-      if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Request recieved.]");
-
-      // The start time.
-      long startTime = VM.statistics.nanoTime();
+      if (Options.verbose.getValue() >= 5) Log.writeln("[ControllerCollectorContext: Waiting for request...]");
+      waitForAndThenClearRequest();
+      if (Options.verbose.getValue() >= 5) Log.writeln("[ControllerCollectorContext: Request recieved.]");
 
       if (concurrentCollection) {
-        if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Stopping concurrent collectors...]");
+        if (Options.verbose.getValue() >= 5) Log.writeln("[ControllerCollectorContext: Stopping concurrent collectors...]");
         Plan.concurrentWorkers.abortCycle();
         Plan.concurrentWorkers.waitForCycle();
         Phase.clearConcurrentPhase();
@@ -80,50 +77,18 @@ public class ControllerCollectorContext extends CollectorContext {
         concurrentCollection = false;
       }
 
-      // Stop all mutator threads
-      if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Stopping the world...]");
-      VM.collection.stopAllMutators();
-
-      // Was this user triggered?
-      boolean userTriggeredCollection = Plan.isUserTriggeredCollection();
-      boolean internalTriggeredCollection = Plan.isInternalTriggeredCollection();
-
-      // Clear the request
-      clearRequest();
-
       // Trigger GC.
-      if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Triggering worker threads...]");
-      //Log.writeln(BlockAllocator.checkBlockMeta(Address.fromIntZeroExtend(0x686a700c).toObjectReference()) ? "CHECKED" : "UNCHECKED");
+      if (Options.verbose.getValue() >= 5) Log.writeln("[ControllerCollectorContext: Triggering GC worker threads...]");
       workers.triggerCycle();
 
       // Wait for GC threads to complete.
       workers.waitForCycle();
-      if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Worker threads complete!]");
-
-      if (!internalTriggeredCollection) {
-        // Heap growth logic
-        long elapsedTime = VM.statistics.nanoTime() - startTime;
-        HeapGrowthManager.recordGCTime(VM.statistics.nanosToMillis(elapsedTime));
-        if (VM.activePlan.global().lastCollectionFullHeap()) {
-          if (!userTriggeredCollection) {
-            // Don't consider changing the heap size if the application triggered the collection
-            if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Considering heap size.]");
-            HeapGrowthManager.considerHeapSize();
-          }
-          HeapGrowthManager.reset();
-        }
-      }
-
-      // Reset the triggering information.
-      Plan.resetCollectionTrigger();
-
-      // Resume all mutators
-      if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Resuming mutators...]");
-      VM.collection.resumeAllMutators();
+      if (Options.verbose.getValue() >= 5)
+        Log.writeln("[ControllerCollectorContext: GC worker threads complete!]");
       
       // Start threads that will perform concurrent collection work alongside mutators.
       if (concurrentCollection) {
-        if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Triggering concurrent collectors...]");
+        if (Options.verbose.getValue() >= 5) Log.writeln("[ControllerCollectorContext: Triggering concurrent collectors...]");
         Plan.concurrentWorkers.triggerCycle();
       }
     }
@@ -140,9 +105,9 @@ public class ControllerCollectorContext extends CollectorContext {
    * Request a collection.
    */
   public void request() {
-    if (requestFlag) {
-      return;
-    }
+    // if (requestFlag) { // LPJH: unsafe optimisation, requestFlag must only ever be accessed when holding a lock
+    // return;            // or requestFlag must be volatile to ensure correct value is seen
+    // }
     lock.lock();
     if (!requestFlag) {
       requestFlag = true;
@@ -153,24 +118,18 @@ public class ControllerCollectorContext extends CollectorContext {
   }
 
   /**
-   * Clear the collection request, making future requests incur an
-   * additional collection cycle.
-   */
-  private void clearRequest() {
-    lock.lock();
-    requestFlag = false;
-    lock.unlock();
-  }
-
-  /**
    * Wait until a request is received.
    */
-  private void waitForRequest() {
+  private void waitForAndThenClearRequest() {
     lock.lock();
     lastRequestCount++;
     while (lastRequestCount == requestCount) {
       lock.await();
     }
+    // Because mutator threads might not be stopped during the current collector activity we must clear the request flag before
+    // releasing the request lock. That way if we ever see requestFlag as being true again we know there is a new pending mutator
+    // request for a GC
+    requestFlag = false;
     lock.unlock();
   }
 }

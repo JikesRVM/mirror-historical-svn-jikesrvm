@@ -36,6 +36,11 @@ public final class ConcurrentPhase extends Phase
    * The atomic scheduled phase to use when concurrent collection is not allowed
    */
   private final int atomicScheduledPhase;
+  /**
+   * The phase to use before resuming the concurrent collection (note mutators
+   * may still be running)
+   */
+  private final int continueConcurrentScheduledPhase;
 
   /**
    * Construct a complex phase from an array of phase IDs.
@@ -43,10 +48,12 @@ public final class ConcurrentPhase extends Phase
    * @param name The name of the phase.
    * @param atomicScheduledPhase The atomic scheduled phase
    */
-  protected ConcurrentPhase(String name, int atomicScheduledPhase) {
+  protected ConcurrentPhase(String name, int atomicScheduledPhase, int continueConcurrentScheduledPhase) {
     super(name, null);
     this.atomicScheduledPhase = atomicScheduledPhase;
+    this.continueConcurrentScheduledPhase = continueConcurrentScheduledPhase;
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(getSchedule(this.atomicScheduledPhase) != SCHEDULE_CONCURRENT);
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(getSchedule(this.continueConcurrentScheduledPhase) != SCHEDULE_CONCURRENT);
   }
 
   /**
@@ -57,14 +64,16 @@ public final class ConcurrentPhase extends Phase
    * @param timer The timer for this phase to contribute to.
    * @param atomicScheduledPhase The atomic scheduled phase
    */
-  protected ConcurrentPhase(String name, Timer timer, int atomicScheduledPhase) {
+  protected ConcurrentPhase(String name, Timer timer, int atomicScheduledPhase, int continueConcurrentScheduledPhase) {
     super(name, timer);
     if (VM.VERIFY_ASSERTIONS) {
       /* Timers currently unsupported on concurrent phases */
       VM.assertions._assert(timer == null);
     }
     this.atomicScheduledPhase = atomicScheduledPhase;
+    this.continueConcurrentScheduledPhase = continueConcurrentScheduledPhase;
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(getSchedule(this.atomicScheduledPhase) != SCHEDULE_CONCURRENT);
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(getSchedule(this.continueConcurrentScheduledPhase) != SCHEDULE_CONCURRENT);
   }
 
   /**
@@ -84,5 +93,13 @@ public final class ConcurrentPhase extends Phase
    */
   protected int getAtomicScheduledPhase() {
     return this.atomicScheduledPhase;
+  }
+
+  /**
+   * Return the phases to schedule before resuming the concurrent collection
+   * @return The atomic scheduled phase.
+   */
+  protected int getContinueConcurrentScheduledPhase() {
+    return this.continueConcurrentScheduledPhase;
   }
 }

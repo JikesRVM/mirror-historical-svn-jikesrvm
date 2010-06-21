@@ -66,6 +66,7 @@ public abstract class ConcurrentCollector extends SimpleCollector {
     } while (continueCollecting);
   }
 
+  @Unpreemptible
   public void collect() {
     if (!Phase.isPhaseStackEmpty()) {
       Phase.continuePhaseStack();
@@ -132,6 +133,7 @@ public abstract class ConcurrentCollector extends SimpleCollector {
 
     Log.write("Concurrent phase "); Log.write(Phase.getName(phaseId));
     Log.writeln(" not handled.");
+
     VM.assertions.fail("Concurrent phase not handled!");
   }
 

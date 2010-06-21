@@ -101,6 +101,11 @@ import org.vmmagic.pragma.*;
       } else {
         RVMThread t=RVMThread.threads[idx];
         if (t.activeMutatorContext) {
+          // LPJH: we actually iterate over all mutator contexts, including threads that are not stopped, are we just assuming that
+          // non-stopped mutators are not "real" mutator threads and therefore we process them in a potentially unsafe way.
+          // In that case is there any point in even processing these mutator contexts?
+          // t.assertUnacceptableStates(RVMThread.IN_JAVA, RVMThread.IN_NATIVE);
+          // t.assertUnacceptableStates(RVMThread.IN_NATIVE);
           return t;
         }
       }

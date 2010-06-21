@@ -16,6 +16,7 @@ import org.mmtk.policy.Space;
 import org.mmtk.utility.Constants;
 import org.mmtk.utility.Log;
 import org.mmtk.utility.alloc.Allocator;
+import org.mmtk.utility.heap.HeapGrowthManager;
 import org.mmtk.utility.options.*;
 import org.mmtk.utility.statistics.Timer;
 import org.mmtk.vm.VM;
@@ -46,7 +47,9 @@ public abstract class Simple extends Plan implements Constants {
   private static final Timer finalizeTime = new Timer("finalize", false, true);
 
   /* Phases */
+  public static final short GET_WALL_CLOCK_TIME = Phase.createSimple("get-wall-clock-time", null);
   public static final short SET_COLLECTION_KIND = Phase.createSimple("set-collection-kind", null);
+  public static final short STOP_MUTATORS       = Phase.createSimple("stop-mutators", null);
   public static final short INITIATE            = Phase.createSimple("initiate", null);
   public static final short PREPARE             = Phase.createSimple("prepare");
   public static final short PREPARE_STACKS      = Phase.createSimple("prepare-stacks", null);
@@ -63,6 +66,9 @@ public abstract class Simple extends Plan implements Constants {
   public static final short FORWARD_FINALIZABLE = Phase.createSimple("forward-finalize", finalizeTime);
   public static final short RELEASE             = Phase.createSimple("release");
   public static final short COMPLETE            = Phase.createSimple("complete", null);
+  public static final short CONSIDER_GROW_HEAP  = Phase.createSimple("consider-grow-heap", null);
+  public static final short RESET_COLLECTION    = Phase.createSimple("reset-collection", null);
+  public static final short RESTART_MUTATORS    = Phase.createSimple("restart-mutators", null);
 
   /* Sanity placeholder */
   public static final short PRE_SANITY_PLACEHOLDER  = Phase.createSimple("pre-sanity-placeholder", null);
@@ -104,6 +110,8 @@ public abstract class Simple extends Plan implements Constants {
   /** Start the collection, including preparation for any collected spaces. */
   protected static final short initPhase = Phase.createComplex("init",
       Phase.scheduleGlobal     (SET_COLLECTION_KIND),
+      Phase.scheduleSpecial    (STOP_MUTATORS),
+      Phase.scheduleGlobal     (GET_WALL_CLOCK_TIME),
       Phase.scheduleGlobal     (INITIATE),
       Phase.schedulePlaceholder(PRE_SANITY_PLACEHOLDER));
 
@@ -159,7 +167,10 @@ public abstract class Simple extends Plan implements Constants {
   protected static final short finishPhase = Phase.createComplex("finish",
       Phase.schedulePlaceholder(POST_SANITY_PLACEHOLDER),
       Phase.scheduleCollector  (COMPLETE),
-      Phase.scheduleGlobal     (COMPLETE));
+      Phase.scheduleGlobal     (COMPLETE),
+      Phase.scheduleGlobal     (CONSIDER_GROW_HEAP),
+      Phase.scheduleGlobal     (RESET_COLLECTION),
+      Phase.scheduleSpecial     (RESTART_MUTATORS));
 
   /**
    * This is the phase that is executed to perform a collection.
@@ -190,6 +201,11 @@ public abstract class Simple extends Plan implements Constants {
    */
   @Inline
   public void collectionPhase(short phaseId) {
+    if (phaseId == GET_WALL_CLOCK_TIME) {
+      startTime = VM.statistics.nanoTime(); // The start time.
+      return;
+    }
+
     if (phaseId == SET_COLLECTION_KIND) {
       collectionAttempt = Allocator.getAndClearMaxCollectionAttempts();
       emergencyCollection = lastCollectionWasExhaustive() && collectionAttempt > 1;
@@ -246,6 +262,29 @@ public abstract class Simple extends Plan implements Constants {
       return;
     }
 
+    if (phaseId == CONSIDER_GROW_HEAP) {
+      if (!internalTriggeredCollection) {
+        // Heap growth logic
+        long elapsedTime = VM.statistics.nanoTime() - startTime;
+        HeapGrowthManager.recordGCTime(VM.statistics.nanosToMillis(elapsedTime));
+        if (VM.activePlan.global().lastCollectionFullHeap()) {
+          if (!userTriggeredCollection) {
+            // Don't consider changing the heap size if the application triggered the collection
+            if (Options.verbose.getValue() >= 5)
+              Log.writeln("[Considering heap size.]");
+            HeapGrowthManager.considerHeapSize();
+          }
+          HeapGrowthManager.reset();
+        }
+      }
+      return;
+    }
+
+    if (phaseId == RESET_COLLECTION) {
+      Plan.resetCollectionTrigger(); // Reset the triggering information.
+      return;
+    }
+
     if (Options.sanityCheck.getValue() && sanityChecker.collectionPhase(phaseId)) {
       return;
     }
@@ -253,6 +292,26 @@ public abstract class Simple extends Plan implements Constants {
     Log.write("Global phase "); Log.write(Phase.getName(phaseId));
     Log.writeln(" not handled.");
     VM.assertions.fail("Global phase not handled!");
+  }
+
+  /**
+   * Perform a (global) unpreemptible collection phase.
+   */
+  @Unpreemptible
+  public void unpreemptibleCollectionPhase(short phaseId) {
+    if (phaseId == STOP_MUTATORS) {
+      // Stop all mutator threads
+       if (Options.verbose.getValue() >= 5) Log.writeln("[Stopping the world...]");
+      VM.collection.stopAllMutators();
+      return;
+    }
+
+    if (phaseId == RESTART_MUTATORS) {
+      if (Options.verbose.getValue() >= 5)
+        Log.writeln("[Resuming mutators...]");
+      VM.collection.resumeAllMutators(); // Resume all mutators
+      return;
+    }
   }
 
   /**

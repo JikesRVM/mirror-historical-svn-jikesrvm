@@ -38,18 +38,32 @@ public abstract class Concurrent extends Simple {
   public static final short SET_BARRIER_ACTIVE          = Phase.createSimple("set-barrier", null);
   public static final short FLUSH_COLLECTOR             = Phase.createSimple("flush-collector", null);
   public static final short CLEAR_BARRIER_ACTIVE        = Phase.createSimple("clear-barrier", null);
+  public static final short YIELD_TO_CONCURRENT_GC      = Phase.createSimple("yield-to-concurrent-gc", null);
 
   // CHECKSTYLE:OFF
-  
+
   /**
    * When we preempt a concurrent marking phase we must flush mutators and then continue the closure.
    */
   protected static final short preemptConcurrentClosure = Phase.createComplex("preeempt-concurrent-trace", null,
+      Phase.scheduleSpecial  (STOP_MUTATORS),
+      Phase.scheduleGlobal   (GET_WALL_CLOCK_TIME),
       Phase.scheduleMutator  (FLUSH_MUTATOR),
       Phase.scheduleCollector(CLOSURE));
 
+  /**
+   * When we decide to start (or continue) a concurrent collection there are some preparatory phases
+   */
+  protected static final short prepareConcurrentTrace = Phase.createComplex("prepare-concurrent-trace", null,
+      Phase.scheduleGlobal (GET_WALL_CLOCK_TIME),
+      Phase.scheduleGlobal (CONSIDER_GROW_HEAP),
+      Phase.scheduleGlobal (RESET_COLLECTION),
+      Phase.scheduleSpecial(RESTART_MUTATORS),
+      Phase.scheduleYield  (YIELD_TO_CONCURRENT_GC));
+
   public static final short CONCURRENT_CLOSURE = Phase.createConcurrent("concurrent-closure",
-                                                                        Phase.scheduleComplex(preemptConcurrentClosure));
+                                                                        Phase.scheduleComplex(preemptConcurrentClosure),
+                                                                        Phase.scheduleComplex(prepareConcurrentTrace));
 
   /**
    * Perform the initial determination of liveness from the roots.
@@ -58,7 +72,11 @@ public abstract class Concurrent extends Simple {
       Phase.scheduleGlobal    (SET_BARRIER_ACTIVE),
       Phase.scheduleMutator   (SET_BARRIER_ACTIVE),
       Phase.scheduleCollector (FLUSH_COLLECTOR),
+      Phase.scheduleGlobal    (CONSIDER_GROW_HEAP),
+      Phase.scheduleGlobal    (RESET_COLLECTION),
       Phase.scheduleConcurrent(CONCURRENT_CLOSURE),
+      Phase.scheduleSpecial   (STOP_MUTATORS),
+      Phase.scheduleGlobal    (GET_WALL_CLOCK_TIME),
       Phase.scheduleGlobal    (CLEAR_BARRIER_ACTIVE),
       Phase.scheduleMutator   (CLEAR_BARRIER_ACTIVE));
 

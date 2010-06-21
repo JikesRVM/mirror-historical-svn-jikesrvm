@@ -22,6 +22,7 @@ import org.mmtk.utility.deque.ObjectReferenceDeque;
 import org.mmtk.vm.VM;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Uninterruptible;
+import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.unboxed.ObjectReference;
 
 /**
@@ -69,6 +70,7 @@ public abstract class RCBaseCollector extends StopTheWorldCollector {
    */
 
   /** Perform garbage collection */
+  @Unpreemptible
   public void collect() {
     Phase.beginNewPhaseStack(Phase.scheduleComplex(global().collection));
   }

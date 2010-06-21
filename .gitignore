@@ -1,0 +1,8 @@
+work/.classpath
+work/.project
+work/components/*
+work/dist/*
+work/eclipse/*
+work/generated/*
+work/target/*
+tmp/

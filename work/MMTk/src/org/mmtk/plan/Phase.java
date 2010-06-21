@@ -58,6 +58,10 @@ public abstract class Phase implements Constants {
   protected static final short SCHEDULE_MUTATOR = 3;
   /** Run this phase concurrently with the mutators */
   protected static final short SCHEDULE_CONCURRENT = 4;
+  /** This is a special phase. */
+  protected static final short SCHEDULE_SPECIAL = 5;
+  /** This is a complex phase. */
+  protected static final short SCHEDULE_YIELD = 6;
   /** Don't run this phase. */
   protected static final short SCHEDULE_PLACEHOLDER = 100;
   /** This is a complex phase. */
@@ -108,6 +112,8 @@ public abstract class Phase implements Constants {
       case SCHEDULE_CONCURRENT:  return "Concurrent";
       case SCHEDULE_PLACEHOLDER: return "Placeholder";
       case SCHEDULE_COMPLEX:     return "Complex";
+      case SCHEDULE_SPECIAL:     return "Special";
+      case SCHEDULE_YIELD:       return "Yield";
       default:                   return "UNKNOWN!";
     }
   }
@@ -162,8 +168,8 @@ public abstract class Phase implements Constants {
    * @param atomicScheduledPhase The corresponding atomic phase to run in a stop the world collection
    */
   @Interruptible
-  public static final short createConcurrent(String name, int atomicScheduledPhase) {
-    return new ConcurrentPhase(name, atomicScheduledPhase).getId();
+  public static final short createConcurrent(String name, int atomicScheduledPhase, int continueConcurrentScheduledPhase) {
+    return new ConcurrentPhase(name, atomicScheduledPhase, continueConcurrentScheduledPhase).getId();
   }
 
   /**
@@ -174,8 +180,8 @@ public abstract class Phase implements Constants {
    * @param atomicScheduledPhase The corresponding atomic phase to run in a stop the world collection
    */
   @Interruptible
-  public static final short createConcurrent(String name, Timer timer, int atomicScheduledPhase) {
-    return new ConcurrentPhase(name, timer, atomicScheduledPhase).getId();
+  public static final short createConcurrent(String name, Timer timer, int atomicScheduledPhase, int continueConcurrentScheduledPhase) {
+    return new ConcurrentPhase(name, timer, atomicScheduledPhase, continueConcurrentScheduledPhase).getId();
   }
 
   /**
@@ -212,6 +218,30 @@ public abstract class Phase implements Constants {
   public static int scheduleGlobal(short phaseId) {
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(Phase.getPhase(phaseId) instanceof SimplePhase);
     return (SCHEDULE_GLOBAL << 16) + phaseId;
+  }
+
+  /**
+   * Take the passed phase and return an encoded phase to
+   * run that phase in a special global context;
+   *
+   * @param phaseId The phase to run globally
+   * @return The encoded phase value.
+   */
+  public static int scheduleSpecial(short phaseId) {
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(Phase.getPhase(phaseId) instanceof SimplePhase);
+    return (SCHEDULE_SPECIAL << 16) + phaseId;
+  }
+
+  /**
+   * Take the passed phase and return an encoded phase to
+   * cause collector thread to yield
+   *
+   * @param phaseId A phase to represent yielding to concurrent GC threads
+   * @return The encoded phase value.
+   */
+  public static int scheduleYield(short phaseId) {
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(Phase.getPhase(phaseId) instanceof SimplePhase);
+    return (SCHEDULE_YIELD << 16) + phaseId;
   }
 
   /**
@@ -381,6 +411,7 @@ public abstract class Phase implements Constants {
    * @param scheduledPhase The phase to execute
    * @return True if the phase stack is exhausted.
    */
+  @Unpreemptible
   public static void beginNewPhaseStack(int scheduledPhase) {
     int order = ((ParallelCollector)VM.activePlan.collector()).rendezvous();
 
@@ -396,6 +427,7 @@ public abstract class Phase implements Constants {
    *
    * @return True if the phase stack is exhausted.
    */
+  @Unpreemptible
   public static void continuePhaseStack() {
     processPhaseStack(true);
   }
@@ -403,6 +435,7 @@ public abstract class Phase implements Constants {
   /**
    * Process the phase stack. This method is called by multiple threads.
    */
+  @Unpreemptible
   private static void processPhaseStack(boolean resume) {
     /* Global and Collector instances used in phases */
     Plan plan = VM.activePlan.global();
@@ -474,6 +507,17 @@ public abstract class Phase implements Constants {
           break;
         }
 
+        /* SpecialGlobal phase */
+        case SCHEDULE_SPECIAL: {
+          if (logDetails) Log.writeln(" as Special Global...");
+          if (primary) {
+            if (VM.DEBUG) VM.debugging.specialGlobalPhase(phaseId,true);
+            plan.unpreemptibleCollectionPhase(phaseId);
+            if (VM.DEBUG) VM.debugging.specialGlobalPhase(phaseId,false);
+          }
+          break;
+        }
+
         /* Collector phase */
         case SCHEDULE_COLLECTOR: {
           if (logDetails) Log.writeln(" as Collector...");
@@ -498,18 +542,26 @@ public abstract class Phase implements Constants {
 
         /* Concurrent phase */
         case SCHEDULE_CONCURRENT: {
+          VM.assertions.fail("Should not directly process a concurrent phase");
+          break;
+        }
+
+          /* Concurrent phase */
+        case SCHEDULE_YIELD: {
           /* We are yielding to a concurrent collection phase */
-          if (logDetails) Log.writeln(" as Concurrent, yielding...");
+          if (logDetails) Log.writeln(" Yielding...");
           if (primary) {
-            concurrentPhaseId = phaseId;
-            /* Concurrent phase, we need to stop gc */
+            pauseComplexTimers();
+            /* Concurrent phase, we need to stop gc and set correct phase for the concurrent GC
+             * @phaseStackPointer will have the complex phase continueConcurrentScheduledPhase associated with
+             *                    the current concurrent phase
+             * @phaseStackPointer-1 the current ConcurrentPhase */
+            concurrentPhaseId = getPhaseId(phaseStack[phaseStackPointer - 1]);
             Plan.setGCStatus(Plan.NOT_IN_GC);
             Plan.controlCollectorContext.requestConcurrentCollection();
           }
-          collector.rendezvous();
-          if (primary) {
-            pauseComplexTimers();
-          }
+          if (VM.DEBUG) VM.debugging.yieldPhase(phaseId);
+          collector.rendezvous(); // Do we need this yield here? Probably not...
           return;
         }
 
@@ -604,28 +656,38 @@ public abstract class Phase implements Constants {
 
         case SCHEDULE_GLOBAL:
         case SCHEDULE_COLLECTOR:
-        case SCHEDULE_MUTATOR: {
+        case SCHEDULE_MUTATOR:
+        case SCHEDULE_YIELD:
+        case SCHEDULE_SPECIAL: {
           /* Simple phases are just popped off the stack and executed */
           popScheduledPhase();
           return scheduledPhase;
         }
 
         case SCHEDULE_CONCURRENT: {
-          /* Concurrent phases are either popped off or we forward to
-           * an associated non-concurrent phase. */
-          if (!allowConcurrentPhase) {
-            popScheduledPhase();
-            ConcurrentPhase cp = (ConcurrentPhase)getPhase(phaseId);
-            int alternateScheduledPhase = cp.getAtomicScheduledPhase();
-            if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(getSchedule(alternateScheduledPhase) != SCHEDULE_CONCURRENT);
-            pushScheduledPhase(alternateScheduledPhase);
-            continue;
-          }
+          /*
+           * Concurrent phases either forward to an associated non-concurrent phase, or we prepare for a concurrent trace
+           */
           if (VM.VERIFY_ASSERTIONS) {
             /* Concurrent phases can not have a timer */
             VM.assertions._assert(getPhase(getPhaseId(scheduledPhase)).timer == null);
           }
-          return scheduledPhase;
+          popScheduledPhase();
+          ConcurrentPhase cp = (ConcurrentPhase) getPhase(phaseId);
+          concurrentPhaseId = phaseId; // Record the phaseId for when we start running the concurrent collectors
+          if (allowConcurrentPhase) {
+            // Do any preparation for the concurrent phase
+            int nextPhase = cp.getContinueConcurrentScheduledPhase();
+            if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(getSchedule(nextPhase) != SCHEDULE_CONCURRENT);
+            pushScheduledPhase(scheduledPhase); // Push the concurrent phase back on for the next GC request
+            pushScheduledPhase(nextPhase);      // Do the preparatory concurrent phases first
+          } else {
+            // Forward to non-current phase
+            int nextPhase = cp.getAtomicScheduledPhase();
+            if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(getSchedule(nextPhase) != SCHEDULE_CONCURRENT);
+            pushScheduledPhase(nextPhase);
+          }
+          continue;
         }
 
         case SCHEDULE_COMPLEX: {

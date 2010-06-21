@@ -36,6 +36,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    *
    * Class variables
    */
+  public static final boolean GC_REQUEST_WILL_BLOCK_MUTATORS = Selected.Constraints.get().gcRequestWillBlockMutator();
 
   /**
    * Spawn a thread to execute the supplied collector context.
@@ -59,10 +60,12 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    */
   @Unpreemptible
   public void blockForGC() {
-    RVMThread t=RVMThread.getCurrentThread();
-    t.assertAcceptableStates(RVMThread.IN_JAVA, RVMThread.IN_JAVA_TO_BLOCK);
-    RVMThread.observeExecStatusAtSTW(t.getExecStatus());
-    RVMThread.getCurrentThread().block(RVMThread.gcBlockAdapter);
+    if (GC_REQUEST_WILL_BLOCK_MUTATORS) {
+      RVMThread t = RVMThread.getCurrentThread();
+      t.assertAcceptableStates(RVMThread.IN_JAVA, RVMThread.IN_JAVA_TO_BLOCK);
+      RVMThread.observeExecStatusAtSTW(t.getExecStatus());
+      RVMThread.getCurrentThread().block(RVMThread.gcBlockAdapter);
+    }
   }
 
   /***********************************************************************

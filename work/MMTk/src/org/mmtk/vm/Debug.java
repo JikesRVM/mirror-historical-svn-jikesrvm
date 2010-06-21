@@ -60,6 +60,19 @@ public abstract class Debug {
   public void globalPhase(short phaseId, boolean before) { }
 
   /**
+   * A special global GC collection phase
+   * @param phaseId The phase ID
+   * @param before true at the start of the phase, false at the end
+   */
+  public void specialGlobalPhase(short phaseId, boolean before) { }
+
+  /**
+   * Each collector thread is about to yield for a concurrent collector
+   * @param phaseId The phase ID
+   */
+  public void yieldPhase(short phaseId) { }
+
+  /**
    * A per-collector GC collection phase
    * @param phaseId The phase ID
    * @param ordinal The collector ID (within this collection)

@@ -190,4 +190,7 @@ import org.vmmagic.pragma.*;
 
   /** @return True if this Plan requires a header bit for object logging */
   public boolean needsLogBitInHeader() { return false; }
+
+  /** @return True if this Plan will definitely stop mutator threads at a GC request */
+  public boolean gcRequestWillBlockMutator() { return true; }
 }
