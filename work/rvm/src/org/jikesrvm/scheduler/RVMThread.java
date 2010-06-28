@@ -354,7 +354,14 @@ public final class RVMThread extends ThreadContext {
    * <code>next</code> field is used as a link pointer.
    */
   @Untraced
-  ThreadQueue queuedOn;
+  volatile ThreadQueue queuedOn;
+
+  /**
+   * @return True if this thread is currently on a queue.
+   */
+  public boolean isOnQueue() {
+    return queuedOn != null;
+  }
 
   /**
    * Used to handle contention for spin locks
