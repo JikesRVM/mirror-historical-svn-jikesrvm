@@ -86,6 +86,15 @@ import org.vmmagic.pragma.*;
     }
   }
 
+  public CopySpace(String name, int pageBudget, VMRequest vmRequest) {
+    super(name, true, false, vmRequest);
+    if (vmRequest.isDiscontiguous()) {
+      pr = new MonotonePageResource(pageBudget, this, META_DATA_PAGES_PER_REGION);
+    } else {
+      pr = new MonotonePageResource(pageBudget, this, start, extent, META_DATA_PAGES_PER_REGION);
+    }
+  }
+
   /****************************************************************************
    *
    * Prepare and release

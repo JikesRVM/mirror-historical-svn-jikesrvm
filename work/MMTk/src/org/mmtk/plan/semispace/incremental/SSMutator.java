@@ -45,7 +45,7 @@ public class SSMutator extends StopTheWorldMutator {
    */
   public void initMutator(int id) {
     super.initMutator(id);
-    ss.rebind(SS.toSpace());
+    ss.rebind(SS.fromSpace()); // Changed LPJH, later for concurrent termination might want to be to-space
   }
 
   /****************************************************************************
@@ -122,7 +122,7 @@ public class SSMutator extends StopTheWorldMutator {
     if (phaseId == SS.RELEASE) {
       super.collectionPhase(phaseId, primary);
       // rebind the allocation bump pointer to the appropriate semispace.
-      ss.rebind(SS.toSpace());
+      ss.rebind(SS.toSpace()); // flip hasn't happened yet
       return;
     }
 

@@ -29,17 +29,22 @@ public class SS extends StopTheWorld {
    */
 
   /** True if allocating into the "higher" semispace */
-  public static boolean hi = false; // True if allocing to "higher" semispace
+  public static boolean low = true; // True if allocing to "lower" semispace
 
   /** One of the two semi spaces that alternate roles at each collection */
-  public static final CopySpace copySpace0 = new CopySpace("ss0", DEFAULT_POLL_FREQUENCY, false, VMRequest.create());
+  public static final CopySpace copySpace0 = new CopySpace("ss0", DEFAULT_POLL_FREQUENCY, VMRequest.create());
   public static final int SS0 = copySpace0.getDescriptor();
 
   /** One of the two semi spaces that alternate roles at each collection */
-  public static final CopySpace copySpace1 = new CopySpace("ss1", DEFAULT_POLL_FREQUENCY, true, VMRequest.create());
+  public static final CopySpace copySpace1 = new CopySpace("ss1", DEFAULT_POLL_FREQUENCY, VMRequest.create());
   public static final int SS1 = copySpace1.getDescriptor();
 
   public final Trace ssTrace;
+
+  static {
+    fromSpace().prepare(true);
+    toSpace().prepare(false);
+  }
 
   /****************************************************************************
    *
@@ -65,7 +70,7 @@ public class SS extends StopTheWorld {
    */
   @Inline
   public static CopySpace toSpace() {
-    return hi ? copySpace1 : copySpace0;
+    return low ? copySpace1 : copySpace0;
   }
 
   /**
@@ -73,7 +78,7 @@ public class SS extends StopTheWorld {
    */
   @Inline
   public static CopySpace fromSpace() {
-    return hi ? copySpace0 : copySpace1;
+    return low ? copySpace0 : copySpace1;
   }
 
 
@@ -90,10 +95,6 @@ public class SS extends StopTheWorld {
   @Inline
   public void collectionPhase(short phaseId) {
     if (phaseId == SS.PREPARE) {
-      hi = !hi; // flip the semi-spaces
-      // prepare each of the collected regions
-      copySpace0.prepare(hi);
-      copySpace1.prepare(!hi);
       ssTrace.prepare();
       super.collectionPhase(phaseId);
       return;
@@ -103,8 +104,9 @@ public class SS extends StopTheWorld {
       return;
     }
     if (phaseId == SS.RELEASE) {
-      // release the collected region
-      fromSpace().release();
+      low = !low; // flip the semi-spaces
+      fromSpace().prepare(true);
+      toSpace().release(); // correct LPJH
 
       super.collectionPhase(phaseId);
       return;
@@ -127,7 +129,7 @@ public class SS extends StopTheWorld {
   public final int getCollectionReserve() {
     // we must account for the number of pages required for copying,
     // which equals the number of semi-space pages reserved
-    return toSpace().reservedPages() + super.getCollectionReserve();
+    return fromSpace().reservedPages() + super.getCollectionReserve(); // changed LPJH
   }
 
   /**
@@ -139,7 +141,7 @@ public class SS extends StopTheWorld {
    * allocation, excluding space reserved for copying.
    */
   public int getPagesUsed() {
-    return super.getPagesUsed() + toSpace().reservedPages();
+    return super.getPagesUsed() + fromSpace().reservedPages(); // changed LPJH
   }
 
   /**
