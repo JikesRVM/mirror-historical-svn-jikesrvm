@@ -3,7 +3,7 @@
 # pass no args to just build desired flavour or use "eclipse-project" to get a eclipse project
 host="linux"    # Default to building on linux
 arch=ia32       # Default to ia32
-build=BaseBaseConcMS
+build=ExtremeAssertionsBaseBaseIncrementalSemiSpace
 
 case `uname` in
 	Darwin) host="osx" ;;
