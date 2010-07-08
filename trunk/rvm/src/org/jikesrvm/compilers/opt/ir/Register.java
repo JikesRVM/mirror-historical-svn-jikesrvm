@@ -12,8 +12,17 @@
  */
 package org.jikesrvm.compilers.opt.ir;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Set;
+
 import org.jikesrvm.ArchitectureSpecificOpt.PhysicalRegisterSet;
 import org.jikesrvm.compilers.opt.ir.operand.RegisterOperand;
+
+import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
+import org.jikesrvm.compilers.opt.regalloc.LinearScan.CompoundInterval;
+import org.jikesrvm.compilers.opt.regalloc.LinearScan.MappedBasicInterval;
 
 /**
  * Represents a symbolic or physical register.
@@ -29,8 +38,8 @@ public final class Register {
    * Index number relative to register pool.
    */
   public final int number;
-
-  /**
+  
+/**
    * Encoding of register properties & scratch bits
    */
   private int flags;
@@ -264,8 +273,23 @@ public final class Register {
 
   /* used by the register allocator */
   public Register mapsToRegister;
+  private HashMap<Interval,Register> intervalToRegister=null;
+  public HashMap<Interval, Register> getIntervalToRegister() {
+	return intervalToRegister;
+}
 
-  public void clearAllocationFlags() {
+public HashMap<Interval,Register> crtIntervalToRegister(int size) {
+	if(intervalToRegister == null){
+			intervalToRegister = new HashMap<Interval,Register>(size);
+		}
+	return intervalToRegister;
+}
+public void crtIntervalToRegister() {
+	if(intervalToRegister == null){
+		intervalToRegister = new HashMap<Interval,Register>();
+	}
+}
+public void clearAllocationFlags() {
     flags &= ~(PINNED | TOUCHED | ALLOCATED | SPILLED);
   }
 
@@ -290,11 +314,27 @@ public final class Register {
     mapsToRegister = reg;
   }
 
+  public void allocateRegister( Register reg,Interval i) {
+	  if(i instanceof CompoundInterval)
+		  allocateRegister(reg);
+	  else{
+		  flags = (flags & ~SPILLED) | (ALLOCATED| TOUCHED);
+		  intervalToRegister.put(i, reg);
+	  }
+  }
+  
   public void allocateToRegister(Register reg) {
     this.allocateRegister(reg);
     reg.allocateRegister(this);
   }
-
+  public void allocateToRegister(Register reg,Interval i) {
+	    if(i instanceof CompoundInterval)
+	    	allocateToRegister(reg);
+	    else{
+	    	this.allocateRegister(reg, i);
+	        reg.allocateRegister(this, i);
+	    }
+	  }
   public void deallocateRegister() {
     flags &= ~ALLOCATED;
     mapsToRegister = null;
@@ -339,7 +379,41 @@ public final class Register {
   public boolean isAvailable() {
     return (flags & (ALLOCATED | PINNED)) == 0;
   }
-
+  /*
+   * Rewrote above for spilling at basic interval level.
+   * I am not using the flags as I thing following  should be a guaranteed way  to check if physical register is 
+   * available for allocation. 
+   */
+  public boolean isAvailable(Interval i) {
+	    Boolean result=true;
+	    CompoundInterval ci=null;
+	    MappedBasicInterval bi=null;
+	    if(i == null)
+	    	return isAvailable();
+	    if(i instanceof CompoundInterval)
+	    	 ci = (CompoundInterval) i;
+	    else
+	    	bi = (MappedBasicInterval)i;
+	    	
+	 
+	    if(this.intervalToRegister != null){
+	    	Set keys = intervalToRegister.keySet();
+	    	Iterator<Interval> iter = keys.iterator();
+	    	while(iter.hasNext()){
+	    		Interval toTest = iter.next();
+	    		 if(toTest instanceof CompoundInterval){
+	    		    	CompoundInterval cmp = (CompoundInterval) toTest;
+	    		    	 if(cmp.intersects(ci)) return false;
+	    		    }
+	    		    else{
+	    		    	MappedBasicInterval cmp = (MappedBasicInterval)toTest;
+	    		        if(cmp.intersects(bi)) return false;
+	    		    }
+	    	}
+	    }
+	    	
+	    return result;
+	  }
   public Register getRegisterAllocated() {
     return mapsToRegister;
   }
@@ -377,4 +451,24 @@ public final class Register {
     return Next;
   }
   /* end of inlined behavior */
+/*
+ * Give an instruction return the BasicInterval containing this instruction or
+ * just return the compoundinterval if spill at basicinterval is not supported.
+ * Scratch   used here.
+ * This might return null here, so do assertion for null  after call. 
+ */
+public Interval getInterval(Instruction s) {
+	// TODO Auto-generlated method stub
+	Interval result=null;
+	CompoundInterval  container;
+	/*
+	 * I can also do something like
+	 * Interval i = (Interval) sratchObject;
+	 * i.getInterval(s.scratch);
+	 * But then i would have to add abstract method getInterval(int) to the interface Interval.
+	 */
+    container = (CompoundInterval)scratchObject;	
+    result = container.getInterval(s.scratch);
+	return result;
+}
 }
