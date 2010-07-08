@@ -492,7 +492,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
    */
   public static class MappedBasicInterval extends BasicInterval {
     final CompoundInterval container;
-    /* pointer to basic of the compound*/
+    /* pointer to self in the extended version*/
     final Interval interval;
    
     public Interval getInterval() {
@@ -1119,7 +1119,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     	else
     	{
     	/* Still working on this */	
-    		Interval toSpill = 
+    	//	Interval toSpill = 
     	}
     }
     /**
@@ -1861,8 +1861,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * interval i to physical register spill.getRegister().
      *
      * @return true if the allocation would fit.  false otherwise
-     */
-    private boolean checkAssignmentIfSpilled(Interval i, Interval spill) {
+     *//*
+    private boolean checkAssignmentIfSpilled(CompoundInterval i, CompoundInterval spill) {
     	Register r;
     	 RegisterRestrictions restrict = ir.stackManager.getRestrictions();
     	if(spill instanceof BasicInterval){
@@ -1889,7 +1889,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       rI.addAll(cache);
 
       return result;
-    }
+    }*/
 
     /**
      * Find the basic interval for register r containing instruction s.
