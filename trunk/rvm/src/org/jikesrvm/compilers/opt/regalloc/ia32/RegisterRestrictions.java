@@ -39,6 +39,8 @@ import org.jikesrvm.compilers.opt.ir.operand.RegisterOperand;
 import org.jikesrvm.compilers.opt.ir.operand.ia32.BURSManagedFPROperand;
 import org.jikesrvm.compilers.opt.regalloc.GenericRegisterRestrictions;
 import org.jikesrvm.compilers.opt.regalloc.LiveIntervalElement;
+import org.jikesrvm.compilers.opt.regalloc.LinearScan.CompoundInterval;
+import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
 
 /**
  * An instance of this class encapsulates restrictions on register
@@ -51,7 +53,8 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
    * Allow scratch registers in PEIs?
    */
   public static final boolean SCRATCH_IN_PEI = true;
-
+  /* present for testing purpose and must be removed before final commint*/
+  private boolean forceitfornow= true;
   /**
    * Default Constructor
    */
@@ -68,25 +71,31 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
    * block
    */
   public void addArchRestrictions(BasicBlock bb, ArrayList<LiveIntervalElement> symbolics) {
-    // If there are any registers used in catch blocks, we want to ensure
-    // that these registers are not used or evicted from scratch registers
-    // at a relevant PEI, so that the assumptions of register homes in the
-    // catch block remain valid.  For now, we do this by forcing any
-    // register used in such a PEI as not spilled.  TODO: relax this
-    // restriction for better code.
-    for (InstructionEnumeration ie = bb.forwardInstrEnumerator(); ie.hasMoreElements();) {
-      Instruction s = ie.next();
-      if (s.isPEI() && s.operator != IR_PROLOGUE) {
-        if (bb.hasApplicableExceptionalOut(s) || !SCRATCH_IN_PEI) {
-          for (Enumeration<Operand> e = s.getOperands(); e.hasMoreElements();) {
-            Operand op = e.nextElement();
-            if (op != null && op.isRegister()) {
-              noteMustNotSpill(op.asRegister().getRegister());
-              handle8BitRestrictions(s);
-            }
-          }
-        }
-      }
+   // If there are any registers used in catch blocks, we want to ensure
+   // that these registers are not used or evicted from scratch registers
+   // at a relevant PEI, so that the assumptions of register homes in the
+   // catch block remain valid.  For now, we do this by forcing any
+   // register used in such a PEI as not spilled.  TODO: relax this
+   // restriction for better code.
+   for(InstructionEnumeration ie = bb.forwardInstrEnumerator(); ie.hasMoreElements();) {
+   Instruction s = ie.next();
+   if (s.isPEI() && s.operator != IR_PROLOGUE) {
+	  if (bb.hasApplicableExceptionalOut(s) || !SCRATCH_IN_PEI) {
+		  for (Enumeration<Operand> e = s.getOperands(); e.hasMoreElements();) {
+			  Operand op = e.nextElement();
+			  if (op != null && op.isRegister()) {
+				  Register reg = op.asRegister().getRegister();
+				  Interval i = reg.getInterval(s);
+				  VM._assert(i != null);
+				  if(i instanceof CompoundInterval)
+					  noteMustNotSpill(reg);
+				  else
+					  noteMustNotSpill(i);
+					  handle8BitRestrictions(s);
+				  }
+			 }
+		  }
+	  }
 
       // handle special cases
       switch (s.getOpcode()) {
@@ -94,21 +103,39 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
           RegisterOperand op = MIR_LowTableSwitch.getMethodStart(s);
           noteMustNotSpill(op.getRegister());
           op = MIR_LowTableSwitch.getIndex(s);
-          noteMustNotSpill(op.getRegister());
+          Register reg = op.getRegister();
+          Interval i = reg.getInterval(s);
+          VM._assert(i != null);
+          if(i instanceof CompoundInterval)
+               noteMustNotSpill(reg);
+          else 
+        	  noteMustNotSpill(i);
         }
         break;
         case IA32_MOVZX__B_opcode:
         case IA32_MOVSX__B_opcode: {
           if (MIR_Unary.getVal(s).isRegister()) {
             RegisterOperand val = MIR_Unary.getVal(s).asRegister();
-            restrictTo8Bits(val.getRegister());
+            Register reg = val.getRegister();
+            Interval i = reg.getInterval(s);
+            VM._assert(i != null);
+            if(i instanceof CompoundInterval)
+            	restrictTo8Bits(reg);
+            else
+            	 restrictTo8Bits(i);
           }
         }
         break;
         case IA32_SET__B_opcode: {
           if (MIR_Set.getResult(s).isRegister()) {
             RegisterOperand op = MIR_Set.getResult(s).asRegister();
-            restrictTo8Bits(op.getRegister());
+            Register reg = op.getRegister();
+            Interval i = reg.getInterval(s);
+            VM._assert(i != null);
+            if(i instanceof CompoundInterval)
+            	restrictTo8Bits(reg);
+            else 
+            	 restrictTo8Bits(i);
           }
         }
         break;
@@ -125,7 +152,12 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
         for (LiveIntervalElement symb : symbolics) {
           if (symb.getRegister().isFloatingPoint()) {
             if (contains(symb, s.scratch)) {
-              addRestrictions(symb.getRegister(), phys.getFPRs());
+            	Interval i = symb.getInterval();
+            	VM._assert(i != null);
+            	if(i instanceof CompoundInterval)
+            		addRestrictions(symb.getRegister(), phys.getFPRs());
+            	else 
+            		addRestrictions(i, phys.getFPRs());           		
             }
           }
         }
@@ -134,9 +166,17 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
         for (LiveIntervalElement symb : symbolics) {
           if (symb.getRegister().isFloatingPoint()) {
             if (contains(symb, s.scratch)) {
+            	Interval interval = symb.getInterval();
+            	VM._assert(interval != null);
+            	boolean basic = true;
+            	if( interval instanceof CompoundInterval)
+            	    basic = false;
               int nSave = MIR_UnaryNoRes.getVal(s).asIntConstant().value;
               for (int i = nSave; i < NUM_FPRS; i++) {
-                addRestriction(symb.getRegister(), phys.getFPR(i));
+            	  if(!basic)
+            		  addRestriction(symb.getRegister(), phys.getFPR(i));
+            	  else 
+            		  addRestriction(interval, phys.getFPR(i));
               }
             }
           }
@@ -170,7 +210,13 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
         for (OperandEnumeration e2 = s.getRootOperands(); e2.hasMoreElements();) {
           Operand rootOp = e2.next();
           if (rootOp.isRegister()) {
-            restrictTo8Bits(rootOp.asRegister().getRegister());
+        	  Register reg= rootOp.asRegister().getRegister();
+        	  Interval i = reg.getInterval(s);
+        	  VM._assert(i != null);
+        	  if(i instanceof CompoundInterval)
+        	  restrictTo8Bits(reg);
+        	  else 
+        		  restrictTo8Bits(i);
           }
         }
       }
@@ -191,10 +237,23 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
     addRestriction(r, ESI);
     addRestriction(r, EDI);
   }
-
-  /**
+  final void restrictTo8Bits(Interval i) {
+	Register ESP = phys.getESP();
+	Register EBP = phys.getEBP();
+	Register ESI = phys.getESI();
+	Register EDI = phys.getEDI();
+	addRestriction(i, ESP);
+	addRestriction(i, EBP);
+	addRestriction(i, ESI);
+	addRestriction(i, EDI);
+  }
+  /*
    * Given symbolic register r that appears in instruction s, does the
    * architecture demand that r be assigned to a physical register in s?
+   */
+  /*
+   * Following does not update any GenericRegisterRestriction data structure so leave it for now 
+   * check back during scratch register assignment
    */
   public static boolean mustBeInRegister(Register r, Instruction s) {
     switch (s.getOpcode()) {
@@ -379,6 +438,10 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
   /**
    * Is it forbidden to assign symbolic register symb to physical register r
    * in instruction s?
+   */
+  /*
+   * Following does not update any GenericRegisterRestriction data structure so leave it for now 
+   * check back during scratch register assignment
    */
   public boolean isForbidden(Register symb, Register r, Instruction s) {
 
