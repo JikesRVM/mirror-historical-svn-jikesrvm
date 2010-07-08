@@ -12,9 +12,14 @@
  */
 package org.jikesrvm.compilers.opt.regalloc;
 
+import java.util.Iterator;
+
 import org.jikesrvm.compilers.opt.ir.BasicBlock;
 import org.jikesrvm.compilers.opt.ir.Instruction;
 import org.jikesrvm.compilers.opt.ir.Register;
+import org.jikesrvm.compilers.opt.regalloc.LinearScan.CompoundInterval;
+import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
+
 
 /**
  * This class defines a LiveInterval node created by Live Variable analysis
@@ -75,6 +80,8 @@ public final class LiveIntervalElement {
     register = reg;
     this.begin = begin;
     this.end = end;
+  
+
   }
 
   public String toString() {
@@ -105,4 +112,26 @@ public final class LiveIntervalElement {
   public BasicBlock getBasicBlock() { return bb; }
 
   public void setBasicBlock(BasicBlock bb) { this.bb = bb; }
+  /*
+   * Returns the BasicInterval represented by the LiveIntervalElement if and only if we are doing the register
+   * allocation at BasicInterval level else return the compound interval it belongs to.
+   * This may return null, so do a assertion after the call.
+   */
+  public Interval getInterval(){
+	  Interval result=null;
+	  Instruction begin = this.getBegin();
+	  Instruction end = this.getEnd();
+	  int start,finish;
+	  if(begin != null)
+	   start = this.getBegin().scratch;
+	  else
+		  start = this.getBasicBlock().firstInstruction().scratch;
+	  if(end != null)
+	     finish = this.getEnd().scratch;
+	  else
+		  finish = this.getBasicBlock().lastInstruction().scratch;
+	  CompoundInterval ci = (CompoundInterval)this.getRegister().scratchObject;
+	  result=ci.getInterval(start,finish);
+	  return result;
+  }
 }
