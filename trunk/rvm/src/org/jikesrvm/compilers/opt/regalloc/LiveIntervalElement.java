@@ -17,7 +17,6 @@ import java.util.Iterator;
 import org.jikesrvm.compilers.opt.ir.BasicBlock;
 import org.jikesrvm.compilers.opt.ir.Instruction;
 import org.jikesrvm.compilers.opt.ir.Register;
-import org.jikesrvm.compilers.opt.regalloc.LinearScan.CompoundInterval;
 import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
 
 
@@ -130,8 +129,8 @@ public final class LiveIntervalElement {
 	     finish = this.getEnd().scratch;
 	  else
 		  finish = this.getBasicBlock().lastInstruction().scratch;
-	  CompoundInterval ci = (CompoundInterval)this.getRegister().scratchObject;
-	  result=ci.getInterval(start,finish);
+	  Interval i = (Interval)this.getRegister().scratchObject;
+	  result=i.getInterval(start,finish);
 	  return result;
   }
 }
