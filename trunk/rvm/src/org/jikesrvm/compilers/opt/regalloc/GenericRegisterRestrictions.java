@@ -28,9 +28,7 @@ import org.jikesrvm.compilers.opt.ir.InstructionEnumeration;
 import static org.jikesrvm.compilers.opt.ir.Operators.CALL_SAVE_VOLATILE;
 import static org.jikesrvm.compilers.opt.ir.Operators.YIELDPOINT_OSR;
 import org.jikesrvm.compilers.opt.ir.Register;
-import org.jikesrvm.compilers.opt.regalloc.LinearScan.CompoundInterval;
 import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
-import org.jikesrvm.compilers.opt.regalloc.LinearScan.MappedBasicInterval;
 import org.jikesrvm.compilers.opt.util.BitSet;
 
 /**
@@ -49,10 +47,7 @@ public abstract class GenericRegisterRestrictions {
   protected final PhysicalRegisterSet phys;
   private final HashMap<Interval,RestrictedRegisterSet> intervalHash = new HashMap<Interval,RestrictedRegisterSet>();
   private final HashSet<Interval> intervalNoSpill = new HashSet<Interval>();
-  
-  /* present for testing purpose and must be removed before commit*/
-  private boolean forceitfornow= true;
-  
+    
   /**
    * Default Constructor
    */
@@ -94,6 +89,7 @@ public abstract class GenericRegisterRestrictions {
       processBlock(b);
     }
   }
+  /*
 public void iterateOverSet(){
 	Iterator<Interval> iKeys = intervalHash.keySet().iterator();
 	Iterator<Register> rKeys = hash.keySet().iterator();
@@ -105,8 +101,7 @@ public void iterateOverSet(){
 		Enumeration<Register> enume = phys.enumerateAll();
 		Interval i = iKeys.next();
 		RestrictedRegisterSet set = intervalHash.get(i);
-		MappedBasicInterval m = (MappedBasicInterval)i;
-		System.out.println("Basic Interval's reg "+m.container.getRegister().toString());
+		System.out.println("Basic Interval's reg "+i.getContainer().getRegister().toString());
 		while(enume.hasMoreElements()){
 			Register temp = enume.nextElement();
 			if(set.contains(temp))
@@ -146,6 +141,7 @@ public void iterateOverSet(){
 		System.out.println("Contains Registernum "+ reg.number);
 	}
 }
+*/
   /**
    * Record all the register restrictions dictated by live ranges on a
    * particular basic block.
@@ -180,7 +176,9 @@ public void iterateOverSet(){
         if (overlaps(phys, symb)) {
         	 i = symb.getInterval();
             VM._assert(i != null);
+            if(i.getContainer().equals(i.getInterval())) 
         		addRestriction(symb.getRegister(), phys.getRegister());
+            else
         		addRestriction(i, phys.getRegister());
         }
       }
@@ -196,9 +194,9 @@ public void iterateOverSet(){
           if (contains(symb, s.scratch)) {
         	  i = symb.getInterval();
         	  VM._assert(i != null);
-        	  if(i instanceof CompoundInterval) 
+        	  if(i.getContainer().equals(i.getInterval())) 
          		forbidAllVolatiles(symb.getRegister());
-         	else 
+             else 
          		forbidAllVolatiles(i);
           }
         }
@@ -214,7 +212,7 @@ public void iterateOverSet(){
             if (contains(symb, s.scratch)) {
             	 i = symb.getInterval();
             	VM._assert(i != null);
-            	if(i instanceof CompoundInterval)
+            	if(i.getContainer().equals(i.getInterval()))
             		forbidAllVolatiles(symb.getRegister());
             	else
             		forbidAllVolatiles(i);
