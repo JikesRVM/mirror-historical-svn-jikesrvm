@@ -15,6 +15,7 @@ package org.jikesrvm.compilers.opt.regalloc;
 import java.util.HashMap;
 import org.jikesrvm.compilers.opt.ir.IR;
 import org.jikesrvm.compilers.opt.ir.Register;
+import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
 
 /**
  * An object that returns an estimate of the relative cost of spilling a
@@ -23,6 +24,7 @@ import org.jikesrvm.compilers.opt.ir.Register;
 abstract class SpillCostEstimator {
 
   private final HashMap<Register, Double> map = new HashMap<Register, Double>();
+  private final HashMap<Interval,Double> intervalMap = new HashMap<Interval, Double>();
 
   /**
    * Return a number that represents an estimate of the relative cost of
@@ -36,6 +38,14 @@ abstract class SpillCostEstimator {
       return d;
     }
   }
+  double getCost(Interval i) {
+	    Double d = intervalMap.get(i);
+	    if (d == null) {
+	      return 0;
+	    } else {
+	      return d;
+	    }
+	  }
 
   /**
    * Calculate the estimated cost for each register.
@@ -49,5 +59,10 @@ abstract class SpillCostEstimator {
     double c = getCost(r);
     c += delta;
     map.put(r, c);
+  }
+  protected void update(Interval i, double delta) {
+	    double c = getCost(i);
+	    c += delta;
+	    intervalMap.put(i, c);
   }
 }
