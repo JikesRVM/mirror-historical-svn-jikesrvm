@@ -348,6 +348,20 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 	  public  Interval getInterval();
 	  public  Interval getInterval(int start, int end);
 	  public  Interval getInterval(int programpoint);
+	  /*
+	   * For CompoundInterval following will return the CompoundInterval itself.
+	   * for BasicInterval this will return the CompoundInterval which contains this.
+	   * This is basically provided to avoid the instanceof test on the Interval data types.
+	   * Instead check if the getContainer() equals getInterval().
+	   * If yes then it means we are using the CompoundInterval for allocation and hence Interval represents
+	   * CompoundInterval else we are doing allocation at BasicInterval level and Interval
+	   * represents the BasicInterval.
+	   * Is the instanceof test lighter than the  above comparison policy ?
+	   * With the above test we are also avoiding importing CompounInterval to many class files.
+	   *
+	   */
+	  public  Interval getContainer();
+	  public boolean intersects(Interval cmp);
   }
   /**
    * Implements a basic live interval (no holes), which is a pair
@@ -356,7 +370,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
    *
    *   Begin and end are numbers given to each instruction by a numbering pass
    */
-  public static class BasicInterval  {
+  public static class BasicInterval {
 	
     /**
      * DFN of the beginning instruction of this interval
@@ -534,13 +548,6 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     public String toString() {
       return "<" + container.getRegister() + ">:" + super.toString();
     }
-  
-    /* 
-     * Return the physical register assigned to this interval
-     */
-    Register getAssignment() {
-      return RegisterAllocatorState.getMapping(container.getRegister(), this);
-    }
 
 	@Override
 	public Interval getInterval(int start, int finish) {
@@ -558,6 +565,18 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 			return interval;
 		else
 			return null;
+	}
+
+	@Override
+	public Interval getContainer() {
+		// TODO Auto-generated method stub
+		return container;
+	}
+
+	@Override
+	public boolean intersects(Interval cmp) {
+		// TODO Auto-generated method stub
+		return false;
 	}
 
   }
@@ -599,7 +618,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     public Interval getInterval(int start,int end){
     	Interval result = null;
     	Interval i = ((MappedBasicInterval)first()).getInterval();
-    	if (i instanceof CompoundInterval) {
+    	if (i.getContainer().equals(i.getInterval())) {
     	  return i;
     	}
     	else {
@@ -620,7 +639,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     public Interval getInterval(int programpoint){
     	Interval result = null;
     	Interval i = ((MappedBasicInterval)first()).getInterval();
-    	if(i instanceof CompoundInterval){
+    	if(i.getContainer().equals(i.getInterval())){
     		result=i;
     	}
     	else{
@@ -998,6 +1017,18 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 	public Interval getInterval() {
 		// TODO Auto-generated method stub
 		return this;
+	}
+
+	@Override
+	public Interval getContainer() {
+		// TODO Auto-generated method stub
+		return this;
+	}
+
+	@Override
+	public boolean intersects(Interval cmp) {
+		// TODO Auto-generated method stub
+		return intersects((CompoundInterval) cmp);
 	}
   }
 
