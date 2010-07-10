@@ -22,6 +22,7 @@ import org.jikesrvm.compilers.opt.ir.OperandEnumeration;
 import org.jikesrvm.compilers.opt.ir.Register;
 import org.jikesrvm.compilers.opt.ir.operand.MemoryOperand;
 import org.jikesrvm.compilers.opt.ir.operand.Operand;
+import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
 
 /**
  * An object that returns an estimate of the relative cost of spilling a
@@ -37,6 +38,7 @@ class BlockCountSpillCost extends SpillCostEstimator {
    * Calculate the estimated cost for each register.
    */
   void calculate(IR ir) {
+	Interval i;
     final double moveFactor = ir.options.REGALLOC_SIMPLE_SPILL_COST_MOVE_FACTOR;
     final double memoryOperandFactor = ir.options.REGALLOC_SIMPLE_SPILL_COST_MEMORY_OPERAND_FACTOR;
     for (Enumeration<BasicBlock> blocks = ir.getBasicBlocks(); blocks.hasMoreElements();) {
@@ -58,7 +60,12 @@ class BlockCountSpillCost extends SpillCostEstimator {
           if (op.isRegister()) {
             Register r = op.asRegister().getRegister();
             if (r.isSymbolic()) {
-              update(r, baseFactor);
+             
+            	i = r.getInterval(s);
+                if(i.getContainer().equals(i.getInterval()))
+              	  update(r, baseFactor);
+                else
+                    update(i,baseFactor);
             }
           }
         }
@@ -69,13 +76,21 @@ class BlockCountSpillCost extends SpillCostEstimator {
           if (M.base != null) {
             Register r = M.base.getRegister();
             if (r.isSymbolic()) {
-              update(r, factor);
+            	i = r.getInterval(s);
+                if(i.getContainer().equals(i.getInterval()))
+              	  update(r, factor);
+                else
+                    update(i, factor);
             }
           }
           if (M.index != null) {
             Register r = M.index.getRegister();
             if (r.isSymbolic()) {
-              update(r, factor);
+            	i = r.getInterval(s);
+                if(i.getContainer().equals(i.getInterval()))
+              	  update(r, factor);
+                else
+                    update(i, factor);
             }
           }
         }
