@@ -39,7 +39,6 @@ import org.jikesrvm.compilers.opt.ir.operand.RegisterOperand;
 import org.jikesrvm.compilers.opt.ir.operand.ia32.BURSManagedFPROperand;
 import org.jikesrvm.compilers.opt.regalloc.GenericRegisterRestrictions;
 import org.jikesrvm.compilers.opt.regalloc.LiveIntervalElement;
-import org.jikesrvm.compilers.opt.regalloc.LinearScan.CompoundInterval;
 import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
 
 /**
@@ -87,12 +86,12 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
 				  Register reg = op.asRegister().getRegister();
 				  Interval i = reg.getInterval(s);
 				  VM._assert(i != null);
-				  if(i instanceof CompoundInterval)
+				  if(i.getContainer().equals(i.getInterval())) 
 					  noteMustNotSpill(reg);
-				  else
+				  else 
 					  noteMustNotSpill(i);
 					  handle8BitRestrictions(s);
-				  }
+				      }
 			 }
 		  }
 	  }
@@ -106,7 +105,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
           Register reg = op.getRegister();
           Interval i = reg.getInterval(s);
           VM._assert(i != null);
-          if(i instanceof CompoundInterval)
+          if(i.getContainer().equals(i.getInterval())) 
                noteMustNotSpill(reg);
           else 
         	  noteMustNotSpill(i);
@@ -119,9 +118,9 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
             Register reg = val.getRegister();
             Interval i = reg.getInterval(s);
             VM._assert(i != null);
-            if(i instanceof CompoundInterval)
+            if(i.getContainer().equals(i.getInterval())) 
             	restrictTo8Bits(reg);
-            else
+            else 
             	 restrictTo8Bits(i);
           }
         }
@@ -132,7 +131,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
             Register reg = op.getRegister();
             Interval i = reg.getInterval(s);
             VM._assert(i != null);
-            if(i instanceof CompoundInterval)
+            if(i.getContainer().equals(i.getInterval())) 
             	restrictTo8Bits(reg);
             else 
             	 restrictTo8Bits(i);
@@ -154,10 +153,10 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
             if (contains(symb, s.scratch)) {
             	Interval i = symb.getInterval();
             	VM._assert(i != null);
-            	if(i instanceof CompoundInterval)
+            	if(i.getContainer().equals(i.getInterval())) 
             		addRestrictions(symb.getRegister(), phys.getFPRs());
             	else 
-            		addRestrictions(i, phys.getFPRs());           		
+            		addRestrictions(i, phys.getFPRs());
             }
           }
         }
@@ -169,7 +168,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
             	Interval interval = symb.getInterval();
             	VM._assert(interval != null);
             	boolean basic = true;
-            	if( interval instanceof CompoundInterval)
+            	if( interval.getContainer().equals(interval.getInterval()))
             	    basic = false;
               int nSave = MIR_UnaryNoRes.getVal(s).asIntConstant().value;
               for (int i = nSave; i < NUM_FPRS; i++) {
@@ -213,7 +212,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
         	  Register reg= rootOp.asRegister().getRegister();
         	  Interval i = reg.getInterval(s);
         	  VM._assert(i != null);
-        	  if(i instanceof CompoundInterval)
+        	  if(i.getContainer().equals(i.getInterval())) 
         	  restrictTo8Bits(reg);
         	  else 
         		  restrictTo8Bits(i);
