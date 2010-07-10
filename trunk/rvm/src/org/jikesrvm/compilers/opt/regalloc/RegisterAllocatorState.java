@@ -29,12 +29,16 @@ import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
  * TODO: Currently, the physical registers are STATIC! fix this.
  */
 public class RegisterAllocatorState {
-
+  
+  /**
+   * Mapping from BasicInterval or CompoundInterval to physical register
+   */
+  private HashMap<Interval,Register> intervalsToRegister=null;
+  
   /**
    *  Resets the physical register info
    */
   static void resetPhysicalRegisters(IR ir) {
-	  HashMap<Interval,Register> mapping = null;
     PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
     for (Enumeration<Register> e = phys.enumerateAll(); e.hasMoreElements();) {
       Register reg = e.nextElement();
@@ -44,19 +48,7 @@ public class RegisterAllocatorState {
       reg.defList = null;
       reg.useList = null;
       setSpill(reg, 0);
-      mapping = reg.getIntervalToRegister();
-      if(mapping == null)
-    	  continue;
-      Set keys = mapping.keySet();
-      Iterator<Interval> iter= keys.iterator();
-      while(iter.hasNext()){
-    	  Interval i = iter.next();
-    	  Register sym = mapping.get(i);
-    	  sym.getIntervalToRegister().remove(i);
-      }
-      reg.getIntervalToRegister().clear();
-      
-    }
+     }
   }
 
   /**
@@ -112,42 +104,13 @@ public class RegisterAllocatorState {
     B.mapsToRegister = A;
   }
 
-  static void mapOneToOne(Register container,Interval i, Register phy) {
-	  HashMap<Interval,Register> containerMapping = null;
-	  HashMap<Interval,Register> phyMapping = null;
-	  containerMapping = container.getIntervalToRegister();
-	  phyMapping =  phy.getIntervalToRegister();
-	  if(containerMapping != null){
-		  containerMapping.remove(i);
-
-	  }
-	  else{
-		  containerMapping = container.crtIntervalToRegister(0);
-	  }
-	  containerMapping.put(i, phy);
-	  if(phyMapping != null){
-		  phyMapping.remove(i);
-
-	  }
-	  else
-		  phyMapping = phy.crtIntervalToRegister(0);
-	  phyMapping.put(i, container);  
-  }
-
   /**
    * @return the register currently mapped 1-to-1 to r
    */
   static Register getMapping(Register r) {
     return r.mapsToRegister;
   }
-  static Register getMapping(Register r,Interval i) {
-	    Register result = null;
-	    HashMap<Interval,Register> mapping;
-	    mapping = r.getIntervalToRegister();
-	    if(mapping != null)
-	    	result = mapping.get(i);
-	    return result;
-	  }
+ 
   /**
    * Clear any 1-to-1 mapping for register R.
    */
@@ -160,19 +123,5 @@ public class RegisterAllocatorState {
       r.mapsToRegister = null;
     }
    
-  }
-  static void clearOneToOne(Register r, Interval i) {
-	 if(r != null && i != null){
-		 HashMap<Interval,Register> mapping = r.getIntervalToRegister();
-		 if(mapping != null){
-		 Register phy = mapping.get(i);
-		 if(phy != null){
-			 r.getIntervalToRegister().remove(i);
-			 phy.getIntervalToRegister().remove(i);
-		 }
-	 }
-	 }
-	   
-	  
   }
 }
