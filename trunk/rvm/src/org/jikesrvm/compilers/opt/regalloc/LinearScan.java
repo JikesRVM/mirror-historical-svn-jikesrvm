@@ -80,10 +80,12 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
    * Mark FMOVs that end a live range?
    */
   private static final boolean MUTATE_FMOV = VM.BuildForIA32;
+  
   /*
    *  make the following command line option
    */
-  private static boolean spillBasicsIndividually = true;
+  private static boolean spillBasicsIndividually = false;
+
 
   /**
    * debug flags
@@ -341,7 +343,12 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
   }
 
   /* A marker interface */
-  public interface Interval{}
+  public interface  Interval {
+	  
+	  public  Interval getInterval();
+	  public  Interval getInterval(int start, int end);
+	  public  Interval getInterval(int programpoint);
+  }
   /**
    * Implements a basic live interval (no holes), which is a pair
    *   begin    - the starting point of the interval
@@ -349,7 +356,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
    *
    *   Begin and end are numbers given to each instruction by a numbering pass
    */
-  public static class BasicInterval implements Interval {
+  public static class BasicInterval  {
 	
     /**
      * DFN of the beginning instruction of this interval
@@ -490,7 +497,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
   /**
    * A basic interval contained in a CompoundInterval.
    */
-  public static class MappedBasicInterval extends BasicInterval {
+  public static class MappedBasicInterval extends BasicInterval implements Interval {
     final CompoundInterval container;
     /* pointer to self in the extended version*/
     final Interval interval;
@@ -501,6 +508,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 
     MappedBasicInterval(BasicInterval b, CompoundInterval c) {
       super(b.begin, b.end);
+   
       this.container = c;
       interval = (spillBasicsIndividually ? this : c);
 	  }
@@ -526,24 +534,31 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     public String toString() {
       return "<" + container.getRegister() + ">:" + super.toString();
     }
-    public boolean isSpilled() {
-    	Register reg = container.getRegister();
-    	/* 
-    	 * If we have not spilled this interval then this key must be present in
-    	 * the hashMap intervalsToRegister.
-    	 * We check this for intervals present in the ActiveSet only,
-    	 * because it contains at a particular program point the
-    	 * currently active intervals which are either allocated or spilled.
-    	 */
-    	return reg.getIntervalToRegister().containsKey(this);
-    }
-
+  
     /* 
      * Return the physical register assigned to this interval
      */
     Register getAssignment() {
       return RegisterAllocatorState.getMapping(container.getRegister(), this);
     }
+
+	@Override
+	public Interval getInterval(int start, int finish) {
+		// TODO Auto-generated method stub
+		if ( getBegin() == start && getEnd() == finish)
+			return interval;
+		else
+			return null;
+	}
+
+	@Override
+	public Interval getInterval(int programpoint) {
+		// TODO Auto-generated method stub
+		if( programpoint >= getBegin() && programpoint <= getEnd())
+			return interval;
+		else
+			return null;
+	}
 
   }
 
@@ -588,9 +603,9 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     	  return i;
     	}
     	else {
-    		Iterator<BasicInterval> iter = iterator();
+    		Iterator iter = iterator();
     		while(iter.hasNext()){
-    			BasicInterval basic = iter.next();
+    			MappedBasicInterval basic = (MappedBasicInterval)iter.next();
     			if(basic.getBegin() == start && basic.getEnd() == end) {
     				result = basic;
     				break;
@@ -611,7 +626,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     	else{
     		Iterator<BasicInterval> iter = iterator();
     		while(iter.hasNext()){
-    			BasicInterval basic = iter.next();
+    			MappedBasicInterval basic = (MappedBasicInterval)iter.next();
     			if(basic.getBegin() <= programpoint && basic.getEnd() >= programpoint) {
     				result = basic;
     				break;
@@ -978,6 +993,12 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       }
       return str;
     }
+
+	@Override
+	public Interval getInterval() {
+		// TODO Auto-generated method stub
+		return this;
+	}
   }
 
   /**
@@ -1097,25 +1118,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       }
 
     }
-    void allocate(BasicInterval newInterval){
-    	MappedBasicInterval maping = (MappedBasicInterval) newInterval;
-    	Register symbolic = maping.container.getRegister();
-    	VM._assert(!symbolic.isPhysical());
-    	/*
-    	 * Find a available register for this basic interval
-    	 */
-    	Register freeR = findAvailableRegister(newInterval,symbolic);
-    	if(freeR != null){
-    		symbolic.allocateToRegister(freeR, newInterval);
-    		freeR.allocateRegister();
-    		symbolic.allocateRegister();
-    	}
-    	else
-    	{
-    	/* Still working on this */	
-    	//	Interval toSpill = 
-    	}
-    }
+    
     /**
      * Assign a basic interval to either a register or a spill location.
      */
@@ -1235,7 +1238,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           } else {
             // Could not find a free physical register.  Some member of the
             // active set must be spilled.  Choose a spill candidate.
-            CompoundInterval spillCandidate = (CompoundInterval)getSpillCandidate(container);
+            CompoundInterval spillCandidate = getSpillCandidate(container);
             if (VM.VerifyAssertions) {
               VM._assert(!spillCandidate.isSpilled());
               VM._assert((spillCandidate.getRegister().getType() == r.getType()) ||
@@ -1346,42 +1349,6 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       return null;
     }
 
-    Register findAvailableRegister(BasicInterval bi, Register symbolic) {
-    	
-      if (ir.options.FREQ_FOCUS_EFFORT && bi.isInfrequent()) {
-        // don't bother trying to find an available register and spill it
-        return null;
-      }
-      RegisterRestrictions restrict = ir.stackManager.getRestrictions();
-      if (ir.options.REGALLOC_COALESCE_MOVES) {
-        Register p = getPhysicalPreference(symbolic,bi);
-        if (p != null) {
-          if (DEBUG_COALESCE) {
-            System.out.println("REGISTER PREFERENCE for basicInterval" + bi + " " + p);
-          }
-          return p;
-        }
-      }
-   	  PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
-   	  int type = PhysicalRegisterSet.getPhysicalRegisterType(symbolic);
-   	  if(!restrict.allVolatilesForbidden(bi)){
-   	    for (Enumeration<Register> e = phys.enumerateVolatiles(type); e.hasMoreElements();) {
-   	      Register p = e.nextElement();
-   	      if (allocateNewSymbolicToPhysical(symbolic, p,bi)) {
-   	        return p;
-   	      }
-   	    }
-   	  }
-   	  // next attempt to allocate to a Nonvolatile.  we allocate the
-   	  // novolatiles backwards.
-   	  for (Enumeration<Register> e = phys.enumerateNonvolatilesBackwards(type); e.hasMoreElements();) {
-   	    Register p = e.nextElement();
-   	    if (allocateNewSymbolicToPhysical(symbolic, p,bi)) {
-   	      return p;
-   	    }
-   	  }
-   	  return null;
-    }
     /**
      * try to find a free physical register to allocate to the compound
      * interval.  if no free physical register is found, return null;
@@ -1443,7 +1410,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 
       // first attempt to allocate to the preferred register
       if (ir.options.REGALLOC_COALESCE_MOVES) {
-        Register p = getPhysicalPreference(symb,null);
+        Register p = getPhysicalPreference(symb);
         if (p != null) {
           if (DEBUG_COALESCE) {
             System.out.println("REGISTER PREFERENCE " + symb + " " + p);
@@ -1459,7 +1426,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       if (!restrict.allVolatilesForbidden(symb)) {
         for (Enumeration<Register> e = phys.enumerateVolatiles(type); e.hasMoreElements();) {
           Register p = e.nextElement();
-          if (allocateNewSymbolicToPhysical(symb, p,null)) {
+          if (allocateNewSymbolicToPhysical(symb, p)) {
             return p;
           }
         }
@@ -1469,7 +1436,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       // novolatiles backwards.
       for (Enumeration<Register> e = phys.enumerateNonvolatilesBackwards(type); e.hasMoreElements();) {
         Register p = e.nextElement();
-        if (allocateNewSymbolicToPhysical(symb, p,null)) {
+        if (allocateNewSymbolicToPhysical(symb, p)) {
           return p;
         }
       }
@@ -1486,7 +1453,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * @param r the symbolic register in question.
      * @return the preferred register.  null if no preference found.
      */
-    private Register getPhysicalPreference(Register r, Interval i) {
+    private Register getPhysicalPreference(Register r) {
       // a mapping from Register to Integer
       // (physical register to weight);
       HashMap<Register, Integer> map = new HashMap<Register, Integer>();
@@ -1505,18 +1472,14 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         if (neighbor.isSymbolic()) {
           // if r is assigned to a physical register r2, treat the
           // affinity as an affinity for r2
-        	Register r2;
-        	if(i != null)
-        		r2 = RegisterAllocatorState.getMapping(r, i);
-        	else
-        		r2 = RegisterAllocatorState.getMapping(r);
+          Register r2 = RegisterAllocatorState.getMapping(r);
           if (r2 != null && r2.isPhysical()) {
             neighbor = r2;
           }
         }
         if (neighbor.isPhysical()) {
           // if this is a candidate interval, update its weight
-          if (allocateNewSymbolicToPhysical(r, neighbor,i)) {
+          if (allocateNewSymbolicToPhysical(r, neighbor)) {
             int w = edge.getWeight();
             Integer oldW = map.get(neighbor);
             if (oldW == null) {
@@ -1536,18 +1499,14 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         if (neighbor.isSymbolic()) {
           // if r is assigned to a physical register r2, treat the
           // affinity as an affinity for r2
-        	Register r2;
-        	if(i != null)
-        		r2 = RegisterAllocatorState.getMapping(r, i);
-        	else
-        		r2 = RegisterAllocatorState.getMapping(r);
+          Register r2 = RegisterAllocatorState.getMapping(r);
           if (r2 != null && r2.isPhysical()) {
             neighbor = r2;
           }
         }
         if (neighbor.isPhysical()) {
           // if this is a candidate interval, update its weight
-          if (allocateNewSymbolicToPhysical(r, neighbor,i)) {
+          if (allocateNewSymbolicToPhysical(r, neighbor)) {
             int w = edge.getWeight();
             Integer oldW = map.get(neighbor);
             if (oldW == null) {
@@ -1694,82 +1653,44 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * NOTE: This routine assumes we're processing the first interval of
      * register symb; so p.isAvailable() is the key information needed.
      */
-    private boolean allocateNewSymbolicToPhysical(Register symb, Register p, Interval i) {
+    private boolean allocateNewSymbolicToPhysical(Register symb, Register p) {
     	if(p == null) return false;
       RegisterRestrictions restrict = ir.stackManager.getRestrictions();
       PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
       if (!phys.isAllocatable(p)) return false;
-      Boolean available;
-       if(i != null)
-         available = p.isAvailable(i);
-       else
-    	 available = p.isAvailable();
-       Boolean restricted;
-       if(i != null)
-    	   restricted = restrict.isForbidden(i, p);
-       else
-    	   restricted = restrict.isForbidden(symb, p);
+      Boolean available = p.isAvailable();
+      Boolean restricted = restrict.isForbidden(symb, p);
       if (VERBOSE_DEBUG && p != null) {
         if (!available) System.out.println("unavailable " + symb + p);
         if (restricted) System.out.println("forbidden" + symb + p);
        	
       }
-       
-      return available && restricted;
+      return ((available) && (!restricted));
     }
 
     /**
      * choose one of the active intervals or the newInterval to spill.
      */
-    private Interval getSpillCandidate(Interval newInterval) {
-      if (VERBOSE_DEBUG) System.out.println("GetSpillCandidate from " + this);
-      Boolean infrequent;
-      Boolean restriction=true;
-      RegisterRestrictions restrict = ir.stackManager.getRestrictions();
-      if(newInterval instanceof CompoundInterval ){
-    	  CompoundInterval ci = (CompoundInterval) newInterval;
-    	  infrequent = ci.isInfrequent();
-    	  if (ir.options.FREQ_FOCUS_EFFORT && infrequent) 
-    	  restriction =  restrict.mustNotSpill(ci.getRegister());
-    	  if(!restriction) return newInterval;
+    private CompoundInterval getSpillCandidate(CompoundInterval newInterval) {
+        if (VERBOSE_DEBUG) System.out.println("GetSpillCandidate from " + this);
+
+        if (ir.options.FREQ_FOCUS_EFFORT && newInterval.isInfrequent()) {
+          // if it's legal to spill this infrequent interval, then just do so!
+          // don't spend any more effort.
+          RegisterRestrictions restrict = ir.stackManager.getRestrictions();
+          if (!restrict.mustNotSpill(newInterval.getRegister())) {
+            return newInterval;
+          }
+        }
+
+        return spillMinUnitCost(newInterval);
       }
-      else{
-    	  infrequent = ((BasicInterval) newInterval).isInfrequent();
-    	  if (ir.options.FREQ_FOCUS_EFFORT && infrequent) 
-    		  restriction = restrict.mustNotSpill(newInterval);
-    	  if(!restriction) return newInterval;
-      }
-      return spillMinUnitCost((CompoundInterval)newInterval);
-    }
-   
-    private Interval spillMinUnitCost(BasicInterval basicInterval){
-    	Interval result =null;
-    	RegisterRestrictions restrict = ir.stackManager.getRestrictions();
-    	double minCost = spillCost.getCost(basicInterval);
-    	if(restrict.mustNotSpill(basicInterval)){
-    		result = null;
-    		minCost = Double.MAX_VALUE;
-    	}
-    	MappedBasicInterval mBasicInterval = (MappedBasicInterval)basicInterval;
-    	Register reg = mBasicInterval.container.getRegister();
-    	/*
-    	 * Iteration over the BasicInterval in the ActiveSet
-    	 */
-    	for (Iterator<BasicInterval> e = iterator(); e.hasNext();){
-    		 MappedBasicInterval b = (MappedBasicInterval) e.next();
-    		 Register thisReg = b.container.getRegister();
-    		 if(!b.isSpilled() && (reg.getType() == thisReg.getType() || (reg.isNatural() &&  thisReg.isNatural()))
-    				 && !restrict.mustNotSpill(b)){
-    			 
-    		 }
-    	}
-    	return result;
-    }
+  
     /**
      * Choose the interval with the min unit cost (defined as the number
      * of defs and uses)
      */
-    private Interval spillMinUnitCost(CompoundInterval newInterval) {
+    private CompoundInterval spillMinUnitCost(CompoundInterval newInterval) {
       if (VERBOSE_DEBUG) {
         System.out.println(" interval caused a spill: " + newInterval);
       }
@@ -1831,44 +1752,17 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       return result;
     }
     
-    private boolean checkAssignmentIfSpilled(CompoundInterval i, CompoundInterval spill) {
-        Register r = spill.getAssignment();
-
-        RegisterRestrictions restrict = ir.stackManager.getRestrictions();
-        if (restrict.isForbidden(i.getRegister(), r)) return false;
-
-        // 1. Speculatively simulate the spill.
-        CompoundInterval rI = getInterval(r);
-        CompoundInterval cache = rI.removeIntervalsAndCache(spill);
-
-        // 2. Check the fit.
-        boolean result = !rI.intersects(i);
-
-        // 3. Undo the simulated spill.
-        rI.addAll(cache);
-
-        return result;
-      }
+    
     /**
      * Check whether, if we spilled interval spill, we could then assign
      * interval i to physical register spill.getRegister().
      *
      * @return true if the allocation would fit.  false otherwise
-     *//*
+     */
     private boolean checkAssignmentIfSpilled(CompoundInterval i, CompoundInterval spill) {
-    	Register r;
-    	 RegisterRestrictions restrict = ir.stackManager.getRestrictions();
-    	if(spill instanceof BasicInterval){
-    		MappedBasicInterval mSpill = (MappedBasicInterval)spill;
-    		r = mSpill.getAssignment();
-    		if(restrict.isForbidden(i, r)) return false;
-    		MappedBasicInterval mI = (MappedBasicInterval)i;
-    		
-    		
-    	}
       Register r = spill.getAssignment();
 
-     
+      RegisterRestrictions restrict = ir.stackManager.getRestrictions();
       if (restrict.isForbidden(i.getRegister(), r)) return false;
 
       // 1. Speculatively simulate the spill.
@@ -1882,8 +1776,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       rI.addAll(cache);
 
       return result;
-    }*/
-
+      }
+    
     /**
      * Find the basic interval for register r containing instruction s.
      * If there are two such intervals, return the 1st one.
@@ -2128,13 +2022,14 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         BasicInterval added = existingInterval.addRange(live, bb);
         if (added != null) {
           intervals.add(added);
+          /*
+           * set the frequency at the basic interval level also
+           */
+          if (!bb.getInfrequent() ) {
+          	added.setFrequent();
+            }
         }
-        /*
-         * set the frequency at the basic interval level also
-         */
-        if (!bb.getInfrequent() ) {
-        	added.setFrequent();
-          }
+        
         if (VERBOSE_DEBUG) System.out.println("Extended old interval " + reg);
         if (VERBOSE_DEBUG) System.out.println(existingInterval);
 
