@@ -51,6 +51,7 @@ import org.jikesrvm.compilers.opt.ir.operand.Operand;
 import org.jikesrvm.compilers.opt.ir.operand.RegisterOperand;
 import org.jikesrvm.compilers.opt.util.GraphEdge;
 import org.jikesrvm.compilers.opt.util.SpaceEffGraphNode;
+import org.jikesrvm.compilers.opt.util.Stack;
 import org.jikesrvm.osr.OSRConstants;
 import org.jikesrvm.osr.LocalRegPair;
 import org.jikesrvm.osr.MethodVariables;
@@ -69,6 +70,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     super("Linear Scan Composite Phase",
           new OptimizationPlanElement[]{new OptimizationPlanAtomicElement(new IntervalAnalysis()),
                                             new OptimizationPlanAtomicElement(new RegisterRestrictionsPhase()),
+                                            new OptimizationPlanAtomicElement(new SpillIdentificationPhase()),
                                             new OptimizationPlanAtomicElement(new LinearScanPhase()),
                                             new OptimizationPlanAtomicElement(new UpdateGCMaps1()),
                                             new OptimizationPlanAtomicElement(new SpillCode()),
@@ -84,7 +86,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
   /*
    *  make the following command line option
    */
-  private static boolean spillBasicsIndividually = false;
+  private static boolean spillBasicsIndividually = true;
 
 
   /**
@@ -94,6 +96,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
   private static final boolean VERBOSE_DEBUG = false;
   private static final boolean GC_DEBUG = false;
   private static final boolean DEBUG_COALESCE = false;
+  private static final boolean EXTENDED_DEBUG = true;
  
   /**
    * Register allocation is required
@@ -362,6 +365,11 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 	   */
 	  public  Interval getContainer();
 	  public boolean intersects(Interval cmp);
+	  public boolean isInfrequent();
+	  public boolean isSpilled();
+	  public int getLowerBound();
+	  public int getUpperBound();
+	  public void setSpillFlag(boolean flag);
   }
   /**
    * Implements a basic live interval (no holes), which is a pair
@@ -380,13 +388,18 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * DFN of the last instruction of this interval
      */
     private int end;
-    private boolean _infrequent = true;
-
-    final void setFrequent() { _infrequent = false; }
-
-    final boolean isInfrequent() { return _infrequent; }
-
+    
     /**
+     * The frequency flag  
+     */
+    private boolean _infrequent = true;
+    
+    /**
+     * Used for Extended LinearScan during Spill Identification,Spill Resurrection and RegisterAllocation
+     */
+    private boolean spilled = false;
+
+	/**
      * Default constructor.
      */
     BasicInterval(int begin, int end)  {
@@ -505,7 +518,20 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       String s = "[ " + begin + ", " + end + " ] ";
       return s;
     }
-   
+    
+    final void setFrequent() { _infrequent = false; }
+    
+    public final boolean getFrequent(){
+    	return _infrequent;
+    }
+
+	public void setSpilled(boolean spilled) {
+		this.spilled = spilled;
+	}
+	
+	public boolean getSpilled() {
+			return spilled;
+	}
   }
 
   /**
@@ -513,9 +539,10 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
    */
   public static class MappedBasicInterval extends BasicInterval implements Interval {
     final CompoundInterval container;
+    
     /* pointer to self in the extended version*/
     final Interval interval;
-   
+      
     public Interval getInterval() {
       return interval;
     }
@@ -532,7 +559,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       this.container = c;
       interval = (spillBasicsIndividually ? this : c);
     }
-
+    
     /**
      * Redefine equals
      */
@@ -576,9 +603,34 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 	@Override
 	public boolean intersects(Interval cmp) {
 		// TODO Auto-generated method stub
-		return false;
+		return intersects((BasicInterval) cmp);
+	}
+	
+    public final boolean isInfrequent() { return getFrequent(); }
+
+	@Override
+	public boolean isSpilled() {
+		// TODO Auto-generated method stub
+		return getSpilled();
 	}
 
+	@Override
+	public int getLowerBound() {
+		// TODO Auto-generated method stub
+		return getBegin();
+	}
+
+	@Override
+	public int getUpperBound() {
+		// TODO Auto-generated method stub
+		return getEnd();
+	}
+
+	@Override
+	public void setSpillFlag(boolean flag) {
+		// TODO Auto-generated method stub
+		setSpilled(flag);
+	}
   }
 
   /**
@@ -595,7 +647,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 
     final void setFrequent() { _infrequent = false; }
 
-    final boolean isInfrequent() { return _infrequent; }
+    public final boolean isInfrequent() { return _infrequent; }
 
     /**
      * The register this compound interval represents
@@ -635,7 +687,12 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     	}
     	return result;
     }
-
+    
+    /*
+     * If spillBasicsIndividually is true the Return the BasicInterval containing this program point
+     * else return the CompoundInterval.
+     * To find the BasicInterval containing this programpoint when spillBasicsIndividually is false use getBasicInterval.
+     */
     public Interval getInterval(int programpoint){
     	Interval result = null;
     	Interval i = ((MappedBasicInterval)first()).getInterval();
@@ -791,7 +848,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     /**
      * Has this interval been spilled?
      */
-    boolean isSpilled() {
+    public boolean isSpilled() {
       return (RegisterAllocatorState.getSpill(getRegister()) != 0);
     }
 
@@ -1029,6 +1086,15 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 	public boolean intersects(Interval cmp) {
 		// TODO Auto-generated method stub
 		return intersects((CompoundInterval) cmp);
+	}
+
+	@Override
+	public void setSpillFlag(boolean flag) {
+		// TODO Auto-generated method stub
+		/*
+		 * At present do nothing in this because on the fly allocation assigns spill location
+		 * 
+		 */
 	}
   }
 
@@ -1927,7 +1993,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           }
         }
       }
-
+ 
       // debug support
       if (VERBOSE_DEBUG) {
         VM.sysWrite("**** start of interval dump " + ir.method + " ****\n");
@@ -2771,4 +2837,269 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       tuple.value = value;
     } // end of setTupleValue
   } // end of inner class
+  
+  public static final class SpillIdentificationPhase extends CompilerPhase {
+    
+	IR thisIR;
+	private SpillCostEstimator spillCost;
+	private Stack<Interval> stackOfSpilledIntervals=null;
+	
+	 /**
+     * Constructor for this compiler phase
+     */
+    private static final Constructor<CompilerPhase> constructor = getCompilerPhaseConstructor(SpillIdentificationPhase.class);
+
+    /**
+     * Get a constructor object for this compiler phase
+     * @return compiler phase constructor
+     */
+    public Constructor<CompilerPhase> getClassConstructor() {
+      return constructor;
+    }
+
+    /**
+     * Register allocation is required
+     */
+    public boolean shouldPerform(OptOptions options) {
+      return true;
+    }
+
+
+    public boolean printingEnabled(OptOptions options, boolean before) {
+      return false;
+    }
+
+	@Override
+	public String getName() {
+		// TODO Auto-generated method stub
+		return "Spill Identification Phase";
+	}
+
+	@Override
+	public void perform(IR ir) {
+		
+		// TODO Auto-generated method stub
+		thisIR = ir;
+		HashSet<Interval> intervalTest = null;
+		if (!spillBasicsIndividually)
+			return;
+		ArrayList<BasicInterval> intervals = ir.MIRInfo.linearScanState.intervals;
+		switch (ir.options.REGALLOC_SPILL_COST_ESTIMATE) {
+	       case OptOptions.REGALLOC_SIMPLE_SPILL_COST:
+	         spillCost = new SimpleSpillCost(ir);
+	         break;
+	       case OptOptions.REGALLOC_BRAINDEAD_SPILL_COST:
+	         spillCost = new BrainDeadSpillCost(ir);
+	         break;
+	       case OptOptions.REGALLOC_BLOCK_COUNT_SPILL_COST:
+	         spillCost = new BlockCountSpillCost(ir);
+	         break;
+	       default:
+	         OptimizingCompilerException.UNREACHABLE("unsupported spill cost");
+	         spillCost = null;
+	     }
+		stackOfSpilledIntervals = new Stack<Interval>();
+		
+		for (Iterator<BasicInterval> iter =intervals.iterator();iter.hasNext();) {
+			MappedBasicInterval bi = (MappedBasicInterval) iter.next();
+			int begin = bi.getBegin();
+			int end = bi.getEnd();
+			BasicBlock bb = returnContainingBasicBlock(begin,end);
+			VM._assert(bb != null);
+			
+			/* 
+			 * Return the the live variables at this interval end point.
+			 */
+			ArrayList<Interval> liveIntervals = findLiveIntervals(bb,end);
+ 			boolean isSpillPoint = checkForSpillPoint(liveIntervals);
+			if (isSpillPoint) {
+				Interval i = findIntervalToSpill(liveIntervals);
+				VM._assert(i != null);
+				
+				// set the spill flag for this interval so as to exclude it from liveIntervals
+				i.setSpillFlag(true);
+				
+				// Push the interval on stack
+				stackOfSpilledIntervals.push(i);
+			}
+		}
+		/* Spill Resurrection */
+		
+		while ( !stackOfSpilledIntervals.isEmpty()) {
+			Interval i = stackOfSpilledIntervals.pop();
+			BasicBlock bb = returnContainingBasicBlock(i.getLowerBound(),i.getUpperBound());
+			boolean resurrect = checkForResurrection(bb,i);
+			if (resurrect) { 
+				i.setSpillFlag(true);
+				if (EXTENDED_DEBUG) System.out.println(" found a varaible to resurrect ");
+			}
+			else 
+				if (EXTENDED_DEBUG) System.out.println(" cannot resurrect");
+			
+		}
+	}
+
+	private boolean checkForResurrection(BasicBlock bb, Interval i) {
+		// TODO Auto-generated method stub
+	   boolean result = true;
+		for (InstructionEnumeration instEnumeration = bb.forwardInstrEnumerator(); instEnumeration.hasMoreElements(); ) {
+			Instruction inst = instEnumeration.next();
+			ArrayList<Interval> liveIntervals = processLiveInterval(bb,inst.scratch,i);
+			boolean isSpillPoint =  (liveIntervals != null) ? checkForSpillPoint(liveIntervals) : false;
+			if (isSpillPoint) {
+				result = false;
+				break;
+			}
+		}
+	   return result; 
+	}
+
+	private Interval findIntervalToSpill(ArrayList<Interval> liveIntervals) {
+		// TODO Auto-generated method stub
+		Interval result=null;
+		double minCost= Double.MAX_VALUE;
+		boolean freqFocus = thisIR.options.FREQ_FOCUS_EFFORT;
+		RegisterRestrictions restrict = thisIR.stackManager.getRestrictions();
+		for (Iterator<Interval> iter = liveIntervals.iterator();iter.hasNext();) {
+			Interval i = iter.next();
+			boolean restricted = restrict.mustNotSpill(i);
+			if (!restricted && freqFocus &&  i.isInfrequent()) {
+				/* 
+				 * if we find an infrequent Interval then return immediately with this interval as 
+				 * spill goat.
+				 */
+				result = i;
+				break;
+			}
+			if (restricted) continue;
+			double cost = spillCost.getCost(i);
+			if (cost < minCost ) {
+				result  =i;
+				minCost = cost;
+			}
+		}
+		return result;
+	}
+
+
+	private boolean checkForSpillPoint(ArrayList<Interval> liveIntervals) {
+		// TODO Auto-generated method stub
+		PhysicalRegisterSet phys = thisIR.regpool.getPhysicalRegisterSet();
+		int numberOfGprAvailable;
+		int numberOfFprAvailable;
+		
+		/* ESP and ESI cannot be allocated*/
+	    numberOfGprAvailable = phys.NUM_GPRS - 2;
+	    numberOfFprAvailable = phys.NUM_FPRS;
+	    int totalLive = liveIntervals.size();
+	    if (totalLive > (numberOfGprAvailable + numberOfFprAvailable)) {
+	    //	if ( EXTENDED_DEBUG) System.out.println(" total live is greater");
+	    	return true;
+	    }
+	    int numFloatVariables=0;
+	    int numOtherVariables=0;
+	    for (Iterator<Interval> iter=liveIntervals.iterator(); iter.hasNext();) {
+	    	Interval i = iter.next();
+	    	Register r = ((CompoundInterval)i.getContainer()).getRegister();
+	        if (r.isFloatingPoint())
+	    		numFloatVariables++;
+	    	else
+	    		numOtherVariables++;
+	    }
+	    if (numFloatVariables > numberOfFprAvailable || numOtherVariables > numberOfGprAvailable ) {
+	    	if (EXTENDED_DEBUG) System.out.println(numFloatVariables+" "+ numOtherVariables );
+	    			
+	    	return true;
+	    }
+		return false;
+	}
+
+	/**
+	 * Return the Live Intervals at program point end.
+	 * It does not include the intervals which have been marked spilled previously
+	 */
+	private ArrayList<Interval> findLiveIntervals(BasicBlock bb, int end) {
+		// TODO Auto-generated method stub
+		ArrayList<Interval> result = new ArrayList<Interval>();
+		for (LiveIntervalElement live = bb.getFirstLiveIntervalElement(); live != null; live = live.getNext()) {
+	    	Instruction first = live.getBegin();
+	    	Instruction last = live.getEnd();
+	    	if (first == null)
+	    		first = bb.firstInstruction();
+	    	if (last == null)
+	    		last = bb.lastInstruction();
+	    	if ( end > first.scratch && end <= last.scratch) {
+	    		Register symbolic = live.getRegister();
+	    		if (!symbolic.isPhysical()) {
+	    		CompoundInterval ci = (CompoundInterval) symbolic.scratchObject;
+	    		Interval i = ci.getInterval(end);
+	    		VM._assert(i != null);
+	    		if (!i.isSpilled())
+	    			result.add(i);
+	    		}
+	    	}
+	    }
+		return result;
+	}
+
+    /**
+     * 
+     * @param bb : BasicBlock to look into
+     * @param scratch: the program point where live intervals need to be searched
+     * @param i : the interval for which which is to be checked for liveness.
+     * @return : The ArrayList of Intervals if interval i is live else reutrns null
+     * This function is  similar to above except it returns the list only if Interval interval is
+     * live at the program point.
+     */
+	private ArrayList<Interval> processLiveInterval(BasicBlock bb, int programpoint,
+			Interval interval) {
+		// TODO Auto-generated method stub
+		ArrayList<Interval> result = new ArrayList<Interval>();
+		boolean ispresent = false;
+		for (LiveIntervalElement live = bb.getFirstLiveIntervalElement(); live != null; live = live.getNext()) {
+	    	Instruction first = live.getBegin();
+	    	Instruction last = live.getEnd();
+	    	if (first == null)
+	    		first = bb.firstInstruction();
+	    	if (last == null)
+	    		last = bb.lastInstruction();
+	    	if ( programpoint > first.scratch && programpoint <= last.scratch) {
+	    		Register symbolic = live.getRegister();
+	    		if (!symbolic.isPhysical()) {
+	    		CompoundInterval ci = (CompoundInterval) symbolic.scratchObject;
+	    		Interval i = ci.getInterval(programpoint);
+	    		VM._assert(i != null);
+	    		if ( i == interval) ispresent = true;
+	    		if (!i.isSpilled())
+	    			result.add(i);
+	    		}
+	    	}
+	    }
+		if (ispresent) return result;
+		else 
+			return null;
+	}
+	/**
+	 * Give a Interval's begin and end point, this returns the BasicBlock containing this interval.
+	 * Use this for BasicInterval type. 
+	 */
+	private BasicBlock returnContainingBasicBlock(int begin, int end) {
+		// TODO Auto-generated method stub
+		BasicBlock result = null;
+		for (Enumeration enumeration = thisIR.getBasicBlocks();enumeration.hasMoreElements();) {
+			BasicBlock bb = (BasicBlock)enumeration.nextElement();
+			Instruction first = bb.firstInstruction();
+			Instruction last = bb.lastInstruction();
+			if(begin >= first.scratch && end <= last.scratch){
+				result = bb;
+				break;
+			}
+			else
+				continue;
+		}
+		return result;
+	}
+	  
+  }
+
 }
