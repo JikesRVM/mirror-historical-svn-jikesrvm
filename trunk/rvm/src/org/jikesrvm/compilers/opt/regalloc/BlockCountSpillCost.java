@@ -38,7 +38,6 @@ class BlockCountSpillCost extends SpillCostEstimator {
    * Calculate the estimated cost for each register.
    */
   void calculate(IR ir) {
-	Interval i;
     final double moveFactor = ir.options.REGALLOC_SIMPLE_SPILL_COST_MOVE_FACTOR;
     final double memoryOperandFactor = ir.options.REGALLOC_SIMPLE_SPILL_COST_MEMORY_OPERAND_FACTOR;
     for (Enumeration<BasicBlock> blocks = ir.getBasicBlocks(); blocks.hasMoreElements();) {
@@ -59,13 +58,13 @@ class BlockCountSpillCost extends SpillCostEstimator {
           Operand op = e2.nextElement();
           if (op.isRegister()) {
             Register r = op.asRegister().getRegister();
+            // EBM discuss
             if (r.isSymbolic()) {
-             
-            	i = r.getInterval(s);
-                if(i.getContainer().equals(i.getInterval()))
-              	  update(r, baseFactor);
-                else
-                    update(i,baseFactor);
+              Interval i = r.getInterval(s);
+              if (i.getContainer().equals(i.getInterval()))
+                update(r, baseFactor);
+              else
+                update(i, baseFactor);
             }
           }
         }
@@ -76,21 +75,21 @@ class BlockCountSpillCost extends SpillCostEstimator {
           if (M.base != null) {
             Register r = M.base.getRegister();
             if (r.isSymbolic()) {
-            	i = r.getInterval(s);
-                if(i.getContainer().equals(i.getInterval()))
-              	  update(r, factor);
-                else
-                    update(i, factor);
+              Interval i = r.getInterval(s);
+              if (i.getContainer().equals(i.getInterval()))
+                update(r, factor);
+              else
+                update(i, factor);
             }
           }
           if (M.index != null) {
             Register r = M.index.getRegister();
             if (r.isSymbolic()) {
-            	i = r.getInterval(s);
-                if(i.getContainer().equals(i.getInterval()))
-              	  update(r, factor);
-                else
-                    update(i, factor);
+              Interval i = r.getInterval(s);
+              if (i.getContainer().equals(i.getInterval()))
+                update(r, factor);
+              else
+                update(i, factor);
             }
           }
         }

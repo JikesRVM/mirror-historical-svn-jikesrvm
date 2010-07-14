@@ -23,8 +23,9 @@ import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
  */
 abstract class SpillCostEstimator {
 
+  // EBM discuss: probably should go from Register to Interval and have ONE map
   private final HashMap<Register, Double> map = new HashMap<Register, Double>();
-  private final HashMap<Interval,Double> intervalMap = new HashMap<Interval, Double>();
+  private final HashMap<Interval, Double> intervalMap = new HashMap<Interval, Double>();
 
   /**
    * Return a number that represents an estimate of the relative cost of

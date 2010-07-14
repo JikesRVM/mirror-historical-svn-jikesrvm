@@ -33,7 +33,7 @@ public class RegisterAllocatorState {
   /**
    * Mapping from BasicInterval or CompoundInterval to physical register
    */
-  private HashMap<Interval,Register> intervalsToRegister=null;
+  private HashMap<Interval, Register> intervalsToRegister = null;
   
   /**
    *  Resets the physical register info

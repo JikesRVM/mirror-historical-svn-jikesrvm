@@ -69,7 +69,7 @@ public final class LiveIntervalElement {
   }
 
   /**
-   * Use this constructur when the live interval is within a basic block
+   * Use this constructor when the live interval is within a basic block
    *
    * @param reg   the Register whose live interval we are representing
    * @param begin the definition of the register
@@ -111,26 +111,16 @@ public final class LiveIntervalElement {
   public BasicBlock getBasicBlock() { return bb; }
 
   public void setBasicBlock(BasicBlock bb) { this.bb = bb; }
+
   /*
    * Returns the BasicInterval represented by the LiveIntervalElement if and only if we are doing the register
    * allocation at BasicInterval level else return the compound interval it belongs to.
    * This may return null, so do a assertion after the call.
    */
-  public Interval getInterval(){
-	  Interval result=null;
-	  Instruction begin = this.getBegin();
-	  Instruction end = this.getEnd();
-	  int start,finish;
-	  if(begin != null)
-	   start = this.getBegin().scratch;
-	  else
-		  start = this.getBasicBlock().firstInstruction().scratch;
-	  if(end != null)
-	     finish = this.getEnd().scratch;
-	  else
-		  finish = this.getBasicBlock().lastInstruction().scratch;
-	  Interval i = (Interval)this.getRegister().scratchObject;
-	  result=i.getInterval(start,finish);
-	  return result;
+  public Interval getInterval() {
+    int start  = ((begin != null) ? begin : bb.firstInstruction()).scratch;
+	  int finish = ((end   != null) ? end   : bb.lastInstruction() ).scratch; 
+	  Interval i = (Interval)register.scratchObject;
+	  return i.getInterval(start,finish);
   }
 }
