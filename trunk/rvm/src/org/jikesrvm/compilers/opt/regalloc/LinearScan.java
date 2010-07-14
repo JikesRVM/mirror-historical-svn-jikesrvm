@@ -2991,93 +2991,82 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 	    return false;
     }
 
-    // EBM stopped here
-	/**
-	 * Return the Live Intervals at program point end.
-	 * It does not include the intervals which have been marked spilled previously
-	 */
-	private ArrayList<Interval> findLiveIntervals(BasicBlock bb, int end) {
-		// TODO Auto-generated method stub
-		ArrayList<Interval> result = new ArrayList<Interval>();
-		for (LiveIntervalElement live = bb.getFirstLiveIntervalElement(); live != null; live = live.getNext()) {
-	    	Instruction first = live.getBegin();
-	    	Instruction last = live.getEnd();
-	    	if (first == null)
-	    		first = bb.firstInstruction();
-	    	if (last == null)
-	    		last = bb.lastInstruction();
-	    	if ( end > first.scratch && end <= last.scratch) {
-	    		Register symbolic = live.getRegister();
-	    		if (!symbolic.isPhysical()) {
-	    		CompoundInterval ci = (CompoundInterval) symbolic.scratchObject;
-	    		Interval i = ci.getInterval(end);
-	    		VM._assert(i != null);
-	    		if (!i.isSpilled())
-	    			result.add(i);
-	    		}
-	    	}
-	    }
-		return result;
-	}
+    /**
+     * Return the Live Intervals at program point end.
+     * It does not include the intervals which have been marked spilled previously
+     */
+    private ArrayList<Interval> findLiveIntervals(BasicBlock bb, int end) {
+      ArrayList<Interval> result = new ArrayList<Interval>();
+      for (LiveIntervalElement live = bb.getFirstLiveIntervalElement(); live != null; live = live.getNext()) {
+        Instruction first = live.getBegin();
+        Instruction last  = live.getEnd();
+        if (first == null)
+          first = bb.firstInstruction();
+        if (last == null)
+          last = bb.lastInstruction();
+        if (end > first.scratch && end <= last.scratch) {
+          Register symbolic = live.getRegister();
+          if (!symbolic.isPhysical()) {
+            CompoundInterval ci = (CompoundInterval)symbolic.scratchObject;
+            Interval i = ci.getInterval(end);
+            VM._assert(i != null);
+            if (!i.isSpilled())
+              result.add(i);
+          }
+        }
+      }
+      return result;
+    }
 
     /**
-     * 
-     * @param bb : BasicBlock to look into
-     * @param scratch: the program point where live intervals need to be searched
-     * @param i : the interval for which which is to be checked for liveness.
-     * @return : The ArrayList of Intervals if interval i is live else reutrns null
-     * This function is  similar to above except it returns the list only if Interval interval is
+     * @param bb BasicBlock to look into
+     * @param scratch the program point where live intervals need to be searched
+     * @param i the interval for which which is to be checked for liveness.
+     * @return The ArrayList of Intervals if interval i is live else returns null
+     * This function is similar to above except it returns the list only if Interval interval is
      * live at the program point.
      */
-	private ArrayList<Interval> processLiveInterval(BasicBlock bb, int programpoint,
-			Interval interval) {
-		// TODO Auto-generated method stub
-		ArrayList<Interval> result = new ArrayList<Interval>();
-		boolean ispresent = false;
-		for (LiveIntervalElement live = bb.getFirstLiveIntervalElement(); live != null; live = live.getNext()) {
-	    	Instruction first = live.getBegin();
-	    	Instruction last = live.getEnd();
-	    	if (first == null)
-	    		first = bb.firstInstruction();
-	    	if (last == null)
-	    		last = bb.lastInstruction();
-	    	if ( programpoint > first.scratch && programpoint <= last.scratch) {
-	    		Register symbolic = live.getRegister();
-	    		if (!symbolic.isPhysical()) {
-	    		CompoundInterval ci = (CompoundInterval) symbolic.scratchObject;
-	    		Interval i = ci.getInterval(programpoint);
-	    		VM._assert(i != null);
-	    		if ( i == interval) ispresent = true;
-	    		if (!i.isSpilled())
-	    			result.add(i);
-	    		}
-	    	}
-	    }
-		if (ispresent) return result;
-		else 
-			return null;
-	}
-	/**
-	 * Give a Interval's begin and end point, this returns the BasicBlock containing this interval.
-	 * Use this for BasicInterval type. 
-	 */
-	private BasicBlock returnContainingBasicBlock(int begin, int end) {
-		// TODO Auto-generated method stub
-		BasicBlock result = null;
-		for (Enumeration enumeration = thisIR.getBasicBlocks();enumeration.hasMoreElements();) {
-			BasicBlock bb = (BasicBlock)enumeration.nextElement();
-			Instruction first = bb.firstInstruction();
-			Instruction last = bb.lastInstruction();
-			if(begin >= first.scratch && end <= last.scratch){
-				result = bb;
-				break;
-			}
-			else
-				continue;
-		}
-		return result;
-	}
-	  
-  }
+    private ArrayList<Interval> processLiveInterval(BasicBlock bb, int programpoint,
+                                                    Interval interval) {
+      ArrayList<Interval> result = new ArrayList<Interval>();
+      boolean isPresent = false;
+      for (LiveIntervalElement live = bb.getFirstLiveIntervalElement(); live != null; live = live.getNext()) {
+        Instruction first = live.getBegin();
+        Instruction last  = live.getEnd();
+        if (first == null)
+          first = bb.firstInstruction();
+        if (last == null)
+          last = bb.lastInstruction();
+        if (programpoint > first.scratch && programpoint <= last.scratch) {
+          Register symbolic = live.getRegister();
+          if (!symbolic.isPhysical()) {
+            CompoundInterval ci = (CompoundInterval)symbolic.scratchObject;
+            Interval i = ci.getInterval(programpoint);
+            VM._assert(i != null);
+            if (i == interval) isPresent = true;
+            if (!i.isSpilled())
+              result.add(i);
+          }
+        }
+      }
+      return (isPresent ? result : null);
+    }
 
+    /**
+     * Given an Interval's begin and end point, this returns the BasicBlock containing this interval.
+     * Use this for BasicInterval type. 
+     * EBM: slow!
+     */
+    private BasicBlock returnContainingBasicBlock(int begin, int end) {
+      for (Enumeration enumeration = thisIR.getBasicBlocks(); enumeration.hasMoreElements(); ) {
+        BasicBlock bb = (BasicBlock)enumeration.nextElement();
+        Instruction first = bb.firstInstruction();
+        Instruction last  = bb.lastInstruction();
+        if(begin >= first.scratch && end <= last.scratch){
+          return bb;
+        }
+      }
+      return null;
+    }
+  }
 }
