@@ -45,10 +45,10 @@ public abstract class GenericRegisterRestrictions {
   // a set of symbolic registers that must not be spilled.
   private final HashSet<Register> noSpill = new HashSet<Register>();
   protected final PhysicalRegisterSet phys;
-  // EBM discuss
-  private final HashMap<Interval, RestrictedRegisterSet> intervalHash = new HashMap<Interval,RestrictedRegisterSet>();
+  private final HashMap<Interval,RestrictedRegisterSet> intervalHash = new HashMap<Interval,RestrictedRegisterSet>();
   private final HashSet<Interval> intervalNoSpill = new HashSet<Interval>();
-    
+  
+  private boolean forceitfornow = true;
   /**
    * Default Constructor
    */
@@ -64,8 +64,8 @@ public abstract class GenericRegisterRestrictions {
     noSpill.add(r);
   }
   protected final void noteMustNotSpill(Interval I) {
-    intervalNoSpill.add(I);
-  }
+	    intervalNoSpill.add(I);
+	  }
 
   /**
    * Is spilling a register forbidden?
@@ -74,8 +74,8 @@ public abstract class GenericRegisterRestrictions {
     return noSpill.contains(r);
   }
   public final boolean mustNotSpill(Interval I) {
-    return intervalNoSpill.contains(I);
-  }
+	    return intervalNoSpill.contains(I);
+	  }
   /**
    * Record all the register restrictions dictated by an IR.
    *
@@ -154,6 +154,7 @@ public void iterateOverSet(){
   private void processBlock(BasicBlock bb) {
     ArrayList<LiveIntervalElement> symbolic = new ArrayList<LiveIntervalElement>(20);
     ArrayList<LiveIntervalElement> physical = new ArrayList<LiveIntervalElement>(20);
+    Interval i;
     // 1. walk through the live intervals and identify which correspond to
     // physical and symbolic registers
     for (Enumeration<LiveIntervalElement> e = bb.enumerateLiveIntervals(); e.hasMoreElements();) {
@@ -174,12 +175,11 @@ public void iterateOverSet(){
     for (LiveIntervalElement phys : physical) {
       for (LiveIntervalElement symb : symbolic) {
         if (overlaps(phys, symb)) {
-          Interval i = symb.getInterval();
-          VM._assert(i != null);
-          if (i.getContainer().equals(i.getInterval())) 
-            addRestriction(symb.getRegister(), phys.getRegister());
-          else
-            addRestriction(i, phys.getRegister());
+        	 i = symb.getInterval();
+            if(i.getContainer().equals(i.getInterval())) 
+        		addRestriction(symb.getRegister(), phys.getRegister());
+            else
+        		addRestriction(i, phys.getRegister());
         }
       }
     }
@@ -192,12 +192,11 @@ public void iterateOverSet(){
       if (s.operator.isCall() && s.operator != CALL_SAVE_VOLATILE) {
         for (LiveIntervalElement symb : symbolic) {
           if (contains(symb, s.scratch)) {
-            Interval i = symb.getInterval();
-            VM._assert(i != null);
-            if (i.getContainer().equals(i.getInterval())) 
-              forbidAllVolatiles(symb.getRegister());
-            else 
-              forbidAllVolatiles(i);
+        	  i = symb.getInterval();
+        	  if(i.getContainer().equals(i.getInterval())  ) 
+         		forbidAllVolatiles(symb.getRegister());
+             else 
+         		forbidAllVolatiles(i);
           }
         }
       }
@@ -210,12 +209,11 @@ public void iterateOverSet(){
         for (LiveIntervalElement symb : symbolic) {
           if (symb.getRegister().isFloatingPoint()) {
             if (contains(symb, s.scratch)) {
-              Interval i = symb.getInterval();
-              VM._assert(i != null);
-              if (i.getContainer().equals(i.getInterval()))
-                forbidAllVolatiles(symb.getRegister());
-              else
-                forbidAllVolatiles(i);
+            	 i = symb.getInterval();
+            	if(i.getContainer().equals(i.getInterval())  )
+            		forbidAllVolatiles(symb.getRegister());
+            	else
+            		forbidAllVolatiles(i);
             }
           }
         }
@@ -304,7 +302,6 @@ public void iterateOverSet(){
     }
     r.setNoVolatiles();
   }
-  
   final void forbidAllVolatiles(Interval I) {
 	    RestrictedRegisterSet r = intervalHash.get(I);
 	    if (r == null) {
@@ -327,7 +324,6 @@ public void iterateOverSet(){
     }
     r.addAll(set);
   }
-  
   protected final void addRestrictions(Interval I, BitSet set) {
 	    RestrictedRegisterSet r = intervalHash.get(I);
 	    if (r == null) {
@@ -348,7 +344,6 @@ public void iterateOverSet(){
     }
     r.add(p);
   }
-
   /**
    * Record that it is illegal to assign a symbolic register symb to a
    * physical register p
@@ -361,7 +356,6 @@ public void iterateOverSet(){
     }
     r.add(p);
   }
-  
   /**
    * Return the set of restricted physical register for a given symbolic
    * register. Return null if no restrictions.
@@ -420,6 +414,12 @@ public void iterateOverSet(){
 	    if (s == null) return false;
 	    return s.contains(phys);
 	  }
+  
+  public final boolean hasRestrictions (Interval i){
+	  RestrictedRegisterSet s = getRestrictions(i);
+	  if (s == null) return false;
+	  else return true;
+  }
   /**
    * Is it forbidden to assign symbolic register symb to physical register r
    * in instruction s?
