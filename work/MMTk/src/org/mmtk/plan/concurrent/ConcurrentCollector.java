@@ -115,9 +115,9 @@ public abstract class ConcurrentCollector extends SimpleCollector {
           /* We are responsible for ensuring termination. */
           if (Options.verbose.getValue() >= 2) Log.writeln("< requesting mutator flush >");
           VM.collection.requestMutatorFlush();
-  
+
           if (Options.verbose.getValue() >= 2) Log.writeln("< mutators flushed >");
-  
+
           if (concurrentTraceComplete()) {
             continueCollecting = Phase.notifyConcurrentPhaseComplete();
           } else {

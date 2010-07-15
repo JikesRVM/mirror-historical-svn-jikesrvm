@@ -75,7 +75,7 @@ public final class MarkSweepSpace extends SegregatedFreeListSpace implements Con
   private boolean inMSCollection;
   private static final boolean usingStickyMarkBits = VM.activePlan.constraints().needsLogBitInHeader(); /* are sticky mark bits in use? */
   private boolean isAgeSegregated = false; /* is this space a nursery space? */
-  private boolean isAllocAsMarked = false; 
+  private boolean isAllocAsMarked = false;
 
   /****************************************************************************
    *
@@ -199,7 +199,7 @@ public final class MarkSweepSpace extends SegregatedFreeListSpace implements Con
           clearAllBlockMarks();
       }
     } else {
-      zeroLiveBits(start, ((FreeListPageResource) pr).getHighWater());
+      zeroLiveBits();
     }
     inMSCollection = true;
   }

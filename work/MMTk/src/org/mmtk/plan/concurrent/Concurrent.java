@@ -12,7 +12,6 @@
  */
 package org.mmtk.plan.concurrent;
 
-import org.mmtk.plan.ParallelCollectorGroup;
 import org.mmtk.plan.Phase;
 import org.mmtk.plan.Simple;
 import org.mmtk.utility.Log;

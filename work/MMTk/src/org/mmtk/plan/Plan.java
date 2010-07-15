@@ -26,7 +26,6 @@ import org.mmtk.utility.heap.VMRequest;
 import org.mmtk.utility.Log;
 import org.mmtk.utility.options.*;
 import org.mmtk.utility.sanitychecker.SanityChecker;
-import org.mmtk.utility.statistics.PerfCounter;
 import org.mmtk.utility.statistics.Timer;
 import org.mmtk.utility.statistics.Stats;
 
@@ -144,9 +143,6 @@ public abstract class Plan implements Constants {
   /** Timer that counts total time */
   public static final Timer totalTime = new Timer("time");
 
-  /** Performance counters */
-  public static final PerfCounter totalPerfCnt = new PerfCounter("perf");
-
   /** Support for allocation-site identification */
   protected static int allocationSiteCount = 0;
 
@@ -175,7 +171,7 @@ public abstract class Plan implements Constants {
     Options.eagerMmapSpaces = new EagerMmapSpaces();
     Options.sanityCheck = new SanityCheck();
     Options.debugAddress = new DebugAddress();
-    Options.perfMetric = new PerfMetric();
+    Options.perfEvents = new PerfEvents();
     Options.threads = new Threads();
     Map.finalizeStaticSpaceMap();
     registerSpecializedMethods();
@@ -219,7 +215,7 @@ public abstract class Plan implements Constants {
    */
   @Interruptible
   public void postBoot() {
-    VM.statistics.perfCtrInit(Options.perfMetric.getValue());
+    VM.statistics.perfEventInit(Options.perfEvents.getValue());
     if (Options.verbose.getValue() > 2) Space.printVMMap();
     if (Options.verbose.getValue() > 3) VM.config.printConfig();
     if (Options.verbose.getValue() > 0) Stats.startAll();
@@ -255,7 +251,7 @@ public abstract class Plan implements Constants {
   public static final ParallelCollectorGroup parallelWorkers = new ParallelCollectorGroup("ParallelWorkers");
   public static final ParallelCollectorGroup concurrentWorkers = new ParallelCollectorGroup("ConcurrentWorkers");
   public static final ControllerCollectorContext controlCollectorContext = new ControllerCollectorContext(parallelWorkers);
-  
+
   /**
    * The VM is about to exit. Perform any clean up operations.
    *

@@ -13,26 +13,55 @@
 package org.mmtk.harness.scheduler.javathreads;
 
 import org.mmtk.harness.Collector;
+import org.mmtk.harness.Main;
+import org.mmtk.harness.lang.Trace;
+import org.mmtk.harness.lang.Trace.Item;
 
 class CollectorThread extends JavaThread {
   private static int collectorId = 0;
 
-  protected final Collector collector;
+  private Collector collector = null;
 
   protected CollectorThread(boolean daemon) {
-    this.collector = new Collector();
     setName("Collector-"+(++collectorId));
     setDaemon(daemon);
+    setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+      public void uncaughtException(Thread t, Throwable e) {
+        Trace.trace(Item.SCHEDULER, "Catching uncaught exception for thread %s%n%s",
+            Thread.currentThread().getName(),
+            e.getClass().getCanonicalName());
+        e.printStackTrace();
+        Main.exitWithFailure();
+      }
+    });
   }
 
   CollectorThread() {
     this(true);
   }
 
+  protected void init() {
+    // We need to run the Collector constructor in an MMTkThread so that we can access the
+    // Thread local 'Log' object.  Otherwise Log.writes in constructors don't work.
+    setCollector(new Collector());
+    JavaThreadModel.setCurrentCollector(collector);
+  }
+
   @Override
   public void run() {
-    JavaThreadModel.setCurrentCollector(collector);
+    init();
     collector.run();
+  }
+
+  private void setCollector(Collector collector) {
+    if (this.collector != null) {
+      throw new AssertionError("Collector cannot be set twice");
+    }
+    this.collector = collector;
+  }
+
+  protected Collector getCollector() {
+    return collector;
   }
 
 }

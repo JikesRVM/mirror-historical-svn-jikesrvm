@@ -37,7 +37,7 @@ public class ControllerCollectorContext extends CollectorContext {
 
   /** The request index that was last completed */
   private int lastRequestCount = -1;
-  
+
   /** Is there concurrent collection activity */
   private boolean concurrentCollection = false;
 
@@ -120,7 +120,7 @@ public class ControllerCollectorContext extends CollectorContext {
       // Resume all mutators
       if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Resuming mutators...]");
       VM.collection.resumeAllMutators();
-      
+
       // Start threads that will perform concurrent collection work alongside mutators.
       if (concurrentCollection) {
         if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Triggering concurrent collectors...]");

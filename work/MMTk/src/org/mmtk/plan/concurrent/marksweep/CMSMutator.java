@@ -107,7 +107,7 @@ public class CMSMutator extends ConcurrentMutator {
         break;
     }
   }
-  
+
   /**
    * Return the allocator instance associated with a space
    * <code>space</code>, for this plan instance.
@@ -182,7 +182,7 @@ public class CMSMutator extends ConcurrentMutator {
         else if (Space.isInSpace(CMS.LARGE_CODE, ref)) CMS.largeCodeSpace.traceObject(remset, ref);
       }
     }
-  
+
     if (VM.VERIFY_ASSERTIONS) {
       if (!ref.isNull() && !Plan.gcInProgress()) {
         if      (Space.isInSpace(CMS.MARK_SWEEP, ref)) VM.assertions._assert(CMS.msSpace.isLive(ref));

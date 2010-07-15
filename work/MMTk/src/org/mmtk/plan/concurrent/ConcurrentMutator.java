@@ -14,9 +14,6 @@ package org.mmtk.plan.concurrent;
 
 import org.mmtk.plan.*;
 
-import org.mmtk.utility.Log;
-import org.mmtk.utility.alloc.LinearScan;
-import org.mmtk.utility.alloc.SegregatedFreeList;
 import org.mmtk.vm.VM;
 
 import org.vmmagic.pragma.*;
@@ -37,7 +34,7 @@ public abstract class ConcurrentMutator extends SimpleMutator {
   /****************************************************************************
    * Instance fields
    */
-  public static boolean newMutatorBarrierActive = false; 
+  public static boolean newMutatorBarrierActive = false;
   protected volatile boolean barrierActive = false;
 
   protected ConcurrentMutator() {
@@ -148,7 +145,7 @@ public abstract class ConcurrentMutator extends SimpleMutator {
   @Inline
   @Override
   public boolean objectReferenceBulkCopy(ObjectReference src, Offset srcOffset, ObjectReference dst, Offset dstOffset, int bytes) {
-	Address cursor = dst.toAddress().plus(dstOffset);
+    Address cursor = dst.toAddress().plus(dstOffset);
     Address limit = cursor.plus(bytes);
     while (cursor.LT(limit)) {
       ObjectReference ref = cursor.loadObjectReference();
