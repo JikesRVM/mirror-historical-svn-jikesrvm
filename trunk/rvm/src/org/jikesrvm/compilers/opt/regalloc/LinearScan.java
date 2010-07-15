@@ -3039,11 +3039,11 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 	    	}
 	    }
 	    
-	    if(numFloatVariables > numberOfFprAvailable ) {
+	    if (numFloatVariables > numberOfFprAvailable ) {
 	    	//if (EXTENDED_DEBUG) System.out.println(" Check Spill point: floating point spill " );
 	    	return floatIntervals.get(0);
 	    }
-	    if(numOtherVariables > numberOfGprAvailable ) {
+	    if (numOtherVariables > numberOfGprAvailable ) {
 	    	//if (EXTENDED_DEBUG) System.out.println(" Check Spill point: non floating point spill " );
 	    	if(!nonRestrictedInterval.isEmpty())
 	    		return nonRestrictedInterval.get(0);
@@ -3074,7 +3074,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 	        Register r=null;
 	        for (Iterator<Register> regIter =physicalRegisterList.iterator();regIter.hasNext(); ) {
 	        	 Register reg = regIter.next();
-	        	if(!allocated && !restrict.isForbidden(i, reg)) {
+	        	if (!allocated && !restrict.isForbidden(i, reg)) {
 	        		r = reg;
 	        		allocated = true;
 	        	}
