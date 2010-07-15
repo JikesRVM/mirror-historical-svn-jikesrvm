@@ -52,7 +52,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
    * Allow scratch registers in PEIs?
    */
   public static final boolean SCRATCH_IN_PEI = true;
-  /* present for testing purpose and must be removed before final commint*/
+  /* present for testing purpose and must be removed before final commit*/
   private boolean forceitfornow= true;
   /**
    * Default Constructor
@@ -84,13 +84,18 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
 			  Operand op = e.nextElement();
 			  if (op != null && op.isRegister()) {
 				  Register reg = op.asRegister().getRegister();
+				  /*
+				   * Interval i will be null for phyical registers.
+				   * Previously physical register were also added through noteMustNotSpill call
+				   * Spill at BasciInterval concept makes this obsolete because we are never going to
+				   * spill a physical register.
+				   */
 				  Interval i = reg.getInterval(s);
-				  VM._assert(i != null);
-				  if(i.getContainer().equals(i.getInterval())) 
+				  if(i.getContainer().equals(i.getInterval()) )
 					  noteMustNotSpill(reg);
 				  else 
 					  noteMustNotSpill(i);
-					  handle8BitRestrictions(s);
+				   handle8BitRestrictions(s);
 				      }
 			 }
 		  }
@@ -104,8 +109,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
           op = MIR_LowTableSwitch.getIndex(s);
           Register reg = op.getRegister();
           Interval i = reg.getInterval(s);
-          VM._assert(i != null);
-          if(i.getContainer().equals(i.getInterval())) 
+          if(i.getContainer().equals(i.getInterval()) ) 
                noteMustNotSpill(reg);
           else 
         	  noteMustNotSpill(i);
@@ -117,8 +121,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
             RegisterOperand val = MIR_Unary.getVal(s).asRegister();
             Register reg = val.getRegister();
             Interval i = reg.getInterval(s);
-            VM._assert(i != null);
-            if(i.getContainer().equals(i.getInterval())) 
+            if(i.getContainer().equals(i.getInterval()) ) 
             	restrictTo8Bits(reg);
             else 
             	 restrictTo8Bits(i);
@@ -130,8 +133,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
             RegisterOperand op = MIR_Set.getResult(s).asRegister();
             Register reg = op.getRegister();
             Interval i = reg.getInterval(s);
-            VM._assert(i != null);
-            if(i.getContainer().equals(i.getInterval())) 
+            if(i.getContainer().equals(i.getInterval()) ) 
             	restrictTo8Bits(reg);
             else 
             	 restrictTo8Bits(i);
@@ -152,8 +154,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
           if (symb.getRegister().isFloatingPoint()) {
             if (contains(symb, s.scratch)) {
             	Interval i = symb.getInterval();
-            	VM._assert(i != null);
-            	if(i.getContainer().equals(i.getInterval())) 
+            	if(i.getContainer().equals(i.getInterval()) ) 
             		addRestrictions(symb.getRegister(), phys.getFPRs());
             	else 
             		addRestrictions(i, phys.getFPRs());
@@ -166,9 +167,8 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
           if (symb.getRegister().isFloatingPoint()) {
             if (contains(symb, s.scratch)) {
             	Interval interval = symb.getInterval();
-            	VM._assert(interval != null);
-            	boolean basic = true;
-            	if( interval.getContainer().equals(interval.getInterval()))
+          	    boolean basic = true;
+            	if( interval.getContainer().equals(interval.getInterval()) )
             	    basic = false;
               int nSave = MIR_UnaryNoRes.getVal(s).asIntConstant().value;
               for (int i = nSave; i < NUM_FPRS; i++) {
@@ -211,9 +211,8 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
           if (rootOp.isRegister()) {
         	  Register reg= rootOp.asRegister().getRegister();
         	  Interval i = reg.getInterval(s);
-        	  VM._assert(i != null);
-        	  if(i.getContainer().equals(i.getInterval())) 
-        	  restrictTo8Bits(reg);
+        	  if(i.getContainer().equals(i.getInterval()) ) 
+        	      restrictTo8Bits(reg);
         	  else 
         		  restrictTo8Bits(i);
           }
