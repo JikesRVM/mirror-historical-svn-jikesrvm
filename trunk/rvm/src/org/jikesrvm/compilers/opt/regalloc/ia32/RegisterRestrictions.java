@@ -91,7 +91,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
 				   * spill a physical register.
 				   */
 				  Interval i = reg.getInterval(s);
-				  if(i != null || i.getContainer().equals(i.getInterval()) )
+				  if(i == null || i.getContainer().equals(i.getInterval()) )
 					  noteMustNotSpill(reg);
 				  else 
 					  noteMustNotSpill(i);
@@ -109,7 +109,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
           op = MIR_LowTableSwitch.getIndex(s);
           Register reg = op.getRegister();
           Interval i = reg.getInterval(s);
-          if( i != null || i.getContainer().equals(i.getInterval()) ) 
+          if( i == null || i.getContainer().equals(i.getInterval()) ) 
                noteMustNotSpill(reg);
           else 
         	  noteMustNotSpill(i);
@@ -121,7 +121,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
             RegisterOperand val = MIR_Unary.getVal(s).asRegister();
             Register reg = val.getRegister();
             Interval i = reg.getInterval(s);
-            if(i != null || i.getContainer().equals(i.getInterval()) ) 
+            if(i == null || i.getContainer().equals(i.getInterval()) ) 
             	restrictTo8Bits(reg);
             else 
             	 restrictTo8Bits(i);
@@ -133,7 +133,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
             RegisterOperand op = MIR_Set.getResult(s).asRegister();
             Register reg = op.getRegister();
             Interval i = reg.getInterval(s);
-            if( i != null || i.getContainer().equals(i.getInterval()) ) 
+            if( i == null || i.getContainer().equals(i.getInterval()) ) 
             	restrictTo8Bits(reg);
             else 
             	 restrictTo8Bits(i);
@@ -211,7 +211,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
           if (rootOp.isRegister()) {
         	  Register reg= rootOp.asRegister().getRegister();
         	  Interval i = reg.getInterval(s);
-        	  if(i != null || i.getContainer().equals(i.getInterval()) ) 
+        	  if(i == null || i.getContainer().equals(i.getInterval()) ) 
         	      restrictTo8Bits(reg);
         	  else 
         		  restrictTo8Bits(i);
