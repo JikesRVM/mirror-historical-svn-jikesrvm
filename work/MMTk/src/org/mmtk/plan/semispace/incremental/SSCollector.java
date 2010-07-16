@@ -115,7 +115,7 @@ public class SSCollector extends StopTheWorldCollector {
   public void collectionPhase(short phaseId, boolean primary) {
     if (phaseId == SS.PREPARE) {
       // rebind the copy bump pointer to the appropriate semispace.
-      ss.rebind(SS.toSpace()); // correct LPJH
+      ss.rebind(SS.toSpace());
       los.prepare(true);
       super.collectionPhase(phaseId, primary);
       return;

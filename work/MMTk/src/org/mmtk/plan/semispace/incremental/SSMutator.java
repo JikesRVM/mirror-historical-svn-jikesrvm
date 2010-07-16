@@ -45,7 +45,7 @@ public class SSMutator extends StopTheWorldMutator {
    */
   public void initMutator(int id) {
     super.initMutator(id);
-    ss.rebind(SS.fromSpace()); // Changed LPJH, later for concurrent termination might want to be to-space
+    ss.rebind(SS.fromSpace()); // later for concurrent termination might want to be to-space
   }
 
   /****************************************************************************

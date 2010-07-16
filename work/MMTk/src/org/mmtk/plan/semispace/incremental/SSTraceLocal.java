@@ -48,9 +48,9 @@ public class SSTraceLocal extends TraceLocal {
    */
   public boolean isLive(ObjectReference object) {
     if (object.isNull()) return false;
-    if (Space.isInSpace(SS.fromSpace().getDescriptor(), object)) // correct LPJH
+    if (Space.isInSpace(SS.fromSpace().getDescriptor(), object))
       return SS.copySpace0.isLive(object); // isLive could be called in a static way
-    if (Space.isInSpace(SS.toSpace().getDescriptor(), object)) // correct LPJH
+    if (Space.isInSpace(SS.toSpace().getDescriptor(), object))
       return true;
     return super.isLive(object);
   }
@@ -84,6 +84,6 @@ public class SSTraceLocal extends TraceLocal {
    * @return True if the object will not move.
    */
   public boolean willNotMoveInCurrentCollection(ObjectReference object) {
-    return !Space.isInSpace(SS.fromSpace().getDescriptor(), object); // correct LPJH
+    return !Space.isInSpace(SS.fromSpace().getDescriptor(), object);
   }
 }

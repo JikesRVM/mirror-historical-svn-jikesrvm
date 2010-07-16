@@ -106,7 +106,7 @@ public class SS extends StopTheWorld {
     if (phaseId == SS.RELEASE) {
       low = !low; // flip the semi-spaces
       fromSpace().prepare(true);
-      toSpace().release(); // correct LPJH
+      toSpace().release();
 
       super.collectionPhase(phaseId);
       return;
@@ -129,7 +129,7 @@ public class SS extends StopTheWorld {
   public final int getCollectionReserve() {
     // we must account for the number of pages required for copying,
     // which equals the number of semi-space pages reserved
-    return fromSpace().reservedPages() + super.getCollectionReserve(); // changed LPJH
+    return fromSpace().reservedPages() + super.getCollectionReserve();
   }
 
   /**
@@ -141,7 +141,7 @@ public class SS extends StopTheWorld {
    * allocation, excluding space reserved for copying.
    */
   public int getPagesUsed() {
-    return super.getPagesUsed() + fromSpace().reservedPages(); // changed LPJH
+    return super.getPagesUsed() + fromSpace().reservedPages();
   }
 
   /**
