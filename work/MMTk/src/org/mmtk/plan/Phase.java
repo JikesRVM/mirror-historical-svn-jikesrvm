@@ -16,11 +16,9 @@ import org.mmtk.utility.Constants;
 import org.mmtk.utility.Log;
 import org.mmtk.utility.options.Options;
 import org.mmtk.utility.statistics.Timer;
-import org.mmtk.vm.Lock;
 import org.mmtk.vm.VM;
 
 import org.vmmagic.pragma.*;
-import org.vmmagic.unboxed.ObjectReference;
 
 /**
  * A garbage collection proceeds as a sequence of phases. Each

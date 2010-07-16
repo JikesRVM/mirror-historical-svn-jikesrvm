@@ -3186,7 +3186,7 @@ public final class RVMThread extends ThreadContext {
 
     /**
      * Check whether to include the specified thread in the soft handshake.
-     * 
+     *
      * @param t The thread to check for inclusion
      * @return True if the thread should be included.
      */

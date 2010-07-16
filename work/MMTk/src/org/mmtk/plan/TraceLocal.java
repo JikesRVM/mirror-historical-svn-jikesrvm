@@ -80,7 +80,7 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
   protected boolean overwriteReferenceDuringTrace() {
     return true;
   }
-  
+
   /**
    * Trace a reference during GC.  This involves determining which
    * collection policy applies and calling the appropriate
