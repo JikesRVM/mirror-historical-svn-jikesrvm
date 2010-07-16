@@ -3006,44 +3006,62 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 		return result;
 	}
 
-
+    private boolean checkForRestriction (ArrayList<Register> regList, Interval i) {
+    	for (Iterator<Register> iter = regList.iterator();iter.hasNext();) {
+    		Register reg = iter.next();
+    		return restrict.isForbidden(i, reg);
+    	}
+    	return false;
+    }
 	private Interval checkForSpillPoint(ArrayList<Interval> liveIntervals) {
 		// TODO Auto-generated method stub
-		
 		int numberOfGprAvailable;
 		int numberOfFprAvailable;
-		boolean simulationRequired = false;
 		ArrayList<Interval> restrictedIntervals = new ArrayList<Interval>();
 		ArrayList<Interval> nonRestrictedInterval = new ArrayList<Interval>();
-		ArrayList<Interval> floatIntervals = new ArrayList<Interval>();
+	
 		/* ESP and ESI cannot be allocated*/
 	    numberOfGprAvailable = phys.NUM_GPRS - 2;
 	    numberOfFprAvailable = phys.NUM_FPRS;
-	    int totalLive = liveIntervals.size();
 	    int numFloatVariables=0;
 	    int numOtherVariables=0;
+	    Interval floatInterval = null;
+	    
 	    for (Iterator<Interval> iter=liveIntervals.iterator(); iter.hasNext();) {
 	    	Interval i = iter.next();
 	    	Register r = ((CompoundInterval)i.getContainer()).getRegister();
 	    	if(r.isPhysical()) continue;
 	        if (r.isFloatingPoint()) {
 	    		numFloatVariables++;
-	    		floatIntervals.add(i);
+                floatInterval = i;
 	        }
-	    	else {
+	    	else 
 	    		numOtherVariables++;
-	    		if(restrict.hasRestrictions(i))    			
-	    			restrictedIntervals.add(i);
-	    		else
-	    			nonRestrictedInterval.add(i);
-	    	}
 	    }
 	    
-	    if (numFloatVariables > numberOfFprAvailable ) {
-	    	//if (EXTENDED_DEBUG) System.out.println(" Check Spill point: floating point spill " );
-	    	return floatIntervals.get(0);
-	    }
-	    if (numOtherVariables > numberOfGprAvailable ) {
+	    if (numFloatVariables > numberOfFprAvailable ) return floatInterval;
+	    
+	    /*
+	     * Build a list of  physical registers which can be allocated
+	     */
+	    ArrayList<Register> physicalRegisterList = new ArrayList<Register>();
+	    for (Enumeration<Register> enumeration =phys.enumerateGPRs(); enumeration.hasMoreElements();) {
+			Register reg = enumeration.nextElement();
+			if(reg != phys.getESI() && reg != phys.getESI()) {
+				physicalRegisterList.add(reg);
+			}
+		}
+	    
+    	for (Iterator<Interval> iter=liveIntervals.iterator(); iter.hasNext();) {
+	   		Interval i = iter.next();
+	   		Register r = ((CompoundInterval)i.getContainer()).getRegister();
+	    	if(r.isPhysical() ||  r.isFloatingPoint()) continue;
+	   		if (checkForRestriction(physicalRegisterList,i))
+	   			restrictedIntervals.add(i);
+	   		else
+	    		nonRestrictedInterval.add(i);
+    	}
+	   	    if (numOtherVariables > numberOfGprAvailable ) {
 	    	//if (EXTENDED_DEBUG) System.out.println(" Check Spill point: non floating point spill " );
 	    	if(!nonRestrictedInterval.isEmpty())
 	    		return nonRestrictedInterval.get(0);
@@ -3055,45 +3073,44 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 	     * try to simulate the register allocation
 	     */
 	    if (restrictedIntervals == null) return null;
-	    /*
-	     * Build a list of  physical registers which can be allocated
-	     */
-	    ArrayList<Register> physicalRegisterList = new ArrayList<Register>();
-	    for (Enumeration<Register> enumeration =phys.enumerateGPRs(); enumeration.hasMoreElements();) {
-			Register reg = enumeration.nextElement();
-			if(reg != phys.getESI() && reg != phys.getESI()) {
-				physicalRegisterList.add(reg);
-			}
-		}
+	    
 	    /*
 	     * First allocate the restricted intervals 
 	     */
+	    if (EXTENDED_DEBUG) System.out.println(" Allocation simulation available registers" + physicalRegisterList.size());
 	    for (Iterator<Interval> iter = restrictedIntervals.iterator();iter.hasNext();) {
 	        Interval i= iter.next();
 	        boolean allocated = false;
-	        Register r=null;
-	        for (Iterator<Register> regIter =physicalRegisterList.iterator();regIter.hasNext(); ) {
-	        	 Register reg = regIter.next();
-	        	if (!allocated && !restrict.isForbidden(i, reg)) {
-	        		r = reg;
-	        		allocated = true;
+	        int count = 0;
+	       // Register r=null;
+	        for (; count < physicalRegisterList.size();count++ ) {
+	        	 Register reg = physicalRegisterList.get(count);
+	        	
+	        	if ( !restrict.isForbidden(i, reg)) {
+	                allocated = true;
+	                physicalRegisterList.remove(count);
+	                break;
 	        	}
+	        	count ++;
 	        }
 	        if (!allocated) {
-	        	if (EXTENDED_DEBUG) System.out.println(" Check Spill point: could not allocate to restricted interval " );
+	        	if (EXTENDED_DEBUG) System.out.println(" Check Spill point: could not allocate to restricted interval " + 
+	        			restrictedIntervals.size() +" toatl var" + numOtherVariables + " Num Itera " + count );
 	        	return i;
 	        }
-	        else
-	        	physicalRegisterList.remove(r);
+	        else if (EXTENDED_DEBUG) System.out.println("Allocated to restrcied inter "+ "available regiters" + physicalRegisterList.size());
+	        	
 	    }
 	    
+	    if (EXTENDED_DEBUG) System.out.println(" Allocated to all restricted:  available registers" + physicalRegisterList.size());
 	    /*
 	     * Now allocate the non restricted
 	     */
 	    for (Iterator<Interval> iter = nonRestrictedInterval.iterator();iter.hasNext(); physicalRegisterList.remove(0)) {
 	    	Interval i= iter.next();
 	    	if( physicalRegisterList.isEmpty() ) {
-	    		if (EXTENDED_DEBUG) System.out.println(" Check Spill point: could not allocate  restricted interval " );
+	    		if (EXTENDED_DEBUG) System.out.println(" Check Spill point: could not allocate  to non restricted interval " + nonRestrictedInterval.size()
+	    				+ " restricted size " + restrictedIntervals.size() +" total var " + numOtherVariables);
 	    		return i;
 	    	}
 	    }
