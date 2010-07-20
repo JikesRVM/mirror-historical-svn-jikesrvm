@@ -387,20 +387,18 @@ public final class Register {
   }
   /* end of inlined behavior */
   
-/*
- * Give an instruction return the BasicInterval containing this instruction or
- * just return the CompoundInterval if spill at BasicInterval is not supported.
- * This might return null here for physcial registers
- * Scratch fields are  used here, so be careful when using in other phases of compilation 
- */
-  
+  /*
+   * Give an instruction return the BasicInterval containing this instruction or
+   * just return the CompoundInterval if spill at BasicInterval is not supported.
+   * This might return null here, so do assertion for null  after call.
+   * Scratch fields are  used here, so be careful when using in other phases of compilation 
+   */
   public Interval getInterval(Instruction s) {
-	// TODO Auto-generlated method stub
-	Interval result=null;
-	Interval  container;
-	container = (Interval)scratchObject;
-	if(!this.isPhysical())  
-        result = container.getInterval(s.scratch);
-	return result;
+    // TODO Auto-generlated method stub
+    Interval container = (Interval)scratchObject;
+    if (!this.isPhysical) 
+      return container.getInterval(s.scratch);
+    else
+      return null;
   }
 }
