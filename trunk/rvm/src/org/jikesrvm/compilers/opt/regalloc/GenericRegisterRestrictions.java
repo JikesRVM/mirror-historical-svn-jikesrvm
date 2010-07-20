@@ -39,16 +39,14 @@ import org.jikesrvm.compilers.opt.util.BitSet;
  * RegisterRestrictions.
  */
 public abstract class GenericRegisterRestrictions {
-  // for each symbolic register, the set of physical registers that are
+  // for each Interval(CompoundInterval or BasicInterval), the set of physical registers that are
   // illegal for assignment
-  private final HashMap<Register, RestrictedRegisterSet> hash = new HashMap<Register, RestrictedRegisterSet>();
-  // a set of symbolic registers that must not be spilled.
-  private final HashSet<Register> noSpill = new HashSet<Register>();
-  protected final PhysicalRegisterSet phys;
-  // EBM discuss
-  private final HashMap<Interval, RestrictedRegisterSet> intervalHash = new HashMap<Interval,RestrictedRegisterSet>();
+    private final HashMap<Interval, RestrictedRegisterSet> intervalHash = new HashMap<Interval,RestrictedRegisterSet>();
+ 
+  // a set of Intervals that must not be spilled.
   private final HashSet<Interval> intervalNoSpill = new HashSet<Interval>();
-    
+  protected final PhysicalRegisterSet phys;
+  
   /**
    * Default Constructor
    */
@@ -56,26 +54,14 @@ public abstract class GenericRegisterRestrictions {
     this.phys = phys;
   }
 
-  /**
-   * Record that the register allocator must not spill a symbolic
-   * register.
-   */
-  protected final void noteMustNotSpill(Register r) {
-    noSpill.add(r);
-  }
-  protected final void noteMustNotSpill(Interval I) {
-    intervalNoSpill.add(I);
+  protected final void noteMustNotSpill(Interval i) {
+    intervalNoSpill.add(i);
   }
 
-  /**
-   * Is spilling a register forbidden?
-   */
-  public final boolean mustNotSpill(Register r) {
-    return noSpill.contains(r);
-  }
   public final boolean mustNotSpill(Interval I) {
     return intervalNoSpill.contains(I);
   }
+  
   /**
    * Record all the register restrictions dictated by an IR.
    *
@@ -90,59 +76,7 @@ public abstract class GenericRegisterRestrictions {
       processBlock(b);
     }
   }
-  /*
-public void iterateOverSet(){
-	Iterator<Interval> iKeys = intervalHash.keySet().iterator();
-	Iterator<Register> rKeys = hash.keySet().iterator();
-	Iterator<Register> noSpillRegisters = noSpill.iterator();
-	Iterator<Interval> noSpillIntervals = intervalNoSpill.iterator();
-    
-    System.out.println("intervals and its restrcited register set");
-	while(iKeys.hasNext()){
-		Enumeration<Register> enume = phys.enumerateAll();
-		Interval i = iKeys.next();
-		RestrictedRegisterSet set = intervalHash.get(i);
-		System.out.println("Basic Interval's reg "+i.getContainer().getRegister().toString());
-		while(enume.hasMoreElements()){
-			Register temp = enume.nextElement();
-			if(set.contains(temp))
-				temp.toString();
-		}
-	}
-	
-	System.out.println("Register and its restrcited register set");
-	while(rKeys.hasNext()){ 
-		Enumeration<Register> enume = phys.enumerateAll();
-		Register reg = rKeys.next();
-		
-		System.out.println("CompoundInterval Interval's reg "+reg.toString());
-		RestrictedRegisterSet set = hash.get(reg);
-		BitSet s =set.bitset;
-		while(enume.hasMoreElements()){
-			Register temp = enume.nextElement();
-			if(set.contains(temp))
-				temp.toString();
-			
-		}
-		
-	}
-	
-	while(noSpillIntervals.hasNext()){
-		System.out.println("interval/ Register which cannot be spilled");
-		Interval i = noSpillIntervals.next();
-		MappedBasicInterval m = (MappedBasicInterval)i;
-		System.out.println("Contains Registernum "+ m.container.getRegister().number);
-		
-	}
-	
-	while(noSpillRegisters.hasNext()){
-		System.out.println(" Register which cannot be spilled");
-		Register reg = noSpillRegisters.next();
-		
-		System.out.println("Contains Registernum "+ reg.number);
-	}
-}
-*/
+ 
   /**
    * Record all the register restrictions dictated by live ranges on a
    * particular basic block.
@@ -175,11 +109,7 @@ public void iterateOverSet(){
       for (LiveIntervalElement symb : symbolic) {
         if (overlaps(phys, symb)) {
           Interval i = symb.getInterval();
-          VM._assert(i != null);
-          if (i.getContainer().equals(i.getInterval())) 
-            addRestriction(symb.getRegister(), phys.getRegister());
-          else
-            addRestriction(i, phys.getRegister());
+          addRestriction(i, phys.getRegister());
         }
       }
     }
@@ -193,11 +123,7 @@ public void iterateOverSet(){
         for (LiveIntervalElement symb : symbolic) {
           if (contains(symb, s.scratch)) {
             Interval i = symb.getInterval();
-            VM._assert(i != null);
-            if (i.getContainer().equals(i.getInterval())) 
-              forbidAllVolatiles(symb.getRegister());
-            else 
-              forbidAllVolatiles(i);
+            forbidAllVolatiles(i);
           }
         }
       }
@@ -211,17 +137,12 @@ public void iterateOverSet(){
           if (symb.getRegister().isFloatingPoint()) {
             if (contains(symb, s.scratch)) {
               Interval i = symb.getInterval();
-              VM._assert(i != null);
-              if (i.getContainer().equals(i.getInterval()))
-                forbidAllVolatiles(symb.getRegister());
-              else
-                forbidAllVolatiles(i);
+              forbidAllVolatiles(i);
             }
           }
         }
       }
     }
-
     // 3. architecture-specific restrictions
     addArchRestrictions(bb, symbolic);
   }
@@ -292,134 +213,73 @@ public void iterateOverSet(){
 
   }
 
-  /**
-   * Record that it is illegal to assign a symbolic register symb to any
-   * volatile physical registers
-   */
-  final void forbidAllVolatiles(Register symb) {
-    RestrictedRegisterSet r = hash.get(symb);
+  final void forbidAllVolatiles(Interval i) {
+    //following assertion can be removed after testing
+    VM._assert(i != null);
+    RestrictedRegisterSet r = intervalHash.get(i);
     if (r == null) {
-      r = new RestrictedRegisterSet(phys);
-      hash.put(symb, r);
+     r = new RestrictedRegisterSet(phys);
+     intervalHash.put(i, r);
     }
     r.setNoVolatiles();
   }
-  
-  final void forbidAllVolatiles(Interval I) {
-	    RestrictedRegisterSet r = intervalHash.get(I);
-	    if (r == null) {
-	      r = new RestrictedRegisterSet(phys);
-	      intervalHash.put(I, r);
-	    }
-	    r.setNoVolatiles();
-	  }
-
-
-  /**
-   * Record that it is illegal to assign a symbolic register symb to any
-   * of a set of physical registers
-   */
-  protected final void addRestrictions(Register symb, BitSet set) {
-    RestrictedRegisterSet r = hash.get(symb);
+  protected final void addRestrictions(Interval i, BitSet set) {
+    // following assertion can be removed after testing
+    VM._assert(i != null);
+    RestrictedRegisterSet r = intervalHash.get(i);
     if (r == null) {
       r = new RestrictedRegisterSet(phys);
-      hash.put(symb, r);
+      intervalHash.put(i, r);
     }
     r.addAll(set);
   }
-  
-  protected final void addRestrictions(Interval I, BitSet set) {
-	    RestrictedRegisterSet r = intervalHash.get(I);
-	    if (r == null) {
-	      r = new RestrictedRegisterSet(phys);
-	      intervalHash.put(I, r);
-	    }
-	    r.addAll(set);
-	  }
-  /**
-   * Record that it is illegal to assign a symbolic register symb to a
-   * physical register p
-   */
-  protected final void addRestriction(Register symb, Register p) {
-    RestrictedRegisterSet r = hash.get(symb);
-    if (r == null) {
-      r = new RestrictedRegisterSet(phys);
-      hash.put(symb, r);
-    }
-    r.add(p);
-  }
 
   /**
    * Record that it is illegal to assign a symbolic register symb to a
    * physical register p
    */
-  protected final void addRestriction(Interval I, Register p) {
-    RestrictedRegisterSet r = intervalHash.get(I);
+  protected final void addRestriction(Interval i, Register p) {
+    //must be removed after testing
+    VM._assert(i != null);
+    RestrictedRegisterSet r = intervalHash.get(i);
     if (r == null) {
       r = new RestrictedRegisterSet(phys);
-      intervalHash.put(I, r);
+      intervalHash.put(i, r);
     }
     r.add(p);
   }
   
   /**
-   * Return the set of restricted physical register for a given symbolic
-   * register. Return null if no restrictions.
+   * Return the set of restricted physical register for a given Interval. Return null if no restrictions.
    */
-  final RestrictedRegisterSet getRestrictions(Register symb) {
-    return hash.get(symb);
+  final RestrictedRegisterSet getRestrictions(Interval i) {
+    //must be removed after testing
+    VM._assert(i != null);
+    return intervalHash.get(i);
   }
-  
-  final RestrictedRegisterSet getRestrictions(Interval I) {
-	    return intervalHash.get(I);
-	  }
 
-  /**
-   * Is it forbidden to assign symbolic register symb to any volatile
-   * register?
-   * @return true :yes, all volatiles are forbidden
-   *         false :maybe, maybe not
-   */
-  public final boolean allVolatilesForbidden(Register symb) {
+  public final boolean allVolatilesForbidden(Interval i) {
     if (VM.VerifyAssertions) {
-      VM._assert(symb != null);
+      VM._assert(i != null);
     }
-    RestrictedRegisterSet s = getRestrictions(symb);
+    RestrictedRegisterSet s = getRestrictions(i);
     if (s == null) return false;
     return s.getNoVolatiles();
   }
-  
-  public final boolean allVolatilesForbidden(Interval I) {
-	    if (VM.VerifyAssertions) {
-	      VM._assert(I != null);
-	    }
-	    RestrictedRegisterSet s = getRestrictions(I);
-	    if (s == null) return false;
-	    return s.getNoVolatiles();
-	  }
   /**
-   * Is it forbidden to assign symbolic register symb to physical register
+   * Is it forbidden to assign Interval i to physical register
    * phys?
    */
-  public final boolean isForbidden(Register symb, Register phys) {
+  public final boolean isForbidden(Interval i, Register phys) {
     if (VM.VerifyAssertions) {
-      VM._assert(symb != null);
+      VM._assert(i != null);
       VM._assert(phys != null);
     }
-    RestrictedRegisterSet s = getRestrictions(symb);
+    RestrictedRegisterSet s = getRestrictions(i);
     if (s == null) return false;
     return s.contains(phys);
   }
   
-  public final boolean isForbidden(Interval I, Register phys) {
-	    if (VM.VerifyAssertions) {
-	      VM._assert(I != null);
-	      VM._assert(phys != null);
-	    }
-	    RestrictedRegisterSet s = getRestrictions(I);
-	    if (s == null) return false;
-	    return s.contains(phys);
-	  }
   /**
    * Is it forbidden to assign symbolic register symb to physical register r
    * in instruction s?
