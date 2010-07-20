@@ -1,0 +1,14 @@
+Some (brief) notes I took today (2010/07/20):
+
+may 21 svn head MC bump pointer
+separate FP word, thin lock, handshake with owner thread, inflate lock
+EM: add extra word for FP at moment
+
+separate FP and attempt to hash at same stage
+
+CAS busy into status
+CAS FP
+CAS Forwarded into status
+
+need something similar for Biased locking
+
