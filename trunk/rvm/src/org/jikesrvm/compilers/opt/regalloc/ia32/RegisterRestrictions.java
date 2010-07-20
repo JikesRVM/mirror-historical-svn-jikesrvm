@@ -79,40 +79,37 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
    for(InstructionEnumeration ie = bb.forwardInstrEnumerator(); ie.hasMoreElements();) {
    Instruction s = ie.next();
    if (s.isPEI() && s.operator != IR_PROLOGUE) {
-	  if (bb.hasApplicableExceptionalOut(s) || !SCRATCH_IN_PEI) {
-		  for (Enumeration<Operand> e = s.getOperands(); e.hasMoreElements();) {
-			  Operand op = e.nextElement();
-			  if (op != null && op.isRegister()) {
-				  Register reg = op.asRegister().getRegister();
-				  /*
-				   * Interval i will be null for phyical registers.
-				   * Previously physical register were also added through noteMustNotSpill call
-				   * Spill at BasciInterval concept makes this obsolete because we are never going to
-				   * spill a physical register.
-				   */
-				  Interval i = reg.getInterval(s);
-				  if(i == null || i.getContainer().equals(i.getInterval()) )
-					  noteMustNotSpill(reg);
-				  else 
-					  noteMustNotSpill(i);
-				   handle8BitRestrictions(s);
-				      }
-			 }
-		  }
-	  }
+     if (bb.hasApplicableExceptionalOut(s) || !SCRATCH_IN_PEI) {
+       for (Enumeration<Operand> e = s.getOperands(); e.hasMoreElements();) {
+         Operand op = e.nextElement();
+	   if (op != null && op.isRegister()) {
+	     Register reg = op.asRegister().getRegister();
+	     /*
+	     * Interval i will be null for phyical registers.
+	     * Previously physical register were also added through noteMustNotSpill call
+	     * Spill at BasciInterval concept makes this obsolete because we are never going to
+	     * spill a physical register.
+	     */
+	     Interval i = reg.getInterval(s);
+	     // i will be null for physical registers
+	     noteMustNotSpill(i);
+	     handle8BitRestrictions(s);
+	   }
+       }
+     }
+   }
 
       // handle special cases
       switch (s.getOpcode()) {
         case MIR_LOWTABLESWITCH_opcode: {
           RegisterOperand op = MIR_LowTableSwitch.getMethodStart(s);
-          noteMustNotSpill(op.getRegister());
-          op = MIR_LowTableSwitch.getIndex(s);
           Register reg = op.getRegister();
           Interval i = reg.getInterval(s);
-          if( i == null || i.getContainer().equals(i.getInterval()) ) 
-               noteMustNotSpill(reg);
-          else 
-        	  noteMustNotSpill(i);
+          noteMustNotSpill(i);
+          op = MIR_LowTableSwitch.getIndex(s);
+          reg = op.getRegister();
+          i = reg.getInterval(s);
+          noteMustNotSpill(i);
         }
         break;
         case IA32_MOVZX__B_opcode:
@@ -121,10 +118,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
             RegisterOperand val = MIR_Unary.getVal(s).asRegister();
             Register reg = val.getRegister();
             Interval i = reg.getInterval(s);
-            if(i == null || i.getContainer().equals(i.getInterval()) ) 
-            	restrictTo8Bits(reg);
-            else 
-            	 restrictTo8Bits(i);
+            restrictTo8Bits(i);
           }
         }
         break;
@@ -133,10 +127,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
             RegisterOperand op = MIR_Set.getResult(s).asRegister();
             Register reg = op.getRegister();
             Interval i = reg.getInterval(s);
-            if( i == null || i.getContainer().equals(i.getInterval()) ) 
-            	restrictTo8Bits(reg);
-            else 
-            	 restrictTo8Bits(i);
+            restrictTo8Bits(i);
           }
         }
         break;
@@ -154,10 +145,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
           if (symb.getRegister().isFloatingPoint()) {
             if (contains(symb, s.scratch)) {
             	Interval i = symb.getInterval();
-            	if( i.getContainer().equals(i.getInterval()) ) 
-            		addRestrictions(symb.getRegister(), phys.getFPRs());
-            	else 
-            		addRestrictions(i, phys.getFPRs());
+            	addRestrictions(i, phys.getFPRs());
             }
           }
         }
@@ -166,16 +154,10 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
         for (LiveIntervalElement symb : symbolics) {
           if (symb.getRegister().isFloatingPoint()) {
             if (contains(symb, s.scratch)) {
-            	Interval interval = symb.getInterval();
-          	    boolean basic = true;
-            	if( interval.getContainer().equals(interval.getInterval()) )
-            	    basic = false;
+              Interval interval = symb.getInterval();
               int nSave = MIR_UnaryNoRes.getVal(s).asIntConstant().value;
               for (int i = nSave; i < NUM_FPRS; i++) {
-            	  if(!basic)
-            		  addRestriction(symb.getRegister(), phys.getFPR(i));
-            	  else 
-            		  addRestriction(interval, phys.getFPR(i));
+                addRestriction(interval, phys.getFPR(i));
               }
             }
           }
@@ -209,12 +191,9 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
         for (OperandEnumeration e2 = s.getRootOperands(); e2.hasMoreElements();) {
           Operand rootOp = e2.next();
           if (rootOp.isRegister()) {
-        	  Register reg= rootOp.asRegister().getRegister();
-        	  Interval i = reg.getInterval(s);
-        	  if(i == null || i.getContainer().equals(i.getInterval()) ) 
-        	      restrictTo8Bits(reg);
-        	  else 
-        		  restrictTo8Bits(i);
+            Register reg= rootOp.asRegister().getRegister();
+            Interval i = reg.getInterval(s);
+            restrictTo8Bits(i);
           }
         }
       }
@@ -222,20 +201,12 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
   }
 
   /**
-   * Ensure that a particular register is only assigned to AL, BL, CL, or
+   * Ensure that a particular Interval is only assigned to AL, BL, CL, or
    * DL, since these are the only 8-bit registers we normally address.
    */
-  final void restrictTo8Bits(Register r) {
-    Register ESP = phys.getESP();
-    Register EBP = phys.getEBP();
-    Register ESI = phys.getESI();
-    Register EDI = phys.getEDI();
-    addRestriction(r, ESP);
-    addRestriction(r, EBP);
-    addRestriction(r, ESI);
-    addRestriction(r, EDI);
-  }
   final void restrictTo8Bits(Interval i) {
+        // following must be removed, presnethere for testing purpose. i will be null for physical registers. So check this condition
+        VM._assert(i != null);
 	Register ESP = phys.getESP();
 	Register EBP = phys.getEBP();
 	Register ESI = phys.getESI();
