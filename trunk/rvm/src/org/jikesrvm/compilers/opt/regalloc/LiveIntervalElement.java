@@ -117,24 +117,13 @@ public final class LiveIntervalElement {
    * allocation at BasicInterval level else return the compound interval it belongs to.
    * This will return null for physical registers.
    */
-  public Interval getInterval(){
-	  Interval result=null;
-	  Instruction begin = this.getBegin();
-	  Instruction end = this.getEnd();
-	  int start,finish;
-	  if(begin != null)
-	   start = this.getBegin().scratch;
-	  else
-		  start = this.getBasicBlock().firstInstruction().scratch;
-	  if(end != null)
-	     finish = this.getEnd().scratch;
-	  else
-		  finish = this.getBasicBlock().lastInstruction().scratch;
-	  Register reg = this.getRegister();
-	  if (!reg.isPhysical()) {
-	      Interval i = (Interval)reg.scratchObject;
-	      result=i.getInterval(start,finish);
-	  }
-	  return result;
+  public Interval getInterval() {
+    int start  = ((begin != null) ? begin : bb.firstInstruction()).scratch;
+    int finish = ((end   != null) ? end   : bb.lastInstruction() ).scratch; 
+    if (!register.isPhysical()) {
+      Interval i = (Interval)register.scratchObject;
+      return i.getInterval(start,finish);
+    }
+    return null;
   }
 }
