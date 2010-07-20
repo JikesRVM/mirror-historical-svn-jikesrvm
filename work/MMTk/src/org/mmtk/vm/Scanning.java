@@ -28,6 +28,10 @@ import org.vmmagic.unboxed.*;
    */
   public abstract void scanObject(TransitiveClosure trace, ObjectReference object);
 
+  public abstract boolean pointsTo(ObjectReference object, int descriptor);
+
+  public abstract boolean pointsToForwardedObjects(ObjectReference object);
+
   /**
    * Invoke a specialized scan method. Note that these methods must have been allocated
    * explicitly through Plan and PlanConstraints.

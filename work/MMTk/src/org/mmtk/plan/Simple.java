@@ -127,6 +127,7 @@ public abstract class Simple extends Plan implements Constants {
       Phase.scheduleCollector  (ROOTS),
       Phase.scheduleGlobal     (ROOTS),
       Phase.scheduleGlobal     (CLOSURE),
+ Phase.scheduleMutator(CLOSURE),
       Phase.scheduleCollector  (CLOSURE));
 
   /**
@@ -167,6 +168,7 @@ public abstract class Simple extends Plan implements Constants {
   protected static final short finishPhase = Phase.createComplex("finish",
       Phase.schedulePlaceholder(POST_SANITY_PLACEHOLDER),
       Phase.scheduleCollector  (COMPLETE),
+ Phase.scheduleMutator(COMPLETE),
       Phase.scheduleGlobal     (COMPLETE),
       Phase.scheduleGlobal     (CONSIDER_GROW_HEAP),
       Phase.scheduleGlobal     (RESET_COLLECTION),

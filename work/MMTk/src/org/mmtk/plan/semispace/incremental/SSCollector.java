@@ -17,6 +17,7 @@ import org.mmtk.policy.CopyLocal;
 import org.mmtk.policy.LargeObjectLocal;
 import org.mmtk.policy.Space;
 import org.mmtk.utility.ForwardingWord;
+import org.mmtk.utility.Log;
 import org.mmtk.vm.VM;
 
 import org.vmmagic.unboxed.*;
@@ -32,6 +33,10 @@ public class SSCollector extends StopTheWorldCollector {
   protected final SSTraceLocal trace;
   protected final CopyLocal ss;
   protected final LargeObjectLocal los;
+
+  private static final PreGCToSpaceLinearSanityScan preGCSanity = new PreGCToSpaceLinearSanityScan();
+  private static final PostGCToSpaceLinearSanityScan postGCSanity = new PostGCToSpaceLinearSanityScan();
+  public static final ToSpaceLinearScanTrace linearTrace = new ToSpaceLinearScanTrace();
 
   /****************************************************************************
    *
@@ -98,6 +103,10 @@ public class SSCollector extends StopTheWorldCollector {
     ForwardingWord.clearForwardingBits(object);
     if (allocator == Plan.ALLOC_LOS)
       Plan.loSpace.initializeHeader(object, false);
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(getCurrentTrace().isLive(object));
+      VM.assertions._assert(getCurrentTrace().willNotMoveInCurrentCollection(object));
+    }
   }
 
   /****************************************************************************
@@ -115,20 +124,41 @@ public class SSCollector extends StopTheWorldCollector {
   public void collectionPhase(short phaseId, boolean primary) {
     if (phaseId == SS.PREPARE) {
       // rebind the copy bump pointer to the appropriate semispace.
-      ss.rebind(SS.toSpace());
+      if (SS.copyingAllComplete)
+        ss.rebind(SS.toSpace());
+      ss.linearScan(preGCSanity);
       los.prepare(true);
+      trace.numObjectsCopied = 0;
       super.collectionPhase(phaseId, primary);
       return;
     }
 
     if (phaseId == SS.CLOSURE) {
+      ss.linearScan(linearTrace);
       trace.completeTrace();
+      int max = SSTraceLocal.numCopiesPerGCAllowed;
+      int copied = trace.getNumObjectsCopied();
+      if (copied < max) {
+        Log.writeln("Everything copied ", copied);
+        SS.copyingAllComplete = true; // no more possible objects left to copy
+      }
       return;
     }
 
     if (phaseId == SS.RELEASE) {
       trace.release();
       los.release(true);
+      super.collectionPhase(phaseId, primary);
+      return;
+    }
+    
+    if (phaseId == SS.COMPLETE) {
+      ss.linearScan(postGCSanity);
+      if (SS.copyingAllComplete) {
+        SS.tackOnLock.acquire();
+        SS.deadThreadsBumpPointer.tackOn(ss);
+        SS.tackOnLock.release();
+      }
       super.collectionPhase(phaseId, primary);
       return;
     }

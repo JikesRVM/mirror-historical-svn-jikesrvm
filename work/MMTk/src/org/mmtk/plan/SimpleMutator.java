@@ -54,6 +54,10 @@ public abstract class SimpleMutator extends MutatorContext {
       return;
     }
 
+    if (phaseId == Simple.CLOSURE) {
+      return;
+    }
+
     if (phaseId == Simple.PREPARE) {
       los.prepare(true);
       lgcode.prepare(true);
@@ -70,6 +74,10 @@ public abstract class SimpleMutator extends MutatorContext {
       nonmove.release();
       VM.memory.collectorReleaseVMSpace();
       return;
+    }
+
+    if (phaseId == Simple.COMPLETE) {
+      return; // nothing to do here
     }
 
     Log.write("Per-mutator phase \""); Phase.getPhase(phaseId).logPhase();

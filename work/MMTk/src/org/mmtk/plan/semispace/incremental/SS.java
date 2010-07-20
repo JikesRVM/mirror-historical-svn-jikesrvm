@@ -12,10 +12,13 @@
  */
 package org.mmtk.plan.semispace.incremental;
 
+import org.mmtk.policy.CopyLocal;
 import org.mmtk.policy.CopySpace;
 import org.mmtk.policy.Space;
 import org.mmtk.plan.*;
 import org.mmtk.utility.heap.VMRequest;
+import org.mmtk.vm.Lock;
+import org.mmtk.vm.VM;
 
 import org.vmmagic.pragma.*;
 import org.vmmagic.unboxed.*;
@@ -41,10 +44,16 @@ public class SS extends StopTheWorld {
 
   public final Trace ssTrace;
 
+  public static volatile boolean copyingAllComplete = true;
+  public static volatile int linearScannedSoFar = 0;
+  public static CopyLocal deadThreadsBumpPointer = new CopyLocal();
+
   static {
     fromSpace().prepare(true);
     toSpace().prepare(false);
   }
+
+  static Lock tackOnLock = VM.newLock("tackOnLock");
 
   /****************************************************************************
    *
@@ -96,22 +105,33 @@ public class SS extends StopTheWorld {
   public void collectionPhase(short phaseId) {
     if (phaseId == SS.PREPARE) {
       ssTrace.prepare();
+      fromSpace().prepare(true); // Make fromSpace moveable whilst GC in progress
+      deadThreadsBumpPointer.linearScan(SSMutator.preGCSanity);
       super.collectionPhase(phaseId);
       return;
     }
     if (phaseId == CLOSURE) {
+      copyingAllComplete = false;
+      // Log.writeln("Closure for dead Thread mutator context");
+      deadThreadsBumpPointer.linearScan(SSCollector.linearTrace);
+      // Log.writeln("Linear scanned so far: ", SS.linearScannedSoFar);
       ssTrace.prepare();
+      fromSpace().prepare(false); // no more objects can be copied from fromSpace in this GC cycle
       return;
     }
     if (phaseId == SS.RELEASE) {
-      low = !low; // flip the semi-spaces
-      fromSpace().prepare(true);
-      toSpace().release();
-
+      if (copyingAllComplete) {
+        low = !low; // flip the semi-spaces
+        toSpace().release();
+        deadThreadsBumpPointer.rebind(fromSpace());
+      }
+      deadThreadsBumpPointer.linearScan(SSMutator.postGCSanity);
       super.collectionPhase(phaseId);
       return;
     }
-
+    if (phaseId == SS.COMPLETE) {
+      fromSpace().prepare(true); // make from space moving at last minute
+    }
     super.collectionPhase(phaseId);
   }
 

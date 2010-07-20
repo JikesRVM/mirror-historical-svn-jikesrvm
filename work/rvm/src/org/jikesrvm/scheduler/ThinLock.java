@@ -16,11 +16,15 @@ import org.jikesrvm.VM;
 import org.jikesrvm.Services;
 import org.jikesrvm.objectmodel.ThinLockConstants;
 import org.jikesrvm.runtime.Magic;
+import org.mmtk.plan.semispace.incremental.SS;
+import org.mmtk.policy.Space;
+import org.mmtk.utility.ForwardingWord;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.NoNullCheck;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Unpreemptible;
+import org.vmmagic.unboxed.ObjectReference;
 import org.vmmagic.unboxed.Offset;
 import org.vmmagic.unboxed.Word;
 
@@ -81,6 +85,13 @@ public final class ThinLock implements ThinLockConstants {
   @Unpreemptible
   public static void lock(Object o, Offset lockOffset) {
     if (STATS) fastLocks++;
+    if (Space.isInSpace(SS.fromSpace().getDescriptor(), ObjectReference.fromObject(o))) {
+      if (ForwardingWord.isForwarded(ObjectReference.fromObject(o))) {
+        VM.sysWrite("Locking ");
+        VM.sysWrite(ObjectReference.fromObject(o));
+        VM.sysWriteln(" Which is in fromSpace and is a forwarded object - uh oh I smell trouble...");
+      }
+    }
 
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
 

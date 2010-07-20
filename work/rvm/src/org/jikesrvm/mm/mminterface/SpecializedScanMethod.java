@@ -26,6 +26,9 @@ import org.jikesrvm.objectmodel.JavaHeaderConstants;
 import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.runtime.Magic;
 import org.mmtk.plan.TransitiveClosure;
+import org.mmtk.plan.semispace.incremental.SS;
+import org.mmtk.policy.Space;
+import org.mmtk.utility.ForwardingWord;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.NoInline;
@@ -206,6 +209,50 @@ public final class SpecializedScanMethod extends SpecializedMethod implements Si
         trace.processEdge(objectRef, objectRef.toAddress().plus(i << LOG_BYTES_IN_ADDRESS));
       }
     }
+  }
+
+  public static boolean pointsTo(ObjectReference objectRef, int descriptor) {
+    RVMType type = ObjectModel.getObjectType(objectRef.toObject());
+    if (type.isClassType()) {
+      RVMClass klass = type.asClass();
+      int[] offsets = klass.getReferenceOffsets();
+      for (int i = 0; i < offsets.length; i++) {
+        ObjectReference obj = Selected.Plan.get().loadObjectReference(objectRef.toAddress().plus(offsets[i]));
+        if (!obj.isNull() && Space.isInSpace(descriptor, obj))
+          return true;
+      }
+    } else if (type.isArrayType() && type.asArray().getElementType().isReferenceType()) {
+      for (int i = 0; i < ObjectModel.getArrayLength(objectRef.toObject()); i++) {
+        ObjectReference obj = Selected.Plan.get().loadObjectReference(objectRef.toAddress().plus(i << LOG_BYTES_IN_ADDRESS));
+        if (!obj.isNull() && Space.isInSpace(descriptor, obj))
+          return true;
+      }
+    }
+    return false; // no references in objectRef point to the space identified by desciptor
+  }
+
+  public static boolean pointsToForwardedObjects(ObjectReference objectRef) {
+    RVMType type = ObjectModel.getObjectType(objectRef.toObject());
+    if (type.isClassType()) {
+      RVMClass klass = type.asClass();
+      int[] offsets = klass.getReferenceOffsets();
+      for (int i = 0; i < offsets.length; i++) {
+        ObjectReference obj = Selected.Plan.get().loadObjectReference(objectRef.toAddress().plus(offsets[i]));
+        if (!obj.isNull()
+            && (Space.getSpaceForObject(obj).getDescriptor() == SS.SS0 || Space.getSpaceForObject(obj).getDescriptor() == SS.SS1)
+            && ForwardingWord.isForwardedOrBeingForwarded(obj))
+          return true;
+      }
+    } else if (type.isArrayType() && type.asArray().getElementType().isReferenceType()) {
+      for (int i = 0; i < ObjectModel.getArrayLength(objectRef.toObject()); i++) {
+        ObjectReference obj = Selected.Plan.get().loadObjectReference(objectRef.toAddress().plus(i << LOG_BYTES_IN_ADDRESS));
+        if (!obj.isNull()
+            && (Space.getSpaceForObject(obj).getDescriptor() == SS.SS0 || Space.getSpaceForObject(obj).getDescriptor() == SS.SS1)
+            && ForwardingWord.isForwardedOrBeingForwarded(obj))
+          return true;
+      }
+    }
+    return false; // no references in objectRef point to an obj in a copyspace that has been forwarded
   }
 
   /** All Scalars */

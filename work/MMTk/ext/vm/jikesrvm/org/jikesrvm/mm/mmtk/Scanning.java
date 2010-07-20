@@ -66,6 +66,16 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
     SpecializedScanMethod.fallback(object.toObject(), trace);
   }
 
+  @Inline
+  public boolean pointsTo(ObjectReference object, int descriptor) {
+    return SpecializedScanMethod.pointsTo(object, descriptor);
+  }
+
+  @Inline
+  public boolean pointsToForwardedObjects(ObjectReference object) {
+    return SpecializedScanMethod.pointsToForwardedObjects(object);
+  }
+
   /**
    * Invoke a specialized scan method. Note that these methods must have been allocated
    * explicitly through Plan and PlanConstraints.

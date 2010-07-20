@@ -26,4 +26,6 @@ public class SSConstraints extends StopTheWorldConstraints {
   public int gcHeaderWords() { return CopySpace.GC_HEADER_WORDS_REQUIRED; }
   @Override
   public int numSpecializedScans() { return 1; }
+  public boolean needsObjectReferenceReadBarrier() { return true; }
+  public boolean needsObjectReferenceWriteBarrier() { return true; }
 }

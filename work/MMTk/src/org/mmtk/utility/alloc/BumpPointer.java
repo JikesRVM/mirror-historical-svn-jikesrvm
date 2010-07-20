@@ -487,6 +487,25 @@ import org.vmmagic.unboxed.Word;
     setRegionLimit(region,limit);
   }
 
+  // Doesn't leave either bump pointer is a useable state for allocation.
+  public void tackOn(BumpPointer bump) {
+    if (initialRegion.isZero()) {
+      /* the first mutator thread has died and we are preserving it's bump pointer */
+      initialRegion = bump.initialRegion;
+      region = bump.region;
+      cursor = bump.cursor;
+    } else {
+      if (VM.VERIFY_ASSERTIONS) {
+        VM.assertions._assert(space == bump.space);
+      }
+      // tack on another bump pointer
+      setDataEnd(region, cursor); // no more data will be allocated in this region of the old bump pointer
+      setNextRegion(region, bump.initialRegion); // next Region is the beginning of the next bump pointer
+      region = bump.region; // fast forward to end of tacked on bump pointer
+      cursor = bump.cursor; // fast forward to end of tacked on bump pointer
+    }
+  }
+
   /**
    * Gather data for GCspy. <p>
    * This method calls the drivers linear scanner to scan through
