@@ -14,6 +14,7 @@ package org.jikesrvm.compilers.opt.regalloc;
 
 import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Iterator;
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.ArchitectureSpecificOpt.CallingConvention;
@@ -45,7 +46,7 @@ import static org.jikesrvm.compilers.opt.ir.Operators.YIELDPOINT_OSR;
 import org.jikesrvm.compilers.opt.ir.Register;
 import org.jikesrvm.compilers.opt.ir.operand.Operand;
 import org.jikesrvm.compilers.opt.ir.operand.RegisterOperand;
-
+import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
 /**
  * Class to manage the allocation of the "compiler-independent" portion of
  * the stackframe.
@@ -56,6 +57,56 @@ public abstract class GenericStackManager extends IRTools {
   protected static final boolean DEBUG = false;
   protected static final boolean VERBOSE = false;
   protected static final boolean VERBOSE_DEBUG = false;
+  
+  /**
+   * Mapping from BasicInterval or CompoundInterval to physical register.
+   * We can specify an initial size to avoid rehashing. But need to decide it on later
+   */
+  protected  HashMap<Interval,Register> intervalToRegister= new HashMap<Interval,Register>();
+  
+  /**
+   * Mapping for spill offset location for intervals which will be spilled.
+   * We can specify an initial size to avoid rehashing.
+   * RegisterAllocatorState can be another place where we can store this data structure but then 
+   * it would be static in nature. Interestingly making the HashMap static cause null pointer exception
+   * even though  Key is not null (May be due to rehashing, I am not sure).
+   */
+  protected  HashMap<Interval,Integer> intervalToSpillLocation =  new HashMap<Interval,Integer>();
+  
+  /**
+   * Set the spill location of Interval i to value spill.
+   * If spill is zero then remove the Interval i form the map as it no longer spilled
+   */
+  protected  void setSpill(Interval i, int spill) {
+    if (VM.VerifyAssertions)
+      VM._assert(i != null);
+    Register reg = i.getRegister();
+    reg.spillRegister();
+    if (spill == 0) intervalToSpillLocation.remove(i);
+    else intervalToSpillLocation.put(i,spill);
+  }
+  
+  /**
+   * Get the spill location for Interval i. This function returns zero
+   * if Interval is not present in the map indicating that Interval i is not spilled
+   * else it returns the spill offset location on the stack frame.
+   */
+  protected int getSpill(Interval i) {
+    //remove the following after testing
+    //VM._assert(i != null);
+    Integer result = intervalToSpillLocation.get(i);
+    if (result == null) return 0;
+    return result;
+  }
+  
+  /**
+   * Check if Interval i marked for spilling.
+   * Returns false if i is null or the map does not contain Interval i
+   */
+  protected boolean isSpilled(Interval i) {
+    if (intervalToSpillLocation.get(i) == null) return false;
+    else return true;
+  }
 
   /**
    * Size of a word, in bytes
@@ -252,7 +303,7 @@ public abstract class GenericStackManager extends IRTools {
    * r1, replace r3 with r2.
    */
   private void replaceRegisterWithScratch(Instruction s, Register r1, Register r2) {
-    int spill1 = RegisterAllocatorState.getSpill(r1);
+    int spill1 =  getSpill((Interval)r1.scratchObject);
     for (Enumeration<Operand> e = s.getOperands(); e.hasMoreElements();) {
       Operand op = e.nextElement();
       if (op != null) {
@@ -260,7 +311,7 @@ public abstract class GenericStackManager extends IRTools {
           Register r3 = op.asRegister().getRegister();
           if (r3 == r1) {
             op.asRegister().setRegister(r2);
-          } else if (RegisterAllocatorState.getSpill(r3) == spill1) {
+          } else if (getSpill((Interval)r3.scratchObject) == spill1) {
             op.asRegister().setRegister(r2);
           }
         }
@@ -313,7 +364,7 @@ public abstract class GenericStackManager extends IRTools {
     // spill the contents of the scratch register
     Register scratchContents = scratch.currentContents;
     if (scratchContents != null) {
-      int location = RegisterAllocatorState.getSpill(scratchContents);
+      int location = getSpill((Interval)scratchContents.scratchObject);
       insertSpillBefore(s, scratch.scratch, getValueType(scratchContents), location);
     }
 
@@ -325,7 +376,7 @@ public abstract class GenericStackManager extends IRTools {
   protected void reloadScratchRegisterBefore(Instruction s, ScratchRegister scratch) {
     if (scratch.hadToSpill()) {
       // Restore the live contents into the scratch register.
-      int location = RegisterAllocatorState.getSpill(scratch.scratch);
+      int location = getSpill((Interval)scratch.scratch.scratchObject);
       insertUnspillBefore(s, scratch.scratch, getValueType(scratch.scratch), location);
     }
   }
@@ -363,8 +414,8 @@ public abstract class GenericStackManager extends IRTools {
       if (sr.currentContents == r) {
         return sr;
       }
-      int location = RegisterAllocatorState.getSpill(sr.currentContents);
-      int location2 = RegisterAllocatorState.getSpill(r);
+      int location = getSpill((Interval)sr.currentContents.scratchObject);
+      int location2 = getSpill((Interval)r.scratchObject);
       if (location == location2) {
         // OK. We're currently holding a different symbolic register r2 in
         // a scratch register, and r2 is mapped to the same spill location
@@ -483,8 +534,8 @@ public abstract class GenericStackManager extends IRTools {
     Register current = sr.currentContents;
 
     if (current != null && current != symb) {
-      int location = RegisterAllocatorState.getSpill(current);
-      int location2 = RegisterAllocatorState.getSpill(symb);
+      int location = getSpill((Interval)current.scratchObject);
+      int location2 = getSpill((Interval)symb.scratchObject);
       if (location != location2) {
         insertSpillBefore(s, sr.scratch, getValueType(current), location);
       }
@@ -510,13 +561,13 @@ public abstract class GenericStackManager extends IRTools {
 
     // Further assure legality for all other symbolic registers in symb
     // which are mapped to the same spill location as symb.
-    int location = RegisterAllocatorState.getSpill(symb);
+    int location = getSpill((Interval)symb.scratchObject);
     for (Enumeration<Operand> e = s.getOperands(); e.hasMoreElements();) {
       Operand op = e.nextElement();
       if (op.isRegister()) {
         Register r = op.asRegister().getRegister();
         if (r.isSymbolic()) {
-          if (location == RegisterAllocatorState.getSpill(r)) {
+          if (location == getSpill((Interval)r.scratchObject)) {
             if (getRestrictions().isForbidden(r, phys, s)) {
               return false;
             }
@@ -647,7 +698,7 @@ public abstract class GenericStackManager extends IRTools {
       // Now load up the scratch register.
       // since symbReg must have been previously spilled, get the spill
       // location previous assigned to symbReg
-      int location = RegisterAllocatorState.getSpill(symb);
+      int location = getSpill((Interval)symb.scratchObject);
       insertUnspillBefore(s, sr.scratch, getValueType(symb), location);
 
       // we have not yet written to sr, so mark it 'clean'
@@ -671,12 +722,12 @@ public abstract class GenericStackManager extends IRTools {
    */
   private ScratchRegister createScratchBefore(Instruction s, Register r, Register symb) {
     int type = PhysicalRegisterSet.getPhysicalRegisterType(r);
-    int spillLocation = RegisterAllocatorState.getSpill(r);
+    int spillLocation = getSpill((Interval)r.scratchObject);
     if (spillLocation <= 0) {
       // no spillLocation yet assigned to the physical register.
       // allocate a new location and assign it for the physical register
       spillLocation = allocateNewSpillLocation(type);
-      RegisterAllocatorState.setSpill(r, spillLocation);
+      setSpill((Interval)r.scratchObject, spillLocation);
     }
 
     ScratchRegister sr = getPhysicalScratchRegister(r);
@@ -727,7 +778,7 @@ public abstract class GenericStackManager extends IRTools {
    * Does instruction s use the spill location for a given register?
    */
   private boolean usesSpillLocation(Register r, Instruction s) {
-    int location = RegisterAllocatorState.getSpill(r);
+    int location = getSpill((Interval)r.scratchObject);
     return usesSpillLocation(location, s);
   }
 
@@ -736,7 +787,7 @@ public abstract class GenericStackManager extends IRTools {
    * return the symbolic register that embodies that use.
    */
   private Register spillLocationUse(Register r, Instruction s) {
-    int location = RegisterAllocatorState.getSpill(r);
+    int location = getSpill((Interval)r.scratchObject);
     return spillLocationUse(location, s);
   }
 
@@ -744,7 +795,7 @@ public abstract class GenericStackManager extends IRTools {
    * Does instruction s define the spill location for a given register?
    */
   private boolean definesSpillLocation(Register r, Instruction s) {
-    int location = RegisterAllocatorState.getSpill(r);
+    int location = getSpill((Interval)r.scratchObject);
     return definesSpillLocation(location, s);
   }
 
@@ -756,7 +807,7 @@ public abstract class GenericStackManager extends IRTools {
       Operand op = e.nextElement();
       if (op != null && op.isRegister()) {
         Register r = op.asRegister().getRegister();
-        if (RegisterAllocatorState.getSpill(r) == loc) {
+        if (getSpill((Interval) (r.scratchObject))  == loc) {
           return true;
         }
       }
@@ -772,7 +823,7 @@ public abstract class GenericStackManager extends IRTools {
       Operand op = e.nextElement();
       if (op != null && op.isRegister()) {
         Register r = op.asRegister().getRegister();
-        if (RegisterAllocatorState.getSpill(r) == loc) {
+        if (getSpill((Interval) (r.scratchObject)) == loc) {
           return true;
         }
       }
@@ -791,7 +842,7 @@ public abstract class GenericStackManager extends IRTools {
       Operand op = e.nextElement();
       if (op != null && op.isRegister()) {
         Register r = op.asRegister().getRegister();
-        if (RegisterAllocatorState.getSpill(r) == loc) {
+        if (getSpill((Interval)r.scratchObject) == loc) {
           return r;
         }
       }
@@ -1345,7 +1396,6 @@ public abstract class GenericStackManager extends IRTools {
   public final void computeRestrictions(IR ir) {
     restrict.init(ir);
   }
-
   /**
    *  Find an volatile register to allocate starting at the reg corresponding
    *  to the symbolic register passed
