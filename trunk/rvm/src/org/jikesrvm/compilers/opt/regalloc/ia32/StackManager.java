@@ -75,6 +75,7 @@ import org.jikesrvm.compilers.opt.ir.operand.TrapCodeOperand;
 import org.jikesrvm.compilers.opt.ir.operand.ia32.IA32ConditionOperand;
 import org.jikesrvm.compilers.opt.regalloc.GenericStackManager;
 import org.jikesrvm.compilers.opt.regalloc.RegisterAllocatorState;
+import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
 import org.jikesrvm.ia32.ArchConstants;
 import static org.jikesrvm.ia32.StackframeLayoutConstants.STACKFRAME_ALIGNMENT;
 import org.jikesrvm.runtime.ArchEntrypoints;
@@ -678,7 +679,7 @@ public abstract class StackManager extends GenericStackManager {
 
     // Get the spill location previously assigned to the symbolic
     // register.
-    int location = RegisterAllocatorState.getSpill(symb.getRegister());
+    int location = getSpill((Interval)symb.getRegister().scratchObject);
 
     // Create a memory operand M representing the spill location.
     int size;
@@ -767,6 +768,10 @@ public abstract class StackManager extends GenericStackManager {
     if (s.hasMemoryOperand()) return true;
 
     // Check the architecture restrictions.
+    /*
+     * Check if we need to invoke for interval basis instead of for the symbolic.
+     * for now it seems fine.
+     */
     if (RegisterRestrictions.mustBeInRegister(r, s)) return true;
 
     // Otherwise, everything is OK.
