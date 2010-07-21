@@ -13,14 +13,9 @@
 package org.jikesrvm.compilers.opt.regalloc;
 
 import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Set;
-
 import org.jikesrvm.ArchitectureSpecificOpt.PhysicalRegisterSet;
 import org.jikesrvm.compilers.opt.ir.IR;
 import org.jikesrvm.compilers.opt.ir.Register;
-import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
 
 /**
  * The register allocator currently caches a bunch of state in the IR;
@@ -29,12 +24,7 @@ import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
  * TODO: Currently, the physical registers are STATIC! fix this.
  */
 public class RegisterAllocatorState {
-  
-  /**
-   * Mapping from BasicInterval or CompoundInterval to physical register
-   */
-  private HashMap<Interval, Register> intervalsToRegister = null;
-  
+
   /**
    *  Resets the physical register info
    */
@@ -47,7 +37,6 @@ public class RegisterAllocatorState {
       //    putPhysicalRegResurrectList(reg, null);
       reg.defList = null;
       reg.useList = null;
-      setSpill(reg, 0);
      }
   }
 
@@ -74,16 +63,8 @@ public class RegisterAllocatorState {
     if (VM.VerifyAssertions) VM._assert(r.isPhysical());
     return (LinearScanLiveInterval) r.scratchObject;
   }
-  */
-  static void setSpill(Register reg, int spill) {
-    reg.spillRegister();
-    reg.scratch = spill;
-  }
-
-  public static int getSpill(Register reg) {
-    return reg.scratch;
-  }
-
+  */  
+  
   /**
    * Record that register A and register B are associated with each other
    * in a bijection.
