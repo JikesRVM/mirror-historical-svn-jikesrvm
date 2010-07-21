@@ -57,10 +57,7 @@ class SimpleSpillCost extends SpillCostEstimator {
             // EBM discuss
             if (r.isSymbolic()) {
               Interval i = r.getInterval(s);
-              if (i.getContainer().equals(i.getInterval()))
-                update(r, baseFactor);
-              else
-                update(i, baseFactor);
+              update(i, baseFactor);
             }
           }
         }
@@ -72,20 +69,14 @@ class SimpleSpillCost extends SpillCostEstimator {
             Register r = M.base.getRegister();
             if (r.isSymbolic()) {
               Interval i = r.getInterval(s);
-              if (i.getContainer().equals(i.getInterval()))
-                update(r, factor);
-              else
-                update(i, factor);
+              update(i, factor);
             }
           }
           if (M.index != null) {
             Register r = M.index.getRegister();
             if (r.isSymbolic()) {
               Interval i = r.getInterval(s);
-            	if (i.getContainer().equals(i.getInterval()))
-            	  update(r, factor);
-            	else
-            	  update(i, factor);
+              update(i, factor);
             }
           }
         }
