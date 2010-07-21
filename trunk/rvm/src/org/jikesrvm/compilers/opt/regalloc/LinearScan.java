@@ -120,8 +120,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
    *  @param reg the register
    *  @param interval the live interval
    */
-  static void setInterval(Register reg, CompoundInterval interval) {
-    // EBM why not Interval?
+  static void setInterval(Register reg, Interval interval) {
     reg.scratchObject = interval;
   }
 
@@ -201,8 +200,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * The live interval information, a set of Basic Intervals
      * sorted by increasing start point
      */
-    // EBM why declared as ArrayList and not List (new ArrayList remains reasonable)
-    public final ArrayList<BasicInterval> intervals = new ArrayList<BasicInterval>();
+    public final List<BasicInterval> intervals = new ArrayList<BasicInterval>();
 
     /**
      * Was any register spilled?
@@ -401,12 +399,6 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     protected boolean _infrequent = true;
     
     /**
-     * Used for Extended LinearScan during Spill Identification,Spill Resurrection and RegisterAllocation
-     */
-    protected boolean spilled = false;
-    // EBM discuss: should occur by presence in a map?
-    
-	/**
      * Default constructor.
      */
     BasicInterval(int begin, int end)  {
@@ -527,10 +519,6 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     }
     
     final void setFrequent() { _infrequent = false; }
-    
-    public void setSpilled(boolean spilled) {
-		  this.spilled = spilled;
-	  }
   }
 
   /**
@@ -604,7 +592,6 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     public final boolean isInfrequent() { return _infrequent; }
 
     public boolean isSpilled(IR ir) {
-      // EBML why extra level of calls?
       return ir.stackManager.isSpilled(this);
     }
     
@@ -613,7 +600,9 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     public int getLowerBound() { return getBegin(); }
     public int getUpperBound() { return getEnd(); }
     
-    public void setSpillFlag(boolean flag) { setSpilled(flag); }
+    public void setSpillFlag(boolean flag) {
+      ir.stackManager.setSpilled(this);
+    }
   
   }
 
@@ -658,12 +647,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     	  // EBM What is this about?  Looks like in appropriate testing of LS versus ELS.
     	  return i;
     	}
-    	for (BasicInterval intvl : this) {
-    	  MappedBasicInterval basic = (MappedBasicInterval)intvl;
-    	  if (basic.getBegin() == start && basic.getEnd() == end)
-    	    return basic;
-    	}
-    	return null;
+    	return this.floor(i);
     }
     
     /*
@@ -676,12 +660,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     	if (i.getContainer() == i.getInterval()) {
     		return i;
     	}
-    	for (BasicInterval intvl : this) {
-    	  MappedBasicInterval basic = (MappedBasicInterval)intvl;
-    	  if (basic.getBegin() <= programpoint && basic.getEnd() >= programpoint) 
-    	    return basic;
-    	}
-    	return null;
+    	return this.floor(i);
     }
     /**
      * Return the register this interval represents
@@ -816,8 +795,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * Has this interval been spilled?
      */
     public boolean isSpilled(IR ir) {
-      // EBM convention?
-      return ir.stackManager.isSpilled((Interval)this);
+      return ir.stackManager.isSpilled(this);
     }
 
     /**
@@ -1045,12 +1023,6 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     public boolean intersects(Interval cmp) { return intersects((CompoundInterval) cmp); }
     
     public void setSpillFlag(boolean flag) {
-	  // EBM
-		// TODO Auto-generated method stub
-		/*
-		 * At present do nothing in this because on the fly allocation assigns spill location
-		 * 
-		 */
      VM._assert(false);    
    }
   }

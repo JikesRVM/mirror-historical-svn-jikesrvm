@@ -79,8 +79,6 @@ public final class LiveIntervalElement {
     register = reg;
     this.begin = begin;
     this.end = end;
-  
-
   }
 
   public String toString() {
@@ -122,7 +120,7 @@ public final class LiveIntervalElement {
     int finish = ((end   != null) ? end   : bb.lastInstruction() ).scratch; 
     if (!register.isPhysical()) {
       Interval i = (Interval)register.scratchObject;
-      return i.getInterval(start,finish);
+      return i.getInterval(start, finish);
     }
     return null;
   }
