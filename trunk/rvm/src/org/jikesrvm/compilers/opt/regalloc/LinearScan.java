@@ -121,6 +121,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
    *  @param interval the live interval
    */
   static void setInterval(Register reg, CompoundInterval interval) {
+    // EBM why not Interval?
     reg.scratchObject = interval;
   }
 
@@ -130,6 +131,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
    *  @return the live interval or null
    */
   static CompoundInterval getInterval(Register reg) {
+    // EBM why not Interval?
     return (CompoundInterval) reg.scratchObject;
   }
 
@@ -199,6 +201,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * The live interval information, a set of Basic Intervals
      * sorted by increasing start point
      */
+    // EBM why declared as ArrayList and not List (new ArrayList remains reasonable)
     public final ArrayList<BasicInterval> intervals = new ArrayList<BasicInterval>();
 
     /**
@@ -345,7 +348,9 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     }
   }
 
-  /* A marker interface */
+  /* Super-interface of CompoundInterval and MappedBasicInterval,
+   * for greater commonality between LS and ELS algorithms
+   */
   public interface Interval {
 	  
 	  public Interval getInterval();
@@ -399,7 +404,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * Used for Extended LinearScan during Spill Identification,Spill Resurrection and RegisterAllocation
      */
     protected boolean spilled = false;
-    // EBM discuss: should occur by presence in a map ...
+    // EBM discuss: should occur by presence in a map?
     
 	/**
      * Default constructor.
@@ -557,7 +562,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * Redefine equals
      */
     public boolean equals(Object o) {
-      if (super.equals(o)) {
+      if (super.equals(o) && o instanceof MappedBasicInterval) {
         MappedBasicInterval i = (MappedBasicInterval) o;
         return container == i.container;
       } else {
@@ -571,13 +576,15 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 
 	
     public Interval getInterval(int start, int finish) {
-      if ( getBegin() == start && getEnd() == finish) return interval;
-      else return null;
+      if (getBegin() == start && getEnd() == finish)
+        return interval;
+      return null;
     }
 
     public Interval getInterval(int programpoint) {
-      if( programpoint >= getBegin() && programpoint <= getEnd()) return interval;
-      else return null;
+      if (programpoint >= getBegin() && programpoint <= getEnd())
+        return interval;
+      return null;
     }
 
     public Interval getContainer() {
@@ -590,7 +597,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     final public boolean intersects(Interval cmp) {
       MappedBasicInterval b = (MappedBasicInterval)cmp;
       int iBegin = b.getBegin();
-      int iEnd = b.getEnd();
+      int iEnd   = b.getEnd();
       return !(endsBefore(iBegin + 1) || startsAfter(iEnd - 1));
     }
 	
@@ -602,8 +609,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     }
     
     public Register getRegister() { return container.getRegister(); }
-    public int getLowerBound() { return getBegin(); }
     
+    public int getLowerBound() { return getBegin(); }
     public int getUpperBound() { return getEnd(); }
     
     public void setSpillFlag(boolean flag) { setSpilled(flag); }
@@ -644,17 +651,17 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * This function is not accurate if concatenation was
      * performed so use it when concatenation is disabled.
      */
-    public Interval getInterval(int start,int end) {
+    public Interval getInterval(int start, int end) {
+      // EBM Why is the cast necessary?
     	Interval i = ((MappedBasicInterval)first()).getInterval();
     	if (i.getContainer() == i.getInterval()) {
+    	  // EBM What is this about?  Looks like in appropriate testing of LS versus ELS.
     	  return i;
     	}
-    	else {
-          for (BasicInterval intvl : this) {
-            MappedBasicInterval basic = (MappedBasicInterval)intvl;
-            if(basic.getBegin() == start && basic.getEnd() == end)
-              return basic;
-          }
+    	for (BasicInterval intvl : this) {
+    	  MappedBasicInterval basic = (MappedBasicInterval)intvl;
+    	  if (basic.getBegin() == start && basic.getEnd() == end)
+    	    return basic;
     	}
     	return null;
     }
@@ -666,13 +673,13 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      */
     public Interval getInterval(int programpoint) {
     	Interval i = ((MappedBasicInterval)first()).getInterval();
-    	if (i.getContainer() == i.getInterval()){
+    	if (i.getContainer() == i.getInterval()) {
     		return i;
     	}
-        for (BasicInterval intvl : this) {
-          MappedBasicInterval basic = (MappedBasicInterval)intvl;
-          if (basic.getBegin() <= programpoint && basic.getEnd() >= programpoint) 
-            return basic;
+    	for (BasicInterval intvl : this) {
+    	  MappedBasicInterval basic = (MappedBasicInterval)intvl;
+    	  if (basic.getBegin() <= programpoint && basic.getEnd() >= programpoint) 
+    	    return basic;
     	}
     	return null;
     }
@@ -713,9 +720,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      */
     CompoundInterval copy(Register r) {
       CompoundInterval result = new CompoundInterval(r);
-
-      for (Iterator<BasicInterval> i = iterator(); i.hasNext();) {
-        BasicInterval b = i.next();
+      for (BasicInterval b : this) {
         result.add(b);
       }
       return result;
@@ -727,14 +732,13 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      */
     CompoundInterval copy(Register r, BasicInterval stop) {
       CompoundInterval result = new CompoundInterval(r);
-
-      for (Iterator<BasicInterval> i = iterator(); i.hasNext();) {
-        BasicInterval b = i.next();
+      for (BasicInterval b : this) {
         result.add(b);
         if (b.sameRange(stop)) return result;
       }
       return result;
     }
+    // EBM stopped here
 
     /**
      * Add a new live range to this compound interval.
