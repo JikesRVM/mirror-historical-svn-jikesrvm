@@ -41,7 +41,7 @@ import org.jikesrvm.compilers.opt.util.BitSet;
 public abstract class GenericRegisterRestrictions {
   // for each Interval(CompoundInterval or BasicInterval), the set of physical registers that are
   // illegal for assignment
-    private final HashMap<Interval, RestrictedRegisterSet> intervalHash = new HashMap<Interval,RestrictedRegisterSet>();
+  private final HashMap<Interval, RestrictedRegisterSet> intervalHash = new HashMap<Interval,RestrictedRegisterSet>();
  
   // a set of Intervals that must not be spilled.
   private final HashSet<Interval> intervalNoSpill = new HashSet<Interval>();
