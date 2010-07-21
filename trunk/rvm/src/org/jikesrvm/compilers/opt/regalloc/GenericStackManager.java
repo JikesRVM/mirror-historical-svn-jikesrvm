@@ -62,7 +62,7 @@ public abstract class GenericStackManager extends IRTools {
    * Mapping from BasicInterval or CompoundInterval to physical register.
    * We can specify an initial size to avoid rehashing. But need to decide it on later
    */
-  protected  HashMap<Interval,Register> intervalToRegister= new HashMap<Interval,Register>();
+  protected  HashMap<Interval,Register> intervalToRegister = new HashMap<Interval,Register>();
   
   /**
    * Mapping for spill offset location for intervals which will be spilled.
@@ -82,8 +82,10 @@ public abstract class GenericStackManager extends IRTools {
       VM._assert(i != null);
     Register reg = i.getRegister();
     reg.spillRegister();
-    if (spill == 0) intervalToSpillLocation.remove(i);
-    else intervalToSpillLocation.put(i,spill);
+    if (spill == 0)
+      intervalToSpillLocation.remove(i);
+    else
+      intervalToSpillLocation.put(i,spill);
   }
   
   /**
@@ -95,8 +97,7 @@ public abstract class GenericStackManager extends IRTools {
     //remove the following after testing
     //VM._assert(i != null);
     Integer result = intervalToSpillLocation.get(i);
-    if (result == null) return 0;
-    return result;
+    return (result == null) ? 0 : result
   }
   
   /**
@@ -104,8 +105,8 @@ public abstract class GenericStackManager extends IRTools {
    * Returns false if i is null or the map does not contain Interval i
    */
   protected boolean isSpilled(Interval i) {
-    if (intervalToSpillLocation.get(i) == null) return false;
-    else return true;
+    return intervalToSpillLocation.containsKey(i);
+
   }
 
   /**
@@ -303,7 +304,7 @@ public abstract class GenericStackManager extends IRTools {
    * r1, replace r3 with r2.
    */
   private void replaceRegisterWithScratch(Instruction s, Register r1, Register r2) {
-    int spill1 =  getSpill((Interval)r1.scratchObject);
+    int spill1 = getSpill((Interval)r1.scratchObject);
     for (Enumeration<Operand> e = s.getOperands(); e.hasMoreElements();) {
       Operand op = e.nextElement();
       if (op != null) {
