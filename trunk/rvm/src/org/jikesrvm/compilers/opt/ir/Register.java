@@ -352,11 +352,7 @@ public final class Register {
   public Register getRegisterAllocated() {
     return mapsToRegister;
   }
-
-  public int getSpillAllocated() {
-    return scratch;
-  }
-
+ 
   public int hashCode() {
     return number;
   }
@@ -396,7 +392,7 @@ public final class Register {
   public Interval getInterval(Instruction s) {
     // TODO Auto-generlated method stub
     Interval container = (Interval)scratchObject;
-    if (!this.isPhysical) 
+    if (!isPhysical()) 
       return container.getInterval(s.scratch);
     else
       return null;
