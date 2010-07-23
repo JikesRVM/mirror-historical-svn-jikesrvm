@@ -19,6 +19,7 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -131,7 +132,10 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
    */
   static CompoundInterval getInterval(Register reg) {
     // EBM why not Interval?
-    return (CompoundInterval) reg.scratchObject;
+    /* this is to avoid double costing, if we defined Interval then functions defined for CompoundInterval like 
+    * updatePhysicalInterval require recasting 
+    */
+    return  (CompoundInterval)reg.scratchObject;
   }
 
   /**
@@ -200,7 +204,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * The live interval information, a set of Basic Intervals
      * sorted by increasing start point
      */
-    public final List<BasicInterval> intervals = new ArrayList<BasicInterval>();
+    public final List<Interval> intervals = new ArrayList<Interval>();
 
     /**
      * Was any register spilled?
@@ -320,7 +324,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       ir.MIRInfo.linearScanState.active = active;
 
       // Intervals sorted by increasing start point
-      for (BasicInterval b : ir.MIRInfo.linearScanState.intervals) {
+      for (Interval b : ir.MIRInfo.linearScanState.intervals) {
 
         MappedBasicInterval bi = (MappedBasicInterval) b;
         CompoundInterval ci = bi.container;
@@ -350,8 +354,6 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
    * for greater commonality between LS and ELS algorithms
    */
   public interface Interval {
-	  
-	  public Interval getInterval();
 	  public Interval getInterval(int start, int end);
 	  public Interval getInterval(int programpoint);
 	  /*
@@ -370,10 +372,17 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 	  public boolean intersects(Interval cmp);
 	  public boolean isInfrequent();
 	  public boolean isSpilled(IR ir);
-	  public int getLowerBound();
-	  public int getUpperBound();
-	  public void setSpillFlag(boolean flag);
+	  public int getBegin();
+	  public int getEnd();
+	  public void setSpill(IR ir,int location);
+	  public void unsetSpill(IR ir);
 	  public Register getRegister();
+	  public boolean sameRange(Interval i);
+	  public void setEnd(int newEnd);
+	  public boolean startsBefore(Interval i);
+	  public boolean contains(int dfn);
+	  public void setFrequent();
+	  public TreeSet<Interval> getTreeSet();
   }
   /**
    * Implements a basic live interval (no holes), which is a pair
@@ -382,8 +391,12 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
    *
    *   Begin and end are numbers given to each instruction by a numbering pass
    */
-  public static class BasicInterval {
-	
+  public static class BasicInterval implements Interval{
+  
+    /**
+     * The containing compound Interval
+     */
+    final CompoundInterval container;
     /**
      * DFN of the beginning instruction of this interval
      */
@@ -401,9 +414,10 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     /**
      * Default constructor.
      */
-    BasicInterval(int begin, int end)  {
+    BasicInterval(int begin, int end, CompoundInterval c)  {
       this.begin = begin;
       this.end = end;
+      container = c;
     }
 
     /**
@@ -419,11 +433,14 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     public final int getEnd() {
       return end;
     }
-
+    
+    public TreeSet<Interval> getTreeSet() {
+      return container;
+    }
     /**
      * Extend a live interval to a new endpoint
      */
-    final void setEnd(int newEnd) {
+    public final void setEnd(int newEnd) {
       end = newEnd;
     }
 
@@ -447,7 +464,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * Does this interval contain a dfn?
      * @param dfn the depth first numbering to compare to
      */
-    final boolean contains(int dfn) {
+    public final boolean contains(int dfn) {
       return begin <= dfn && end >= dfn;
     }
 
@@ -455,8 +472,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * Does this interval start before another?
      * @param i the interval to compare with
      */
-    final boolean startsBefore(BasicInterval i) {
-      return begin < i.begin;
+    public final boolean startsBefore(Interval i) {
+      return begin < i.getBegin();
     }
 
     /**
@@ -471,8 +488,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * Does this interval represent the same range as another?
      * @param i the interval to compare with
      */
-    final boolean sameRange(BasicInterval i) {
-      return begin == i.begin && end == i.end;
+    public final boolean sameRange(Interval i) {
+      return begin == i.getBegin() && end == i.getEnd();
     }
 
     /**
@@ -504,7 +521,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     /**
      * Does this interval intersect with another?
      */
-    final public boolean intersects(BasicInterval i) {
+    final public boolean intersects(Interval i) {
       int iBegin = i.getBegin();
       int iEnd = i.getEnd();
       return !(endsBefore(iBegin + 1) || startsAfter(iEnd - 1));
@@ -518,32 +535,61 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       return s;
     }
     
-    final void setFrequent() { _infrequent = false; }
+    public final void setFrequent() { _infrequent = false; }
+    	
+    public final boolean isInfrequent() { return _infrequent; }
+
+    public final boolean isSpilled(IR ir) {
+      return ir.stackManager.isSpilled(this);
+    }
+    
+    public Register getRegister() { VM._assert(false); return null; }
+    
+    public final void setSpill(IR ir, int location) {
+      ir.stackManager.setSpill(this,location);
+    }
+    
+    public final void unsetSpill(IR ir) { ir.stackManager.unsetSpill(this); }
+        
+    public final Interval getInterval(int start, int finish) {
+      TreeSet<Interval> t = getTreeSet();
+      Interval i = new BasicInterval(start,finish,container);
+      Interval result = t.floor(i);
+      if (result.getBegin() == start && result.getEnd() == finish) return result;
+      else return null;
+    }
+
+    public final Interval getInterval(int programpoint) {
+      TreeSet<Interval> t = getTreeSet();
+      Interval i = new BasicInterval(programpoint,programpoint,container);
+      Interval result = t.floor(i);
+      if (result.getEnd() >= programpoint) return result;
+      else return null;
+    }
+    
+    public final Interval getContainer() {
+      return container;
+    }
   }
 
   /**
    * A basic interval contained in a CompoundInterval.
    */
-  public static class MappedBasicInterval extends BasicInterval implements Interval {
-    final CompoundInterval container;
+  public static class MappedBasicInterval extends BasicInterval  {
     
-    /* pointer to self in the extended version*/
-    final Interval interval;
-
-    public Interval getInterval() {
-      return interval;
-    }
+  /**
+    * The containing compound Interval
+    */
+    final CompoundInterval container;
 
     MappedBasicInterval(BasicInterval b, CompoundInterval c) {
-      super(b.begin, b.end);
+      super(b.begin, b.end, c);
       this.container = c;
-      interval = (spillBasicsIndividually ? this : c);
-	  }
+    }
 
     MappedBasicInterval(int begin, int end, CompoundInterval c) {
-      super(begin, end);
+      super(begin, end, c);
       this.container = c;
-      interval = (spillBasicsIndividually ? this : c);
     }
 
     /**
@@ -562,48 +608,6 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       return "<" + container.getRegister() + ">:" + super.toString();
     }
 
-	
-    public Interval getInterval(int start, int finish) {
-      if (getBegin() == start && getEnd() == finish)
-        return interval;
-      return null;
-    }
-
-    public Interval getInterval(int programpoint) {
-      if (programpoint >= getBegin() && programpoint <= getEnd())
-        return interval;
-      return null;
-    }
-
-    public Interval getContainer() {
-      return container;
-    }
-   
-    /**
-     * Does this interval intersect with another?
-     */
-    final public boolean intersects(Interval cmp) {
-      MappedBasicInterval b = (MappedBasicInterval)cmp;
-      int iBegin = b.getBegin();
-      int iEnd   = b.getEnd();
-      return !(endsBefore(iBegin + 1) || startsAfter(iEnd - 1));
-    }
-	
-    public final boolean isInfrequent() { return _infrequent; }
-
-    public boolean isSpilled(IR ir) {
-      return ir.stackManager.isSpilled(this);
-    }
-    
-    public Register getRegister() { return container.getRegister(); }
-    
-    public int getLowerBound() { return getBegin(); }
-    public int getUpperBound() { return getEnd(); }
-    
-    public void setSpillFlag(boolean flag) {
-      ir.stackManager.setSpilled(this);
-    }
-  
   }
 
   /**
@@ -618,7 +622,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      */
     private boolean _infrequent = true;
 
-    final void setFrequent() { _infrequent = false; }
+    public final void setFrequent() { _infrequent = false; }
 
     public final boolean isInfrequent() { return _infrequent; }
 
@@ -642,38 +646,51 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      */
     public Interval getInterval(int start, int end) {
       // EBM Why is the cast necessary?
-    	Interval i = ((MappedBasicInterval)first()).getInterval();
-    	if (i.getContainer() == i.getInterval()) {
-    	  // EBM What is this about?  Looks like in appropriate testing of LS versus ELS.
-    	  return i;
-    	}
-    	return this.floor(i);
+      if(!isEmpty() && start >= getBegin() && end <= getEnd()) return this;
+      else return null;
     }
     
-    /*
-     * If spillBasicsIndividually is true the Return the BasicInterval containing this program point
-     * else return the CompoundInterval.
-     * To find the BasicInterval containing this programpoint when spillBasicsIndividually is false use getBasicInterval.
+    public TreeSet<Interval> getTreeSet() {
+      return this;
+    }
+    
+    /**
+     * Given a program point check if it lies in the range of this Interval. If yes then return this
+     * live interval else return null.
      */
     public Interval getInterval(int programpoint) {
-    	Interval i = ((MappedBasicInterval)first()).getInterval();
-    	if (i.getContainer() == i.getInterval()) {
-    		return i;
-    	}
-    	return this.floor(i);
+      if (!isEmpty() && programpoint >= getBegin() && programpoint <= getEnd()) return this;
+      else return null;
     }
+    
     /**
      * Return the register this interval represents
      */
     public Register getRegister() {
       return reg;
     }
-
+  
+    public boolean sameRange(Interval i) {
+      if (VM.VerifyAssertions) VM._assert(false); return false;
+    }
+    
+    public void setEnd(int end) {
+     if (VM.VerifyAssertions) VM._assert(false); 
+    }
+    
+    public boolean startsBefore(Interval i) {
+      if (VM.VerifyAssertions) VM._assert(false); return false;
+    }
+    
+    public boolean contains(int dfn) {
+      if (VM.VerifyAssertions) VM._assert(false); return false;
+    }
+    
     /**
      * Create a new compound interval of a single Basic interval
      */
     CompoundInterval(int dfnBegin, int dfnEnd, Register register) {
-      BasicInterval newInterval = new MappedBasicInterval(dfnBegin, dfnEnd, this);
+      Interval newInterval = new MappedBasicInterval(dfnBegin, dfnEnd, this);
       add(newInterval);
       reg = register;
     }
@@ -682,7 +699,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * Create a new compound interval of a single Basic interval
      */
     CompoundInterval(BasicInterval i, Register register) {
-      BasicInterval newInterval = new MappedBasicInterval(i.getBegin(), i.getEnd(), this);
+      Interval newInterval = new MappedBasicInterval(i.getBegin(), i.getEnd(), this);
       add(newInterval);
       reg = register;
     }
@@ -699,7 +716,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      */
     CompoundInterval copy(Register r) {
       CompoundInterval result = new CompoundInterval(r);
-      for (BasicInterval b : this) {
+      for (Interval b : this) {
         result.add(b);
       }
       return result;
@@ -711,7 +728,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      */
     CompoundInterval copy(Register r, BasicInterval stop) {
       CompoundInterval result = new CompoundInterval(r);
-      for (BasicInterval b : this) {
+      for (Interval b : this) {
         result.add(b);
         if (b.sameRange(stop)) return result;
       }
@@ -730,7 +747,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 
       if (!spillBasicsIndividually && shouldConcatenate(live, bb)) {
         // concatenate with the last basic interval
-        BasicInterval last = last();
+        Interval last = last();
         last.setEnd(getDfnEnd(live, bb));
         return null;
       } else {
@@ -750,7 +767,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      */
     private boolean shouldConcatenate(LiveIntervalElement live, BasicBlock bb) {
 
-      BasicInterval last = last();
+      Interval last = last();
 
       // Make sure the new live range starts after the last basic interval
       if (VM.VerifyAssertions) {
@@ -795,6 +812,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * Has this interval been spilled?
      */
     public boolean isSpilled(IR ir) {
+      // EBM convention?
       return ir.stackManager.isSpilled(this);
     }
 
@@ -826,7 +844,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * will only merge basic intervals up to and including stop into this.
      */
     void addNonIntersectingInterval(CompoundInterval i, BasicInterval stop) {
-      SortedSet<BasicInterval> headSet = i.headSetInclusive(stop);
+      SortedSet<Interval> headSet = i.headSetInclusive(stop);
       addAll(headSet);
     }
 
@@ -834,8 +852,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * Compute the headSet() [from java.util.SortedSet] but include all
      * elements less than upperBound <em>inclusive</em>
      */
-    SortedSet<BasicInterval> headSetInclusive(BasicInterval upperBound) {
-      BasicInterval newUpperBound = new BasicInterval(upperBound.getBegin() + 1, upperBound.getEnd());
+    SortedSet<Interval> headSetInclusive(BasicInterval upperBound) {
+      Interval newUpperBound = new BasicInterval(upperBound.getBegin() + 1, upperBound.getEnd(), this);
       return headSet(newUpperBound);
     }
 
@@ -843,8 +861,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * Compute the headSet() [from java.util.SortedSet] but include all
      * elements less than upperBound <em>inclusive</em>
      */
-    SortedSet<BasicInterval> headSetInclusive(int upperBound) {
-      BasicInterval newUpperBound = new BasicInterval(upperBound + 1, upperBound + 1);
+    SortedSet<Interval> headSetInclusive(int upperBound) {
+      Interval newUpperBound = new BasicInterval(upperBound + 1, upperBound + 1, this);
       return headSet(newUpperBound);
     }
 
@@ -852,8 +870,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * Compute the tailSet() [from java.util.SortedSet] but include all
      * elements greater than lowerBound <em>inclusive</em>
      */
-    SortedSet<BasicInterval> tailSetInclusive(int lowerBound) {
-      BasicInterval newLowerBound = new BasicInterval(lowerBound - 1, lowerBound - 1);
+    SortedSet<Interval> tailSetInclusive(int lowerBound) {
+      Interval newLowerBound = new BasicInterval(lowerBound - 1, lowerBound - 1, this);
       return tailSet(newLowerBound);
     }
 
@@ -866,10 +884,10 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      */
     CompoundInterval removeIntervalsAndCache(CompoundInterval i) {
       CompoundInterval result = new CompoundInterval(i.getRegister());
-      Iterator<BasicInterval> myIterator = iterator();
-      Iterator<BasicInterval> otherIterator = i.iterator();
-      BasicInterval current = myIterator.hasNext() ? myIterator.next() : null;
-      BasicInterval currentI = otherIterator.hasNext() ? otherIterator.next() : null;
+      Iterator<Interval> myIterator = iterator();
+      Iterator<Interval> otherIterator = i.iterator();
+      Interval current = myIterator.hasNext() ? myIterator.next() : null;
+      Interval currentI = otherIterator.hasNext() ? otherIterator.next() : null;
 
       while (currentI != null && current != null) {
         if (current.startsBefore(currentI)) {
@@ -880,7 +898,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           if (VM.VerifyAssertions) VM._assert(current.sameRange(currentI));
 
           currentI = otherIterator.hasNext() ? otherIterator.next() : null;
-          BasicInterval next = myIterator.hasNext() ? myIterator.next() : null;
+          Interval next = myIterator.hasNext() ? myIterator.next() : null;
           // add the interval to the cache
           result.add(current);
           current = next;
@@ -894,7 +912,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       // disturbing.  TODO: fix it.  (Hope the problem goes away if/when
       // we migrate to classpath libraries).
       // removeAll(result);
-      for (BasicInterval b : result) {
+      for (Interval b : result) {
         remove(b);
       }
 
@@ -912,7 +930,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * In the meantime, here's an ugly hack to get around the problem.
      */
     void removeAll(CompoundInterval c) {
-      for (BasicInterval b : c) {
+      for (Interval b : c) {
         remove(b);
       }
     }
@@ -920,16 +938,16 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     /**
      * Return the lowest DFN in this compound interval.
      */
-    public int getLowerBound() {
-      BasicInterval b = first();
+    public int getBegin() {
+      Interval b = first();
       return b.getBegin();
     }
 
     /**
      * Return the highest DFN in this compound interval.
      */
-    public int getUpperBound() {
-      BasicInterval b = last();
+    public int getEnd() {
+      Interval b = last();
       return b.getEnd();
     }
 
@@ -943,24 +961,24 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 
       // Walk over the basic intervals of this interval and i.
       // Restrict the walking to intervals that might intersect.
-      int lower = Math.max(getLowerBound(), i.getLowerBound());
-      int upper = Math.min(getUpperBound(), i.getUpperBound());
+      int lower = Math.max(getBegin(), i.getBegin());
+      int upper = Math.min(getEnd(), i.getEnd());
 
       // we may have to move one interval lower on each side.
-      BasicInterval b = getBasicInterval(lower);
+      Interval b = getBasicInterval(lower);
       int myLower = (b == null) ? lower : b.getBegin();
       if (myLower > upper) return false;
       b = i.getBasicInterval(lower);
       int otherLower = (b == null) ? lower : b.getBegin();
       if (otherLower > upper) return false;
 
-      SortedSet<BasicInterval> myTailSet = tailSetInclusive(myLower);
-      SortedSet<BasicInterval> otherTailSet = i.tailSetInclusive(otherLower);
-      Iterator<BasicInterval> myIterator = myTailSet.iterator();
-      Iterator<BasicInterval> otherIterator = otherTailSet.iterator();
+      SortedSet<Interval> myTailSet = tailSetInclusive(myLower);
+      SortedSet<Interval> otherTailSet = i.tailSetInclusive(otherLower);
+      Iterator<Interval> myIterator = myTailSet.iterator();
+      Iterator<Interval> otherIterator = otherTailSet.iterator();
 
-      BasicInterval current = myIterator.hasNext() ? myIterator.next() : null;
-      BasicInterval currentI = otherIterator.hasNext() ? otherIterator.next() : null;
+      Interval current = myIterator.hasNext() ? myIterator.next() : null;
+      Interval currentI = otherIterator.hasNext() ? otherIterator.next() : null;
 
       while (current != null && currentI != null) {
         if (current.getBegin() > upper) break;
@@ -983,7 +1001,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * If there is no such interval, return null;
      * @param s   The instruction in question
      */
-    BasicInterval getBasicInterval(Instruction s) {
+    Interval getBasicInterval(Instruction s) {
       return getBasicInterval(getDFN(s));
     }
 
@@ -994,10 +1012,10 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * If there is no such interval, return null;
      * @param n The DFN of the instruction in question
      */
-    BasicInterval getBasicInterval(int n) {
-      SortedSet<BasicInterval> headSet = headSetInclusive(n);
+    Interval getBasicInterval(int n) {
+      SortedSet<Interval> headSet = headSetInclusive(n);
       if (!headSet.isEmpty()) {
-        BasicInterval last = headSet.last();
+        Interval last = headSet.last();
         return last.contains(n) ? last : null;
       } else {
         return null;
@@ -1009,22 +1027,20 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      */
     public String toString() {
       String str = "[" + getRegister() + "]:";
-      for (Iterator<BasicInterval> i = iterator(); i.hasNext();) {
-        BasicInterval b = i.next();
+      for (Iterator<Interval> i = iterator(); i.hasNext();) {
+        Interval b = i.next();
         str = str + b;
       }
       return str;
     }
     
-    public Interval getInterval() { return this; }
-
     public Interval getContainer() { return this; }
     
     public boolean intersects(Interval cmp) { return intersects((CompoundInterval) cmp); }
     
-    public void setSpillFlag(boolean flag) {
-     VM._assert(false);    
-   }
+    public void setSpill(IR ir,int location) { ir.stackManager.setSpill(this, location); }
+    
+    public void unsetSpill(IR ir) { ir.stackManager.unsetSpill(this); }
   }
 
   /**
@@ -1099,7 +1115,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      */
     void expireOldIntervals(BasicInterval newInterval) {
 
-      for (Iterator<BasicInterval> e = iterator(); e.hasNext();) {
+      for (Iterator<Interval> e = iterator(); e.hasNext();) {
         MappedBasicInterval bi = (MappedBasicInterval) e.next();
 
         // break out of the loop when we reach an interval that is still
@@ -1133,7 +1149,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       if (container.isSpilled(ir)) {
         // free the spill location iff this is the last interval in the
         // compound interval.
-        BasicInterval last = container.last();
+        Interval last = container.last();
         if (last.sameRange(bi)) {
           spillManager.freeInterval(container.getSpillInterval());
         }
@@ -1339,7 +1355,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         if (VM.VerifyAssertions) VM._assert(!c.intersects(physInterval));
         // copy to a new BasicInterval so "equals" will work as expected,
         // since "stop" may be a MappedBasicInterval.
-        stop = new BasicInterval(stop.getBegin(), stop.getEnd());
+        stop = new BasicInterval(stop.getBegin(), stop.getEnd(), physInterval);
         physInterval.addNonIntersectingInterval(c, stop);
       }
     }
@@ -1349,7 +1365,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * interval in the active set?
      */
     boolean currentlyActive(Register r) {
-      for (Iterator<BasicInterval> e = iterator(); e.hasNext();) {
+      for (Iterator<Interval> e = iterator(); e.hasNext();) {
         MappedBasicInterval i = (MappedBasicInterval) e.next();
         CompoundInterval container = i.container;
         if (RegisterAllocatorState.getMapping(container.getRegister()) == r) {
@@ -1364,7 +1380,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * interval in the active set, return the interval.
      */
     CompoundInterval getCurrentInterval(Register r) {
-      for (Iterator<BasicInterval> e = iterator(); e.hasNext();) {
+      for (Iterator<Interval> e = iterator(); e.hasNext();) {
         MappedBasicInterval i = (MappedBasicInterval) e.next();
         CompoundInterval container = i.container;
         if (RegisterAllocatorState.getMapping(container.getRegister()) == r) {
@@ -1735,7 +1751,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         result = null;
         minCost = Double.MAX_VALUE;
       }
-      for (Iterator<BasicInterval> e = iterator(); e.hasNext();) {
+      for (Iterator<Interval> e = iterator(); e.hasNext();) {
         MappedBasicInterval b = (MappedBasicInterval) e.next();
         CompoundInterval i = b.container;
         Register newR = i.getRegister();
@@ -1810,7 +1826,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * If there are two such intervals, return the 1st one.
      * If there is none, return null.
      */
-    BasicInterval getBasicInterval(Register r, Instruction s) {
+    Interval getBasicInterval(Register r, Instruction s) {
       CompoundInterval c = getInterval(r);
       if (c == null) return null;
       return c.getBasicInterval(s);
@@ -1998,6 +2014,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           reg.setInteger();
         }
       }
+      
       /*
        * We now always associate a dummy Interval data structure to physical register.
        * This is to avoid code break for getting spill location through intervalToSpillLocation HashMap
@@ -2050,16 +2067,24 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
          */
         existingInterval = null;
       }
+      
       if (existingInterval == null) {
         // create a new live interval
         CompoundInterval newInterval = new CompoundInterval(dfnbegin, dfnend, reg);
         if (VERBOSE_DEBUG) System.out.println("created a new interval " + newInterval);
 
-        // associate the interval with the register
-        setInterval(reg, newInterval);
+        /*
+         * Associate the interval with register.
+         * If spillBasicsIndividually is true then we associate the first BasciInterval of a CompounInterval to register and
+         * use this Interval to navigate to other BasicInterval of the containing interval.
+         * If spillBasicsIndividually is false then we associate the CompoundInterval to register.
+         * This is being done to dynamically invoke the correct getIntverval method of Interval interface.  
+         */
+        Interval b = newInterval.first();
+        if (spillBasicsIndividually) setInterval(reg, b);
+        else setInterval(reg, newInterval);
 
         // add the new interval to the sorted set of intervals.
-        BasicInterval b = newInterval.first();
         ir.MIRInfo.linearScanState.intervals.add(b);
         /*
          * set the frequency at the basic interval level also
@@ -2071,7 +2096,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 
       } else {
         // add the new live range to the existing interval
-        ArrayList<BasicInterval> intervals = ir.MIRInfo.linearScanState.intervals;
+        List<Interval> intervals = ir.MIRInfo.linearScanState.intervals;
         BasicInterval added = existingInterval.addRange(live, bb);
         if (added != null) {
           intervals.add(added);
@@ -2292,8 +2317,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * Redefine hash code for reproducibility.
      */
     public int hashCode() {
-      BasicInterval first = first();
-      BasicInterval last = last();
+      Interval first = first();
+      Interval last = last();
       return frameOffset + (first.getBegin() << 4) + (last.getEnd() << 12);
     }
   }
@@ -2306,8 +2331,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     /** Support for Set serialization */
     static final long serialVersionUID = -7086728932911844728L;
 
-    private static class StartComparator implements Comparator<BasicInterval> {
-      public int compare(BasicInterval b1, BasicInterval b2) {
+    private static class StartComparator implements Comparator<Interval> {
+      public int compare(Interval b1, Interval b2) {
         int result = b1.getBegin() - b2.getBegin();
         if (result == 0) {
           result = b1.getEnd() - b2.getEnd();
@@ -2331,8 +2356,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     /** Support for Set serialization */
     static final long serialVersionUID = -975667667343524421L;
 
-    private static class StartComparator implements Comparator<BasicInterval> {
-      public int compare(BasicInterval b1, BasicInterval b2) {
+    private static class StartComparator implements Comparator<Interval> {
+      public int compare(Interval b1, Interval b2) {
         int result = b1.getBegin() - b2.getBegin();
         if (result == 0) {
           result = b1.getEnd() - b2.getEnd();
@@ -2365,8 +2390,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     /** Support for Set serialization */
     static final long serialVersionUID = -3121737650157210290L;
 
-    private static class EndComparator implements Comparator<BasicInterval> {
-      public int compare(BasicInterval b1, BasicInterval b2) {
+    private static class EndComparator implements Comparator<Interval> {
+      public int compare(Interval b1, Interval b2) {
         int result = b1.getEnd() - b2.getEnd();
         if (result == 0) {
           result = b1.getBegin() - b2.getBegin();
@@ -2391,12 +2416,12 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     }
   }
 
-  abstract static class IntervalSet extends TreeSet<BasicInterval> {
+  abstract static class IntervalSet extends TreeSet<Interval> {
 
     /**
      * Create an interval set sorted by increasing start or end number
      */
-    IntervalSet(Comparator<BasicInterval> c) {
+    IntervalSet(Comparator<Interval> c) {
       super(c);
     }
 
@@ -2405,7 +2430,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      */
     public String toString() {
       String result = "";
-      for (BasicInterval b : this) {
+      for (Interval b : this) {
         result = result + b + "\n";
       }
       return result;
@@ -2857,7 +2882,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       
       stackOfSpilledIntervals = new Stack<Interval>();
   
-      for (BasicInterval interval : ir.MIRInfo.linearScanState.intervals) {
+      for (Interval interval : ir.MIRInfo.linearScanState.intervals) {
         MappedBasicInterval bi = (MappedBasicInterval) interval;
         int begin = bi.getBegin();
         int end = bi.getEnd();
@@ -2875,7 +2900,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
             VM._assert(i != null);
 
           // set the spill flag for this interval so as to exclude it from liveIntervals
-          i.setSpillFlag(true);
+          i.setSpill(ir,0);
 
           // Push the interval on stack
           stackOfSpilledIntervals.push(i);
@@ -2887,15 +2912,16 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       while ( !stackOfSpilledIntervals.isEmpty()) {
         Interval i = stackOfSpilledIntervals.pop();
 	stackcount++;
-	BasicBlock bb = returnContainingBasicBlock(i.getLowerBound(),i.getUpperBound());
-	i.setSpillFlag(false);
+	BasicBlock bb = returnContainingBasicBlock(i.getBegin(),i.getEnd());
+	i.unsetSpill(ir);
 	boolean resurrect = checkForResurrection(bb,i);
 	if (resurrect) { 
 	  //i.setSpillFlag(false);
 	  resurrectcount++;
 	  //if (EXTENDED_DEBUG) System.out.println(" found a varaible to resurrect ");
         }
-        else i.setSpillFlag(true); 
+        // Reset the spill flag
+        else i.setSpill(ir,0); 
         //if (EXTENDED_DEBUG) System.out.println(" cannot resurrect");
       }
       if (EXTENDED_DEBUG) System.out.println(" Stack Count "+ stackcount + " resurec t count " + resurrectcount );
@@ -2920,7 +2946,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       Interval result = iType;
       boolean freqFocus = thisIR.options.FREQ_FOCUS_EFFORT;
       double minCost= spillCost.getCost(result);
-      Register regType = ((CompoundInterval)iType.getContainer()).getRegister();
+      Register regType = iType.getRegister();
       if ( freqFocus && result.isInfrequent() && !restrict.mustNotSpill(result)) {
         return result;
       }
@@ -3092,7 +3118,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 	  if (!symbolic.isPhysical()) {
 	    CompoundInterval ci = (CompoundInterval) symbolic.scratchObject;
 	    Interval i = ci.getInterval(programpoint);
-	    VM._assert(i != null);
+	    if (VM.VerifyAssertions) VM._assert(i != null);
 	    if ( i == interval) ispresent = true;
 	    if (!i.isSpilled(thisIR))
 	    result.add(i);
