@@ -118,10 +118,8 @@ public final class LiveIntervalElement {
   public Interval getInterval() {
     int start  = ((begin != null) ? begin : bb.firstInstruction()).scratch;
     int finish = ((end   != null) ? end   : bb.lastInstruction() ).scratch; 
-    if (!register.isPhysical()) {
-      Interval i = (Interval)register.scratchObject;
-      return i.getInterval(start, finish);
-    }
-    return null;
+    Interval i = (Interval)register.scratchObject;
+    if (i != null) return i.getInterval(start, finish);
+    else return null; 
   }
 }
