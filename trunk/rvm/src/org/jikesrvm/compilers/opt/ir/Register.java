@@ -392,9 +392,7 @@ public final class Register {
   public Interval getInterval(Instruction s) {
     // TODO Auto-generlated method stub
     Interval container = (Interval)scratchObject;
-    if (!isPhysical()) 
-      return container.getInterval(s.scratch);
-    else
-      return null;
+    if (container != null) return container.getInterval(s.scratch);
+    else return null;
   }
 }
