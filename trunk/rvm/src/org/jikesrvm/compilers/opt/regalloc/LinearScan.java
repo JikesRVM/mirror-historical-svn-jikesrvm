@@ -3106,28 +3106,29 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     * live at the program point.
     */
     private ArrayList<Interval> processLiveInterval(BasicBlock bb, int programpoint,
-			Interval interval) {
+                                                    Interval interval) {
       ArrayList<Interval> result = new ArrayList<Interval>();
       boolean ispresent = false;
       for (LiveIntervalElement live = bb.getFirstLiveIntervalElement(); live != null; live = live.getNext()) {
-        Instruction inst;
-        Instruction first = ((inst = live.getBegin()) != null) ? inst : bb.firstInstruction();
-        Instruction last = ((inst = live.getEnd()) != null) ? inst : bb.lastInstruction();
-	if ( programpoint > first.scratch && programpoint <= last.scratch) {
-	  Register symbolic = live.getRegister();
-	  if (!symbolic.isPhysical()) {
-	    CompoundInterval ci = (CompoundInterval) symbolic.scratchObject;
-	    Interval i = ci.getInterval(programpoint);
-	    if (VM.VerifyAssertions) VM._assert(i != null);
-	    if ( i == interval) ispresent = true;
-	    if (!i.isSpilled(thisIR))
-	    result.add(i);
-	  }
-	}
+        Instruction first = live.getBegin();
+        if (first == null) first = bb.firstInstruction();
+        Instruction last = live.getEnd();
+        if (last == null) last = bb.lastInstruction();
+        if (programpoint > first.scratch && programpoint <= last.scratch) {
+          Register symbolic = live.getRegister();
+          if (!symbolic.isPhysical()) {
+            CompoundInterval ci = (CompoundInterval) symbolic.scratchObject;
+            Interval i = ci.getInterval(programpoint);
+            if (VM.VerifyAssertions) VM._assert(i != null);
+            if (i == interval) ispresent = true;
+            if (!i.isSpilled(thisIR))
+              result.add(i);
+          }
+        }
       }
-      if (ispresent) return result;
-      else return null;
+      return isPresent ? result : null;
     }
+
     /**
     * Give a Interval's begin and end point, this returns the BasicBlock containing this interval.
     * Use this for BasicInterval type. 
