@@ -215,7 +215,7 @@ public abstract class GenericRegisterRestrictions {
 
   final void forbidAllVolatiles(Interval i) {
     //following assertion can be removed after testing
-    VM._assert(i != null);
+    if (VM.VerifyAssertions) VM._assert(i != null);
     RestrictedRegisterSet r = intervalHash.get(i);
     if (r == null) {
      r = new RestrictedRegisterSet(phys);
@@ -225,7 +225,7 @@ public abstract class GenericRegisterRestrictions {
   }
   protected final void addRestrictions(Interval i, BitSet set) {
     // following assertion can be removed after testing
-    VM._assert(i != null);
+    if (VM.VerifyAssertions) VM._assert(i != null);
     RestrictedRegisterSet r = intervalHash.get(i);
     if (r == null) {
       r = new RestrictedRegisterSet(phys);
@@ -240,7 +240,7 @@ public abstract class GenericRegisterRestrictions {
    */
   protected final void addRestriction(Interval i, Register p) {
     //must be removed after testing
-    VM._assert(i != null);
+    if (VM.VerifyAssertions) VM._assert(i != null);
     RestrictedRegisterSet r = intervalHash.get(i);
     if (r == null) {
       r = new RestrictedRegisterSet(phys);
@@ -253,15 +253,11 @@ public abstract class GenericRegisterRestrictions {
    * Return the set of restricted physical register for a given Interval. Return null if no restrictions.
    */
   final RestrictedRegisterSet getRestrictions(Interval i) {
-    //must be removed after testing
-    VM._assert(i != null);
     return intervalHash.get(i);
   }
 
   public final boolean allVolatilesForbidden(Interval i) {
-    if (VM.VerifyAssertions) {
-      VM._assert(i != null);
-    }
+    if (VM.VerifyAssertions) VM._assert(i != null);
     RestrictedRegisterSet s = getRestrictions(i);
     if (s == null) return false;
     return s.getNoVolatiles();
