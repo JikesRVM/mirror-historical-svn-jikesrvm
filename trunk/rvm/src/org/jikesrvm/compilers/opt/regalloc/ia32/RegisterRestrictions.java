@@ -118,7 +118,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
             RegisterOperand val = MIR_Unary.getVal(s).asRegister();
             Register reg = val.getRegister();
             Interval i = reg.getInterval(s);
-            restrictTo8Bits(i);
+            if (i != null) restrictTo8Bits(i);
           }
         }
         break;
@@ -127,7 +127,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
             RegisterOperand op = MIR_Set.getResult(s).asRegister();
             Register reg = op.getRegister();
             Interval i = reg.getInterval(s);
-            restrictTo8Bits(i);
+            if (i != null) restrictTo8Bits(i);
           }
         }
         break;
@@ -193,7 +193,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
           if (rootOp.isRegister()) {
             Register reg= rootOp.asRegister().getRegister();
             Interval i = reg.getInterval(s);
-            restrictTo8Bits(i);
+            if (i != null) restrictTo8Bits(i);
           }
         }
       }
