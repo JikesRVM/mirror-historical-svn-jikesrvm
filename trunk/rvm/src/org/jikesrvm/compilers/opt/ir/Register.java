@@ -383,7 +383,7 @@ public final class Register {
   }
   /* end of inlined behavior */
   
-  /*
+  /**
    * Give an instruction return the BasicInterval containing this instruction or
    * just return the CompoundInterval if spill at BasicInterval is not supported.
    * This might return null here, so do assertion for null  after call.
@@ -393,6 +393,19 @@ public final class Register {
     // TODO Auto-generlated method stub
     Interval container = (Interval)scratchObject;
     if (container != null) return container.getInterval(s.scratch);
+    else return null;
+  }
+  
+  /**
+   * Give a program point return the BasicInterval containing this programpoint or
+   * just return the CompoundInterval if spill at BasicInterval is not supported.
+   * This might return null here, so do assertion for null  after call.
+   * Scratch fields are  used here, so be careful when using in other phases of compilation 
+   */
+  public Interval getInterval(int programpoint ) {
+    // TODO Auto-generlated method stub
+    Interval container = (Interval)scratchObject;
+    if (container != null) return container.getInterval(programpoint);
     else return null;
   }
 }
