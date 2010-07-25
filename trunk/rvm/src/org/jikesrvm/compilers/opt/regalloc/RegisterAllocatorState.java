@@ -13,10 +13,13 @@
 package org.jikesrvm.compilers.opt.regalloc;
 
 import java.util.Enumeration;
+
+import org.jikesrvm.VM;
 import org.jikesrvm.ArchitectureSpecificOpt.PhysicalRegisterSet;
 import org.jikesrvm.compilers.opt.ir.IR;
 import org.jikesrvm.compilers.opt.ir.Register;
-
+import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
+import org.jikesrvm.compilers.opt.regalloc.LinearScan.BasicInterval;
 /**
  * The register allocator currently caches a bunch of state in the IR;
  * This class provides accessors to this state.
@@ -24,6 +27,12 @@ import org.jikesrvm.compilers.opt.ir.Register;
  * TODO: Currently, the physical registers are STATIC! fix this.
  */
 public class RegisterAllocatorState {
+  
+  /**
+   * A scratchInterval to be used so as to avoid unnecessary creation of BasicInterval during 
+   * RegisterAloocation.
+   */
+  public static Interval scratchInterval = new BasicInterval(0,0);
 
   /**
    *  Resets the physical register info
