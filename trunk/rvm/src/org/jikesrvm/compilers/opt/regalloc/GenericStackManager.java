@@ -75,14 +75,14 @@ public abstract class GenericStackManager extends IRTools {
   
   /**
    * Set the spill location of Interval i to value spill.
-   * If spill is zero then remove the Interval i form the map as it no longer spilled
+   * Ensure not pass zeros as spill location for Linear Scan.
+   * For Extended Linear Scan zero represents that an Interval is marked for spilling 
+   * but spill location is not decided yet. So use with care.
    */
   protected  void setSpill(Object i, int spill) {
     if (VM.VerifyAssertions)
       VM._assert(i != null);
     Interval interval = (Interval)i;
-    Register reg = interval.getRegister();
-    reg.spillRegister();
     intervalToSpillLocation.put(interval,spill);
   }
   
@@ -109,11 +109,10 @@ public abstract class GenericStackManager extends IRTools {
   }
   /**
    * Check if Interval i marked for spilling.
-   * Returns false if i is null or the map does not contain Interval i
+   * Returns false the map does not contain Interval i
    */
   protected boolean isSpilled(Object i) {
     return intervalToSpillLocation.containsKey(i);
-
   }
 
   /**
