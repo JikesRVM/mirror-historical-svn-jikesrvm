@@ -66,10 +66,11 @@ public final class Register {
   private static final int EXCLUDE_LIVEANAL = 0x08000; /* reg is excluded from live analysis */
 
   /* used by the register allocator */
-  private static final int SPILLED = 0x10000; /* spilled into a memory location */
-  private static final int TOUCHED = 0x20000; /* register touched */
-  private static final int ALLOCATED = 0x40000; /* allocated to some register */
-  private static final int PINNED = 0x80000; /* pinned, unavailable for allocation */
+  //  deprecated the following
+  //private static final int SPILLED = 0x10000; /* spilled into a memory location */
+  private static final int TOUCHED = 0x10000; /* register touched */
+  private static final int ALLOCATED = 0x20000; /* allocated to some register */
+  private static final int PINNED = 0x40000; /* pinned, unavailable for allocation */
 
   /* derived constants to be exported */
   private static final int TYPE_MASK = (ADDRESS | INTEGER | FLOAT | DOUBLE | CONDITION | LONG | VALIDATION);
@@ -273,7 +274,7 @@ public final class Register {
   public Register mapsToRegister;
   
   public void clearAllocationFlags() {
-    flags &= ~(PINNED | TOUCHED | ALLOCATED | SPILLED);
+    flags &= ~(PINNED | TOUCHED | ALLOCATED);
   }
 
   public void pinRegister() {
@@ -289,12 +290,15 @@ public final class Register {
   }
 
   public void allocateRegister() {
-    flags = (flags & ~SPILLED) | (ALLOCATED | TOUCHED);
+    flags = (flags | ALLOCATED | TOUCHED);
   }
 
   public void allocateRegister(Register reg) {
-    flags = (flags & ~SPILLED) | (ALLOCATED | TOUCHED);
-    mapsToRegister = reg;
+    flags = (flags | ALLOCATED | TOUCHED);
+    /*
+     * Strange but if i remove the this form following then it meshes the adress of itself.
+     */
+    this.mapsToRegister = reg;
   }
 
   public void allocateToRegister(Register reg) {
@@ -308,23 +312,28 @@ public final class Register {
     flags &= ~ALLOCATED;
     mapsToRegister = null;
   }
-
+  
+  /* deprecated
   public void freeRegister() {
     deallocateRegister();
     Register symbReg = mapsToRegister;
     if (symbReg != null) {
-      symbReg.clearSpill();
+ //     symbReg.clearSpill();
     }
   }
-
+  */
+  /* deprecated
   public void spillRegister() {
     flags = (flags & ~ALLOCATED) | SPILLED;
   }
-
+  */
+  
+  /* deprecated
   public void clearSpill() {
     flags &= ~SPILLED;
   }
-
+  */
+  
   public void unpinRegister() {
     flags &= ~PINNED;
   }
@@ -336,11 +345,12 @@ public final class Register {
   public boolean isAllocated() {
     return (flags & ALLOCATED) != 0;
   }
-
+  
+  /* deprecated
   public boolean isSpilled() {
     return (flags & SPILLED) != 0;
   }
-
+  */
   public boolean isPinned() {
     return (flags & PINNED) != 0;
   }
@@ -390,7 +400,6 @@ public final class Register {
    * Scratch fields are  used here, so be careful when using in other phases of compilation 
    */
   public Interval getInterval(Instruction s) {
-    // TODO Auto-generlated method stub
     Interval container = (Interval)scratchObject;
     if (container != null) return container.getInterval(s.scratch);
     else return null;
@@ -403,9 +412,13 @@ public final class Register {
    * Scratch fields are  used here, so be careful when using in other phases of compilation 
    */
   public Interval getInterval(int programpoint ) {
-    // TODO Auto-generlated method stub
     Interval container = (Interval)scratchObject;
     if (container != null) return container.getInterval(programpoint);
     else return null;
+  }
+  
+  public Interval getCompoundInterval() {
+    Interval i = (Interval)scratchObject;
+    return i.getContainer();
   }
 }
