@@ -97,7 +97,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
   private static final boolean VERBOSE_DEBUG = false;
   private static final boolean GC_DEBUG = false;
   private static final boolean DEBUG_COALESCE = false;
-  private static final boolean EXTENDED_DEBUG = true;
+  private static final boolean EXTENDED_DEBUG = false;
  
   /**
    * Register allocation is required
@@ -321,10 +321,10 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 
       // Intervals sorted by increasing start point
       for (Interval b : ir.MIRInfo.linearScanState.intervals) {
-
+      
         MappedBasicInterval bi = (MappedBasicInterval) b;
         CompoundInterval ci = bi.container;
-          
+        
         active.expireOldIntervals(bi);
 
         // If the interval does not correspond to a physical register
@@ -1272,6 +1272,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         } else {
           // This is the first attempt to allocate the compound interval.
           // Attempt to find a free physical register for this interval.
+
           Register phys = findAvailableRegister(container);
           if (phys != null) {
             // Found a free register.  Perform the register assignment.
@@ -1284,7 +1285,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
             // Mark the physical register as currently allocated.
             phys.allocateRegister();
           } else {
-            // Could not find a free physical register.  Some member of the
+             // Could not find a free physical register.  Some member of the
             // active set must be spilled.  Choose a spill candidate.
             CompoundInterval spillCandidate = getSpillCandidate(container);
             if (VM.VerifyAssertions) {
@@ -1294,7 +1295,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
               VM._assert(!ir.stackManager.getRestrictions().mustNotSpill(spillCandidate));
               if (spillCandidate.getAssignment() != null) {
                 VM._assert(!ir.stackManager.getRestrictions().
-                    isForbidden(container, spillCandidate.getAssignment()));
+                  isForbidden(container, spillCandidate.getAssignment()));
               }
             }
             if (spillCandidate != container) {
@@ -1418,7 +1419,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         Register p = getPhysicalPreference(ci);
         if (p != null) {
           if (DEBUG_COALESCE) {
-            System.out.println("REGISTER PREFERENCE " + ci + " " + p);
+            System.out.println("REGISTER PREFERENCE " + ci + " " + p) ;
           }
           return p;
         }
@@ -2059,13 +2060,20 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 
       // check for an existing live interval for this register
       CompoundInterval compoundInterval = getInterval(reg);
-      Interval b = null;
+
       if (compoundInterval == null) {
         // create a new live interval
-      compoundInterval = new CompoundInterval(dfnbegin, dfnend, reg);
+        compoundInterval = new CompoundInterval(dfnbegin, dfnend, reg);
         if (VERBOSE_DEBUG) System.out.println("created a new interval " + compoundInterval);
-        b = compoundInterval.first();
-        setInterval(reg, (spillBasicsIndividually? b : compoundInterval));
+         Interval b = compoundInterval.first();
+        /*
+         * Associate the interval with register.
+         * If spillBasicsIndividually is true then we associate the any BasciInterval of a CompounInterval to register and
+         * use this Interval to navigate to other BasicInterval of the containing interval.
+         * If spillBasicsIndividually is false then we associate the CompoundInterval to register.
+         * This is being done to dynamically invoke the correct getIntverval method of Interval interface.  
+         */
+         setInterval(reg, (spillBasicsIndividually ? b : compoundInterval));
         
         // add the new interval to the sorted set of intervals.
         ir.MIRInfo.linearScanState.intervals.add(b);
@@ -2076,9 +2084,17 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       } else {
         // add the new live range to the existing interval
         List<Interval> intervals = ir.MIRInfo.linearScanState.intervals;
-        b = compoundInterval.addRange(live, bb);
+        Interval b = compoundInterval.addRange(live, bb);
         if (b != null) {
           intervals.add(b);
+          /*
+           * Associate the interval with register.
+           * If spillBasicsIndividually is true then we associate the any BasciInterval of a CompounInterval to register and
+           * use this Interval to navigate to other BasicInterval of the containing interval.
+           * If spillBasicsIndividually is false then we associate the CompoundInterval to register.
+           * This is being done to dynamically invoke the correct getIntverval method of Interval interface.  
+           */
+          if (spillBasicsIndividually) setInterval(reg,b);  
           /*
            * set the frequency at the basic interval level also
            */
@@ -2090,14 +2106,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         if (VERBOSE_DEBUG) System.out.println("Extended old interval " + reg);
         if (VERBOSE_DEBUG) System.out.println(compoundInterval);
       }
-      /*
-       * Associate the interval with register.
-       * If spillBasicsIndividually is true then we associate the any BasciInterval of a CompounInterval to register and
-       * use this Interval to navigate to other BasicInterval of the containing interval.
-       * If spillBasicsIndividually is false then we associate the CompoundInterval to register.
-       * This is being done to dynamically invoke the correct getIntverval method of Interval interface.  
-       */
-      setInterval(reg, (spillBasicsIndividually? b : compoundInterval));
+      
       return compoundInterval;
     }
   }
@@ -2208,7 +2217,13 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         CoalesceGraph.Edge edge = (CoalesceGraph.Edge) in.nextElement();
         CoalesceGraph.Node src = (CoalesceGraph.Node) edge.from();
         Register neighbor = src.getRegister();
-        if (neighbor.isSymbolic() && neighbor.isSpilled()) {
+        /*
+         * following is point were we will have to make to make 
+         * adjustment of spillBasicsIndividually. Problem here is we don;t have idea about
+         * the program point. We will have to pass the getSpillPreference the program point
+         * where it was invoked 
+         */
+        if (neighbor.isSymbolic() && neighbor.getCompoundInterval().isSpilled(ir)) {
           int spillOffset = ir.stackManager.getSpill((Interval)neighbor.scratchObject);
           // if this is a candidate interval, update its weight
           for (SpillLocationInterval s : freeIntervals) {
@@ -2232,7 +2247,13 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         CoalesceGraph.Edge edge = (CoalesceGraph.Edge) in.nextElement();
         CoalesceGraph.Node dest = (CoalesceGraph.Node) edge.to();
         Register neighbor = dest.getRegister();
-        if (neighbor.isSymbolic() && neighbor.isSpilled()) {
+        /*
+         * following is point were we will have to make to make 
+         * adjustment of spillBasicsIndividually. Problem here is we don;t have idea about
+         * the program point. We will have to pass the getSpillPreference the program point
+         * where it was invoked 
+         */
+        if (neighbor.isSymbolic() && neighbor.getCompoundInterval().isSpilled(ir)) {
           int spillOffset = ir.stackManager.getSpill((Interval)neighbor.scratchObject);
           // if this is a candidate interval, update its weight
           for (SpillLocationInterval s : freeIntervals) {
@@ -2469,19 +2490,26 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           if (GC_DEBUG) {
             VM.sysWrite("get location for " + symbolic + '\n');
           }
-
-          if (symbolic.isAllocated()) {
-            Register ra = RegisterAllocatorState.getMapping(symbolic);
-            elem.setRealReg(ra);
-            if (GC_DEBUG) { VM.sysWrite(ra + "\n"); }
-
-          } else if (symbolic.isSpilled()) {
+          
+          if (symbolic.getCompoundInterval().isSpilled(ir)) {
             int spill = ir.stackManager.getSpill((Interval)symbolic.scratchObject);
             elem.setSpill(spill);
             if (GC_DEBUG) { VM.sysWrite(spill + "\n"); }
-          } else {
-            OptimizingCompilerException.UNREACHABLE("LinearScan", "register not alive:", symbolic.toString());
-          }
+          } /*
+             * following point will certainly require changes related to spillBasicsIndividually
+             * As we don't have program point information here. May be the RegSpilListElement should
+             * be IntervaListElement.
+             */
+          else  {
+            Register ra = RegisterAllocatorState.getMapping(symbolic);
+            if (ra != null) {
+              elem.setRealReg(ra);
+              if (GC_DEBUG) { VM.sysWrite(ra + "\n"); }
+            }
+            else {
+              OptimizingCompilerException.UNREACHABLE("LinearScan", "register not alive:", symbolic.toString());
+            }
+          } 
         }
       }
     }
@@ -2653,7 +2681,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           if (op.isRegister()) {
             RegisterOperand rop = op.asRegister();
             Register r = rop.getRegister();
-            if (r.isSymbolic() && !r.isSpilled()) {
+            if (r.isSymbolic() && !r.getInterval(s).isSpilled(ir)) {
               Register p = RegisterAllocatorState.getMapping(r);
               if (VM.VerifyAssertions) VM._assert(p != null);
               rop.setRegister(p);
@@ -2786,7 +2814,12 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         setTupleValue(tuple, OSRConstants.PHYREG, sym_reg.number & REG_MASK);
       } else if (sym_reg.isPhysical()) {
         setTupleValue(tuple, OSRConstants.PHYREG, sym_reg.number & REG_MASK);
-      } else if (sym_reg.isSpilled()) {
+      }/*
+       * following is point were we will have to make to make 
+       * adjustment of spillBasicsIndividually. Problem here is we don't have idea about
+       * the program point. 
+       */
+        else if (sym_reg.getCompoundInterval().isSpilled(ir)) {
         setTupleValue(tuple, OSRConstants.SPILL, ir.stackManager.getSpill((Interval)sym_reg.scratchObject));
       } else {
         dumpIR(ir, "PANIC");
