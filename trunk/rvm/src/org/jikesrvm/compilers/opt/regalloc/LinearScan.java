@@ -12,6 +12,7 @@
  */
 package org.jikesrvm.compilers.opt.regalloc;
 
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -24,6 +25,7 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import org.jikesrvm.DumpToFile;
 import org.jikesrvm.VM;
 import org.jikesrvm.ArchitectureSpecificOpt.PhysicalRegisterConstants;
 import org.jikesrvm.ArchitectureSpecificOpt.PhysicalRegisterSet;
@@ -87,7 +89,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
   /*
    *  make the following command line option
    */
-  private static boolean spillBasicsIndividually = false;
+  private static boolean spillBasicsIndividually =true;
 
 
   /**
@@ -875,7 +877,6 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       for (Interval b : result) {
         remove(b);
       }
-
       return result;
     }
 
@@ -2686,8 +2687,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
             RegisterOperand rop = op.asRegister();
             Register r = rop.getRegister();
             if (r.isSymbolic() && !r.getInterval(s).isSpilled(ir)) {
-              Register p = RegisterAllocatorState.getIntervalToRegister(r.getInterval(s));
-              if (VM.VerifyAssertions) VM._assert(p != null);
+              Register p = RegisterAllocatorState.getIntervalToRegister((Interval)r.getCompoundInterval());
+      //        if (VM.VerifyAssertions) VM._assert(p != null);
               rop.setRegister(p);
             }
           }
@@ -2909,18 +2910,14 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         MappedBasicInterval bi = (MappedBasicInterval) interval;
         int begin = bi.getBegin();
         int end = bi.getEnd();
-        BasicBlock bb = returnContainingBasicBlock(begin,end);
-        VM._assert(bb != null);
-
         /* 
          * Return the the live variables at this interval end point.
          */
-        ArrayList<Interval> liveIntervals = findLiveIntervals(bb,end);
+        List<Interval> liveIntervals = findLiveIntervals(end);
         Interval spill = checkForSpillPoint(liveIntervals);
         if (spill != null) {
           Interval i = findIntervalToSpill(liveIntervals, spill);
-          if (VM.VerifyAssertions)
-            VM._assert(i != null);
+          if (VM.VerifyAssertions) VM._assert(i != null);
 
           // set the spill flag for this interval so as to exclude it from liveIntervals
           i.setSpill(ir,0);
@@ -2935,51 +2932,39 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       while ( !stackOfSpilledIntervals.isEmpty()) {
         Interval i = stackOfSpilledIntervals.pop();
 	stackcount++;
-	BasicBlock bb = returnContainingBasicBlock(i.getBegin(),i.getEnd());
 	i.unsetSpill(ir);
-	boolean resurrect = checkForResurrection(bb,i);
-	if (resurrect) { 
-	  //i.setSpillFlag(false);
-	  resurrectcount++;
-	  //if (EXTENDED_DEBUG) System.out.println(" found a varaible to resurrect ");
-        }
-        // Reset the spill flag
-        else i.setSpill(ir,0); 
-        //if (EXTENDED_DEBUG) System.out.println(" cannot resurrect");
+	boolean resurrect = checkForResurrection(i);
+	if (resurrect) resurrectcount++;
+	else i.setSpill(ir,0); 
       }
-      if (EXTENDED_DEBUG) System.out.println(" Stack Count "+ stackcount + " resurec t count " + resurrectcount );
     }
 
-    private boolean checkForResurrection(BasicBlock bb, Interval i) {
-      for (InstructionEnumeration instEnumeration = bb.forwardInstrEnumerator(); instEnumeration.hasMoreElements(); ) {
-        Instruction inst = instEnumeration.next();
-        ArrayList<Interval> liveIntervals = processLiveInterval(bb,inst.scratch,i);
+    private boolean checkForResurrection(Interval i) {
+      for (Instruction inst = thisIR.firstInstructionInCodeOrder(); inst != null; inst = inst.nextInstructionInCodeOrder()) {
+        List<Interval> liveIntervals = processLiveInterval(inst.scratch,i);
         Interval interval = null;
-        if(liveIntervals != null) 
+        if (liveIntervals != null) 
           interval =  checkForSpillPoint(liveIntervals);
-        if (interval != null) {
-          //	if (EXTENDED_DEBUG) System.out.println(" check for resurrection returning false" );
-          return false;
-        }
+        if (interval != null) return false;
       }
       return true; 
     }
 
-    private Interval findIntervalToSpill(ArrayList<Interval> liveIntervals, Interval iType) {
+    private Interval findIntervalToSpill(List<Interval> liveIntervals, Interval iType) {
       Interval result = iType;
       boolean freqFocus = thisIR.options.FREQ_FOCUS_EFFORT;
       double minCost= spillCost.getCost(result);
       Register regType = iType.getRegister();
-      if ( freqFocus && result.isInfrequent() && !restrict.mustNotSpill(result)) {
+      if (freqFocus && result.isInfrequent() && !restrict.mustNotSpill(result)) {
         return result;
       }
       for (Interval i : liveIntervals) {
-        if(VM.VerifyAssertions)
+        if (VM.VerifyAssertions)
           VM._assert(!i.isSpilled(thisIR));
         Register newReg = ((CompoundInterval)i.getContainer()).getRegister();
         boolean restricted = restrict.mustNotSpill(i);
-        if( !newReg.isPhysical() && !restricted &&  
-          ( regType.getType() == newReg.getType() || ( regType.isNatural() && newReg.isNatural()) ) ) {
+        if (!newReg.isPhysical() && !restricted &&  
+          (regType.getType() == newReg.getType() || (regType.isNatural() && newReg.isNatural()))) {
           if (freqFocus &&  i.isInfrequent()) {
             result = i;
 	    break;
@@ -2996,12 +2981,11 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 
     private boolean checkForRestriction (ArrayList<Register> regList, Interval i) {
       for (Register reg : regList) {
-          if (restrict.isForbidden(i, reg))
-            return true;
+          if (restrict.isForbidden(i, reg)) return true;
       }
       return false;
     }
-    private Interval checkForSpillPoint(ArrayList<Interval> liveIntervals) {
+    private Interval checkForSpillPoint(List<Interval> liveIntervals) {
       int numberOfGprAvailable;
       int numberOfFprAvailable;
       ArrayList<Interval> restrictedIntervals = new ArrayList<Interval>();
@@ -3015,7 +2999,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       Interval floatInterval = null;
       for (Interval i : liveIntervals) {
         Register r = ((CompoundInterval)i.getContainer()).getRegister();
-        if(r.isPhysical()) continue;
+        if (r.isPhysical()) continue;
         if (r.isFloatingPoint()) {
           numFloatVariables++;
           floatInterval = i;
@@ -3031,24 +3015,17 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       ArrayList<Register> physicalRegisterList = new ArrayList<Register>();
       for (Enumeration<Register> enumeration =phys.enumerateGPRs(); enumeration.hasMoreElements();) {
         Register reg = enumeration.nextElement();
-        if(reg != phys.getESI() && reg != phys.getESI()) {
-          physicalRegisterList.add(reg);
-        }
+        if (reg != phys.getESI() && reg != phys.getESI()) physicalRegisterList.add(reg);
       }
       for (Interval i : liveIntervals) { 
         Register r = ((CompoundInterval)i.getContainer()).getRegister();
-        if(r.isPhysical() ||  r.isFloatingPoint()) continue;
-        if (checkForRestriction(physicalRegisterList,i))
-          restrictedIntervals.add(i);
-        else
-          nonRestrictedInterval.add(i);
+        if (r.isPhysical() ||  r.isFloatingPoint()) continue;
+        if (checkForRestriction(physicalRegisterList,i)) restrictedIntervals.add(i);
+        else nonRestrictedInterval.add(i);
       }
       if (numOtherVariables > numberOfGprAvailable ) {
-      //if (EXTENDED_DEBUG) System.out.println(" Check Spill point: non floating point spill " );
-      if(!nonRestrictedInterval.isEmpty())
-        return nonRestrictedInterval.get(0);
-      else
-        return restrictedIntervals.get(0);
+        if (!nonRestrictedInterval.isEmpty()) return nonRestrictedInterval.get(0);
+        else return restrictedIntervals.get(0);
       }
 
       /*
@@ -3059,59 +3036,41 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       /*
       * First allocate the restricted intervals 
       */
-   //   if (EXTENDED_DEBUG) System.out.println(" Allocation simulation available registers" + physicalRegisterList.size());
       for (Interval i : restrictedIntervals) {
         boolean allocated = false;
         int count = 0;
-        // Register r=null;
-        for (; count < physicalRegisterList.size();count++ ) {
+        for (;count < physicalRegisterList.size();count++) {
           Register reg = physicalRegisterList.get(count);
-	  if ( !restrict.isForbidden(i, reg)) {
+	  if (!restrict.isForbidden(i, reg)) {
 	    allocated = true;
 	    physicalRegisterList.remove(count);
 	    break;
 	  }
 	  count ++;
         }
-	if (!allocated) {
-//	  if (EXTENDED_DEBUG) System.out.println(" Check Spill point: could not allocate to restricted interval " + 
-	  		//restrictedIntervals.size() +" toatl var" + numOtherVariables + " Num Itera " + count );
-	  return i;
-        }
-        // else if (EXTENDED_DEBUG) System.out.println("Allocated to restrcied inter "+ "available regiters" + physicalRegisterList.size());
+	if (!allocated) return i;
       }
-
-      // if (EXTENDED_DEBUG) System.out.println(" Allocated to all restricted:  available registers" + physicalRegisterList.size());
+      
       /*
       * Now allocate the non restricted
       */
       for (Interval i : nonRestrictedInterval) {
-        if( physicalRegisterList.isEmpty() ) {
-          //   if (EXTENDED_DEBUG) System.out.println(" Check Spill point: could not allocate  to non restricted interval " + nonRestrictedInterval.size()
-          //    + " restricted size " + restrictedIntervals.size() +" total var " + numOtherVariables);
-          return i;
-        }
+        if (physicalRegisterList.isEmpty()) return i;
         physicalRegisterList.remove(0);
       }
+      
       return null;
     }
     /**
      * Return the Live Intervals at program point end.
      * It does not include the intervals which have been marked spilled previously
      */
-    private ArrayList<Interval> findLiveIntervals(BasicBlock bb, int end) {
-      ArrayList<Interval> result = new ArrayList<Interval>();
-      for (LiveIntervalElement live = bb.getFirstLiveIntervalElement(); live != null; live = live.getNext()) {
-        Instruction inst;
-        Instruction first = ((inst = live.getBegin()) != null) ? inst : bb.firstInstruction();
-        Instruction last = ((inst = live.getEnd()) != null) ? inst : bb.lastInstruction();
-        if ( end > first.scratch && end <= last.scratch) {
-          Register symbolic = live.getRegister();
-          if (!symbolic.isPhysical()) {
-            Interval i = symbolic.getInterval(end);
-            VM._assert(i != null);
-            if (!i.isSpilled(thisIR))
-              result.add(i);
+    private List<Interval> findLiveIntervals(int end) {
+      List<Interval> result = new ArrayList<Interval>();
+      for (Interval i : thisIR.MIRInfo.linearScanState.intervals ) {
+        if (end > i.getBegin() && end <= i.getEnd()) {
+          if (!i.getRegister().isPhysical()) {
+            if (!i.isSpilled(thisIR)) result.add(i);
           }
         }
       }
@@ -3127,54 +3086,19 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     * This function is  similar to above except it returns the list only if Interval interval is
     * live at the program point.
     */
-    private ArrayList<Interval> processLiveInterval(BasicBlock bb, int programpoint,
-                                                    Interval interval) {
+    private List<Interval> processLiveInterval(int programpoint,Interval interval) {
       ArrayList<Interval> result = new ArrayList<Interval>();
       ArrayList<Interval> result2 = new ArrayList<Interval>();
-      boolean ispresent = false;
-      for (LiveIntervalElement live = bb.getFirstLiveIntervalElement(); live != null; live = live.getNext()) {
-        Instruction first = live.getBegin();
-        if (first == null) first = bb.firstInstruction();
-        Instruction last = live.getEnd();
-        if (last == null) last = bb.lastInstruction();
-        if (programpoint > first.scratch && programpoint <= last.scratch) {
-          Register symbolic = live.getRegister();
-          if (!symbolic.isPhysical()) {
-            CompoundInterval ci = (CompoundInterval) symbolic.scratchObject;
-            Interval i = ci.getInterval(programpoint);
-            if (VM.VerifyAssertions) VM._assert(i != null);
-            if (i == interval) ispresent = true;
-            if (!i.isSpilled(thisIR))
-              result.add(i);
+      boolean isPresent = false;
+      for (Interval i : thisIR.MIRInfo.linearScanState.intervals ) {
+        if (programpoint > i.getBegin() && programpoint <= i.getEnd()) {
+          if (!i.getRegister().isPhysical()) {
+            if (i == interval) isPresent = true;
+    	    if (!i.isSpilled(thisIR)) result2.add(i);
           }
         }
       }
-      
-      for (Interval i : thisIR.MIRInfo.linearScanState.intervals ) {
-        if ( programpoint > i.getBegin() && programpoint <= i.getEnd()) {
-          if ( i == interval) ispresent = true;
-    	  if (!i.isSpilled(thisIR)) result2.add(i);
-        }
-      }
-      if (ispresent) { System.out.println("1 "+result.size()+" 2 "+result2.size()); return result; }
-      else return null;
-      // return isPresent ? result : null;
-
-    }
-
-    /**
-    * Give a Interval's begin and end point, this returns the BasicBlock containing this interval.
-    * Use this for BasicInterval type. 
-    * EBM: slow!
-    */
-    private BasicBlock returnContainingBasicBlock(int begin, int end) {
-      for (Enumeration<BasicBlock> enumeration = thisIR.getBasicBlocks();enumeration.hasMoreElements();) {
-        BasicBlock bb = (BasicBlock)enumeration.nextElement();
-        Instruction first = bb.firstInstruction();
-        Instruction last = bb.lastInstruction();
-        if (begin >= first.scratch && end <= last.scratch) return bb; 
-        }
-      return null;
+      return (isPresent ? result : null);
     }
   }
 }
