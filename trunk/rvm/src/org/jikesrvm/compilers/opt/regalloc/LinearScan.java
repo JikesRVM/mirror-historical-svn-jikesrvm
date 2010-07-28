@@ -2929,13 +2929,13 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       /* Spill Resurrection */
       int stackcount = 0;
       int resurrectcount  = 0;
-      while ( !stackOfSpilledIntervals.isEmpty()) {
+      while (!stackOfSpilledIntervals.isEmpty()) {
         Interval i = stackOfSpilledIntervals.pop();
 	stackcount++;
 	i.unsetSpill(ir);
 	boolean resurrect = checkForResurrection(i);
 	if (resurrect) resurrectcount++;
-	else i.setSpill(ir,0); 
+	else i.setSpill(ir, 0); 
       }
     }
 
@@ -2959,8 +2959,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         return result;
       }
       for (Interval i : liveIntervals) {
-        if (VM.VerifyAssertions)
-          VM._assert(!i.isSpilled(thisIR));
+        if (VM.VerifyAssertions) VM._assert(!i.isSpilled(thisIR));
         Register newReg = ((CompoundInterval)i.getContainer()).getRegister();
         boolean restricted = restrict.mustNotSpill(i);
         if (!newReg.isPhysical() && !restricted &&  
@@ -2970,7 +2969,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 	    break;
           }
 	  double cost = spillCost.getCost(i);
-	  if (cost < minCost ) {
+	  if (cost < minCost) {
 	  result  =i;
 	  minCost = cost;
 	  }
@@ -3003,7 +3002,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         if (r.isFloatingPoint()) {
           numFloatVariables++;
           floatInterval = i;
-       }
+        }
         else 
           numOtherVariables++;
       }
@@ -3087,14 +3086,13 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     * live at the program point.
     */
     private List<Interval> processLiveInterval(int programpoint,Interval interval) {
-      ArrayList<Interval> result = new ArrayList<Interval>();
-      ArrayList<Interval> result2 = new ArrayList<Interval>();
+      List<Interval> result = new ArrayList();
       boolean isPresent = false;
       for (Interval i : thisIR.MIRInfo.linearScanState.intervals ) {
         if (programpoint > i.getBegin() && programpoint <= i.getEnd()) {
           if (!i.getRegister().isPhysical()) {
             if (i == interval) isPresent = true;
-    	    if (!i.isSpilled(thisIR)) result2.add(i);
+    	    if (!i.isSpilled(thisIR)) result.add(i);
           }
         }
       }
