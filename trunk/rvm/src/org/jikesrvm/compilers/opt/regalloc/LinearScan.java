@@ -131,7 +131,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
    *  @return the live interval or null
    */
   static CompoundInterval getInterval(Register reg) {
-    return  (CompoundInterval)reg.scratchObject;
+    return (CompoundInterval)reg.getCompoundInterval();
   }
 
   /**
@@ -763,9 +763,10 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * @param spillManager governing spill location manager
      */
     void spill(SpillLocationManager spillManager) {
+      //  remove this interval from intervalToRegister HashMap
+      RegisterAllocatorState.deallocateInterval(this);
       spillInterval = spillManager.findOrCreateSpillLocation(this);
       spillManager.ir.stackManager.setSpill(this, spillInterval.getOffset());
-      RegisterAllocatorState.clearOneToOne(reg);
       if (VERBOSE_DEBUG) {
         System.out.println("Assigned " + reg + " to location " + spillInterval.getOffset());
       }
@@ -775,14 +776,15 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * Assign this compound interval to a physical register.
      */
     void assign(Register r) {
-      getRegister().allocateToRegister(r);
+      // add this compoundInterval to intervalToRegisterHashMap
+      RegisterAllocatorState.setIntervalToRegister(this, r);
     }
 
     /**
      * Has this interval been assigned to a physical register?
      */
     boolean isAssigned() {
-      return (RegisterAllocatorState.getMapping(getRegister()) != null);
+      return RegisterAllocatorState.isAssignedRegister(this);
     }
 
     /**
@@ -790,7 +792,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * none assigned.
      */
     Register getAssignment() {
-      return RegisterAllocatorState.getMapping(getRegister());
+      return RegisterAllocatorState.getIntervalToRegister(this);
     }
 
     /**
@@ -1161,10 +1163,9 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         }
       } else {
         // free the assigned register
-        if (VM.VerifyAssertions) VM._assert(container.getAssignment().isAllocated());
-        container.getAssignment().deallocateRegister();
+        if (VM.VerifyAssertions); VM._assert(container.isAssigned());
+        container.getAssignment().deallocateRegister(); 
       }
-
     }
     
     /**
@@ -1365,7 +1366,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
          * RegisterAllocatorState.scratchInteral for fetching the 
          * set of BasicInterval
          */
-          physInterval.addNonIntersectingInterval(c, stop);
+        physInterval.addNonIntersectingInterval(c, stop);
       }
     }
 
@@ -1377,7 +1378,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       for (Iterator<Interval> e = iterator(); e.hasNext();) {
         MappedBasicInterval i = (MappedBasicInterval) e.next();
         CompoundInterval container = i.container;
-        if (RegisterAllocatorState.getMapping(container.getRegister()) == r) {
+        if (RegisterAllocatorState.getIntervalToRegister(container) == r) {
           return true;
         }
       }
@@ -1392,7 +1393,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       for (Iterator<Interval> e = iterator(); e.hasNext();) {
         MappedBasicInterval i = (MappedBasicInterval) e.next();
         CompoundInterval container = i.container;
-        if (RegisterAllocatorState.getMapping(container.getRegister()) == r) {
+        if (RegisterAllocatorState.getIntervalToRegister(container) == r) {
           return container;
         }
       }
@@ -1454,6 +1455,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     /**
      * Try to find a free physical register to allocate to a symbolic
      * register.
+     * This functions is deprecated now  due to disassociation of Interval from symbolic register
      */
     Register findAvailableRegister(Register symb) {
 
@@ -1501,7 +1503,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * Given the current state of the register allocator, compute the
      * available physical register to which a symbolic register has the
      * highest preference.
-     *
+     * This function is deprecated now due to disassociation of symbolic from Interval. 
      * @param r the symbolic register in question.
      * @return the preferred register.  null if no preference found.
      */
@@ -1524,7 +1526,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         if (neighbor.isSymbolic()) {
           // if r is assigned to a physical register r2, treat the
           // affinity as an affinity for r2
-          Register r2 = RegisterAllocatorState.getMapping(r);
+          Register r2 = RegisterAllocatorState.getIntervalToRegister(r.getCompoundInterval());
           if (r2 != null && r2.isPhysical()) {
             neighbor = r2;
           }
@@ -1551,7 +1553,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         if (neighbor.isSymbolic()) {
           // if r is assigned to a physical register r2, treat the
           // affinity as an affinity for r2
-          Register r2 = RegisterAllocatorState.getMapping(r);
+          Register r2 = RegisterAllocatorState.getIntervalToRegister(r.getCompoundInterval());
           if (r2 != null && r2.isPhysical()) {
             neighbor = r2;
           }
@@ -1610,7 +1612,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         if (neighbor.isSymbolic()) {
           // if r is assigned to a physical register r2, treat the
           // affinity as an affinity for r2
-          Register r2 = RegisterAllocatorState.getMapping(r);
+          Register r2 = RegisterAllocatorState.getIntervalToRegister(ci);
           if (r2 != null && r2.isPhysical()) {
             neighbor = r2;
           }
@@ -1637,7 +1639,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         if (neighbor.isSymbolic()) {
           // if r is assigned to a physical register r2, treat the
           // affinity as an affinity for r2
-          Register r2 = RegisterAllocatorState.getMapping(r);
+          Register r2 = RegisterAllocatorState.getIntervalToRegister(ci);
           if (r2 != null && r2.isPhysical()) {
             neighbor = r2;
           }
@@ -2023,6 +2025,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           reg.setInteger();
         }
       }
+      // Initialize the ir field of RegisterAllocatorState
+      RegisterAllocatorState.thisIR = ir;
       
       /*
        * We now always associate a dummy Interval data structure to physical register.
@@ -2500,8 +2504,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
              * As we don't have program point information here. May be the RegSpilListElement should
              * be IntervaListElement.
              */
-          else  {
-            Register ra = RegisterAllocatorState.getMapping(symbolic);
+          else {
+            Register ra = RegisterAllocatorState.getIntervalToRegister(symbolic.getCompoundInterval());
             if (ra != null) {
               elem.setRealReg(ra);
               if (GC_DEBUG) { VM.sysWrite(ra + "\n"); }
@@ -2682,7 +2686,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
             RegisterOperand rop = op.asRegister();
             Register r = rop.getRegister();
             if (r.isSymbolic() && !r.getInterval(s).isSpilled(ir)) {
-              Register p = RegisterAllocatorState.getMapping(r);
+              Register p = RegisterAllocatorState.getIntervalToRegister(r.getInterval(s));
               if (VM.VerifyAssertions) VM._assert(p != null);
               rop.setRegister(p);
             }
@@ -2810,7 +2814,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       // now it is not symbolic register anymore.
       // is is really confusing that sometimes a sym reg is a phy,
       // and sometimes not.
-      if (sym_reg.isAllocated()) {
+      if (RegisterAllocatorState.isAssignedRegister(sym_reg.getCompoundInterval())) {
         setTupleValue(tuple, OSRConstants.PHYREG, sym_reg.number & REG_MASK);
       } else if (sym_reg.isPhysical()) {
         setTupleValue(tuple, OSRConstants.PHYREG, sym_reg.number & REG_MASK);
