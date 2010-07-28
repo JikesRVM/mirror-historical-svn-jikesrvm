@@ -19,6 +19,7 @@ import java.util.Set;
 
 import org.jikesrvm.ArchitectureSpecificOpt.PhysicalRegisterSet;
 import org.jikesrvm.compilers.opt.ir.operand.RegisterOperand;
+import org.jikesrvm.compilers.opt.regalloc.RegisterAllocatorState;
 import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
 
 
@@ -270,9 +271,6 @@ public final class Register {
     return s;
   }
 
-  /* used by the register allocator */
-  public Register mapsToRegister;
-  
   public void clearAllocationFlags() {
     flags &= ~(PINNED | TOUCHED | ALLOCATED);
   }
@@ -295,45 +293,11 @@ public final class Register {
 
   public void allocateRegister(Register reg) {
     flags = (flags | ALLOCATED | TOUCHED);
-    /*
-     * Strange but if i remove the this form following then it meshes the adress of itself.
-     */
-    this.mapsToRegister = reg;
   }
-
-  public void allocateToRegister(Register reg) {
-    this.allocateRegister(reg);
-    reg.allocateRegister(this);
-  }
-  
-
-  
   public void deallocateRegister() {
     flags &= ~ALLOCATED;
-    mapsToRegister = null;
   }
-  
-  /* deprecated
-  public void freeRegister() {
-    deallocateRegister();
-    Register symbReg = mapsToRegister;
-    if (symbReg != null) {
- //     symbReg.clearSpill();
-    }
-  }
-  */
-  /* deprecated
-  public void spillRegister() {
-    flags = (flags & ~ALLOCATED) | SPILLED;
-  }
-  */
-  
-  /* deprecated
-  public void clearSpill() {
-    flags &= ~SPILLED;
-  }
-  */
-  
+ 
   public void unpinRegister() {
     flags &= ~PINNED;
   }
@@ -345,12 +309,7 @@ public final class Register {
   public boolean isAllocated() {
     return (flags & ALLOCATED) != 0;
   }
-  
-  /* deprecated
-  public boolean isSpilled() {
-    return (flags & SPILLED) != 0;
-  }
-  */
+
   public boolean isPinned() {
     return (flags & PINNED) != 0;
   }
@@ -359,15 +318,12 @@ public final class Register {
     return (flags & (ALLOCATED | PINNED)) == 0;
   }
  
-  public Register getRegisterAllocated() {
-    return mapsToRegister;
-  }
- 
   public int hashCode() {
     return number;
   }
 
-  /* inlined behavior of DoublyLinkedListElement */ Register next, prev;
+  /* inlined behavior of DoublyLinkedListElement */ 
+  Register next, prev;
 
   public Register getNext() { return next; }
 
@@ -400,25 +356,25 @@ public final class Register {
    * Scratch fields are  used here, so be careful when using in other phases of compilation 
    */
   public Interval getInterval(Instruction s) {
-    Interval container = (Interval)scratchObject;
-    if (container != null) return container.getInterval(s.scratch);
+    if (scratchObject != null) return ((Interval)scratchObject).getInterval(s.scratch);
     else return null;
   }
   
   /**
-   * Give a program point return the BasicInterval containing this programpoint or
+   * Give a program point return the BasicInterval containing this program point or
    * just return the CompoundInterval if spill at BasicInterval is not supported.
    * This might return null here, so do assertion for null  after call.
    * Scratch fields are  used here, so be careful when using in other phases of compilation 
    */
   public Interval getInterval(int programpoint ) {
-    Interval container = (Interval)scratchObject;
-    if (container != null) return container.getInterval(programpoint);
+    if (scratchObject != null) return ((Interval)scratchObject).getInterval(programpoint);
     else return null;
   }
-  
+  /**
+   * Fetch the CompoundInterval associated with this Register.
+   */
   public Interval getCompoundInterval() {
-    Interval i = (Interval)scratchObject;
-    return i.getContainer();
+    if (scratchObject != null) return ((Interval)scratchObject).getContainer();
+    else return null;
   }
 }
