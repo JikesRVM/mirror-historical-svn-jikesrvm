@@ -20,6 +20,7 @@ import org.jikesrvm.compilers.opt.ir.IR;
 import org.jikesrvm.compilers.opt.ir.Register;
 import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
 import org.jikesrvm.compilers.opt.regalloc.LinearScan.BasicInterval;
+
 /**
  * The register allocator currently caches a bunch of state in the IR;
  * This class provides accessors to this state.
@@ -33,7 +34,12 @@ public class RegisterAllocatorState {
    * RegisterAloocation.
    */
   public static Interval scratchInterval = new BasicInterval(0,0);
-
+  
+  /**
+   * Register Allocation state of the following IR
+   */
+  public static IR thisIR = null;
+  
   /**
    *  Resets the physical register info
    */
@@ -42,76 +48,39 @@ public class RegisterAllocatorState {
     for (Enumeration<Register> e = phys.enumerateAll(); e.hasMoreElements();) {
       Register reg = e.nextElement();
       reg.deallocateRegister();
-      reg.mapsToRegister = null;  // mapping from real to symbolic
-      //    putPhysicalRegResurrectList(reg, null);
       reg.defList = null;
       reg.useList = null;
      }
   }
-
-  /**
-   * Special use of scratchObject field as "resurrect lists" for real registers
-   * TODO: use another field for safety; scratchObject is also used by
-   *  clan LinearScanLiveAnalysis
-   */
-  /*
-  static void putPhysicalRegResurrectList(Register r,
-                                          LinearScanLiveInterval li) {
-    if (VM.VerifyAssertions) VM._assert(r.isPhysical());
-    r.scratchObject = li;
-  }
-  */
-  /**
-   *
-   * Special use of scratchObject field as "resurrect lists" for real registers
-   * TODO: use another field for safety; scratchObject is also used by
-   *  clan LinearScanLiveAnalysis
-   */
-  /*
-  static LinearScanLiveInterval getPhysicalRegResurrectList(Register r) {
-    if (VM.VerifyAssertions) VM._assert(r.isPhysical());
-    return (LinearScanLiveInterval) r.scratchObject;
-  }
-  */  
   
   /**
-   * Record that register A and register B are associated with each other
-   * in a bijection.
-   *
-   * The register allocator uses this state to indicate that a symbolic
-   * register is presently allocated to a physical register.
+   * Mapping from Interval to Physical register.
    */
-  static void mapOneToOne(Register A, Register B) {
-    Register aFriend = getMapping(A);
-    Register bFriend = getMapping(B);
-    if (aFriend != null) {
-      aFriend.mapsToRegister = null;
-    }
-    if (bFriend != null) {
-      bFriend.mapsToRegister = null;
-    }
-    A.mapsToRegister = B;
-    B.mapsToRegister = A;
+  public static  void setIntervalToRegister(Object i, Register reg) {
+    if (VM.VerifyAssertions) VM._assert(i != null);
+    thisIR.stackManager.intervalToRegister.put((Interval)i,reg);
   }
-
+  
   /**
-   * @return the register currently mapped 1-to-1 to r
+   * Get the physical register allocated to Interval i
    */
-  static Register getMapping(Register r) {
-    return r.mapsToRegister;
+  public static Register getIntervalToRegister(Object i) {
+    return thisIR.stackManager.intervalToRegister.get(i);
   }
- 
+  
   /**
-   * Clear any 1-to-1 mapping for register R.
+   * Check if Interval is present the HashMap indicating that Interval i was allocated 
+   * a physical register.
    */
-  static void clearOneToOne(Register r) {
-    if (r != null) {
-      Register s = getMapping(r);
-      if (s != null) {
-        s.mapsToRegister = null;
-      }
-      r.mapsToRegister = null;
-    }
-   
+  public static boolean isAssignedRegister(Object i) {
+    return thisIR.stackManager.intervalToRegister.containsKey(i);  
+  }
+  
+  /**
+   * Remove the Interval form the HashMap intervalToRegister and thus removing the mapping
+   * from Interval to physical register.
+   */
+  public static  void deallocateInterval(Object i) {
+    thisIR.stackManager.intervalToRegister.remove(i);
   }
 }
