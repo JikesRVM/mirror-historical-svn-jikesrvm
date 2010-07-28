@@ -1416,7 +1416,7 @@ public abstract class GenericStackManager extends IRTools {
     for (Enumeration<Register> e = phys.enumerateVolatiles(physType); e.hasMoreElements();) {
       Register realReg = e.nextElement();
       if (realReg.isAvailable()) {
-        realReg.allocateToRegister(symbReg);
+        RegisterAllocatorState.setIntervalToRegister(symbReg.getCompoundInterval(), realReg);
         if (DEBUG) VM.sysWrite(" volat." + realReg + " to symb " + symbReg + '\n');
         return realReg;
       }
@@ -1465,7 +1465,7 @@ public abstract class GenericStackManager extends IRTools {
     for (Enumeration<Register> e = phys.enumerateNonvolatilesBackwards(physType); e.hasMoreElements();) {
       Register realReg = e.nextElement();
       if (realReg.isAvailable()) {
-        realReg.allocateToRegister(symbReg);
+        RegisterAllocatorState.setIntervalToRegister(symbReg.getCompoundInterval(), realReg);
         return realReg;
       }
     }
