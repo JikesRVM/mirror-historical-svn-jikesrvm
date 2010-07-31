@@ -892,6 +892,41 @@ public abstract class MutatorContext implements Constants {
   }
 
   /**
+   * Attempt to atomically exchange the value in the given slot with the passed replacement value.
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param old The old long to be swapped out
+   * @param value The new long
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   * @return True if the swap was successful.
+   */
+  public boolean wordTryCompareAndSwapInLock(ObjectReference src, Address slot, Word old, Word value, Word metaDataA,
+                                             Word metaDataB, int mode) {
+    // Either: write barriers are used and this is overridden, or
+    // write barriers are not used and this is never called
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(false);
+    return false;
+  }
+
+  /**
+   * Write a Word during GC into toSpace. Take appropriate write barrier actions.
+   * <p>
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param value The value of the new Word
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   */
+  public void wordWriteDuringGC(ObjectReference src, Address slot, Word value, Word metaDataA, Word metaDataB, int mode) {
+    // Either: write barriers are used and this is overridden, or
+    // write barriers are not used and this is never called
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(false);
+  }
+  
+  /**
    * Write an Address. Take appropriate write barrier actions.<p>
    *
    * <b>By default do nothing, override if appropriate.</b>

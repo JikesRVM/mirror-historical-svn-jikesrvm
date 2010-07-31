@@ -387,6 +387,7 @@ public final class Primitive extends RVMType implements Constants, ClassLoaderCo
    */
   @Override
   @Pure
+  @Uninterruptible
   public RVMField[] getInstanceFields() {
     return emptyVMField;
   }

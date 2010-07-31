@@ -193,4 +193,8 @@ import org.vmmagic.pragma.*;
 
   /** @return True if this Plan will definitely stop mutator threads at a GC request */
   public boolean gcRequestWillBlockMutator() { return true; }
+  
+  /** @return True if this Plan replicates objects */
+  public boolean replicatingGC() { return false;}
+
 }

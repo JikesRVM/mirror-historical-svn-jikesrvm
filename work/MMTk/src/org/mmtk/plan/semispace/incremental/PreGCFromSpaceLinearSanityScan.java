@@ -13,6 +13,7 @@
 package org.mmtk.plan.semispace.incremental;
 
 import org.mmtk.policy.Space;
+import org.mmtk.utility.ForwardingWord;
 import org.mmtk.utility.Log;
 import org.mmtk.utility.alloc.LinearScan;
 import org.mmtk.vm.VM;
@@ -34,11 +35,27 @@ public class PreGCFromSpaceLinearSanityScan extends LinearScan {
       if (!object.isNull()) {
         // Log.write("Scanning... "); Log.writeln(object);
         VM.assertions._assert(Space.isInSpace(SS.fromSpace().getDescriptor(), object)); // ensure in right space
-        if (VM.scanning.pointsToForwardedObjects(object)) {
-          Log.write("PreGCFromSpaceLinearSanityScan: Object ");
-          Log.write(object);
-          Log.writeln(" contained references to a forwarded fromSpace object");
-          VM.assertions.fail("Died during linear sanity scan");
+        // if (VM.scanning.pointsToForwardedObjects(object)) {
+        // Log.write("PreGCFromSpaceLinearSanityScan: Object ");
+        // Log.write(object);
+        // Log.writeln(" contained references to a forwarded fromSpace object");
+        // VM.assertions.fail("Died during linear sanity scan");
+        // }
+
+        VM.assertions._assert(!ForwardingWord.isBusy(object));
+
+        if (ForwardingWord.isForwardedOrBeingForwarded(object)) {
+          VM.assertions._assert(ForwardingWord.isForwarded(object)); // can't be half way through copying the object
+          ObjectReference forwarded = ForwardingWord.getReplicatingFP(object);
+          VM.assertions._assert(Space.isInSpace(SS.toSpace().getDescriptor(), forwarded));
+          VM.assertions._assert(!forwarded.isNull());
+          VM.assertions._assert(VM.assertions.validRef(forwarded));
+          // follow FP and then follow BP - hope we end up at the same object!
+          ObjectReference bpObj = ForwardingWord.getReplicatingFP(forwarded);
+          VM.assertions._assert(object == bpObj);
+          VM.objectModel.checkFromSpaceReplicatedObject(object, forwarded);
+        } else {
+          VM.objectModel.checkFromSpaceNotYetReplicatedObject(object);
         }
       }
     }

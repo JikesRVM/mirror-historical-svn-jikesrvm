@@ -98,14 +98,22 @@ public class SSCollector extends StopTheWorldCollector {
    * @param bytes The size of the space to be allocated (in bytes)
    */
   @Inline
-  public void postCopy(ObjectReference object, ObjectReference typeRef,
+  public void postCopy(ObjectReference from, ObjectReference to, ObjectReference typeRef,
       int bytes, int allocator) {
-    ForwardingWord.clearForwardingBits(object);
-    if (allocator == Plan.ALLOC_LOS)
-      Plan.loSpace.initializeHeader(object, false);
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(getCurrentTrace().isLive(object));
-      VM.assertions._assert(getCurrentTrace().willNotMoveInCurrentCollection(object));
+      VM.assertions._assert(ForwardingWord.isBusy(to));
+      VM.assertions._assert(!ForwardingWord.isForwarded(to));
+    }
+    ForwardingWord.clearForwardingBits(to);
+    ForwardingWord.setReplicatingBP(from, to); // set back pointer
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!ForwardingWord.isBusy(to));
+    }
+    if (allocator == Plan.ALLOC_LOS)
+      Plan.loSpace.initializeHeader(to, false);
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(getCurrentTrace().isLive(to));
+      VM.assertions._assert(getCurrentTrace().willNotMoveInCurrentCollection(to));
     }
   }
 
@@ -140,7 +148,7 @@ public class SSCollector extends StopTheWorldCollector {
       int copied = trace.getNumObjectsCopied();
       if (copied < max) {
         Log.writeln("Everything copied ", copied);
-        SS.copyingAllComplete = true; // no more possible objects left to copy
+        // SS.copyingAllComplete = true; // no more possible objects left to copy
       }
       return;
     }

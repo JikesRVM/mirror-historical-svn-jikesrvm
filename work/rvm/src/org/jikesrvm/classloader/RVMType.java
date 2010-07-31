@@ -791,6 +791,7 @@ public abstract class RVMType extends AnnotatedElement
    * Non-static fields of this class/array type
    * (composed with supertypes, if any).
    */
+  @Uninterruptible
   public abstract RVMField[] getInstanceFields();
 
   /**
@@ -850,5 +851,29 @@ public abstract class RVMType extends AnnotatedElement
    */
   public boolean isNonMoving() {
     return hasNonMovingAnnotation();
+  }
+
+  /**
+   * Does this type contain a field that is Untraced?
+   */
+  public boolean containsUntracedFields() {
+    for (RVMField field : getInstanceFields()) {
+      if (field.isAnnotationDeclared(TypeReference.Untraced)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Does this type contain a field that is volatile?
+   */
+  public boolean containsVolatileFields() {
+    for (RVMField field : getInstanceFields()) {
+      if (field.isVolatile()) {
+        return true;
+      }
+    }
+    return false;
   }
 }

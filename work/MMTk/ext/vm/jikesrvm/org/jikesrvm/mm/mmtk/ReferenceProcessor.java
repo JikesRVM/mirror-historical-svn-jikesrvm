@@ -511,7 +511,7 @@ public final class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
        */
 
       /* Update the referent */
-      setReferent(newReference, newReferent);
+      setReferentDuringGC(newReference, newReferent);
       return newReference;
     } else {
       /* Referent is unreachable. Clear the referent and enqueue the reference object. */
@@ -533,7 +533,7 @@ public final class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
    * occur.
    */
   protected void clearReferent(ObjectReference newReference) {
-    setReferent(newReference, ObjectReference.nullReference());
+    setReferentDuringGC(newReference, ObjectReference.nullReference());
   }
 
   /***********************************************************************
@@ -559,7 +559,14 @@ public final class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
    * @param referent the referent object reference.
    */
   protected void setReferent(ObjectReference ref, ObjectReference referent) {
-    ref.toAddress().store(referent, Entrypoints.referenceReferentField.getOffset());
+    org.jikesrvm.mm.mminterface.Barriers.wordFieldWrite(ref.toObject(), referent.toAddress().toWord(),
+        Entrypoints.referenceReferentField.getOffset(), 0);
+  }
+
+  protected void setReferentDuringGC(ObjectReference ref, ObjectReference referent) {
+    // avoid certain Sapphire assertions because ref might be in toSpace
+    org.jikesrvm.mm.mminterface.Barriers.wordFieldWriteDuringGC(ref.toObject(), referent.toAddress().toWord(),
+        Entrypoints.referenceReferentField.getOffset(), 0);
   }
 
   /***********************************************************************

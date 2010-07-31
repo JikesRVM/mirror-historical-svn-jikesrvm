@@ -67,7 +67,7 @@ import org.vmmagic.pragma.*;
                                                 allocator, from);
     Object toObj = org.jikesrvm.objectmodel.ObjectModel.moveObject(region, from.toObject(), bytes, type);
     ObjectReference to = ObjectReference.fromObject(toObj);
-    context.postCopy(to, ObjectReference.fromObject(tib), bytes, allocator);
+    context.postCopy(from, to, ObjectReference.fromObject(tib), bytes, allocator);
     return to;
   }
 
@@ -83,7 +83,7 @@ import org.vmmagic.pragma.*;
                                                 allocator, from);
     Object toObj = org.jikesrvm.objectmodel.ObjectModel.moveObject(region, from.toObject(), bytes, type);
     ObjectReference to = ObjectReference.fromObject(toObj);
-    context.postCopy(to, ObjectReference.fromObject(tib), bytes, allocator);
+    context.postCopy(from, to, ObjectReference.fromObject(tib), bytes, allocator);
     if (type == RVMType.CodeArrayType) {
       // sync all moved code arrays to get icache and dcache in sync
       // immediately.
@@ -361,6 +361,14 @@ import org.vmmagic.pragma.*;
     org.jikesrvm.objectmodel.ObjectModel.writeAvailableBitsWord(object.toObject(), val);
   }
 
+  public void writeReplicatingFP(ObjectReference o, ObjectReference ptr) {
+    org.jikesrvm.objectmodel.JavaHeader.writeReplicatingFP(o, ptr);
+  }
+
+  public ObjectReference getReplicatingFP(ObjectReference obj) {
+    return ObjectReference.fromObject(org.jikesrvm.objectmodel.JavaHeader.getReplicatingFP(obj));
+  }
+
   /**
    * Read the bits available for memory manager use in an object.
    *
@@ -427,6 +435,16 @@ import org.vmmagic.pragma.*;
    */
   public void dumpObject(ObjectReference object) {
     DebugUtil.dumpRef(object);
+  }
+
+  @Override
+  public void checkFromSpaceReplicatedObject(ObjectReference fromSpace, ObjectReference toSpace) {
+    org.jikesrvm.objectmodel.ObjectModel.checkFromSpaceReplicatedObject(fromSpace, toSpace);
+  }
+
+  @Override
+  public void checkFromSpaceNotYetReplicatedObject(ObjectReference fromSpace) {
+    org.jikesrvm.objectmodel.ObjectModel.checkFromSpaceNotYetReplicatedObject(fromSpace);
   }
 }
 

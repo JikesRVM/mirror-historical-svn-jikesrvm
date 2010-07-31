@@ -382,12 +382,14 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
           return Plan.ALLOC_GCSPY;
         }
       }
-      if (isPrefix("Lorg/jikesrvm/mm/mmtk/ReferenceProcessor", clsBA)) {
+      // This code below forces [Lorg/vmmagic/unboxed/Address to be allocated in the replicated space
+      if (!Barriers.REPLICATING_GC && isPrefix("Lorg/jikesrvm/mm/mmtk/ReferenceProcessor", clsBA)) {
         if (traceAllocator) {
           VM.sysWriteln("DEFAULT");
         }
         return Plan.ALLOC_DEFAULT;
       }
+
       if (isPrefix("Lorg/mmtk/", clsBA) || isPrefix("Lorg/jikesrvm/mm/", clsBA)) {
         if (traceAllocator) {
           VM.sysWriteln("NONMOVING");
@@ -395,6 +397,10 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
         return Plan.ALLOC_NON_MOVING;
       }
       if (method.isNonMovingAllocation()) {
+        return Plan.ALLOC_NON_MOVING;
+      }
+      // force objects that are directy written to into a non replicated space
+      if (Barriers.REPLICATING_GC && method.isNonReplicatingAllocation()) {
         return Plan.ALLOC_NON_MOVING;
       }
     }
@@ -433,6 +439,34 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
         isPrefix("Lorg/jikesrvm/mm/", typeBA) ||
         isPrefix("Lorg/jikesrvm/jni/JNIEnvironment;", typeBA)) {
       allocator = Plan.ALLOC_NON_MOVING;
+    }
+
+    if (Barriers.REPLICATING_GC) {
+      if (type.isArrayType()) {
+        // arrays of unboxed values (i.e. AddressArray's) are accessed by Magic
+        // and must not be allocated in a replicated space
+        RVMType elementType = type.asArray().getElementType();
+        if (elementType.isUnboxedType()) {
+          allocator = Plan.ALLOC_NON_MOVING;
+        }
+      }
+      if (type.containsUntracedFields() || type.containsVolatileFields()) {
+        allocator = Plan.ALLOC_NON_MOVING;
+      }
+
+      // accessed via Synchronisation.fetchAndAdd
+      if (isPrefix("Lorg/jikesrvm/adaptive/measurements/listeners/", typeBA)) {
+        allocator = Plan.ALLOC_NON_MOVING;
+      }
+      // compiledMethod flag set during stack scanning, compiledMethod must not be in replicating space
+      // LPJH: remove after installing write barriers
+      if (isPrefix("Lorg/jikesrvm/compilers/baseline/BaselineCompiledMethod", typeBA)
+          || isPrefix("Lorg/jikesrvm/compilers/common/HardwareTrapCompiledMethod", typeBA)
+          || isPrefix("Lorg/jikesrvm/jni/JNICompiledMethod", typeBA)
+          || isPrefix("Lorg/jikesrvm/compilers/opt/runtimesupport/OptCompiledMethod", typeBA)) {
+        allocator = Plan.ALLOC_NON_MOVING;
+      }
+
     }
     return allocator;
   }

@@ -24,6 +24,7 @@ import org.jikesrvm.classloader.MemberReference;
 import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.runtime.Magic;
 import org.vmmagic.pragma.Entrypoint;
+import org.vmmagic.pragma.NonReplicatingAllocation;
 
 /**
  * A repository of edge counters for bytecode-level edge conditional branches.
@@ -72,6 +73,7 @@ public final class EdgeCounts implements Callbacks.ExitMonitor {
     allocateCounters(m.getId(), numEntries);
   }
 
+  @NonReplicatingAllocation
   private static synchronized void allocateCounters(int id, int numEntries) {
     if (data == null) {
       data = new int[id + 500][];

@@ -13,7 +13,7 @@
 package org.mmtk.plan.semispace.incremental;
 
 import org.mmtk.policy.CopyLocal;
-import org.mmtk.policy.CopySpace;
+import org.mmtk.policy.ReplicatingSpace;
 import org.mmtk.policy.Space;
 import org.mmtk.plan.*;
 import org.mmtk.utility.heap.VMRequest;
@@ -35,12 +35,12 @@ public class SS extends StopTheWorld {
   public static boolean low = true; // True if allocing to "lower" semispace
 
   /** One of the two semi spaces that alternate roles at each collection */
-  public static final CopySpace copySpace0 = new CopySpace("ss0", DEFAULT_POLL_FREQUENCY, VMRequest.create());
-  public static final int SS0 = copySpace0.getDescriptor();
+  public static final ReplicatingSpace repSpace0 = new ReplicatingSpace("rep-ss0", DEFAULT_POLL_FREQUENCY, VMRequest.create());
+  public static final int SS0 = repSpace0.getDescriptor();
 
   /** One of the two semi spaces that alternate roles at each collection */
-  public static final CopySpace copySpace1 = new CopySpace("ss1", DEFAULT_POLL_FREQUENCY, VMRequest.create());
-  public static final int SS1 = copySpace1.getDescriptor();
+  public static final ReplicatingSpace repSpace1 = new ReplicatingSpace("rep-ss1", DEFAULT_POLL_FREQUENCY, VMRequest.create());
+  public static final int SS1 = repSpace1.getDescriptor();
 
   public final Trace ssTrace;
 
@@ -78,16 +78,16 @@ public class SS extends StopTheWorld {
    * @return The to space for the current collection.
    */
   @Inline
-  public static CopySpace toSpace() {
-    return low ? copySpace1 : copySpace0;
+  public static ReplicatingSpace toSpace() {
+    return low ? repSpace1 : repSpace0;
   }
 
   /**
    * @return The from space for the current collection.
    */
   @Inline
-  public static CopySpace fromSpace() {
-    return low ? copySpace0 : copySpace1;
+  public static ReplicatingSpace fromSpace() {
+    return low ? repSpace0 : repSpace1;
   }
 
 
@@ -195,5 +195,13 @@ public class SS extends StopTheWorld {
   protected void registerSpecializedMethods() {
     TransitiveClosure.registerSpecializedScan(SCAN_SS, SSTraceLocal.class);
     super.registerSpecializedMethods();
+  }
+
+  public static boolean inFromSpace(Address slot) {
+    return Space.isInSpace(fromSpace().getDescriptor(), slot);
+  }
+
+  public static boolean inToSpace(Address slot) {
+    return Space.isInSpace(toSpace().getDescriptor(), slot);
   }
 }

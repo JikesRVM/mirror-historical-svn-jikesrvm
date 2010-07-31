@@ -1382,4 +1382,42 @@ public class Barriers implements org.mmtk.utility.Constants {
       VM._assert(false);
     return false;
   }
+
+  public static final boolean REPLICATING_GC = Selected.Constraints.get().replicatingGC();
+
+  /**
+   * Barrier for conditional compare and exchange of word fields.
+   * @param ref the object which is the subject of the compare and exchanges
+   * @param offset the offset of the field to be modified
+   * @param old the old value to swap out
+   * @param value the new value for the field
+   */
+  @Inline
+  public static boolean wordTryCompareAndSwapInLock(Object ref, Offset offset, Word old, Word value) {
+    if (NEEDS_WORD_PUTFIELD_BARRIER || NEEDS_WORD_GETFIELD_BARRIER) {
+      ObjectReference src = ObjectReference.fromObject(ref);
+      return Selected.Mutator.get().wordTryCompareAndSwapInLock(src, src.toAddress().plus(offset), old, value, offset.toWord(),
+          Word.zero(), // do not have location metadata
+          INSTANCE_FIELD);
+    } else if (VM.VerifyAssertions)
+      VM._assert(false);
+    return false;
+  }
+
+  /**
+   * Barrier for writes of Words into fields of instances (ie putfield). Whilst a GC is taking place (bypasses certain assertions)
+   * @param ref the object which is the subject of the putfield
+   * @param value the new value for the field
+   * @param offset the offset of the field to be modified
+   * @param locationMetadata an int that encodes the source location being modified
+   */
+  @Inline
+  public static void wordFieldWriteDuringGC(Object ref, Word value, Offset offset, int locationMetadata) {
+    if (NEEDS_WORD_PUTFIELD_BARRIER) {
+      ObjectReference src = ObjectReference.fromObject(ref);
+      Selected.Mutator.get().wordWriteDuringGC(src, src.toAddress().plus(offset), value, offset.toWord(),
+          Word.fromIntZeroExtend(locationMetadata), INSTANCE_FIELD);
+    } else if (VM.VerifyAssertions)
+      VM._assert(false);
+  }
 }

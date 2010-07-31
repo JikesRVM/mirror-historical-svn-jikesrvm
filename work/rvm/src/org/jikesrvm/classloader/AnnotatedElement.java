@@ -356,6 +356,7 @@ public abstract class AnnotatedElement implements java.lang.reflect.AnnotatedEle
    * Return true if this element has a Untraced annotation.
    * @see org.vmmagic.pragma.Untraced
    */
+  @Uninterruptible
   public final boolean hasUntracedAnnotation() {
     return isAnnotationDeclared(TypeReference.Untraced);
   }
@@ -374,5 +375,13 @@ public abstract class AnnotatedElement implements java.lang.reflect.AnnotatedEle
    */
   public final boolean hasNonMovingAllocationAnnotation() {
     return isAnnotationDeclared(TypeReference.NonMovingAllocation);
+  }
+
+  /**
+   * Return true if this element has a NonReplicatingAllocation annotation.
+   * @see org.vmmagic.pragma.NonReplicatingAllocation
+   */
+  public final boolean hasNonReplicatingAllocationAnnotation() {
+    return isAnnotationDeclared(TypeReference.NonReplicatingAllocation);
   }
 }

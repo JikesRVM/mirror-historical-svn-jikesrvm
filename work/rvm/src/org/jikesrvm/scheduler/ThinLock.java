@@ -34,7 +34,7 @@ import org.vmmagic.unboxed.Word;
 @Uninterruptible
 public final class ThinLock implements ThinLockConstants {
 
-  private static final boolean ENABLE_BIASED_LOCKING = true;
+  private static final boolean ENABLE_BIASED_LOCKING = false; // LPJH: disabled to ease Sapphire locking implementation
 
   @Inline
   @NoNullCheck
@@ -51,7 +51,7 @@ public final class ThinLock implements ThinLockConstants {
       }
     } else if (id.EQ(TL_STAT_THIN)) {
       // lock is thin and not held by anyone
-      if (Magic.attemptWord(o, lockOffset, old, old.or(tid))) {
+      if (Synchronization.tryCompareAndSwapInLock(o, lockOffset, old, old.or(tid))) {
         Magic.isync();
         return;
       }
@@ -73,7 +73,7 @@ public final class ThinLock implements ThinLockConstants {
       }
     } else if (old.xor(tid).rshl(TL_LOCK_COUNT_SHIFT).EQ(TL_STAT_THIN.rshl(TL_LOCK_COUNT_SHIFT))) {
       Magic.sync();
-      if (Magic.attemptWord(o, lockOffset, old, old.and(TL_UNLOCK_MASK).or(TL_STAT_THIN))) {
+      if (Synchronization.tryCompareAndSwapInLock(o, lockOffset, old, old.and(TL_UNLOCK_MASK).or(TL_STAT_THIN))) {
         return;
       }
     }
@@ -85,13 +85,13 @@ public final class ThinLock implements ThinLockConstants {
   @Unpreemptible
   public static void lock(Object o, Offset lockOffset) {
     if (STATS) fastLocks++;
-    if (Space.isInSpace(SS.fromSpace().getDescriptor(), ObjectReference.fromObject(o))) {
-      if (ForwardingWord.isForwarded(ObjectReference.fromObject(o))) {
-        VM.sysWrite("Locking ");
-        VM.sysWrite(ObjectReference.fromObject(o));
-        VM.sysWriteln(" Which is in fromSpace and is a forwarded object - uh oh I smell trouble...");
-      }
-    }
+    // if (Space.isInSpace(SS.fromSpace().getDescriptor(), ObjectReference.fromObject(o))) {
+    // if (ForwardingWord.isForwarded(ObjectReference.fromObject(o))) {
+    // VM.sysWrite("Locking ");
+    // VM.sysWrite(ObjectReference.fromObject(o));
+    // VM.sysWriteln(" Which is in fromSpace and is a forwarded object - uh oh I smell trouble...");
+    // }
+    // }
 
     Word threadId = Word.fromIntZeroExtend(RVMThread.getCurrentThread().getLockingId());
 
@@ -104,7 +104,7 @@ public final class ThinLock implements ThinLockConstants {
         if (id.isZero()) {
           if (ENABLE_BIASED_LOCKING) {
             // lock is unbiased, bias it in our favor and grab it
-            if (Synchronization.tryCompareAndSwap(
+            if (Synchronization.tryCompareAndSwapInLock(
                   o, lockOffset,
                   old,
                   old.or(threadId).plus(TL_LOCK_COUNT_UNIT))) {
@@ -114,7 +114,7 @@ public final class ThinLock implements ThinLockConstants {
           } else {
             // lock is unbiased but biasing is NOT allowed, so turn it into
             // a thin lock
-            if (Synchronization.tryCompareAndSwap(
+            if (Synchronization.tryCompareAndSwapInLock(
                   o, lockOffset,
                   old,
                   old.or(threadId).or(TL_STAT_THIN))) {
@@ -139,7 +139,7 @@ public final class ThinLock implements ThinLockConstants {
       } else if (stat.EQ(TL_STAT_THIN)) {
         Word id = old.and(TL_THREAD_ID_MASK);
         if (id.isZero()) {
-          if (Synchronization.tryCompareAndSwap(
+          if (Synchronization.tryCompareAndSwapInLock(
                 o, lockOffset, old, old.or(threadId))) {
             Magic.isync();
             return;
@@ -148,7 +148,7 @@ public final class ThinLock implements ThinLockConstants {
           Word changed = old.plus(TL_LOCK_COUNT_UNIT);
           if (changed.and(TL_LOCK_COUNT_MASK).isZero()) {
             tryToInflate=true;
-          } else if (Synchronization.tryCompareAndSwap(
+          } else if (Synchronization.tryCompareAndSwapInLock(
                        o, lockOffset, old, changed)) {
             Magic.isync();
             return;
@@ -210,7 +210,7 @@ public final class ThinLock implements ThinLockConstants {
           } else {
             changed = old.minus(TL_LOCK_COUNT_UNIT);
           }
-          if (Synchronization.tryCompareAndSwap(
+          if (Synchronization.tryCompareAndSwapInLock(
                 o, lockOffset, old, changed)) {
             return;
           }
@@ -327,6 +327,7 @@ public final class ThinLock implements ThinLockConstants {
   @Inline
   @Unpreemptible
   private static void setDedicatedU16(Object o, Offset lockOffset, Word value) {
+    VM.sysFail("Opps should not reach this part of code"); // LPJH: Sapphire debugging
     Magic.setCharAtOffset(o, lockOffset.plus(TL_DEDICATED_U16_OFFSET), (char)(value.toInt() >>> TL_DEDICATED_U16_SHIFT));
   }
 
@@ -335,11 +336,12 @@ public final class ThinLock implements ThinLockConstants {
   public static boolean casFromBiased(Object o, Offset lockOffset,
                                       Word oldLockWord, Word changed,
                                       int cnt) {
+    VM.sysFail("Opps should not reach this part of code"); // LPJH: Sapphire debugging
     RVMThread me=RVMThread.getCurrentThread();
     Word id=oldLockWord.and(TL_THREAD_ID_MASK);
     if (id.isZero()) {
       if (false) VM.sysWriteln("id is zero - easy case.");
-      return Synchronization.tryCompareAndSwap(o, lockOffset, oldLockWord, changed);
+      return Synchronization.tryCompareAndSwapInLock(o, lockOffset, oldLockWord, changed);
     } else {
       if (false) VM.sysWriteln("id = ",id);
       int slot=id.toInt()>>TL_THREAD_ID_SHIFT;
@@ -352,7 +354,7 @@ public final class ThinLock implements ThinLockConstants {
         // note that we use a CAS here, but it's only needed in the case
         // that owner==null, since in that case some other thread may also
         // be unbiasing.
-        return Synchronization.tryCompareAndSwap(
+        return Synchronization.tryCompareAndSwapInLock(
           o, lockOffset, oldLockWord, changed);
       } else {
         boolean result=false;
@@ -374,7 +376,7 @@ public final class ThinLock implements ThinLockConstants {
         if (false) VM.sysWriteln("done with that");
 
         Word newLockWord=Magic.getWordAtOffset(o, lockOffset);
-        result=Synchronization.tryCompareAndSwap(
+        result = Synchronization.tryCompareAndSwapInLock(
           o, lockOffset, oldLockWord, changed);
         owner.endPairHandshake();
         if (false) VM.sysWriteln("that worked.");
@@ -411,7 +413,7 @@ public final class ThinLock implements ThinLockConstants {
     if (false) VM.sysWriteln("changed = ",changed);
     if (oldLockWord.and(TL_STAT_MASK).EQ(TL_STAT_THIN)) {
       if (false) VM.sysWriteln("it's thin, inflating the easy way.");
-      return Synchronization.tryCompareAndSwap(
+      return Synchronization.tryCompareAndSwapInLock(
         o, lockOffset, oldLockWord, changed);
     } else {
       return casFromBiased(o, lockOffset, oldLockWord, changed, cnt);
@@ -495,7 +497,7 @@ public final class ThinLock implements ThinLockConstants {
     // we allow concurrent modification of the lock word when it's thin or fat.
     Word changed=oldLockWord.and(TL_UNLOCK_MASK).or(TL_STAT_THIN);
     if (VM.VerifyAssertions) VM._assert(getLockOwner(changed)==0);
-    return Synchronization.tryCompareAndSwap(
+    return Synchronization.tryCompareAndSwapInLock(
       o, lockOffset, oldLockWord, changed);
   }
 

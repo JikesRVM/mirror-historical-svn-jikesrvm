@@ -20,9 +20,9 @@ import org.jikesrvm.compilers.baseline.BaselineCompiler;
 import org.jikesrvm.compilers.baseline.BaselineOptions;
 import org.jikesrvm.compilers.common.RuntimeCompiler;
 import org.jikesrvm.mm.mminterface.MemoryManager;
-
 import static org.jikesrvm.runtime.SysCall.sysCall;
 import org.jikesrvm.scheduler.RVMThread;
+import org.vmmagic.pragma.NonReplicatingAllocation;
 
 /**
  * Command line option processing.
@@ -820,25 +820,21 @@ public class CommandLineArgs {
     // reallocation really soon.
     int buflen = 512;
 
-    byte[] buf;                 // gets freed with the class instance.
-
-    ArgReader() {
-      buf = new byte[buflen];
-    }
-
     /** Read argument # @param i
      * Assume arguments are encoded in the platform's
      * "default character set". */
     @SuppressWarnings({"deprecation"})
+    @NonReplicatingAllocation
     String getArg(int i) {
       int cnt;
+      byte[] buf = new byte[buflen];  // buf needs to allocated in Non replicated space to ensure correctness
       for (; ;) {
         cnt = sysArg(i, buf);
         if (cnt >= 0) {
           break;
         }
         buflen += 1024;
-        buf = new byte[buflen];
+        buf = new byte[buflen]; // buf needs to allocated in Non replicated space to ensure correctness
       }
       if (VM.VerifyAssertions) VM._assert(cnt != -1);
       /*
@@ -863,7 +859,9 @@ public class CommandLineArgs {
       return new String(buf, 0, 0, cnt);
     }
 
+    @NonReplicatingAllocation
     int numArgs() {
+      byte[] buf = new byte[buflen];  // buf needs to allocated in Non replicated space to ensure correctness
       return sysArg(-1, buf);
     }
   }

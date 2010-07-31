@@ -143,6 +143,7 @@ public final class RVMField extends RVMMember {
   /**
    * How many bytes of memory words do value of this type take?
    */
+  @Uninterruptible
   public int getSize() {
     return size;
   }
@@ -219,6 +220,7 @@ public final class RVMField extends RVMMember {
   /**
    * Is this field invisible to the memory management system.
    */
+  @Uninterruptible
   public boolean isUntraced() {
     return hasUntracedAnnotation();
   }

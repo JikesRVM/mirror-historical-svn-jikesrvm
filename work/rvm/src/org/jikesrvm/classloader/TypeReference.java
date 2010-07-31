@@ -171,6 +171,7 @@ public final class TypeReference {
   public static final TypeReference Untraced = findOrCreate(org.vmmagic.pragma.Untraced.class);
   public static final TypeReference NonMoving = findOrCreate(org.vmmagic.pragma.NonMoving.class);
   public static final TypeReference NonMovingAllocation = findOrCreate(org.vmmagic.pragma.NonMovingAllocation.class);
+  public static final TypeReference NonReplicatingAllocation = findOrCreate(org.vmmagic.pragma.NonReplicatingAllocation.class);
   public static final TypeReference BaselineNoRegisters = findOrCreate(org.vmmagic.pragma.BaselineNoRegisters.class);
   public static final TypeReference BaselineSaveLSRegisters = findOrCreate(org.vmmagic.pragma.BaselineSaveLSRegisters.class);
 
@@ -178,6 +179,9 @@ public final class TypeReference {
   public static final TypeReference ReferenceMaps =
       findOrCreate(org.jikesrvm.compilers.baseline.ReferenceMaps.class);
   public static final TypeReference JNIFunctions = findOrCreate(org.jikesrvm.jni.JNIFunctions.class);
+
+  public static final TypeReference CollectorThread =
+      findOrCreate(org.jikesrvm.mm.mminterface.CollectorThread.class);
 
   public static final TypeReference RVMArray = findOrCreate(org.jikesrvm.classloader.RVMArray.class);
   /** Abstract base of reflective method invoker classes */

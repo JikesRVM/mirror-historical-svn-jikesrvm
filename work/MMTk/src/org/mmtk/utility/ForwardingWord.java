@@ -12,6 +12,7 @@
  */
 package org.mmtk.utility;
 
+import org.mmtk.plan.semispace.incremental.SS;
 import org.mmtk.vm.VM;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Uninterruptible;
@@ -39,11 +40,14 @@ public class ForwardingWord {
    *  3.       FORWARDED: Forwarded
    */
   /** If this bit is set, then forwarding of this object is incomplete */
-  private static final byte BEING_FORWARDED = 2; // ...10
+  public static final byte BUSY = 1; // ...01
   /** If this bit is set, then forwarding of this object has commenced */
-  private static final byte FORWARDED =       3; // ...11
+  private static final byte FORWARDED = 2; // ...10
   /** This mask is used to reveal which state this object is in with respect to forwarding */
   public static final byte FORWARDING_MASK =  3; // ...11
+
+  private static final byte BUSY_MASK = 1; // ..01
+  public static final byte FORWARDED_MASK = 2; // ..10
 
   public static final int FORWARDING_BITS = 2;
 
@@ -62,20 +66,42 @@ public class ForwardingWord {
     Word oldValue;
     do {
       oldValue = VM.objectModel.prepareAvailableBits(object);
-      if ((byte) (oldValue.toInt() & FORWARDING_MASK) == FORWARDED)
+      if ((byte) (oldValue.toInt() & FORWARDING_MASK) != 0)
         return oldValue;
     } while (!VM.objectModel.attemptAvailableBits(object, oldValue,
-                                                  oldValue.or(Word.fromIntZeroExtend(BEING_FORWARDED))));
+ oldValue.or(Word.fromIntZeroExtend(BUSY))));
     return oldValue;
+  }
+
+  public static void markBusy(ObjectReference object) {
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(SS.inFromSpace(object.toAddress()));
+    }
+    Word oldValue;
+    do {
+      oldValue = VM.objectModel.prepareAvailableBits(object);
+      if ((byte) (oldValue.toInt() & BUSY_MASK) == BUSY)
+        continue;
+    } while (!VM.objectModel.attemptAvailableBits(object, oldValue, oldValue.or(Word.fromIntZeroExtend(BUSY))));
+  }
+
+  public static void markNotBusy(ObjectReference object) {
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(SS.inFromSpace(object.toAddress()));
+    }
+    Word oldValue = VM.objectModel.readAvailableBitsWord(object);
+    if (VM.VERIFY_ASSERTIONS)
+      VM.assertions._assert(((byte) (oldValue.toInt() & BUSY_MASK) == BUSY));
+    VM.objectModel.writeAvailableBitsWord(object, oldValue.and(Word.fromIntZeroExtend(BUSY_MASK).not())); // zero busy mark
   }
 
   public static ObjectReference spinAndGetForwardedObject(ObjectReference object, Word statusWord) {
     /* We must wait (spin) if the object is not yet fully forwarded */
-    while ((statusWord.toInt() & FORWARDING_MASK) == BEING_FORWARDED)
+    while ((statusWord.toInt() & FORWARDING_MASK) == BUSY)
       statusWord = VM.objectModel.readAvailableBitsWord(object);
 
     /* Now extract the object reference from the forwarding word and return it */
-    if ((statusWord.toInt() & FORWARDING_MASK) == FORWARDED)
+    if ((statusWord.toInt() & FORWARDED_MASK) == FORWARDED)
       return statusWord.and(Word.fromIntZeroExtend(FORWARDING_MASK).not()).toAddress().toObjectReference();
     else
       return object;
@@ -99,7 +125,59 @@ public class ForwardingWord {
   @Inline
   public static void setForwardingPointer(ObjectReference object,
                                            ObjectReference ptr) {
+    VM.assertions.fail("Should not be called"); // LPJH: Sapphire debugging
     VM.objectModel.writeAvailableBitsWord(object, ptr.toAddress().toWord().or(Word.fromIntZeroExtend(FORWARDED)));
+  }
+
+  @Inline
+  public static void setReplicatingFP(ObjectReference fromSpace, ObjectReference toSpace) {
+    // busy should be set for us, write FP, cancel busy then set FORWARDED
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(SS.inFromSpace(fromSpace.toAddress()));
+      VM.assertions._assert(!SS.inFromSpace(toSpace.toAddress())); // toSpace might be los or some other space
+      VM.assertions._assert(isBusy(fromSpace));
+      VM.assertions._assert(!isForwarded(fromSpace));
+      VM.assertions._assert(!isBusy(toSpace));
+      VM.assertions._assert(isForwarded(toSpace)); // ToSpace already has a BP and should be marked forwarded
+    }
+    Word forwardingWord = VM.objectModel.readAvailableBitsWord(fromSpace);
+    VM.objectModel.writeReplicatingFP(fromSpace, toSpace); // write FP into spare word
+    Word newFromSpaceStatusWord = forwardingWord.and(Word.fromIntZeroExtend(FORWARDING_MASK).not()); // clear busy
+    newFromSpaceStatusWord = newFromSpaceStatusWord.or(Word.fromIntZeroExtend(FORWARDED)); // mark as forwarded
+    VM.objectModel.writeAvailableBitsWord(fromSpace, newFromSpaceStatusWord);
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(isForwarded(fromSpace));
+      VM.assertions._assert(!isBusy(fromSpace));
+      VM.assertions._assert(!isBusy(toSpace));
+      VM.assertions._assert(isForwarded(toSpace));
+    }
+  }
+
+  public static void setReplicatingBP(ObjectReference fromSpace, ObjectReference toSpace) {
+    // toSpace obj should not have forwarded or busy set
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(SS.inFromSpace(fromSpace.toAddress()));
+      VM.assertions._assert(!SS.inFromSpace(toSpace.toAddress())); // toSpace might be los or some other space
+      VM.assertions._assert(isBusy(fromSpace));
+      VM.assertions._assert(!isBusy(toSpace)); // toSpace status word should be cleared during postCopy
+      VM.assertions._assert(!isForwarded(toSpace)); // toSpace status word should be cleared during postCopy
+      VM.assertions._assert(!isForwarded(fromSpace)); // not marked forwarded until after postCopy
+    }
+    VM.objectModel.writeReplicatingFP(toSpace, fromSpace); // write BP into spare word
+    Word forwardingWord = VM.objectModel.readAvailableBitsWord(toSpace);
+    VM.objectModel.writeAvailableBitsWord(toSpace, forwardingWord.or(Word.fromIntZeroExtend(FORWARDED))); // mark toSpace as
+                                                                                                          // forwarded
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(isBusy(fromSpace));
+      VM.assertions._assert(!isBusy(toSpace)); // toSpace status word should be cleared during postCopy
+      VM.assertions._assert(isForwarded(toSpace)); // toSpace status word should be cleared during postCopy
+      VM.assertions._assert(!isForwarded(fromSpace)); // not marked forwarded until after postCopy
+    }
+  }
+
+  @Inline
+  public static ObjectReference getReplicatingFP(ObjectReference object) {
+    return VM.objectModel.getReplicatingFP(object);
   }
 
   /**
@@ -110,7 +188,12 @@ public class ForwardingWord {
    */
   @Inline
   public static boolean isForwarded(ObjectReference object) {
-    return (VM.objectModel.readAvailableByte(object) & FORWARDING_MASK) == FORWARDED;
+    return (VM.objectModel.readAvailableByte(object) & FORWARDED_MASK) == FORWARDED;
+  }
+
+  @Inline
+  public static boolean isBusy(ObjectReference object) {
+    return (VM.objectModel.readAvailableByte(object) & BUSY_MASK) == BUSY;
   }
 
   /**
@@ -143,7 +226,7 @@ public class ForwardingWord {
    */
   @Inline
   public static boolean stateIsBeingForwarded(Word header) {
-    return (header.toInt() & FORWARDING_MASK) == BEING_FORWARDED;
+    return (header.toInt() & FORWARDING_MASK) == BUSY;
   }
 
   /**

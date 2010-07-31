@@ -13,6 +13,7 @@
 package org.mmtk.plan.semispace.incremental;
 
 import org.mmtk.policy.Space;
+import org.mmtk.utility.ForwardingWord;
 import org.mmtk.utility.Log;
 import org.mmtk.utility.alloc.LinearScan;
 import org.mmtk.vm.VM;
@@ -33,12 +34,15 @@ public class PostGCToSpaceLinearSanityScan extends LinearScan {
     if (VM.VERIFY_ASSERTIONS) {
       if (!object.isNull()) {
         // Log.write("Scanning... "); Log.writeln(object);
-        if (VM.scanning.pointsToForwardedObjects(object)) {
-          Log.write("PostGCToSpaceLinearSanityScan: Object ");
-          Log.write(object);
-          Log.writeln(" contained references to a forwarded fromSpace");
-          VM.assertions.fail("Died during linear sanity scan");
-        }
+        // if (VM.scanning.pointsToForwardedObjects(object)) {
+        // Log.write("PostGCToSpaceLinearSanityScan: Object ");
+        // Log.write(object);
+        // Log.writeln(" contained references to a forwarded fromSpace");
+        // VM.assertions.fail("Died during linear sanity scan");
+        // }
+
+        VM.assertions._assert(!ForwardingWord.isBusy(object));
+
         if (SS.copyingAllComplete) {
           VM.assertions._assert(Space.isInSpace(SS.fromSpace().getDescriptor(), object)); // flip has occured
           if (VM.scanning.pointsTo(object, SS.toSpace().getDescriptor())) {
@@ -50,6 +54,19 @@ public class PostGCToSpaceLinearSanityScan extends LinearScan {
         } else {
           // copying not complete, therefore not flipped yet
           VM.assertions._assert(Space.isInSpace(SS.toSpace().getDescriptor(), object)); // check in right space
+          ObjectReference bp = ForwardingWord.getReplicatingFP(object);
+          if (ForwardingWord.isForwarded(object)) {
+            VM.assertions._assert(!bp.isNull());
+            VM.assertions._assert(Space.isInSpace(SS.fromSpace().getDescriptor(), bp));
+            VM.assertions._assert(VM.assertions.validRef(bp));
+            // follow BP and then follow FP - hope we end up at the same object!
+            ObjectReference bpObj = ForwardingWord.getReplicatingFP(bp);
+            VM.assertions._assert(object == bpObj);
+          } else {
+            // an object in toSpace with no fromSpace replica
+            VM.assertions._assert(bp.isNull());
+            VM.objectModel.checkFromSpaceNotYetReplicatedObject(object);
+          }
         }
       }
     }

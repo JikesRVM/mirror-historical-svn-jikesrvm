@@ -185,6 +185,10 @@ public abstract class ObjectModel {
    * @param val the new value of the bits
    */
   public abstract void writeAvailableBitsWord(ObjectReference object, Word val);
+
+  public abstract void writeReplicatingFP(ObjectReference o, ObjectReference ptr);
+
+  public abstract ObjectReference getReplicatingFP(ObjectReference obj);
   /**
    * Read the bits available for memory manager use in an object.
    *
@@ -255,4 +259,8 @@ public abstract class ObjectModel {
   static Offset arrayBaseOffsetTrapdoor(ObjectModel o) {
     return o.getArrayBaseOffset();
   }
+
+  public abstract void checkFromSpaceReplicatedObject(ObjectReference fromSpace, ObjectReference toSpace);
+
+  public abstract void checkFromSpaceNotYetReplicatedObject(ObjectReference fromSpace);
 }

@@ -110,7 +110,8 @@ public class SSMutator extends StopTheWorldMutator {
    * if no appropriate allocator can be established.
    */
   public Allocator getAllocatorFromSpace(Space space) {
-    if (space == SS.copySpace0 || space == SS.copySpace1) return ss;
+    if (space == SS.repSpace0 || space == SS.repSpace1)
+      return ss;
     return super.getAllocatorFromSpace(space);
   }
 
@@ -185,6 +186,621 @@ public class SSMutator extends StopTheWorldMutator {
   }
 
   /**
+   * Write a boolean. Take appropriate write barrier actions.
+   * <p>
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param value The value of the new boolean
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   */
+  public void booleanWrite(ObjectReference src, Address slot, boolean value, Word metaDataA, Word metaDataB, int mode) {
+    VM.barriers.booleanWrite(src, value, metaDataA, metaDataB, mode);
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+    }
+    if (SS.inFromSpace(slot)) {
+      // writing to an object in Sapphire fromSpace - it might be replicated
+      ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
+      if (forwarded != null) {
+        if (VM.VERIFY_ASSERTIONS)
+          VM.assertions._assert(ForwardingWord.isForwarded(src));
+        VM.barriers.booleanWrite(forwarded, value, metaDataA, metaDataB, mode);
+      }
+    }
+  }
+
+  /**
+   * A number of booleans are about to be copied from object <code>src</code> to object <code>dst</code> (as in an array copy).
+   * Thus, <code>dst</code> is the mutated object. Take appropriate write barrier actions.
+   * <p>
+   * @param src The source array
+   * @param srcOffset The starting source offset
+   * @param dst The destination array
+   * @param dstOffset The starting destination offset
+   * @param bytes The number of bytes to be copied
+   * @return True if the update was performed by the barrier, false if left to the caller
+   */
+  public boolean booleanBulkCopy(ObjectReference src, Offset srcOffset, ObjectReference dst, Offset dstOffset, int bytes) {
+    // Not actually called yet - something to optimise later
+    return false;
+  }
+
+  /**
+   * Write a byte. Take appropriate write barrier actions.
+   * <p>
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param value The value of the new byte
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   */
+  public void byteWrite(ObjectReference src, Address slot, byte value, Word metaDataA, Word metaDataB, int mode) {
+    VM.barriers.byteWrite(src, value, metaDataA, metaDataB, mode);
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+    }
+    if (SS.inFromSpace(slot)) {
+      // writing to an object in Sapphire fromSpace - it might be replicated
+      ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
+      if (forwarded != null) {
+        if (VM.VERIFY_ASSERTIONS)
+          VM.assertions._assert(ForwardingWord.isForwarded(src));
+        VM.barriers.byteWrite(forwarded, value, metaDataA, metaDataB, mode);
+      }
+    }
+  }
+
+  /**
+   * A number of bytes are about to be copied from object <code>src</code> to object <code>dst</code> (as in an array copy). Thus,
+   * <code>dst</code> is the mutated object. Take appropriate write barrier actions.
+   * <p>
+   * @param src The source array
+   * @param srcOffset The starting source offset
+   * @param dst The destination array
+   * @param dstOffset The starting destination offset
+   * @param bytes The number of bytes to be copied
+   * @return True if the update was performed by the barrier, false if left to the caller
+   */
+  public boolean byteBulkCopy(ObjectReference src, Offset srcOffset, ObjectReference dst, Offset dstOffset, int bytes) {
+    // Not actually called yet - something to optimise later
+    return false;
+  }
+
+  /**
+   * Write a char. Take appropriate write barrier actions.
+   * <p>
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param value The value of the new char
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   */
+  public void charWrite(ObjectReference src, Address slot, char value, Word metaDataA, Word metaDataB, int mode) {
+    VM.barriers.charWrite(src, value, metaDataA, metaDataB, mode);
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+    }
+    if (SS.inFromSpace(slot)) {
+      // writing to an object in Sapphire fromSpace - it might be replicated
+      ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
+      if (forwarded != null) {
+        if (VM.VERIFY_ASSERTIONS)
+          VM.assertions._assert(ForwardingWord.isForwarded(src));
+        VM.barriers.charWrite(forwarded, value, metaDataA, metaDataB, mode);
+      }
+    }
+  }
+
+  /**
+   * A number of chars are about to be copied from object <code>src</code> to object <code>dst</code> (as in an array copy). Thus,
+   * <code>dst</code> is the mutated object. Take appropriate write barrier actions.
+   * <p>
+   * @param src The source array
+   * @param srcOffset The starting source offset
+   * @param dst The destination array
+   * @param dstOffset The starting destination offset
+   * @param bytes The number of bytes to be copied
+   * @return True if the update was performed by the barrier, false if left to the caller
+   */
+  public boolean charBulkCopy(ObjectReference src, Offset srcOffset, ObjectReference dst, Offset dstOffset, int bytes) {
+    // Not actually called yet - something to optimise later
+    return false;
+  }
+
+  /**
+   * Write a double. Take appropriate write barrier actions.
+   * <p>
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param value The value of the new double
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   */
+  public void doubleWrite(ObjectReference src, Address slot, double value, Word metaDataA, Word metaDataB, int mode) {
+    VM.barriers.doubleWrite(src, value, metaDataA, metaDataB, mode);
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+    }
+    if (SS.inFromSpace(slot)) {
+      // writing to an object in Sapphire fromSpace - it might be replicated
+      ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
+      if (forwarded != null) {
+        if (VM.VERIFY_ASSERTIONS)
+          VM.assertions._assert(ForwardingWord.isForwarded(src));
+        VM.barriers.doubleWrite(forwarded, value, metaDataA, metaDataB, mode);
+      }
+    }
+  }
+
+  /**
+   * A number of doubles are about to be copied from object <code>src</code> to object <code>dst</code> (as in an array copy). Thus,
+   * <code>dst</code> is the mutated object. Take appropriate write barrier actions.
+   * <p>
+   * @param src The source array
+   * @param srcOffset The starting source offset
+   * @param dst The destination array
+   * @param dstOffset The starting destination offset
+   * @param bytes The number of bytes to be copied
+   * @return True if the update was performed by the barrier, false if left to the caller
+   */
+  public boolean doubleBulkCopy(ObjectReference src, Offset srcOffset, ObjectReference dst, Offset dstOffset, int bytes) {
+    // Not actually called yet - something to optimise later
+    return false;
+  }
+
+  /**
+   * Write a float. Take appropriate write barrier actions.
+   * <p>
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param value The value of the new float
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   */
+  public void floatWrite(ObjectReference src, Address slot, float value, Word metaDataA, Word metaDataB, int mode) {
+    VM.barriers.floatWrite(src, value, metaDataA, metaDataB, mode);
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+    }
+    if (SS.inFromSpace(slot)) {
+      // writing to an object in Sapphire fromSpace - it might be replicated
+      ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
+      if (forwarded != null) {
+        if (VM.VERIFY_ASSERTIONS)
+          VM.assertions._assert(ForwardingWord.isForwarded(src));
+        VM.barriers.floatWrite(forwarded, value, metaDataA, metaDataB, mode);
+      }
+    }
+  }
+
+  /**
+   * A number of floats are about to be copied from object <code>src</code> to object <code>dst</code> (as in an array copy). Thus,
+   * <code>dst</code> is the mutated object. Take appropriate write barrier actions.
+   * <p>
+   * @param src The source array
+   * @param srcOffset The starting source offset
+   * @param dst The destination array
+   * @param dstOffset The starting destination offset
+   * @param bytes The number of bytes to be copied
+   * @return True if the update was performed by the barrier, false if left to the caller
+   */
+  public boolean floatBulkCopy(ObjectReference src, Offset srcOffset, ObjectReference dst, Offset dstOffset, int bytes) {
+    // Not actually called yet - something to optimise later
+    return false;
+  }
+
+  /**
+   * Write a int. Take appropriate write barrier actions.
+   * <p>
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param value The value of the new int
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   */
+  public void intWrite(ObjectReference src, Address slot, int value, Word metaDataA, Word metaDataB, int mode) {
+    VM.barriers.intWrite(src, value, metaDataA, metaDataB, mode);
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+    }
+    if (SS.inFromSpace(slot)) {
+      // writing to an object in Sapphire fromSpace - it might be replicated
+      ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
+      if (forwarded != null) {
+        if (VM.VERIFY_ASSERTIONS)
+          VM.assertions._assert(ForwardingWord.isForwarded(src));
+        VM.barriers.intWrite(forwarded, value, metaDataA, metaDataB, mode);
+      }
+    }
+  }
+
+  /**
+   * A number of ints are about to be copied from object <code>src</code> to object <code>dst</code> (as in an array copy). Thus,
+   * <code>dst</code> is the mutated object. Take appropriate write barrier actions.
+   * <p>
+   * @param src The source array
+   * @param srcOffset The starting source offset
+   * @param dst The destination array
+   * @param dstOffset The starting destination offset
+   * @param bytes The number of bytes to be copied
+   * @return True if the update was performed by the barrier, false if left to the caller
+   */
+  public boolean intBulkCopy(ObjectReference src, Offset srcOffset, ObjectReference dst, Offset dstOffset, int bytes) {
+    // Not actually called yet - something to optimise later
+    return false;
+  }
+
+  /**
+   * Attempt to atomically exchange the value in the given slot with the passed replacement value.
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param old The old int to be swapped out
+   * @param value The new int
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   * @return True if the swap was successful.
+   */
+  public boolean intTryCompareAndSwap(ObjectReference src, Address slot, int old, int value, Word metaDataA, Word metaDataB,
+                                      int mode) {
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+      if (SS.inFromSpace(slot))
+        VM.assertions.fail("Warning attempting intTryCompareAndSwap on object in Sapphire fromSpace");
+    }
+    return VM.barriers.intTryCompareAndSwap(src, old, value, metaDataA, metaDataB, mode);
+  }
+
+  /**
+   * Write a long. Take appropriate write barrier actions.
+   * <p>
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param value The value of the new long
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   */
+  public void longWrite(ObjectReference src, Address slot, long value, Word metaDataA, Word metaDataB, int mode) {
+    VM.barriers.longWrite(src, value, metaDataA, metaDataB, mode);
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+    }
+    if (SS.inFromSpace(slot)) {
+      // writing to an object in Sapphire fromSpace - it might be replicated
+      ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
+      if (forwarded != null) {
+        if (VM.VERIFY_ASSERTIONS)
+          VM.assertions._assert(ForwardingWord.isForwarded(src));
+        VM.barriers.longWrite(forwarded, value, metaDataA, metaDataB, mode);
+      }
+    }
+  }
+
+  /**
+   * A number of longs are about to be copied from object <code>src</code> to object <code>dst</code> (as in an array copy). Thus,
+   * <code>dst</code> is the mutated object. Take appropriate write barrier actions.
+   * <p>
+   * @param src The source array
+   * @param srcOffset The starting source offset
+   * @param dst The destination array
+   * @param dstOffset The starting destination offset
+   * @param bytes The number of bytes to be copied
+   * @return True if the update was performed by the barrier, false if left to the caller
+   */
+  public boolean longBulkCopy(ObjectReference src, Offset srcOffset, ObjectReference dst, Offset dstOffset, int bytes) {
+    // Not actually called yet - something to optimise later
+    return false;
+  }
+
+  /**
+   * Attempt to atomically exchange the value in the given slot with the passed replacement value.
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param old The old long to be swapped out
+   * @param value The new long
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   * @return True if the swap was successful.
+   */
+  public boolean longTryCompareAndSwap(ObjectReference src, Address slot, long old, long value, Word metaDataA, Word metaDataB,
+                                       int mode) {
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+      if (SS.inFromSpace(slot))
+        VM.assertions.fail("Warning attempting longTryCompareAndSwap on object in Sapphire fromSpace");
+    }
+    return VM.barriers.longTryCompareAndSwap(src, old, value, metaDataA, metaDataB, mode);
+  }
+
+  /**
+   * Write a short. Take appropriate write barrier actions.
+   * <p>
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param value The value of the new short
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   */
+  public void shortWrite(ObjectReference src, Address slot, short value, Word metaDataA, Word metaDataB, int mode) {
+    VM.barriers.shortWrite(src, value, metaDataA, metaDataB, mode);
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+    }
+    if (SS.inFromSpace(slot)) {
+      // writing to an object in Sapphire fromSpace - it might be replicated
+      ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
+      if (forwarded != null) {
+        if (VM.VERIFY_ASSERTIONS)
+          VM.assertions._assert(ForwardingWord.isForwarded(src));
+        VM.barriers.shortWrite(forwarded, value, metaDataA, metaDataB, mode);
+      }
+    }
+  }
+
+  /**
+   * A number of shorts are about to be copied from object <code>src</code> to object <code>dst</code> (as in an array copy). Thus,
+   * <code>dst</code> is the mutated object. Take appropriate write barrier actions.
+   * <p>
+   * @param src The source array
+   * @param srcOffset The starting source offset
+   * @param dst The destination array
+   * @param dstOffset The starting destination offset
+   * @param bytes The number of bytes to be copied
+   * @return True if the update was performed by the barrier, false if left to the caller
+   */
+  public boolean shortBulkCopy(ObjectReference src, Offset srcOffset, ObjectReference dst, Offset dstOffset, int bytes) {
+    // Not actually called yet - something to optimise later
+    return false;
+  }
+
+  /**
+   * Write a Word. Take appropriate write barrier actions.
+   * <p>
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param value The value of the new Word
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   */
+  public void wordWrite(ObjectReference src, Address slot, Word value, Word metaDataA, Word metaDataB, int mode) {
+    VM.barriers.wordWrite(src, value, metaDataA, metaDataB, mode);
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+    }
+    if (SS.inFromSpace(slot)) {
+      // writing to an object in Sapphire fromSpace - it might be replicated
+      ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
+      if (forwarded != null) {
+        if (VM.VERIFY_ASSERTIONS)
+          VM.assertions._assert(ForwardingWord.isForwarded(src));
+        VM.barriers.wordWrite(forwarded, value, metaDataA, metaDataB, mode);
+      }
+    }
+  }
+
+  /**
+   * Write a Word during GC into toSpace. Take appropriate write barrier actions.
+   * <p>
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param value The value of the new Word
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   */
+  public void wordWriteDuringGC(ObjectReference src, Address slot, Word value, Word metaDataA, Word metaDataB, int mode) {
+    VM.barriers.wordWrite(src, value, metaDataA, metaDataB, mode);
+    // during GC might have a reference to toSpace, avoid certain assertions
+    if (SS.inFromSpace(slot)) {
+      // writing to an object in Sapphire fromSpace - it might be replicated
+      ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
+      if (forwarded != null) {
+        if (VM.VERIFY_ASSERTIONS)
+          VM.assertions._assert(ForwardingWord.isForwarded(src));
+          // object is already forwarded, update both copies and return
+        VM.barriers.wordWrite(forwarded, value, metaDataA, metaDataB, mode);
+        }
+    }
+  }
+
+  /**
+   * Attempt to atomically exchange the value in the given slot with the passed replacement value.
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param old The old long to be swapped out
+   * @param value The new long
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   * @return True if the swap was successful.
+   */
+  public boolean wordTryCompareAndSwap(ObjectReference src, Address slot, Word old, Word value, Word metaDataA, Word metaDataB,
+                                       int mode) {
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!SS.inToSpace(slot));
+      VM.assertions._assert(!SS.inFromSpace(slot), "Warning attempting wordTryCompareAndSwap on object in Sapphire fromSpace");
+    }
+    return VM.barriers.wordTryCompareAndSwap(src, old, value, metaDataA, metaDataB, mode);
+  }
+
+  /**
+   * Attempt to atomically exchange the value in the given slot with the passed replacement value.
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param old The old long to be swapped out
+   * @param value The new long
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   * @return True if the swap was successful.
+   */
+  /*
+   * Stuff for address based hashing LPJH: nasty quick hack
+   */Word HASH_STATE_UNHASHED = Word.zero();
+  Word HASH_STATE_HASHED = Word.one().lsh(8); // 0x00000100
+  Word HASH_STATE_HASHED_AND_MOVED = Word.fromIntZeroExtend(3).lsh(8); // 0x0000300
+  Word HASH_STATE_MASK = HASH_STATE_UNHASHED.or(HASH_STATE_HASHED).or(HASH_STATE_HASHED_AND_MOVED);
+
+  public boolean wordTryCompareAndSwapInLock(ObjectReference src, Address slot, Word old, Word value, Word metaDataA,
+                                             Word metaDataB, int mode) {
+    // LPJH: rename this and other methods *statusWord
+    // does not need to be replicated (used for locking)
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!SS.inToSpace(slot));
+    }
+    if (SS.inFromSpace(slot)) {
+      // in possibly replicated fromSpace
+      // mark object as being forwarded, attempt fromSpace write, if successful and has FP then do forwarded write
+      // (preserving hash bits)
+      ForwardingWord.markBusy(src);
+      if (VM.VERIFY_ASSERTIONS) {
+        VM.assertions._assert(SS.inFromSpace(slot));
+        VM.assertions._assert(ForwardingWord.isBusy(src));
+      }
+      old = old.or(Word.fromIntZeroExtend(ForwardingWord.BUSY));
+      value = value.or(Word.fromIntZeroExtend(ForwardingWord.BUSY));
+      if (VM.barriers.wordTryCompareAndSwap(src, old, value, metaDataA, metaDataB, mode)) {
+        if (VM.VERIFY_ASSERTIONS) {
+          VM.assertions._assert(ForwardingWord.isBusy(src));
+        }
+        // cas succeeded update any replica
+        ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
+        if (forwarded != null) {
+          if (VM.VERIFY_ASSERTIONS) {
+            VM.assertions._assert(ForwardingWord.isForwarded(src));
+            VM.assertions._assert(SS.inToSpace(forwarded.toAddress()));
+            VM.assertions._assert(!ForwardingWord.isBusy(forwarded));
+            // check that the hash status is correct in replica before we consider rewriting it
+            // (ensure hashcode status updates go via this barrier)
+            Word fromStatusWord = VM.objectModel.readAvailableBitsWord(src);
+            if (fromStatusWord.and(HASH_STATE_MASK).EQ(HASH_STATE_HASHED)) {
+              Word toStatusWord = VM.objectModel.readAvailableBitsWord(forwarded);
+              VM.assertions._assert(toStatusWord.and(HASH_STATE_MASK).EQ(HASH_STATE_HASHED_AND_MOVED));
+            }
+          }
+          // object is already forwarded, update copy with difference between old and value
+          Word diff = old.xor(value);
+          Word toSpaceStatusWord = VM.objectModel.readAvailableBitsWord(forwarded);
+          VM.barriers.wordWrite(forwarded, toSpaceStatusWord.xor(diff), metaDataA, metaDataB, mode);
+          // LPJH: do we need a StoreLoad fence here?
+          if (VM.VERIFY_ASSERTIONS) {
+            VM.assertions._assert(!ForwardingWord.isBusy(forwarded));
+            Word fromStatusWord = VM.objectModel.readAvailableBitsWord(src);
+            if (fromStatusWord.and(HASH_STATE_MASK).EQ(HASH_STATE_HASHED)) {
+              Word toStatusWord = VM.objectModel.readAvailableBitsWord(forwarded);
+              VM.assertions._assert(toStatusWord.and(HASH_STATE_MASK).EQ(HASH_STATE_HASHED_AND_MOVED));
+            }
+          }
+        }
+        ForwardingWord.markNotBusy(src);
+        return true;
+      } else {
+        // failed to update statusWord, unmark busy state
+        if (VM.VERIFY_ASSERTIONS) {
+          VM.assertions._assert(ForwardingWord.isBusy(src));
+        }
+        ForwardingWord.markNotBusy(src);
+        return false;
+      }
+    } else {
+      if (VM.VERIFY_ASSERTIONS) {
+        VM.assertions._assert(!SS.inToSpace(slot));
+        VM.assertions._assert(!SS.inFromSpace(slot));
+      }
+      return VM.barriers.wordTryCompareAndSwap(src, old, value, metaDataA, metaDataB, mode);
+    }
+  }
+
+  /**
+   * Write a Address. Take appropriate write barrier actions.
+   * <p>
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param value The value of the new Address
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   */
+  public void addressWrite(ObjectReference src, Address slot, Address value, Word metaDataA, Word metaDataB, int mode) {
+    VM.barriers.addressWrite(src, value, metaDataA, metaDataB, mode);
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+    }
+    if (SS.inFromSpace(slot)) {
+      // writing to an object in Sapphire fromSpace - it might be replicated
+      ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
+      if (forwarded != null) {
+        if (VM.VERIFY_ASSERTIONS)
+          VM.assertions._assert(ForwardingWord.isForwarded(src));
+        VM.barriers.addressWrite(forwarded, value, metaDataA, metaDataB, mode);
+      }
+    }
+  }
+
+  /**
+   * Write a Extent. Take appropriate write barrier actions.
+   * <p>
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param value The value of the new Extent
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   */
+  public void extentWrite(ObjectReference src, Address slot, Extent value, Word metaDataA, Word metaDataB, int mode) {
+    VM.barriers.extentWrite(src, value, metaDataA, metaDataB, mode);
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+    }
+    if (SS.inFromSpace(slot)) {
+      // writing to an object in Sapphire fromSpace - it might be replicated
+      ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
+      if (forwarded != null) {
+        if (VM.VERIFY_ASSERTIONS)
+          VM.assertions._assert(ForwardingWord.isForwarded(src));
+        VM.barriers.extentWrite(forwarded, value, metaDataA, metaDataB, mode);
+      }
+    }
+  }
+
+  /**
+   * Write a Offset. Take appropriate write barrier actions.
+   * <p>
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param value The value of the new Offset
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   */
+  public void offsetWrite(ObjectReference src, Address slot, Offset value, Word metaDataA, Word metaDataB, int mode) {
+    VM.barriers.offsetWrite(src, value, metaDataA, metaDataB, mode);
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+    }
+    if (SS.inFromSpace(slot)) {
+      // writing to an object in Sapphire fromSpace - it might be replicated
+      ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
+      if (forwarded != null) {
+        if (VM.VERIFY_ASSERTIONS)
+          VM.assertions._assert(ForwardingWord.isForwarded(src));
+        VM.barriers.offsetWrite(forwarded, value, metaDataA, metaDataB, mode);
+      }
+    }
+  }
+
+  /**
    * Read a reference. Take appropriate read barrier action, and return the value that was read.
    * <p>
    * This is a <b>substituting<b> barrier. The call to this barrier takes the place of a load.
@@ -200,43 +816,66 @@ public class SSMutator extends StopTheWorldMutator {
   @Override
   public ObjectReference objectReferenceRead(ObjectReference src, Address slot, Word metaDataA, Word metaDataB, int mode) {
     ObjectReference obj = VM.barriers.objectReferenceRead(src, metaDataA, metaDataB, mode);
-    if (!obj.isNull() && (Space.isInSpace(SS.SS0, obj) || Space.isInSpace(SS.SS1, obj)) && ForwardingWord.isForwarded(obj)) {
-      Log.writeln("Caught loading a reference to SS0 or SS1 where the object has a forwading pointer");
-      Log.write("The caught reference was ");
-      Log.write(obj);
-      Log.write(" and was loaded from object ");
-      Log.write(src);
-      if (VM.scanning.pointsToForwardedObjects(src)) {
-        Log.write(" which was correctly detected as containing reference to a forwarded object");
-      }
-      Log.writeln("");
-      // VM.assertions.fail("Loaded a stale ref");
+    if (VM.VERIFY_ASSERTIONS) {
+      if (!obj.isNull())
+        VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), obj));
     }
     return obj;
   }
 
   /**
-   * A new reference is about to be created. Take appropriate write barrier actions.
+   * Write an object reference. Take appropriate write barrier actions.
    * <p>
-   * In this case, we remember the address of the source of the pointer if the new reference points into the nursery from nonnursery
-   * space.
+   * <b>By default do nothing, override if appropriate.</b>
    * @param src The object into which the new reference will be stored
    * @param slot The address into which the new reference will be stored.
+   * @param value The value of the new reference
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   * @param mode The context in which the store occurred
+   */
+  public void objectReferenceWrite(ObjectReference src, Address slot, ObjectReference value, Word metaDataA, Word metaDataB,
+                                   int mode) {
+    VM.barriers.objectReferenceWrite(src, value, metaDataA, metaDataB, mode);
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+      if (!value.isNull())
+        VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), value));
+    }
+    if (SS.inFromSpace(slot)) {
+      // writing to an object in Sapphire fromSpace - it might be replicated
+      ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
+      if (forwarded != null) {
+        if (VM.VERIFY_ASSERTIONS)
+          VM.assertions._assert(ForwardingWord.isForwarded(src));
+        VM.barriers.objectReferenceWrite(forwarded, value, metaDataA, metaDataB, mode);
+      }
+    }
+  }
+
+  /**
+   * Attempt to atomically exchange the value in the given slot with the passed replacement value. If a new reference is created, we
+   * must then take appropriate write barrier actions.
+   * <p>
+   * <b>By default do nothing, override if appropriate.</b>
+   * @param src The object into which the new reference will be stored
+   * @param slot The address into which the new reference will be stored.
+   * @param old The old reference to be swapped out
    * @param tgt The target of the new reference
    * @param metaDataA A value that assists the host VM in creating a store
    * @param metaDataB A value that assists the host VM in creating a store
-   * @param mode The mode of the store (eg putfield, putstatic etc)
+   * @param mode The context in which the store occurred
+   * @return True if the swap was successful.
    */
-  @Inline
-  public final void objectReferenceWrite(ObjectReference src, Address slot, ObjectReference tgt, Word metaDataA, Word metaDataB,
-                                         int mode) {
-    if (!tgt.isNull() && (Space.isInSpace(SS.SS0, tgt) || Space.isInSpace(SS.SS1, tgt)) && ForwardingWord.isForwarded(tgt)) {
-      Log.writeln("Caught writing a reference to SS0 or SS1 where the tgt is already forwarded");
-      Log.write("The caught reference was ");
-      Log.write(tgt);
-      Log.write(" and it being written into object ");
-      Log.writeln(src);
+  public boolean objectReferenceTryCompareAndSwap(ObjectReference src, Address slot, ObjectReference old, ObjectReference tgt,
+                                                  Word metaDataA, Word metaDataB, int mode) {
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+      if (SS.inFromSpace(slot))
+        VM.assertions.fail("Warning attempting objectTryCompareAndSwap on object in Sapphire fromSpace");
+      if (!tgt.isNull())
+        VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), tgt));
     }
-    VM.barriers.objectReferenceWrite(src, tgt, metaDataA, metaDataB, mode);
+    return VM.barriers.objectReferenceTryCompareAndSwap(src, old, tgt, metaDataA, metaDataB, mode);
   }
 }

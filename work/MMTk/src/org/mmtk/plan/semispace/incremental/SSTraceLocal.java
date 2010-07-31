@@ -130,7 +130,7 @@ public class SSTraceLocal extends TraceLocal {
       do {
         forwardingWord = VM.objectModel.readAvailableBitsWord(object);
       } while (ForwardingWord.stateIsBeingForwarded(forwardingWord));
-      return ForwardingWord.extractForwardingPointer(forwardingWord);
+      return object; // ForwardingWord.getReplicatingFP(object);
     }
 
     // Not yet copied - Check copying budget for this GC cycle
@@ -146,12 +146,13 @@ public class SSTraceLocal extends TraceLocal {
           forwardingWord = VM.objectModel.readAvailableBitsWord(object);
 
         /* Now extract the object reference from the forwarding word and return it */
-        return ForwardingWord.extractForwardingPointer(forwardingWord);
+        return object; // ForwardingWord.getReplicatingFP(object);
       } else {
         /* We are the designated copier, so forward it and enqueue it */
         numObjectsCopied++; // increment count of objects copied
         ObjectReference newObject = VM.objectModel.copy(object, allocator);
-        ForwardingWord.setForwardingPointer(object, newObject);
+        ForwardingWord.setReplicatingFP(object, newObject);
+        // ForwardingWord.setForwardingPointer(object, newObject);
         trace.processNode(newObject); // Scan it later
 
         if (VM.VERIFY_ASSERTIONS && Options.verbose.getValue() >= 9) {
@@ -165,7 +166,7 @@ public class SSTraceLocal extends TraceLocal {
           Log.write(Space.getSpaceForObject(newObject).getName());
           Log.writeln("]");
         }
-        return newObject;
+        return object; // newObject;
       }
     }
 

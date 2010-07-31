@@ -25,6 +25,8 @@ import org.jikesrvm.runtime.Memory;
 import org.jikesrvm.scheduler.Lock;
 import org.jikesrvm.scheduler.ThinLock;
 import org.jikesrvm.scheduler.RVMThread;
+import org.mmtk.plan.semispace.incremental.SS;
+import org.mmtk.utility.ForwardingWord;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.NoInline;
@@ -490,8 +492,10 @@ public class JavaHeader implements JavaHeaderConstants {
    * Get the hash code of an object.
    */
   @Inline
-  @Interruptible
   public static int getObjectHashCode(Object o) {
+    if (VM.VerifyAssertions) {
+      VM._assert(!SS.inToSpace(ObjectReference.fromObject(o).toAddress()));
+    }
     if (ADDRESS_BASED_HASHING) {
       if (MemoryManagerConstants.MOVES_OBJECTS) {
         Word hashState = Magic.getWordAtOffset(o, STATUS_OFFSET).and(HASH_STATE_MASK);
@@ -512,22 +516,85 @@ public class JavaHeader implements JavaHeaderConstants {
           }
         } else {
           // UNHASHED
-          Word tmp;
-          do {
-            tmp = Magic.prepareWord(o, STATUS_OFFSET);
-          } while (!Magic.attemptWord(o, STATUS_OFFSET, tmp, tmp.or(HASH_STATE_HASHED)));
-          if (ObjectModel.HASH_STATS) ObjectModel.hashTransition1++;
-          return getObjectHashCode(o);
+          // at least the fromSpace object isn't hashed, maybe a toSpace replica exists, if so we should return the address of that
+          // object as it does not have the room to store the hash at a dynamic offset
+          if (!SS.inFromSpace(ObjectReference.fromObject(o).toAddress())) {
+            // not in fromSpace
+            Word tmp;
+            do {
+              tmp = Magic.prepareWord(o, STATUS_OFFSET);
+            } while (!Magic.attemptWord(o, STATUS_OFFSET, tmp, tmp.or(HASH_STATE_HASHED)));
+            if (ObjectModel.HASH_STATS)
+              ObjectModel.hashTransition1++;
+            return getObjectHashCode(o);
+          } else {
+            // in from space
+            // lock object, then check if possible replica
+            ObjectReference obj = ObjectReference.fromObject(o);
+            if (VM.VerifyAssertions) {
+              VM._assert(SS.inFromSpace(obj.toAddress()));
+            }
+            ObjectReference forwarded = ForwardingWord.getReplicatingFP(obj);
+            if (forwarded != null) {
+              // already forwarded
+              if (VM.VerifyAssertions) {
+                VM._assert(ForwardingWord.isForwarded(ObjectReference.fromObject(o)));
+                VM._assert(SS.inToSpace(forwarded.toAddress()));
+              }
+              hashState = Magic.getWordAtOffset(forwarded, STATUS_OFFSET).and(HASH_STATE_MASK); // reread incase someone else hashed
+                                                                                                // for us
+              if (hashState.EQ(HASH_STATE_HASHED)) {
+                // someone has hashed toSpace replica for us
+                return Magic.objectAsAddress(forwarded).toWord().rshl(SizeConstants.LOG_BYTES_IN_ADDRESS).toInt();
+              }
+              if (VM.VerifyAssertions) {
+                VM._assert(!hashState.EQ(HASH_STATE_HASHED_AND_MOVED)); // shouldn't be able to get into this state during
+                                                                        // uninterruptible method
+              }
+              // lock fromSpace replica, set hashed state in toSpace copy
+              ForwardingWord.markBusy(obj);
+              Word toSpaceStatusWord = Magic.getWordAtOffset(forwarded, STATUS_OFFSET);
+              if (toSpaceStatusWord.and(HASH_STATE_MASK).EQ(HASH_STATE_HASHED)) {
+                // now that we have the lock we see someone else hashed the object
+                ForwardingWord.markNotBusy(obj);
+                return getObjectHashCode(o);
+              }
+              Magic.setWordAtOffset(forwarded, STATUS_OFFSET, toSpaceStatusWord.or(HASH_STATE_HASHED));
+              ForwardingWord.markNotBusy(obj);
+              if (ObjectModel.HASH_STATS)
+                ObjectModel.hashTransition1++;
+              return getObjectHashCode(o);
+            } else {
+              // not yet forwarded, lock fromSpace replica
+              ForwardingWord.markBusy(obj);
+              forwarded = ForwardingWord.getReplicatingFP(obj);
+              if (forwarded != null) {
+                // someone forwarded behind our backs
+                ForwardingWord.markNotBusy(obj);
+                return getObjectHashCode(o);
+              } else {
+                // not forwarded
+                Word fromSpaceStatusWord = Magic.getWordAtOffset(obj, STATUS_OFFSET);
+                if (fromSpaceStatusWord.and(HASH_STATE_MASK).EQ(HASH_STATE_HASHED)) {
+                  // now that we have the lock we see someone else hashed the object
+                  ForwardingWord.markNotBusy(obj);
+                  return getObjectHashCode(o);
+                }
+                Magic.setWordAtOffset(obj, STATUS_OFFSET, fromSpaceStatusWord.or(HASH_STATE_HASHED));
+                ForwardingWord.markNotBusy(obj);
+                if (ObjectModel.HASH_STATS)
+                  ObjectModel.hashTransition1++;
+                return getObjectHashCode(o);
+              }
+            }
+          }
         }
       } else {
         return Magic.objectAsAddress(o).toWord().rshl(SizeConstants.LOG_BYTES_IN_ADDRESS).toInt();
       }
-    } else { // 10 bit hash code in status word
-      int hashCode = Magic.getWordAtOffset(o, STATUS_OFFSET).and(HASH_CODE_MASK).rshl(HASH_CODE_SHIFT).toInt();
-      if (hashCode != 0) {
-        return hashCode;
-      }
-      return installHashCode(o);
+    } else {
+      VM.sysFail("!ADDRESS_BASED_HASHING not supported at present with Sapphire GC");
+      return 0;
     }
   }
 
@@ -634,6 +701,14 @@ public class JavaHeader implements JavaHeaderConstants {
    */
   public static void writeAvailableBitsWord(Object o, Word val) {
     Magic.setWordAtOffset(o, STATUS_OFFSET, val);
+  }
+
+  public static void writeReplicatingFP(Object o, Object ptr) {
+    Magic.setObjectAtOffset(o, GC_HEADER_OFFSET, ptr);
+  }
+
+  public static Object getReplicatingFP(Object o) {
+    return Magic.getObjectAtOffset(o, GC_HEADER_OFFSET);
   }
 
   /**

@@ -17,11 +17,13 @@ import org.jikesrvm.VM;
 import org.jikesrvm.SizeConstants;
 import org.jikesrvm.classloader.RVMArray;
 import org.jikesrvm.classloader.RVMClass;
+import org.jikesrvm.classloader.RVMField;
 import org.jikesrvm.classloader.RVMType;
 import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.Lock;
 import org.jikesrvm.scheduler.RVMThread;
+import org.mmtk.utility.ForwardingWord;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
@@ -914,6 +916,340 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
   @Interruptible
   public static void baselineEmitLoadTIB(Assembler asm, int dest, int object) {
     JavaHeader.baselineEmitLoadTIB(asm, dest, object);
+  }
+
+  public static void checkFromSpaceReplicatedObject(ObjectReference fromSpace, ObjectReference toSpace) {
+    boolean verbose = false;
+    TIB fromSpaceTIB = ObjectModel.getTIB(fromSpace);
+    TIB toSpaceTIB = ObjectModel.getTIB(toSpace);
+    Object fromSpaceObj = fromSpace.toObject();
+    Object toSpaceObj = toSpace.toObject();
+
+    if (fromSpaceTIB != toSpaceTIB) {
+      VM.sysFail("From-space and replica TIB do not match");
+    }
+
+    RVMType type = Magic.getObjectType(fromSpace.toObject());
+    if (verbose) {
+      VM.sysWriteln("Compared TIB");
+      ObjectReference itype = ObjectReference.fromObject(type);
+      VM.sysWrite(" TYPE=");
+      VM.sysWrite(itype);
+      VM.sysWrite(" CLASS=");
+      VM.sysWrite(type.getDescriptor());
+      VM.sysWrite("\n");
+    }
+
+    Word fromSpaceStatusWord = readAvailableBitsWord(fromSpace);
+    Word toSpaceStatusWord = readAvailableBitsWord(toSpace);
+    if (fromSpaceStatusWord.NE(toSpaceStatusWord)) {
+      // might not be equal because of HASHED and MOVED
+      fromSpaceStatusWord = fromSpaceStatusWord.and(HASH_STATE_MASK.not());
+      toSpaceStatusWord = toSpaceStatusWord.and(HASH_STATE_MASK.not());
+      if (fromSpaceStatusWord.NE(toSpaceStatusWord)) {
+        // even considering hash bits words still different
+        VM.sysWrite("FromSpace statusWord (zeroing hash bits): ");
+        VM.sysWriteln(fromSpaceStatusWord);
+        VM.sysWrite("ToSpace statusWord (zeroing hash bits): ");
+        VM.sysWriteln(toSpaceStatusWord);
+        VM.sysFail("From-space and replica statusWord do not match");
+      }
+    }
+    if (verbose) {
+      VM.sysWrite("StatusWords match");
+    }
+
+    if (type.isClassType()) {
+      // It's an object instance, scan all the fields
+      for (RVMField field : fromSpaceTIB.getType().getInstanceFields()) {
+        if (field.isUntraced()) {
+          VM.sysWriteln("Warning found untraced field in replicated from-space object");
+          VM.sysWrite(" CLASS=");
+          VM.sysWrite(type.getDescriptor());
+          VM.sysFail("\n");
+        } else if (field.isVolatile()) {
+          VM.sysWriteln("Warning found volatile field in replicated from-space object");
+          VM.sysWrite(" CLASS=");
+          VM.sysWrite(type.getDescriptor());
+          VM.sysFail("\n");
+        }
+
+        byte size = (byte) field.getSize();
+        Offset offset = field.getOffset();
+        if (verbose) {
+          VM.sysWriteln("Found a field sized ", size);
+        }
+
+        switch (size) {
+          case 1:
+            byte fromSpaceByte = Magic.getByteAtOffset(fromSpaceObj, offset);
+            byte toSpaceByte = Magic.getByteAtOffset(toSpaceObj, offset);
+            if (fromSpaceByte != toSpaceByte) {
+              VM.sysWrite("Non matching 8bit values");
+              VM.sysWrite(" From-space value ", fromSpaceByte);
+              VM.sysWrite(" To-space value ", toSpaceByte);
+              VM.sysWriteln(" From-space address ", fromSpace.toAddress().plus(offset));
+              VM.sysWrite(" CLASS=");
+              VM.sysWriteln(type.getDescriptor());
+              VM.sysWrite("Suspect field is: ");
+              byte[] name = field.getName().toByteArray();
+              for (byte b : name) {
+                VM.sysWrite((char) b);
+              }
+              VM.sysFail("\n");
+            }
+            break;
+          case 2:
+            short fromSpaceShort = Magic.getShortAtOffset(fromSpaceObj, offset);
+            short toSpaceShort = Magic.getShortAtOffset(toSpaceObj, offset);
+            if (fromSpaceShort != toSpaceShort) {
+              VM.sysWrite("Non matching 16bit values");
+              VM.sysWrite(" From-space value ", fromSpaceShort);
+              VM.sysWrite(" To-space value ", toSpaceShort);
+              VM.sysWriteln(" From-space address ", fromSpace.toAddress().plus(offset));
+              VM.sysWrite(" CLASS=");
+              VM.sysWrite(type.getDescriptor());
+              VM.sysFail("\n");
+            }
+            break;
+          case 4:
+            int fromSpaceInt = Magic.getIntAtOffset(fromSpaceObj, offset);
+            int toSpaceInt = Magic.getIntAtOffset(toSpaceObj, offset);
+            if (fromSpaceInt != toSpaceInt) {
+              VM.sysWrite("Non matching 32bit values ");
+              VM.sysWrite(" From-space value ", fromSpaceInt);
+              VM.sysWrite(" To-space value ", toSpaceInt);
+              VM.sysWriteln(" From-space address ", fromSpace.toAddress().plus(offset));
+              VM.sysWrite(" CLASS=");
+              VM.sysWrite(type.getDescriptor());
+              VM.sysFail("\n");
+            }
+            break;
+          case 8:
+            long fromSpaceLong = Magic.getLongAtOffset(fromSpaceObj, offset);
+            long toSpaceLong = Magic.getLongAtOffset(toSpaceObj, offset);
+            if (fromSpaceLong != toSpaceLong) {
+              VM.sysWrite("Non matching 64bit values");
+              VM.sysWrite(" From-space value ", fromSpaceLong);
+              VM.sysWrite(" To-space value ", toSpaceLong);
+              VM.sysWriteln(" From-space address ", fromSpace.toAddress().plus(offset));
+              VM.sysWrite(" CLASS=");
+              VM.sysWrite(type.getDescriptor());
+              VM.sysFail("\n");
+            }
+            break;
+          default:
+            VM.sysFail("Unmatched field size");
+        }
+      }
+    } else if (type.isArrayType()) {
+      // It's a type of array
+      RVMType elementType = type.asArray().getElementType();
+      if (elementType.isUnboxedType()) {
+        // it's an address array or something
+        VM.sysWriteln("Unboxed type, values do not go via write barriers, should not be in replicated space");
+        VM.sysWriteln(" From-space objRef ", fromSpace);
+        VM.sysWrite(" CLASS=");
+        VM.sysWrite(type.getDescriptor());
+        VM.sysFail("\n");
+      }
+
+      int fromSpaceLength = ObjectModel.getArrayLength(fromSpaceObj);
+      int toSpaceLength = ObjectModel.getArrayLength(toSpaceObj);
+      if (fromSpaceLength != toSpaceLength) {
+        VM.sysWrite("Array lengths do not match");
+        VM.sysWrite(" fromSpaceLength=", fromSpaceLength);
+        VM.sysWrite(" toSpaceLength=", toSpaceLength);
+        VM.sysWriteln(" From-space objRef ", fromSpace);
+        VM.sysWrite(" CLASS=");
+        VM.sysWrite(type.getDescriptor());
+        VM.sysFail("\n");
+      }
+
+      if (verbose) {
+        VM.sysWriteln("Found array of length ", fromSpaceLength);
+      }
+
+      // compare array element by element
+      int logElementSize = type.asArray().getLogElementSize();
+      if (verbose) {
+        VM.sysWriteln("Log Element size ", logElementSize);
+      }
+
+      switch (logElementSize) {
+        case 0:
+          for (int i = 0; i < fromSpaceLength; i++) {
+            Offset offset = Offset.fromIntZeroExtend(i);
+            byte fromSpaceByte = Magic.getByteAtOffset(fromSpaceObj, offset);
+            byte toSpaceByte = Magic.getByteAtOffset(toSpaceObj, offset);
+            if (fromSpaceByte != toSpaceByte) {
+              VM.sysWrite("Non matching 8bit elements at index ", i);
+              VM.sysWrite(" From-space value ", fromSpaceByte);
+              VM.sysWrite(" To-space value ", toSpaceByte);
+              VM.sysWriteln(" From-space address ", fromSpace.toAddress().plus(offset));
+              VM.sysWrite(" CLASS=");
+              VM.sysWriteln(type.getDescriptor());
+              // Print whole array both fromSpace and toSpace
+              // VM.sysWriteln("Length ", fromSpaceLength);
+              // VM.sysWriteln("FromSpace:");
+              // for (int j = 0; j < fromSpaceLength; j++) {
+              // Offset index = Offset.fromIntZeroExtend(j);
+              // VM.sysWrite((char) Magic.getByteAtOffset(fromSpaceObj, index));
+              // }
+              // VM.sysWriteln("ToSpace:");
+              // for (int j = 0; j < fromSpaceLength; j++) {
+              // Offset index = Offset.fromIntZeroExtend(j);
+              // VM.sysWrite((char) Magic.getByteAtOffset(toSpaceObj, index));
+              // }
+              break;
+            }
+          }
+          break;
+        case 1:
+          for (int i = 0; i < fromSpaceLength; i++) {
+            Offset offset = Offset.fromIntZeroExtend(i << 1);
+            short fromSpaceShort = Magic.getShortAtOffset(fromSpaceObj, offset);
+            short toSpaceShort = Magic.getShortAtOffset(toSpaceObj, offset);
+            if (fromSpaceShort != toSpaceShort) {
+              VM.sysWrite("Non matching 16bit elements at index ", i);
+              VM.sysWrite(" From-space value ", fromSpaceShort);
+              VM.sysWrite(" To-space value ", toSpaceShort);
+              VM.sysWriteln(" From-space address ", fromSpace.toAddress().plus(offset));
+              VM.sysWrite(" CLASS=");
+              VM.sysWrite(type.getDescriptor());
+              VM.sysFail("\n");
+            }
+          }
+          break;
+        case 2:
+          for (int i = 0; i < fromSpaceLength; i++) {
+            Offset offset = Offset.fromIntZeroExtend(i << 2);
+            int fromSpaceInt = Magic.getIntAtOffset(fromSpaceObj, offset);
+            int toSpaceInt = Magic.getIntAtOffset(toSpaceObj, offset);
+            if (fromSpaceInt != toSpaceInt) {
+              VM.sysWrite("Non matching 32bit elements at index ", i);
+              VM.sysWrite(" From-space value ", fromSpaceInt);
+              VM.sysWrite(" To-space value ", toSpaceInt);
+              VM.sysWriteln(" From-space address ", fromSpace.toAddress().plus(offset));
+              VM.sysWrite(" CLASS=");
+              VM.sysWrite(type.getDescriptor());
+              VM.sysFail("\n");
+            }
+          }
+          break;
+        case 3:
+          for (int i = 0; i < fromSpaceLength; i++) {
+            Offset offset = Offset.fromIntZeroExtend(i << 3);
+            long fromSpaceLong = Magic.getLongAtOffset(fromSpaceObj, offset);
+            long toSpaceLong = Magic.getLongAtOffset(toSpaceObj, offset);
+            if (fromSpaceLong != toSpaceLong) {
+              VM.sysWrite("Non matching 64bit elements at index ", i);
+              VM.sysWrite(" From-space value ", fromSpaceLong);
+              VM.sysWrite(" To-space value ", toSpaceLong);
+              VM.sysWriteln(" From-space address ", fromSpace.toAddress().plus(offset));
+              VM.sysWrite(" CLASS=");
+              VM.sysWrite(type.getDescriptor());
+              VM.sysFail("\n");
+            }
+          }
+          break;
+        default:
+          VM.sysFail("Unmatched array element size");
+      }
+    } else if (type.isUnboxedType()) {
+      // It's a unboxed type
+      VM.sysWriteln("Unboxed type, values do not go via write barriers, should not be in replicated space");
+      VM.sysWriteln(" From-space objRef ", fromSpace);
+      VM.sysWrite(" CLASS=");
+      VM.sysWrite(type.getDescriptor());
+      VM.sysFail("\n");
+    } else if (type.isPrimitiveType()) {
+      // It's a primitive type
+      VM.sysWriteln("Primitive types are not heap allocated - shouldn't have got hold of this Type");
+      VM.sysWriteln(" From-space objRef ", fromSpace);
+      VM.sysWrite(" CLASS=");
+      VM.sysWrite(type.getDescriptor());
+      VM.sysFail("\n");
+    } else {
+      VM.sysWriteln("Passed unknown type of object");
+      VM.sysWriteln(" From-space objRef ", fromSpace);
+      VM.sysWrite(" CLASS=");
+      VM.sysWrite(type.getDescriptor());
+      VM.sysFail("\n");
+    }
+  }
+
+  public static void checkFromSpaceNotYetReplicatedObject(ObjectReference fromSpace) {
+    boolean verbose = false;
+
+    if (verbose) {
+      VM.sysWrite("Found non-replicated object ");
+      VM.sysWriteln(fromSpace);
+    }
+    if (JavaHeader.getTIB(fromSpace.toObject()) == null) {
+      VM.sysWrite("Found null TIB field for object ");
+      VM.sysWriteln(fromSpace);
+      VM.sysFail("\n");
+    }
+
+    RVMType type = Magic.getObjectType(fromSpace.toObject());
+    if (verbose) {
+      ObjectReference itype = ObjectReference.fromObject(type);
+      VM.sysWrite(" TYPE=");
+      VM.sysWrite(itype);
+      VM.sysWrite(" CLASS=");
+      VM.sysWrite(type.getDescriptor());
+      VM.sysWrite("\n");
+    }
+
+    if (type.isClassType()) {
+      // It's an object instance
+      TIB fromSpaceTIB = ObjectModel.getTIB(fromSpace);
+      for (RVMField field : fromSpaceTIB.getType().getInstanceFields()) {
+        if (field.isUntraced()) {
+          VM.sysWriteln("Warning found untraced field in from-space object");
+          VM.sysWrite(" CLASS=");
+          VM.sysWrite(type.getDescriptor());
+          VM.sysFail("\n");
+        } else if (field.isVolatile()) {
+          VM.sysWriteln("Warning found volatile field in from-space object");
+          VM.sysWrite(" CLASS=");
+          VM.sysWrite(type.getDescriptor());
+          VM.sysFail("\n");
+        }
+      }
+    } else if (type.isArrayType()) {
+      // It's a type of array
+      RVMType elementType = type.asArray().getElementType();
+      if (elementType.isUnboxedType()) {
+        // it's an address array or something
+        VM.sysWriteln("Unboxed type, values do not go via write barriers, should not be in from space");
+        VM.sysWriteln(" From-space objRef ", fromSpace);
+        VM.sysWrite(" CLASS=");
+        VM.sysWrite(type.getDescriptor());
+        VM.sysFail("\n");
+      }
+    } else if (type.isUnboxedType()) {
+      // It's a unboxed type
+      VM.sysWriteln("Unboxed type, values do not go via write barriers, should not be in from space");
+      VM.sysWriteln(" From-space objRef ", fromSpace);
+      VM.sysWrite(" CLASS=");
+      VM.sysWrite(type.getDescriptor());
+      VM.sysFail("\n");
+    } else if (type.isPrimitiveType()) {
+      // It's a primitive type
+      VM.sysWriteln("Primitive types are not heap allocated - shouldn't have got hold of this Type in from-Space");
+      VM.sysWriteln(" From-space objRef ", fromSpace);
+      VM.sysWrite(" CLASS=");
+      VM.sysWrite(type.getDescriptor());
+      VM.sysFail("\n");
+    } else {
+      VM.sysWriteln("Passed unknown type of object");
+      VM.sysWriteln(" From-space objRef ", fromSpace);
+      VM.sysWrite(" CLASS=");
+      VM.sysWrite(type.getDescriptor());
+      VM.sysFail("\n");
+    }
   }
 }
 

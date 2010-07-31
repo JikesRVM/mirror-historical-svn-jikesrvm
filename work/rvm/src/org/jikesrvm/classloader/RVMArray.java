@@ -252,6 +252,7 @@ public final class RVMArray extends RVMType implements Constants, ClassLoaderCon
    */
   @Override
   @Pure
+  @Uninterruptible
   public RVMField[] getInstanceFields() {
     return RVMType.JavaLangObjectType.getInstanceFields();
   }
