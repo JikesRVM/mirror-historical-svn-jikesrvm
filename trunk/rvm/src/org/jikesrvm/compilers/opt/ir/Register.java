@@ -388,7 +388,7 @@ public final class Register {
    */
   public Interval getInterval(Instruction s) {
     if (scratchObject != null) {
-    if (org.jikesrvm.VM.VerifyAssertions) VM._assert(scratchObject instanceof Interval);
+      if (org.jikesrvm.VM.VerifyAssertions) VM._assert(scratchObject instanceof Interval);
       return ((Interval)scratchObject).getInterval(s.scratch);
     }
     else {
@@ -405,7 +405,7 @@ public final class Register {
    */
   public Interval getInterval(int programpoint ) {
     if (scratchObject != null) {
-    if (org.jikesrvm.VM.VerifyAssertions) VM._assert(scratchObject instanceof Interval);
+      if (org.jikesrvm.VM.VerifyAssertions) VM._assert(scratchObject instanceof Interval);
       return ((Interval)scratchObject).getInterval(programpoint);
     }
     else {
@@ -418,7 +418,7 @@ public final class Register {
    */
   public Interval getCompoundInterval() {
     if (scratchObject != null) {
-    if (org.jikesrvm.VM.VerifyAssertions) VM._assert(scratchObject instanceof Interval);
+      if (org.jikesrvm.VM.VerifyAssertions) VM._assert(scratchObject instanceof Interval);
       return ((Interval)scratchObject).getContainer();
     }
     else {
