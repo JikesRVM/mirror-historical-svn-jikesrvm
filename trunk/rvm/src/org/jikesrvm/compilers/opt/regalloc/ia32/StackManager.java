@@ -679,7 +679,7 @@ public abstract class StackManager extends GenericStackManager {
 
     // Get the spill location previously assigned to the symbolic
     // register.
-    int location = RegisterAllocatorState.getSpill(symb.getRegister(),s);
+    int location = RegisterAllocatorState.getSpill(symb.getRegister(), s);
 
     // Create a memory operand M representing the spill location.
     int size;

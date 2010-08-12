@@ -108,8 +108,7 @@ public class RegisterAllocatorState {
   */
   public static int getSpill(Register reg, Instruction s) {
      if (reg.isPhysical()) {
-       if (!reg.isSpilled()) return 0;
-       else return reg.scratch;
+       return reg.isSpilled() ? reg.scratch : 0;
      }  
      if (reg.getInterval(s) == null)
        return reg.getCompoundInterval().getSpill();

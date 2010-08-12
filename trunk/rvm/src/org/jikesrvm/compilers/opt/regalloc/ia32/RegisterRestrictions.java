@@ -75,23 +75,22 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
     // catch block remain valid.  For now, we do this by forcing any
     // register used in such a PEI as not spilled.  TODO: relax this
     // restriction for better code.
-    for(InstructionEnumeration ie = bb.forwardInstrEnumerator(); ie.hasMoreElements();) {
+    for (InstructionEnumeration ie = bb.forwardInstrEnumerator(); ie.hasMoreElements();) {
       Instruction s = ie.next();
       if (s.isPEI() && s.operator != IR_PROLOGUE) {
         if (bb.hasApplicableExceptionalOut(s) || !SCRATCH_IN_PEI) {
           for (Enumeration<Operand> e = s.getOperands(); e.hasMoreElements();) {
             Operand op = e.nextElement();
-	    if (op != null && op.isRegister()) {
-	      Register reg = op.asRegister().getRegister();
-	      /*
-	      * Previously physical register were also added through noteMustNotSpill call
-	      * Spill at BasciInterval concept makes this obsolete because we are never going to
-	      * spill a physical register before a scratch register assignment during spill
-	      * code insertion phase
-	      */
-	      if (!reg.isPhysical()) noteMustNotSpill(reg.getInterval(s));
-	      handle8BitRestrictions(s);
-	    }
+            if (op != null && op.isRegister()) {
+              Register reg = op.asRegister().getRegister();
+              /* Previously physical register were also added through noteMustNotSpill call
+               * Spill at BasciInterval concept makes this obsolete because we are never going to
+               * spill a physical register before a scratch register assignment during spill
+               * code insertion phase
+               */
+              if (!reg.isPhysical()) noteMustNotSpill(reg.getInterval(s));
+              handle8BitRestrictions(s);
+            }
           }
         }
       }
