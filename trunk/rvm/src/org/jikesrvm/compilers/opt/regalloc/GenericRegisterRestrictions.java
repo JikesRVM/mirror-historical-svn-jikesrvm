@@ -28,6 +28,7 @@ import org.jikesrvm.compilers.opt.ir.InstructionEnumeration;
 import static org.jikesrvm.compilers.opt.ir.Operators.CALL_SAVE_VOLATILE;
 import static org.jikesrvm.compilers.opt.ir.Operators.YIELDPOINT_OSR;
 import org.jikesrvm.compilers.opt.ir.Register;
+import org.jikesrvm.compilers.opt.regalloc.LinearScan.CompoundInterval;
 import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
 import org.jikesrvm.compilers.opt.util.BitSet;
 
@@ -41,10 +42,10 @@ import org.jikesrvm.compilers.opt.util.BitSet;
 public abstract class GenericRegisterRestrictions {
   // for each Interval(CompoundInterval or BasicInterval), the set of physical registers that are
   // illegal for assignment
-  private final HashMap<Interval, RestrictedRegisterSet> intervalHash = new HashMap<Interval,RestrictedRegisterSet>();
+  private  HashMap<Interval, RestrictedRegisterSet> intervalHash =  new HashMap<Interval, RestrictedRegisterSet>();
  
   // a set of Intervals that must not be spilled.
-  private final HashSet<Interval> intervalNoSpill = new HashSet<Interval>();
+  private  HashSet<Interval> intervalNoSpill = new HashSet<Interval>();;
   protected final PhysicalRegisterSet phys;
   
   /**
@@ -61,7 +62,7 @@ public abstract class GenericRegisterRestrictions {
   public final boolean mustNotSpill(Interval I) {
     return intervalNoSpill.contains(I);
   }
-  
+
   /**
    * Record all the register restrictions dictated by an IR.
    *
@@ -75,8 +76,42 @@ public abstract class GenericRegisterRestrictions {
       BasicBlock b = e.nextElement();
       processBlock(b);
     }
+   // printRestrictions(ir);
   }
- 
+  
+  public void printRestrictions(IR ir) {
+   System.out.println("Printing Interval and the register restrcitioons for ELS");
+   Set<Interval> keys = intervalHash.keySet();
+   for (Iterator<Interval> iter= keys.iterator();iter.hasNext();) {
+     Interval i = iter.next();
+     RestrictedRegisterSet regSet = intervalHash.get(i);
+     if (i.getRegister().isPhysical()) System.out.println("Physical interval restriction " + i + " Reg " + i.getRegister());
+     /*
+     if (i instanceof CompoundInterval)
+     System.out.print("CompoundInterval and register is "+ i.getRegister() + " restricited registers are ");
+     else
+      System.out.print("BasicInterval and register is "+ i.getRegister());
+  
+     PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
+     for (Enumeration<Register> e = phys.enumerateAll(); e.hasMoreElements();) {
+       Register reg = e.nextElement();
+       if (regSet.contains(reg))
+         System.out.print(" "+reg);
+     }
+     */
+   }
+   System.out.println("Printing Intervals which cannot be spilled");
+   for (Iterator<Interval> iter = intervalNoSpill.iterator();iter.hasNext();){
+     Interval i = iter.next();
+     if (i.getRegister().isPhysical()) System.out.println("Physical interval restriction " + i + i.getRegister());
+     /*
+     if (i instanceof CompoundInterval)
+       System.out.println("CompoundInteravl and symbolic register is " +i.getRegister());
+     else
+     System.out.println("BasicInterval and symbolic register is  " +i.getRegister());
+     */
+   }
+  }
   /**
    * Record all the register restrictions dictated by live ranges on a
    * particular basic block.
@@ -106,9 +141,14 @@ public abstract class GenericRegisterRestrictions {
     // each such interval, record the conflicts where the live range
     // overlaps a live range for a symbolic register.
     for (LiveIntervalElement phys : physical) {
+    //System.out.println("Physcial Interval " + " begin isntrcution " + phys.getBegin() + " end instruction " + phys.getEnd());
       for (LiveIntervalElement symb : symbolic) {
         if (overlaps(phys, symb)) {
           Interval i = symb.getInterval();
+         
+          
+       
+      //    System.out.println("Symbolic " + " begin isntrcution " + phys.getBegin() + " end instruction " + phys.getEnd());
           addRestriction(i, phys.getRegister());
         }
       }

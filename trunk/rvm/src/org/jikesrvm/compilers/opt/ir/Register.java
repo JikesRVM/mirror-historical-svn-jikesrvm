@@ -12,14 +12,9 @@
  */
 package org.jikesrvm.compilers.opt.ir;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Set;
-
+import org.jikesrvm.VM;
 import org.jikesrvm.ArchitectureSpecificOpt.PhysicalRegisterSet;
 import org.jikesrvm.compilers.opt.ir.operand.RegisterOperand;
-import org.jikesrvm.compilers.opt.regalloc.RegisterAllocatorState;
 import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
 
 
@@ -68,10 +63,10 @@ public final class Register {
 
   /* used by the register allocator */
   //  deprecated the following
-  //private static final int SPILLED = 0x10000; /* spilled into a memory location */
-  private static final int TOUCHED = 0x10000; /* register touched */
-  private static final int ALLOCATED = 0x20000; /* allocated to some register */
-  private static final int PINNED = 0x40000; /* pinned, unavailable for allocation */
+  private static final int SPILLED = 0x10000; /* spilled into a memory location */
+  private static final int TOUCHED = 0x20000; /* register touched */
+  private static final int ALLOCATED = 0x40000; /* allocated to some register */
+  private static final int PINNED = 0x80000; /* pinned, unavailable for allocation */
 
   /* derived constants to be exported */
   private static final int TYPE_MASK = (ADDRESS | INTEGER | FLOAT | DOUBLE | CONDITION | LONG | VALIDATION);
@@ -82,7 +77,8 @@ public final class Register {
   public static final int CONDITION_TYPE = CONDITION >>> TYPE_SHIFT;
   public static final int LONG_TYPE = LONG >>> TYPE_SHIFT;
   public static final int VALIDATION_TYPE = VALIDATION >>> TYPE_SHIFT;
-
+  
+  public Interval mapsToInterval = null;
   public boolean isTemp() { return (flags & LOCAL) == 0; }
 
   public boolean isLocal() { return (flags & LOCAL) != 0; }
@@ -272,52 +268,89 @@ public final class Register {
   }
 
   public void clearAllocationFlags() {
-    flags &= ~(PINNED | TOUCHED | ALLOCATED);
+    flags &= ~(PINNED | TOUCHED | ALLOCATED | SPILLED);
   }
 
+  
   public void pinRegister() {
     flags |= PINNED | TOUCHED;
   }
 
   public void reserveRegister() {
+  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     flags |= PINNED;
   }
 
   public void touchRegister() {
+  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     flags |= TOUCHED;
   }
-
   public void allocateRegister() {
-    flags = (flags | ALLOCATED | TOUCHED);
+  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
+    flags = (flags & ~SPILLED) | (ALLOCATED | TOUCHED);
   }
 
+  /*
   public void allocateRegister(Register reg) {
     flags = (flags | ALLOCATED | TOUCHED);
   }
+  */
+
   public void deallocateRegister() {
+  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     flags &= ~ALLOCATED;
+    mapsToInterval = null;
   }
- 
-  public void unpinRegister() {
-    flags &= ~PINNED;
+  
+  public void spillRegister() {
+  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
+    flags = (flags & ~ALLOCATED) | SPILLED;
   }
 
+  public void clearSpill() {
+    flags &= ~SPILLED;
+  }
+
+  public void unpinRegister() {
+  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
+    flags &= ~PINNED;
+  }
+  /*
+   * Following seems to be unreasonable.
+   * While allocating we touch the register and when we check for touch we ignore the allocation flag.
+   * rewrite this function or the allocateRegister function. Rewriting this function
+   * to include the allocation will increas the set of touched register.
+   */
   public boolean isTouched() {
+  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     return (flags & TOUCHED) != 0;
   }
 
   public boolean isAllocated() {
+  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     return (flags & ALLOCATED) != 0;
   }
 
   public boolean isPinned() {
+  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     return (flags & PINNED) != 0;
   }
 
   public boolean isAvailable() {
+  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     return (flags & (ALLOCATED | PINNED)) == 0;
   }
- 
+  
+  public boolean isSpilled() {
+  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
+    return (flags & SPILLED) != 0;
+  }
+  
+  public int getSpillAllocated() {
+  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
+    return scratch;
+  }
+  
   public int hashCode() {
     return number;
   }
@@ -356,8 +389,14 @@ public final class Register {
    * Scratch fields are  used here, so be careful when using in other phases of compilation 
    */
   public Interval getInterval(Instruction s) {
-    if (scratchObject != null) return ((Interval)scratchObject).getInterval(s.scratch);
-    else return null;
+    if (scratchObject != null) {
+    if (org.jikesrvm.VM.VerifyAssertions) VM._assert(scratchObject instanceof Interval);
+      return ((Interval)scratchObject).getInterval(s.scratch);
+    }
+    else {
+      VM._assert(false);
+      return null;
+    }
   }
   
   /**
@@ -367,14 +406,25 @@ public final class Register {
    * Scratch fields are  used here, so be careful when using in other phases of compilation 
    */
   public Interval getInterval(int programpoint ) {
-    if (scratchObject != null) return ((Interval)scratchObject).getInterval(programpoint);
-    else return null;
+    if (scratchObject != null) {
+    if (org.jikesrvm.VM.VerifyAssertions) VM._assert(scratchObject instanceof Interval);
+      return ((Interval)scratchObject).getInterval(programpoint);
+    }
+    else {
+      VM._assert(false);
+      return null;
+    }
   }
   /**
    * Fetch the CompoundInterval associated with this Register.
    */
   public Interval getCompoundInterval() {
-    if (scratchObject != null) return ((Interval)scratchObject).getContainer();
-    else return null;
+    if (scratchObject != null) {
+    if (org.jikesrvm.VM.VerifyAssertions) VM._assert(scratchObject instanceof Interval);
+      return ((Interval)scratchObject).getContainer();
+    }
+    else {
+      return null;
+    }
   }
 }
