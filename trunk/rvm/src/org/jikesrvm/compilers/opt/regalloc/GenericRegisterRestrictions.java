@@ -215,8 +215,8 @@ public abstract class GenericRegisterRestrictions {
     if (VM.VerifyAssertions) VM._assert(i != null);
     RestrictedRegisterSet r = intervalHash.get(i);
     if (r == null) {
-     r = new RestrictedRegisterSet(phys);
-     intervalHash.put(i, r);
+      r = new RestrictedRegisterSet(phys);
+      intervalHash.put(i, r);
     }
     r.setNoVolatiles();
   }
@@ -237,7 +237,7 @@ public abstract class GenericRegisterRestrictions {
    * physical register p
    */
   protected final void addRestriction(Interval i, Register p) {
-    //must be removed after testing
+    // must be removed after testing
     if (VM.VerifyAssertions) VM._assert(i != null);
     RestrictedRegisterSet r = intervalHash.get(i);
     if (r == null) {
