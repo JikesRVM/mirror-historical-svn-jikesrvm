@@ -12,8 +12,6 @@
  */
 package org.jikesrvm.compilers.opt.regalloc;
 
-import java.util.Iterator;
-
 import org.jikesrvm.compilers.opt.ir.BasicBlock;
 import org.jikesrvm.compilers.opt.ir.Instruction;
 import org.jikesrvm.compilers.opt.ir.Register;

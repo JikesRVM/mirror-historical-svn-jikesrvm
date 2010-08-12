@@ -17,6 +17,7 @@ import java.util.Enumeration;
 import org.jikesrvm.VM;
 import org.jikesrvm.ArchitectureSpecificOpt.PhysicalRegisterSet;
 import org.jikesrvm.compilers.opt.ir.IR;
+import org.jikesrvm.compilers.opt.ir.Instruction;
 import org.jikesrvm.compilers.opt.ir.Register;
 import org.jikesrvm.compilers.opt.regalloc.LinearScan.CompoundInterval;
 import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
@@ -36,10 +37,6 @@ public class RegisterAllocatorState {
    */
   public static Interval scratchInterval = new BasicInterval(0,0);
   
-  /**
-   * Register Allocation state of the following IR
-   */
-  public static IR thisIR = null;
   
   /**
    *  Resets the physical register info
@@ -57,9 +54,7 @@ public class RegisterAllocatorState {
    * Mapping from Interval to Physical register.
    */
   public static  void setIntervalToRegister(Interval i, Register reg) {
-    if (VM.VerifyAssertions) VM._assert(i != null);
-    if (VM.VerifyAssertions) VM._assert(reg != null);
-    if (VM.VerifyAssertions) VM._assert(!i.getRegister().isPhysical());
+    if (VM.VerifyAssertions) VM._assert(i != null && reg != null && !i.getRegister().isPhysical());
     i.setPhysicalRegister(reg);
   }
   
@@ -67,25 +62,78 @@ public class RegisterAllocatorState {
    * Get the physical register allocated to Interval i
    */
   public static Register getIntervalToRegister(Interval i) {
-    if (i.getRegister().isPhysical()) return i.getRegister();
     return i.getPhysicalRegister();
   }
   
   /**
-   * Check if Interval is present the HashMap indicating that Interval i was allocated 
-   * a physical register.
+   * Check if Interval is assigned a physical register.
    */
   public static boolean isAssignedRegister(Interval i) {
-  if (VM.VerifyAssertions) VM._assert(!i.getRegister().isPhysical());
-     return (i.getPhysicalRegister() != null);  
+    return (i.getPhysicalRegister() != null);  
   }
   
   /**
-   * Remove the Interval form the HashMap intervalToRegister and thus removing the mapping
-   * from Interval to physical register.
+   * Remove the allocation of physical register to Interval. 
+   * Invoked when Interval is spilled.
    */
   public static  void deallocateInterval(Interval i) {
   if (VM.VerifyAssertions) VM._assert(!i.getRegister().isPhysical());
      i.setPhysicalRegister(null);
+  }
+     
+    
+  /**
+   * Set the spill location of a physical register.
+   * Invoked during scratch register during Spill Code Insertion Phase.
+   */
+  public static void setSpill(Register reg, int spill) {
+   if (reg.isPhysical()) {
+     reg.spillRegister();
+     reg.scratch = spill;
+   }
+   else
+     /*
+      * For symbolic register we have already determined the spill calculation before the
+      * scratch register assignment i.e. during LinearScanPhase. This method is invoked during
+      * scratch register assignment and this part should not be reachable or you can call
+      * interval.spill() to avoid confusion.
+      */
+     VM._assert(false);
+ }
+  
+   /**
+   * Fetch the spill location assigned to a physical register.
+   * If a register is symbolic the get the spill location assigned
+   * to the interval it represents.
+  */
+  public static int getSpill(Register reg, Instruction s) {
+     if (reg.isPhysical()) {
+       if (!reg.isSpilled()) return 0;
+       else return reg.scratch;
+     }  
+     if (reg.getInterval(s) == null)
+       return reg.getCompoundInterval().getSpill();
+     else
+     /* this not to break the old code but needs to be changes when we will rework the insert spill code phase 
+     * during scratch register assignment.
+     */
+       return reg.getInterval(s).getSpill();
+  }
+  
+  /**
+   * Check if a physical register is marked for spilling.
+   * If it is a symbolic register check for the interval associated with the 
+   * symbolic register.
+   */
+   public static boolean isSpilled(Register reg,Instruction s) {
+    if (reg.isPhysical())
+      return reg.isSpilled();
+    if (reg.getInterval(s) == null)
+      return reg.getCompoundInterval().isSpilled();
+    else
+    /* this not to break the old code but needs to be changes when we will rework the insert spill code phase 
+     * during scratch register assignment.
+     */
+      return reg.getInterval(s).isSpilled();
   }
 }

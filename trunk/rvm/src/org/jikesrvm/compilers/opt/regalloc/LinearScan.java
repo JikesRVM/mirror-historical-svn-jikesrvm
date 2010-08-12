@@ -69,7 +69,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
    * Build this phase as a composite of others.
    */
   LinearScan() {
-       super("Linear Scan Composite Phase",
+    super("Linear Scan Composite Phase",
           new OptimizationPlanElement[]{new OptimizationPlanAtomicElement(new IntervalAnalysis()),
                                             new OptimizationPlanAtomicElement(new RegisterRestrictionsPhase()),
                                             new OptimizationPlanAtomicElement(new SpillIdentificationPhase()),
@@ -99,7 +99,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
   private static final boolean GC_DEBUG = false;
   private static final boolean DEBUG_COALESCE = false;
   private static final boolean EXTENDED_DEBUG = false;
-  private static final boolean SPILL_DEBUG = false;
+   
   /**
    * Register allocation is required
    */
@@ -324,8 +324,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         MappedBasicInterval bi = (MappedBasicInterval) b;
         CompoundInterval ci = bi.container;
         
-        active.expireOldIntervals(bi) ;
-    
+        active.expireOldIntervals(bi);
+        
         // If the interval does not correspond to a physical register
         // then we process it.
         if (!ci.getRegister().isPhysical()) {
@@ -333,9 +333,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           active.allocate(bi, ci);
         } else {
           // Mark the physical register as currently allocated.
-        ir.stackManager.deallocateRegister(ci.getRegister());
-        ir.stackManager.setRegisterToInterval(ci.getRegister(),ci);
-         
+          ir.stackManager.deallocateRegister(ci.getRegister());
+          ir.stackManager.setRegisterToInterval(ci.getRegister(),ci);
         }
         active.add(bi);
       }
@@ -365,8 +364,9 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           public int getBegin();
 	  public int getEnd();
 	  public boolean isAssigned();
-	  public boolean isSpilled(IR ir);
-	  public void setSpill(IR ir, int location);
+	  public boolean isSpilled();
+	  public void spill(SpillLocationManager sm);
+	  public int getSpill();
 	  public void unsetSpill(IR ir);
 	  public boolean sameRange(Interval i);
 	  public void setBegin(int newBegin);
@@ -399,15 +399,12 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      */
     protected boolean _infrequent = true;
     
-    private Register physicalRegisterAssigned=null;
+    private Register physicalRegisterAssigned = null;
     
-    public void setPhysicalRegister(Register reg) {
-    if (VM.VerifyAssertions) VM._assert(!this.getRegister().isPhysical());
-      physicalRegisterAssigned = reg;
-    }
+    public void setPhysicalRegister(Register reg) { physicalRegisterAssigned = reg; }
     
     public Register getPhysicalRegister() {
-    if (this.getRegister().isPhysical()) return this.getRegister();
+      if (this.getRegister().isPhysical()) return this.getRegister();
       return physicalRegisterAssigned;
     }
     /**
@@ -539,33 +536,76 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     public final void setFrequent() { _infrequent = false; }
     	
     public final boolean isInfrequent() { return _infrequent; }
-
-    public final boolean isSpilled(IR ir) {
-    //if (VM.VerifyAssertions) VM._assert(!this.getRegister().isPhysical());
-    if (this.getRegister().isPhysical()) return this.getRegister().isSpilled();
-    return ir.stackManager.isSpilled(this);
-   }
-    
+     
     public Register getRegister() {
       CompoundInterval ci =  getContainer();
       if (ci != null) return ci.getRegister();
       else return null;
     }
+    
     /**
-     * Has this interval been assigned to a physical register?
-     */
+    * Has this interval been assigned to a physical register?
+    */
     public boolean isAssigned() {
-    // isAllocated call in following is different from isAvailable call
-    if (VM.VerifyAssertions) VM._assert(!this.getRegister().isPhysical());
-       return RegisterAllocatorState.isAssignedRegister(this);
-    }
-    public final void setSpill(IR ir, int location) {
-    if (VM.VerifyAssertions) VM._assert(!this.getRegister().isPhysical());
-      ir.stackManager.setSpill(this,location);
+     /*
+      * Avoid calling this function for Interval associated with physical register
+      * because the interval assignment for physcial register changes as we continure 
+      * the allocation.
+      */
+      if (VM.VerifyAssertions) VM._assert(!this.getRegister().isPhysical());
+      return RegisterAllocatorState.isAssignedRegister(this);
     }
     
-    public final void unsetSpill(IR ir) { ir.stackManager.unsetSpill(this); }
-        
+    /**
+    * Set the spill location for interval. This is different from setting the spill
+    * location of physical registers. The spill location of physical registers is 
+    * store in the scratch field of physical registers. Avoid calling this function
+    * for intervals associated with physical registers.
+    */
+    
+    public final void setSpill(IR ir, int location) {
+      if (VM.VerifyAssertions) VM._assert(!this.getRegister().isPhysical());
+      // To Do
+    }
+    
+    public int getSpill() {
+      CompoundInterval ci = getContainer();
+      SpillLocationInterval si = ci.getSpillInterval();
+      if (si != null) {
+        if (si.contains(this))
+          return si.frameOffset;
+        else
+          return 0;
+      }
+      else
+        return 0;
+    }
+    
+    public void spill(SpillLocationManager sm) {
+      // first deallocate this Interval
+      RegisterAllocatorState.deallocateInterval(this);
+      SpillLocationInterval si = this.getContainer().getSpillInterval();
+      if (si == null)
+        si = sm.findOrCreateSpillLocation(this.getContainer());
+      if (VERBOSE_DEBUG) System.out.println("spill call: Interval "+this+" Assgined SpillLocationInterval "+ si);
+      si.add(this);
+    }
+    
+    public final void unsetSpill(IR ir) { 
+     // TO Do
+    }
+    
+    public final boolean isSpilled() {
+      /*
+      * Avoid calling this function for Interval associated with physical register
+      * because the interval assignment for physical register changes as we do 
+      * the allocation.
+      */
+      if (VM.VerifyAssertions) VM._assert(!this.getRegister().isPhysical());
+      if (getContainer().getSpillInterval() != null) return getContainer().getSpillInterval().contains(this);
+      else return false;
+    }
+    
     public final Interval getInterval(int start, int finish) {
       RegisterAllocatorState.scratchInterval.setBegin(start);
       RegisterAllocatorState.scratchInterval.setEnd(finish);
@@ -588,14 +628,21 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       if (VM.VerifyAssertions) VM._assert(result != null);
       return result;
     }
-    
+    /**
+    * This fetches the containing CompoundInterval of the BasicInterval.
+    * This should be invoked on the instance of MappedBasicInterval which extends
+    * a BasicInterval.
+    */
     public CompoundInterval getContainer() {
       if (this instanceof MappedBasicInterval)
         return ((MappedBasicInterval)this).getContainer();
       else {
+        /*
+        * This should be uncreachable. Present here to avoid potential bug by developers
+        */
         VM._assert(false);
         return null;
-        }
+      }
     }
   }
 
@@ -664,18 +711,20 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     private Register physcialRegiterAssigned = null;
     
     public void setPhysicalRegister(Register reg) {
-    if (VM.VerifyAssertions) VM._assert(!this.getRegister().isPhysical());
+      if (VM.VerifyAssertions) VM._assert(!this.getRegister().isPhysical());
       physcialRegiterAssigned = reg;
     }
     
     public Register getPhysicalRegister() {
-    if (this.getRegister().isPhysical()) return this.getRegister();
+      if (this.getRegister().isPhysical()) return this.getRegister();
       return physcialRegiterAssigned;
     }
+    
     /**
-     * A spill location assigned for this interval.
-     */
-    public SpillLocationInterval spillInterval = null;
+    * A spill location assigned for this interval.
+    * Change the public for following.
+    */
+    private SpillLocationInterval spillInterval = null;
 
     SpillLocationInterval getSpillInterval() { return spillInterval; }
 
@@ -800,22 +849,32 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      *
      * @param spillManager governing spill location manager
      */
-    void spill(SpillLocationManager spillManager) {
-      //  remove this interval from intervalToRegister HashMap
-      Register phys = RegisterAllocatorState.getIntervalToRegister(this);
+    public void spill(SpillLocationManager spillManager) {
       RegisterAllocatorState.deallocateInterval(this);
       spillInterval = spillManager.findOrCreateSpillLocation(this);
-      spillManager.ir.stackManager.setSpill(this, spillInterval.getOffset());
-      //remove the following ! not required taking care of this while marking
-      // and we are marking every time
-      
-      if (phys != null && phys.mapsToInterval == this)
-      spillManager.ir.stackManager.deallocateRegister(phys);
-    if (VERBOSE_DEBUG) {
+      //spillManager.ir.stackManager.setSpill(this, spillInterval.getOffset());
+      if (VERBOSE_DEBUG) {
         System.out.println("Assigned " + reg + " to location " + spillInterval.getOffset());
-     }
+      }
     }
-
+    
+    public void unsetSpill(IR ir) {
+    // To Do
+    }
+  
+    /**
+    * Has this interval been spilled?
+    */
+    public boolean isSpilled() {
+      // EBM convention?
+      if (this.getRegister().isPhysical()) return this.getRegister().isSpilled();
+      return (spillInterval != null);
+    }
+    
+    public int getSpill() {
+      if (spillInterval != null) return spillInterval.frameOffset;
+      else return 0;
+    }
     /**
      * Assign this compound interval to a physical register.
      */
@@ -828,7 +887,9 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * Has this interval been assigned to a physical register?
      */
     public boolean isAssigned() {
-    // isAllocated call in following is different from the isAvailable call
+      /*
+      * Absolutely Avoid calling this function for interval associated with physcial registers.     
+      */
       if (VM.VerifyAssertions) VM._assert(!this.getRegister().isPhysical());
       return RegisterAllocatorState.isAssignedRegister(this);
     }
@@ -856,13 +917,13 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * elements less than upperBound <em>inclusive</em>
      */
     SortedSet<Interval> headSetInclusive(BasicInterval upperBound) {
-    /*
-      RegisterAllocatorState.scratchInterval.setBegin(upperBound.getBegin() + 1);
-      RegisterAllocatorState.scratchInterval.setEnd(upperBound.getEnd());
-      return headSet(RegisterAllocatorState.scratchInterval);
+      /*
+      * RegisterAllocatorState.scratchInterval.setBegin(upperBound.getBegin() + 1);
+      * RegisterAllocatorState.scratchInterval.setEnd(upperBound.getEnd());
+      * return headSet(RegisterAllocatorState.scratchInterval);
       */
-    BasicInterval newUpperBound = new BasicInterval(upperBound.getBegin() + 1, upperBound.getEnd());
-    return headSet(newUpperBound);
+      BasicInterval newUpperBound = new BasicInterval(upperBound.getBegin() + 1, upperBound.getEnd());
+      return headSet(newUpperBound);
     }
 
     /**
@@ -870,13 +931,13 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * elements less than upperBound <em>inclusive</em>
      */
     SortedSet<Interval> headSetInclusive(int upperBound) {
-    /*
-      RegisterAllocatorState.scratchInterval.setBegin(upperBound + 1);
-      RegisterAllocatorState.scratchInterval.setEnd(upperBound + 1);
-      return headSet(RegisterAllocatorState.scratchInterval);
+      /*
+      * RegisterAllocatorState.scratchInterval.setBegin(upperBound + 1);
+      * RegisterAllocatorState.scratchInterval.setEnd(upperBound + 1);
+      * return headSet(RegisterAllocatorState.scratchInterval);
       */
-    BasicInterval newUpperBound = new BasicInterval(upperBound + 1, upperBound + 1);
-    return headSet(newUpperBound);
+      BasicInterval newUpperBound = new BasicInterval(upperBound + 1, upperBound + 1);
+      return headSet(newUpperBound);
     }
 
     /**
@@ -884,13 +945,13 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * elements greater than lowerBound <em>inclusive</em>
      */
     SortedSet<Interval> tailSetInclusive(int lowerBound) {
-    /*
-      RegisterAllocatorState.scratchInterval.setBegin(lowerBound - 1);
-      RegisterAllocatorState.scratchInterval.setEnd(lowerBound - 1);
-      return tailSet(RegisterAllocatorState.scratchInterval);
+      /*
+      * RegisterAllocatorState.scratchInterval.setBegin(lowerBound - 1);
+      * RegisterAllocatorState.scratchInterval.setEnd(lowerBound - 1);
+      * return tailSet(RegisterAllocatorState.scratchInterval);
       */
-    BasicInterval newLowerBound = new BasicInterval(lowerBound - 1, lowerBound - 1);
-    return tailSet(newLowerBound);
+      BasicInterval newLowerBound = new BasicInterval(lowerBound - 1, lowerBound - 1);
+      return tailSet(newLowerBound);
     }
 
     /**
@@ -984,17 +1045,11 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       // we may have to move one interval lower on each side.
       Interval b = getBasicInterval(lower);
       int myLower = (b == null) ? lower : b.getBegin();
-      if (myLower > upper) {
-        if (SPILL_DEBUG) System.out.println("1. lower" + lower + " my lower " + myLower + "upper " + upper);
-        return false;
-      }
+      if (myLower > upper) return false;
       b = i.getBasicInterval(lower);
       int otherLower = (b == null) ? lower : b.getBegin();
-      if (otherLower > upper) {
-      if (SPILL_DEBUG) System.out.println("2. lower "+ lower +" otherLower " + otherLower +  " upper " + upper);
-        return false;
-      }
-      if (SPILL_DEBUG) System.out.println("3. lower "+ lower + " upper "+ upper +" otherLower " + otherLower +  " myLower " + myLower  );
+      if (otherLower > upper) return false;
+
       SortedSet<Interval> myTailSet = tailSetInclusive(myLower);
       SortedSet<Interval> otherTailSet = i.tailSetInclusive(otherLower);
       Iterator<Interval> myIterator = myTailSet.iterator();
@@ -1004,34 +1059,16 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       Interval currentI = otherIterator.hasNext() ? otherIterator.next() : null;
 
       while (current != null && currentI != null) {
-      if (current.getBegin() > upper){
-      	if (SPILL_DEBUG) System.out.println("current.getBegin() "+current.getBegin() );
-      	break;
-      }
-      if (currentI.getBegin() > upper) {
-      	if (SPILL_DEBUG) System.out.println("currentI.getBegin() "+currentI.getBegin() );
-      	break;
-      }
-      if (current.intersects(currentI)) {
-      	if (SPILL_DEBUG) System.out.println("current intersects with currentI") ;
-      	return true;
-      }
+        if (current.getBegin() > upper) break;
+        if (currentI.getBegin() > upper) break;
+        if (current.intersects(currentI)) return true;
 
-      if (current.startsBefore(currentI)) {
-        current = myIterator.hasNext() ? myIterator.next() : null;
-        if (SPILL_DEBUG) System.out.println("next current " + current);
-      } else {
-        currentI = otherIterator.hasNext() ? otherIterator.next() : null;
-        if (SPILL_DEBUG) System.out.println("next currentI " + currentI);
+        if (current.startsBefore(currentI)) {
+          current = myIterator.hasNext() ? myIterator.next() : null;
+        } else {
+          currentI = otherIterator.hasNext() ? otherIterator.next() : null;
+        }
       }
-      }
-      int currentBegin = -1;
-      int currentIBegin = -1;
-      if ( SPILL_DEBUG) {
-        if (current != null)  currentBegin = current.getBegin();
-        if (currentI != null) currentIBegin = currentI.getBegin();
-      }
-      if (SPILL_DEBUG) System.out.println("4. current.getBegin() " + currentBegin  + " currentI.getBegin()  " + currentIBegin + " upper " + upper);
       return false;
     }
 
@@ -1098,20 +1135,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     public Interval getContainer() { return this; }
     
     public boolean intersects(Interval cmp) { return intersects((CompoundInterval) cmp); }
-    
-    public void setSpill(IR ir,int location) { if (VM.VerifyAssertions) VM._assert(!this.getRegister().isPhysical()); ir.stackManager.setSpill(this, location); }
-    
-    public void unsetSpill(IR ir) { ir.stackManager.unsetSpill(this); }
-    
-    /**
-     * Has this interval been spilled?
-     */
-    public boolean isSpilled(IR ir) {
-      // EBM convention?
-      if (this.getRegister().isPhysical()) return this.getRegister().isSpilled();
-      return ir.stackManager.isSpilled(this);
-    }
-    
+        
     public boolean sameRange(Interval i) {
       throw new UnsupportedOperationException("Unsupported operation sameRange on CompoundInterval");
     }
@@ -1230,24 +1254,22 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     void freeInterval(MappedBasicInterval bi) {
       CompoundInterval container = bi.container;
       Register r = container.getRegister();
+      
       if (r.isPhysical()) {
-      ir.stackManager.deallocateRegister(r);
+        ir.stackManager.deallocateRegister(r);
         return;
       }
 
-      if (container.isSpilled(ir)) {
+      if (container.isSpilled()) {
         // free the spill location iff this is the last interval in the
         // compound interval.
         Interval last = container.last();
         if (last.sameRange(bi)) {
           spillManager.freeInterval(container.getSpillInterval());
-          if (SPILL_DEBUG) {
-            System.out.println("expired interval " + bi + "adding free interval "+container.getSpillInterval());
-          }
         }
       } else {
-        // free the assigned registe
-        if (VM.VerifyAssertions) VM._assert(ir.stackManager.isAllocated(container.getAssignment()));
+        // free the assigned register
+        if (VM.VerifyAssertions) VM._assert(container.getAssignment().isAllocated());
         ir.stackManager.deallocateRegister(container.getAssignment());
       }
     }
@@ -1263,7 +1285,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 
       Register r = container.getRegister();
 
-      if (container.isSpilled(ir)) {
+      if (container.isSpilled()) {
         // We previously decided to spill the compound interval.  No further
         // action is needed.
         if (VERBOSE_DEBUG) System.out.println("Previously spilled " + container);
@@ -1279,7 +1301,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
             if (VERBOSE_DEBUG) {
               System.out.println("Previously assigned to " +
                                  phys +
-                                 " Basic " + newInterval + " Compound "  + 
+                                 " " +
                                  container +
                                  " phys interval " +
                                  getInterval(phys));
@@ -1287,18 +1309,15 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
             //removeNotActiveIntervals(getInterval(phys));
             updatePhysicalInterval(phys, newInterval);
             if (VERBOSE_DEBUG) {
-              System.out.println("Reg" + phys +" now phys interval " + getInterval(phys));
+              System.out.println(" now phys interval " + getInterval(phys));
             }
             // Mark the physical register as currently allocated
             ir.stackManager.setRegisterToInterval(phys, container);
           } else {
             // The previous assignment is not OK, since the physical
             // register is now in use elsewhere.
-            if (VERBOSE_DEBUG) {
-              System.out.println("Previously assigned, " + phys + " Basic "+ newInterval +
-              " Compound "+ container+ 
-              " phys interval " +
-              getInterval(phys));
+            if (DEBUG) {
+              System.out.println("Previously assigned, " + phys + " " + container);
             }
             // first look and see if there's another free register for
             // container.
@@ -1331,19 +1350,14 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
               physInterval.removeAll(toSpill);
               if (VERBOSE_DEBUG) System.out.println("Spill one of two for" + p + 
                 "  after spill phys " + getInterval(p));
-              //marking and unmarking
-              ir.stackManager.deallocateRegister(p);
-              if (toSpill != container) {
-              
+              // Update and mark the register as allocated
+              if (toSpill != container) {              
                 updatePhysicalInterval(p, newInterval);
-                
                 ir.stackManager.setRegisterToInterval(p, container);
               }
-              else {
-                ir.stackManager.setRegisterToInterval(p, currentAssignment);
-              }
+              else ir.stackManager.setRegisterToInterval(p, currentAssignment);
               if (VERBOSE_DEBUG) {
-                System.out.println("After spilling for Register " + p+" now phys interval " + getInterval(p));
+                System.out.println(" now phys interval " + getInterval(p));
               }
             } else {
               // found a free register for container! use it!
@@ -1360,13 +1374,11 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
               }
 
               container.assign(freeR);
-             
               updatePhysicalInterval(freeR, container, newInterval);
               if (VERBOSE_DEBUG) {
-                System.out.println("Physcial Register " + freeR + " now " + getInterval(freeR));
+                System.out.println("Intervals of " + freeR + " now " + getInterval(freeR));
               }
               // mark the physical register
-              ir.stackManager.deallocateRegister(freeR);
               ir.stackManager.setRegisterToInterval(freeR, container);
             }
           }
@@ -1378,24 +1390,19 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           if (phys != null) {
             // Found a free register.  Perform the register assignment.
             container.assign(phys);
-            if (VERBOSE_DEBUG) {
-              System.out.println("First allocation " + phys + " " + container + " phys interva before alloc "+
-              getInterval(phys));
+            if (DEBUG) {
+             System.out.println("First allocation " + phys + " " + container);
             }
-           
-            CompoundInterval physical = getInterval(phys);
-            
             updatePhysicalInterval(phys, newInterval);
             if (VERBOSE_DEBUG) System.out.println("  now phys" + getInterval(phys));
             // Mark the physical register as currently allocated.
-            ir.stackManager.deallocateRegister(phys);
             ir.stackManager.setRegisterToInterval(phys, container);
           } else {
              // Could not find a free physical register.  Some member of the
             // active set must be spilled.  Choose a spill candidate.
             CompoundInterval spillCandidate = getSpillCandidate(container);
             if (VM.VerifyAssertions) {
-              VM._assert(!spillCandidate.isSpilled(ir));
+              VM._assert(!spillCandidate.isSpilled());
               VM._assert((spillCandidate.getRegister().getType() == r.getType()) ||
                          (spillCandidate.getRegister().isNatural() && r.isNatural()));
               VM._assert(!ir.stackManager.getRestrictions().mustNotSpill(spillCandidate));
@@ -1417,14 +1424,13 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
                 System.out.println(" assigned " + phys + " to " + container);
               }
               physInterval.removeAll(spillCandidate);
-              if (VERBOSE_DEBUG) System.out.println(" Physcial Register "+ phys + "  after spill phys" + getInterval(phys));
-       
+              if (VERBOSE_DEBUG) System.out.println("  after spill phys" + getInterval(phys));
               updatePhysicalInterval(phys, newInterval);
               if (VERBOSE_DEBUG) {
-                System.out.println("Physical Register"+ phys+" now phys interval " + getInterval(phys));
+                System.out.println(" now phys interval " + getInterval(phys));
               }
               container.assign(phys);
-              ir.stackManager.deallocateRegister(phys);
+              // mark the pyscial register as allocated
               ir.stackManager.setRegisterToInterval(phys, container);
             } else {
               // spill the new interval.
@@ -1483,8 +1489,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * interval in the active set?
      */
     boolean currentlyActive(Register r) {
+      // Avoid the for loop calculation using following Interval. TO DO later
       Interval allocated = ir.stackManager.getRegisterToInterval(r);
-     
       for (Iterator<Interval> e = iterator(); e.hasNext();) {
         MappedBasicInterval i = (MappedBasicInterval) e.next();
         CompoundInterval container = i.container;
@@ -1493,7 +1499,6 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         }
       }
       return false;
-      
     }
 
     /**
@@ -1501,6 +1506,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * interval in the active set, return the interval.
      */
     CompoundInterval getCurrentInterval(Register r) {
+      // Following loop can be avoided by just returning the latest Interval associated with register. See above. To Do later.
       for (Iterator<Interval> e = iterator(); e.hasNext();) {
         MappedBasicInterval i = (MappedBasicInterval) e.next();
         CompoundInterval container = i.container;
@@ -1793,11 +1799,11 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       if (p != null && !phys.isAllocatable(p)) return false;
 
       if (VERBOSE_DEBUG && p != null) {
-        if (!ir.stackManager.isAvailable(p)) System.out.println("unavailable " + i + p);
+        if (!p.isAvailable()) System.out.println("unavailable " + i + p);
         if (restrict.isForbidden(i, p)) System.out.println("forbidden" + i + p);
       }
 
-      if ((p != null) && ir.stackManager.isAvailable(p) && !restrict.isForbidden(i, p)) {
+      if ((p != null) && p.isAvailable() && !restrict.isForbidden(i, p)) {
         CompoundInterval pInterval = getInterval(p);
         if (pInterval == null) {
           // no assignment to p yet
@@ -1823,15 +1829,12 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       RegisterRestrictions restrict = ir.stackManager.getRestrictions();
       PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
       if (!phys.isAllocatable(p)) return false;
-      Boolean available = (ir.stackManager.isAvailable(p));
-      Interval i = symb.getCompoundInterval();
-      Boolean restricted = restrict.isForbidden(i, p);
       if (VERBOSE_DEBUG && p != null) {
-        if (!available) System.out.println("unavailable " + symb + p);
-        if (restricted) System.out.println("forbidden" + symb + p);
+        if (!p.isAvailable()) System.out.println("unavailable " + symb + p);
+        if (restrict.isForbidden(symb.getCompoundInterval(), p)) System.out.println("forbidden" + symb + p);
        	
       }
-      return ((available) && (!restricted));
+      return ((p.isAvailable()) && (!restrict.isForbidden(symb.getCompoundInterval(), p)));
     }
 
     /**
@@ -1879,7 +1882,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         CompoundInterval i = b.container;
         Register newR = i.getRegister();
         if (VERBOSE_DEBUG) {
-          if (i.isSpilled(ir)) {
+          if (i.isSpilled()) {
             System.out.println(" not candidate, already spilled: " + newR);
           }
           if ((r.getType() != newR.getType()) || (r.isNatural() && newR.isNatural())) {
@@ -1890,7 +1893,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           }
         }
         if (!newR.isPhysical() &&
-            !i.isSpilled(ir) &&
+            !i.isSpilled() &&
             (r.getType() == newR.getType() || (r.isNatural() && newR.isNatural())) &&
             !restrict.mustNotSpill(i)) {
           // Found a potential spill interval. Check if the assignment
@@ -2024,12 +2027,11 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
       LinearScanState state = new LinearScanState();
       ir.MIRInfo.linearScanState = state;
-    //  VM.sysWrite("Compiling method " + ir.method + "**\n");
-      if (VERBOSE_DEBUG) System.out.println("Starting Interval Analysis"); 
+       
       // create topological list and a reverse topological list
       // the results are on listOfBlocks and reverseTopFirst lists
       createTopAndReverseList(cfg);
-       
+
       // give dfn values to each instruction
       assignDepthFirstNumbers(cfg);
 
@@ -2037,7 +2039,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       initializeRegisters();
 
       int lastBeginSeen = -1;
-      //ir.stackManager.countSize();
+
       // visit each basic block in the listOfBlocks list
       for (BasicBlock bb = listOfBlocks; bb != null; bb = (BasicBlock) bb.nextSorted) {
 
@@ -2138,15 +2140,15 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           reg.setInteger();
         }
       }
-      // Initialize the ir field of RegisterAllocatorState
-      RegisterAllocatorState.thisIR = ir;
-      
+            
       /*
        * We now always associate a dummy Interval data structure to physical register.
        * This is to avoid code break for getting spill location through intervalToSpillLocation HashMap
        * structure defined in GenericStackManager.
        */
       PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
+      ir.stackManager.initializeregisterToIntervalMap(phys.getNumberOfPhysicalRegisters());
+      
       for (Enumeration<Register> e = phys.enumerateAll(); e.hasMoreElements();) {
         Register reg = e.nextElement();
         Interval i = new CompoundInterval(reg);
@@ -2267,7 +2269,6 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           if (DEBUG_COALESCE) {
             System.out.println("SPILL PREFERENCE " + ci + " " + result);
           }
-          if (SPILL_DEBUG) System.out.println("getSpill Preference returned true , removing freeInterval " + result);
           freeIntervals.remove(result);
         }
       }
@@ -2275,11 +2276,9 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       // Now search for any free interval.
       if (result == null) {
         for (SpillLocationInterval s : freeIntervals) {
-        if (SPILL_DEBUG) System.out.println("checking freeinterval " + s + " freeinterval size " +s.getSize()+ " intersect " + s.intersects(ci) );
           if (s.getSize() == spillSize && !s.intersects(ci)) {
             result = s;
             freeIntervals.remove(result);
-            if (SPILL_DEBUG) System.out.println("found free interval from free intervals list , removing freeInterval " + result);
             break;
           }
         }
@@ -2293,7 +2292,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 
       // Update the spill location interval to hold the new spill
       result.addAll(ci);
-      if (SPILL_DEBUG) System.out.println("Interval " + ci + " spill offset" + result.frameOffset + " spillInterval " + result);
+
       return result;
     }
 
@@ -2344,8 +2343,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
          * the program point. We will have to pass the getSpillPreference the program point
          * where it was invoked 
          */
-        if (neighbor.isSymbolic() && neighbor.getCompoundInterval().isSpilled(ir)) {
-          int spillOffset = ir.stackManager.getSpill(neighbor.getCompoundInterval());
+        if (neighbor.isSymbolic() && neighbor.getCompoundInterval().isSpilled()) {
+          int spillOffset = neighbor.getCompoundInterval().getSpill();
           // if this is a candidate interval, update its weight
           for (SpillLocationInterval s : freeIntervals) {
             if (s.getOffset() == spillOffset && s.getSize() == spillSize && !s.intersects(ci)) {
@@ -2374,8 +2373,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
          * the program point. We will have to pass the getSpillPreference the program point
          * where it was invoked 
          */
-        if (neighbor.isSymbolic() && neighbor.getCompoundInterval().isSpilled(ir)) {
-          int spillOffset = ir.stackManager.getSpill(neighbor.getCompoundInterval());
+        if (neighbor.isSymbolic() && neighbor.getCompoundInterval().isSpilled()) {
+          int spillOffset = neighbor.getCompoundInterval().getSpill();
           // if this is a candidate interval, update its weight
           for (SpillLocationInterval s : freeIntervals) {
             if (s.getOffset() == spillOffset && s.getSize() == spillSize && !s.intersects(ci)) {
@@ -2609,15 +2608,14 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         if (GC_DEBUG) {
           VM.sysWrite("get location for " + symbolic + '\n');
         }
-        if (VM.VerifyAssertions) VM._assert(!symbolic.isPhysical());
+
         if (symbolic.getCompoundInterval().isAssigned()) {
           Register ra = RegisterAllocatorState.getIntervalToRegister(symbolic.getCompoundInterval());
           if (VM.VerifyAssertions) VM._assert(ra != null);
           elem.setRealReg(ra);
           if (GC_DEBUG)  VM.sysWrite(ra + "\n");
-
-          } else if (symbolic.getCompoundInterval().isSpilled(ir)) {
-          int spill = ir.stackManager.getSpill(symbolic.getCompoundInterval());
+        } else if (symbolic.getCompoundInterval().isSpilled()) {
+          int spill = symbolic.getCompoundInterval().getSpill();
           elem.setSpill(spill);
           if (VM.VerifyAssertions) VM._assert(spill > 0);
           if (GC_DEBUG) VM.sysWrite(spill + "\n");
@@ -2689,7 +2687,6 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           if (GC_DEBUG) {
             VM.sysWrite("Update " + elem + "\n");
           }
-        
           if (elem.isSpill()) {
             // check if the spilled value currently is cached in a scratch
             // register
@@ -2719,9 +2716,9 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
               // The regalloc state knows where the physical register r is
               // spilled.
               if (GC_DEBUG) {
-                VM.sysWrite("CHANGE to spill location " + ir.stackManager.getSpill(r) + "\n");
+                VM.sysWrite("CHANGE to spill location " + RegisterAllocatorState.getSpill(r,null) + "\n");
               }
-              elem.setSpill(ir.stackManager.getSpill(r));
+              elem.setSpill(RegisterAllocatorState.getSpill(r,null));
             }
           } 
 
@@ -2770,29 +2767,29 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      */
     public void perform(IR ir) {
       replaceSymbolicRegisters(ir);
-      
+
       // Generate spill code if necessary
       if (ir.hasSysCall() || ir.MIRInfo.linearScanState.spilledSomething) {
         StackManager stackMan = (StackManager) ir.stackManager;
         stackMan.insertSpillCode(ir.MIRInfo.linearScanState.active);
         //      stackMan.insertSpillCode();
       }
-   /*
-      if (VERBOSE_DEBUG) System.out.println("after spill code");
-      for (Iterator<Interval> iter = ir.MIRInfo.linearScanState.intervals.iterator(); iter.hasNext();) {
-        Interval i = iter.next();
-        if ( !i.getRegister().isPhysical()) {
-          if ( i.getContainer().isSpilled(ir)) 
-            System.out.println("Interval "+i + " spill location "+ ir.stackManager.getSpill(i.getContainer()));
-          else
-          System.out.println("Interval "+i + " RegisterAssigned "+ RegisterAllocatorState.getIntervalToRegister(i.getContainer()));
+      
+      if (VERBOSE_DEBUG) {
+        System.out.println("after spill code");
+        for (Iterator<Interval> iter = ir.MIRInfo.linearScanState.intervals.iterator(); iter.hasNext();) {
+          Interval i = iter.next();
+          if ( !i.getRegister().isPhysical()) {
+            if ( i.getContainer().isSpilled()) 
+              System.out.println("Interval "+i + " spill location "+ i.getContainer().getSpill());
+            else
+            System.out.println("Interval "+i + " RegisterAssigned "+ RegisterAllocatorState.getIntervalToRegister(i.getContainer()));
+          }
+          else if (i.getRegister().isSpilled())
+               System.out.println("Physical register " + i.getRegister().isSpilled() +" assigned o spilll ocation "+ i.getRegister().scratch);
         }
-        else if (i.getRegister().isSpilled())
-           System.out.println("Physical register " + i.getRegister().isSpilled() +" assigned o spilll ocation "+ i.getRegister().scratch);
       }
-*/
       if (VM.BuildForIA32 && !VM.BuildForSSE2Full) {
-      if (VERBOSE_DEBUG) System.out.println("rewrite the rewriteFPStack ");
         Operators.helper.rewriteFPStack(ir);
       }
     }
@@ -2810,9 +2807,9 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           if (op.isRegister()) {
             RegisterOperand rop = op.asRegister();
             Register r = rop.getRegister();
-            if (r.isSymbolic() && !r.getCompoundInterval().isSpilled(ir)) {
+            if (r.isSymbolic() && !r.getCompoundInterval().isSpilled()) {
               Register p = RegisterAllocatorState.getIntervalToRegister((Interval)r.getCompoundInterval());
-            if (VM.VerifyAssertions) VM._assert(p != null);
+              if (VM.VerifyAssertions) VM._assert(p != null);
               rop.setRegister(p);
             }
           }
@@ -2869,12 +2866,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       //for (int numOsrs=0, m=mapList.size(); numOsrs<m; numOsrs++) {
       //  VariableMapElement elm = mapList.get(numOsrs);
       /* for each osr instruction */
-     if (VERBOSE_DEBUG) {
-       System.out.println("UpdateOSRMaps");
-     }
       for (VariableMapElement elm : ir.MIRInfo.osrVarMap.list) {
-       
-     // for each inlined method
+         // for each inlined method
         //LinkedList<MethodVariables> mvarsList = elm.mvars;                   XXX Remove once proven correct
         //for (int numMvars=0, n=mvarsList.size(); numMvars<n; numMvars++) {
         //  MethodVariables mvar = mvarsList.get(numMvars);
@@ -2932,10 +2925,6 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           } // for each tuple
         } // for each inlined method
       } // for each osr instruction
-      if (VERBOSE_DEBUG) {
-      System.out.println("Exiting UpdateOSRMaps");
-    }
-       
     } // end of method
 
     void setRealPosition(IR ir, LocalRegPair tuple, Register sym_reg) {
@@ -2950,13 +2939,13 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         setTupleValue(tuple, OSRConstants.PHYREG, sym_reg.number & REG_MASK);
       } else if (sym_reg.getCompoundInterval().isAssigned()) {
         setTupleValue(tuple, OSRConstants.PHYREG, sym_reg.number & REG_MASK);
-      } else if (sym_reg.getCompoundInterval().isSpilled(ir)) {
-        if (VM.VerifyAssertions) VM._assert(ir.stackManager.getSpill(sym_reg.getCompoundInterval()) > 0);
-        setTupleValue(tuple, OSRConstants.SPILL, ir.stackManager.getSpill(sym_reg.getCompoundInterval()));
-    } else {
-      dumpIR(ir, "PANIC");
-      throw new RuntimeException("LinearScan PANIC in OSRMAP, " + sym_reg + " is not alive");
-    }
+      } else if (sym_reg.getCompoundInterval().isSpilled()) {
+        if (VM.VerifyAssertions) VM._assert(sym_reg.getCompoundInterval().getSpill() > 0);
+        setTupleValue(tuple, OSRConstants.SPILL, sym_reg.getCompoundInterval().getSpill());
+      } else {
+        dumpIR(ir, "PANIC");
+        throw new RuntimeException("LinearScan PANIC in OSRMAP, " + sym_reg + " is not alive");
+      }
     } // end of setRealPosition
 
     static void setTupleValue(LocalRegPair tuple, byte type, int value) {
@@ -3047,7 +3036,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           if (VM.VerifyAssertions) VM._assert(i != null);
 
           // set the spill flag for this interval so as to exclude it from liveIntervals
-          i.setSpill(ir,0);
+          //i.setSpill(ir,0);
 
           // Push the interval on stack
           stackOfSpilledIntervals.push(i);
@@ -3062,7 +3051,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 	i.unsetSpill(ir);
 	boolean resurrect = checkForResurrection(i);
 	if (resurrect) resurrectcount++;
-	else i.setSpill(ir, 0); 
+	//else i.setSpill(ir, 0); 
       }
     }
 
@@ -3086,7 +3075,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         return result;
       }
       for (Interval i : liveIntervals) {
-        if (VM.VerifyAssertions) VM._assert(!i.isSpilled(thisIR));
+        if (VM.VerifyAssertions) VM._assert(!i.isSpilled());
         Register newReg = ((CompoundInterval)i.getContainer()).getRegister();
         boolean restricted = restrict.mustNotSpill(i);
         if (!newReg.isPhysical() && !restricted &&  
@@ -3196,7 +3185,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       for (Interval i : thisIR.MIRInfo.linearScanState.intervals ) {
         if (end > i.getBegin() && end <= i.getEnd()) {
           if (!i.getRegister().isPhysical()) {
-            if (!i.isSpilled(thisIR)) result.add(i);
+            if (!i.isSpilled()) result.add(i);
           }
         }
       }
@@ -3219,7 +3208,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         if (programpoint > i.getBegin() && programpoint <= i.getEnd()) {
           if (!i.getRegister().isPhysical()) {
             if (i == interval) isPresent = true;
-    	    if (!i.isSpilled(thisIR)) result.add(i);
+    	    if (!i.isSpilled()) result.add(i);
           }
         }
       }

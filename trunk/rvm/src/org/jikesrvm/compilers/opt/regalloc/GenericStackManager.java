@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.HashSet;
 
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.ArchitectureSpecificOpt.CallingConvention;
@@ -48,8 +47,8 @@ import static org.jikesrvm.compilers.opt.ir.Operators.YIELDPOINT_OSR;
 import org.jikesrvm.compilers.opt.ir.Register;
 import org.jikesrvm.compilers.opt.ir.operand.Operand;
 import org.jikesrvm.compilers.opt.ir.operand.RegisterOperand;
-import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
 import org.jikesrvm.compilers.opt.regalloc.LinearScan.CompoundInterval;
+import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
 /**
  * Class to manage the allocation of the "compiler-independent" portion of
  * the stackframe.
@@ -58,172 +57,44 @@ import org.jikesrvm.compilers.opt.regalloc.LinearScan.CompoundInterval;
 public abstract class GenericStackManager extends IRTools {
 
   protected static final boolean DEBUG = false;
-  protected static final boolean VERBOSE =  false;
+  protected static final boolean VERBOSE = false;
   protected static final boolean VERBOSE_DEBUG = false;
   
   /**
-   * Mapping from BasicInterval or CompoundInterval to physical register.
-   * We can specify an initial size to avoid rehashing. But need to decide it on later
+   * A mapping from Physical Register to the last Symbolic Interval it was allocated.
    */
-  //protected  HashMap<Interval,Register> intervalToRegister;
-  //protected HashMap<Register,Interval> registerToInterval;
-  //protected HashSet<Register> touchedRegisters;
+  protected HashMap<Register,Interval> registerToIntervalMap;
   
-  //protected HashSet<Register> pinnedRegisters;
-  /*
-  public void initializeIntervalToRegister(int size){  
-    intervalToRegister = new HashMap<Interval,Register>(size);
+  /**
+   * Create and Initialize the mapping for Physical register to last Symbolic Interval it was allocated.
+   * This must be called before performing allocation. Since we know the size of physical registers beforehand
+   * so it is better to create the hashmap with initial size 
+   */
+  public void initializeregisterToIntervalMap(int size){
+    registerToIntervalMap = new HashMap<Register,Interval>(size);
   }
-  */
-  /*
-  public void initializeRegisterToInterval(int size) {
-    registerToInterval = new HashMap<Register,Interval>(size);
-  }
-  
-  public void initializeTouchedRegisters() {
-    touchedRegisters = new HashSet<Register>();
-  }
-  */
-  /*
-   * Use to map Physcial Register to latest Interval allocated and to mark physical register as allocated
+  /**
+   * Used to map Physical Register to latest Interval allocated and to mark physical register as allocated
    */
   protected void setRegisterToInterval(Register reg,Interval i) {
-    reg.mapsToInterval = i;
+  registerToIntervalMap.put(reg, i);
     reg.allocateRegister();
   }
   
-  /*
+  /**
    * fetch the last Interval allocated to Physcial register.
    * It can be null;
    */
   protected Interval getRegisterToInterval(Register reg) {
-    return reg.mapsToInterval;
+    return registerToIntervalMap.get(reg);
   }
   
-  protected void deallocateRegister(Register reg) {
-    reg.mapsToInterval = null;
+  /**
+   * Free the physical register allocation and mark the physical register as unallocated.
+   */
+  protected void deallocateRegister(Register reg) { 
+    registerToIntervalMap.put(reg,null);
     reg.deallocateRegister();
-  }
-  
-  protected boolean isAllocated(Register reg) {
-    return reg.isAllocated();
-  }
-  
-  protected void touchRegister(Register reg){
-    reg.touchRegister();
-  }
-  
-  protected boolean isTouched(Register reg){
-   return reg.isTouched();
-  }
- 
-  protected boolean isPinned(Register reg){
-     return reg.isPinned();
-  }
-   
-   protected boolean isAvailable(Register reg) {
-  return reg.isAvailable();
-  }
-  
-  /**
-   * Mapping for spill offset location for intervals which will be spilled.
-   * We can specify an initial size to avoid rehashing.
-   * RegisterAllocatorState can be another place where we can store this data structure but then 
-   * it would be static in nature. Interestingly making the HashMap static cause null pointer exception
-   * even though  Key is not null (May be due to rehashing, I am not sure).
-   */
- // protected  HashMap<Interval,Integer> intervalToSpillLocation = null;
-  /*
-  public void crtHashMapSpill(int size) {
-    intervalToSpillLocation = new HashMap<Interval,Integer>(size);
-  }
-  */
-  /**
-   * Set the spill location of Interval i to value spill.
-   * Ensure not pass zeros as spill location for Linear Scan.
-   * For Extended Linear Scan zero represents that an Interval is marked for spilling 
-   * but spill location is not decided yet. So use with care.
-   */
-  protected  void setSpill(Object i, int spill) {
-    if (VM.VerifyAssertions)
-      VM._assert(i != null && spill != 0 && !((Interval)i).getRegister().isPhysical());
-    //System.out.println("setting spill fpr "+ i + " "+spill);
-    //intervalToSpillLocation.put((Interval)i,spill);
-    VM._assert(((CompoundInterval)(((Interval)i).getContainer())).spillInterval != null);
-  }
-  
-  protected  void setSpill(Register reg, int spill) {
-    if (reg.isPhysical()) {
-      reg.spillRegister();
-      reg.scratch = spill;
-    }
-    else
-      setSpill(reg.scratchObject,spill);
-  }
-  
-  /**
-   * Get the spill location for Interval i. This function returns zero
-   * if Interval is not present in the map indicating that Interval i is not spilled
-   * else it returns the spill offset location on the stack frame.
-   */
-  protected int getSpill(Object o) {
-    //remove the following after testing
-    //VM._assert(i != null);
-    Interval i = (Interval) o;
-    if (VM.VerifyAssertions) 
-    VM._assert(!i.getRegister().isPhysical());
-    /*
-    if (i.getRegister().isPhysical()) {
-      //if (!i.getRegister().isSpilled()) return 0;
-     return i.getRegister().scratch;
-    }
-    */
-   if (((CompoundInterval)(((Interval)i).getContainer())).spillInterval != null)
-     return ((CompoundInterval)(((Interval)i).getContainer())).spillInterval.getOffset();
-   else return 0;
-  //  if (VM.VerifyAssertions) VM._assert(result != null);
-   // return (result == null) ? 0 : result;
-  }
-  
-  protected int getSpill(Register reg) {
-    if (reg.isPhysical()) {
-      if (!reg.isSpilled()) return 0;
-      else
-        return reg.scratch;
-    }
-    else
-      return getSpill(reg.scratchObject);
-  }
-  /**
-   * Remove the Interval i from HashMap intervalToSpillLocation indicating
-   * interval is no longer spilled.
-   */
-  protected void unsetSpill(Object i) {
-    if (VM.VerifyAssertions)
-      VM._assert(i != null);
-  //  intervalToSpillLocation.remove(i);
-  }
-  /**
-   * Check if Interval i marked for spilling.
-   * Returns false the map does not contain Interval i
-   */
-  protected boolean isSpilled(Interval i) {
-  /*
-    if (i.getRegister().isPhysical()) {
-      return i.getRegister().isSpilled();
-    }
-    */
-    if (VM.VerifyAssertions) VM._assert(!i.getRegister().isPhysical());
-    if (((CompoundInterval)(((Interval)i).getContainer())).spillInterval != null)
-      return true;
-    else
-      return false;
-    //return intervalToSpillLocation.containsKey(i);
-  }
-  
-  protected boolean isSpilled(Register reg) {
-    if (reg.isPhysical()) return reg.isSpilled();
-    else return isSpilled((Interval)reg.scratchObject);
   }
   /**
    * Size of a word, in bytes
@@ -420,7 +291,7 @@ public abstract class GenericStackManager extends IRTools {
    * r1, replace r3 with r2.
    */
   private void replaceRegisterWithScratch(Instruction s, Register r1, Register r2) {
-    int spill1 = getSpill(r1);
+    int spill1 = RegisterAllocatorState.getSpill(r1,s);
     for (Enumeration<Operand> e = s.getOperands(); e.hasMoreElements();) {
       Operand op = e.nextElement();
       if (op != null) {
@@ -428,7 +299,7 @@ public abstract class GenericStackManager extends IRTools {
           Register r3 = op.asRegister().getRegister();
           if (r3 == r1) {
             op.asRegister().setRegister(r2);
-          } else if (getSpill(r3) == spill1) {
+          } else if (RegisterAllocatorState.getSpill(r3,s) == spill1) {
             op.asRegister().setRegister(r2);
           }
         }
@@ -481,7 +352,7 @@ public abstract class GenericStackManager extends IRTools {
     // spill the contents of the scratch register
     Register scratchContents = scratch.currentContents;
     if (scratchContents != null) {
-      int location = getSpill(scratchContents);
+      int location = RegisterAllocatorState.getSpill(scratchContents,s);
       insertSpillBefore(s, scratch.scratch, getValueType(scratchContents), location);
     }
 
@@ -493,7 +364,7 @@ public abstract class GenericStackManager extends IRTools {
   protected void reloadScratchRegisterBefore(Instruction s, ScratchRegister scratch) {
     if (scratch.hadToSpill()) {
       // Restore the live contents into the scratch register.
-      int location = getSpill(scratch.scratch);
+      int location = RegisterAllocatorState.getSpill(scratch.scratch,s);
       insertUnspillBefore(s, scratch.scratch, getValueType(scratch.scratch), location);
     }
   }
@@ -531,8 +402,8 @@ public abstract class GenericStackManager extends IRTools {
       if (sr.currentContents == r) {
         return sr;
       }
-      int location = getSpill(sr.currentContents);
-      int location2 = getSpill(r);
+      int location = RegisterAllocatorState.getSpill(sr.currentContents,s);
+      int location2 = RegisterAllocatorState.getSpill(r,s);
       if (location == location2) {
         // OK. We're currently holding a different symbolic register r2 in
         // a scratch register, and r2 is mapped to the same spill location
@@ -651,8 +522,8 @@ public abstract class GenericStackManager extends IRTools {
     Register current = sr.currentContents;
 
     if (current != null && current != symb) {
-      int location = getSpill(current);
-      int location2 = getSpill(symb);
+      int location = RegisterAllocatorState.getSpill(current,s);
+      int location2 = RegisterAllocatorState.getSpill(symb,s);
       if (location != location2) {
         insertSpillBefore(s, sr.scratch, getValueType(current), location);
       }
@@ -678,13 +549,13 @@ public abstract class GenericStackManager extends IRTools {
 
     // Further assure legality for all other symbolic registers in symb
     // which are mapped to the same spill location as symb.
-    int location = getSpill(symb);
+    int location = RegisterAllocatorState.getSpill(symb,s);
     for (Enumeration<Operand> e = s.getOperands(); e.hasMoreElements();) {
       Operand op = e.nextElement();
       if (op.isRegister()) {
         Register r = op.asRegister().getRegister();
         if (r.isSymbolic()) {
-          if (location == getSpill(r)) {
+          if (location == RegisterAllocatorState.getSpill(r,s)) {
             if (getRestrictions().isForbidden(r, phys, s)) {
               return false;
             }
@@ -738,8 +609,7 @@ public abstract class GenericStackManager extends IRTools {
     }
 
     // Record that we will touch the scratch register.
-   // result.scratch.touchRegister();
-    touchRegister(result.scratch);
+    result.scratch.touchRegister();
     return result;
   }
 
@@ -816,7 +686,7 @@ public abstract class GenericStackManager extends IRTools {
       // Now load up the scratch register.
       // since symbReg must have been previously spilled, get the spill
       // location previous assigned to symbReg
-      int location = getSpill(symb);
+      int location = RegisterAllocatorState.getSpill(symb,s);
       insertUnspillBefore(s, sr.scratch, getValueType(symb), location);
 
       // we have not yet written to sr, so mark it 'clean'
@@ -840,12 +710,12 @@ public abstract class GenericStackManager extends IRTools {
    */
   private ScratchRegister createScratchBefore(Instruction s, Register r, Register symb) {
     int type = PhysicalRegisterSet.getPhysicalRegisterType(r);
-    int spillLocation = getSpill(r);
+    int spillLocation = RegisterAllocatorState.getSpill(r,s);
     if (spillLocation <= 0) {
       // no spillLocation yet assigned to the physical register.
       // allocate a new location and assign it for the physical register
       spillLocation = allocateNewSpillLocation(type);
-      setSpill(r, spillLocation);
+      RegisterAllocatorState.setSpill(r, spillLocation);
     }
 
     ScratchRegister sr = getPhysicalScratchRegister(r);
@@ -896,7 +766,7 @@ public abstract class GenericStackManager extends IRTools {
    * Does instruction s use the spill location for a given register?
    */
   private boolean usesSpillLocation(Register r, Instruction s) {
-    int location = getSpill(r);
+    int location = RegisterAllocatorState.getSpill(r,s);
     return usesSpillLocation(location, s);
   }
 
@@ -905,7 +775,7 @@ public abstract class GenericStackManager extends IRTools {
    * return the symbolic register that embodies that use.
    */
   private Register spillLocationUse(Register r, Instruction s) {
-    int location = getSpill(r);
+    int location = RegisterAllocatorState.getSpill(r,s);
     return spillLocationUse(location, s);
   }
 
@@ -913,7 +783,7 @@ public abstract class GenericStackManager extends IRTools {
    * Does instruction s define the spill location for a given register?
    */
   private boolean definesSpillLocation(Register r, Instruction s) {
-    int location = getSpill(r);
+    int location = RegisterAllocatorState.getSpill(r,s);
     return definesSpillLocation(location, s);
   }
 
@@ -925,7 +795,7 @@ public abstract class GenericStackManager extends IRTools {
       Operand op = e.nextElement();
       if (op != null && op.isRegister()) {
         Register r = op.asRegister().getRegister();
-        if (getSpill(r) == loc) {
+        if (RegisterAllocatorState.getSpill(r,s) == loc) {
           return true;
         }
       }
@@ -941,7 +811,7 @@ public abstract class GenericStackManager extends IRTools {
       Operand op = e.nextElement();
       if (op != null && op.isRegister()) {
         Register r = op.asRegister().getRegister();
-        if (getSpill(r) == loc) {
+        if (RegisterAllocatorState.getSpill(r,s) == loc) {
           return true;
         }
       }
@@ -960,7 +830,7 @@ public abstract class GenericStackManager extends IRTools {
       Operand op = e.nextElement();
       if (op != null && op.isRegister()) {
         Register r = op.asRegister().getRegister();
-        if (getSpill(r) == loc) {
+        if (RegisterAllocatorState.getSpill(r,s) == loc) {
           return r;
         }
       }
@@ -982,7 +852,7 @@ public abstract class GenericStackManager extends IRTools {
     // first try the volatiles
     for (Enumeration<Register> e = phys.enumerateVolatileFPRs(); e.hasMoreElements();) {
       Register p = e.nextElement();
-      if (!appearsIn(p, s) && !isPinned(p) && !reserved.contains(p) && isLegal(r, p, s)) {
+      if (!appearsIn(p, s) && !p.isPinned() && !reserved.contains(p) && isLegal(r, p, s)) {
         return p;
       }
     }
@@ -1005,8 +875,7 @@ public abstract class GenericStackManager extends IRTools {
     // first try the volatiles
     for (Enumeration<Register> e = phys.enumerateVolatileFPRs(); e.hasMoreElements();) {
       Register p = e.nextElement();
-     // if (!appearsIn(p, s) && !p.isPinned() && !reserved.contains(p)) {
-      if (!appearsIn(p, s) && !isPinned(p) && !reserved.contains(p)) {
+      if (!appearsIn(p, s) && !p.isPinned() && !reserved.contains(p)) {
         if (isDeadBefore(p, s) && isLegal(r, p, s)) return p;
       }
     }
@@ -1024,22 +893,15 @@ public abstract class GenericStackManager extends IRTools {
   private Register getFirstGPRNotUsedIn(Register r, Instruction s, ArrayList<Register> reserved) {
     PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
     // first try the volatiles
-   // System.out.println(" first gpr not used in Volatile gprs ");
     for (Enumeration<Register> e = phys.enumerateVolatileGPRs(); e.hasMoreElements();) {
       Register p = e.nextElement();
-      //System.out.println(" Reg "+p+" appears "+appearsIn(p, s)+" pinned "+isPinned(p)
-     // + " reserved "+ reserved.contains(p) + " isleag " +isLegal(r, p, s) + " isAvaialvle "+ isAvailable(p) );
-      if (!appearsIn(p, s) && !isPinned(p) &&  !reserved.contains(p) && isLegal(r, p, s)) {
+      if (!appearsIn(p, s) && !p.isPinned() &&  !reserved.contains(p) && isLegal(r, p, s)) {
         return p;
       }
     }
-   // System.out.println(" first gpr not used in nonVolatile gprs ");
-    // next try the non-volatiles. We allocate the nonvolatiles backwards
     for (Enumeration<Register> e = phys.enumerateNonvolatileGPRsBackwards(); e.hasMoreElements();) {
       Register p = e.nextElement();
-    //  System.out.println(" Reg "+p+" appears "+appearsIn(p, s)+" pinned "+isPinned(p)
-     // + " reserved "+ reserved.contains(p) + " isleag " +isLegal(r, p, s) + " isAvaialvle "+ isAvailable(p) );
-      if (!appearsIn(p, s) &&  !isPinned(p) && !reserved.contains(p) && isLegal(r, p, s)) {
+      if (!appearsIn(p, s) &&  !p.isPinned() && !reserved.contains(p) && isLegal(r, p, s)) {
         return p;
       }
     }
@@ -1060,14 +922,14 @@ public abstract class GenericStackManager extends IRTools {
     // first try the volatiles
     for (Enumeration<Register> e = phys.enumerateVolatileGPRs(); e.hasMoreElements();) {
       Register p = e.nextElement();
-      if (!appearsIn(p, s) &&  !isPinned(p) &&  !reserved.contains(p)) {
+      if (!appearsIn(p, s) &&  !p.isPinned() &&  !reserved.contains(p)) {
         if (isDeadBefore(p, s) && isLegal(r, p, s)) return p;
       }
     }
     // next try the non-volatiles. We allocate the nonvolatiles backwards
     for (Enumeration<Register> e = phys.enumerateNonvolatileGPRsBackwards(); e.hasMoreElements();) {
       Register p = e.nextElement();
-      if (!appearsIn(p, s) && !isPinned(p) &&  !reserved.contains(p)) {
+      if (!appearsIn(p, s) && !p.isPinned() &&  !reserved.contains(p)) {
         if (isDeadBefore(p, s) && isLegal(r, p, s)) return p;
       }
     }
@@ -1532,7 +1394,7 @@ public abstract class GenericStackManager extends IRTools {
     int physType = PhysicalRegisterSet.getPhysicalRegisterType(symbReg);
     for (Enumeration<Register> e = phys.enumerateVolatiles(physType); e.hasMoreElements();) {
       Register realReg = e.nextElement();
-      if (isAvailable(realReg)) {
+      if (realReg.isAvailable()) {
         RegisterAllocatorState.setIntervalToRegister(symbReg.getCompoundInterval(), realReg);
         setRegisterToInterval(realReg, symbReg.getCompoundInterval());
         if (DEBUG) VM.sysWrite(" volat." + realReg + " to symb " + symbReg + '\n');
@@ -1582,7 +1444,7 @@ public abstract class GenericStackManager extends IRTools {
     int physType = PhysicalRegisterSet.getPhysicalRegisterType(symbReg);
     for (Enumeration<Register> e = phys.enumerateNonvolatilesBackwards(physType); e.hasMoreElements();) {
       Register realReg = e.nextElement();
-      if (isAvailable(realReg)) {
+      if (realReg.isAvailable()) {
         RegisterAllocatorState.setIntervalToRegister(symbReg.getCompoundInterval(), realReg);
         setRegisterToInterval(realReg,symbReg.getCompoundInterval());
         return realReg;

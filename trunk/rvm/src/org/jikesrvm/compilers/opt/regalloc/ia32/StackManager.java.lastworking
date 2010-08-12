@@ -306,7 +306,7 @@ public abstract class StackManager extends GenericStackManager {
       int i = 0;
       for (Enumeration<Register> e = phys.enumerateNonvolatileGPRs(); e.hasMoreElements();) {
         Register r = e.nextElement();
-        if (r.isTouched()){
+        if (isTouched(r)){
           // Note that as a side effect, the following call bumps up the
           // frame size.
           nonVolatileGPRLocation[i++] = allocateNewSpillLocation(INT_REG);
@@ -679,7 +679,7 @@ public abstract class StackManager extends GenericStackManager {
 
     // Get the spill location previously assigned to the symbolic
     // register.
-    int location = RegisterAllocatorState.getSpill(symb.getRegister(),s);
+    int location = getSpill(symb.getRegister().scratchObject);
 
     // Create a memory operand M representing the spill location.
     int size;

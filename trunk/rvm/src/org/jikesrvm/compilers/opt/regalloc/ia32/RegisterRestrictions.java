@@ -52,8 +52,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
    * Allow scratch registers in PEIs?
    */
   public static final boolean SCRATCH_IN_PEI = true;
-  /* present for testing purpose and must be removed before final commit*/
-  private boolean forceitfornow= true;
+  
   /**
    * Default Constructor
    */
@@ -70,34 +69,32 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
    * block
    */
   public void addArchRestrictions(BasicBlock bb, ArrayList<LiveIntervalElement> symbolics) {
-   // If there are any registers used in catch blocks, we want to ensure
-   // that these registers are not used or evicted from scratch registers
-   // at a relevant PEI, so that the assumptions of register homes in the
-   // catch block remain valid.  For now, we do this by forcing any
-   // register used in such a PEI as not spilled.  TODO: relax this
-   // restriction for better code.
-   for(InstructionEnumeration ie = bb.forwardInstrEnumerator(); ie.hasMoreElements();) {
-   Instruction s = ie.next();
-   if (s.isPEI() && s.operator != IR_PROLOGUE) {
-     if (bb.hasApplicableExceptionalOut(s) || !SCRATCH_IN_PEI) {
-       for (Enumeration<Operand> e = s.getOperands(); e.hasMoreElements();) {
-         Operand op = e.nextElement();
-	   if (op != null && op.isRegister()) {
-	     Register reg = op.asRegister().getRegister();
-	     /*
-	     * Interval i will be null for phyical registers.
-	     * Previously physical register were also added through noteMustNotSpill call
-	     * Spill at BasciInterval concept makes this obsolete because we are never going to
-	     * spill a physical register.
-	     */
-	     Interval i = reg.getInterval(s);
-	     // i will be null for physical registers
-	     noteMustNotSpill(i);
-	     handle8BitRestrictions(s);
-	   }
-       }
-     }
-   }
+    // If there are any registers used in catch blocks, we want to ensure
+    // that these registers are not used or evicted from scratch registers
+    // at a relevant PEI, so that the assumptions of register homes in the
+    // catch block remain valid.  For now, we do this by forcing any
+    // register used in such a PEI as not spilled.  TODO: relax this
+    // restriction for better code.
+    for(InstructionEnumeration ie = bb.forwardInstrEnumerator(); ie.hasMoreElements();) {
+      Instruction s = ie.next();
+      if (s.isPEI() && s.operator != IR_PROLOGUE) {
+        if (bb.hasApplicableExceptionalOut(s) || !SCRATCH_IN_PEI) {
+          for (Enumeration<Operand> e = s.getOperands(); e.hasMoreElements();) {
+            Operand op = e.nextElement();
+	    if (op != null && op.isRegister()) {
+	      Register reg = op.asRegister().getRegister();
+	      /*
+	      * Previously physical register were also added through noteMustNotSpill call
+	      * Spill at BasciInterval concept makes this obsolete because we are never going to
+	      * spill a physical register before a scratch register assignment during spill
+	      * code insertion phase
+	      */
+	      if (!reg.isPhysical()) noteMustNotSpill(reg.getInterval(s));
+	      handle8BitRestrictions(s);
+	    }
+          }
+        }
+      }
 
       // handle special cases
       switch (s.getOpcode()) {
@@ -108,8 +105,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
           noteMustNotSpill(i);
           op = MIR_LowTableSwitch.getIndex(s);
           reg = op.getRegister();
-          i = reg.getInterval(s);
-          noteMustNotSpill(i);
+          if (!reg.isPhysical()) noteMustNotSpill(reg.getInterval(s));
         }
         break;
         case IA32_MOVZX__B_opcode:
@@ -117,8 +113,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
           if (MIR_Unary.getVal(s).isRegister()) {
             RegisterOperand val = MIR_Unary.getVal(s).asRegister();
             Register reg = val.getRegister();
-            Interval i = reg.getInterval(s);
-            if (i != null) restrictTo8Bits(i);
+            if (!reg.isPhysical()) restrictTo8Bits(reg.getInterval(s));
           }
         }
         break;
@@ -126,17 +121,16 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
           if (MIR_Set.getResult(s).isRegister()) {
             RegisterOperand op = MIR_Set.getResult(s).asRegister();
             Register reg = op.getRegister();
-            Interval i = reg.getInterval(s);
-            if (i != null) restrictTo8Bits(i);
+            if (!reg.isPhysical()) restrictTo8Bits(reg.getInterval(s));
           }
         }
         break;
-
         default:
           handle8BitRestrictions(s);
           break;
       }
     }
+    
     for (InstructionEnumeration ie = bb.forwardInstrEnumerator(); ie.hasMoreElements();) {
       Instruction s = ie.next();
       if (s.operator == IA32_FNINIT) {
@@ -144,8 +138,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
         for (LiveIntervalElement symb : symbolics) {
           if (symb.getRegister().isFloatingPoint()) {
             if (contains(symb, s.scratch)) {
-            	Interval i = symb.getInterval();
-            	addRestrictions(i, phys.getFPRs());
+              addRestrictions(symb.getInterval(), phys.getFPRs());
             }
           }
         }
@@ -192,8 +185,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
           Operand rootOp = e2.next();
           if (rootOp.isRegister()) {
             Register reg= rootOp.asRegister().getRegister();
-            Interval i = reg.getInterval(s);
-            if (i != null) restrictTo8Bits(i);
+            if (!reg.isPhysical())restrictTo8Bits(reg.getInterval(s));
           }
         }
       }
@@ -205,8 +197,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
    * DL, since these are the only 8-bit registers we normally address.
    */
   final void restrictTo8Bits(Interval i) {
-        // following must be removed, presnethere for testing purpose. i will be null for physical registers. So check this condition
-        VM._assert(i != null);
+        if (VM.VerifyAssertions) VM._assert(i != null);
 	Register ESP = phys.getESP();
 	Register EBP = phys.getEBP();
 	Register ESI = phys.getESI();
@@ -216,6 +207,7 @@ public class RegisterRestrictions extends GenericRegisterRestrictions
 	addRestriction(i, ESI);
 	addRestriction(i, EDI);
   }
+  
   /*
    * Given symbolic register r that appears in instruction s, does the
    * architecture demand that r be assigned to a physical register in s?

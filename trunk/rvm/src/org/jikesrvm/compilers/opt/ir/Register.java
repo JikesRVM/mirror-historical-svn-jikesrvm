@@ -78,7 +78,7 @@ public final class Register {
   public static final int LONG_TYPE = LONG >>> TYPE_SHIFT;
   public static final int VALIDATION_TYPE = VALIDATION >>> TYPE_SHIFT;
   
-  public Interval mapsToInterval = null;
+  //public Interval mapsToInterval = null;
   public boolean isTemp() { return (flags & LOCAL) == 0; }
 
   public boolean isLocal() { return (flags & LOCAL) != 0; }
@@ -290,16 +290,14 @@ public final class Register {
     flags = (flags & ~SPILLED) | (ALLOCATED | TOUCHED);
   }
 
-  /*
-  public void allocateRegister(Register reg) {
-    flags = (flags | ALLOCATED | TOUCHED);
-  }
-  */
-
+  /**
+   * This method is only valid for physical registers. And makes the physical register 
+   * available for allocation. Ensure that mapping from physical register to Interval is 
+   * cleared before invoking this method.
+   */
   public void deallocateRegister() {
   if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     flags &= ~ALLOCATED;
-    mapsToInterval = null;
   }
   
   public void spillRegister() {
