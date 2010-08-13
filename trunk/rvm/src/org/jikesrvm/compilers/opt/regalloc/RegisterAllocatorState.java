@@ -101,12 +101,12 @@ public class RegisterAllocatorState {
    }
 
   /**
-  * Fetch the spill location assigned to a physical register.
-  * If a register is symbolic the get the spill location assigned
-  * to the CompoundInterval it represents.
-  */
+   * Fetch the spill location assigned to a physical register.
+   * If a register is symbolic the get the spill location assigned
+   * to the CompoundInterval it represents.
+   */
   public static int getSpill(Register reg, Instruction s) {
-    return (reg.isPhysical())? ((reg.isSpilled())? reg.scratch : 0) : reg.getCompoundInterval().getSpill();
+    return (reg.isPhysical()) ? ((reg.isSpilled()) ? reg.scratch : 0) : reg.getCompoundInterval().getSpill();
   }
   
   /**
@@ -115,6 +115,6 @@ public class RegisterAllocatorState {
    * symbolic register.
    */
   public static boolean isSpilled(Register reg,Instruction s) {
-    return (reg.isPhysical())? reg.isSpilled() : reg.getCompoundInterval().isSpilled();
+    return (reg.isPhysical()) ? reg.isSpilled() : reg.getCompoundInterval().isSpilled();
   }
 }

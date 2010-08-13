@@ -530,7 +530,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     public final boolean isInfrequent() { return _infrequent; }
      
     public Register getRegister() {
-      return  getContainer().getRegister();
+      return getContainer().getRegister();
     }
     
     /**
@@ -557,7 +557,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       SpillLocationInterval si = getContainer().getSpillInterval();
       if (si == null)
         si = sm.findOrCreateSpillLocation(getContainer());
-      if (VERBOSE_DEBUG) System.out.println("spill call: Interval "+this+" Assgined SpillLocationInterval "+ si);
+      if (VERBOSE_DEBUG) System.out.println("spill call: Interval " + this + " Assigned SpillLocationInterval " + si);
       si.add(this);
     }
     
@@ -1064,6 +1064,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      */
     public String toString() {
       String str = "[" + getRegister() + "]:";
+      // EBM Why not for-each?
       for (Iterator<Interval> i = iterator(); i.hasNext();) {
         Interval b = i.next();
         str = str + b;
@@ -1078,7 +1079,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * performed so use it when concatenation is disabled.
      */
     public Interval getInterval(int start, int end) {
-      if(!isEmpty() && start >= getBegin() && end <= getEnd())
+      if (!isEmpty() && start >= getBegin() && end <= getEnd())
         return this;
       else
         return null;
@@ -1192,6 +1193,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      */
     void expireOldIntervals(BasicInterval newInterval) {
 
+      // EBM Why not for-each?
       for (Iterator<Interval> e = iterator(); e.hasNext();) {
         MappedBasicInterval bi = (MappedBasicInterval)e.next();
 
@@ -1787,7 +1789,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * register symb; so p.isAvailable() is the key information needed.
      */
     private boolean allocateNewSymbolicToPhysical(Register symb, Register p) {
-      if(p == null) return false;
+      if (p == null) return false;
       RegisterRestrictions restrict = ir.stackManager.getRestrictions();
       PhysicalRegisterSet phys = ir.regpool.getPhysicalRegisterSet();
       if (!phys.isAllocatable(p)) return false;
@@ -2747,7 +2749,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
             System.out.println("Interval "+i + " RegisterAssigned "+ RegisterAllocatorState.getIntervalToRegister(i.getContainer()));
           }
           else if (i.getRegister().isSpilled())
-            System.out.println("Physical register " + i.getRegister().isSpilled() +" assigned to spilll ocation "+ i.getRegister().scratch);
+            System.out.println("Physical register " + i.getRegister().isSpilled() +
+                               " assigned to spill location " + i.getRegister().scratch);
         }
       }
       if (VM.BuildForIA32 && !VM.BuildForSSE2Full) {

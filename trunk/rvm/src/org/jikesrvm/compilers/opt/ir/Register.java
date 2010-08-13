@@ -407,7 +407,7 @@ public final class Register {
    * Scratch fields are  used here, so be careful when using in other phases of compilation 
    */
   public Interval getInterval(Instruction s) {
-    return (scratchObject != null)? ((Interval)scratchObject).getInterval(s.scratch) :  null;
+    return (scratchObject != null) ? ((Interval)scratchObject).getInterval(s.scratch) :  null;
   }
   
   /**
@@ -417,13 +417,13 @@ public final class Register {
    * Scratch fields are  used here, so be careful when using in other phases of compilation 
    */
   public Interval getInterval(int programpoint ) {
-    return (scratchObject != null)?  ((Interval)scratchObject).getInterval(programpoint) : null;
+    return (scratchObject != null) ? ((Interval)scratchObject).getInterval(programpoint) : null;
   }
   
   /**
    * Fetch the CompoundInterval associated with this Register.
    */
   public Interval getCompoundInterval() {
-    return (scratchObject != null)? ((Interval)scratchObject).getContainer() : null;
+    return (scratchObject != null) ? ((Interval)scratchObject).getContainer() : null;
   }
 }
