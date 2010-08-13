@@ -54,7 +54,7 @@ public class RegisterAllocatorState {
    * Mapping from Interval to Physical register.
    */
   public static  void setIntervalToRegister(Interval i, Register reg) {
-    if (VM.VerifyAssertions) VM._assert(i != null && reg != null && !i.getRegister().isPhysical());
+    if (VM.VerifyAssertions) VM._assert(i != null && reg != null);
     i.setPhysicalRegister(reg);
   }
   
@@ -77,8 +77,7 @@ public class RegisterAllocatorState {
    * Invoked when Interval is spilled.
    */
   public static  void deallocateInterval(Interval i) {
-  if (VM.VerifyAssertions) VM._assert(!i.getRegister().isPhysical());
-     i.setPhysicalRegister(null);
+    i.setPhysicalRegister(null);
   }
      
     
@@ -87,36 +86,27 @@ public class RegisterAllocatorState {
    * Invoked during scratch register during Spill Code Insertion Phase.
    */
   public static void setSpill(Register reg, int spill) {
-   if (reg.isPhysical()) {
-     reg.spillRegister();
-     reg.scratch = spill;
-   }
-   else
-     /*
+    if (reg.isPhysical()) {
+      reg.spillRegister();
+      reg.scratch = spill;
+    }
+    else
+      /*
       * For symbolic register we have already determined the spill calculation before the
       * scratch register assignment i.e. during LinearScanPhase. This method is invoked during
       * scratch register assignment and this part should not be reachable or you can call
       * interval.spill() to avoid confusion.
       */
      VM._assert(false);
- }
-  
-   /**
-   * Fetch the spill location assigned to a physical register.
-   * If a register is symbolic the get the spill location assigned
-   * to the interval it represents.
+   }
+
+  /**
+  * Fetch the spill location assigned to a physical register.
+  * If a register is symbolic the get the spill location assigned
+  * to the CompoundInterval it represents.
   */
   public static int getSpill(Register reg, Instruction s) {
-     if (reg.isPhysical()) {
-       return reg.isSpilled() ? reg.scratch : 0;
-     }  
-     if (reg.getInterval(s) == null)
-       return reg.getCompoundInterval().getSpill();
-     else
-     /* this not to break the old code but needs to be changes when we will rework the insert spill code phase 
-     * during scratch register assignment.
-     */
-       return reg.getInterval(s).getSpill();
+    return (reg.isPhysical())? ((reg.isSpilled())? reg.scratch : 0) : reg.getCompoundInterval().getSpill();
   }
   
   /**
@@ -124,15 +114,7 @@ public class RegisterAllocatorState {
    * If it is a symbolic register check for the interval associated with the 
    * symbolic register.
    */
-   public static boolean isSpilled(Register reg,Instruction s) {
-    if (reg.isPhysical())
-      return reg.isSpilled();
-    if (reg.getInterval(s) == null)
-      return reg.getCompoundInterval().isSpilled();
-    else
-    /* this not to break the old code but needs to be changes when we will rework the insert spill code phase 
-     * during scratch register assignment.
-     */
-      return reg.getInterval(s).isSpilled();
+  public static boolean isSpilled(Register reg,Instruction s) {
+    return (reg.isPhysical())? reg.isSpilled() : reg.getCompoundInterval().isSpilled();
   }
 }

@@ -47,7 +47,6 @@ import static org.jikesrvm.compilers.opt.ir.Operators.YIELDPOINT_OSR;
 import org.jikesrvm.compilers.opt.ir.Register;
 import org.jikesrvm.compilers.opt.ir.operand.Operand;
 import org.jikesrvm.compilers.opt.ir.operand.RegisterOperand;
-import org.jikesrvm.compilers.opt.regalloc.LinearScan.CompoundInterval;
 import org.jikesrvm.compilers.opt.regalloc.LinearScan.Interval;
 /**
  * Class to manage the allocation of the "compiler-independent" portion of
@@ -68,7 +67,7 @@ public abstract class GenericStackManager extends IRTools {
   /**
    * Create and Initialize the mapping for Physical register to last Symbolic Interval it was allocated.
    * This must be called before performing allocation. Since we know the size of physical registers beforehand
-   * so it is better to create the hashmap with initial size 
+   * so it is better to create the hashmap with initial size. 
    */
   public void initializeregisterToIntervalMap(int size){
     registerToIntervalMap = new HashMap<Register,Interval>(size);
@@ -100,7 +99,6 @@ public abstract class GenericStackManager extends IRTools {
    * Size of a word, in bytes
    */
   protected static final int WORDSIZE = BYTES_IN_ADDRESS;
-
   protected IR ir;
   protected int frameSize;      // = 0;  (by default)
   protected boolean allocFrame; // = false;  (by default)

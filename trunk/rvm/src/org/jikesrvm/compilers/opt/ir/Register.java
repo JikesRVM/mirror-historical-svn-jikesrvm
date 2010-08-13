@@ -61,8 +61,10 @@ public final class Register {
   /* used with live analysis */
   private static final int EXCLUDE_LIVEANAL = 0x08000; /* reg is excluded from live analysis */
 
-  /* used by the register allocator */
-  //  deprecated the following
+  /* used by the register allocator. 
+   * The following fields are to be used only for physical registers. 
+   * For symbolic register they specify nothing.
+   * */
   private static final int SPILLED = 0x10000; /* spilled into a memory location */
   private static final int TOUCHED = 0x20000; /* register touched */
   private static final int ALLOCATED = 0x40000; /* allocated to some register */
@@ -266,7 +268,9 @@ public final class Register {
     if (s == null) s = "_";
     return s;
   }
-
+  /*
+   * Following Allocation related methods should be used only for physical registers.
+   */
   public void clearAllocationFlags() {
     flags &= ~(PINNED | TOUCHED | ALLOCATED | SPILLED);
   }
@@ -277,16 +281,13 @@ public final class Register {
   }
 
   public void reserveRegister() {
-  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     flags |= PINNED;
   }
 
   public void touchRegister() {
-  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     flags |= TOUCHED;
   }
   public void allocateRegister() {
-  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     flags = (flags & ~SPILLED) | (ALLOCATED | TOUCHED);
   }
 
@@ -294,23 +295,30 @@ public final class Register {
    * This method is only valid for physical registers. And makes the physical register 
    * available for allocation. Ensure that mapping from physical register to Interval is 
    * cleared before invoking this method.
+   * Method to be used only for physical register allocation.
    */
   public void deallocateRegister() {
-  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     flags &= ~ALLOCATED;
   }
   
+  /**
+   * Mark the physical register as spilled and unallocated(the contents of physical register need to be move to stack).
+   */
   public void spillRegister() {
-  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     flags = (flags & ~ALLOCATED) | SPILLED;
   }
-
+  
+  /**
+   * clear the spill flag of physcial register.
+   */
   public void clearSpill() {
     flags &= ~SPILLED;
   }
-
+  
+  /**
+   * unreserve the physical register.
+   */
   public void unpinRegister() {
-  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     flags &= ~PINNED;
   }
   /*
@@ -319,33 +327,45 @@ public final class Register {
    * rewrite this function or the allocateRegister function. Rewriting this function
    * to include the allocation will increas the set of touched register.
    */
+  /**
+   * touch the physical register. Used during scratch register assignment.
+   */
   public boolean isTouched() {
-  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     return (flags & TOUCHED) != 0;
   }
 
+  /**
+   * check if physcial register was allocated any Interval.
+   */
   public boolean isAllocated() {
-  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     return (flags & ALLOCATED) != 0;
   }
-
+  
+  /**
+   * check if physical register was reserved.
+   */
   public boolean isPinned() {
-  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     return (flags & PINNED) != 0;
   }
-
+  
+  /**
+   * check if physical register is available for allocation.
+   */
   public boolean isAvailable() {
-  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     return (flags & (ALLOCATED | PINNED)) == 0;
   }
   
+  /**
+   * check if contents of physical register was spilled.
+   */
   public boolean isSpilled() {
-  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     return (flags & SPILLED) != 0;
   }
   
+  /**
+   * return the spill location for the last spilled contents of the physical register.
+   */
   public int getSpillAllocated() {
-  if (org.jikesrvm.VM.VerifyAssertions) org.jikesrvm.VM._assert(isPhysical());
     return scratch;
   }
   
@@ -387,14 +407,7 @@ public final class Register {
    * Scratch fields are  used here, so be careful when using in other phases of compilation 
    */
   public Interval getInterval(Instruction s) {
-    if (scratchObject != null) {
-      if (org.jikesrvm.VM.VerifyAssertions) VM._assert(scratchObject instanceof Interval);
-      return ((Interval)scratchObject).getInterval(s.scratch);
-    }
-    else {
-      VM._assert(false);
-      return null;
-    }
+    return (scratchObject != null)? ((Interval)scratchObject).getInterval(s.scratch) :  null;
   }
   
   /**
@@ -404,25 +417,13 @@ public final class Register {
    * Scratch fields are  used here, so be careful when using in other phases of compilation 
    */
   public Interval getInterval(int programpoint ) {
-    if (scratchObject != null) {
-      if (org.jikesrvm.VM.VerifyAssertions) VM._assert(scratchObject instanceof Interval);
-      return ((Interval)scratchObject).getInterval(programpoint);
-    }
-    else {
-      VM._assert(false);
-      return null;
-    }
+    return (scratchObject != null)?  ((Interval)scratchObject).getInterval(programpoint) : null;
   }
+  
   /**
    * Fetch the CompoundInterval associated with this Register.
    */
   public Interval getCompoundInterval() {
-    if (scratchObject != null) {
-      if (org.jikesrvm.VM.VerifyAssertions) VM._assert(scratchObject instanceof Interval);
-      return ((Interval)scratchObject).getContainer();
-    }
-    else {
-      return null;
-    }
+    return (scratchObject != null)? ((Interval)scratchObject).getContainer() : null;
   }
 }
