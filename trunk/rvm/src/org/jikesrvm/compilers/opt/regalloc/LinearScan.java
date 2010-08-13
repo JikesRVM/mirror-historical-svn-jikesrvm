@@ -1074,8 +1074,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     public String toString() {
       String str = "[" + getRegister() + "]:";
       // EBM Why not for-each?
-      for (Iterator<Interval> i = iterator(); i.hasNext();) {
-        Interval b = i.next();
+      for (Interval b : this) {
         str = str + b;
       }
       return str;
@@ -1202,8 +1201,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      */
     void expireOldIntervals(BasicInterval newInterval) {
 
-      // EBM Why not for-each?
-      for (Iterator<Interval> e = iterator(); e.hasNext();) {
+      for (Iterator<Interval> e = iterator(); e.hasNext(); ) {
         MappedBasicInterval bi = (MappedBasicInterval)e.next();
 
         // break out of the loop when we reach an interval that is still
@@ -1428,9 +1426,8 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         setInterval(p, new CompoundInterval(i, p));
       } else {
         // incorporate i into the set of intervals assigned to p
-        CompoundInterval ci = new CompoundInterval(i, p);
-        if (VM.VerifyAssertions) VM._assert(!ci.intersects(physInterval));
-        physInterval.addAll(ci);
+        if (VM.VerifyAssertions) VM._assert(!physInterval.intersects(i));
+        physInterval.add(i);
       }
     }
 
@@ -1599,7 +1596,6 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     private Register getPhysicalPreference(Register r) {
       // a mapping from Register to Integer
       // (physical register to weight);
-      // EBM: Do we really need to allocate a new hash table on every call?!
       HashMap<Register, Integer> map = new HashMap<Register, Integer>();
 
       CoalesceGraph graph = ir.stackManager.getPreferences().getGraph();
@@ -1685,7 +1681,6 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     private Register getPhysicalPreference(CompoundInterval ci) {
       // a mapping from Register to Integer
       // (physical register to weight);
-      // EBM: same comment as previous method
       HashMap<Register, Integer> map = new HashMap<Register, Integer>();
       Register r = ci.getRegister();
 
@@ -2294,7 +2289,6 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     SpillLocationInterval getSpillPreference(Interval i, int spillSize) {
       // a mapping from SpillLocationInterval to Integer
       // (spill location to weight);
-      // EBM do we need to alloc a map every time?
       HashMap<SpillLocationInterval, Integer> map = new HashMap<SpillLocationInterval, Integer>();
       Register r = i.getRegister();
 
@@ -2995,10 +2989,10 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
         break;
       case OptOptions.REGALLOC_BLOCK_COUNT_SPILL_COST:
         spillCost = new BlockCountSpillCost(ir);
-	break;
+        break;
       default:
-	OptimizingCompilerException.UNREACHABLE("unsupported spill cost");
-	spillCost = null;
+        OptimizingCompilerException.UNREACHABLE("unsupported spill cost");
+        spillCost = null;
       }
       
       stackOfSpilledIntervals = new Stack<Interval>();
