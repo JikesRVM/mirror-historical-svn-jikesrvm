@@ -1442,7 +1442,7 @@ public abstract class GenericStackManager extends IRTools {
       Register realReg = e.nextElement();
       if (realReg.isAvailable()) {
         RegisterAllocatorState.setIntervalToRegister(symbReg.getCompoundInterval(), realReg);
-        setRegisterToInterval(realReg,symbReg.getCompoundInterval());
+        setRegisterToInterval(realReg, symbReg.getCompoundInterval());
         return realReg;
       }
     }

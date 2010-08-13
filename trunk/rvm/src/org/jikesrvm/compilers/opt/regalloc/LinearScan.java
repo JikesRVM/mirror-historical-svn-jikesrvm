@@ -356,6 +356,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
 	  public boolean intersects(Interval cmp);
 	  public int getBegin();
 	  public int getEnd();
+	  void assign(Register reg);
 	  public boolean isAssigned();
 	  public boolean isSpilled();
 	  public void spill(SpillLocationManager sm);
@@ -531,6 +532,13 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      
     public Register getRegister() {
       return getContainer().getRegister();
+    }
+    
+    /**
+     * Assign this interval a physical register.
+     */
+    public void assign(Register r) {
+      RegisterAllocatorState.setIntervalToRegister(this, r);
     }
     
     /**
@@ -816,6 +824,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     public void spill(SpillLocationManager spillManager) {
       RegisterAllocatorState.deallocateInterval(this);
       spillInterval = spillManager.findOrCreateSpillLocation(this);
+      spillInterval.addAll(this);
       if (VERBOSE_DEBUG) {
         System.out.println("Assigned " + reg + " to location " + spillInterval.getOffset());
       }
@@ -839,7 +848,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     /**
      * Assign this compound interval to a physical register.
      */
-    void assign(Register r) {
+    public void assign(Register r) {
       // add this compoundInterval to intervalToRegisterHashMap
       RegisterAllocatorState.setIntervalToRegister(this, r);
     }
@@ -2214,10 +2223,10 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * Return a spill location that is valid to hold the contents of
      * compound interval ci.
      */
-    SpillLocationInterval findOrCreateSpillLocation(CompoundInterval ci) {
+    SpillLocationInterval findOrCreateSpillLocation(Interval i) {
       SpillLocationInterval result = null;
 
-      Register r = ci.getRegister();
+      Register r = i.getRegister();
       int type = PhysicalRegisterSet.getPhysicalRegisterType(r);
       if (type == -1) {
         type = DOUBLE_REG;
@@ -2227,10 +2236,10 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       // Search the free intervals and try to find an interval to
       // reuse. First look for the preferred interval.
       if (ir.options.REGALLOC_COALESCE_SPILLS) {
-        result = getSpillPreference(ci, spillSize);
+        result = getSpillPreference(i, spillSize);
         if (result != null) {
           if (DEBUG_COALESCE) {
-            System.out.println("SPILL PREFERENCE " + ci + " " + result);
+            System.out.println("SPILL PREFERENCE " + i + " " + result);
           }
           freeIntervals.remove(result);
         }
@@ -2239,7 +2248,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       // Now search for any free interval.
       if (result == null) {
         for (SpillLocationInterval s : freeIntervals) {
-          if (s.getSize() == spillSize && !s.intersects(ci)) {
+          if (s.getSize() == spillSize && !s.intersects(i)) {
             result = s;
             freeIntervals.remove(result);
             break;
@@ -2254,7 +2263,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       }
 
       // Update the spill location interval to hold the new spill
-      result.addAll(ci);
+      //result.addAll(ci);
 
       return result;
     }
@@ -2282,12 +2291,12 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      * @param spillSize the size of spill location needed
      * @return the interval to spill to.  null if no preference found.
      */
-    SpillLocationInterval getSpillPreference(CompoundInterval ci, int spillSize) {
+    SpillLocationInterval getSpillPreference(Interval i, int spillSize) {
       // a mapping from SpillLocationInterval to Integer
       // (spill location to weight);
       // EBM do we need to alloc a map every time?
       HashMap<SpillLocationInterval, Integer> map = new HashMap<SpillLocationInterval, Integer>();
-      Register r = ci.getRegister();
+      Register r = i.getRegister();
 
       CoalesceGraph graph = ir.stackManager.getPreferences().getGraph();
       SpaceEffGraphNode node = graph.findNode(r);
@@ -2311,7 +2320,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           int spillOffset = neighbor.getCompoundInterval().getSpill();
           // if this is a candidate interval, update its weight
           for (SpillLocationInterval s : freeIntervals) {
-            if (s.getOffset() == spillOffset && s.getSize() == spillSize && !s.intersects(ci)) {
+            if (s.getOffset() == spillOffset && s.getSize() == spillSize && !s.intersects(i)) {
               int w = edge.getWeight();
               Integer oldW = map.get(s);
               if (oldW == null) {
@@ -2341,7 +2350,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
           int spillOffset = neighbor.getCompoundInterval().getSpill();
           // if this is a candidate interval, update its weight
           for (SpillLocationInterval s : freeIntervals) {
-            if (s.getOffset() == spillOffset && s.getSize() == spillSize && !s.intersects(ci)) {
+            if (s.getOffset() == spillOffset && s.getSize() == spillSize && !s.intersects(i)) {
               int w = edge.getWeight();
               Integer oldW = map.get(s);
               if (oldW == null) {
@@ -2411,6 +2420,14 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       Interval first = first();
       Interval last = last();
       return frameOffset + (first.getBegin() << 4) + (last.getEnd() << 12);
+    }
+    
+    public boolean intersects(Interval i) {
+      if (i.getContainer() == i)
+        return intersects((CompoundInterval)i);
+      for (Interval interval : this) 
+        if (interval.intersects(i)) return true;
+      return false;
     }
   }
 
