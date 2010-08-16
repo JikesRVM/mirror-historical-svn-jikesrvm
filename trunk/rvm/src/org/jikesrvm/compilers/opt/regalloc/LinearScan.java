@@ -613,13 +613,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     * a BasicInterval.
     */
     public CompoundInterval getContainer() {
-      // EBM: Should be handled by which implementors support this method!
-      // Ones that don't should throw UnsupportedOperationException, or should VM._assert(false)
-      /*
-       * Present here to avoid potential bug by developers
-       */
-      VM._assert(this instanceof MappedBasicInterval);
-      return ((MappedBasicInterval)this).getContainer();
+      throw new UnsupportedOperationException("Unsupported operation getContainr on BasicInterval");
     }
   }
 
@@ -661,6 +655,7 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     public CompoundInterval getContainer() {
       return container;
     }
+    
   }
 
   /**
@@ -998,7 +993,16 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
       Interval b = last();
       return b.getEnd();
     }
-
+    
+    public boolean intersects(BasicInterval bi) {
+      SortedSet<Interval> lowerSet = tailSet(bi);
+      if (lowerSet == null) return false;
+      for (Interval i : lowerSet) {
+        if (i.intersects(bi))
+          return true;
+      }
+      return false;
+    }
     /**
      * Does this interval intersect with i?
      */
@@ -1073,7 +1077,6 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
      */
     public String toString() {
       String str = "[" + getRegister() + "]:";
-      // EBM Why not for-each?
       for (Interval b : this) {
         str = str + b;
       }
@@ -1106,7 +1109,12 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
     
     public Interval getContainer() { return this; }
     
-    public boolean intersects(Interval cmp) { return intersects((CompoundInterval) cmp); }
+    public boolean intersects(Interval cmp) {
+      if (cmp.getContainer() == cmp)
+        return intersects((CompoundInterval)cmp);
+      else
+        return intersects((BasicInterval)cmp);
+    }
         
     public boolean sameRange(Interval i) {
       throw new UnsupportedOperationException("Unsupported operation sameRange on CompoundInterval");
@@ -2935,11 +2943,10 @@ public final class LinearScan extends OptimizationPlanCompositeElement {
   } // end of inner class
 
   public static final class SpillIdentificationPhase extends CompilerPhase {
-    // EBM comments!!
-    IR thisIR;
+    private IR thisIR;
     private SpillCostEstimator spillCost;
-    RegisterRestrictions restrict;
-    PhysicalRegisterSet phys;
+    private RegisterRestrictions restrict;
+    private PhysicalRegisterSet phys;
 	
     /**
      * Constructor for this compiler phase
