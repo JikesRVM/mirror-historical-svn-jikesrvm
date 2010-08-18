@@ -404,7 +404,7 @@ public abstract class Space implements Constants {
     Address rtn = pr.getNewPages(pages);
     if (rtn.isZero()) {
       /* Failed, so force a GC */
-      if (allowPoll) VM.assertions.fail("Physical allocation failed when polling not allowed!");
+      if (!allowPoll) VM.assertions.fail("Physical allocation failed when polling not allowed!");
       VM.activePlan.global().poll(true, this);
       pr.clearRequest(pages);
       return Address.zero();
