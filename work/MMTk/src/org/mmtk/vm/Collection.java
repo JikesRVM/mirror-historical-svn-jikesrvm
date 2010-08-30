@@ -106,6 +106,7 @@ import org.vmmagic.pragma.*;
    */
   @Unpreemptible
   public abstract void stopAllMutators();
+
   /**
    * Resume all mutators blocked for GC.
    */

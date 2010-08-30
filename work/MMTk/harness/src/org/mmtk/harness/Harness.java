@@ -19,6 +19,8 @@ import org.mmtk.harness.scheduler.AbstractPolicy;
 import org.mmtk.harness.scheduler.MMTkThread;
 import org.mmtk.harness.vm.*;
 
+import org.mmtk.plan.CollectorContext;
+import org.mmtk.plan.MutatorContext;
 import org.mmtk.utility.Log;
 import org.mmtk.utility.heap.HeapGrowthManager;
 import org.mmtk.utility.options.Options;
@@ -148,7 +150,6 @@ public class Harness {
         ActivePlan.init(plan.getValue());
         ActivePlan.plan.boot();
         HeapGrowthManager.boot(initHeap.getBytes(), maxHeap.getBytes());
-        Collector.init(collectors.getValue());
 
         /* Override some defaults */
         Options.noFinalizer.setValue(true);
@@ -221,4 +222,28 @@ public class Harness {
     } catch (InterruptedException e) {
     }
   }
+
+  /**
+   * @return A mutator context for the current Plan
+   */
+  public static MutatorContext createMutatorContext() {
+    try {
+      String prefix = plan.getValue();
+      return (MutatorContext)Class.forName(prefix + "Mutator").newInstance();
+    } catch (Exception ex) {
+      throw new RuntimeException("Could not create Mutator", ex);
+    }
+  }
+  /**
+   * @return A mutator context for the current Plan
+   */
+  public static CollectorContext createCollectorContext() {
+    try {
+      String prefix = plan.getValue();
+      return (CollectorContext)Class.forName(prefix + "Collector").newInstance();
+    } catch (Exception ex) {
+      throw new RuntimeException("Could not create Collector", ex);
+    }
+  }
+
 }

@@ -12,24 +12,31 @@
  */
 package org.mmtk.harness.vm;
 
-import org.mmtk.harness.Collector;
 import org.vmmagic.pragma.Uninterruptible;
 
 @Uninterruptible
 public class Statistics extends org.mmtk.vm.Statistics {
+  @Override
+  public void perfEventRead(int x,long[] y) {
+    // TODO
+  }
+  @Override
+  public void perfEventInit(String events) {
+    // TODO
+  }
 
   /**
-   * Returns the number of collections that have occurred.
-   *
    * @return The number of collections that have occurred.
    */
+  @Override
   public int getCollectionCount() {
-    return Collector.getCollectionCount();
+    return Collection.getCollectionCount();
   }
 
   /**
    * Read cycle counter
    */
+  @Override
   public long nanoTime() {
     return System.nanoTime();
   }
@@ -37,20 +44,23 @@ public class Statistics extends org.mmtk.vm.Statistics {
   /**
    * Convert nanoseconds to milliseconds
    */
+  @Override
   public double nanosToMillis(long c) {
-    return ((double)c) / 1e6;
+    return (c) / 1e6;
   }
 
   /**
    * Convert nanoseconds to seconds
    */
+  @Override
   public double nanosToSecs(long c) {
-    return ((double)c) / 1e9;
+    return (c) / 1e9;
   }
 
   /**
    * Convert milliseconds to nanoseconds
    */
+  @Override
   public long millisToNanos(double t) {
     return (long)(t * 1e6);
   }
@@ -58,6 +68,7 @@ public class Statistics extends org.mmtk.vm.Statistics {
   /**
    * Convert seconds to nanoseconds
    */
+  @Override
   public long secsToNanos(double t) {
     return (long)(t * 1e9);
   }
@@ -65,6 +76,7 @@ public class Statistics extends org.mmtk.vm.Statistics {
   /**
    * Read the cycle counter
    */
+  @Override
   public long cycles() {
     return System.nanoTime();
   }

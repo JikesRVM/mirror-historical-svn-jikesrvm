@@ -18,15 +18,18 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import org.mmtk.harness.Collector;
 import org.mmtk.harness.Mutator;
 import org.mmtk.harness.lang.Trace;
 import org.mmtk.harness.lang.Trace.Item;
 import org.mmtk.harness.scheduler.MMTkThread;
 import org.mmtk.harness.scheduler.Schedulable;
 import org.mmtk.harness.scheduler.ThreadModel;
+
 import static org.mmtk.harness.scheduler.ThreadModel.State.*;
+
+import org.mmtk.plan.CollectorContext;
 import org.mmtk.utility.Log;
+import org.mmtk.vm.Monitor;
 
 /**
  * The deterministic thread scheduler.  Java threads are used for all
@@ -37,13 +40,6 @@ import org.mmtk.utility.Log;
 public final class RawThreadModel extends ThreadModel {
 
   private static boolean unitTest = false;
-
-  /**
-   * Enable unit-test mode
-   */
-  public static void setUnitTest() {
-    unitTest = true;
-  }
 
   static {
     //Trace.enable(Item.SCHEDULER);
@@ -69,7 +65,7 @@ public final class RawThreadModel extends ThreadModel {
   final List<RawThread> collectors = new ArrayList<RawThread>();
   private final List<RawThread> mutators = new ArrayList<RawThread>();
 
-  /** Unique mutator thread number - used to name thne mutator threads */
+  /** Unique mutator thread number - used to name the mutator threads */
   private volatile int mutatorId = 0;
 
   int nextMutatorId() {
@@ -77,13 +73,25 @@ public final class RawThreadModel extends ThreadModel {
   }
 
   /**
+   * Counter of mutators currently blocked.  Used to determine when a 'stopAllMutators'
+   * event has taken effect.
+   */
+  private int mutatorsBlocked = 0;
+
+  /*
    * Scheduling queues.  A thread may be on exactly one of these queues,
    * or on a lock wait queue, or current.
    */
+
+  /**
+   * Queue containing runnable threads
+   */
   private final List<RawThread> runQueue = new LinkedList<RawThread>();
-  private final List<RawThread> rendezvousQueue = new LinkedList<RawThread>();
+
+  /**
+   * Queue containing mutator threads blocked for a stop-the-world GC phase
+   */
   private final List<RawThread> gcWaitQueue = new LinkedList<RawThread>();
-  private final List<RawThread> collectorWaitQueue = new LinkedList<RawThread>();
 
   /**
    * Remove a mutator from the pool when a mutator thread exits
@@ -134,57 +142,16 @@ public final class RawThreadModel extends ThreadModel {
   }
 
   /**
-   * @see org.mmtk.harness.scheduler.ThreadModel#exitGC()
-   */
-  @Override
-  public void exitGC() {
-    Trace.trace(Item.SCHEDULER, "%d: exiting GC", current.getId());
-    setState(END_GC);
-  }
-
-  /**
    * @see org.mmtk.harness.scheduler.ThreadModel#currentCollector()
    */
   @Override
-  public Collector currentCollector() {
-    return ((CollectorThread)current).c;
+  public CollectorContext currentCollector() {
+    return ((CollectorThread)current).context;
   }
 
-  private int currentRendezvous = -1;
-
   /**
-   * The number of mutators waiting for a collection to proceed.
+   * Queues for mutator rendezvous events
    */
-  protected int mutatorsWaitingForGC;
-
-  /**
-   * The number of mutators currently executing in the system.
-   */
-  protected int activeMutators;
-
-  /**
-   * @see org.mmtk.harness.scheduler.ThreadModel#rendezvous(int)
-   */
-  @Override
-  public int rendezvous(int where) {
-    Trace.trace(Item.SCHEDULER, "%d: rendezvous(%d)", current.getId(), where);
-    if (currentRendezvous == -1) {
-      currentRendezvous = where;
-    } else {
-      assert currentRendezvous == where;
-    }
-    current.setOrdinal(rendezvousQueue.size()+1);
-    if (rendezvousQueue.size() == collectors.size()-1) {
-      makeRunnable(rendezvousQueue);
-      currentRendezvous = -1;
-    } else {
-      yield(rendezvousQueue);
-    }
-    Trace.trace(Item.SCHEDULER, "%d: rendezvous(%d) complete: ordinal = %d", current.getId(), where,current.getOrdinal());
-    return current.getOrdinal();
-  }
-
-
   private final Map<String,List<RawThread>> rendezvousQueues = new HashMap<String,List<RawThread>>();
 
   /**
@@ -214,19 +181,18 @@ public final class RawThreadModel extends ThreadModel {
    * Create a collector thread
    */
   @Override
-  public void scheduleCollector() {
-    RawThread c = new CollectorThread(this);
-    Trace.trace(Item.SCHEDULER, "%d: creating new collector, id=%d",
-        Thread.currentThread().getId(), c.getId());
-    c.start();
+  public void scheduleCollector(CollectorContext context) {
+    scheduleCollectorContext(context);
   }
 
   /**
    * Create a collector thread for specific code (eg unit test)
    */
   @Override
-  public Thread scheduleCollector(Schedulable method) {
-    RawThread c = new CollectorContextThread(this,method);
+  public Thread scheduleCollectorContext(CollectorContext method) {
+    RawThread c = new CollectorThread(this,method);
+    collectors.add(c);
+    method.initCollector(collectors.size());
     Trace.trace(Item.SCHEDULER, "%d: creating new collector, id=%d",
         Thread.currentThread().getId(), c.getId());
     c.start();
@@ -259,35 +225,10 @@ public final class RawThreadModel extends ThreadModel {
   @Override
   protected void initCollectors() {
     Trace.trace(Item.SCHEDULER, "%d: Initializing collectors", Thread.currentThread().getId());
-    setState(BEGIN_GC);
     assert Thread.currentThread() == scheduler;
     makeRunnable(collectors,false);
     schedule();
-    assert collectorWaitQueue.size() == collectors.size();
-    setState(MUTATOR);
     Trace.trace(Item.SCHEDULER, "%d: Collector threads initialized", Thread.currentThread().getId());
-  }
-
-  @Override
-  public void triggerGC(int why) {
-    Trace.trace(Item.SCHEDULER, "%d: Triggering GC", Thread.currentThread().getId());
-    synchronized(scheduler) {
-      triggerReason = why;
-      setState(BEGIN_GC);
-    }
-  }
-
-  /**
-   * A GC has been requested.  A Mutator thread calls this when it sees the request,
-   * and wishes to wait for the GC.  In the raw-threads case, we yield to the
-   * collectorWaitQueue.
-   *
-   * @see org.mmtk.harness.scheduler.ThreadModel#waitForGCStart()
-   */
-  @Override
-  public void waitForGCStart() {
-    trace("Yielding to collector wait queue");
-    yield(collectorWaitQueue);
   }
 
   /**
@@ -318,11 +259,36 @@ public final class RawThreadModel extends ThreadModel {
    */
   void yield(List<RawThread> queue) {
     assert current != null;
+    if (queue != runQueue)
+      mutatorsBlocked++;
     queue.add(current);
     Trace.trace(Item.SCHEDULER,"%d: Yielded onto queue with %d members",Thread.currentThread().getId(),queue.size());
     assert queue.size() <= Math.max(mutators.size(),collectors.size()) :
       "yielded to queue size "+queue.size()+" where there are "+mutators.size()+" m and "+collectors.size()+"c";
     current.yieldThread();
+  }
+
+
+  @Override
+  public boolean gcTriggered() {
+    return isState(BLOCKING) || isState(BLOCKED);
+  }
+
+  @Override
+  protected void resumeAllMutators() {
+    mutatorsBlocked -= gcWaitQueue.size();
+    makeRunnable(gcWaitQueue);
+    setState(MUTATOR);
+  }
+
+  @Override
+  protected void stopAllMutators() {
+    setState(BLOCKING);
+  }
+
+  @Override
+  public boolean isMutator() {
+    return Thread.currentThread() instanceof MutatorThread;
   }
 
   /**
@@ -333,6 +299,12 @@ public final class RawThreadModel extends ThreadModel {
     return new RawLock(this,name);
   }
 
+  @Override
+  protected Monitor newMonitor() {
+    Trace.trace(Item.SCHEDULER, "Creating new monitor");
+    return new RawMonitor(this);
+  }
+
   /**
    * Schedule gc-context unit tests
    */
@@ -341,11 +313,8 @@ public final class RawThreadModel extends ThreadModel {
     /* Advance the GC threads to the collector wait queue */
     initCollectors();
 
-    /* Make them all runnable, as though we had entered a GC */
-    makeRunnable(collectorWaitQueue);
-
     /* Transition to GC state */
-    setState(GC);
+    setState(BLOCKED);
 
     /* And run to completion */
     schedule();
@@ -374,32 +343,24 @@ public final class RawThreadModel extends ThreadModel {
           schedWait();
           Trace.trace(Item.SCHEDULER, "%d: scheduler resuming, state %s, runqueue=%d", scheduler.getId(),getState(), runQueue.size());
         }
+        /*
+         * Apply state-transition rules and enforce invariants
+         */
         switch (getState()) {
           case MUTATOR:
             /* If there are available mutators, at least one of them must be runnable */
             assert mutators.isEmpty() || !runQueue.isEmpty() :
               "mutators.isEmpty()="+mutators.isEmpty()+", runQueue.isEmpty()="+runQueue.isEmpty();
             break;
-          case BEGIN_GC:
-            if (runQueue.isEmpty()) {
-              setState(GC);
-              Trace.trace(Item.SCHEDULER, "%d: Changing to state GC - scheduling %d GC threads",
-                  scheduler.getId(),collectorWaitQueue.size());
-              makeRunnable(collectorWaitQueue);
+          case BLOCKING:
+            Trace.trace(Item.SCHEDULER, "mutators blocked %d/%d", mutatorsBlocked, mutators.size());
+            if (mutatorsBlocked == mutators.size()) {
+              setState(BLOCKED);
             }
             break;
-          case END_GC:
-            if (runQueue.isEmpty()) {
-              assert collectorWaitQueue.size() == collectors.size();
-              setState(MUTATOR);
-              Trace.trace(Item.SCHEDULER, "%d: Changing to state MUTATOR - scheduling %d mutator threads",
-                  scheduler.getId(),gcWaitQueue.size());
-              makeRunnable(gcWaitQueue);
-            }
-            break;
-          case GC:
+          case BLOCKED:
             assert ! unitTest && (mutators.size() == 0 || !runQueue.isEmpty()) :
-              "Runqueue cannot be empty while GC is in progress";
+              "Runqueue cannot be empty while mutators are blocked";
             break;
         }
       }
@@ -441,16 +402,5 @@ public final class RawThreadModel extends ThreadModel {
       }
     }
   }
-
-  @Override
-  public boolean noThreadsInGC() {
-    return isState(MUTATOR);
-  }
-
-  @Override
-  public boolean gcTriggered() {
-    return isState(BEGIN_GC);
-  }
-
 }
 

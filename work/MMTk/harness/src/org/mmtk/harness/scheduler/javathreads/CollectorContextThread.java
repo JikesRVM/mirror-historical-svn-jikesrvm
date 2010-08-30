@@ -14,24 +14,24 @@ package org.mmtk.harness.scheduler.javathreads;
 
 import org.mmtk.harness.lang.Env;
 import org.mmtk.harness.scheduler.Schedulable;
+import org.mmtk.plan.CollectorContext;
 
 final class CollectorContextThread extends CollectorThread {
-  final Schedulable code;
+  private final CollectorContext code;
   private final JavaThreadModel model;
 
-  CollectorContextThread(JavaThreadModel model, Schedulable code) {
-    super(false);
+  CollectorContextThread(JavaThreadModel model, CollectorContext context) {
+    super(context,false);
     this.model = model;
-    this.code = code;
+    this.code = context;
   }
 
   @Override
   public void run() {
     init();
     model.waitForGCStart();
-    code.execute(new Env());
+    code.run();
     model.removeCollector(this);
-    model.exitGC();
   }
 
 }

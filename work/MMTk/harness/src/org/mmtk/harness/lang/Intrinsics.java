@@ -33,7 +33,7 @@ public class Intrinsics {
    * @param env Thread-local environment (language-dependent mutator context)
    */
   public static void gc(Env env) {
-    VM.collection.triggerCollection(Collection.EXTERNAL_GC_TRIGGER);
+//    VM.collection.triggerCollection(Collection.EXTERNAL_GC_TRIGGER);
   }
 
   /**

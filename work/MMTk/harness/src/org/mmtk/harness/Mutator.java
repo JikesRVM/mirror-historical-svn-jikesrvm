@@ -59,18 +59,6 @@ public abstract class Mutator {
   }
 
   /**
-   * @return A mutator context for the current Plan
-   */
-  public static MutatorContext createMutatorContext() {
-    try {
-      String prefix = Harness.plan.getValue();
-      return (MutatorContext)Class.forName(prefix + "Mutator").newInstance();
-    } catch (Exception ex) {
-      throw new RuntimeException("Could not create Mutator", ex);
-    }
-  }
-
-  /**
    * Get the currently executing mutator.
    * @return the currently executing mutator.
    */
@@ -148,7 +136,7 @@ public abstract class Mutator {
    * Constructor
    */
   public Mutator() {
-    this.context = createMutatorContext();
+    this.context = Harness.createMutatorContext();
     register(this.context);
   }
 
@@ -234,7 +222,8 @@ public abstract class Mutator {
    * Request a heap dump (also invokes a garbage collection)
    */
   public void heapDump() {
-    Collector.requestHeapDump();
+    // Collector.requestHeapDump();
+    // TODO
     gc();
   }
 
@@ -242,7 +231,7 @@ public abstract class Mutator {
    * Request a garbage collection.
    */
   public void gc() {
-    VM.collection.triggerCollection(Collection.EXTERNAL_GC_TRIGGER);
+//    VM.collection.triggerCollection(Collection.EXTERNAL_GC_TRIGGER);
   }
 
   /**
