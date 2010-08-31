@@ -18,6 +18,7 @@ import org.mmtk.policy.LargeObjectLocal;
 import org.mmtk.policy.Space;
 import org.mmtk.utility.ForwardingWord;
 import org.mmtk.utility.Log;
+import org.mmtk.utility.alloc.Allocator;
 import org.mmtk.vm.VM;
 
 import org.vmmagic.unboxed.*;
@@ -30,13 +31,13 @@ public class SSCollector extends StopTheWorldCollector {
    * Instance fields
    */
 
-  protected final SSTraceLocal trace;
+  protected final SSTraceLocalFirst firstTrace;
+  protected final SSTraceLocalSecond secondTrace;
   protected final CopyLocal ss;
   protected final LargeObjectLocal los;
 
   private static final PreGCToSpaceLinearSanityScan preGCSanity = new PreGCToSpaceLinearSanityScan();
   private static final PostGCToSpaceLinearSanityScan postGCSanity = new PostGCToSpaceLinearSanityScan();
-  public static final ToSpaceLinearScanTrace linearTrace = new ToSpaceLinearScanTrace();
 
   /****************************************************************************
    *
@@ -47,17 +48,19 @@ public class SSCollector extends StopTheWorldCollector {
    * Constructor
    */
   public SSCollector() {
-    this(new SSTraceLocal(global().ssTrace));
+    this(new SSTraceLocalFirst(global().toBeScannedRemset), new SSTraceLocalSecond(global().toBeCopiedRemset));
   }
 
   /**
    * Constructor
    * @param tr The trace to use
    */
-  protected SSCollector(SSTraceLocal tr) {
+  protected SSCollector(SSTraceLocalFirst tr, SSTraceLocalSecond tr2) {
     ss = new CopyLocal();
+    ss.rebind(SS.toSpace());
     los = new LargeObjectLocal(Plan.loSpace);
-    trace = tr;
+    firstTrace = tr;
+    secondTrace = tr2;
   }
 
   /****************************************************************************
@@ -79,11 +82,14 @@ public class SSCollector extends StopTheWorldCollector {
   public Address allocCopy(ObjectReference original, int bytes,
       int align, int offset, int allocator) {
     if (allocator == Plan.ALLOC_LOS) {
-      if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(bytes > Plan.MAX_NON_LOS_COPY_BYTES);
+      if (VM.VERIFY_ASSERTIONS) {
+        VM.assertions._assert(bytes > Plan.MAX_NON_LOS_COPY_BYTES);
+        VM.assertions.fail("Should not copy into LOS");
+      }
       return los.alloc(bytes, align, offset);
     } else {
       if (VM.VERIFY_ASSERTIONS) {
-        VM.assertions._assert(bytes <= Plan.MAX_NON_LOS_COPY_BYTES);
+//        VM.assertions._assert(bytes <= Plan.MAX_NON_LOS_COPY_BYTES);
         VM.assertions._assert(allocator == SS.ALLOC_SS);
       }
       return ss.alloc(bytes, align, offset);
@@ -101,22 +107,40 @@ public class SSCollector extends StopTheWorldCollector {
   public void postCopy(ObjectReference from, ObjectReference to, ObjectReference typeRef,
       int bytes, int allocator) {
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(ForwardingWord.isBusy(to));
-      VM.assertions._assert(!ForwardingWord.isForwarded(to));
+      VM.assertions._assert(ForwardingWord.isBusy(from));
+      VM.assertions._assert(!ForwardingWord.isForwarded(from));
     }
     ForwardingWord.clearForwardingBits(to);
-    ForwardingWord.setReplicatingBP(from, to); // set back pointer
     if (VM.VERIFY_ASSERTIONS) {
       VM.assertions._assert(!ForwardingWord.isBusy(to));
+      VM.assertions._assert(!ForwardingWord.isForwarded(to));
     }
     if (allocator == Plan.ALLOC_LOS)
       Plan.loSpace.initializeHeader(to, false);
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(getCurrentTrace().isLive(to));
+//      VM.assertions._assert(getCurrentTrace().isLive(from));  // FP is installed after Copy
       VM.assertions._assert(getCurrentTrace().willNotMoveInCurrentCollection(to));
     }
   }
 
+  /**
+   * Run-time check of the allocator to use for a given copy allocation
+   *
+   * At the moment this method assumes that allocators will use the simple
+   * (worst) method of aligning to determine if the object is a large object
+   * to ensure that no objects are larger than other allocators can handle.
+   *
+   * @param from The object that is being copied.
+   * @param bytes The number of bytes to be allocated.
+   * @param align The requested alignment.
+   * @param allocator The allocator statically assigned to this allocation.
+   * @return The allocator dyncamically assigned to this allocation.
+   */
+  @Inline
+  public int copyCheckAllocator(ObjectReference from, int bytes, int align, int allocator) {
+    return allocator;
+  }
+  
   /****************************************************************************
    *
    * Collection
@@ -131,38 +155,34 @@ public class SSCollector extends StopTheWorldCollector {
   @Inline
   public void collectionPhase(short phaseId, boolean primary) {
     if (phaseId == SS.PREPARE) {
-      // rebind the copy bump pointer to the appropriate semispace.
-      if (SS.copyingAllComplete)
+      if (SS.currentTrace == 1) {
+        // first trace
+        // rebind the copy bump pointer to the appropriate semispace.
         ss.rebind(SS.toSpace());
-      ss.linearScan(preGCSanity);
+        ss.linearScan(preGCSanity);
+      }
+      
       los.prepare(true);
-      trace.numObjectsCopied = 0;
       super.collectionPhase(phaseId, primary);
       return;
     }
 
     if (phaseId == SS.CLOSURE) {
-      ss.linearScan(linearTrace);
-      trace.completeTrace();
-      int max = SSTraceLocal.numCopiesPerGCAllowed;
-      int copied = trace.getNumObjectsCopied();
-      if (copied < max) {
-        Log.writeln("Everything copied ", copied);
-        // SS.copyingAllComplete = true; // no more possible objects left to copy
-      }
+      getCurrentTrace().completeTrace();
       return;
     }
 
     if (phaseId == SS.RELEASE) {
-      trace.release();
+      getCurrentTrace().release();
       los.release(true);
       super.collectionPhase(phaseId, primary);
       return;
     }
     
     if (phaseId == SS.COMPLETE) {
-      ss.linearScan(postGCSanity);
-      if (SS.copyingAllComplete) {
+      if (SS.currentTrace == 2) {
+        // second trace
+        ss.linearScan(postGCSanity);
         SS.tackOnLock.acquire();
         SS.deadThreadsBumpPointer.tackOn(ss);
         SS.tackOnLock.release();
@@ -205,6 +225,17 @@ public class SSCollector extends StopTheWorldCollector {
 
   /** @return the current trace object. */
   public TraceLocal getCurrentTrace() {
-    return trace;
+    if (SS.currentTrace == 1)
+      return firstTrace;
+    else if (SS.currentTrace == 2)
+      return secondTrace;
+    else {
+      VM.assertions.fail("Unknown currentTrace value");
+      return null;
+    }
+  }
+
+  protected boolean concurrentTraceComplete() {
+    return !global().toBeScannedRemset.hasWork();
   }
 }

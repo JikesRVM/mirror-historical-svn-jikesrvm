@@ -23,6 +23,7 @@ import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.Lock;
 import org.jikesrvm.scheduler.RVMThread;
+import org.mmtk.plan.semispace.incremental.SS;
 import org.mmtk.utility.ForwardingWord;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;

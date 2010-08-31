@@ -498,11 +498,11 @@ public class JavaHeader implements JavaHeaderConstants {
     }
     if (ADDRESS_BASED_HASHING) {
       if (MemoryManagerConstants.MOVES_OBJECTS) {
-        Word hashState = Magic.getWordAtOffset(o, STATUS_OFFSET).and(HASH_STATE_MASK);
-        if (hashState.EQ(HASH_STATE_HASHED)) {
+        Word forwardedHashState = Magic.getWordAtOffset(o, STATUS_OFFSET).and(HASH_STATE_MASK);
+        if (forwardedHashState.EQ(HASH_STATE_HASHED)) {
           // HASHED, NOT MOVED
           return Magic.objectAsAddress(o).toWord().rshl(SizeConstants.LOG_BYTES_IN_ADDRESS).toInt();
-        } else if (hashState.EQ(HASH_STATE_HASHED_AND_MOVED)) {
+        } else if (forwardedHashState.EQ(HASH_STATE_HASHED_AND_MOVED)) {
           // HASHED AND MOVED
           if (DYNAMIC_HASH_OFFSET) {
             // Read the size of this object.
@@ -536,37 +536,37 @@ public class JavaHeader implements JavaHeaderConstants {
             }
             ObjectReference forwarded = ForwardingWord.getReplicatingFP(obj);
             if (forwarded != null) {
-              // already forwarded
+              // already forwarded (but forwarded bit might not be set in status word)
               if (VM.VerifyAssertions) {
-                VM._assert(ForwardingWord.isForwarded(ObjectReference.fromObject(o)));
                 VM._assert(SS.inToSpace(forwarded.toAddress()));
               }
-              hashState = Magic.getWordAtOffset(forwarded, STATUS_OFFSET).and(HASH_STATE_MASK); // reread incase someone else hashed
+              forwardedHashState = Magic.getWordAtOffset(forwarded, STATUS_OFFSET).and(HASH_STATE_MASK); // reread incase someone else hashed
                                                                                                 // for us
-              if (hashState.EQ(HASH_STATE_HASHED)) {
+              if (forwardedHashState.EQ(HASH_STATE_HASHED)) {
                 // someone has hashed toSpace replica for us
                 return Magic.objectAsAddress(forwarded).toWord().rshl(SizeConstants.LOG_BYTES_IN_ADDRESS).toInt();
               }
-              if (VM.VerifyAssertions) {
-                VM._assert(!hashState.EQ(HASH_STATE_HASHED_AND_MOVED)); // shouldn't be able to get into this state during
-                                                                        // uninterruptible method
-              }
               // lock fromSpace replica, set hashed state in toSpace copy
-              ForwardingWord.markBusy(obj);
+              ForwardingWord.atomicMarkBusy(obj);
               Word toSpaceStatusWord = Magic.getWordAtOffset(forwarded, STATUS_OFFSET);
               if (toSpaceStatusWord.and(HASH_STATE_MASK).EQ(HASH_STATE_HASHED)) {
                 // now that we have the lock we see someone else hashed the object
+                if (VM.VerifyAssertions) VM._assert(ForwardingWord.isBusy(obj));
                 ForwardingWord.markNotBusy(obj);
                 return getObjectHashCode(o);
               }
               Magic.setWordAtOffset(forwarded, STATUS_OFFSET, toSpaceStatusWord.or(HASH_STATE_HASHED));
+              if (VM.VerifyAssertions) {
+                VM._assert(ForwardingWord.isBusy(obj));
+                VM._assert(!ForwardingWord.isBusy(forwarded));
+              }
               ForwardingWord.markNotBusy(obj);
               if (ObjectModel.HASH_STATS)
                 ObjectModel.hashTransition1++;
               return getObjectHashCode(o);
             } else {
               // not yet forwarded, lock fromSpace replica
-              ForwardingWord.markBusy(obj);
+              ForwardingWord.atomicMarkBusy(obj);
               forwarded = ForwardingWord.getReplicatingFP(obj);
               if (forwarded != null) {
                 // someone forwarded behind our backs
@@ -590,6 +590,7 @@ public class JavaHeader implements JavaHeaderConstants {
           }
         }
       } else {
+        // no objects move, just return address
         return Magic.objectAsAddress(o).toWord().rshl(SizeConstants.LOG_BYTES_IN_ADDRESS).toInt();
       }
     } else {
@@ -703,11 +704,11 @@ public class JavaHeader implements JavaHeaderConstants {
     Magic.setWordAtOffset(o, STATUS_OFFSET, val);
   }
 
-  public static void writeReplicatingFP(Object o, Object ptr) {
+  public static void writeReplicatingFP(ObjectReference o, ObjectReference ptr) {
     Magic.setObjectAtOffset(o, GC_HEADER_OFFSET, ptr);
   }
-
-  public static Object getReplicatingFP(Object o) {
+  
+  public static Object getReplicatingFP(ObjectReference o) {
     return Magic.getObjectAtOffset(o, GC_HEADER_OFFSET);
   }
 

@@ -463,7 +463,8 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
       if (isPrefix("Lorg/jikesrvm/compilers/baseline/BaselineCompiledMethod", typeBA)
           || isPrefix("Lorg/jikesrvm/compilers/common/HardwareTrapCompiledMethod", typeBA)
           || isPrefix("Lorg/jikesrvm/jni/JNICompiledMethod", typeBA)
-          || isPrefix("Lorg/jikesrvm/compilers/opt/runtimesupport/OptCompiledMethod", typeBA)) {
+          || isPrefix("Lorg/jikesrvm/compilers/opt/runtimesupport/OptCompiledMethod", typeBA)
+          || isPrefix("Lorg/jikesrvm/runtime/DynamicLink", typeBA)) {
         allocator = Plan.ALLOC_NON_MOVING;
       }
 

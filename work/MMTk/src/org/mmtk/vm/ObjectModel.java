@@ -189,6 +189,7 @@ public abstract class ObjectModel {
   public abstract void writeReplicatingFP(ObjectReference o, ObjectReference ptr);
 
   public abstract ObjectReference getReplicatingFP(ObjectReference obj);
+  
   /**
    * Read the bits available for memory manager use in an object.
    *

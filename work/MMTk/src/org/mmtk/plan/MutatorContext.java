@@ -83,6 +83,10 @@ public abstract class MutatorContext implements Constants {
    * Initialization
    */
 
+  // LPJH: Sapphire barriers
+  public boolean insertionBarrier = false;
+  public boolean allocationBarrier = false;
+  public boolean replicationBarrier = false;
 
   /**
    * Notify that the mutator context is registered and ready to execute. From

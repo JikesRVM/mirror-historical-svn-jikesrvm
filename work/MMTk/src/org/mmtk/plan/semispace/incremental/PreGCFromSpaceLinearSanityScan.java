@@ -43,6 +43,7 @@ public class PreGCFromSpaceLinearSanityScan extends LinearScan {
         // }
 
         VM.assertions._assert(!ForwardingWord.isBusy(object));
+        VM.assertions._assert(!ForwardingWord.isForwarded(object)); // will not get to code below at the moment
 
         if (ForwardingWord.isForwardedOrBeingForwarded(object)) {
           VM.assertions._assert(ForwardingWord.isForwarded(object)); // can't be half way through copying the object

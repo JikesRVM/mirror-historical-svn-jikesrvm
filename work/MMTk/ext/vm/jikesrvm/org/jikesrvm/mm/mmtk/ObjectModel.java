@@ -55,7 +55,7 @@ import org.vmmagic.pragma.*;
     else
       return copyArray(from, tib, type.asArray(), allocator);
   }
-
+  
   @Inline
   private ObjectReference copyScalar(ObjectReference from, TIB tib, RVMClass type, int allocator) {
     int bytes = org.jikesrvm.objectmodel.ObjectModel.bytesRequiredWhenCopied(from.toObject(), type);

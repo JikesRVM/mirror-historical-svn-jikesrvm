@@ -16,7 +16,9 @@ import org.mmtk.policy.CopyLocal;
 import org.mmtk.policy.ReplicatingSpace;
 import org.mmtk.policy.Space;
 import org.mmtk.plan.*;
+import org.mmtk.utility.Log;
 import org.mmtk.utility.heap.VMRequest;
+import org.mmtk.utility.options.Options;
 import org.mmtk.vm.Lock;
 import org.mmtk.vm.VM;
 
@@ -42,10 +44,10 @@ public class SS extends StopTheWorld {
   public static final ReplicatingSpace repSpace1 = new ReplicatingSpace("rep-ss1", DEFAULT_POLL_FREQUENCY, VMRequest.create());
   public static final int SS1 = repSpace1.getDescriptor();
 
-  public final Trace ssTrace;
+  public final Trace toBeScannedRemset;
+  public final Trace toBeCopiedRemset;
+  public static volatile int currentTrace = 1;
 
-  public static volatile boolean copyingAllComplete = true;
-  public static volatile int linearScannedSoFar = 0;
   public static CopyLocal deadThreadsBumpPointer = new CopyLocal();
 
   static {
@@ -65,13 +67,29 @@ public class SS extends StopTheWorld {
    */
   public static final int ALLOC_SS = Plan.ALLOC_DEFAULT;
 
-  public static final int SCAN_SS = 0;
+  public static final int FIRST_SCAN_SS = 0;
+  public static final int SECOND_SCAN_SS = 0;
 
   /**
    * Constructor
    */
   public SS() {
-    ssTrace = new Trace(metaDataSpace);
+    toBeScannedRemset = new Trace(metaDataSpace);
+    toBeCopiedRemset = new Trace(metaDataSpace);
+    /**
+     * This is the phase that is executed to perform a collection.
+     */
+    collection = Phase.createComplex("collection", null,
+        Phase.scheduleComplex(initPhase),
+        Phase.scheduleComplex(rootClosurePhase),
+        Phase.scheduleComplex(refTypeClosurePhase),
+        Phase.scheduleComplex(forwardPhase),
+        Phase.scheduleComplex(completeClosurePhase),
+        Phase.scheduleComplex(rootClosurePhase),
+        Phase.scheduleComplex(refTypeClosurePhase),
+        Phase.scheduleComplex(forwardPhase),
+        Phase.scheduleComplex(completeClosurePhase),
+        Phase.scheduleComplex(finishPhase));
   }
 
   /**
@@ -104,33 +122,41 @@ public class SS extends StopTheWorld {
   @Inline
   public void collectionPhase(short phaseId) {
     if (phaseId == SS.PREPARE) {
-      ssTrace.prepare();
-      fromSpace().prepare(true); // Make fromSpace moveable whilst GC in progress
-      deadThreadsBumpPointer.linearScan(SSMutator.preGCSanity);
+      if (currentTrace == 1) {
+        // scanning for the first time
+        fromSpace().prepare(false); // Make fromSpace non moving for first trace
+        deadThreadsBumpPointer.linearScan(SSMutator.preGCSanity);
+      } else if (currentTrace == 2) {
+        fromSpace().prepare(true); // Make fromSpace moveable whilst GC in progress
+      }
       super.collectionPhase(phaseId);
       return;
     }
     if (phaseId == CLOSURE) {
-      copyingAllComplete = false;
-      // Log.writeln("Closure for dead Thread mutator context");
-      deadThreadsBumpPointer.linearScan(SSCollector.linearTrace);
-      // Log.writeln("Linear scanned so far: ", SS.linearScannedSoFar);
-      ssTrace.prepare();
-      fromSpace().prepare(false); // no more objects can be copied from fromSpace in this GC cycle
+      getCurrentTrace().prepare();
       return;
     }
     if (phaseId == SS.RELEASE) {
-      if (copyingAllComplete) {
+      if (currentTrace == 1) {
+        // first scan
+        currentTrace = 2;
+      } else if (currentTrace == 2) {
+        // second go around
         low = !low; // flip the semi-spaces
         toSpace().release();
         deadThreadsBumpPointer.rebind(fromSpace());
+        deadThreadsBumpPointer.linearScan(SSMutator.postGCSanity);
+      } else {
+        VM.assertions.fail("Unknown currentTrace value");
       }
-      deadThreadsBumpPointer.linearScan(SSMutator.postGCSanity);
       super.collectionPhase(phaseId);
       return;
     }
     if (phaseId == SS.COMPLETE) {
       fromSpace().prepare(true); // make from space moving at last minute
+      if (SS.currentTrace == 2) {
+        SS.currentTrace = 1;
+      }
     }
     super.collectionPhase(phaseId);
   }
@@ -193,7 +219,8 @@ public class SS extends StopTheWorld {
    */
   @Interruptible
   protected void registerSpecializedMethods() {
-    TransitiveClosure.registerSpecializedScan(SCAN_SS, SSTraceLocal.class);
+    TransitiveClosure.registerSpecializedScan(FIRST_SCAN_SS, SSTraceLocalFirst.class);
+    TransitiveClosure.registerSpecializedScan(SECOND_SCAN_SS, SSTraceLocalSecond.class);
     super.registerSpecializedMethods();
   }
 
@@ -203,5 +230,28 @@ public class SS extends StopTheWorld {
 
   public static boolean inToSpace(Address slot) {
     return Space.isInSpace(toSpace().getDescriptor(), slot);
+  }
+
+  /**
+   * This method controls the triggering of an atomic phase of a concurrent collection. It is called periodically during allocation.
+   * @return True if a collection is requested by the plan.
+   */
+  @Override
+  protected boolean concurrentCollectionRequired() {
+    return false;
+    // return !Phase.concurrentPhaseActive() &&
+    // ((getPagesReserved() * 100) / getTotalPages()) > Options.concurrentTrigger.getValue();
+  }
+  
+  /** @return the current trace object. */
+  public Trace getCurrentTrace() {
+    if (currentTrace == 1)
+      return toBeScannedRemset;
+    else if (currentTrace == 2)
+      return toBeCopiedRemset;
+    else {
+      VM.assertions.fail("Unknown trace count");
+      return null;
+    }
   }
 }

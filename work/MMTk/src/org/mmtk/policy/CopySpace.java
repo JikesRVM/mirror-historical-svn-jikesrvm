@@ -48,7 +48,7 @@ public class CopySpace extends Space
    *
    * Instance variables
    */
-  private boolean fromSpace = true;
+  protected boolean fromSpace = true;
 
   public boolean isFromSpace() {
     return fromSpace;

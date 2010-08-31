@@ -33,7 +33,6 @@ public class PreGCToSpaceLinearSanityScan extends LinearScan {
   public void scan(ObjectReference object) {
     if (VM.VERIFY_ASSERTIONS) {
       if (!object.isNull()) {
-        VM.assertions._assert(!SS.copyingAllComplete); // If copying is complete space should be empty
         // Log.write("Scanning... "); Log.writeln(object);
         // if (VM.scanning.pointsToForwardedObjects(object)) {
         // Log.write("PreGCToSpaceLinearSanityScan: Object ");
@@ -43,6 +42,7 @@ public class PreGCToSpaceLinearSanityScan extends LinearScan {
         // }
 
         VM.assertions._assert(!ForwardingWord.isBusy(object));
+        VM.assertions._assert(!ForwardingWord.isForwarded(object));
         ObjectReference bp = ForwardingWord.getReplicatingFP(object);
         if (ForwardingWord.isForwarded(object)) {
           VM.assertions._assert(!bp.isNull());
