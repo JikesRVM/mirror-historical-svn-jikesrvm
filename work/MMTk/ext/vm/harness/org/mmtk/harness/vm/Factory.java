@@ -129,7 +129,7 @@ public class Factory extends org.mmtk.vm.Factory {
    */
   @Override
   public org.mmtk.vm.Monitor newMonitor(String name) {
-    return Scheduler.newMonitor();
+    return Scheduler.newMonitor(name);
   }
 
 

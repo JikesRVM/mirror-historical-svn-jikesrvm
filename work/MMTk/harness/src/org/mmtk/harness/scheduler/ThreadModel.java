@@ -20,7 +20,6 @@ import java.util.Set;
 import org.mmtk.harness.Mutator;
 import org.mmtk.harness.lang.Trace;
 import org.mmtk.harness.lang.Trace.Item;
-import org.mmtk.harness.scheduler.javathreads.JavaMonitor;
 import org.mmtk.plan.CollectorContext;
 import org.mmtk.utility.Log;
 import org.mmtk.vm.Monitor;
@@ -99,7 +98,7 @@ public abstract class ThreadModel {
   /**
    * An MMTk monitor
    */
-  protected abstract Monitor newMonitor();
+  protected abstract Monitor newMonitor(String name);
 
   private static final Map<State,Set<State>> validTransitions = new EnumMap<State,Set<State>>(State.class);
 
@@ -142,4 +141,6 @@ public abstract class ThreadModel {
   }
 
   public abstract boolean isMutator();
+
+  public abstract boolean isCollector();
 }

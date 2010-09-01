@@ -361,7 +361,12 @@ public final class JavaThreadModel extends ThreadModel {
   }
 
   @Override
-  protected JavaMonitor newMonitor() {
+  public boolean isCollector() {
+    return Thread.currentThread() instanceof CollectorThread;
+  }
+
+  @Override
+  protected JavaMonitor newMonitor(String name) {
     return new JavaMonitor();
   }
 

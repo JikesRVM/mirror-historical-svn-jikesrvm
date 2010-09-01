@@ -32,8 +32,10 @@ class RawThread extends MMTkThread {
   /** The ordinal (for a rendezvous) */
   private int ordinal = 0;
 
-  /** Is this thread current ? Used to filter spurious wade-ups */
+  /** Is this thread current ? Used to filter spurious wake-ups */
   private boolean isCurrent = false;
+
+  private ThreadQueue queue;
 
   public RawThread(RawThreadModel model) {
     this.model = model;
@@ -51,18 +53,25 @@ class RawThread extends MMTkThread {
 
   synchronized void resumeThread() {
     assert !exiting;
-    Trace.trace(Item.SCHEDULER, "%d: resumeThread", getId());
+    Trace.trace(Item.SCHED_DETAIL, "%d: resumeThread", getId());
     isCurrent = true;
+    setQueue(null);
     model.setCurrent(this);
     notify();
   }
 
-  synchronized void yieldThread() {
+  /**
+   * Put this thread to sleep, wake the scheduler, and then wait until the scheduler
+   * selects us to run again.
+   */
+  synchronized void yieldThread(ThreadQueue queue) {
     isCurrent = false;
-    Trace.trace(Item.SCHEDULER, "%d: yieldThread", getId());
+    setQueue(queue);
+    queue.add(this);
+    Trace.trace(Item.SCHED_DETAIL, "%d: yieldThread", getId());
     model.wakeScheduler();
     waitTillCurrent();
-    Trace.trace(Item.SCHEDULER, "%d: resuming", getId());
+    Trace.trace(Item.SCHED_DETAIL, "%d: resuming", getId());
   }
 
   void setOrdinal(int ordinal) {
@@ -73,13 +82,29 @@ class RawThread extends MMTkThread {
     return ordinal;
   }
 
+  /**
+   * Wait until this thread becomes the current thread
+   */
   protected synchronized void waitTillCurrent() {
-    Trace.trace(Item.SCHEDULER, "%d: waiting for thread wakeup", getId());
+    Trace.trace(Item.SCHED_DETAIL, "%d: waiting for thread wakeup", getId());
     while (!isCurrent) {
       try {
         this.wait();
       } catch (InterruptedException e) {
       }
     }
+  }
+
+  void setQueue(ThreadQueue queue) {
+    this.queue = queue;
+  }
+
+  ThreadQueue getQueue() {
+    return queue;
+  }
+
+  @Override
+  public String toString() {
+    return (isCurrent ? "current " : "queue " + queue.getName()) + (exiting ? "exiting " : "");
   }
 }

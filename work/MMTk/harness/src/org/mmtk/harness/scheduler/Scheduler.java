@@ -224,8 +224,8 @@ public class Scheduler {
    * Model-specific MMTk Monitor factory
    * @return A new monitor of the appropriate class
    */
-  public static Monitor newMonitor() {
-    return model.newMonitor();
+  public static Monitor newMonitor(String name) {
+    return model.newMonitor(name);
   }
 
   /**
@@ -245,5 +245,10 @@ public class Scheduler {
   /** @return {@code true} if the current thread is a mutator thread */
   public static boolean isMutator() {
     return model.isMutator();
+  }
+
+  /** @return {@code true} if the current thread is a mutator thread */
+  public static boolean isCollector() {
+    return model.isCollector();
   }
 }
