@@ -30,8 +30,6 @@ import org.mmtk.harness.vm.Scanning;
 import org.mmtk.plan.MutatorContext;
 import org.mmtk.plan.Plan;
 import org.mmtk.plan.TraceLocal;
-import org.mmtk.vm.Collection;
-import org.mmtk.vm.VM;
 import org.vmmagic.unboxed.Address;
 import org.vmmagic.unboxed.ObjectReference;
 

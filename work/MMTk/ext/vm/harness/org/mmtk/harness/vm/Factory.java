@@ -16,7 +16,6 @@ import org.vmutil.options.OptionSet;
 import org.mmtk.harness.Harness;
 import org.mmtk.harness.scheduler.Lock;
 import org.mmtk.harness.scheduler.Scheduler;
-import org.mmtk.harness.scheduler.javathreads.JavaMonitor;
 import org.mmtk.utility.gcspy.Color;
 import org.mmtk.utility.gcspy.drivers.AbstractDriver;
 import org.mmtk.vm.gcspy.ByteStream;
