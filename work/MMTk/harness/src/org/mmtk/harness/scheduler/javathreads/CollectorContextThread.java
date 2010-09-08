@@ -12,8 +12,6 @@
  */
 package org.mmtk.harness.scheduler.javathreads;
 
-import org.mmtk.harness.lang.Env;
-import org.mmtk.harness.scheduler.Schedulable;
 import org.mmtk.plan.CollectorContext;
 
 final class CollectorContextThread extends CollectorThread {

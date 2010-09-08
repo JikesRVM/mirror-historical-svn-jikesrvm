@@ -91,10 +91,10 @@ public abstract class ParallelCollector extends CollectorContext {
   }
 
   /**
-   * The ordinal of the current worker. This is in the range of 1 to the result
-   * of parallelWorkerCount() inclusive.
+   * The ordinal of the current worker. This is in the range of 0 to the result
+   * of parallelWorkerCount() exclusive.
    *
-   * @return The ordinal of this collector context, starting from 1.
+   * @return The ordinal of this collector context, starting from 0.
    */
   public int parallelWorkerOrdinal() {
     return workerOrdinal;
@@ -104,7 +104,7 @@ public abstract class ParallelCollector extends CollectorContext {
    * Get the executing context to rendezvous with other contexts working
    * in parallel.
    *
-   * @return The order this context reached the rendezvous, starting from 1.
+   * @return The order this context reached the rendezvous, starting from 0.
    */
   public int rendezvous() {
     return group.rendezvous();

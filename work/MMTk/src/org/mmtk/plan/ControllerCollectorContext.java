@@ -100,19 +100,17 @@ public class ControllerCollectorContext extends CollectorContext {
       workers.waitForCycle();
       if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Worker threads complete!]");
 
-      if (!internalTriggeredCollection) {
         // Heap growth logic
         long elapsedTime = VM.statistics.nanoTime() - startTime;
         HeapGrowthManager.recordGCTime(VM.statistics.nanosToMillis(elapsedTime));
-        if (VM.activePlan.global().lastCollectionFullHeap()) {
-          if (!userTriggeredCollection) {
+      if (VM.activePlan.global().lastCollectionFullHeap() && !internalTriggeredCollection) {
+        if (Options.variableSizeHeap.getValue() && !userTriggeredCollection) {
             // Don't consider changing the heap size if the application triggered the collection
             if (Options.verbose.getValue() >= 5) Log.writeln("[STWController: Considering heap size.]");
             HeapGrowthManager.considerHeapSize();
           }
           HeapGrowthManager.reset();
         }
-      }
 
       // Reset the triggering information.
       Plan.resetCollectionTrigger();

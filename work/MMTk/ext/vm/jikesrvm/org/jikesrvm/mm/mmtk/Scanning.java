@@ -136,8 +136,8 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
     int threads = cc.parallelWorkerCount();
     int size = JNIEnvironment.JNIFunctions.length();
     int chunkSize = size / threads;
-    int start = (cc.parallelWorkerOrdinal() - 1) * chunkSize;
-    int end = (cc.parallelWorkerOrdinal() == threads) ? size : cc.parallelWorkerOrdinal() * chunkSize;
+    int start = cc.parallelWorkerOrdinal() * chunkSize;
+    int end = (cc.parallelWorkerOrdinal()+1 == threads) ? size : threads * chunkSize;
 
     for(int i=start; i < end; i++) {
       trace.processRootEdge(jniFunctions.plus(i << LOG_BYTES_IN_ADDRESS), true);
@@ -154,8 +154,8 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
     Address jniGlobalRefs = Magic.objectAsAddress(JNIGlobalRefTable.JNIGlobalRefs);
     size = JNIGlobalRefTable.JNIGlobalRefs.length();
     chunkSize = size / threads;
-    start = (cc.parallelWorkerOrdinal() - 1) * chunkSize;
-    end = (cc.parallelWorkerOrdinal() == threads) ? size : cc.parallelWorkerOrdinal() * chunkSize;
+    start = cc.parallelWorkerOrdinal() * chunkSize;
+    end = (cc.parallelWorkerOrdinal()+1 == threads) ? size : threads * chunkSize;
 
     for(int i=start; i < end; i++) {
       trace.processRootEdge(jniGlobalRefs.plus(i << LOG_BYTES_IN_ADDRESS), true);

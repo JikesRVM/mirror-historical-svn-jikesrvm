@@ -382,7 +382,7 @@ public abstract class Phase implements Constants {
   public static void beginNewPhaseStack(int scheduledPhase) {
     int order = ((ParallelCollector)VM.activePlan.collector()).rendezvous();
 
-    if (order == 1) {
+    if (order == 0) {
       pushScheduledPhase(scheduledPhase);
     }
     processPhaseStack(false);
@@ -407,7 +407,7 @@ public abstract class Phase implements Constants {
     ParallelCollector collector = (ParallelCollector)VM.activePlan.collector();
 
     int order = collector.rendezvous();
-    final boolean primary = order == 1;
+    final boolean primary = order == 0;
 
     boolean log = Options.verbose.getValue() >= 6;
     boolean logDetails = Options.verbose.getValue() >= 7;

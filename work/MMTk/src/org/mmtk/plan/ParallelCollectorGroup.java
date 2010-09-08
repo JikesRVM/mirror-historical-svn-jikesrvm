@@ -84,7 +84,7 @@ public class ParallelCollectorGroup implements Constants {
       try {
         contexts[i] = klass.newInstance();
         contexts[i].group = this;
-        contexts[i].workerOrdinal = i + 1;
+        contexts[i].workerOrdinal = i;
         VM.collection.spawnCollectorContext(contexts[i]);
       } catch (Throwable t) {
         VM.assertions.fail("Error creating collector context '" + klass.getName() + "' for group '" + name + "': " + t.toString());
@@ -177,8 +177,8 @@ public class ParallelCollectorGroup implements Constants {
   public int rendezvous() {
     lock.lock();
     int i = currentRendezvousCounter;
-    int me = ++rendezvousCounter[i];
-    if (me == contexts.length) {
+    int me = rendezvousCounter[i]++;
+    if (me == contexts.length-1) {
       currentRendezvousCounter ^= 1;
       rendezvousCounter[currentRendezvousCounter] = 0;
       lock.broadcast();

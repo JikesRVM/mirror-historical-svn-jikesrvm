@@ -15,7 +15,6 @@ package org.mmtk.harness.scheduler;
 import org.mmtk.harness.Harness;
 import org.mmtk.harness.Mutator;
 import org.mmtk.harness.scheduler.javathreads.JavaThreadModel;
-import org.mmtk.harness.scheduler.javathreads.JavaMonitor;
 import org.mmtk.harness.scheduler.rawthreads.RawThreadModel;
 import org.mmtk.plan.CollectorContext;
 import org.mmtk.utility.Log;

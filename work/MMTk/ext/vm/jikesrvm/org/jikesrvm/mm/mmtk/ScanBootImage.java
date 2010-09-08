@@ -67,7 +67,7 @@ public class ScanBootImage implements Constants {
     /* figure out striding */
     CollectorContext collector = RVMThread.getCurrentThread().getCollectorContext();
     int stride = collector.parallelWorkerCount()<<LOG_CHUNK_BYTES;
-    int start = (collector.parallelWorkerOrdinal() - 1)<<LOG_CHUNK_BYTES;
+    int start = collector.parallelWorkerOrdinal()<<LOG_CHUNK_BYTES;
     Address cursor = mapStart.plus(start);
 
     /* statistics */

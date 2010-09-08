@@ -26,14 +26,6 @@ public class Statistics extends org.mmtk.vm.Statistics {
   }
 
   /**
-   * @return The number of collections that have occurred.
-   */
-  @Override
-  public int getCollectionCount() {
-    return Collection.getCollectionCount();
-  }
-
-  /**
    * Read cycle counter
    */
   @Override

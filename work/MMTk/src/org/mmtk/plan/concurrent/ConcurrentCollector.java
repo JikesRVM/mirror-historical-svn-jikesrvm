@@ -109,7 +109,7 @@ public abstract class ConcurrentCollector extends SimpleCollector {
           break;
         }
       }
-      if (rendezvous() == 1) {
+      if (rendezvous() == 0) {
         continueCollecting = false;
         if (!group.isAborted()) {
           /* We are responsible for ensuring termination. */

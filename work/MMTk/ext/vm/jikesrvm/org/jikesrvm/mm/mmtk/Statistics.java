@@ -22,17 +22,6 @@ import org.vmmagic.pragma.*;
 @Uninterruptible
 public final class Statistics extends org.mmtk.vm.Statistics implements Constants {
   /**
-   * Returns the number of collections that have occurred.
-   *
-   * @return The number of collections that have occurred.
-   */
-  @Uninterruptible
-  public int getCollectionCount() {
-    // FIXME: TODO: Implement
-    return 0;//MemoryManager.getCollectionCount();
-  }
-
-  /**
    * Read nanoTime (high resolution, monotonically increasing clock).
    * Has same semantics as java.lang.System.nanoTime().
    */
