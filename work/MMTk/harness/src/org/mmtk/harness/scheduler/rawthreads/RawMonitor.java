@@ -22,8 +22,6 @@ public class RawMonitor extends org.mmtk.vm.Monitor {
 
   private final String name;
 
-  private static final boolean TRACE = false;
-
   private boolean isLocked = false;
 
   private final RawThreadModel model;
@@ -54,7 +52,7 @@ public class RawMonitor extends org.mmtk.vm.Monitor {
   @Override
   public void await() {
     unlock();
-    Trace.trace(Item.SCHEDULER,"Yielded onto monitor queue ");
+    Trace.trace(Item.SCHEDULER,"%d: Yielded onto monitor queue %s",Thread.currentThread().getId(),name);
     model.yield(waitList);
     lock();
   }

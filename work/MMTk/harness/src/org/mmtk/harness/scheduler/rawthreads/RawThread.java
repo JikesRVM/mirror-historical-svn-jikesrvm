@@ -22,7 +22,7 @@ import org.mmtk.harness.scheduler.MMTkThread;
  */
 class RawThread extends MMTkThread {
   /**
-   *
+   * Link back to the thread model, so we can talk to the scheduler etc.
    */
   protected final RawThreadModel model;
 
@@ -35,6 +35,7 @@ class RawThread extends MMTkThread {
   /** Is this thread current ? Used to filter spurious wake-ups */
   private boolean isCurrent = false;
 
+  /** The queue this thread is blocked on (or null if it's running) */
   private ThreadQueue queue;
 
   public RawThread(RawThreadModel model) {
@@ -51,6 +52,9 @@ class RawThread extends MMTkThread {
     this.exiting = true;
   }
 
+  /**
+   * Make this thread active
+   */
   synchronized void resumeThread() {
     assert !exiting;
     Trace.trace(Item.SCHED_DETAIL, "%d: resumeThread", getId());
@@ -74,10 +78,17 @@ class RawThread extends MMTkThread {
     Trace.trace(Item.SCHED_DETAIL, "%d: resuming", getId());
   }
 
+  /**
+   * Set the arrival order at a barrier
+   * @param ordinal
+   */
   void setOrdinal(int ordinal) {
     this.ordinal = ordinal;
   }
 
+  /**
+   * @return The order of arrival at the most recent barrier
+   */
   int getOrdinal() {
     return ordinal;
   }
@@ -95,13 +106,10 @@ class RawThread extends MMTkThread {
     }
   }
 
-  void setQueue(ThreadQueue queue) {
+  private void setQueue(ThreadQueue queue) {
     this.queue = queue;
   }
 
-  ThreadQueue getQueue() {
-    return queue;
-  }
 
   @Override
   public String toString() {

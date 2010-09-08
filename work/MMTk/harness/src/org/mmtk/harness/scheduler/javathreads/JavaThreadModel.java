@@ -61,21 +61,21 @@ public final class JavaThreadModel extends ThreadModel {
   @Override
   protected void scheduleCollector(CollectorContext context) {
     Trace.trace(Item.SCHEDULER, "Scheduling new collector");
-    CollectorThread t = new CollectorThread(context);
+    CollectorThread t = new CollectorThread(this,context);
     collectorThreads.add(t);
     context.initCollector(collectorThreads.size());
     t.start();
   }
 
   /**
-   * Create a new collector thread with a specific Schedulable
+   * Create a new no-daemon collector thread
    *
    * Used for scheduling unit tests in collector context
    */
   @Override
   public Thread scheduleCollectorContext(CollectorContext code) {
     Trace.trace(Item.SCHEDULER, "Scheduling new collector");
-    CollectorContextThread t = new CollectorContextThread(this,code);
+    CollectorThread t = new CollectorThread(this,code,false);
     collectorThreads.add(t);
     t.start();
     return t;
@@ -296,7 +296,7 @@ public final class JavaThreadModel extends ThreadModel {
     return collectorThreadLocal.get();
   }
 
-  static void setCurrentCollector(CollectorContext c) {
+  void setCurrentCollector(CollectorContext c) {
     collectorThreadLocal.set(c);
   }
 

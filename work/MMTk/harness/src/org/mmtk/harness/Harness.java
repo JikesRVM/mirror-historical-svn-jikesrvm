@@ -98,8 +98,6 @@ public class Harness {
   /** Allocate during collection, to simulate JikesRVM thread iterator objects */
   public static final BooleanOption allocDuringCollection = new AllocDuringCollection();
 
-  private static boolean isInitialized = false;
-
   /**
    * Start up the harness, including creating the global plan and constraints,
    * and starting off the collector threads.
@@ -108,11 +106,6 @@ public class Harness {
    * @param args Command-line arguments
    */
   public static void init(String... args) {
-    if (isInitialized) {
-      return;
-    }
-    isInitialized = true;
-
     /* Always use the harness factory */
     System.setProperty("mmtk.hostjvm", Factory.class.getCanonicalName());
 
@@ -146,29 +139,34 @@ public class Harness {
       @Override
       public void run() {
 
-        /* Get MMTk breathing */
-        ActivePlan.init(plan.getValue());
-        ActivePlan.plan.boot();
-        HeapGrowthManager.boot(initHeap.getBytes(), maxHeap.getBytes());
+        try {
+          /* Get MMTk breathing */
+          ActivePlan.init(plan.getValue());
+          ActivePlan.plan.boot();
+          HeapGrowthManager.boot(initHeap.getBytes(), maxHeap.getBytes());
 
-        /* Override some defaults */
-        Options.noFinalizer.setValue(true);
-        Options.variableSizeHeap.setValue(false);
+          /* Override some defaults */
+          Options.noFinalizer.setValue(true);
+          Options.variableSizeHeap.setValue(false);
 
-        /* Process command line options */
-        for(String arg: newArgs) {
-          if (!options.process(arg)) {
-            throw new RuntimeException("Invalid option '" + arg + "'");
+          /* Process command line options */
+          for(String arg: newArgs) {
+            if (!options.process(arg)) {
+              throw new RuntimeException("Invalid option '" + arg + "'");
+            }
           }
+
+          /* Check options */
+          assert Options.noFinalizer.getValue(): "noFinalizer must be true";
+
+          /* Finish starting up MMTk */
+          ActivePlan.plan.postBoot();
+          ActivePlan.plan.fullyBooted();
+          Log.flush();
+        } catch (Throwable e) {
+          e.printStackTrace();
+          Main.exitWithFailure();
         }
-
-        /* Check options */
-        assert Options.noFinalizer.getValue(): "noFinalizer must be true";
-
-        /* Finish starting up MMTk */
-        ActivePlan.plan.postBoot();
-        ActivePlan.plan.fullyBooted();
-        Log.flush();
       }
     };
     m.start();

@@ -259,7 +259,10 @@ public final class RawThreadModel extends ThreadModel {
     suspend(gcWaitQueue);
   }
 
-  /** @see org.mmtk.harness.scheduler.ThreadModel#yield() */
+  /**
+   * Yield (to the runQueue) if the scheduler policy requires that we do so.
+   * @see org.mmtk.harness.scheduler.ThreadModel#yield()
+   */
   @Override
   public void yield() {
     if (isRunning()) {
@@ -278,7 +281,7 @@ public final class RawThreadModel extends ThreadModel {
    */
   void yield(ThreadQueue queue) {
     assert current != null;
-    Trace.trace(Item.SCHED_DETAIL,"%d: Yielded onto queue with %d members",Thread.currentThread().getId(),queue.size());
+    Trace.trace(Item.SCHED_DETAIL,"%d: Yielded onto queue %s with %d members",Thread.currentThread().getId(),queue.getName(),queue.size());
     assert queue.size() <= mutators.size() + collectors.size() :
       "yielded to queue size "+queue.size()+" where there are "+mutators.size()+" m and "+collectors.size()+"c";
     current.yieldThread(queue);

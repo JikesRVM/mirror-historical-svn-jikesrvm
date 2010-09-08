@@ -22,8 +22,11 @@ class CollectorThread extends JavaThread {
 
   private final CollectorContext context;
 
-  protected CollectorThread(CollectorContext context, boolean daemon) {
+  private final JavaThreadModel model;
+
+  protected CollectorThread(JavaThreadModel model, CollectorContext context, boolean daemon) {
     this.context = context;
+    this.model = model;
     setName("Collector-"+(++collectorId));
     setDaemon(daemon);
     setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
@@ -37,19 +40,14 @@ class CollectorThread extends JavaThread {
     });
   }
 
-  CollectorThread(CollectorContext context) {
-    this(context,true);
-  }
-
-  protected void init() {
-    // We need to run the Collector constructor in an MMTkThread so that we can access the
-    // Thread local 'Log' object.  Otherwise Log.writes in constructors don't work.
-    JavaThreadModel.setCurrentCollector(context);
+  CollectorThread(JavaThreadModel model, CollectorContext context) {
+    this(model, context,true);
   }
 
   @Override
   public void run() {
-    init();
+    model.setCurrentCollector(context);
     context.run();
+    model.removeCollector(this);
   }
 }

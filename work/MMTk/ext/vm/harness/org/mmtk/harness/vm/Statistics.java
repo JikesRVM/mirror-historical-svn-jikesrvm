@@ -16,15 +16,6 @@ import org.vmmagic.pragma.Uninterruptible;
 
 @Uninterruptible
 public class Statistics extends org.mmtk.vm.Statistics {
-  @Override
-  public void perfEventRead(int x,long[] y) {
-    // TODO
-  }
-  @Override
-  public void perfEventInit(String events) {
-    // TODO
-  }
-
   /**
    * Read cycle counter
    */
@@ -74,33 +65,22 @@ public class Statistics extends org.mmtk.vm.Statistics {
   }
 
   /**
+   * Read (a set of) performance counters
+   */
+  @Override
+  public void perfEventRead(int x,long[] y) {
+    throw new UnsupportedOperationException("Statistics#perfEventRead(): Not Implemented");
+  }
+
+  /**
    * Initialize performance counters
    *
-   * @param metric An integer identifying the metric being read
+   * @param metric An string identifying the metrics being read
    */
-  public void perfCtrInit(int metric) {
-    //Assert.notImplemented();
-  }
-
-  /**
-   * Read the current cycle count from the perfctr libraries
-   *
-   * @return the current cycle count from the perfctr libraries
-   */
-  public long perfCtrReadCycles() {
-    //Assert.notImplemented();
-    return 0;
-  }
-
-  /**
-   * Read the current event count for the metric being measured by the
-   * perfctr libraries
-   *
-   * @return the current event count for the metric being measured by the
-   * perfctr libraries
-   */
-  public long perfCtrReadMetric() {
-    //Assert.notImplemented();
-    return 0;
+  @Override
+  public void perfEventInit(String events) {
+    if (events.equals(""))
+      return;
+    throw new UnsupportedOperationException("Statistics#perfEventInit("+events+"): Not Implemented");
   }
 }

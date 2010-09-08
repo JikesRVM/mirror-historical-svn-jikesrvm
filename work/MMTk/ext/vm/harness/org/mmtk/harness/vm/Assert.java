@@ -24,7 +24,7 @@ public class Assert extends org.mmtk.vm.Assert {
    * Used from within the interface to indicate features that are not implemented yet.
    */
   public static void notImplemented() {
-    throw new RuntimeException("Not Implemented");
+    throw new UnsupportedOperationException("Not Implemented");
   }
 
   /**

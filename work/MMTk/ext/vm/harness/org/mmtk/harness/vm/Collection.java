@@ -24,17 +24,6 @@ import org.vmmagic.pragma.*;
 @Uninterruptible
 public class Collection extends org.mmtk.vm.Collection {
 
-  /****************************************************************************
-   *
-   * Class variables
-   */
-
-  private static int collectionCount = 0;
-
-  public static int getCollectionCount() {
-    return collectionCount;
-  }
-
   /**
    * Prepare a mutator for collection.
    *
@@ -109,7 +98,6 @@ public class Collection extends org.mmtk.vm.Collection {
   @Override
   public void stopAllMutators() {
     Scheduler.stopAllMutators();
-    collectionCount++;
   }
 
   /**
