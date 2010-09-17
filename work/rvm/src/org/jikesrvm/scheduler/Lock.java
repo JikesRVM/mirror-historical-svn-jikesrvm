@@ -269,7 +269,7 @@ public final class Lock implements Constants {
   @Unpreemptible
   public void unlockHeavy(Object o) {
     boolean deflated = false;
-    mutex.lock(); // Note: thread switching is not allowed while mutex is held.
+    mutex.lock(); // Note: thread switching is not allowed while mutex is held. // LPJH: think this means "you must not thread switch whilst holding this mutex" not "holding this mutex disables thread switching"
     RVMThread me = RVMThread.getCurrentThread();
     if (ownerId != me.getLockingId()) {
       mutex.unlock(); // thread-switching benign

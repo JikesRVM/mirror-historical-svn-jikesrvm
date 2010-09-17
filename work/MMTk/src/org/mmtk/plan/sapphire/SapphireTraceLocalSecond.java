@@ -10,7 +10,7 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.mmtk.plan.semispace.incremental;
+package org.mmtk.plan.sapphire;
 
 import org.mmtk.plan.TraceLocal;
 import org.mmtk.plan.Trace;
@@ -26,18 +26,18 @@ import org.vmmagic.pragma.*;
 import org.vmmagic.unboxed.*;
 
 @Uninterruptible
-public class SSTraceLocalFirst extends TraceLocal {
+public class SapphireTraceLocalSecond extends TraceLocal {
   /**
    * Constructor
    */
-  public SSTraceLocalFirst(Trace trace, boolean specialized) {
-    super(specialized ? SS.FIRST_SCAN_SS : -1, trace);
+  public SapphireTraceLocalSecond(Trace trace, boolean specialized) {
+    super(specialized ? Sapphire.SECOND_SCAN_SS : -1, trace);
   }
 
   /**
    * Constructor
    */
-  public SSTraceLocalFirst(Trace trace) {
+  public SapphireTraceLocalSecond(Trace trace) {
     this(trace, false); // LPJH: disable specialized scanning
   }
 
@@ -54,10 +54,9 @@ public class SSTraceLocalFirst extends TraceLocal {
    */
   public boolean isLive(ObjectReference object) {
     if (object.isNull()) return false;
-    if (Space.isInSpace(SS.fromSpace().getDescriptor(), object)) {
-      return SS.fromSpace().isLive(object);
-    } else if (Space.isInSpace(SS.toSpace().getDescriptor(), object)) {
-      VM.assertions.fail("First trace should not have got hold of a toSpace reference");
+    if (Space.isInSpace(Sapphire.fromSpace().getDescriptor(), object)) {
+      return Sapphire.fromSpace().isLive(object);
+    } else if (Space.isInSpace(Sapphire.toSpace().getDescriptor(), object)) {
       return true;
     } else
       return super.isLive(object);
@@ -78,17 +77,19 @@ public class SSTraceLocalFirst extends TraceLocal {
   @Inline
   public ObjectReference traceObject(ObjectReference object) {
     if (object.isNull()) return object;
-    if (Space.isInSpace(SS.fromSpace().getDescriptor(), object)) {
-      ObjectReference obj = SS.fromSpace().traceObject(this, object, SS.ALLOC_SS, true);
+    if (Space.isInSpace(Sapphire.fromSpace().getDescriptor(), object)) {
+      ObjectReference obj = Sapphire.fromSpace().traceObject2(this, object, Sapphire.ALLOC_SS, true);
       if (VM.VERIFY_ASSERTIONS) {
-        VM.assertions._assert(SS.inFromSpace(obj.toAddress()));
+        VM.assertions._assert(Sapphire.inToSpace(obj.toAddress()));
       }
       return obj;
     }
-    if (Space.isInSpace(SS.toSpace().getDescriptor(), object)) {
-      if (VM.VERIFY_ASSERTIONS)
-        VM.assertions.fail("Should not have a toSpace reference during first trace");
-      return object;
+    if (Space.isInSpace(Sapphire.toSpace().getDescriptor(), object)) {
+      ObjectReference obj = Sapphire.toSpace().traceObject2(this, object, Sapphire.ALLOC_SS, false);
+      if (VM.VERIFY_ASSERTIONS) {
+        VM.assertions._assert(Sapphire.inToSpace(obj.toAddress()));
+      }
+      return obj;
     }
     return super.traceObject(object);
   }
@@ -100,6 +101,6 @@ public class SSTraceLocalFirst extends TraceLocal {
    * @return True if the object will not move.
    */
   public boolean willNotMoveInCurrentCollection(ObjectReference object) {
-    return !Space.isInSpace(SS.fromSpace().getDescriptor(), object);
+    return !Space.isInSpace(Sapphire.fromSpace().getDescriptor(), object);
   }
 }

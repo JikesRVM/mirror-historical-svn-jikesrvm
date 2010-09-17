@@ -1385,6 +1385,9 @@ public class Barriers implements org.mmtk.utility.Constants {
 
   public static final boolean REPLICATING_GC = Selected.Constraints.get().replicatingGC();
 
+  /** True if the VM requires write barriers to modify the StatusWord putfield */
+  public static final boolean NEEDS_STATUSWORD_BARRIER     = Selected.Constraints.get().needsStatusWordWriteBarrier();
+
   /**
    * Barrier for conditional compare and exchange of word fields.
    * @param ref the object which is the subject of the compare and exchanges
@@ -1393,12 +1396,10 @@ public class Barriers implements org.mmtk.utility.Constants {
    * @param value the new value for the field
    */
   @Inline
-  public static boolean wordTryCompareAndSwapInLock(Object ref, Offset offset, Word old, Word value) {
-    if (NEEDS_WORD_PUTFIELD_BARRIER || NEEDS_WORD_GETFIELD_BARRIER) {
+  public static boolean tryStatusWordCompareAndSwap(Object ref, Word old, Word value) {
+    if (NEEDS_STATUSWORD_BARRIER) {
       ObjectReference src = ObjectReference.fromObject(ref);
-      return Selected.Mutator.get().wordTryCompareAndSwapInLock(src, src.toAddress().plus(offset), old, value, offset.toWord(),
-          Word.zero(), // do not have location metadata
-          INSTANCE_FIELD);
+      return Selected.Mutator.get().tryStatusWordCompareAndSwap(src, old, value);
     } else if (VM.VerifyAssertions)
       VM._assert(false);
     return false;

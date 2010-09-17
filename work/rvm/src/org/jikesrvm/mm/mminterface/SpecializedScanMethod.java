@@ -26,7 +26,7 @@ import org.jikesrvm.objectmodel.JavaHeaderConstants;
 import org.jikesrvm.objectmodel.ObjectModel;
 import org.jikesrvm.runtime.Magic;
 import org.mmtk.plan.TransitiveClosure;
-import org.mmtk.plan.semispace.incremental.SS;
+import org.mmtk.plan.sapphire.Sapphire;
 import org.mmtk.policy.Space;
 import org.mmtk.utility.ForwardingWord;
 import org.vmmagic.pragma.Inline;
@@ -239,7 +239,7 @@ public final class SpecializedScanMethod extends SpecializedMethod implements Si
       for (int i = 0; i < offsets.length; i++) {
         ObjectReference obj = Selected.Plan.get().loadObjectReference(objectRef.toAddress().plus(offsets[i]));
         if (!obj.isNull()
-            && (Space.getSpaceForObject(obj).getDescriptor() == SS.SS0 || Space.getSpaceForObject(obj).getDescriptor() == SS.SS1)
+            && (Space.getSpaceForObject(obj).getDescriptor() == Sapphire.SS0 || Space.getSpaceForObject(obj).getDescriptor() == Sapphire.SS1)
             && ForwardingWord.isForwardedOrBeingForwarded(obj))
           return true;
       }
@@ -247,7 +247,7 @@ public final class SpecializedScanMethod extends SpecializedMethod implements Si
       for (int i = 0; i < ObjectModel.getArrayLength(objectRef.toObject()); i++) {
         ObjectReference obj = Selected.Plan.get().loadObjectReference(objectRef.toAddress().plus(i << LOG_BYTES_IN_ADDRESS));
         if (!obj.isNull()
-            && (Space.getSpaceForObject(obj).getDescriptor() == SS.SS0 || Space.getSpaceForObject(obj).getDescriptor() == SS.SS1)
+            && (Space.getSpaceForObject(obj).getDescriptor() == Sapphire.SS0 || Space.getSpaceForObject(obj).getDescriptor() == Sapphire.SS1)
             && ForwardingWord.isForwardedOrBeingForwarded(obj))
           return true;
       }

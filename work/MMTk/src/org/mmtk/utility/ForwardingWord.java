@@ -12,7 +12,7 @@
  */
 package org.mmtk.utility;
 
-import org.mmtk.plan.semispace.incremental.SS;
+import org.mmtk.plan.sapphire.Sapphire;
 import org.mmtk.vm.VM;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Uninterruptible;
@@ -85,7 +85,7 @@ public class ForwardingWord {
 
   public static Word atomicMarkBusy(ObjectReference object) {
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(SS.inFromSpace(object.toAddress()));
+      VM.assertions._assert(Sapphire.inFromSpace(object.toAddress()));
     }
     Word oldValue;
     do {
@@ -98,7 +98,7 @@ public class ForwardingWord {
   
   public static void nonAtomicMarkForwarded(ObjectReference object) {
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(SS.inFromSpace(object.toAddress()));
+      VM.assertions._assert(Sapphire.inFromSpace(object.toAddress()));
     }
     Word oldValue = VM.objectModel.readAvailableBitsWord(object);
     if (VM.VERIFY_ASSERTIONS)
@@ -108,7 +108,7 @@ public class ForwardingWord {
 
   public static void markNotBusy(ObjectReference object) {
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(SS.inFromSpace(object.toAddress()));
+      VM.assertions._assert(Sapphire.inFromSpace(object.toAddress()));
       VM.assertions._assert(isBusy(object));
     }
     Word oldValue = VM.objectModel.readAvailableBitsWord(object);
@@ -117,7 +117,7 @@ public class ForwardingWord {
   
   public static void markNotBusy(ObjectReference object, Word lastValue) {
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(SS.inFromSpace(object.toAddress()));
+      VM.assertions._assert(Sapphire.inFromSpace(object.toAddress()));
       if(!isBusy(object)) {
         Log.writeln("Oh dear object should still be marked busy and is not");
         Log.write("Previous value was "); Log.writeln(lastValue);
@@ -167,8 +167,8 @@ public class ForwardingWord {
   public static void setReplicatingFP(ObjectReference fromSpace, ObjectReference toSpace) {
     // busy should be set for us, write FP, cancel busy then set FORWARDED
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(SS.inFromSpace(fromSpace.toAddress()));
-      VM.assertions._assert(!SS.inFromSpace(toSpace.toAddress())); // toSpace might be los or some other space
+      VM.assertions._assert(Sapphire.inFromSpace(fromSpace.toAddress()));
+      VM.assertions._assert(!Sapphire.inFromSpace(toSpace.toAddress())); // toSpace might be los or some other space
       VM.assertions._assert(isBusy(fromSpace));
       VM.assertions._assert(!isForwarded(fromSpace));
       VM.assertions._assert(!isBusy(toSpace));

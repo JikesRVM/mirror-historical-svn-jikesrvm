@@ -906,7 +906,7 @@ public abstract class MutatorContext implements Constants {
    * @param mode The context in which the store occurred
    * @return True if the swap was successful.
    */
-  public boolean wordTryCompareAndSwapInLock(ObjectReference src, Address slot, Word old, Word value, Word metaDataA,
+  public boolean tryStatusWordCompareAndSwap(ObjectReference src, Address slot, Word old, Word value, Word metaDataA,
                                              Word metaDataB, int mode) {
     // Either: write barriers are used and this is overridden, or
     // write barriers are not used and this is never called

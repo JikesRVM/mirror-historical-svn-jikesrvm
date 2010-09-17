@@ -10,7 +10,7 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.mmtk.plan.semispace.incremental;
+package org.mmtk.plan.sapphire;
 
 import org.mmtk.policy.Space;
 import org.mmtk.utility.ForwardingWord;
@@ -34,7 +34,7 @@ public class PreGCFromSpaceLinearSanityScan extends LinearScan {
     if (VM.VERIFY_ASSERTIONS) {
       if (!object.isNull()) {
         // Log.write("Scanning... "); Log.writeln(object);
-        VM.assertions._assert(Space.isInSpace(SS.fromSpace().getDescriptor(), object)); // ensure in right space
+        VM.assertions._assert(Space.isInSpace(Sapphire.fromSpace().getDescriptor(), object)); // ensure in right space
         // if (VM.scanning.pointsToForwardedObjects(object)) {
         // Log.write("PreGCFromSpaceLinearSanityScan: Object ");
         // Log.write(object);
@@ -48,7 +48,7 @@ public class PreGCFromSpaceLinearSanityScan extends LinearScan {
         if (ForwardingWord.isForwardedOrBeingForwarded(object)) {
           VM.assertions._assert(ForwardingWord.isForwarded(object)); // can't be half way through copying the object
           ObjectReference forwarded = ForwardingWord.getReplicatingFP(object);
-          VM.assertions._assert(Space.isInSpace(SS.toSpace().getDescriptor(), forwarded));
+          VM.assertions._assert(Space.isInSpace(Sapphire.toSpace().getDescriptor(), forwarded));
           VM.assertions._assert(!forwarded.isNull());
           VM.assertions._assert(VM.assertions.validRef(forwarded));
           // follow FP and then follow BP - hope we end up at the same object!

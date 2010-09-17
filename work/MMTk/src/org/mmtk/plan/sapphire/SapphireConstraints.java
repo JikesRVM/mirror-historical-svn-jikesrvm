@@ -10,14 +10,14 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.mmtk.plan.semispace.incremental;
+package org.mmtk.plan.sapphire;
 
 import org.mmtk.plan.*;
 import org.mmtk.policy.ReplicatingSpace;
 import org.vmmagic.pragma.*;
 
 @Uninterruptible
-public class SSConstraints extends StopTheWorldConstraints {
+public class SapphireConstraints extends StopTheWorldConstraints {
   @Override
   public boolean movesObjects() { return true; }
   @Override
@@ -87,6 +87,9 @@ public class SSConstraints extends StopTheWorldConstraints {
 
   /** @return True if this Plan requires write barriers on Words. */
   public boolean needsWordWriteBarrier() { return true; }
+  
+  /** @return True if this Plan requires write barriers on the StatusWord. */
+  public boolean needsStatusWordWriteBarrier() { return true; }
 
   /** @return True if this Plan requires write barriers on Address's. */
   public boolean needsAddressWriteBarrier() { return true; }

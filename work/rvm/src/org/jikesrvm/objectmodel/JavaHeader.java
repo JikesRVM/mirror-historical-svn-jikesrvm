@@ -25,7 +25,7 @@ import org.jikesrvm.runtime.Memory;
 import org.jikesrvm.scheduler.Lock;
 import org.jikesrvm.scheduler.ThinLock;
 import org.jikesrvm.scheduler.RVMThread;
-import org.mmtk.plan.semispace.incremental.SS;
+import org.mmtk.plan.sapphire.Sapphire;
 import org.mmtk.utility.ForwardingWord;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
@@ -79,7 +79,7 @@ public class JavaHeader implements JavaHeaderConstants {
   /** offset of object reference from the lowest memory word */
   protected static final int OBJECT_REF_OFFSET = ARRAY_HEADER_SIZE;  // from start to ref
   protected static final Offset TIB_OFFSET = JAVA_HEADER_OFFSET;
-  protected static final Offset STATUS_OFFSET = TIB_OFFSET.plus(STATUS_BYTES);
+  public static final Offset STATUS_OFFSET = TIB_OFFSET.plus(STATUS_BYTES);
   protected static final Offset AVAILABLE_BITS_OFFSET =
       VM.LittleEndian ? (STATUS_OFFSET) : (STATUS_OFFSET.plus(STATUS_BYTES - 1));
 
@@ -494,7 +494,7 @@ public class JavaHeader implements JavaHeaderConstants {
   @Inline
   public static int getObjectHashCode(Object o) {
     if (VM.VerifyAssertions) {
-      VM._assert(!SS.inToSpace(ObjectReference.fromObject(o).toAddress()));
+      VM._assert(!Sapphire.inToSpace(ObjectReference.fromObject(o).toAddress()));
     }
     if (ADDRESS_BASED_HASHING) {
       if (MemoryManagerConstants.MOVES_OBJECTS) {
@@ -518,7 +518,7 @@ public class JavaHeader implements JavaHeaderConstants {
           // UNHASHED
           // at least the fromSpace object isn't hashed, maybe a toSpace replica exists, if so we should return the address of that
           // object as it does not have the room to store the hash at a dynamic offset
-          if (!SS.inFromSpace(ObjectReference.fromObject(o).toAddress())) {
+          if (!Sapphire.inFromSpace(ObjectReference.fromObject(o).toAddress())) {
             // not in fromSpace
             Word tmp;
             do {
@@ -532,13 +532,13 @@ public class JavaHeader implements JavaHeaderConstants {
             // lock object, then check if possible replica
             ObjectReference obj = ObjectReference.fromObject(o);
             if (VM.VerifyAssertions) {
-              VM._assert(SS.inFromSpace(obj.toAddress()));
+              VM._assert(Sapphire.inFromSpace(obj.toAddress()));
             }
             ObjectReference forwarded = ForwardingWord.getReplicatingFP(obj);
             if (forwarded != null) {
               // already forwarded (but forwarded bit might not be set in status word)
               if (VM.VerifyAssertions) {
-                VM._assert(SS.inToSpace(forwarded.toAddress()));
+                VM._assert(Sapphire.inToSpace(forwarded.toAddress()));
               }
               forwardedHashState = Magic.getWordAtOffset(forwarded, STATUS_OFFSET).and(HASH_STATE_MASK); // reread incase someone else hashed
                                                                                                 // for us

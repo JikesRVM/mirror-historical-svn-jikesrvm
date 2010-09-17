@@ -10,7 +10,7 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.mmtk.plan.semispace.incremental;
+package org.mmtk.plan.sapphire;
 
 import org.mmtk.plan.*;
 import org.mmtk.policy.CopyLocal;
@@ -25,14 +25,14 @@ import org.vmmagic.unboxed.*;
 import org.vmmagic.pragma.*;
 
 @Uninterruptible
-public class SSCollector extends StopTheWorldCollector {
+public class SapphireCollector extends StopTheWorldCollector {
 
   /****************************************************************************
    * Instance fields
    */
 
-  protected final SSTraceLocalFirst firstTrace;
-  protected final SSTraceLocalSecond secondTrace;
+  protected final SapphireTraceLocalFirst firstTrace;
+  protected final SapphireTraceLocalSecond secondTrace;
   protected final CopyLocal ss;
   protected final LargeObjectLocal los;
 
@@ -47,17 +47,17 @@ public class SSCollector extends StopTheWorldCollector {
   /**
    * Constructor
    */
-  public SSCollector() {
-    this(new SSTraceLocalFirst(global().toBeScannedRemset), new SSTraceLocalSecond(global().toBeCopiedRemset));
+  public SapphireCollector() {
+    this(new SapphireTraceLocalFirst(global().toBeScannedRemset), new SapphireTraceLocalSecond(global().toBeCopiedRemset));
   }
 
   /**
    * Constructor
    * @param tr The trace to use
    */
-  protected SSCollector(SSTraceLocalFirst tr, SSTraceLocalSecond tr2) {
+  protected SapphireCollector(SapphireTraceLocalFirst tr, SapphireTraceLocalSecond tr2) {
     ss = new CopyLocal();
-    ss.rebind(SS.toSpace());
+    ss.rebind(Sapphire.toSpace());
     los = new LargeObjectLocal(Plan.loSpace);
     firstTrace = tr;
     secondTrace = tr2;
@@ -90,7 +90,7 @@ public class SSCollector extends StopTheWorldCollector {
     } else {
       if (VM.VERIFY_ASSERTIONS) {
 //        VM.assertions._assert(bytes <= Plan.MAX_NON_LOS_COPY_BYTES);
-        VM.assertions._assert(allocator == SS.ALLOC_SS);
+        VM.assertions._assert(allocator == Sapphire.ALLOC_SS);
       }
       return ss.alloc(bytes, align, offset);
     }
@@ -154,11 +154,11 @@ public class SSCollector extends StopTheWorldCollector {
    */
   @Inline
   public void collectionPhase(short phaseId, boolean primary) {
-    if (phaseId == SS.PREPARE) {
-      if (SS.currentTrace == 1) {
+    if (phaseId == Sapphire.PREPARE) {
+      if (Sapphire.currentTrace == 1) {
         // first trace
         // rebind the copy bump pointer to the appropriate semispace.
-        ss.rebind(SS.toSpace());
+        ss.rebind(Sapphire.toSpace());
         ss.linearScan(preGCSanity);
       }
       
@@ -167,25 +167,25 @@ public class SSCollector extends StopTheWorldCollector {
       return;
     }
 
-    if (phaseId == SS.CLOSURE) {
+    if (phaseId == Sapphire.CLOSURE) {
       getCurrentTrace().completeTrace();
       return;
     }
 
-    if (phaseId == SS.RELEASE) {
+    if (phaseId == Sapphire.RELEASE) {
       getCurrentTrace().release();
       los.release(true);
       super.collectionPhase(phaseId, primary);
       return;
     }
     
-    if (phaseId == SS.COMPLETE) {
-      if (SS.currentTrace == 2) {
+    if (phaseId == Sapphire.COMPLETE) {
+      if (Sapphire.currentTrace == 2) {
         // second trace
         ss.linearScan(postGCSanity);
-        SS.tackOnLock.acquire();
-        SS.deadThreadsBumpPointer.tackOn(ss);
-        SS.tackOnLock.release();
+        Sapphire.tackOnLock.acquire();
+        Sapphire.deadThreadsBumpPointer.tackOn(ss);
+        Sapphire.tackOnLock.release();
       }
       super.collectionPhase(phaseId, primary);
       return;
@@ -209,7 +209,7 @@ public class SSCollector extends StopTheWorldCollector {
    * one of the semi-spaces.
    */
   public static boolean isSemiSpaceObject(ObjectReference object) {
-    return Space.isInSpace(SS.SS0, object) || Space.isInSpace(SS.SS1, object);
+    return Space.isInSpace(Sapphire.SS0, object) || Space.isInSpace(Sapphire.SS1, object);
   }
 
   /****************************************************************************
@@ -219,15 +219,15 @@ public class SSCollector extends StopTheWorldCollector {
 
   /** @return The active global plan as an <code>SS</code> instance. */
   @Inline
-  private static SS global() {
-    return (SS) VM.activePlan.global();
+  private static Sapphire global() {
+    return (Sapphire) VM.activePlan.global();
   }
 
   /** @return the current trace object. */
   public TraceLocal getCurrentTrace() {
-    if (SS.currentTrace == 1)
+    if (Sapphire.currentTrace == 1)
       return firstTrace;
-    else if (SS.currentTrace == 2)
+    else if (Sapphire.currentTrace == 2)
       return secondTrace;
     else {
       VM.assertions.fail("Unknown currentTrace value");

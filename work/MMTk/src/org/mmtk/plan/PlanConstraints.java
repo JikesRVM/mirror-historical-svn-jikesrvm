@@ -97,11 +97,17 @@ import org.vmmagic.pragma.*;
   /** @return True if this Plan can perform bulk double arraycopy barriers. */
   public boolean doubleBulkCopySupported() { return false; }
 
-  /** @return True if this Plan requires write barriers on Words. */
+  /** @return True if this Plan requires write barriers on Word fields. */
   public boolean needsWordWriteBarrier() { return false; }
 
-  /** @return True if this Plan requires read barriers on Words. */
+  /** @return True if this Plan requires read barriers on Word fields. */
   public boolean needsWordReadBarrier() { return false; }
+  
+  /** @return True if this Plan requires write barriers on the StatusWord. */
+  public boolean needsStatusWordWriteBarrier() { return false; }
+
+  /** @return True if this Plan requires read barriers on StatusWord. */
+  public boolean needsStatusWordReadBarrier() { return false; }
 
   /** @return True if this Plan can perform bulk Word arraycopy barriers. */
   public boolean wordBulkCopySupported() { return false; }

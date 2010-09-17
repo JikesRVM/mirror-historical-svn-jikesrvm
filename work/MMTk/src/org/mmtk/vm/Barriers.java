@@ -316,6 +316,7 @@ public abstract class Barriers {
    * @return True if the compare and swap was successful
    */
   public abstract boolean wordTryCompareAndSwap(ObjectReference ref, Word old, Word target, Word metaDataA, Word metaDataB, int mode);
+  public abstract boolean statusWordTryCompareAndSwap(ObjectReference ref, Word old, Word target);
 
   /**
    * Perform the actual read of the read barrier, returning the value as a raw Word.

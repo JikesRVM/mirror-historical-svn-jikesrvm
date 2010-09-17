@@ -13,6 +13,7 @@
 package org.jikesrvm.mm.mmtk;
 
 import org.jikesrvm.SizeConstants;
+import org.jikesrvm.objectmodel.JavaHeader;
 import org.jikesrvm.runtime.Magic;
 import org.mmtk.vm.VM;
 
@@ -450,6 +451,16 @@ public class Barriers extends org.mmtk.vm.Barriers implements SizeConstants {
       Word currentValue = Magic.prepareWord(ref, offset.toOffset());
       if (currentValue != old) return false;
     } while (!Magic.attemptWord(ref, offset.toOffset(), old, target));
+    return true;
+  }
+  
+  @Inline
+  @Override
+  public final boolean statusWordTryCompareAndSwap(ObjectReference ref, Word old, Word target) {
+    do {
+      Word currentValue = Magic.prepareWord(ref, JavaHeader.STATUS_OFFSET);
+      if (currentValue != old) return false;
+    } while (!Magic.attemptWord(ref, JavaHeader.STATUS_OFFSET, old, target));
     return true;
   }
 

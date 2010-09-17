@@ -10,7 +10,7 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.mmtk.plan.semispace.incremental;
+package org.mmtk.plan.sapphire;
 
 import org.mmtk.policy.CopyLocal;
 import org.mmtk.policy.ReplicatingSpace;
@@ -26,7 +26,7 @@ import org.vmmagic.pragma.*;
 import org.vmmagic.unboxed.*;
 
 @Uninterruptible
-public class SS extends StopTheWorld {
+public class Sapphire extends StopTheWorld {
 
   /****************************************************************************
    *
@@ -73,7 +73,7 @@ public class SS extends StopTheWorld {
   /**
    * Constructor
    */
-  public SS() {
+  public Sapphire() {
     toBeScannedRemset = new Trace(metaDataSpace);
     toBeCopiedRemset = new Trace(metaDataSpace);
     /**
@@ -121,11 +121,11 @@ public class SS extends StopTheWorld {
    */
   @Inline
   public void collectionPhase(short phaseId) {
-    if (phaseId == SS.PREPARE) {
+    if (phaseId == Sapphire.PREPARE) {
       if (currentTrace == 1) {
         // scanning for the first time
         fromSpace().prepare(false); // Make fromSpace non moving for first trace
-        deadThreadsBumpPointer.linearScan(SSMutator.preGCSanity);
+        deadThreadsBumpPointer.linearScan(SapphireMutator.preGCSanity);
       } else if (currentTrace == 2) {
         fromSpace().prepare(true); // Make fromSpace moveable whilst GC in progress
       }
@@ -136,7 +136,7 @@ public class SS extends StopTheWorld {
       getCurrentTrace().prepare();
       return;
     }
-    if (phaseId == SS.RELEASE) {
+    if (phaseId == Sapphire.RELEASE) {
       if (currentTrace == 1) {
         // first scan
         currentTrace = 2;
@@ -145,17 +145,17 @@ public class SS extends StopTheWorld {
         low = !low; // flip the semi-spaces
         toSpace().release();
         deadThreadsBumpPointer.rebind(fromSpace());
-        deadThreadsBumpPointer.linearScan(SSMutator.postGCSanity);
+        deadThreadsBumpPointer.linearScan(SapphireMutator.postGCSanity);
       } else {
         VM.assertions.fail("Unknown currentTrace value");
       }
       super.collectionPhase(phaseId);
       return;
     }
-    if (phaseId == SS.COMPLETE) {
+    if (phaseId == Sapphire.COMPLETE) {
       fromSpace().prepare(true); // make from space moving at last minute
-      if (SS.currentTrace == 2) {
-        SS.currentTrace = 1;
+      if (Sapphire.currentTrace == 2) {
+        Sapphire.currentTrace = 1;
       }
     }
     super.collectionPhase(phaseId);
@@ -219,11 +219,19 @@ public class SS extends StopTheWorld {
    */
   @Interruptible
   protected void registerSpecializedMethods() {
-    TransitiveClosure.registerSpecializedScan(FIRST_SCAN_SS, SSTraceLocalFirst.class);
-    TransitiveClosure.registerSpecializedScan(SECOND_SCAN_SS, SSTraceLocalSecond.class);
+    TransitiveClosure.registerSpecializedScan(FIRST_SCAN_SS, SapphireTraceLocalFirst.class);
+    TransitiveClosure.registerSpecializedScan(SECOND_SCAN_SS, SapphireTraceLocalSecond.class);
     super.registerSpecializedMethods();
   }
 
+  public static boolean inFromSpace(ObjectReference obj) {
+    return inFromSpace(obj.toAddress());
+  }
+  
+  public static boolean inToSpace(ObjectReference obj) {
+    return inToSpace(obj.toAddress());
+  }
+  
   public static boolean inFromSpace(Address slot) {
     return Space.isInSpace(fromSpace().getDescriptor(), slot);
   }

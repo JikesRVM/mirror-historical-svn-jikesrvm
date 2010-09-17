@@ -10,7 +10,7 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.mmtk.plan.semispace.incremental;
+package org.mmtk.plan.sapphire;
 
 import org.mmtk.plan.*;
 import org.mmtk.policy.CopyLocal;
@@ -25,7 +25,7 @@ import org.vmmagic.unboxed.*;
 import org.vmmagic.pragma.*;
 
 @Uninterruptible
-public class SSMutator extends StopTheWorldMutator {
+public class SapphireMutator extends StopTheWorldMutator {
 
   static final PreGCFromSpaceLinearSanityScan preGCSanity = new PreGCFromSpaceLinearSanityScan();
   static final PostGCFromSpaceLinearSanityScan postGCSanity = new PostGCFromSpaceLinearSanityScan();
@@ -46,7 +46,7 @@ public class SSMutator extends StopTheWorldMutator {
   /**
    * Constructor
    */
-  public SSMutator() {
+  public SapphireMutator() {
     fromSpaceLocal = new CopyLocal();
     toSpaceLocal = new CopyLocal();
     toBeScannedLocal = new TraceWriteBuffer(global().toBeScannedRemset);
@@ -55,8 +55,8 @@ public class SSMutator extends StopTheWorldMutator {
 
   /** @return The active global plan as a <code>SS</code> instance. */
   @Inline
-  private static SS global() {
-    return (SS) VM.activePlan.global();
+  private static Sapphire global() {
+    return (Sapphire) VM.activePlan.global();
   }
 
   /**
@@ -65,8 +65,8 @@ public class SSMutator extends StopTheWorldMutator {
    */
   public void initMutator(int id) {
     super.initMutator(id);
-    fromSpaceLocal.rebind(SS.fromSpace()); // later for concurrent termination might want to be to-space
-    toSpaceLocal.rebind(SS.toSpace());
+    fromSpaceLocal.rebind(Sapphire.fromSpace()); // later for concurrent termination might want to be to-space
+    toSpaceLocal.rebind(Sapphire.toSpace());
   }
 
   /****************************************************************************
@@ -86,7 +86,7 @@ public class SSMutator extends StopTheWorldMutator {
    */
   @Inline
   public Address alloc(int bytes, int align, int offset, int allocator, int site) {
-    if (allocator == SS.ALLOC_SS) {
+    if (allocator == Sapphire.ALLOC_SS) {
       Address addy = fromSpaceLocal.alloc(bytes, align, offset);
       if (allocationBarrier) {
         Address toSpaceAddy = toSpaceLocal.alloc(bytes, align, offset);
@@ -112,7 +112,7 @@ public class SSMutator extends StopTheWorldMutator {
   @Inline
   public void postAlloc(ObjectReference object, ObjectReference typeRef,
       int bytes, int allocator) {
-    if (allocator == SS.ALLOC_SS) return;
+    if (allocator == Sapphire.ALLOC_SS) return;
     super.postAlloc(object, typeRef, bytes, allocator);
   }
 
@@ -126,7 +126,7 @@ public class SSMutator extends StopTheWorldMutator {
    * if no appropriate allocator can be established.
    */
   public Allocator getAllocatorFromSpace(Space space) {
-    if (space == SS.repSpace0 || space == SS.repSpace1)
+    if (space == Sapphire.repSpace0 || space == Sapphire.repSpace1)
       return fromSpaceLocal;
     return super.getAllocatorFromSpace(space);
   }
@@ -144,9 +144,9 @@ public class SSMutator extends StopTheWorldMutator {
    */
   @Inline
   public void collectionPhase(short phaseId, boolean primary) {
-    if (phaseId == SS.PREPARE) {
+    if (phaseId == Sapphire.PREPARE) {
       super.collectionPhase(phaseId, primary);
-      if (SS.currentTrace == 1) {
+      if (Sapphire.currentTrace == 1) {
         // first trace
         allocationBarrier = true;
         insertionBarrier = true;
@@ -157,25 +157,25 @@ public class SSMutator extends StopTheWorldMutator {
       return;
     }
 
-    if (phaseId == SS.RELEASE) {
+    if (phaseId == Sapphire.RELEASE) {
       super.collectionPhase(phaseId, primary);
-      if (SS.currentTrace == 1) {
+      if (Sapphire.currentTrace == 1) {
         // first trace complete turn on replication barrier
         replicationBarrier = true;
       }
-      else if (SS.currentTrace == 2) {
+      else if (Sapphire.currentTrace == 2) {
         // second trace
         // rebind the allocation bump pointer to the appropriate semispace.
-        fromSpaceLocal.rebind(SS.toSpace()); // flip hasn't happened yet
-        toSpaceLocal.rebind(SS.fromSpace()); // flip hasn't happened yet
+        fromSpaceLocal.rebind(Sapphire.toSpace()); // flip hasn't happened yet
+        toSpaceLocal.rebind(Sapphire.fromSpace()); // flip hasn't happened yet
         assertRemsetsFlushed();
       }
       return;
     }
     
-    if (phaseId == SS.COMPLETE) {
+    if (phaseId == Sapphire.COMPLETE) {
       super.collectionPhase(phaseId, primary);
-      if (SS.currentTrace == 2) {
+      if (Sapphire.currentTrace == 2) {
         // second trace
         allocationBarrier = false;
         insertionBarrier = false;
@@ -208,11 +208,11 @@ public class SSMutator extends StopTheWorldMutator {
    * The mutator is about to be cleaned up, make sure all local data is returned.
    */
   public void deinitMutator() {
-    SS.tackOnLock.acquire();
+    Sapphire.tackOnLock.acquire();
     // Log.writeln("Deiniting mutator thread ", VM.activePlan.mutator().getId());
     // Log.flush();
-    SS.deadThreadsBumpPointer.tackOn(fromSpaceLocal); // thread is dying, ensure everything it allocated is still scanable
-    SS.tackOnLock.release();
+    Sapphire.deadThreadsBumpPointer.tackOn(fromSpaceLocal); // thread is dying, ensure everything it allocated is still scanable
+    Sapphire.tackOnLock.release();
     super.deinitMutator();
   }
 
@@ -229,14 +229,14 @@ public class SSMutator extends StopTheWorldMutator {
   public void booleanWrite(ObjectReference src, Address slot, boolean value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.booleanWrite(src, value, metaDataA, metaDataB, mode);
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+      VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), slot));
     }
-    if (replicationBarrier && SS.inFromSpace(slot)) {
+    if (replicationBarrier && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(SS.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
         VM.barriers.booleanWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -271,14 +271,14 @@ public class SSMutator extends StopTheWorldMutator {
   public void byteWrite(ObjectReference src, Address slot, byte value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.byteWrite(src, value, metaDataA, metaDataB, mode);
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+      VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), slot));
     }
-    if (replicationBarrier && SS.inFromSpace(slot)) {
+    if (replicationBarrier && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(SS.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
         VM.barriers.byteWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -313,14 +313,14 @@ public class SSMutator extends StopTheWorldMutator {
   public void charWrite(ObjectReference src, Address slot, char value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.charWrite(src, value, metaDataA, metaDataB, mode);
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+      VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), slot));
     }
-    if (replicationBarrier && SS.inFromSpace(slot)) {
+    if (replicationBarrier && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(SS.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
         VM.barriers.charWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -355,14 +355,14 @@ public class SSMutator extends StopTheWorldMutator {
   public void doubleWrite(ObjectReference src, Address slot, double value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.doubleWrite(src, value, metaDataA, metaDataB, mode);
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+      VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), slot));
     }
-    if (replicationBarrier && SS.inFromSpace(slot)) {
+    if (replicationBarrier && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(SS.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
         VM.barriers.doubleWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -397,14 +397,14 @@ public class SSMutator extends StopTheWorldMutator {
   public void floatWrite(ObjectReference src, Address slot, float value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.floatWrite(src, value, metaDataA, metaDataB, mode);
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+      VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), slot));
     }
-    if (replicationBarrier && SS.inFromSpace(slot)) {
+    if (replicationBarrier && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(SS.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
         VM.barriers.floatWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -439,14 +439,14 @@ public class SSMutator extends StopTheWorldMutator {
   public void intWrite(ObjectReference src, Address slot, int value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.intWrite(src, value, metaDataA, metaDataB, mode);
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+      VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), slot));
     }
-    if (replicationBarrier && SS.inFromSpace(slot)) {
+    if (replicationBarrier && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(SS.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
         VM.barriers.intWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -482,8 +482,8 @@ public class SSMutator extends StopTheWorldMutator {
   public boolean intTryCompareAndSwap(ObjectReference src, Address slot, int old, int value, Word metaDataA, Word metaDataB,
                                       int mode) {
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
-      if (SS.inFromSpace(slot))
+      VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), slot));
+      if (Sapphire.inFromSpace(slot))
         VM.assertions.fail("Warning attempting intTryCompareAndSwap on object in Sapphire fromSpace");
     }
     return VM.barriers.intTryCompareAndSwap(src, old, value, metaDataA, metaDataB, mode);
@@ -502,14 +502,14 @@ public class SSMutator extends StopTheWorldMutator {
   public void longWrite(ObjectReference src, Address slot, long value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.longWrite(src, value, metaDataA, metaDataB, mode);
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+      VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), slot));
     }
-    if (replicationBarrier && SS.inFromSpace(slot)) {
+    if (replicationBarrier && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(SS.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
         VM.barriers.longWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -545,8 +545,8 @@ public class SSMutator extends StopTheWorldMutator {
   public boolean longTryCompareAndSwap(ObjectReference src, Address slot, long old, long value, Word metaDataA, Word metaDataB,
                                        int mode) {
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
-      if (SS.inFromSpace(slot))
+      VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), slot));
+      if (Sapphire.inFromSpace(slot))
         VM.assertions.fail("Warning attempting longTryCompareAndSwap on object in Sapphire fromSpace");
     }
     return VM.barriers.longTryCompareAndSwap(src, old, value, metaDataA, metaDataB, mode);
@@ -565,14 +565,14 @@ public class SSMutator extends StopTheWorldMutator {
   public void shortWrite(ObjectReference src, Address slot, short value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.shortWrite(src, value, metaDataA, metaDataB, mode);
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+      VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), slot));
     }
-    if (replicationBarrier && SS.inFromSpace(slot)) {
+    if (replicationBarrier && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(SS.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
         VM.barriers.shortWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -607,14 +607,14 @@ public class SSMutator extends StopTheWorldMutator {
   public void wordWrite(ObjectReference src, Address slot, Word value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.wordWrite(src, value, metaDataA, metaDataB, mode);
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+      VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), slot));
     }
-    if (replicationBarrier && SS.inFromSpace(slot)) {
+    if (replicationBarrier && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(SS.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
         VM.barriers.wordWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -638,12 +638,12 @@ public class SSMutator extends StopTheWorldMutator {
       VM.assertions._assert(allocationBarrier);
     }
     // during GC might have a reference to toSpace, avoid certain assertions
-    if (replicationBarrier && SS.inFromSpace(slot)) {
+    if (replicationBarrier && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(SS.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
           // object is already forwarded, update both copies and return
         VM.barriers.wordWrite(forwarded, value, metaDataA, metaDataB, mode);
         }
@@ -664,8 +664,8 @@ public class SSMutator extends StopTheWorldMutator {
   public boolean wordTryCompareAndSwap(ObjectReference src, Address slot, Word old, Word value, Word metaDataA, Word metaDataB,
                                        int mode) {
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(!SS.inToSpace(slot));
-      VM.assertions._assert(!SS.inFromSpace(slot), "Warning attempting wordTryCompareAndSwap on object in Sapphire fromSpace");
+      VM.assertions._assert(!Sapphire.inToSpace(slot));
+      VM.assertions._assert(!Sapphire.inFromSpace(slot), "Warning attempting wordTryCompareAndSwap on object in Sapphire fromSpace");
     }
     return VM.barriers.wordTryCompareAndSwap(src, old, value, metaDataA, metaDataB, mode);
   }
@@ -688,25 +688,24 @@ public class SSMutator extends StopTheWorldMutator {
   Word HASH_STATE_HASHED_AND_MOVED = Word.fromIntZeroExtend(3).lsh(8); // 0x0000300
   Word HASH_STATE_MASK = HASH_STATE_UNHASHED.or(HASH_STATE_HASHED).or(HASH_STATE_HASHED_AND_MOVED);
 
-  public boolean wordTryCompareAndSwapInLock(ObjectReference src, Address slot, Word old, Word value, Word metaDataA,
-                                             Word metaDataB, int mode) {
+  public boolean tryStatusWordCompareAndSwap(ObjectReference src, Word old, Word value) {
     // LPJH: rename this and other methods *statusWord
     // does not need to be replicated (used for locking)
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(!SS.inToSpace(slot));
+      VM.assertions._assert(!Sapphire.inToSpace(src));
     }
-    if (SS.inFromSpace(slot)) { // LPJH: optimise later to depend on replicationBarrier (will also have to change lock+hash code)
+    if (Sapphire.inFromSpace(src)) { // LPJH: optimise later to depend on replicationBarrier (will also have to change lock+hash code)
       // in possibly replicated fromSpace
       // mark object as being forwarded, attempt fromSpace write, if successful and has FP then do forwarded write
       // (preserving hash bits)
       Word debugPrevValue = ForwardingWord.atomicMarkBusy(src);
       if (VM.VERIFY_ASSERTIONS) {
-        VM.assertions._assert(SS.inFromSpace(slot));
+        VM.assertions._assert(Sapphire.inFromSpace(src));
 //        VM.assertions._assert(ForwardingWord.isBusy(src));
       }
       old = old.or(Word.fromIntZeroExtend(ForwardingWord.BUSY));
       value = value.or(Word.fromIntZeroExtend(ForwardingWord.BUSY));
-      if (VM.barriers.wordTryCompareAndSwap(src, old, value, metaDataA, metaDataB, mode)) {
+      if (VM.barriers.statusWordTryCompareAndSwap(src, old, value)) {
         if (VM.VERIFY_ASSERTIONS) {
           VM.assertions._assert(ForwardingWord.isBusy(src));
         }
@@ -714,7 +713,7 @@ public class SSMutator extends StopTheWorldMutator {
         ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
         if (forwarded != null) {
           if (VM.VERIFY_ASSERTIONS) {
-            VM.assertions._assert(SS.inToSpace(forwarded.toAddress()));
+            VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
             VM.assertions._assert(!ForwardingWord.isBusy(forwarded)); // toSpace should not be marked busy
             // check that the hash status is correct in replica before we consider rewriting it
             // (ensure hashcode status updates go via this barrier)
@@ -728,8 +727,10 @@ public class SSMutator extends StopTheWorldMutator {
           }
           // object is already forwarded, update copy with difference between old and value
           Word diff = old.xor(value);
-          Word toSpaceStatusWord = VM.objectModel.readAvailableBitsWord(forwarded);
-          VM.barriers.wordWrite(forwarded, toSpaceStatusWord.xor(diff), metaDataA, metaDataB, mode);
+          Word toSpaceStatusWord;
+          do {
+            toSpaceStatusWord = VM.objectModel.readAvailableBitsWord(forwarded);
+          } while (!VM.barriers.statusWordTryCompareAndSwap(forwarded, toSpaceStatusWord, toSpaceStatusWord.xor(diff)));  // LPJH: optimise this stupid making a CAS when we don't have to
           // LPJH: do we need a StoreLoad fence here?
           if (VM.VERIFY_ASSERTIONS) {
             VM.assertions._assert(!ForwardingWord.isBusy(forwarded));
@@ -756,11 +757,11 @@ public class SSMutator extends StopTheWorldMutator {
       }
     } else {
       if (VM.VERIFY_ASSERTIONS) {
-        VM.assertions._assert(!SS.inToSpace(slot));
-        VM.assertions._assert(!SS.inFromSpace(slot));
+        VM.assertions._assert(!Sapphire.inToSpace(src));
+        VM.assertions._assert(!Sapphire.inFromSpace(src));
       }
       // not in replicated space just CAS as normal
-      return VM.barriers.wordTryCompareAndSwap(src, old, value, metaDataA, metaDataB, mode);
+      return VM.barriers.statusWordTryCompareAndSwap(src, old, value);
     }
   }
 
@@ -777,14 +778,14 @@ public class SSMutator extends StopTheWorldMutator {
   public void addressWrite(ObjectReference src, Address slot, Address value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.addressWrite(src, value, metaDataA, metaDataB, mode);
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+      VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), slot));
     }
-    if (replicationBarrier && SS.inFromSpace(slot)) {
+    if (replicationBarrier && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(SS.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
         VM.barriers.addressWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -803,14 +804,14 @@ public class SSMutator extends StopTheWorldMutator {
   public void extentWrite(ObjectReference src, Address slot, Extent value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.extentWrite(src, value, metaDataA, metaDataB, mode);
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+      VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), slot));
     }
-    if (replicationBarrier && SS.inFromSpace(slot)) {
+    if (replicationBarrier && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(SS.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
         VM.barriers.extentWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -829,14 +830,14 @@ public class SSMutator extends StopTheWorldMutator {
   public void offsetWrite(ObjectReference src, Address slot, Offset value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.offsetWrite(src, value, metaDataA, metaDataB, mode);
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+      VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), slot));
     }
-    if (replicationBarrier && SS.inFromSpace(slot)) {
+    if (replicationBarrier && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(SS.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
         VM.barriers.offsetWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -860,7 +861,7 @@ public class SSMutator extends StopTheWorldMutator {
     ObjectReference obj = VM.barriers.objectReferenceRead(src, metaDataA, metaDataB, mode);
     if (VM.VERIFY_ASSERTIONS) {
       if (!obj.isNull())
-        VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), obj));
+        VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), obj));
     }
     return obj;
   }
@@ -880,17 +881,17 @@ public class SSMutator extends StopTheWorldMutator {
                                    int mode) {
     VM.barriers.objectReferenceWrite(src, value, metaDataA, metaDataB, mode);
     checkAndEnqueueReference(value);
-    if (VM.VERIFY_ASSERTIONS && !SS.gcInProgress()) {
-      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
+    if (VM.VERIFY_ASSERTIONS && !Sapphire.gcInProgress()) {
+      VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), slot));
       if (!value.isNull())
-        VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), value));
+        VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), value));
     }
-    if (replicationBarrier && SS.inFromSpace(slot)) {
+    if (replicationBarrier && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(SS.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
         VM.barriers.objectReferenceWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -929,11 +930,11 @@ public class SSMutator extends StopTheWorldMutator {
   public boolean objectReferenceTryCompareAndSwap(ObjectReference src, Address slot, ObjectReference old, ObjectReference tgt,
                                                   Word metaDataA, Word metaDataB, int mode) {
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), slot));
-      if (SS.inFromSpace(slot))
+      VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), slot));
+      if (Sapphire.inFromSpace(slot))
         VM.assertions.fail("Warning attempting objectTryCompareAndSwap on object in Sapphire fromSpace");
       if (!tgt.isNull())
-        VM.assertions._assert(!Space.isInSpace(SS.toSpace().getDescriptor(), tgt));
+        VM.assertions._assert(!Space.isInSpace(Sapphire.toSpace().getDescriptor(), tgt));
     }
     checkAndEnqueueReference(tgt);
     return VM.barriers.objectReferenceTryCompareAndSwap(src, old, tgt, metaDataA, metaDataB, mode);

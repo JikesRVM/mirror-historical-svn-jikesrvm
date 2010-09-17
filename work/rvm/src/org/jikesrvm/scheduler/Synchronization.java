@@ -104,9 +104,9 @@ public class Synchronization {
    * @return true => successful swap, false => field not equal to testValue
    */
   @Inline
-  public static boolean tryCompareAndSwapInLock(Object base, Offset offset, Word testValue, Word newValue) {
-    if (Barriers.NEEDS_WORD_PUTFIELD_BARRIER || Barriers.NEEDS_WORD_GETFIELD_BARRIER) {
-      return Barriers.wordTryCompareAndSwapInLock(base, offset, testValue, newValue);
+  public static boolean tryStatusWordCompareAndSwap(Object base, Offset offset, Word testValue, Word newValue) {
+    if (Barriers.NEEDS_STATUSWORD_BARRIER) {
+      return Barriers.tryStatusWordCompareAndSwap(base, testValue, newValue);
     } else {
       Word oldValue;
       do {
