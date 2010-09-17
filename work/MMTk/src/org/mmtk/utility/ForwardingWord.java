@@ -91,9 +91,7 @@ public class ForwardingWord {
     Word oldValue;
     do {
       oldValue = VM.objectModel.prepareAvailableBits(object);
-      if ((byte) (oldValue.toInt() & BUSY_MASK) == BUSY)
-        continue;
-    } while (!VM.objectModel.attemptAvailableBits(object, oldValue, oldValue.or(Word.fromIntZeroExtend(BUSY))));
+    } while ((byte) (oldValue.toInt() & BUSY_MASK) == BUSY || !VM.objectModel.attemptAvailableBits(object, oldValue, oldValue.or(Word.fromIntZeroExtend(BUSY))));
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(isBusy(object));
     return oldValue.or(Word.fromIntZeroExtend(BUSY));
   }
