@@ -81,7 +81,7 @@ public class SapphireTraceLocalFirst extends TraceLocal {
     if (Space.isInSpace(Sapphire.fromSpace().getDescriptor(), object)) {
       ObjectReference obj = Sapphire.fromSpace().traceObject(this, object, Sapphire.ALLOC_SS, true);
       if (VM.VERIFY_ASSERTIONS) {
-        VM.assertions._assert(Sapphire.inFromSpace(obj.toAddress()));
+        VM.assertions._assert(Sapphire.inFromSpace(obj));
       }
       return obj;
     }

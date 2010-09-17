@@ -104,6 +104,7 @@ public final class ThinLock implements ThinLockConstants {
         Word id = old.and(TL_THREAD_ID_MASK);
         if (id.isZero()) {
           if (ENABLE_BIASED_LOCKING) {
+            VM.sysFail("Opps shoud not have reached this path - biased locking should be disabled");
             // lock is unbiased, bias it in our favor and grab it
             if (Synchronization.tryStatusWordCompareAndSwap(
                   o, lockOffset,
@@ -417,6 +418,7 @@ public final class ThinLock implements ThinLockConstants {
       return Synchronization.tryStatusWordCompareAndSwap(
         o, lockOffset, oldLockWord, changed);
     } else {
+      VM.sysFail("Opps shouldn't have reached this path"); // LPJH: Sapphire debugging
       return casFromBiased(o, lockOffset, oldLockWord, changed, cnt);
     }
   }

@@ -1030,6 +1030,7 @@ public final class Magic {
   /**
    * Wait for preceeding cache flush/invalidate instructions to
    * complete on all processors.
+   * May have the effect of a StoreLoad barrier (mfence on x86)
    */
   public static void sync() {
     if (VM.runningVM && VM.VerifyAssertions) {
@@ -1040,6 +1041,7 @@ public final class Magic {
   /**
    * Wait for all preceeding instructions to complete and discard any
    * prefetched instructions on this processor.
+   * May have the effect of a LoadStore or LoadLoad barrier (no-op on x86)
    */
   public static void isync() {
     if (VM.runningVM && VM.VerifyAssertions) {

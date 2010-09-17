@@ -225,11 +225,11 @@ public class Sapphire extends StopTheWorld {
   }
 
   public static boolean inFromSpace(ObjectReference obj) {
-    return inFromSpace(obj.toAddress());
+    return inFromSpace(VM.objectModel.refToAddress(obj));
   }
   
   public static boolean inToSpace(ObjectReference obj) {
-    return inToSpace(obj.toAddress());
+    return inToSpace(VM.objectModel.refToAddress(obj));
   }
   
   public static boolean inFromSpace(Address slot) {

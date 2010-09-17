@@ -494,15 +494,15 @@ public class JavaHeader implements JavaHeaderConstants {
   @Inline
   public static int getObjectHashCode(Object o) {
     if (VM.VerifyAssertions) {
-      VM._assert(!Sapphire.inToSpace(ObjectReference.fromObject(o).toAddress()));
+      VM._assert(!Sapphire.inToSpace(ObjectReference.fromObject(o)));
     }
     if (ADDRESS_BASED_HASHING) {
       if (MemoryManagerConstants.MOVES_OBJECTS) {
-        Word forwardedHashState = Magic.getWordAtOffset(o, STATUS_OFFSET).and(HASH_STATE_MASK);
-        if (forwardedHashState.EQ(HASH_STATE_HASHED)) {
+        Word originalHashState = Magic.getWordAtOffset(o, STATUS_OFFSET).and(HASH_STATE_MASK);
+        if (originalHashState.EQ(HASH_STATE_HASHED)) {
           // HASHED, NOT MOVED
           return Magic.objectAsAddress(o).toWord().rshl(SizeConstants.LOG_BYTES_IN_ADDRESS).toInt();
-        } else if (forwardedHashState.EQ(HASH_STATE_HASHED_AND_MOVED)) {
+        } else if (originalHashState.EQ(HASH_STATE_HASHED_AND_MOVED)) {
           // HASHED AND MOVED
           if (DYNAMIC_HASH_OFFSET) {
             // Read the size of this object.
@@ -518,7 +518,7 @@ public class JavaHeader implements JavaHeaderConstants {
           // UNHASHED
           // at least the fromSpace object isn't hashed, maybe a toSpace replica exists, if so we should return the address of that
           // object as it does not have the room to store the hash at a dynamic offset
-          if (!Sapphire.inFromSpace(ObjectReference.fromObject(o).toAddress())) {
+          if (!Sapphire.inFromSpace(ObjectReference.fromObject(o))) {
             // not in fromSpace
             Word tmp;
             do {
@@ -532,29 +532,28 @@ public class JavaHeader implements JavaHeaderConstants {
             // lock object, then check if possible replica
             ObjectReference obj = ObjectReference.fromObject(o);
             if (VM.VerifyAssertions) {
-              VM._assert(Sapphire.inFromSpace(obj.toAddress()));
+              VM._assert(Sapphire.inFromSpace(obj));
             }
             ObjectReference forwarded = ForwardingWord.getReplicatingFP(obj);
             if (forwarded != null) {
               // already forwarded (but forwarded bit might not be set in status word)
               if (VM.VerifyAssertions) {
-                VM._assert(Sapphire.inToSpace(forwarded.toAddress()));
+                VM._assert(Sapphire.inToSpace(forwarded));
               }
-              forwardedHashState = Magic.getWordAtOffset(forwarded, STATUS_OFFSET).and(HASH_STATE_MASK); // reread incase someone else hashed
+              originalHashState = Magic.getWordAtOffset(forwarded, STATUS_OFFSET).and(HASH_STATE_MASK); // reread incase someone else hashed
                                                                                                 // for us
-              if (forwardedHashState.EQ(HASH_STATE_HASHED)) {
+              if (originalHashState.EQ(HASH_STATE_HASHED)) {
                 // someone has hashed toSpace replica for us
                 return Magic.objectAsAddress(forwarded).toWord().rshl(SizeConstants.LOG_BYTES_IN_ADDRESS).toInt();
               }
-              // lock fromSpace replica, set hashed state in toSpace copy
-              ForwardingWord.atomicMarkBusy(obj);
+              // check if toSpace is already hashed before we go to the expense of locking fromSpace replica
               Word toSpaceStatusWord = Magic.getWordAtOffset(forwarded, STATUS_OFFSET);
               if (toSpaceStatusWord.and(HASH_STATE_MASK).EQ(HASH_STATE_HASHED)) {
-                // now that we have the lock we see someone else hashed the object
-                if (VM.VerifyAssertions) VM._assert(ForwardingWord.isBusy(obj));
-                ForwardingWord.markNotBusy(obj);
                 return getObjectHashCode(o);
               }
+              // toSpace was not hashed, mark fromSpace status word busy and then mark toSpace as hashed
+              ForwardingWord.atomicMarkBusy(obj);
+              toSpaceStatusWord = Magic.getWordAtOffset(forwarded, STATUS_OFFSET);
               Magic.setWordAtOffset(forwarded, STATUS_OFFSET, toSpaceStatusWord.or(HASH_STATE_HASHED));
               if (VM.VerifyAssertions) {
                 VM._assert(ForwardingWord.isBusy(obj));

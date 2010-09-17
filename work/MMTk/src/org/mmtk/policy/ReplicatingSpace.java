@@ -110,7 +110,7 @@ public final class ReplicatingSpace extends CopySpace
     ObjectReference forwarded = ForwardingWord.getReplicatingFP(object);
     if (!forwarded.isNull()) {
       if (VM.VERIFY_ASSERTIONS) {
-        VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
+        VM.assertions._assert(Sapphire.inToSpace(forwarded));
         VM.assertions._assert(isLive(object));
       }
       return object;  // return fromSpace reference
@@ -123,7 +123,7 @@ public final class ReplicatingSpace extends CopySpace
       // we are designated copier
       ObjectReference newObject = VM.objectModel.copy(object, allocator); // LPJH: this needs optimising (this is doing the copy)
       if (VM.VERIFY_ASSERTIONS) {
-        if (!Sapphire.inToSpace(newObject.toAddress())) {
+        if (!Sapphire.inToSpace(newObject)) {
           Log.writeln("Copy returned an object with an address not in toSpace:");
           Log.writeln(newObject.toAddress());
           Space.printVMMap();
@@ -134,7 +134,7 @@ public final class ReplicatingSpace extends CopySpace
       if (VM.VERIFY_ASSERTIONS) {
         VM.assertions._assert(ForwardingWord.isBusy(object));
         VM.assertions._assert(!newObject.isNull());
-        VM.assertions._assert(Sapphire.inToSpace(newObject.toAddress()));
+        VM.assertions._assert(Sapphire.inToSpace(newObject));
         VM.assertions._assert(isLive(object));
         if (Options.verbose.getValue() >= 9) {
           Log.write("Trace 1 C[");
@@ -156,7 +156,7 @@ public final class ReplicatingSpace extends CopySpace
       if (VM.VERIFY_ASSERTIONS) {
         VM.assertions._assert(ForwardingWord.isBusy(object));
         VM.assertions._assert(!ForwardingWord.isBusy(forwarded)); // toSpace should not be busy
-        VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
+        VM.assertions._assert(Sapphire.inToSpace(forwarded));
         VM.assertions._assert(isLive(object));
       }
       ForwardingWord.markNotBusy(object);
@@ -184,7 +184,7 @@ public final class ReplicatingSpace extends CopySpace
     /* If the object in question is already in to-space, then do nothing */
     if (!fromSpace) {
       if (VM.VERIFY_ASSERTIONS) {
-        VM.assertions._assert(Sapphire.inToSpace(object.toAddress()));
+        VM.assertions._assert(Sapphire.inToSpace(object));
         VM.assertions._assert(!ForwardingWord.isBusy(object));  // toSpace should not be marked busy
         if (Options.verbose.getValue() >= 9) {
           Log.write("2 Tracing ToSpace... "); Log.writeln(object);
@@ -212,7 +212,7 @@ public final class ReplicatingSpace extends CopySpace
       /* Now extract the object reference from the forwarding word and return it */
       ObjectReference obj =  ForwardingWord.getReplicatingFP(object);
       if (VM.VERIFY_ASSERTIONS) {
-        VM.assertions._assert(Sapphire.inToSpace(obj.toAddress()));
+        VM.assertions._assert(Sapphire.inToSpace(obj));
         VM.assertions._assert(isLive(object));
         VM.assertions._assert(!ForwardingWord.isBusy(object));
       }
@@ -225,7 +225,7 @@ public final class ReplicatingSpace extends CopySpace
       // LPJH: must add copying logic here
       ObjectReference newObject =  ForwardingWord.getReplicatingFP(object);
       if (VM.VERIFY_ASSERTIONS) {
-        VM.assertions._assert(Sapphire.inToSpace(newObject.toAddress()));
+        VM.assertions._assert(Sapphire.inToSpace(newObject));
         VM.assertions._assert(isLive(object));
         VM.assertions._assert(!ForwardingWord.isBusy(object)); // we should have never set BUSY flag
       }

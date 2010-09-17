@@ -236,7 +236,7 @@ public class SapphireMutator extends StopTheWorldMutator {
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded));
         VM.barriers.booleanWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -278,7 +278,7 @@ public class SapphireMutator extends StopTheWorldMutator {
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded));
         VM.barriers.byteWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -320,7 +320,7 @@ public class SapphireMutator extends StopTheWorldMutator {
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded));
         VM.barriers.charWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -362,7 +362,7 @@ public class SapphireMutator extends StopTheWorldMutator {
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded));
         VM.barriers.doubleWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -404,7 +404,7 @@ public class SapphireMutator extends StopTheWorldMutator {
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded));
         VM.barriers.floatWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -446,7 +446,7 @@ public class SapphireMutator extends StopTheWorldMutator {
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded));
         VM.barriers.intWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -509,7 +509,7 @@ public class SapphireMutator extends StopTheWorldMutator {
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded));
         VM.barriers.longWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -572,7 +572,7 @@ public class SapphireMutator extends StopTheWorldMutator {
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded));
         VM.barriers.shortWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -614,7 +614,7 @@ public class SapphireMutator extends StopTheWorldMutator {
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded));
         VM.barriers.wordWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -643,7 +643,7 @@ public class SapphireMutator extends StopTheWorldMutator {
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded));
           // object is already forwarded, update both copies and return
         VM.barriers.wordWrite(forwarded, value, metaDataA, metaDataB, mode);
         }
@@ -664,7 +664,7 @@ public class SapphireMutator extends StopTheWorldMutator {
   public boolean wordTryCompareAndSwap(ObjectReference src, Address slot, Word old, Word value, Word metaDataA, Word metaDataB,
                                        int mode) {
     if (VM.VERIFY_ASSERTIONS) {
-      VM.assertions._assert(!Sapphire.inToSpace(slot));
+      VM.assertions._assert(!Sapphire.inToSpace(slot), "Warning attempting wordTryCompareAndSwap on object in Sapphire toSpace");
       VM.assertions._assert(!Sapphire.inFromSpace(slot), "Warning attempting wordTryCompareAndSwap on object in Sapphire fromSpace");
     }
     return VM.barriers.wordTryCompareAndSwap(src, old, value, metaDataA, metaDataB, mode);
@@ -689,7 +689,6 @@ public class SapphireMutator extends StopTheWorldMutator {
   Word HASH_STATE_MASK = HASH_STATE_UNHASHED.or(HASH_STATE_HASHED).or(HASH_STATE_HASHED_AND_MOVED);
 
   public boolean tryStatusWordCompareAndSwap(ObjectReference src, Word old, Word value) {
-    // LPJH: rename this and other methods *statusWord
     // does not need to be replicated (used for locking)
     if (VM.VERIFY_ASSERTIONS) {
       VM.assertions._assert(!Sapphire.inToSpace(src));
@@ -713,7 +712,7 @@ public class SapphireMutator extends StopTheWorldMutator {
         ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
         if (forwarded != null) {
           if (VM.VERIFY_ASSERTIONS) {
-            VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
+            VM.assertions._assert(Sapphire.inToSpace(forwarded));
             VM.assertions._assert(!ForwardingWord.isBusy(forwarded)); // toSpace should not be marked busy
             // check that the hash status is correct in replica before we consider rewriting it
             // (ensure hashcode status updates go via this barrier)
@@ -721,8 +720,11 @@ public class SapphireMutator extends StopTheWorldMutator {
             Word toStatusHashState = VM.objectModel.readAvailableBitsWord(forwarded).and(HASH_STATE_MASK);
             if (fromStatusHashState.EQ(HASH_STATE_HASHED)) {
               VM.assertions._assert(toStatusHashState.EQ(HASH_STATE_HASHED_AND_MOVED));
+            } else if (fromStatusHashState.EQ(HASH_STATE_HASHED_AND_MOVED)) {
+              VM.assertions._assert(toStatusHashState.EQ(HASH_STATE_HASHED_AND_MOVED));
             } else {
               // toSpace might be marked hashed and fromSpace might not be marked at all
+              // nothing else to assert
             }
           }
           // object is already forwarded, update copy with difference between old and value
@@ -731,21 +733,24 @@ public class SapphireMutator extends StopTheWorldMutator {
           do {
             toSpaceStatusWord = VM.objectModel.readAvailableBitsWord(forwarded);
           } while (!VM.barriers.statusWordTryCompareAndSwap(forwarded, toSpaceStatusWord, toSpaceStatusWord.xor(diff)));  // LPJH: optimise this stupid making a CAS when we don't have to
-          // LPJH: do we need a StoreLoad fence here?
+          // LPJH: do we need a StoreLoad fence here? not whilst the above is atomic
           if (VM.VERIFY_ASSERTIONS) {
             VM.assertions._assert(!ForwardingWord.isBusy(forwarded));
             Word fromStatusHashState = VM.objectModel.readAvailableBitsWord(src).and(HASH_STATE_MASK);
             Word toStatusHashState = VM.objectModel.readAvailableBitsWord(forwarded).and(HASH_STATE_MASK);
             if (fromStatusHashState.EQ(HASH_STATE_HASHED)) {
               VM.assertions._assert(toStatusHashState.EQ(HASH_STATE_HASHED_AND_MOVED));
+            } else if (fromStatusHashState.EQ(HASH_STATE_HASHED_AND_MOVED)) {
+              VM.assertions._assert(toStatusHashState.EQ(HASH_STATE_HASHED_AND_MOVED));
             } else {
               // toSpace might be marked hashed and fromSpace might not be marked at all
+              // nothing else to assert
             }
           }
         }
 //        if (VM.VERIFY_ASSERTIONS)
 //          VM.assertions._assert(ForwardingWord.isBusy(src));
-        ForwardingWord.markNotBusy(src, debugPrevValue);
+        ForwardingWord.markNotBusy(src, value);
         return true;
       } else {
         // failed to update statusWord, unmark busy state
@@ -785,7 +790,7 @@ public class SapphireMutator extends StopTheWorldMutator {
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded));
         VM.barriers.addressWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -811,7 +816,7 @@ public class SapphireMutator extends StopTheWorldMutator {
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded));
         VM.barriers.extentWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -837,7 +842,7 @@ public class SapphireMutator extends StopTheWorldMutator {
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded));
         VM.barriers.offsetWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }
@@ -891,7 +896,7 @@ public class SapphireMutator extends StopTheWorldMutator {
       ObjectReference forwarded = ForwardingWord.getReplicatingFP(src);
       if (forwarded != null) {
         if (VM.VERIFY_ASSERTIONS)
-          VM.assertions._assert(Sapphire.inToSpace(forwarded.toAddress()));
+          VM.assertions._assert(Sapphire.inToSpace(forwarded));
         VM.barriers.objectReferenceWrite(forwarded, value, metaDataA, metaDataB, mode);
       }
     }

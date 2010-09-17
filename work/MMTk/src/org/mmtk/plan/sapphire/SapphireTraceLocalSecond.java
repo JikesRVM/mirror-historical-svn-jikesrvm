@@ -80,14 +80,14 @@ public class SapphireTraceLocalSecond extends TraceLocal {
     if (Space.isInSpace(Sapphire.fromSpace().getDescriptor(), object)) {
       ObjectReference obj = Sapphire.fromSpace().traceObject2(this, object, Sapphire.ALLOC_SS, true);
       if (VM.VERIFY_ASSERTIONS) {
-        VM.assertions._assert(Sapphire.inToSpace(obj.toAddress()));
+        VM.assertions._assert(Sapphire.inToSpace(obj));
       }
       return obj;
     }
     if (Space.isInSpace(Sapphire.toSpace().getDescriptor(), object)) {
       ObjectReference obj = Sapphire.toSpace().traceObject2(this, object, Sapphire.ALLOC_SS, false);
       if (VM.VERIFY_ASSERTIONS) {
-        VM.assertions._assert(Sapphire.inToSpace(obj.toAddress()));
+        VM.assertions._assert(Sapphire.inToSpace(obj));
       }
       return obj;
     }
