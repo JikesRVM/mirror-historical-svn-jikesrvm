@@ -15,7 +15,6 @@ if ! git status | grep "nothing to commit"; then
         exit 1
 fi
 
-cd work
 # Clean config
 ant real-clean
 
