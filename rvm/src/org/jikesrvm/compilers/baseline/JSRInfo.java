@@ -24,7 +24,7 @@ final class JSRInfo implements BaselineConstants {
 
   int numberUnusualMaps;
   UnusualMaps[] unusualMaps;
-  byte[] unusualReferenceMaps;
+  byte[] unusualReferenceMaps; // modified during GC
   int freeMapSlot = 0;
   /** Merged jsr ret and callers maps */
   UnusualMaps extraUnusualMap = new UnusualMaps();
