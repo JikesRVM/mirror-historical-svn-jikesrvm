@@ -13,10 +13,12 @@
 package org.jikesrvm.mm.mmtk;
 
 import org.mmtk.plan.CollectorContext;
+import org.mmtk.plan.MutatorContext;
 import org.mmtk.plan.TraceLocal;
 import org.mmtk.plan.TransitiveClosure;
 import org.mmtk.utility.Constants;
 
+import org.jikesrvm.VM;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.jni.JNIEnvironment;
 import org.jikesrvm.jni.JNIGlobalRefTable;
@@ -37,23 +39,6 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
    */
   /** Counter to track index into thread table for root tracing.  */
   private static final SynchronizedCounter threadCounter = new SynchronizedCounter();
-
-  /** Status flag used to determine if stacks were scanned in this collection increment */
-  private static boolean threadStacksScanned = false;
-
-  /**
-   * Were thread stacks scanned in this collection increment.
-   */
-  public static boolean threadStacksScanned() {
-    return threadStacksScanned;
-  }
-
-  /**
-   * Clear the flag that indicates thread stacks have been scanned.
-   */
-  public static void clearThreadStacksScanned() {
-    threadStacksScanned = false;
-  }
 
   /**
    * Scanning of a object, processing each pointer field encountered.
@@ -195,11 +180,9 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
    *
    * @param trace The trace to use for computing roots.
    */
+  @UninterruptibleNoWarn("Needed for nasty hack at moment that we may block when handshaking with another thread")
   public void computeThreadRoots(TraceLocal trace) {
     boolean processCodeLocations = MemoryManagerConstants.MOVES_CODE;
-
-    /* Set status flag */
-    threadStacksScanned = true;
 
     /* scan all threads */
     while (true) {
@@ -207,10 +190,21 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
       if (threadIndex > RVMThread.numThreads) break;
 
       RVMThread thread = RVMThread.threads[threadIndex];
-      if (thread == null || thread.isCollectorThread()) continue;
+      if (thread == null || thread.isCollectorThread()) {
+        if (true && thread != null)
+          VM.sysWriteln("Ignoring thread ", thread.getThreadSlot(), " because it is a collector thread, thread has pthreadId ",
+              thread.pthread_id);
+        continue;
+      }
 
+      boolean stopThread = !thread.isTimerThread(); // cannot stop the TimerThread
       /* scan the thread (stack etc.) */
+      if (stopThread) thread.beginPairHandshake(); // need to handshake here to stop thread
+      org.mmtk.vm.VM.collection.prepareMutator((MutatorContext) thread); // prepare the thread
       ScanThread.scanThread(thread, trace, processCodeLocations);
+      trace.flush();
+      trace.processRoots();
+      if (stopThread) thread.endPairHandshake(); // release handshake
     }
 
     /* flush out any remset entries generated during the above activities */

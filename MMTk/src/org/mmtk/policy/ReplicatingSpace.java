@@ -65,16 +65,13 @@ public final class ReplicatingSpace extends CopySpace
 
   @Inline
   public ObjectReference traceObject(TransitiveClosure trace, ObjectReference object) {
-    if (Sapphire.currentTrace == 1 || Sapphire.currentTrace == 0) { // LPJH: ==0 only here for debugging (testing insertion and
-                                                                    // allocation barrier outside of GC)
-//      if (ForwardingWord.getReplicaPointer(object).isNull()) trace.processNode(object); // add to list of objects to be copied
-      trace.processNode(object);  // LPJH: trace everythign for the moment!
-      return object;
-    } else {
-      // Should not get here
-      VM.assertions.fail("Should not trace during phase 2 at the moment");
-      return null;
+    if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(Sapphire.currentTrace == 1 || Sapphire.currentTrace == 0); // LPJH: ==0 only here for debugging (testing
+                                                                                       // insertion and allocation barrier outside of GC)
+      VM.assertions._assert(Sapphire.inFromSpace(object));
     }
+    if (ForwardingWord.getReplicaPointer(object).isNull()) trace.processNode(object); // trace obj and give it a replica
+    return object;
   }
 
   public boolean isLive(ObjectReference object) {

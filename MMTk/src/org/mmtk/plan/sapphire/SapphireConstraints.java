@@ -105,4 +105,10 @@ public class SapphireConstraints extends ConcurrentConstraints {
 
   /** @return True if this Plan requires linear scanning. */
   public boolean needsLinearScan() { return true ;}
+  
+  /** @return True if this Plan requires non-heap write barriers on object references. */
+  public boolean needsObjectReferenceNonHeapWriteBarrier() { return true;}
+
+  /** @return True if this Plan requires read barriers on java.lang.reference types. */
+  public boolean needsJavaLangReferenceReadBarrier() { return false; }  // this probably needs changing
 }

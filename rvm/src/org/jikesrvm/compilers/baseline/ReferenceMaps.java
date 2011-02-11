@@ -913,6 +913,7 @@ public final class ReferenceMaps implements BaselineConstants {
    * get Next free word in referencemaps for gc call sites
    */
   @Interruptible
+  @NonMovingAllocation // these maps may be accessed during GC
   private int getNextMapElement() {
     if (jsrInfo.unusualReferenceMaps == null) {
       // start up code

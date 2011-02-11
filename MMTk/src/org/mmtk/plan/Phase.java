@@ -42,7 +42,7 @@ public abstract class Phase implements Constants {
   */
 
   /** The maximum number of phases */
-  private static final int MAX_PHASES = 64;
+  private static final int MAX_PHASES = 128;
   /** The array of phase instances. Zero is unused. */
   private static final Phase[] phases = new Phase[MAX_PHASES];
   /** The id to be allocated for the next phase */
@@ -52,14 +52,16 @@ public abstract class Phase implements Constants {
   protected static final short SCHEDULE_GLOBAL = 1;
   /** Run the phase on collectors. */
   protected static final short SCHEDULE_COLLECTOR = 2;
-  /** Run the phase on mutators. */
-  protected static final short SCHEDULE_MUTATOR = 3;
+  /** Run the phase on mutators in a STW context. */
+  protected static final short SCHEDULE_STW_MUTATOR = 3;
   /** Run this phase concurrently with the mutators */
   protected static final short SCHEDULE_CONCURRENT = 4;
   /** This is a special phase. */
   protected static final short SCHEDULE_SPECIAL = 5;
   /** This is a complex phase. */
   protected static final short SCHEDULE_YIELD = 6;
+  /** This is a phase run on all mutators in a on-the-fly context. */
+  protected static final short SCHEDULE_ONTHEFLY_MUTATOR = 7;
   /** Don't run this phase. */
   protected static final short SCHEDULE_PLACEHOLDER = 100;
   /** This is a complex phase. */
@@ -106,7 +108,8 @@ public abstract class Phase implements Constants {
     switch (ordering) {
       case SCHEDULE_GLOBAL:      return "Global";
       case SCHEDULE_COLLECTOR:   return "Collector";
-      case SCHEDULE_MUTATOR:     return "Mutator";
+    case SCHEDULE_STW_MUTATOR: return "STW Mutator";
+    case SCHEDULE_ONTHEFLY_MUTATOR: return "OnTheFly Mutator";
       case SCHEDULE_CONCURRENT:  return "Concurrent";
       case SCHEDULE_PLACEHOLDER: return "Placeholder";
       case SCHEDULE_COMPLEX:     return "Complex";
@@ -255,15 +258,27 @@ public abstract class Phase implements Constants {
   }
 
   /**
-   * Take the passed phase and return an encoded phase to
-   * run that phase in a mutator context;
-   *
-   * @param phaseId The phase to run on mutators
+   * Take the passed phase and return an encoded phase to run that phase in a STW mutator context;
+   * 
+   * @param phaseId
+   *          The phase to run on mutators
    * @return The encoded phase value.
    */
-  public static int scheduleMutator(short phaseId) {
+  public static int scheduleSTWmutator(short phaseId) {
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(Phase.getPhase(phaseId) instanceof SimplePhase);
-    return (SCHEDULE_MUTATOR << 16) + phaseId;
+    return (SCHEDULE_STW_MUTATOR << 16) + phaseId;
+  }
+
+  /**
+   * Take the passed phase and return an encoded phase to run that phase in a on-the-fly mutator context;
+   * 
+   * @param phaseId
+   *          The phase to run on mutators
+   * @return The encoded phase value.
+   */
+  public static int scheduleOnTheFlyMutator(short phaseId) {
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(Phase.getPhase(phaseId) instanceof SimplePhase);
+    return (SCHEDULE_ONTHEFLY_MUTATOR << 16) + phaseId;
   }
 
   /**
@@ -460,6 +475,9 @@ public abstract class Phase implements Constants {
     if (primary) {
       /* Only allow concurrent collection if we are not collecting due to resource exhaustion */
       allowConcurrentPhase = Plan.isInternalTriggeredCollection() && !Plan.isEmergencyCollection();
+      Log.write("Setting allowConcurrentPhase to "); Log.writeln(allowConcurrentPhase);
+      Log.write("Plan.isInternalTriggeredCollection() returned "); Log.writeln(Plan.isInternalTriggeredCollection());
+      Log.write("Plan.isEmergencyCollection() returned "); Log.writeln(Plan.isEmergencyCollection());
 
       /* First phase will be even, so we say we are odd here so that the next phase set is even*/
       setNextPhase(false, getNextPhase(), false);
@@ -526,17 +544,27 @@ public abstract class Phase implements Constants {
         }
 
         /* Mutator phase */
-        case SCHEDULE_MUTATOR: {
-          if (logDetails) Log.writeln(" as Mutator...");
+      case SCHEDULE_STW_MUTATOR: {
+        if (logDetails) Log.writeln(" as STW Mutator...");
           /* Iterate through all mutator contexts */
           MutatorContext mutator;
           while ((mutator = VM.activePlan.getNextMutator()) != null) {
             if (VM.DEBUG) VM.debugging.mutatorPhase(phaseId,mutator.getId(),true);
+            if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(VM.collection.isBlockedForGC(mutator));
             mutator.collectionPhase(phaseId, primary);
             if (VM.DEBUG) VM.debugging.mutatorPhase(phaseId,mutator.getId(),false);
           }
           break;
         }
+
+        /* Mutator phase */
+      case SCHEDULE_ONTHEFLY_MUTATOR: {
+        if (logDetails) Log.writeln(" as On-The-Fly Mutator...");
+        /* Iterate through all mutator contexts */
+        // LPJH: add support for debugging here
+        VM.collection.requestMutatorOnTheFlyProcessPhase(phaseId);
+        break;
+      }
 
         /* Concurrent phase */
         case SCHEDULE_CONCURRENT: {
@@ -573,7 +601,8 @@ public abstract class Phase implements Constants {
       if (primary) {
         /* Set the next phase by processing the stack */
         int next = getNextPhase();
-        boolean needsResetRendezvous = (next > 0) && (schedule == SCHEDULE_MUTATOR && getSchedule(next) == SCHEDULE_MUTATOR);
+        boolean needsResetRendezvous = (next > 0)
+            && (schedule == SCHEDULE_STW_MUTATOR && getSchedule(next) == SCHEDULE_STW_MUTATOR);
         setNextPhase(isEvenPhase, next, needsResetRendezvous);
       }
 
@@ -581,7 +610,7 @@ public abstract class Phase implements Constants {
       collector.rendezvous();
 
       /* Mutator phase reset */
-      if (primary && schedule == SCHEDULE_MUTATOR) {
+      if (primary && schedule == SCHEDULE_STW_MUTATOR) {
         VM.activePlan.resetMutatorIterator();
       }
 
@@ -654,7 +683,8 @@ public abstract class Phase implements Constants {
 
         case SCHEDULE_GLOBAL:
         case SCHEDULE_COLLECTOR:
-        case SCHEDULE_MUTATOR:
+      case SCHEDULE_STW_MUTATOR:
+      case SCHEDULE_ONTHEFLY_MUTATOR:
         case SCHEDULE_YIELD:
         case SCHEDULE_SPECIAL: {
           /* Simple phases are just popped off the stack and executed */
@@ -670,17 +700,20 @@ public abstract class Phase implements Constants {
             /* Concurrent phases can not have a timer */
             VM.assertions._assert(getPhase(getPhaseId(scheduledPhase)).timer == null);
           }
+          Log.write("Popped a concurrent phase ");
           popScheduledPhase();
           ConcurrentPhase cp = (ConcurrentPhase) getPhase(phaseId);
           concurrentPhaseId = phaseId; // Record the phaseId for when we start running the concurrent collectors
           if (allowConcurrentPhase) {
+            Log.writeln("allowConcurrentPhase = true");
             // Do any preparation for the concurrent phase
             int nextPhase = cp.getContinueConcurrentScheduledPhase();
             if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(getSchedule(nextPhase) != SCHEDULE_CONCURRENT);
             pushScheduledPhase(scheduledPhase); // Push the concurrent phase back on for the next GC request
-            pushScheduledPhase(nextPhase);      // Do the preparatory concurrent phases first
+            pushScheduledPhase(nextPhase); // Do the concurrent phases next
           } else {
-            // Forward to non-current phase
+            Log.writeln("allowConcurrentPhase = false");
+            // Forward to non-current phase, no more concurrent GC will happen this cycle
             int nextPhase = cp.getAtomicScheduledPhase();
             if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(getSchedule(nextPhase) != SCHEDULE_CONCURRENT);
             pushScheduledPhase(nextPhase);
@@ -837,11 +870,13 @@ public abstract class Phase implements Constants {
       Log.writeln(" complete >");
     }
     /* Concurrent phase is complete*/
+    Log.write("*** concurrentPhaseId was "); Log.writeln(getName(concurrentPhaseId));
     concurrentPhaseId = 0;
     /* Remove it from the stack */
     popScheduledPhase();
     /* Pop the next phase off the stack */
     int nextScheduledPhase = getNextPhase();
+    Log.write("*** nextPhase is "); Log.writeln(getName((short) nextScheduledPhase));
 
     if (nextScheduledPhase > 0) {
       short schedule = getSchedule(nextScheduledPhase);
@@ -854,6 +889,7 @@ public abstract class Phase implements Constants {
 
       /* Push phase back on and resume atomic collection */
       pushScheduledPhase(nextScheduledPhase);
+      Log.write("*** just pushed this phase back onto the stack "); Log.writeln(getName((short) nextScheduledPhase));
       Plan.triggerInternalCollectionRequest();
     }
     return false;

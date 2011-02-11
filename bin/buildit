@@ -105,6 +105,18 @@ Testing Options:
 ";
 
 #
+# First check the SCM is clean
+#
+$rvm_revision="unknown";
+if (-d ".svn") {
+    $rvm_revision=`svnversion`;
+} elsif (-d ".git") {
+    die "ERROR: Git repository not uo to date" unless `git status | grep "nothing to commit"`;
+    $rvm_revision=`git show | grep '^commit ' | awk '{print \$2}'`;
+}
+chomp($rvm_revision);
+
+#
 # Load configuration and cache
 #
 $baseConfigFile = $0.".base_config";
@@ -622,9 +634,6 @@ $cp_flags = "";
 if ($cvs_head) {
   $cp_flags .= "-Dclasspath.from-cvs=true ";
 }
-
-$rvm_revision=`svnversion`;
-chomp($rvm_revision);
 
 if ($ok) {
   foreach $g (@gcs) {

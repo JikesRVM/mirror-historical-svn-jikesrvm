@@ -36,7 +36,7 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    *
    * Class variables
    */
-  public static final boolean GC_REQUEST_WILL_BLOCK_MUTATORS = Selected.Constraints.get().gcRequestWillBlockMutator();
+  public static short onTheFlyPhase = 0;
 
   /**
    * Spawn a thread to execute the supplied collector context.
@@ -60,13 +60,75 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
    */
   @Unpreemptible
   public void blockForGC() {
-    if (GC_REQUEST_WILL_BLOCK_MUTATORS) {
-      RVMThread t = RVMThread.getCurrentThread();
-      t.assertAcceptableStates(RVMThread.IN_JAVA, RVMThread.IN_JAVA_TO_BLOCK);
-      RVMThread.observeExecStatusAtSTW(t.getExecStatus());
-      RVMThread.getCurrentThread().block(RVMThread.gcBlockAdapter);
-    }
+    // poll has advised that a GC is required, block the current thread
+    // a concurrent GC may resume this thread later before the GC is actually complete
+    RVMThread t = RVMThread.getCurrentThread();
+    t.assertAcceptableStates(RVMThread.IN_JAVA, RVMThread.IN_JAVA_TO_BLOCK);
+    RVMThread.observeExecStatusAtSTW(t.getExecStatus());
+    VM.sysWriteln("Thread # about to block for GC ", t.threadSlot);
+    RVMThread.getCurrentThread().block(RVMThread.gcBlockAdapter);
+    VM.sysWriteln("Thread # back from blocking for GC ", t.threadSlot);
   }
+
+  public boolean isBlockedForGC(MutatorContext m) {
+    RVMThread t = ((Selected.Mutator) m).getThread();
+    if (RVMThread.gcBlockAdapter.isBlocked(t)) {
+      VM.sysWriteln("STW Mutator phase iterating over mutator thread ", t.threadSlot);
+      return true;
+    }
+    // something hinky going on - probably some sort of system thread
+    if (t.isTimerThread()) {
+      VM.sysWriteln("STW Mutator phase iterating over timer thread ", t.threadSlot);
+      return true;
+    } else if (t.isCollectorThread()) {
+      VM.sysWriteln("STW Mutator phase iterating over collector thread ", t.threadSlot);
+      return true;
+    } else if (RVMThread.notRunning(t.getExecStatus())) {
+      VM.sysWriteln("STW Mutator phase iterating over NEW thread");
+      return true;
+    } else {
+      VM.sysWriteln("STW Mutator phase found a thread of unknown type or in wrong state ", t.threadSlot);
+    }
+    return false;
+  }
+
+
+// @UninterruptibleNoWarn("This method is really unpreemptible, since it involves blocking")
+  // public void onTheFlyMutatorCollectionPhase(short phaseId, boolean primary) {
+  // if (VM.VerifyAssertions)
+  // VM._assert(RVMThread.getCurrentThread().isCollectorThread(), "Designed to be called by a collector thread");
+  // org.mmtk.vm.VM.activePlan.resetMutatorIterator();
+  // RVMThread.acctLock.lockNoHandshake(); // ensure no new threads can be started
+  // MutatorContext mutator;
+  // while ((mutator = org.mmtk.vm.VM.activePlan.getNextMutator()) != null) {
+  // RVMThread t = ((Selected.Mutator) mutator).getThread();
+  // boolean stopThread = true;
+  // if (t.ignoreHandshakesAndGC() || t.isCollectorThread()) {
+  // // Safe to just call the collection phase on the thread
+  // stopThread = false;
+  // if (t.isCollectorThread())
+  // VM.sysWriteln("On-the-fly mutator phase on collector thread ", t.threadSlot);
+  // else
+  // VM.sysWriteln("On-the-fly mutator phase on thread that ignores GC (probably TimerThread) ", t.threadSlot);
+  // }
+  // if (stopThread) {
+  // // block t
+  // VM.sysWriteln("On-the-fly mutator phase blocking a running mutator thread ", t.threadSlot);
+  // t.beginPairHandshake();
+  // }
+  // VM.sysWriteln("Calling collectionPhase on behalf of thread ", t.threadSlot);
+  // mutator.collectionPhase(phaseId, primary);
+  // if (stopThread) {
+  // // resume t
+  // VM.sysWriteln("On-the-fly mutator phase resuming mutator thread ", t.threadSlot);
+  // t.endPairHandshake();
+  // }
+  // }
+  // RVMThread.acctLock.unlock(); // allow new threads to be started
+  // org.mmtk.vm.VM.activePlan.resetMutatorIterator();
+  // }
+  
+  
 
   /***********************************************************************
    *
@@ -103,8 +165,8 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
     if (VM.VerifyAssertions) VM._assert(execStatus != RVMThread.IN_JNI);
     if (VM.VerifyAssertions) VM._assert(execStatus != RVMThread.IN_NATIVE);
     if (execStatus == RVMThread.BLOCKED_IN_JNI) {
-      if (false) {
-        VM.sysWriteln("for thread #",t.getThreadSlot()," setting up JNI stack scan");
+      if (true) {
+        VM.sysWriteln("prepareMutator for thread #", t.getThreadSlot(), " setting up JNI stack scan");
         VM.sysWriteln("thread #",t.getThreadSlot()," has top java fp = ",t.getJNIEnv().topJavaFP());
       }
 
@@ -141,20 +203,87 @@ public class Collection extends org.mmtk.vm.Collection implements org.mmtk.utili
     new RVMThread.SoftHandshakeVisitor() {
       @Uninterruptible
       public boolean checkAndSignal(RVMThread t) {
-        // PNT: maybe we should return false if it's a GC thread?
-        t.flushRequested=true;
+        t.flushRequested = true;
         return true;
       }
       @Uninterruptible
       public void notifyStuckInNative(RVMThread t) {
         t.flush();
-        t.flushRequested=false;
+        t.flushRequested = false;
       }
       @Uninterruptible
       public boolean includeThread(RVMThread t) {
         return !t.isCollectorThread();
       }
     };
+
+  /**
+   * Request each mutator flush remembered sets. This method
+   * will trigger the flush and then yield until all processors have
+   * flushed.
+   */
+  @UninterruptibleNoWarn("This method is really unpreemptible, since it involves blocking")
+  public void requestMutatorUpdateBarriers() {
+    if (VM.VerifyAssertions)
+      VM._assert(RVMThread.getCurrentThread().isCollectorThread(), "Designed to be called by a collector thread");
+    RVMThread.softHandshake(mutatorUpdateBarriersVisitor);
+  }
+  
+  private static RVMThread.SoftHandshakeVisitor mutatorUpdateBarriersVisitor = new RVMThread.SoftHandshakeVisitor() {
+    @Uninterruptible
+    public boolean checkAndSignal(RVMThread t) {
+      if (true) VM.sysWriteln("Requesting async update of mutator thread #", t.threadSlot, " barrier conditions");
+      t.barrierUpdate = true;
+      return true;
+    }
+
+    @Uninterruptible
+    public void notifyStuckInNative(RVMThread t) {
+      if (true) VM.sysWriteln("Performing update of mutator threads barrier conditions on behalf of blocked thread #", t.threadSlot, " with pthreadId ", t.pthread_id);
+      t.insertionBarrier = MutatorContext.globalViewInsertionBarrier;
+      t.mutatorMustDoubleAllocate = MutatorContext.globalViewMutatorMustDoubleAllocate;
+      t.mutatorMustReplicate = MutatorContext.globalViewMutatorMustReplicate;
+      if (true) VM.sysWriteln("Blocked thread #", t.threadSlot, " Insertion barrier is ", t.insertionBarrier ? 1 : 0);
+      if (true) VM.sysWriteln("Blocked thread #", t.threadSlot, " Double alloc barrier is ", t.mutatorMustDoubleAllocate ? 1 : 0);
+      if (true) VM.sysWriteln("Blocked thread #", t.threadSlot, " Replication barrier is ", t.mutatorMustReplicate ? 1 : 0);
+      t.barrierUpdate = false;
+    }
+
+    @Uninterruptible
+    public boolean includeThread(RVMThread t) {
+      return !t.isCollectorThread();
+    }
+  };
+
+  @UninterruptibleNoWarn("This method is really unpreemptible, since it involves blocking")
+  public void requestMutatorOnTheFlyProcessPhase(short phaseId) {
+    if (VM.VerifyAssertions)
+      VM._assert(RVMThread.getCurrentThread().isCollectorThread(), "Designed to be called by a collector thread");
+    onTheFlyPhase = phaseId;
+    RVMThread.softHandshake(mutatorOnTheFlyProcessVisitor);
+    onTheFlyPhase = 0;
+  }
+
+  private static RVMThread.SoftHandshakeVisitor mutatorOnTheFlyProcessVisitor = new RVMThread.SoftHandshakeVisitor() {
+    @Uninterruptible
+    public boolean checkAndSignal(RVMThread t) {
+      if (true) VM.sysWriteln("Requesting async process of on-the-fly mutator phase");
+      t.mutatorProcessPhase = true;
+      return true;
+    }
+
+    @Uninterruptible
+    public void notifyStuckInNative(RVMThread t) {
+      if (true) VM.sysWriteln("Performing process collectionPhase on behalf of blocked thread");
+      t.collectionPhase(onTheFlyPhase, false); // LPJH: probably shouldn't just pass false for primary
+      t.mutatorProcessPhase = false;
+    }
+
+    @Uninterruptible
+    public boolean includeThread(RVMThread t) {
+      return !t.isCollectorThread();
+    }
+  };
 
   /**
    * Request each mutator flush remembered sets. This method

@@ -1,0 +1,103 @@
+<!--
+ ~  This file is part of the Jikes RVM project (http://jikesrvm.org).
+ ~
+ ~  This file is licensed to You under the Eclipse Public License (EPL);
+ ~  You may not use this file except in compliance with the License. You
+ ~  may obtain a copy of the License at
+ ~
+ ~      http://www.opensource.org/licenses/eclipse-1.0.php
+ ~
+ ~  See the COPYRIGHT.txt file distributed with this work for information
+ ~  regarding copyright ownership.
+ -->
+<project name="dacapo" default="test" basedir=".">
+
+  <import file="../../../build/tests.xml"/>
+  <ant antfile="../../../build/components/dacapo.xml" target="ensure" inheritall="false" inheritrefs="false"/>
+  <property file="${components.file}"/>
+
+  <property name="test.class.path" value="${dacapo.jar}"/>
+  <property name="test.hsqldb.extra.args" value="-showfullversion -Xms200M -Xmx200M -X:gc:verbose=8 -X:gc:threads=1 -X:gc:noFinalizer=true -X:gc:noReferenceTypes=true -X:gc:sanityCheck=true"/>
+  <property name="test.time.limit" value="10000"/>
+
+
+  <macrodef name="dacapo">
+    <attribute name="name"/>
+    <attribute name="timeLimit" default=""/>
+    <attribute name="heapsize" default=""/>
+    <attribute name="requires-display" default="false"/>
+    <attribute name="bootclasspath" default=""/>
+    <attribute name="size" default="default"/>
+    <attribute name="invocation" default="1"/>
+    <sequential>
+            <rvm tag="@{name}" class="Harness" requires-display="@{requires-display}" execution="@{invocation}" args="-s @{size} @{name}" timeLimit="@{timeLimit}" maxHeapSize="@{heapsize}" bootclasspath="@{bootclasspath}"/>
+            <!-- <outputSingleStatisticResults execution="@{invocation}" tag="@{name}" key="time" pattern="===== DaCapo @{name} PASSED in (.*) msec ====="/> -->
+    </sequential>
+  </macrodef>
+
+  <!-- **************************************************************************** -->
+  <!-- *                                                                          * -->
+  <!-- *                            Run the tests                                 * -->
+  <!-- *                                                                          * -->
+  <!-- **************************************************************************** -->
+
+  <target name="test" depends="init">
+    <test-file name="dacapo.jar" location="${jikesrvm.dir}/.ant.properties"/>
+
+    <startResults/>
+
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="1"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="2"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="3"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="4"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="5"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="6"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="7"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="8"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="9"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="10"/>
+    <!-- <dacapo name="hsqldb" heapsize="200" size="small" invocation="11"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="12"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="13"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="14"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="15"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="16"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="17"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="18"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="19"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="20"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="21"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="22"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="23"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="24"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="25"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="26"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="27"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="28"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="29"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="30"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="31"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="32"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="33"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="34"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="35"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="36"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="37"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="38"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="39"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="40"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="41"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="42"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="43"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="44"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="45"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="46"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="47"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="48"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="49"/>
+    <dacapo name="hsqldb" heapsize="200" size="small" invocation="50"/> -->
+
+    <finishResults/>
+  </target>
+
+</project>

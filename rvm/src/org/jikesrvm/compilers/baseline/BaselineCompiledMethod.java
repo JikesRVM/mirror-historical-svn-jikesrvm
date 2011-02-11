@@ -30,6 +30,7 @@ import org.jikesrvm.runtime.ExceptionDeliverer;
 import org.jikesrvm.runtime.StackBrowser;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Unpreemptible;
+import org.vmmagic.unboxed.ObjectReference;
 import org.vmmagic.unboxed.Offset;
 
 /**
@@ -157,6 +158,7 @@ public final class BaselineCompiledMethod extends CompiledMethod implements Base
     this.localFloatLocations = VM.BuildForIA32 ? null : new short[nm.getLocalWords()];
     this.lastFixedStackRegister = -1;
     this.lastFloatStackRegister = -1;
+    // if (VM.fullyBooted) VM.sysWriteln("Allocated BaselineCompiledMethod at ", ObjectReference.fromObject(this));
   }
 
   /** Compile method */

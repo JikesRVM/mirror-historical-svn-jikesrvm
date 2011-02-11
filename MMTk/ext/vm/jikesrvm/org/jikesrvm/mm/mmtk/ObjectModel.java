@@ -103,6 +103,10 @@ import org.vmmagic.pragma.*;
     return MemoryManager.validRef(obj);
   }
 
+  public boolean interestingRef(ObjectReference obj) {
+    return MemoryManager.interestingRef(obj);
+  }
+
   public ObjectReference fillInBlankDoubleRelica(ObjectReference from, Address toSpace, int bytes) {
     if (VM.VERIFY_ASSERTIONS) {
       VM.assertions._assert(Sapphire.inFromSpace(from));
@@ -564,8 +568,8 @@ import org.vmmagic.pragma.*;
   }
 
   @Override
-  public void checkFromSpaceReplicatedObject(ObjectReference fromSpace, ObjectReference toSpace) {
-    org.jikesrvm.objectmodel.ObjectModel.checkFromSpaceReplicatedObject(fromSpace, toSpace);
+  public void checkFromSpaceReplicatedObject(ObjectReference fromSpace, ObjectReference toSpace, boolean shouldBeFilledIn) {
+    org.jikesrvm.objectmodel.ObjectModel.checkFromSpaceReplicatedObject(fromSpace, toSpace, shouldBeFilledIn);
   }
 
   @Override

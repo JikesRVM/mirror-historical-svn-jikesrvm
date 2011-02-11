@@ -92,7 +92,7 @@ import org.jikesrvm.ArchitectureSpecific.Registers;
    * MULTIPLE GC THREADS WILL PRODUCE SCRAMBLED OUTPUT so only
    * use these when running with PROCESSORS=1
    */
-  private static final int DEFAULT_VERBOSITY = 0 /*0*/;
+  private static final int DEFAULT_VERBOSITY = 0 /* 0 */;
   private static final int FAILURE_VERBOSITY = 4;
 
   /***********************************************************************
@@ -128,7 +128,7 @@ import org.jikesrvm.ArchitectureSpecific.Registers;
   public static void scanThread(RVMThread thread, TraceLocal trace,
                                 boolean processCodeLocations) {
     if (DEFAULT_VERBOSITY>=1) {
-      VM.sysWriteln("scanning ",thread.getThreadSlot());
+      VM.sysWriteln("scanning ", thread.getThreadSlot(), " with pthreadId ", thread.pthread_id);
     }
 
     /* get the gprs associated with this thread */
@@ -170,6 +170,8 @@ import org.jikesrvm.ArchitectureSpecific.Registers;
                                  Address gprs, Address topFrame) {
     // figure out if the thread should be scanned at all; if not, exit
     if (thread.getExecStatus()==RVMThread.NEW || thread.getIsAboutToTerminate()) {
+      VM.sysWriteln("scanning thread in either new or terminated state therefore ignoring #", thread.getThreadSlot(),
+            " with pthreadID ", thread.pthread_id);
       return;
     }
     /* establish ip and fp for the stack to be scanned */
@@ -244,7 +246,7 @@ import org.jikesrvm.ArchitectureSpecific.Registers;
    * performing the scan.
    */
   private void scanThreadInternal(Address gprs, int verbosity) {
-    if (false) {
+    if (true) {
       VM.sysWriteln("Scanning thread ",thread.getThreadSlot()," from thread ",RVMThread.getCurrentThreadSlot());
     }
     if (verbosity >= 2) {
@@ -264,18 +266,21 @@ import org.jikesrvm.ArchitectureSpecific.Registers;
 
     /* scan each frame if a non-empty stack */
     if (fp.NE(ArchitectureSpecific.StackframeLayoutConstants.STACKFRAME_SENTINEL_FP)) {
+      if (true) VM.sysWriteln("There is something on the stack for thread #", thread.getThreadSlot());
       prevFp = Address.zero();
       /* At start of loop:
          fp -> frame for method invocation being processed
          ip -> instruction pointer in the method (normally a call site) */
       while (Magic.getCallerFramePointer(fp).NE(ArchitectureSpecific.StackframeLayoutConstants.STACKFRAME_SENTINEL_FP)) {
-        if (false) {
+        if (DEFAULT_VERBOSITY > 1) {
           VM.sysWriteln("Thread ",RVMThread.getCurrentThreadSlot()," at fp = ",fp);
         }
         prevFp = scanFrame(verbosity);
         ip = Magic.getReturnAddress(fp);
         fp = Magic.getCallerFramePointer(fp);
       }
+    } else {
+      if (true) VM.sysWriteln("No FP for stack of thread #", thread.getThreadSlot());
     }
 
     /* If a thread started via createVM or attachVM, base may need scaning */

@@ -108,13 +108,13 @@ import org.vmmagic.pragma.*;
   }
 
   @Inline
-  public final boolean isEmpty() {
+  public final boolean isEmpty() { // LPJH: would be better named "isGlobalyEmpty" or similar
     return !checkDequeue(1);
   }
 
   @Inline
-  public final boolean isNonEmpty() {
+  public final boolean isNonEmpty() { // LPJH: would be better named "isGlobalyNonEmpty" or similar, actually not called from
+                                      // anywhere
     return checkDequeue(1);
   }
-
 }

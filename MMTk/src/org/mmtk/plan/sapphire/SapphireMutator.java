@@ -81,12 +81,13 @@ public class SapphireMutator extends ConcurrentMutator {
    */
   @Inline
   public Address alloc(int bytes, int align, int offset, int allocator, int site) {
-    if (allocator == Sapphire.ALLOC_REPLICATING) {
-      Address addy = fromSpaceLocal.alloc(bytes, align, offset);
-      // Log.write("Alloc "); Log.writeln(addy.plus(16)); // hard coded nasty hack
-      return addy;
-    } else
-      return super.alloc(bytes, align, offset, allocator, site);
+    Address addy;
+    if (allocator == Sapphire.ALLOC_REPLICATING)
+      addy = fromSpaceLocal.alloc(bytes, align, offset);
+    else
+      addy = super.alloc(bytes, align, offset, allocator, site);
+    // Log.write("Alloc ", addy.plus(16)); Log.writeln(" by thread ", getId()); // hard coded nasty hack
+    return addy;
   }
 
   /**
@@ -98,7 +99,7 @@ public class SapphireMutator extends ConcurrentMutator {
    * @param bytes The size of the space to be allocated (in bytes)
    * @param allocator The allocator number to be used for this allocation
    */
-  @Inline
+  // @Inline
   public void postAlloc(ObjectReference object, ObjectReference typeRef, int bytes, int allocator, int align, int offset) {
     if (allocator == Sapphire.ALLOC_REPLICATING) {
       if (mutatorMustDoubleAllocate) {
@@ -110,8 +111,21 @@ public class SapphireMutator extends ConcurrentMutator {
         VM.objectModel.writeReplicaPointer(object, newObject); // avoid a load of assertions
         // Log.write("Finished double allocing for "); Log.writeln(object);
       }
-    } else
+    } else {
       super.postAlloc(object, typeRef, bytes, allocator);
+      checkAndEnqueueReference(object);
+    }
+    if (VM.VERIFY_ASSERTIONS) {
+      if (VM.objectModel.interestingRef(object)) {
+        Log.write("Post alloc of interestingReference by thread #", getId()); Log.write(" object is "); Log.writeln(object);
+        Log.write("MutatorContext.globalViewMutatorMustDoubleAllocate is "); Log.writeln(MutatorContext.globalViewMutatorMustDoubleAllocate ? 1 :0);
+        Log.write("MutatorContext.globalViewMutatorInsertionBarrier is "); Log.writeln(MutatorContext.globalViewInsertionBarrier ? 1 :0);
+        Log.write("MutatorContext.globalViewMutatorMustReplicate is "); Log.writeln(MutatorContext.globalViewMutatorMustReplicate ? 1 :0);
+        Log.writeln("Insertion barrier is ", insertionBarrier ? 1 : 0);
+        Log.writeln("Double alloc barrier is ", mutatorMustDoubleAllocate ? 1 : 0);
+        Log.writeln("Replication barrier is ", mutatorMustReplicate ? 1 : 0);
+      }
+    }
   }
 
   /**
@@ -144,40 +158,61 @@ public class SapphireMutator extends ConcurrentMutator {
   public void collectionPhase(short phaseId, boolean primary) {
     if (phaseId == Sapphire.PREPARE) {
       super.collectionPhase(phaseId, primary);
-      if (Sapphire.currentTrace == 0) {
-        Sapphire.currentTrace = 1;
-        globalViewInsertionBarrier = true;
-        globalViewMutatorMustDoubleAllocate = true; // turn on so we don't trip the insertion barrier so often
-        globalViewMutatorMustReplicate = false;
-      }
       if (Sapphire.currentTrace == 1) {
         // first trace
-        mutatorMustDoubleAllocate = globalViewMutatorMustDoubleAllocate;
-        insertionBarrier = globalViewInsertionBarrier;
-        mutatorMustReplicate = globalViewMutatorMustReplicate;
-        flushRememberedSets();
-        // Log.writeln("*** Mutator about to preGC FromSpace mutator fromSpace");
-        fromSpaceLocal.linearScan(Sapphire.preGCFromSpaceSanity); // fromSpace needs to be sanity checked by the mutator
-        // Log.writeln("*** Mutator finished preGC FromSpace mutator fromSpace");
-        Sapphire.deadBumpPointersLock.acquire();
-        Sapphire.deadToSpaceBumpPointers.tackOn(toSpaceLocal); // toSpace replicas are alive and can be scanned by the collector
-        Sapphire.deadBumpPointersLock.release();
       } else if (Sapphire.currentTrace == 2) {
         assertRemsetsFlushed();
+      } else {
+        VM.assertions.fail("Unknown Sapphire.currentTrace value");
       }
+      return;
+    }
+    
+    if (phaseId == Sapphire.PRE_TRACE_LINEAR_SCAN) {
+      if (Sapphire.currentTrace == 0) { // run *before* 1st trace
+        Log.writeln("Mutator # running preFirstPhaseFromSpaceLinearSanityScan and preFirstPhaseToSpaceLinearSanityScan ", getId());
+        fromSpaceLocal.linearScan(Sapphire.preFirstPhaseFromSpaceLinearSanityScan);
+        toSpaceLocal.linearScan(Sapphire.preFirstPhaseToSpaceLinearSanityScan);
+        return;
+      }
+      if (Sapphire.currentTrace == 2) { // run *after* we switch to 2nd trace but *before* we actually do anything
+        Log.writeln("Mutator # running preSecondPhaseFromSpaceLinearSanityScan and preSecondPhaseToSpaceLinearSanityScan ", getId());
+        fromSpaceLocal.linearScan(Sapphire.preSecondPhaseFromSpaceLinearSanityScan);
+        toSpaceLocal.linearScan(Sapphire.preSecondPhaseToSpaceLinearSanityScan);
+        return;
+      }
+    }
+
+    if (phaseId == Sapphire.POST_TRACE_LINEAR_SCAN) {
+      if (Sapphire.currentTrace == 1) {
+        Log.writeln("Mutator # running postFirstPhaseFromSpaceLinearSanityScan and postFirstPhaseToSpaceLinearSanityScan ", getId());
+        fromSpaceLocal.linearScan(Sapphire.postFirstPhaseFromSpaceLinearSanityScan);
+        toSpaceLocal.linearScan(Sapphire.postFirstPhaseToSpaceLinearSanityScan);
+        return;
+      }
+      if (Sapphire.currentTrace == 2) {
+        Log.writeln("Mutator # running postSecondPhaseFromSpaceLinearSanityScan and postSecondPhaseToSpaceLinearSanityScan ", getId());
+        fromSpaceLocal.linearScan(Sapphire.postSecondPhaseFromSpaceLinearSanityScan);
+        toSpaceLocal.linearScan(Sapphire.postSecondPhaseToSpaceLinearSanityScan);
+        return;
+      }
+    }
+
+    if (phaseId == Simple.PREPARE_STACKS) {
+      if (true) Log.writeln("Deferring preparing stack until we want to scan thread");
+      // flushRememberedSets(); // shouldn't need to do this here
       return;
     }
 
     if (phaseId == Sapphire.RELEASE) {
       super.collectionPhase(phaseId, primary);
       if (Sapphire.currentTrace == 1) {
-        // first trace complete turn on replication barrier and disable insertion barrier
-        globalViewMutatorMustReplicate = true;
-        globalViewMutatorMustDoubleAllocate = true;
-        globalViewInsertionBarrier = false; // LPJH: ius this why 2nd trace is finding unmarked objects?
-        mutatorMustDoubleAllocate = globalViewMutatorMustDoubleAllocate;
-        insertionBarrier = globalViewInsertionBarrier;
-        mutatorMustReplicate = globalViewMutatorMustReplicate;
+        // first trace complete turn on replication barrier and disable insertion barrier - the code below is only safe in a STW
+        // fashion
+        mutatorMustReplicate = globalViewMutatorMustReplicate = true;
+        mutatorMustDoubleAllocate = globalViewMutatorMustDoubleAllocate = true;
+        insertionBarrier = globalViewInsertionBarrier = false;
+        assertRemsetsFlushed();
       } else if (Sapphire.currentTrace == 2) {
         // second trace
         // rebind the allocation bump pointer to the appropriate semispace.
@@ -190,16 +225,11 @@ public class SapphireMutator extends ConcurrentMutator {
 
     if (phaseId == Sapphire.COMPLETE) {
       super.collectionPhase(phaseId, primary);
-      // end of the second trace
-      globalViewMutatorMustDoubleAllocate = false;
-      globalViewInsertionBarrier = false;
-      globalViewMutatorMustReplicate = false;
-      mutatorMustDoubleAllocate = globalViewMutatorMustDoubleAllocate;
-      insertionBarrier = globalViewInsertionBarrier;
-      mutatorMustReplicate = globalViewMutatorMustReplicate;
-      // Log.writeln("*** Mutator about to postGC FromSpace mutator fromSpace");
-      fromSpaceLocal.linearScan(Sapphire.postGCFromSpaceSanity);
-      // Log.writeln("*** Mutator finished postGC FromSpace mutator fromSpace");
+      // end of the second trace - the code below is only safe in a STW fashion
+      mutatorMustReplicate = globalViewMutatorMustReplicate = false;
+      mutatorMustDoubleAllocate = globalViewMutatorMustDoubleAllocate = false;
+      insertionBarrier = globalViewInsertionBarrier = false;
+      assertRemsetsFlushed();
       return;
     }
 
@@ -225,7 +255,8 @@ public class SapphireMutator extends ConcurrentMutator {
   /**
    * The mutator is about to be cleaned up, make sure all local data is returned.
    */
-  public void deinitMutator() {
+  public void deinitMutator() { // LPJH: the deadBumpPointer stuff may not be safe for non STW - what happens if the notion of
+                                // from/to-space changes whilst we want to tack on
     Sapphire.deadBumpPointersLock.acquire();
     Sapphire.deadFromSpaceBumpPointers.tackOn(fromSpaceLocal); // thread is dying, ensure everything it allocated is still scanable
     Sapphire.deadToSpaceBumpPointers.tackOn(toSpaceLocal); // thread is dying, ensure everything it allocated is still scanable
@@ -246,8 +277,7 @@ public class SapphireMutator extends ConcurrentMutator {
    */
   public void booleanWrite(ObjectReference src, Address slot, boolean value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.booleanWrite(src, value, metaDataA, metaDataB, mode);
-    if (VM.VERIFY_ASSERTIONS)
-      VM.assertions._assert(!Sapphire.inToSpace(slot));
+    writeBarrierAssertions(slot, src);
     if (mutatorMustReplicate && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicaPointer(src);
@@ -287,8 +317,7 @@ public class SapphireMutator extends ConcurrentMutator {
    */
   public void byteWrite(ObjectReference src, Address slot, byte value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.byteWrite(src, value, metaDataA, metaDataB, mode);
-    if (VM.VERIFY_ASSERTIONS)
-      VM.assertions._assert(!Sapphire.inToSpace(slot));
+    writeBarrierAssertions(slot, src);
     if (mutatorMustReplicate && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicaPointer(src);
@@ -328,8 +357,7 @@ public class SapphireMutator extends ConcurrentMutator {
    */
   public void charWrite(ObjectReference src, Address slot, char value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.charWrite(src, value, metaDataA, metaDataB, mode);
-    if (VM.VERIFY_ASSERTIONS)
-      VM.assertions._assert(!Sapphire.inToSpace(slot));
+    writeBarrierAssertions(slot, src);
     if (mutatorMustReplicate && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicaPointer(src);
@@ -369,8 +397,7 @@ public class SapphireMutator extends ConcurrentMutator {
    */
   public void doubleWrite(ObjectReference src, Address slot, double value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.doubleWrite(src, value, metaDataA, metaDataB, mode);
-    if (VM.VERIFY_ASSERTIONS)
-      VM.assertions._assert(!Sapphire.inToSpace(slot));
+    writeBarrierAssertions(slot, src);
     if (mutatorMustReplicate && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicaPointer(src);
@@ -410,8 +437,7 @@ public class SapphireMutator extends ConcurrentMutator {
    */
   public void floatWrite(ObjectReference src, Address slot, float value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.floatWrite(src, value, metaDataA, metaDataB, mode);
-    if (VM.VERIFY_ASSERTIONS)
-      VM.assertions._assert(!Sapphire.inToSpace(slot));
+    writeBarrierAssertions(slot, src);
     if (mutatorMustReplicate && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicaPointer(src);
@@ -451,8 +477,7 @@ public class SapphireMutator extends ConcurrentMutator {
    */
   public void intWrite(ObjectReference src, Address slot, int value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.intWrite(src, value, metaDataA, metaDataB, mode);
-    if (VM.VERIFY_ASSERTIONS)
-      VM.assertions._assert(!Sapphire.inToSpace(slot));
+    writeBarrierAssertions(slot, src);
     if (mutatorMustReplicate && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicaPointer(src);
@@ -513,8 +538,7 @@ public class SapphireMutator extends ConcurrentMutator {
    */
   public void longWrite(ObjectReference src, Address slot, long value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.longWrite(src, value, metaDataA, metaDataB, mode);
-    if (VM.VERIFY_ASSERTIONS)
-      VM.assertions._assert(!Sapphire.inToSpace(slot));
+    writeBarrierAssertions(slot, src);
     if (mutatorMustReplicate && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicaPointer(src);
@@ -575,8 +599,7 @@ public class SapphireMutator extends ConcurrentMutator {
    */
   public void shortWrite(ObjectReference src, Address slot, short value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.shortWrite(src, value, metaDataA, metaDataB, mode);
-    if (VM.VERIFY_ASSERTIONS)
-      VM.assertions._assert(!Sapphire.inToSpace(slot));
+    writeBarrierAssertions(slot, src);
     if (mutatorMustReplicate && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicaPointer(src);
@@ -616,8 +639,7 @@ public class SapphireMutator extends ConcurrentMutator {
    */
   public void wordWrite(ObjectReference src, Address slot, Word value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.wordWrite(src, value, metaDataA, metaDataB, mode);
-    if (VM.VERIFY_ASSERTIONS)
-      VM.assertions._assert(!Sapphire.inToSpace(slot));
+    writeBarrierAssertions(slot, src);
     if (mutatorMustReplicate && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicaPointer(src);
@@ -630,17 +652,17 @@ public class SapphireMutator extends ConcurrentMutator {
   }
 
   /**
-   * Write a Word during GC into toSpace. Take appropriate write barrier actions.
+   * Write a Address during GC into toSpace. Take appropriate write barrier actions.
    * <p>
    * @param src The object into which the new reference will be stored
    * @param slot The address into which the new reference will be stored.
-   * @param value The value of the new Word
+   * @param value The value of the new Address
    * @param metaDataA A value that assists the host VM in creating a store
    * @param metaDataB A value that assists the host VM in creating a store
    * @param mode The context in which the store occurred
    */
-  public void wordWriteDuringGC(ObjectReference src, Address slot, Word value, Word metaDataA, Word metaDataB, int mode) {
-    VM.barriers.wordWrite(src, value, metaDataA, metaDataB, mode);
+  public void addressWriteDuringGC(ObjectReference src, Address slot, Address value, Word metaDataA, Word metaDataB, int mode) {
+    VM.barriers.addressWrite(src, value, metaDataA, metaDataB, mode);
     if (VM.VERIFY_ASSERTIONS) {
       VM.assertions._assert(mutatorMustDoubleAllocate);
     }
@@ -652,7 +674,7 @@ public class SapphireMutator extends ConcurrentMutator {
         if (VM.VERIFY_ASSERTIONS)
           VM.assertions._assert(Sapphire.inToSpace(forwarded));
           // object is already forwarded, update both copies and return
-        VM.barriers.wordWrite(forwarded, value, metaDataA, metaDataB, mode);
+        VM.barriers.addressWrite(forwarded, value, metaDataA, metaDataB, mode);
         }
     }
   }
@@ -785,8 +807,7 @@ public class SapphireMutator extends ConcurrentMutator {
    */
   public void addressWrite(ObjectReference src, Address slot, Address value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.addressWrite(src, value, metaDataA, metaDataB, mode);
-    if (VM.VERIFY_ASSERTIONS)
-      VM.assertions._assert(!Sapphire.inToSpace(slot));
+    writeBarrierAssertions(slot, src);
     if (mutatorMustReplicate && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicaPointer(src);
@@ -810,8 +831,7 @@ public class SapphireMutator extends ConcurrentMutator {
    */
   public void extentWrite(ObjectReference src, Address slot, Extent value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.extentWrite(src, value, metaDataA, metaDataB, mode);
-    if (VM.VERIFY_ASSERTIONS)
-      VM.assertions._assert(!Sapphire.inToSpace(slot));
+    writeBarrierAssertions(slot, src);
     if (mutatorMustReplicate && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicaPointer(src);
@@ -835,8 +855,7 @@ public class SapphireMutator extends ConcurrentMutator {
    */
   public void offsetWrite(ObjectReference src, Address slot, Offset value, Word metaDataA, Word metaDataB, int mode) {
     VM.barriers.offsetWrite(src, value, metaDataA, metaDataB, mode);
-    if (VM.VERIFY_ASSERTIONS)
-      VM.assertions._assert(!Sapphire.inToSpace(slot));
+    writeBarrierAssertions(slot, src);
     if (mutatorMustReplicate && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicaPointer(src);
@@ -891,6 +910,7 @@ public class SapphireMutator extends ConcurrentMutator {
       if (!value.isNull())
         VM.assertions._assert(!Sapphire.inToSpace(value));
     }
+    writeBarrierAssertions(slot, src);
     if (mutatorMustReplicate && Sapphire.inFromSpace(slot)) {
       // writing to an object in Sapphire fromSpace - it might be replicated
       ObjectReference forwarded = ForwardingWord.getReplicaPointer(src);
@@ -971,7 +991,7 @@ public class SapphireMutator extends ConcurrentMutator {
    *
    * @param ref The reference to check.
    */
-  protected void checkAndEnqueueReference(ObjectReference ref) {
+  public void checkAndEnqueueReference(ObjectReference ref) {
     if (insertionBarrier && !ref.isNull()) {
       if (Sapphire.inFromSpace(ref)) Sapphire.fromSpace().traceObject(mutatorLocalTraceWriteBuffer, ref);
       else if (Space.isInSpace(Sapphire.IMMORTAL, ref)) Sapphire.immortalSpace.traceObject(mutatorLocalTraceWriteBuffer, ref);
@@ -996,5 +1016,85 @@ public class SapphireMutator extends ConcurrentMutator {
         }
       }
     }
+
+    // if (VM.VERIFY_ASSERTIONS && !ref.isNull()) {
+    // if (VM.objectModel.interestingRef(ref)) {
+    // Log.write("checkAndEnqeueReference called with interesting reference for thread #", getId());
+    // Log.write(" reference is "); Log.write(ref); Log.writeln(" and thread insertion barrier is ", insertionBarrier ? 1 : 0);
+    // }
+    // }
+  }
+
+  /**
+   * A new reference is about to be created in a location that is not
+   * a regular heap object.  Take appropriate write barrier actions.<p>
+   *
+   * In this case, we remember the address of the source of the
+   * pointer if the new reference points into the nursery from
+   * non-nursery space.
+   *
+   * @param slot The address into which the new reference will be stored.
+   * @param tgt The target of the new reference
+   * @param metaDataA A value that assists the host VM in creating a store
+   * @param metaDataB A value that assists the host VM in creating a store
+   */
+  @Inline
+  public final void objectReferenceNonHeapWrite(Address slot, ObjectReference tgt, Word metaDataA, Word metaDataB) {
+    checkAndEnqueueReference(tgt);
+    VM.barriers.objectReferenceNonHeapWrite(slot, tgt, metaDataA, metaDataB);
+  }
+
+  private void writeBarrierAssertions(Address slot, ObjectReference src) {
+    if (VM.VERIFY_ASSERTIONS) {
+      if (Sapphire.inToSpace(slot)) writeBarrierAssertionFailure(slot, src); // not allowed to see toSpace references
+      if (Sapphire.inFromSpace(slot)) {
+        // writing to fromSpace
+        if (!ForwardingWord.getReplicaPointer(src).isNull()) {
+          // fromSpace has a FP
+          if (Sapphire.currentTrace == 0)
+            writeBarrierAssertionFailure(slot, src); // must be in 1st or 2nd trace to have FP
+          else if (Sapphire.currentTrace == 1) {
+            // during 1st trace
+            if (!insertionBarrier) writeBarrierAssertionFailure(slot, src); // everyone must have the insertion barrier before we start double allocating
+            if (!MutatorContext.globalViewInsertionBarrier) writeBarrierAssertionFailure(slot, src); // global insertion barrier flag must be set for double allocation
+            if (!MutatorContext.globalViewMutatorMustDoubleAllocate) writeBarrierAssertionFailure(slot, src); // only double alloc after global flag set
+          } else {
+            // should be in 2nd trace
+            if (Sapphire.currentTrace != 2) writeBarrierAssertionFailure(slot, src); // unknown trace
+            if (!mutatorMustDoubleAllocate) writeBarrierAssertionFailure(slot, src); // during 2nd trace we must still double allocate
+            if (!MutatorContext.globalViewMutatorMustDoubleAllocate) writeBarrierAssertionFailure(slot, src); // check double alloc global flag set still set
+            if (insertionBarrier) writeBarrierAssertionFailure(slot, src);  // 2nd trace does not need insertion barrier
+            if (MutatorContext.globalViewInsertionBarrier) writeBarrierAssertionFailure(slot, src); // global insertion barrier flag should not be set
+          }
+        }
+      }
+    }
+  }
+
+  private void writeBarrierAssertionFailure(Address slot, ObjectReference src) {
+    Log.write("Thread #", getId()); Log.write(" writing to slot ", slot); Log.write(" of object "); Log.write(src);
+    Log.write(" which has a FP value of "); Log.writeln(ForwardingWord.getReplicaPointer(src));
+    Log.write("MutatorContext.globalViewMutatorMustDoubleAllocate is "); Log.writeln(MutatorContext.globalViewMutatorMustDoubleAllocate ? 1 :0);
+    Log.write("MutatorContext.globalViewMutatorInsertionBarrier is "); Log.writeln(MutatorContext.globalViewInsertionBarrier ? 1 :0);
+    Log.write("MutatorContext.globalViewMutatorMustReplicate is "); Log.writeln(MutatorContext.globalViewMutatorMustReplicate ? 1 :0);
+    Log.writeln("Insertion barrier is ", insertionBarrier ? 1 : 0);
+    Log.writeln("Double alloc barrier is ", mutatorMustDoubleAllocate ? 1 : 0);
+    Log.writeln("Replication barrier is ", mutatorMustReplicate ? 1 : 0);
+    VM.assertions.fail("writeBarrierAssertionFailure - look at call site for cause");
+  }
+
+  /**
+   * Read a reference type. In a concurrent collector this may
+   * involve adding the referent to the marking queue.
+   *
+   * @param ref The referent being read.
+   * @return The new referent.
+   */
+  @Inline
+  @Override
+  public ObjectReference javaLangReferenceReadBarrier(ObjectReference ref) {
+    // don't need this because we are running an insertion barrier not a deletion barrier
+    if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(false);
+    return ObjectReference.nullReference();
   }
 }

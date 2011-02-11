@@ -14,6 +14,7 @@ package org.jikesrvm.scheduler;
 
 import org.jikesrvm.VM;
 import static org.jikesrvm.runtime.SysCall.sysCall;
+
 import org.vmmagic.pragma.NonMoving;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.UninterruptibleNoWarn;
@@ -48,7 +49,7 @@ public class TimerThread extends SystemThread {
       for (;;) {
         sysCall.sysNanoSleep(1000L*1000L*(long)VM.interruptQuantum);
 
-        if (VM.BuildForAdaptiveSystem) {
+        if (VM.BuildForAdaptiveSystem) { // LPJH: is this also dangerous for Sapphire
           // grab the lock to prevent threads from getting GC'd while we are
           // iterating (since this thread doesn't stop for GC)
           RVMThread.acctLock.lockNoHandshake();
@@ -63,7 +64,8 @@ public class TimerThread extends SystemThread {
           RVMThread.acctLock.unlock();
         }
 
-        RVMThread.checkDebugRequest();
+        RVMThread.checkDebugRequest(); // LPJH: warning this is even more dangerous with Sapphire and the need for mutators to have
+                                       // the correct notion of barriers, use at own risk
       }
     } catch (Throwable e) {
       printExceptionAndDie(e);

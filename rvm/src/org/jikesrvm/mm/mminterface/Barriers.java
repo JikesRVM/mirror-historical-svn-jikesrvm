@@ -1406,17 +1406,17 @@ public class Barriers implements org.mmtk.utility.Constants {
   }
 
   /**
-   * Barrier for writes of Words into fields of instances (ie putfield). Whilst a GC is taking place (bypasses certain assertions)
+   * Barrier for writes of Address into fields of instances (ie putfield). Whilst a GC is taking place (bypasses certain assertions)
    * @param ref the object which is the subject of the putfield
    * @param value the new value for the field
    * @param offset the offset of the field to be modified
    * @param locationMetadata an int that encodes the source location being modified
    */
   @Inline
-  public static void wordFieldWriteDuringGC(Object ref, Word value, Offset offset, int locationMetadata) {
+  public static void addressFieldWriteDuringGC(Object ref, Address value, Offset offset, int locationMetadata) {
     if (NEEDS_WORD_PUTFIELD_BARRIER) {
       ObjectReference src = ObjectReference.fromObject(ref);
-      Selected.Mutator.get().wordWriteDuringGC(src, src.toAddress().plus(offset), value, offset.toWord(),
+      Selected.Mutator.get().addressWriteDuringGC(src, src.toAddress().plus(offset), value, offset.toWord(),
           Word.fromIntZeroExtend(locationMetadata), INSTANCE_FIELD);
     } else if (VM.VerifyAssertions)
       VM._assert(false);

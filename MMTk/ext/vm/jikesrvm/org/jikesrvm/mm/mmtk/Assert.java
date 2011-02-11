@@ -89,6 +89,6 @@ import org.vmmagic.unboxed.ObjectReference;
   }
 
   public boolean validRef(ObjectReference ref) {
-    return DebugUtil.validObject(ref);
+    return DebugUtil.validObject(ref.toObject());
   }
 }

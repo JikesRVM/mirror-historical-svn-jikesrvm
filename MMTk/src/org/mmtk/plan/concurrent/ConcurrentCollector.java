@@ -104,7 +104,7 @@ public abstract class ConcurrentCollector extends SimpleCollector {
         VM.assertions._assert(!Plan.gcInProgress());
       }
       TraceLocal trace = getCurrentTrace();
-      while(!trace.incrementalTrace(100)) {
+      while (!trace.incrementalTrace(5000)) {
         if (group.isAborted()) {
           trace.flush();
           break;
@@ -121,6 +121,7 @@ public abstract class ConcurrentCollector extends SimpleCollector {
 
           if (concurrentTraceComplete()) {
             continueCollecting = Phase.notifyConcurrentPhaseComplete();
+            if (Options.verbose.getValue() >= 2) Log.writeln("notifyConcurrentPhaseComplete set continue collecting to ", continueCollecting ? 1 : 0);
           } else {
             continueCollecting = true;
             Phase.notifyConcurrentPhaseIncomplete();

@@ -89,9 +89,9 @@ public abstract class MutatorContext implements Constants {
   public static volatile boolean globalViewMutatorMustReplicate = false;
 
   // When starting a new thread ensure it has the correct barriers
-  public boolean insertionBarrier = globalViewInsertionBarrier;
-  public boolean mutatorMustDoubleAllocate = globalViewMutatorMustDoubleAllocate;
-  public boolean mutatorMustReplicate = globalViewMutatorMustReplicate;
+  public boolean insertionBarrier = false;          // correct value set in RVMThread after making active mutator context
+  public boolean mutatorMustDoubleAllocate = false; // correct value set in RVMThread after making active mutator context;
+  public boolean mutatorMustReplicate = false;      // correct value set in RVMThread after making active mutator context;
 
   /**
    * Notify that the mutator context is registered and ready to execute. From

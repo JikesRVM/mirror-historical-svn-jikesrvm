@@ -86,10 +86,11 @@
     <attribute name="tag"/>
     <attribute name="key"/>
     <attribute name="pattern"/>
+    <attribute name="execution" default="default"/>
     <sequential>
       <outputTestStart tag="@{tag}"/>
       <outputStatisticStart/>
-      <extractStatistic tag="@{tag}" key="@{key}" pattern="@{pattern}"/>
+      <extractStatistic tag="@{tag}" key="@{key}" pattern="@{pattern}" execution="@{execution}"/>
       <outputStatisticEnd/>
       <outputTestResults tag="@{tag}"/>
       <outputTestEnd/>
@@ -253,13 +254,13 @@
   <macrodef name="outputTestResults">
     <attribute name="tag"/>
     <sequential>
-      <outputExecutionResults tag="@{tag}" execution="default"/>
+            <outputExecutionResults tag="@{tag}" execution="${execution}"/>
     </sequential>
   </macrodef>
 
   <macrodef name="outputExecutionResults">
     <attribute name="tag"/>
-    <attribute name="execution"/>
+    <attribute name="execution" default="default"/>
     <sequential>
       <!-- set results to success if not already set fo failure -->
       <property name="test.@{tag}.@{execution}.result" value="SUCCESS"/>
@@ -419,6 +420,7 @@
     <attribute name="exitCode" default="0"/>
     <attribute name="dir" default="${build.tests.dir}"/>
     <attribute name="requires-display" default="false"/>
+    <attribute name="execution" default="default"/>
     <sequential>
       <prepareRvm tag="@{tag}"
                   class="@{class}"
@@ -434,7 +436,7 @@
                   exitCode="@{exitCode}"
                   dir="@{dir}"
                   requires-display="@{requires-display}"/>
-      <invokeRvm tag="@{tag}"/>
+      <invokeRvm tag="@{tag}" execution="@{execution}"/>
     </sequential>
   </macrodef>
 
@@ -569,7 +571,7 @@
         </sequential>
       </if>
       <timer property="test.@{tag}.@{execution}.time" stop="true"/>
-      <cleanOutput file="${test.@{tag}.@{execution}.output.file}" tofile="${test.@{tag}.@{execution}.sanitized.output.file}"/>
+      <!-- <cleanOutput file="${test.@{tag}.@{execution}.output.file}" tofile="${test.@{tag}.@{execution}.sanitized.output.file}"/> -->
 
       <!-- If we run overtime then record result -->
       <condition property="test.@{tag}.@{execution}.result" value="OVERTIME">

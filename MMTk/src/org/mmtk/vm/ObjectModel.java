@@ -38,6 +38,8 @@ public abstract class ObjectModel {
 
   public abstract boolean validRef(ObjectReference obj);
 
+  public abstract boolean interestingRef(ObjectReference obj);
+
   /**
    * Copy an object to be pointer to by the to address. This is required
    * for delayed-copy collectors such as compacting collectors. During the
@@ -269,7 +271,7 @@ public abstract class ObjectModel {
     return o.getArrayBaseOffset();
   }
 
-  public abstract void checkFromSpaceReplicatedObject(ObjectReference fromSpace, ObjectReference toSpace);
+  public abstract void checkFromSpaceReplicatedObject(ObjectReference fromSpace, ObjectReference toSpace, boolean shouldBeFilledIn);
 
   public abstract void checkFromSpaceNotYetReplicatedObject(ObjectReference fromSpace);
 }

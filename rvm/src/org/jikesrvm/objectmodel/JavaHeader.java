@@ -538,7 +538,8 @@ public class JavaHeader implements JavaHeaderConstants {
     if (ADDRESS_BASED_HASHING) {
       Word statusWord = Magic.getWordAtOffset(fromObj, STATUS_OFFSET);
       Word hashState = statusWord.and(HASH_STATE_MASK);
-      if (hashState.EQ(HASH_STATE_HASHED))
+      if (hashState.EQ(HASH_STATE_HASHED)) // LPJH: this could be writen nicer, see board photo 25/11/2010
+                                           // check that allocating blank frame for H&M fromSpace object sets hash field in toSpace
         copyBytes -= HASHCODE_BYTES; // numBytes included extra word for hash state, but don't want to copy
     }
 

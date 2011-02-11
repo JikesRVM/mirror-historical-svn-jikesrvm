@@ -99,6 +99,51 @@ public class SapphireTraceLocalFirst extends TraceLocal {
     return super.traceObject(object);
   }
 
+  public void completeTrace() {
+    logMessage(4, "Processing GC in parallel with Sapphire Hack");
+    if (!rootLocations.isEmpty()) {
+      processRoots();
+    }
+    logMessage(5, "processing gray objects with Sapphire Hack");
+    assertMutatorRemsetsFlushed();
+    do {
+      while (!values.isEmpty()) {
+        ObjectReference v = values.pop();
+        // this work here is necessary because we don't want the insertion barrier to do any work (allocation)
+        // therefore the insertion barrier can't mark objects as live so we must do that before we scan the object
+        traceObject(v); // the object we just popped is not yet live, mark it as live
+        scanObject(v);  // now that we have made the object live, scan it's children
+      }
+      processRememberedSets();
+    } while (!values.isEmpty());
+    assertMutatorRemsetsFlushed();
+  }
+
+  /**
+   * Process GC work until either complete or workLimit
+   * units of work are completed.
+   *
+   * @param workLimit The maximum units of work to perform.
+   * @return True if all work was completed within workLimit.
+   */
+  @Inline
+  public boolean incrementalTrace(int workLimit) {
+    logMessage(4, "Continuing GC in parallel (incremental) with Sapphire Hack");
+    logMessage(5, "processing gray objects with Sapphire hack");
+    int units = 0;
+    do {
+      while (!values.isEmpty() && units < workLimit) {
+        ObjectReference v = values.pop();
+        // this work here is necessary because we don't want the insertion barrier to do any work (allocation)
+        // therefore the insertion barrier can't mark objects as live so we must do that before we scan the object
+        traceObject(v); // the object we just popped is not yet live, mark it as live
+        scanObject(v);  // now that we have made the object live, scan it's children
+        units++;
+      }
+    } while (!values.isEmpty() && units < workLimit);
+    return values.isEmpty();
+  }
+
   /**
    * Will this object move from this point on, during the current trace ?
    *
@@ -126,7 +171,7 @@ public class SapphireTraceLocalFirst extends TraceLocal {
    * @return The forwarded object.
    */
   @Inline
-  public ObjectReference traceObject(ObjectReference object, int allocator) {
+  private ObjectReference traceObject(ObjectReference object, int allocator) {
     if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(Sapphire.inFromSpace(object));
 
     // Check if already has a ForwardingPointer
@@ -159,7 +204,7 @@ public class SapphireTraceLocalFirst extends TraceLocal {
           Log.writeln("]");
         }
       }
-      processNode(object); // Scan it later
+      processNode(object); // Scan it later // LPJH: don't think we need to do this
       ForwardingWord.markNotBusy(object);
       return object;  // return fromSpace reference
     } else {

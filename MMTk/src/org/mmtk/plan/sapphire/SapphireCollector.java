@@ -159,13 +159,38 @@ public class SapphireCollector extends ConcurrentCollector {
         // first trace
         // rebind the copy bump pointer to the appropriate semispace.
         ss.rebind(Sapphire.toSpace());
-        // Log.writeln("*** Collector about to preGC ToSpace collector SS");
-        ss.linearScan(Sapphire.preGCToSpaceSanity);
-        // Log.writeln("*** Collector finished preGC ToSpace collector SS");
+      } else {
+        // second trace
       }
       los.prepare(true);
       super.collectionPhase(phaseId, primary);
       return;
+    }
+
+    if (phaseId == Sapphire.PRE_TRACE_LINEAR_SCAN) {
+      if (Sapphire.currentTrace == 0) { // run *before* 1st trace
+        Log.writeln("Collector running preFirstPhaseToSpaceLinearSanityScan");
+        ss.linearScan(Sapphire.preFirstPhaseToSpaceLinearSanityScan);
+        return;
+      }
+      if (Sapphire.currentTrace == 2) { // run *after* we switch to 2nd trace but *before* we actually do anything
+        Log.writeln("Collector running preSecondPhaseToSpaceLinearSanityScan");
+        ss.linearScan(Sapphire.preSecondPhaseToSpaceLinearSanityScan);
+        return;
+      }
+    }
+
+    if (phaseId == Sapphire.POST_TRACE_LINEAR_SCAN) {
+      if (Sapphire.currentTrace == 1) {
+        Log.writeln("Collector running postFirstPhaseToSpaceLinearSanityScan");
+        ss.linearScan(Sapphire.postFirstPhaseToSpaceLinearSanityScan);
+        return;
+      }
+      if (Sapphire.currentTrace == 2) {
+        Log.writeln("Collector running postSecondPhaseToSpaceLinearSanityScan");
+        ss.linearScan(Sapphire.postSecondPhaseToSpaceLinearSanityScan); // flip has occurred
+        return;
+      }
     }
 
     if (phaseId == Sapphire.CLOSURE) {
@@ -183,12 +208,12 @@ public class SapphireCollector extends ConcurrentCollector {
     if (phaseId == Sapphire.COMPLETE) {
       if (Sapphire.currentTrace == 2) {
         // second trace
-        // Log.writeln("*** Collector about to postGC ToSpace collector SS");
-        ss.linearScan(Sapphire.postGCToSpaceSanity);
-        // Log.writeln("*** Collector finished postGC ToSpace collector SS");
         Sapphire.deadBumpPointersLock.acquire();
         Sapphire.deadFromSpaceBumpPointers.tackOn(ss);
         Sapphire.deadBumpPointersLock.release();
+        ss.reset(); // reset the bump pointer as it will not be used for any more alloc during this GC
+      } else {
+        // current trace 1
       }
       super.collectionPhase(phaseId, primary);
       return;

@@ -837,7 +837,13 @@ public abstract class Plan implements Constants {
    */
   public final boolean poll(boolean spaceFull, Space space) {
     if (space == Sapphire.toSpace()) {
-      // don't trigger a GC when allocating in to-Space
+      // toSpace allocation must always succeed
+      logPoll(space, "To-space collection requested - ignoring request");
+      return false;
+    }
+
+    if (gcStatus != NOT_IN_GC) {
+      logPoll(space, "Collection requested whilst GC is in progess - ignoring request");
       return false;
     }
 
@@ -864,6 +870,7 @@ public abstract class Plan implements Constants {
       } else {
         logPoll(space, "Triggering concurrent collection");
         triggerInternalCollectionRequest();
+        logPoll(space, "End of triggerInternalCollectionRequest(), about to return true from poll()");
         return true;
       }
     }
@@ -878,7 +885,9 @@ public abstract class Plan implements Constants {
    */
   protected void logPoll(Space space, String message) {
     if (Options.verbose.getValue() >= 5) {
-      Log.write("  [POLL] ");
+      Log.write("  [POLL] triggered by thread #");
+      Log.write(VM.activePlan.mutator().getId());
+      Log.write(" ");
       Log.write(space.getName());
       Log.write(": ");
       Log.writeln(message);

@@ -142,6 +142,7 @@ public class SapphireTraceLocalSecond extends TraceLocal {
         Log.writeln(object);
         VM.objectModel.dumpObject(object);
         Log.flush();
+        Space.printVMMap();
         VM.assertions.fail("DEAD");
       }
       VM.assertions._assert(!ForwardingWord.isBusy(object));

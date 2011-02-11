@@ -17,6 +17,7 @@ import org.jikesrvm.SizeConstants;
 import org.jikesrvm.ArchitectureSpecific.CodeArray;
 import org.jikesrvm.classloader.Atom;
 import org.jikesrvm.classloader.RVMClass;
+import org.jikesrvm.classloader.RVMField;
 import org.jikesrvm.classloader.RVMMethod;
 import org.jikesrvm.classloader.SpecializedMethod;
 import org.jikesrvm.classloader.RVMType;
@@ -202,6 +203,19 @@ public final class SpecializedScanMethod extends SpecializedMethod implements Si
       RVMClass klass = type.asClass();
       int[] offsets = klass.getReferenceOffsets();
       for(int i=0; i < offsets.length; i++) {
+//        if (VM.VerifyAssertions) {
+//          if (MemoryManager.interestingRef(org.mmtk.vm.VM.activePlan.global().loadObjectReference(objectRef.toAddress().plus(offsets[i])))) {
+//            VM.sysWrite("Fallback found an interesting reference in source ", ObjectReference.fromObject(object));
+//            VM.sysWrite(" interesting reference was ", org.mmtk.vm.VM.activePlan.global().loadObjectReference(objectRef.toAddress().plus(offsets[i])));
+//            VM.sysWrite(" Reference was ", i); VM.sysWrite("th reference field in Source out of ", offsets.length);
+//            VM.sysWriteln(" The field offset was ", offsets[i]);
+//            for (RVMField field : klass.getInstanceFields()) {
+//              VM.sysWrite(field.getName());
+//              VM.sysWrite(field.isReferenceType() ? " reference type" : " NOT reference");
+//              VM.sysWriteln(" field offset is ", field.getOffset());
+//            }
+//          }
+//        }
         trace.processEdge(objectRef, objectRef.toAddress().plus(offsets[i]));
       }
     } else if (type.isArrayType() && type.asArray().getElementType().isReferenceType()) {

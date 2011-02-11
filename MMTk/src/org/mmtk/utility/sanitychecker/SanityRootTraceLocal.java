@@ -60,7 +60,7 @@ public final class SanityRootTraceLocal extends TraceLocal {
    */
   @Inline
   public void processRoots() {
-    VM.assertions.fail("SanityRootTraceLocal.processRoots called.");
+    // VM.assertions.fail("SanityRootTraceLocal.processRoots called.");
   }
 
   /**

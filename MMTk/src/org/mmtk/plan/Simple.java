@@ -12,6 +12,7 @@
  */
 package org.mmtk.plan;
 
+import org.mmtk.plan.sapphire.Sapphire;
 import org.mmtk.utility.Constants;
 import org.mmtk.utility.Log;
 import org.mmtk.utility.alloc.Allocator;
@@ -49,7 +50,11 @@ public abstract class Simple extends Plan implements Constants {
   public static final short GET_WALL_CLOCK_TIME = Phase.createSimple("get-wall-clock-time", null);
   public static final short SET_COLLECTION_KIND = Phase.createSimple("set-collection-kind", null);
   public static final short STOP_MUTATORS       = Phase.createSimple("stop-mutators", null);
+  public static final short DISABLE_MUTATORS = Phase.createSimple("disable-mutators", null);
   public static final short INITIATE            = Phase.createSimple("initiate", null);
+  public static final short SAPPHIRE_PREPARE_FIRST_TRACE = Phase.createSimple("Sapphire-prepare-first-trace", null);
+  public static final short SAPPHIRE_PREPARE_SECOND_TRACE = Phase.createSimple("Sapphire-prepare-second-trace", null);
+  public static final short SAPPHIRE_PREPARE_ZERO_TRACE = Phase.createSimple("Sapphire-prepare-zero-trace", null);
   public static final short PREPARE             = Phase.createSimple("prepare");
   public static final short PREPARE_STACKS      = Phase.createSimple("prepare-stacks", null);
   public static final short STACK_ROOTS         = Phase.createSimple("stacks");
@@ -68,6 +73,9 @@ public abstract class Simple extends Plan implements Constants {
   public static final short CONSIDER_GROW_HEAP  = Phase.createSimple("consider-grow-heap", null);
   public static final short RESET_COLLECTION    = Phase.createSimple("reset-collection", null);
   public static final short RESTART_MUTATORS    = Phase.createSimple("restart-mutators", null);
+  public static final short ENABLE_MUTATORS = Phase.createSimple("enable-mutators", null);
+  public static final short PRE_TRACE_LINEAR_SCAN = Phase.createSimple("pre-trace-linear-scan", null);
+  public static final short POST_TRACE_LINEAR_SCAN = Phase.createSimple("post-trace-linear-scan", null);
 
   /* Sanity placeholder */
   public static final short PRE_SANITY_PLACEHOLDER  = Phase.createSimple("pre-sanity-placeholder", null);
@@ -87,7 +95,7 @@ public abstract class Simple extends Plan implements Constants {
 
   /** Ensure stacks are ready to be scanned */
   protected static final short prepareStacks = Phase.createComplex("prepare-stacks", null,
-      Phase.scheduleMutator    (PREPARE_STACKS),
+      Phase.scheduleOnTheFlyMutator    (PREPARE_STACKS),
       Phase.scheduleGlobal     (PREPARE_STACKS));
 
   /** Trace and set up a sanity table */
@@ -109,26 +117,23 @@ public abstract class Simple extends Plan implements Constants {
   /** Start the collection, including preparation for any collected spaces. */
   protected static final short initPhase = Phase.createComplex("init",
       Phase.scheduleGlobal     (SET_COLLECTION_KIND),
-      Phase.scheduleSpecial    (STOP_MUTATORS),
       Phase.scheduleGlobal     (GET_WALL_CLOCK_TIME),
-      Phase.scheduleGlobal     (INITIATE),
-      Phase.schedulePlaceholder(PRE_SANITY_PLACEHOLDER));
+      Phase.scheduleGlobal     (INITIATE));
 
   /**
    * Perform the initial determination of liveness from the roots.
    */
   protected static final short rootClosurePhase = Phase.createComplex("initial-closure", null,
-      Phase.scheduleMutator    (PREPARE),
+      Phase.scheduleOnTheFlyMutator(PREPARE),
       Phase.scheduleGlobal     (PREPARE),
       Phase.scheduleCollector  (PREPARE),
       Phase.scheduleComplex    (prepareStacks),
-      Phase.scheduleCollector  (STACK_ROOTS),
+      Phase.scheduleCollector(STACK_ROOTS),
       Phase.scheduleGlobal     (STACK_ROOTS),
-      Phase.scheduleCollector  (ROOTS),
+      Phase.scheduleCollector(ROOTS),
       Phase.scheduleGlobal     (ROOTS),
       Phase.scheduleGlobal     (CLOSURE),
- Phase.scheduleMutator(CLOSURE),
-      Phase.scheduleCollector  (CLOSURE));
+      Phase.scheduleCollector  (CLOSURE));  // over loaded to concurrentClosure
 
   /**
    * Complete closure including reference types and finalizable objects.
@@ -136,11 +141,11 @@ public abstract class Simple extends Plan implements Constants {
   protected static final short refTypeClosurePhase = Phase.createComplex("refType-closure", null,
       Phase.scheduleCollector  (SOFT_REFS),
       Phase.scheduleGlobal     (CLOSURE),
-      Phase.scheduleCollector  (CLOSURE),
+      Phase.scheduleCollector  (CLOSURE), // over loaded to concurrentClosure
       Phase.scheduleCollector  (WEAK_REFS),
       Phase.scheduleCollector  (FINALIZABLE),
       Phase.scheduleGlobal     (CLOSURE),
-      Phase.scheduleCollector  (CLOSURE),
+      Phase.scheduleCollector  (CLOSURE), // over loaded to concurrentClosure
       Phase.schedulePlaceholder(WEAK_TRACK_REFS),
       Phase.scheduleCollector  (PHANTOM_REFS));
 
@@ -157,7 +162,7 @@ public abstract class Simple extends Plan implements Constants {
    * Complete closure including reference types and finalizable objects.
    */
   protected static final short completeClosurePhase = Phase.createComplex("release", null,
-      Phase.scheduleMutator    (RELEASE),
+      Phase.scheduleSTWmutator    (RELEASE),
       Phase.scheduleCollector  (RELEASE),
       Phase.scheduleGlobal     (RELEASE));
 
@@ -166,13 +171,11 @@ public abstract class Simple extends Plan implements Constants {
    * The collection scheme - this is a small tree of complex phases.
    */
   protected static final short finishPhase = Phase.createComplex("finish",
-      Phase.schedulePlaceholder(POST_SANITY_PLACEHOLDER),
       Phase.scheduleCollector  (COMPLETE),
- Phase.scheduleMutator(COMPLETE),
+ Phase.scheduleSTWmutator(COMPLETE),
       Phase.scheduleGlobal     (COMPLETE),
       Phase.scheduleGlobal     (CONSIDER_GROW_HEAP),
-      Phase.scheduleGlobal     (RESET_COLLECTION),
-      Phase.scheduleSpecial     (RESTART_MUTATORS));
+      Phase.scheduleGlobal     (RESET_COLLECTION));
 
   /**
    * This is the phase that is executed to perform a collection.
@@ -306,6 +309,18 @@ public abstract class Simple extends Plan implements Constants {
    */
   @Unpreemptible
   public void unpreemptibleCollectionPhase(short phaseId) {
+    if (phaseId == DISABLE_MUTATORS) {
+      if (Options.verbose.getValue() >= 5) Log.writeln("[Disabling mutators...]");
+      Sapphire.mutatorsEnabled = false;
+      phaseId = STOP_MUTATORS;
+    }
+
+    if (phaseId == ENABLE_MUTATORS) {
+      if (Options.verbose.getValue() >= 5) Log.writeln("[Enabling mutators...]");
+      Sapphire.mutatorsEnabled = true;
+      phaseId = RESTART_MUTATORS;
+    }
+
     if (phaseId == STOP_MUTATORS) {
       // Stop all mutator threads
        if (Options.verbose.getValue() >= 5) Log.writeln("[Stopping the world...]");
@@ -314,10 +329,14 @@ public abstract class Simple extends Plan implements Constants {
     }
 
     if (phaseId == RESTART_MUTATORS) {
-      if (Options.verbose.getValue() >= 5)
-        Log.writeln("[Resuming mutators...]");
-      VM.collection.resumeAllMutators(); // Resume all mutators
-      return;
+      if (Sapphire.mutatorsEnabled) {
+        if (Options.verbose.getValue() >= 5)
+          Log.writeln("[Resuming mutators...]");
+        VM.collection.resumeAllMutators(); // Resume all mutators
+        return;
+      } else if (Options.verbose.getValue() >= 5) {
+        Log.writeln("[Restart Mutators called but mutators are currently disabled");
+      }
     }
   }
 

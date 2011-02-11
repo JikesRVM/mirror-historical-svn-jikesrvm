@@ -559,14 +559,27 @@ public final class ReferenceProcessor extends org.mmtk.vm.ReferenceProcessor {
    * @param referent the referent object reference.
    */
   protected void setReferent(ObjectReference ref, ObjectReference referent) {
-    org.jikesrvm.mm.mminterface.Barriers.wordFieldWrite(ref.toObject(), referent.toAddress().toWord(),
-        Entrypoints.referenceReferentField.getOffset(), 0);
+    if (Options.noReferenceTypes.getValue()) {
+      // treat as a objectReference write
+      org.jikesrvm.mm.mminterface.Barriers.objectFieldWrite(ref.toObject(), referent.toObject(),
+          Entrypoints.referenceReferentField.getOffset(), 0);
+    } else {
+      // treat as a plain Address write - it is up to the collector to ensure we process the references correctly
+      org.jikesrvm.mm.mminterface.Barriers.addressFieldWrite(ref.toObject(), referent.toAddress(),
+          Entrypoints.referenceReferentField.getOffset(), 0);
+    }
   }
 
   protected void setReferentDuringGC(ObjectReference ref, ObjectReference referent) {
-    // avoid certain Sapphire assertions because ref might be in toSpace
-    org.jikesrvm.mm.mminterface.Barriers.wordFieldWriteDuringGC(ref.toObject(), referent.toAddress().toWord(),
+    if (Options.noReferenceTypes.getValue()) {
+      // treat as a objectReference write
+      org.jikesrvm.mm.mminterface.Barriers.objectFieldWrite(ref.toObject(), referent.toObject(),
+          Entrypoints.referenceReferentField.getOffset(), 0);
+    } else {
+      // write raw Address avoiding certain Sapphire assertions because ref might be in toSpace
+    org.jikesrvm.mm.mminterface.Barriers.addressFieldWriteDuringGC(ref.toObject(), referent.toAddress(),
         Entrypoints.referenceReferentField.getOffset(), 0);
+    }
   }
 
   /***********************************************************************

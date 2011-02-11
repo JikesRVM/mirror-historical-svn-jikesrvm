@@ -23,6 +23,7 @@ import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.Lock;
 import org.jikesrvm.scheduler.RVMThread;
+import org.mmtk.utility.ForwardingWord;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
@@ -901,6 +902,7 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
     VM.sysWrite(Magic.objectAsAddress(getTIB(ref)));
     JavaHeader.dumpHeader(ref);
     MiscHeader.dumpHeader(ref);
+    VM.sysWrite(" FP=", ForwardingWord.getReplicaPointer(ObjectReference.fromObject(ref)));
   }
 
   /**
@@ -925,7 +927,7 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
     JavaHeader.baselineEmitLoadTIB(asm, dest, object);
   }
 
-  public static void checkFromSpaceReplicatedObject(ObjectReference fromSpace, ObjectReference toSpace) {
+  public static void checkFromSpaceReplicatedObject(ObjectReference fromSpace, ObjectReference toSpace, boolean shouldBeFilledIn) {
     boolean verbose = false;
     TIB fromSpaceTIB = ObjectModel.getTIB(fromSpace);
     TIB toSpaceTIB = ObjectModel.getTIB(toSpace);
@@ -947,8 +949,8 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
       VM.sysWrite("\n");
     }
 
-    Word fromSpaceStatusWord = readAvailableBitsWord(fromSpace);
-    Word toSpaceStatusWord = readAvailableBitsWord(toSpace);
+    Word fromSpaceStatusWord = readAvailableBitsWord(fromSpace.toObject());
+    Word toSpaceStatusWord = readAvailableBitsWord(toSpace.toObject());
     if (fromSpaceStatusWord.NE(toSpaceStatusWord)) {
       // might not be equal because of HASHED and MOVED
       fromSpaceStatusWord = fromSpaceStatusWord.and(HASH_STATE_MASK.not());
@@ -981,13 +983,14 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
           VM.sysFail("\n");
         }
 
-        byte size = (byte) field.getSize();
-        Offset offset = field.getOffset();
-        if (verbose) {
-          VM.sysWriteln("Found a field sized ", size);
-        }
+        if (shouldBeFilledIn) {
+          byte size = (byte) field.getSize();
+          Offset offset = field.getOffset();
+          if (verbose) {
+            VM.sysWriteln("Found a field sized ", size);
+          }
 
-        switch (size) {
+          switch (size) {
           case 1:
             byte fromSpaceByte = Magic.getByteAtOffset(fromSpaceObj, offset);
             byte toSpaceByte = Magic.getByteAtOffset(toSpaceObj, offset);
@@ -1047,6 +1050,7 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
             break;
           default:
             VM.sysFail("Unmatched field size");
+          }
         }
       }
     } else if (type.isArrayType()) {
@@ -1077,13 +1081,14 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
         VM.sysWriteln("Found array of length ", fromSpaceLength);
       }
 
-      // compare array element by element
-      int logElementSize = type.asArray().getLogElementSize();
-      if (verbose) {
-        VM.sysWriteln("Log Element size ", logElementSize);
-      }
+      if (shouldBeFilledIn) {
+        // compare array element by element
+        int logElementSize = type.asArray().getLogElementSize();
+        if (verbose) {
+          VM.sysWriteln("Log Element size ", logElementSize);
+        }
 
-      switch (logElementSize) {
+        switch (logElementSize) {
         case 0:
           for (int i = 0; i < fromSpaceLength; i++) {
             Offset offset = Offset.fromIntZeroExtend(i);
@@ -1162,6 +1167,7 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
           break;
         default:
           VM.sysFail("Unmatched array element size");
+        }
       }
     } else if (type.isUnboxedType()) {
       // It's a unboxed type

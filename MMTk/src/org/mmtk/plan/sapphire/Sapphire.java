@@ -17,10 +17,11 @@ import org.mmtk.policy.ReplicatingSpace;
 import org.mmtk.policy.Space;
 import org.mmtk.plan.*;
 import org.mmtk.plan.concurrent.Concurrent;
+import org.mmtk.plan.sapphire.sanityChecking.*;
 import org.mmtk.utility.Log;
 import org.mmtk.utility.heap.VMRequest;
 import org.mmtk.utility.options.Options;
-import org.mmtk.utility.options.Verbose;
+import org.mmtk.utility.statistics.Stats;
 import org.mmtk.vm.Lock;
 import org.mmtk.vm.VM;
 
@@ -61,10 +62,14 @@ public class Sapphire extends Concurrent {
     deadToSpaceBumpPointers.rebind(toSpace());
   }
 
-  static final PreGCToSpaceLinearSanityScan preGCToSpaceSanity = new PreGCToSpaceLinearSanityScan();
-  static final PostGCToSpaceLinearSanityScan postGCToSpaceSanity = new PostGCToSpaceLinearSanityScan();
-  static final PreGCFromSpaceLinearSanityScan preGCFromSpaceSanity = new PreGCFromSpaceLinearSanityScan();
-  static final PostGCFromSpaceLinearSanityScan postGCFromSpaceSanity = new PostGCFromSpaceLinearSanityScan();
+  static final PreFirstPhaseFromSpaceLinearSanityScan   preFirstPhaseFromSpaceLinearSanityScan   =  new PreFirstPhaseFromSpaceLinearSanityScan();
+  static final PreFirstPhaseToSpaceLinearSanityScan     preFirstPhaseToSpaceLinearSanityScan     =  new PreFirstPhaseToSpaceLinearSanityScan();
+  static final PostFirstPhaseFromSpaceLinearSanityScan  postFirstPhaseFromSpaceLinearSanityScan  =  new PostFirstPhaseFromSpaceLinearSanityScan();
+  static final PostFirstPhaseToSpaceLinearSanityScan    postFirstPhaseToSpaceLinearSanityScan    =  new PostFirstPhaseToSpaceLinearSanityScan();
+  static final PreSecondPhaseFromSpaceLinearSanityScan  preSecondPhaseFromSpaceLinearSanityScan  =  new PreSecondPhaseFromSpaceLinearSanityScan();
+  static final PreSecondPhaseToSpaceLinearSanityScan    preSecondPhaseToSpaceLinearSanityScan    =  new PreSecondPhaseToSpaceLinearSanityScan();
+  static final PostSecondPhaseFromSpaceLinearSanityScan postSecondPhaseFromSpaceLinearSanityScan =  new PostSecondPhaseFromSpaceLinearSanityScan();
+  static final PostSecondPhaseToSpaceLinearSanityScan   postSecondPhaseToSpaceLinearSanityScan   =  new PostSecondPhaseToSpaceLinearSanityScan();
 
   /****************************************************************************
    *
@@ -79,6 +84,8 @@ public class Sapphire extends Concurrent {
   public static final int FIRST_SCAN_SS = 0;
   public static final int SECOND_SCAN_SS = 0;
 
+  public static volatile boolean mutatorsEnabled = true;
+
   /**
    * Constructor
    */
@@ -89,17 +96,50 @@ public class Sapphire extends Concurrent {
      * This is the phase that is executed to perform a collection.
      */
     collection = Phase.createComplex("collection", null,
+        Phase.schedulePlaceholder(PRE_SANITY_PLACEHOLDER),
+        Phase.scheduleOnTheFlyMutator(PRE_TRACE_LINEAR_SCAN),
+        Phase.scheduleCollector(PRE_TRACE_LINEAR_SCAN),
+        Phase.scheduleGlobal(PRE_TRACE_LINEAR_SCAN),
         Phase.scheduleComplex(initPhase),
+        Phase.scheduleGlobal(SAPPHIRE_PREPARE_FIRST_TRACE),
+        Phase.scheduleComplex(rootClosurePhase),
+        Phase.scheduleComplex(refTypeClosurePhase),
+        Phase.scheduleComplex(insertionBarrierTerminationClosurePhase),
+        Phase.scheduleComplex(completeClosurePhase),
+        Phase.scheduleSpecial(DISABLE_MUTATORS), // previous phases stop us but be explict about it
+        Phase.schedulePlaceholder(POST_SANITY_PLACEHOLDER),
+        Phase.scheduleSTWmutator(POST_TRACE_LINEAR_SCAN),
+        Phase.scheduleCollector(POST_TRACE_LINEAR_SCAN),
+        Phase.scheduleGlobal(POST_TRACE_LINEAR_SCAN),
+        Phase.scheduleGlobal(SAPPHIRE_PREPARE_SECOND_TRACE),
+        Phase.schedulePlaceholder(PRE_SANITY_PLACEHOLDER),
+        Phase.scheduleSTWmutator(PRE_TRACE_LINEAR_SCAN),
+        Phase.scheduleCollector(PRE_TRACE_LINEAR_SCAN),
+        Phase.scheduleGlobal(PRE_TRACE_LINEAR_SCAN),
         Phase.scheduleComplex(rootClosurePhase),
         Phase.scheduleComplex(refTypeClosurePhase),
         Phase.scheduleComplex(forwardPhase),
         Phase.scheduleComplex(completeClosurePhase),
-        Phase.scheduleComplex(rootClosurePhase),
-        Phase.scheduleComplex(refTypeClosurePhase),
-        Phase.scheduleComplex(forwardPhase),
-        Phase.scheduleComplex(completeClosurePhase),
-        Phase.scheduleComplex(finishPhase));
+        Phase.schedulePlaceholder(POST_SANITY_PLACEHOLDER),
+        Phase.scheduleComplex(finishPhase),
+        Phase.scheduleSTWmutator(POST_TRACE_LINEAR_SCAN),
+        Phase.scheduleCollector(POST_TRACE_LINEAR_SCAN),
+        Phase.scheduleGlobal(POST_TRACE_LINEAR_SCAN),
+        Phase.scheduleGlobal(SAPPHIRE_PREPARE_ZERO_TRACE),
+        Phase.scheduleSpecial(ENABLE_MUTATORS));
   }
+  
+  protected static final short insertionBarrierTerminationClosurePhase = Phase.createComplex("sapphire-insertion-barrier-termination-closure", null,
+      Phase.scheduleSpecial(STOP_MUTATORS),
+      Phase.scheduleOnTheFlyMutator(FLUSH_MUTATOR),
+      Phase.scheduleComplex    (prepareStacks),
+      Phase.scheduleCollector(STACK_ROOTS),
+      Phase.scheduleGlobal     (STACK_ROOTS),
+      Phase.scheduleCollector(ROOTS),
+      Phase.scheduleGlobal     (ROOTS),
+      Phase.scheduleGlobal     (CLOSURE),
+      Phase.scheduleCollector  (CLOSURE),  // over loaded to concurrentClosure
+      Phase.scheduleComplex(refTypeClosurePhase));
 
   /****************************************************************************
    *
@@ -113,58 +153,127 @@ public class Sapphire extends Concurrent {
    */
   @Inline
   public void collectionPhase(short phaseId) {
+    if (phaseId == SAPPHIRE_PREPARE_FIRST_TRACE) {
+      if (VM.VERIFY_ASSERTIONS) {
+        VM.assertions._assert(Sapphire.currentTrace == 0);
+        VM.assertions._assert(!globalFirstTrace.hasWork());
+        VM.assertions._assert(!globalSecondTrace.hasWork());
+      }
+      Log.writeln("Switching to 1st trace");
+      Sapphire.currentTrace = 1;
+      MutatorContext.globalViewInsertionBarrier = true;
+      MutatorContext.globalViewMutatorMustDoubleAllocate = false; // must not yet turn on allocation barrier until all threads have
+                                                                  // seen insertion barrier - this is required because otherwise new
+                                                                  // objects would be allocated grey and never scanned, if the
+                                                                  // insertion barrier was yet turned on then references could
+                                                                  // be hidden in these objects
+      MutatorContext.globalViewMutatorMustReplicate = false;
+      if (true) Log.writeln("Global set insertion barrier about to request handshake");
+      VM.collection.requestMutatorUpdateBarriers();
+      MutatorContext.globalViewMutatorMustDoubleAllocate = true; // all mutator threads have now seen insertion barrier
+      if (true) Log.writeln("Global set double allocation barrier about to request handshake");
+      VM.collection.requestMutatorUpdateBarriers(); // all threads have now seen allocation barrier
+      return;
+    }
+    
+    if (phaseId == PRE_TRACE_LINEAR_SCAN) {
+      if (currentTrace == 0) { // run *before* 1st trace
+        Log.writeln("Global running preFirstPhaseFromSpaceLinearSanityScan and preFirstPhaseToSpaceLinearSanityScan");
+        deadFromSpaceBumpPointers.linearScan(Sapphire.preFirstPhaseFromSpaceLinearSanityScan);
+        deadToSpaceBumpPointers.linearScan(Sapphire.preFirstPhaseToSpaceLinearSanityScan);
+        return;
+      }
+      if (currentTrace == 2) { // run *after* we switch to 2nd trace but *before* we actually do anything
+        Log.writeln("Global running preSecondPhaseFromSpaceLinearSanityScan and preSecondPhaseToSpaceLinearSanityScan");
+        deadFromSpaceBumpPointers.linearScan(Sapphire.preSecondPhaseFromSpaceLinearSanityScan);
+        deadToSpaceBumpPointers.linearScan(Sapphire.preSecondPhaseToSpaceLinearSanityScan);
+        return;
+      }
+    }
+
+    if (phaseId == POST_TRACE_LINEAR_SCAN) {
+      if (currentTrace == 1) {
+        Log.writeln("Global running postFirstPhaseFromSpaceLinearSanityScan and postFirstPhaseToSpaceLinearSanityScan");
+        deadFromSpaceBumpPointers.linearScan(Sapphire.postFirstPhaseFromSpaceLinearSanityScan);
+        deadToSpaceBumpPointers.linearScan(Sapphire.postFirstPhaseToSpaceLinearSanityScan);
+        return;
+      }
+      if (currentTrace == 2) {
+        Log.writeln("Global running postSecondPhaseFromSpaceLinearSanityScan and postSecondPhaseToSpaceLinearSanityScan");
+        deadFromSpaceBumpPointers.linearScan(Sapphire.postSecondPhaseFromSpaceLinearSanityScan);
+        deadToSpaceBumpPointers.linearScan(Sapphire.postSecondPhaseToSpaceLinearSanityScan);
+        return;
+      }
+    }
+
     if (phaseId == Sapphire.PREPARE) {
       if (currentTrace == 1) {
         // scanning for the first time
         fromSpace().prepare(false); // Make fromSpace non moving for first trace
-        // Log.writeln("*** Plan about to PreGC FromSpace deadFromSpaceBumpPointer");
-        deadFromSpaceBumpPointers.linearScan(Sapphire.preGCFromSpaceSanity);
-        // Log.writeln("*** Plan finished PreGC FromSpace deadFromSpaceBumpPointer");
-        // Log.writeln("*** Plan about to PreGC ToSpace deadToSpaceBumpPointer");
-        deadToSpaceBumpPointers.linearScan(Sapphire.preGCToSpaceSanity);
-        // Log.writeln("*** Plan finished PreGC ToSpace deadToSpaceBumpPointer");
       } else if (currentTrace == 2) {
         fromSpace().prepare(true); // Make fromSpace moveable whilst GC in progress
       }
       super.collectionPhase(phaseId);
+      getCurrentTrace().prepareNonBlocking();
       return;
     }
     if (phaseId == CLOSURE) {
-      getCurrentTrace().prepare();
       return;
     }
+
+    if (phaseId == SAPPHIRE_PREPARE_SECOND_TRACE) {
+      if (VM.VERIFY_ASSERTIONS) {
+        VM.assertions._assert(Sapphire.currentTrace == 1);
+        VM.assertions._assert(!globalFirstTrace.hasWork());
+        VM.assertions._assert(!globalSecondTrace.hasWork());
+      }
+      Log.writeln("Switching to 2nd trace");
+      currentTrace = 2;
+      return;
+    }
+
     if (phaseId == Sapphire.RELEASE) {
       if (currentTrace == 1) {
         // completed first scan
-        if (Options.verbose.getValue() >= 8) Space.printVMMap();
-        currentTrace = 2;
+        if (Options.verbose.getValue() >= 8) {
+          Space.printVMMap();
+          Space.printUsageMB();
+          Space.printUsagePages();
+        }
       } else if (currentTrace == 2) {
         // second go around
         low = !low; // flip the semi-spaces
         toSpace().release();
+        Sapphire.deadBumpPointersLock.acquire();
         deadFromSpaceBumpPointers.rebind(fromSpace()); // clear fromSpace bump pointer
-        // Log.writeln("*** Plan about to PostGC FromSpace deadFromSpaceBumpPointer");
-        deadFromSpaceBumpPointers.linearScan(Sapphire.postGCFromSpaceSanity);
-        // Log.writeln("*** Plan finished PostGC FromSpace deadFromSpaceBumpPointer");
-        // Log.writeln("*** Plan about to PostGC ToSpace deadToSpaceBumpPointer");
-        deadToSpaceBumpPointers.linearScan(Sapphire.postGCToSpaceSanity);
-        // Log.writeln("*** Plan finished PostGC ToSpace deadToSpaceBumpPointer");
         CopyLocal tmp = deadFromSpaceBumpPointers;
         deadFromSpaceBumpPointers = deadToSpaceBumpPointers;
         deadToSpaceBumpPointers = tmp;  // objects in toSpace are now in the fromSpace deadBumpPointers are will be scanned at next GC
         deadToSpaceBumpPointers.rebind(toSpace());
+        Sapphire.deadBumpPointersLock.release();
       } else {
         VM.assertions.fail("Unknown currentTrace value");
       }
       super.collectionPhase(phaseId);
       return;
     }
+
     if (phaseId == Sapphire.COMPLETE) {
       fromSpace().prepare(true); // make from space moving at last minute
-      if (Sapphire.currentTrace == 2) {
-        Sapphire.currentTrace = 0;
-      }
     }
+
+    if (phaseId == SAPPHIRE_PREPARE_ZERO_TRACE) {
+      VM.assertions._assert(Sapphire.currentTrace == 2);
+      Log.writeln("Switching to 0th trace");
+      Sapphire.currentTrace = 0;
+      return;
+    }
+
+    if (phaseId == Simple.PREPARE_STACKS) {
+      stacksPrepared = false;
+      return; // never globally acknowledge that *all* stacks have been prepared
+    }
+
     super.collectionPhase(phaseId);
   }
 
@@ -214,9 +323,7 @@ public class Sapphire extends Concurrent {
    */
   @Override
   protected boolean concurrentCollectionRequired() {
-    return false;
-    // return !Phase.concurrentPhaseActive() &&
-    // ((getPagesReserved() * 100) / getTotalPages()) > Options.concurrentTrigger.getValue();
+    return !Phase.concurrentPhaseActive() && ((getPagesReserved() * 100) / getTotalPages()) > Options.concurrentTrigger.getValue();
   }
 
   /**
@@ -287,6 +394,49 @@ public class Sapphire extends Concurrent {
     else {
       VM.assertions.fail("Unknown trace count");
       return null;
+    }
+  }
+  
+  /** Build and validate a sanity table */
+  // LPJH: will need to change this later
+  protected static final short preSanityPhase = Phase.createComplex("pre-sanity", null,
+      Phase.scheduleSpecial (STOP_MUTATORS),
+      Phase.scheduleGlobal     (SANITY_SET_PREGC),
+      Phase.scheduleComplex    (sanityBuildPhase),
+      Phase.scheduleComplex    (sanityCheckPhase),
+      Phase.scheduleSpecial (RESTART_MUTATORS));
+
+  /** Build and validate a sanity table */
+  protected static final short postSanityPhase = Phase.createComplex("post-sanity", null,
+      Phase.scheduleSpecial (STOP_MUTATORS),
+      Phase.scheduleGlobal     (SANITY_SET_POSTGC),
+      Phase.scheduleComplex    (sanityBuildPhase),
+      Phase.scheduleComplex    (sanityCheckPhase),
+      Phase.scheduleSpecial (RESTART_MUTATORS));
+
+
+  /**
+   * The processOptions method is called by the runtime immediately after command-line arguments are available. Allocation must be
+   * supported prior to this point because the runtime infrastructure may require allocation in order to parse the command line
+   * arguments. For this reason all plans should operate gracefully on the default minimum heap size until the point that
+   * processOptions is called.
+   */
+  @Interruptible
+  public void processOptions() {
+    // don't call Super's processOptions otherwise it will overwrite the PLACEHOLDER's
+    VM.statistics.perfEventInit(Options.perfEvents.getValue());
+    if (Options.verbose.getValue() > 2) Space.printVMMap();
+    if (Options.verbose.getValue() > 3) VM.config.printConfig();
+    if (Options.verbose.getValue() > 0) Stats.startAll();
+    if (Options.eagerMmapSpaces.getValue()) Space.eagerlyMmapMMTkSpaces();
+
+    /* Set up the concurrent marking phase */
+    replacePhase(Phase.scheduleCollector(CLOSURE), Phase.scheduleComplex(concurrentClosure));
+
+    if (Options.sanityCheck.getValue()) {
+      Log.writeln("Sapphire Collection sanity checking enabled.");
+      replacePhase(Phase.schedulePlaceholder(PRE_SANITY_PLACEHOLDER), Phase.scheduleComplex(preSanityPhase));
+      replacePhase(Phase.schedulePlaceholder(POST_SANITY_PLACEHOLDER), Phase.scheduleComplex(postSanityPhase));
     }
   }
 }

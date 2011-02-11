@@ -169,7 +169,7 @@ public class ForwardingWord {
 
   @Inline
   public static void setReplicaPointer(ObjectReference fromSpace, ObjectReference toSpace) {
-    // busy should be set for us, write FP, cancel busy then set FORWARDED
+    // busy should be set for us, write FP
     if (VM.VERIFY_ASSERTIONS) {
       VM.assertions._assert(VM.objectModel.validRef(fromSpace));
       VM.assertions._assert(VM.objectModel.validRef(toSpace));

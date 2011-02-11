@@ -45,15 +45,15 @@ public abstract class Concurrent extends Simple {
    * When we preempt a concurrent marking phase we must flush mutators and then continue the closure.
    */
   protected static final short preemptConcurrentClosure = Phase.createComplex("preeempt-concurrent-trace", null,
-      Phase.scheduleSpecial  (STOP_MUTATORS),
+      Phase.scheduleSpecial(STOP_MUTATORS),
       Phase.scheduleGlobal   (GET_WALL_CLOCK_TIME),
-      Phase.scheduleMutator  (FLUSH_MUTATOR),
-      Phase.scheduleCollector(CLOSURE));
+      Phase.scheduleOnTheFlyMutator  (FLUSH_MUTATOR),
+      Phase.scheduleCollector(CLOSURE)); // *not* overloaded (which is what we want)
 
   /**
    * When we decide to start (or continue) a concurrent collection there are some preparatory phases
    */
-  protected static final short prepareConcurrentTrace = Phase.createComplex("prepare-concurrent-trace", null,
+  protected static final short doConcurrentTrace = Phase.createComplex("prepare-concurrent-trace", null,
       Phase.scheduleGlobal (GET_WALL_CLOCK_TIME),
       Phase.scheduleGlobal (CONSIDER_GROW_HEAP),
       Phase.scheduleGlobal (RESET_COLLECTION),
@@ -61,23 +61,24 @@ public abstract class Concurrent extends Simple {
       Phase.scheduleYield  (YIELD_TO_CONCURRENT_GC));
 
   public static final short CONCURRENT_CLOSURE = Phase.createConcurrent("concurrent-closure",
-                                                                        Phase.scheduleComplex(preemptConcurrentClosure),
-                                                                        Phase.scheduleComplex(prepareConcurrentTrace));
+                                                                        Phase.scheduleComplex(preemptConcurrentClosure),  // done atomicially if needed
+                                                                        Phase.scheduleComplex(doConcurrentTrace));   // done currently if supported
 
   /**
    * Perform the initial determination of liveness from the roots.
    */
   protected static final short concurrentClosure = Phase.createComplex("concurrent-mark", null,
-      Phase.scheduleGlobal    (SET_BARRIER_ACTIVE),
-      Phase.scheduleMutator   (SET_BARRIER_ACTIVE),
+      //Phase.scheduleGlobal    (SET_BARRIER_ACTIVE),
+      //Phase.scheduleOnTheFlyMutator   (SET_BARRIER_ACTIVE),
       Phase.scheduleCollector (FLUSH_COLLECTOR),
       Phase.scheduleGlobal    (CONSIDER_GROW_HEAP),
       Phase.scheduleGlobal    (RESET_COLLECTION),
+      // mutators still running here
       Phase.scheduleConcurrent(CONCURRENT_CLOSURE),
-      Phase.scheduleSpecial   (STOP_MUTATORS),
-      Phase.scheduleGlobal    (GET_WALL_CLOCK_TIME),
-      Phase.scheduleGlobal    (CLEAR_BARRIER_ACTIVE),
-      Phase.scheduleMutator   (CLEAR_BARRIER_ACTIVE));
+      Phase.scheduleSpecial (STOP_MUTATORS),
+      Phase.scheduleGlobal    (GET_WALL_CLOCK_TIME));
+      //Phase.scheduleGlobal    (CLEAR_BARRIER_ACTIVE),
+      //Phase.scheduleSTWmutator   (CLEAR_BARRIER_ACTIVE));
 
   /** Build, validate and then build another sanity table */
   protected static final short preSanityPhase = Phase.createComplex("sanity", null,

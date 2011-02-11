@@ -98,6 +98,14 @@ import org.vmmagic.pragma.*;
    */
   public abstract void requestMutatorFlush();
 
+  public abstract void requestMutatorUpdateBarriers();
+  
+  public abstract void requestMutatorOnTheFlyProcessPhase(short phaseId);
+
+  public abstract boolean isBlockedForGC(MutatorContext m);
+
+  // public abstract void onTheFlyMutatorCollectionPhase(short phaseId, boolean primary);
+
   /**
    * Stop all mutator threads. This is current intended to be run by a single thread.
    *

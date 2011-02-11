@@ -12,6 +12,7 @@
  */
 package org.mmtk.plan;
 
+import org.mmtk.plan.sapphire.Sapphire;
 import org.mmtk.policy.Space;
 import org.mmtk.utility.Log;
 import org.mmtk.utility.deque.WriteBuffer;
@@ -76,6 +77,12 @@ public final class TraceWriteBuffer extends TransitiveClosure {
         Log.writeln(object);
         VM.assertions._assert(Space.isMappedObject(object));
       }
+      // check if the object is one we are interested in
+      // if (VM.objectModel.interestingRef(object)) {
+      // Log.write("processNode have been asked to trace an interestingReference, current trace is ", Sapphire.currentTrace);
+      // Log.write(" interesting object is "); Log.writeln(object);
+      // VM.objectModel.dumpObject(object);
+      // }
     }
     buffer.insert(object.toAddress());
   }

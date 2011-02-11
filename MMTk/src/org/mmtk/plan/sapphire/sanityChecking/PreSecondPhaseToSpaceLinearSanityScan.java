@@ -10,8 +10,10 @@
  *  See the COPYRIGHT.txt file distributed with this work for information
  *  regarding copyright ownership.
  */
-package org.mmtk.plan.sapphire;
+package org.mmtk.plan.sapphire.sanityChecking;
 
+import org.mmtk.plan.sapphire.Sapphire;
+import org.mmtk.utility.ForwardingWord;
 import org.mmtk.utility.alloc.LinearScan;
 import org.mmtk.vm.VM;
 import org.vmmagic.unboxed.*;
@@ -22,15 +24,22 @@ import org.vmmagic.pragma.*;
  * a subclass of this object.
  */
 @Uninterruptible
-public class PostGCFromSpaceLinearSanityScan extends LinearScan {
+public class PreSecondPhaseToSpaceLinearSanityScan extends LinearScan {
   /**
-   * Scan an object. ToSpace must not contain pointers to fromSpace after a complete trace
-   * @param object The object to scan
+   * Scan an object.
+   * 
+   * @param object
+   *          The object to scan
    */
   public void scan(ObjectReference object) {
+    // run during STW phase
     if (VM.VERIFY_ASSERTIONS) {
       if (!object.isNull()) {
-        VM.assertions.fail("Old fromSpace should have been released");
+        VM.assertions._assert(Sapphire.inToSpace(object));
+        VM.assertions._assert(!ForwardingWord.isBusy(object)); // toSpace should never be marked BUSY
+        VM.assertions._assert(!ForwardingWord.isForwarded(object)); // toSpace should never be marked FORWARDED
+        ObjectReference bp = ForwardingWord.getReplicaPointer(object);
+        VM.assertions._assert(bp.isNull()); // no BP in toSpace for the moment
       }
     }
   }
