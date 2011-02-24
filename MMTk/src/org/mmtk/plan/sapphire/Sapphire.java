@@ -97,9 +97,6 @@ public class Sapphire extends Concurrent {
      */
     collection = Phase.createComplex("collection", null,
         Phase.schedulePlaceholder(PRE_SANITY_PLACEHOLDER),
-        Phase.scheduleOnTheFlyMutator(PRE_TRACE_LINEAR_SCAN),
-        Phase.scheduleCollector(PRE_TRACE_LINEAR_SCAN),
-        Phase.scheduleGlobal(PRE_TRACE_LINEAR_SCAN),
         Phase.scheduleComplex(initPhase),
         Phase.scheduleGlobal(SAPPHIRE_PREPARE_FIRST_TRACE),
         Phase.scheduleComplex(rootClosurePhase),
@@ -108,29 +105,23 @@ public class Sapphire extends Concurrent {
         Phase.scheduleComplex(completeClosurePhase),
         Phase.scheduleSpecial(DISABLE_MUTATORS), // previous phases stop us but be explict about it
         Phase.schedulePlaceholder(POST_SANITY_PLACEHOLDER),
-        Phase.scheduleSTWmutator(POST_TRACE_LINEAR_SCAN),
-        Phase.scheduleCollector(POST_TRACE_LINEAR_SCAN),
-        Phase.scheduleGlobal(POST_TRACE_LINEAR_SCAN),
+        Phase.scheduleSTWmutator(PREPARE), // STW here to help verify mutators are stopped, change later
+        Phase.scheduleGlobal     (PREPARE),
+        Phase.scheduleCollector  (PREPARE),
         Phase.scheduleGlobal(SAPPHIRE_PREPARE_SECOND_TRACE),
         Phase.schedulePlaceholder(PRE_SANITY_PLACEHOLDER),
-        Phase.scheduleSTWmutator(PRE_TRACE_LINEAR_SCAN),
-        Phase.scheduleCollector(PRE_TRACE_LINEAR_SCAN),
-        Phase.scheduleGlobal(PRE_TRACE_LINEAR_SCAN),
         Phase.scheduleComplex(rootClosurePhase),
         Phase.scheduleComplex(refTypeClosurePhase),
         Phase.scheduleComplex(forwardPhase),
         Phase.scheduleComplex(completeClosurePhase),
         Phase.schedulePlaceholder(POST_SANITY_PLACEHOLDER),
         Phase.scheduleComplex(finishPhase),
-        Phase.scheduleSTWmutator(POST_TRACE_LINEAR_SCAN),
-        Phase.scheduleCollector(POST_TRACE_LINEAR_SCAN),
-        Phase.scheduleGlobal(POST_TRACE_LINEAR_SCAN),
         Phase.scheduleGlobal(SAPPHIRE_PREPARE_ZERO_TRACE),
         Phase.scheduleSpecial(ENABLE_MUTATORS));
   }
   
   protected static final short insertionBarrierTerminationClosurePhase = Phase.createComplex("sapphire-insertion-barrier-termination-closure", null,
-      Phase.scheduleSpecial(STOP_MUTATORS),
+      Phase.scheduleSpecial(DISABLE_MUTATORS),
       Phase.scheduleOnTheFlyMutator(FLUSH_MUTATOR),
       Phase.scheduleComplex    (prepareStacks),
       Phase.scheduleCollector(STACK_ROOTS),
@@ -159,7 +150,7 @@ public class Sapphire extends Concurrent {
         VM.assertions._assert(!globalFirstTrace.hasWork());
         VM.assertions._assert(!globalSecondTrace.hasWork());
       }
-      Log.writeln("Switching to 1st trace");
+      if (Options.verbose.getValue() >= 8) Log.writeln("Switching to 1st trace");
       Sapphire.currentTrace = 1;
       MutatorContext.globalViewInsertionBarrier = true;
       MutatorContext.globalViewMutatorMustDoubleAllocate = false; // must not yet turn on allocation barrier until all threads have
@@ -168,11 +159,11 @@ public class Sapphire extends Concurrent {
                                                                   // insertion barrier was yet turned on then references could
                                                                   // be hidden in these objects
       MutatorContext.globalViewMutatorMustReplicate = false;
-      if (true) Log.writeln("Global set insertion barrier about to request handshake");
-      VM.collection.requestMutatorUpdateBarriers();
+      if (Options.verbose.getValue() >= 8) Log.writeln("Global set insertion barrier about to request handshake");
+      VM.collection.requestUpdateBarriers();
       MutatorContext.globalViewMutatorMustDoubleAllocate = true; // all mutator threads have now seen insertion barrier
-      if (true) Log.writeln("Global set double allocation barrier about to request handshake");
-      VM.collection.requestMutatorUpdateBarriers(); // all threads have now seen allocation barrier
+      if (Options.verbose.getValue() >= 8) Log.writeln("Global set double allocation barrier about to request handshake");
+      VM.collection.requestUpdateBarriers(); // all threads have now seen allocation barrier
       return;
     }
     
@@ -207,16 +198,20 @@ public class Sapphire extends Concurrent {
     }
 
     if (phaseId == Sapphire.PREPARE) {
-      if (currentTrace == 1) {
+      if (currentTrace == 0) {
         // scanning for the first time
         fromSpace().prepare(false); // Make fromSpace non moving for first trace
-      } else if (currentTrace == 2) {
+        globalFirstTrace.prepareNonBlocking();
+      } else if (currentTrace == 1) {
         fromSpace().prepare(true); // Make fromSpace moveable whilst GC in progress
+        globalSecondTrace.prepareNonBlocking();
+      } else {
+        VM.assertions.fail("Unknown currentTrace value");
       }
       super.collectionPhase(phaseId);
-      getCurrentTrace().prepareNonBlocking();
       return;
     }
+
     if (phaseId == CLOSURE) {
       return;
     }
@@ -227,7 +222,7 @@ public class Sapphire extends Concurrent {
         VM.assertions._assert(!globalFirstTrace.hasWork());
         VM.assertions._assert(!globalSecondTrace.hasWork());
       }
-      Log.writeln("Switching to 2nd trace");
+      if (Options.verbose.getValue() >= 8) Log.writeln("Switching to 2nd trace");
       currentTrace = 2;
       return;
     }
@@ -264,7 +259,7 @@ public class Sapphire extends Concurrent {
 
     if (phaseId == SAPPHIRE_PREPARE_ZERO_TRACE) {
       VM.assertions._assert(Sapphire.currentTrace == 2);
-      Log.writeln("Switching to 0th trace");
+      if (Options.verbose.getValue() >= 8) Log.writeln("Switching to 0th trace");
       Sapphire.currentTrace = 0;
       return;
     }
@@ -289,9 +284,8 @@ public class Sapphire extends Concurrent {
    * allocation, including space reserved for copying.
    */
   public final int getCollectionReserve() {
-    // we must account for the number of pages required for copying,
-    // which equals the number of semi-space pages reserved
-    return fromSpace().reservedPages() + super.getCollectionReserve();
+    // our copy reserve is the size of fromSpace less any copying we have done so far
+    return (fromSpace().reservedPages() - toSpace().reservedPages()) + super.getCollectionReserve();
   }
 
   /**
@@ -303,18 +297,25 @@ public class Sapphire extends Concurrent {
    * allocation, excluding space reserved for copying.
    */
   public int getPagesUsed() {
-    return super.getPagesUsed() + fromSpace().reservedPages();
+    return super.getPagesUsed() + toSpace().reservedPages() + fromSpace().reservedPages();
   }
 
   /**
-   * Return the number of pages available for allocation, <i>assuming
-   * all future allocation is to the semi-space</i>.
+   * This method controls the triggering of a GC. It is called periodically
+   * during allocation. Returns true to trigger a collection.
    *
-   * @return The number of pages available for allocation, <i>assuming
-   * all future allocation is to the semi-space</i>.
+   * @param spaceFull Space request failed, must recover pages within 'space'.
+   * @param space TODO
+   * @return True if a collection is requested by the plan.
    */
-  public final int getPagesAvail() {
-    return(super.getPagesAvail()) >> 1;
+  protected boolean collectionRequired(boolean spaceFull, Space space) {
+    if (space == Sapphire.toSpace()) {
+      // toSpace allocation must always succeed
+      logPoll(space, "To-space collection requested - ignoring request");
+      return false;
+    }
+
+    return super.collectionRequired(spaceFull, space);
   }
 
   /**
@@ -322,7 +323,13 @@ public class Sapphire extends Concurrent {
    * @return True if a collection is requested by the plan.
    */
   @Override
-  protected boolean concurrentCollectionRequired() {
+  protected boolean concurrentCollectionRequired(Space space) {
+    if (space == Sapphire.toSpace()) {
+      // toSpace allocation must always succeed
+      logPoll(space, "To-space collection requested - ignoring request");
+      return false;
+    }
+
     return !Phase.concurrentPhaseActive() && ((getPagesReserved() * 100) / getTotalPages()) > Options.concurrentTrigger.getValue();
   }
 
@@ -404,7 +411,10 @@ public class Sapphire extends Concurrent {
       Phase.scheduleGlobal     (SANITY_SET_PREGC),
       Phase.scheduleComplex    (sanityBuildPhase),
       Phase.scheduleComplex    (sanityCheckPhase),
-      Phase.scheduleSpecial (RESTART_MUTATORS));
+      Phase.scheduleSpecial (RESTART_MUTATORS),
+      Phase.scheduleOnTheFlyMutator(PRE_TRACE_LINEAR_SCAN),
+      Phase.scheduleCollector(PRE_TRACE_LINEAR_SCAN),
+      Phase.scheduleGlobal(PRE_TRACE_LINEAR_SCAN));
 
   /** Build and validate a sanity table */
   protected static final short postSanityPhase = Phase.createComplex("post-sanity", null,
@@ -412,8 +422,10 @@ public class Sapphire extends Concurrent {
       Phase.scheduleGlobal     (SANITY_SET_POSTGC),
       Phase.scheduleComplex    (sanityBuildPhase),
       Phase.scheduleComplex    (sanityCheckPhase),
-      Phase.scheduleSpecial (RESTART_MUTATORS));
-
+      Phase.scheduleSpecial (RESTART_MUTATORS),
+      Phase.scheduleSTWmutator(POST_TRACE_LINEAR_SCAN),
+      Phase.scheduleCollector(POST_TRACE_LINEAR_SCAN),
+      Phase.scheduleGlobal(POST_TRACE_LINEAR_SCAN));
 
   /**
    * The processOptions method is called by the runtime immediately after command-line arguments are available. Allocation must be

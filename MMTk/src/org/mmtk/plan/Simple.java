@@ -117,16 +117,16 @@ public abstract class Simple extends Plan implements Constants {
   /** Start the collection, including preparation for any collected spaces. */
   protected static final short initPhase = Phase.createComplex("init",
       Phase.scheduleGlobal     (SET_COLLECTION_KIND),
-      Phase.scheduleGlobal     (GET_WALL_CLOCK_TIME),
-      Phase.scheduleGlobal     (INITIATE));
+//      Phase.scheduleGlobal     (GET_WALL_CLOCK_TIME),
+      Phase.scheduleGlobal     (INITIATE),
+      Phase.scheduleOnTheFlyMutator(PREPARE),
+      Phase.scheduleGlobal     (PREPARE),
+      Phase.scheduleCollector  (PREPARE));
 
   /**
    * Perform the initial determination of liveness from the roots.
    */
   protected static final short rootClosurePhase = Phase.createComplex("initial-closure", null,
-      Phase.scheduleOnTheFlyMutator(PREPARE),
-      Phase.scheduleGlobal     (PREPARE),
-      Phase.scheduleCollector  (PREPARE),
       Phase.scheduleComplex    (prepareStacks),
       Phase.scheduleCollector(STACK_ROOTS),
       Phase.scheduleGlobal     (STACK_ROOTS),
@@ -174,7 +174,7 @@ public abstract class Simple extends Plan implements Constants {
       Phase.scheduleCollector  (COMPLETE),
  Phase.scheduleSTWmutator(COMPLETE),
       Phase.scheduleGlobal     (COMPLETE),
-      Phase.scheduleGlobal     (CONSIDER_GROW_HEAP),
+      // Phase.scheduleGlobal (CONSIDER_GROW_HEAP),
       Phase.scheduleGlobal     (RESET_COLLECTION));
 
   /**

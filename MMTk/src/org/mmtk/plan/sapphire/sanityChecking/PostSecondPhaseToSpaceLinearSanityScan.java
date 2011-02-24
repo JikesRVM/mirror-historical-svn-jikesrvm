@@ -30,11 +30,6 @@ public class PostSecondPhaseToSpaceLinearSanityScan extends LinearScan {
    *          The object to scan
    */
   public void scan(ObjectReference object) {
-    // run in a STW phase - flip has occurred
-    if (VM.VERIFY_ASSERTIONS) {
-      if (!object.isNull()) {
-        VM.assertions.fail("Old fromSpace should have been released");
-      }
-    }
+    // run in a STW phase - flip has occurred but we might not yet have released the space
   }
 }

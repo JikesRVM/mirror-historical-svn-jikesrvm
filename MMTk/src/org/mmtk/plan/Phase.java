@@ -475,9 +475,11 @@ public abstract class Phase implements Constants {
     if (primary) {
       /* Only allow concurrent collection if we are not collecting due to resource exhaustion */
       allowConcurrentPhase = Plan.isInternalTriggeredCollection() && !Plan.isEmergencyCollection();
-      Log.write("Setting allowConcurrentPhase to "); Log.writeln(allowConcurrentPhase);
-      Log.write("Plan.isInternalTriggeredCollection() returned "); Log.writeln(Plan.isInternalTriggeredCollection());
-      Log.write("Plan.isEmergencyCollection() returned "); Log.writeln(Plan.isEmergencyCollection());
+      if (Options.verbose.getValue() >= 8) {
+        Log.write("Setting allowConcurrentPhase to "); Log.writeln(allowConcurrentPhase);
+        Log.write("Plan.isInternalTriggeredCollection() returned "); Log.writeln(Plan.isInternalTriggeredCollection());
+        Log.write("Plan.isEmergencyCollection() returned "); Log.writeln(Plan.isEmergencyCollection());
+      }
 
       /* First phase will be even, so we say we are odd here so that the next phase set is even*/
       setNextPhase(false, getNextPhase(), false);
@@ -700,19 +702,19 @@ public abstract class Phase implements Constants {
             /* Concurrent phases can not have a timer */
             VM.assertions._assert(getPhase(getPhaseId(scheduledPhase)).timer == null);
           }
-          Log.write("Popped a concurrent phase ");
+          if (Options.verbose.getValue() >= 8) Log.write("Popped a concurrent phase ");
           popScheduledPhase();
           ConcurrentPhase cp = (ConcurrentPhase) getPhase(phaseId);
           concurrentPhaseId = phaseId; // Record the phaseId for when we start running the concurrent collectors
           if (allowConcurrentPhase) {
-            Log.writeln("allowConcurrentPhase = true");
+          if (Options.verbose.getValue() >= 8) Log.writeln("allowConcurrentPhase = true");
             // Do any preparation for the concurrent phase
             int nextPhase = cp.getContinueConcurrentScheduledPhase();
             if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(getSchedule(nextPhase) != SCHEDULE_CONCURRENT);
             pushScheduledPhase(scheduledPhase); // Push the concurrent phase back on for the next GC request
             pushScheduledPhase(nextPhase); // Do the concurrent phases next
           } else {
-            Log.writeln("allowConcurrentPhase = false");
+          if (Options.verbose.getValue() >= 8) Log.writeln("allowConcurrentPhase = false");
             // Forward to non-current phase, no more concurrent GC will happen this cycle
             int nextPhase = cp.getAtomicScheduledPhase();
             if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(getSchedule(nextPhase) != SCHEDULE_CONCURRENT);
@@ -870,13 +872,20 @@ public abstract class Phase implements Constants {
       Log.writeln(" complete >");
     }
     /* Concurrent phase is complete*/
-    Log.write("*** concurrentPhaseId was "); Log.writeln(getName(concurrentPhaseId));
+    if (Options.verbose.getValue() >= 8) {
+      Log.write("*** concurrentPhaseId was ");
+      Log.writeln(getName(concurrentPhaseId));
+    }
     concurrentPhaseId = 0;
     /* Remove it from the stack */
-    popScheduledPhase();
+    popScheduledPhase(); // LPJH: remember why this is necessary!
+    popScheduledPhase(); // remove the concurrent phase
     /* Pop the next phase off the stack */
     int nextScheduledPhase = getNextPhase();
-    Log.write("*** nextPhase is "); Log.writeln(getName((short) nextScheduledPhase));
+    if (Options.verbose.getValue() >= 8) {
+      Log.write("*** nextPhase is ");
+      Log.writeln(getName((short) nextScheduledPhase));
+    }
 
     if (nextScheduledPhase > 0) {
       short schedule = getSchedule(nextScheduledPhase);
@@ -889,7 +898,10 @@ public abstract class Phase implements Constants {
 
       /* Push phase back on and resume atomic collection */
       pushScheduledPhase(nextScheduledPhase);
-      Log.write("*** just pushed this phase back onto the stack "); Log.writeln(getName((short) nextScheduledPhase));
+      if (Options.verbose.getValue() >= 8) {
+        Log.write("*** just pushed this phase back onto the stack ");
+        Log.writeln(getName((short) nextScheduledPhase));
+      }
       Plan.triggerInternalCollectionRequest();
     }
     return false;

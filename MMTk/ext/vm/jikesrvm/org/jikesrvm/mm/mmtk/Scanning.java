@@ -17,6 +17,7 @@ import org.mmtk.plan.MutatorContext;
 import org.mmtk.plan.TraceLocal;
 import org.mmtk.plan.TransitiveClosure;
 import org.mmtk.utility.Constants;
+import org.mmtk.utility.options.Options;
 
 import org.jikesrvm.VM;
 import org.jikesrvm.compilers.common.CompiledMethods;
@@ -191,7 +192,7 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
 
       RVMThread thread = RVMThread.threads[threadIndex];
       if (thread == null || thread.isCollectorThread()) {
-        if (true && thread != null)
+        if (Options.verbose.getValue() > 8 && thread != null)
           VM.sysWriteln("Ignoring thread ", thread.getThreadSlot(), " because it is a collector thread, thread has pthreadId ",
               thread.pthread_id);
         continue;

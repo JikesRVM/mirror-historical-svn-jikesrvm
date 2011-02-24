@@ -38,8 +38,6 @@ public abstract class ObjectModel {
 
   public abstract boolean validRef(ObjectReference obj);
 
-  public abstract boolean interestingRef(ObjectReference obj);
-
   /**
    * Copy an object to be pointer to by the to address. This is required
    * for delayed-copy collectors such as compacting collectors. During the

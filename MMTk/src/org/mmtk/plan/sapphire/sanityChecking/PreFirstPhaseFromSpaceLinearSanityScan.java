@@ -14,7 +14,6 @@ package org.mmtk.plan.sapphire.sanityChecking;
 
 import org.mmtk.plan.sapphire.Sapphire;
 import org.mmtk.utility.ForwardingWord;
-import org.mmtk.utility.Log;
 import org.mmtk.utility.alloc.LinearScan;
 import org.mmtk.vm.VM;
 import org.vmmagic.unboxed.*;
@@ -40,10 +39,6 @@ public class PreFirstPhaseFromSpaceLinearSanityScan extends LinearScan {
         VM.assertions._assert(!ForwardingWord.isForwarded(object)); // should not be marked forwarded
         VM.assertions._assert(ForwardingWord.getReplicaPointer(object).isNull()); // should not have a FP
         VM.objectModel.checkFromSpaceNotYetReplicatedObject(object); // check object is allow in fromSpace
-        // if (VM.objectModel.interestingRef(object)) {
-        // Log.writeln("PreFirstPhaseFromSpaceLinearSanityScan found interesting reference details are:");
-        // VM.objectModel.dumpObject(object);
-        // }
       }
     }
   }

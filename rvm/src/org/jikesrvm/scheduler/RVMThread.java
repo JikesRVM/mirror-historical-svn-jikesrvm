@@ -74,6 +74,7 @@ import org.jikesrvm.classloader.NormalMethod;
 import org.jikesrvm.tuningfork.TraceEngine;
 import org.jikesrvm.tuningfork.Feedlet;
 import org.mmtk.plan.MutatorContext;
+import org.mmtk.utility.options.Options;
 
 /**
  * A generic java thread's execution context.
@@ -158,20 +159,20 @@ public final class RVMThread extends ThreadContext {
   /** Trace when a thread is really blocked */
   protected static final boolean traceReallyBlock = false || traceBlock;
 
-  protected static final boolean traceAboutToTerminate = true;
+  protected static final boolean traceAboutToTerminate = false;
 
   protected static final boolean dumpStackOnBlock = false; // DANGEROUS! can lead to crashes!
 
-  protected static final boolean traceBind = true;
+  protected static final boolean traceBind = false;
 
   /** Trace thread start/stop */
-  protected static final boolean traceAcct = true;
+  protected static final boolean traceAcct = false;
 
   /** Trace execution */
   protected static final boolean trace = false;
 
   /** Trace thread termination */
-  private static final boolean traceTermination = true;
+  private static final boolean traceTermination = false;
 
   /** Trace adjustments to stack size */
   private static final boolean traceAdjustments = false;
@@ -568,7 +569,6 @@ public final class RVMThread extends ThreadContext {
    * handshake.
    */
   public boolean flushRequested;
-  public boolean barrierUpdate;
   public boolean mutatorProcessPhase;
 
   /**
@@ -1391,6 +1391,8 @@ public final class RVMThread extends ThreadContext {
       threads[0] = this;
       threadIdx = 0;
       numThreads = 1;
+      initMutator(threadSlot);
+      activeMutatorContext = true;
     } else {
       processAboutToTerminate();
       acctLock.lockNoHandshake();
@@ -1421,13 +1423,14 @@ public final class RVMThread extends ThreadContext {
                      * make sure that nobody sees the thread in any of the
                      * tables until the thread slot is inited
                      */
-
+      if (name == null) name = "Thread-" + threadSlot;
       acctLock.lockNoHandshake();
       threadBySlot[threadSlot] = this;
 
       threadIdx = numThreads++;
       threads[threadIdx] = this;
-
+      initMutator(threadSlot);
+      activeMutatorContext = true;
       acctLock.unlock();
     }
     lockingId = threadSlot << ThinLockConstants.TL_THREAD_ID_SHIFT;
@@ -1502,8 +1505,6 @@ public final class RVMThread extends ThreadContext {
       if (trace)
         trace("RVMThread", "create");
 
-      initMutator(threadSlot);
-      this.activeMutatorContext = true;
       // Remember the boot thread
       this.execStatus = IN_JAVA;
       this.waiting = Waiting.RUNNABLE;
@@ -1514,8 +1515,8 @@ public final class RVMThread extends ThreadContext {
 
       // set up wrapper Thread if one exists
       this.thread = thread;
+      this.name = name;
       // Set thread type
-
       this.execStatus = NEW;
       this.waiting = Waiting.RUNNABLE;
 
@@ -1537,9 +1538,6 @@ public final class RVMThread extends ThreadContext {
       VM.enableGC();
 
       assignThreadSlot();
-      this.name = name == null ? "Thread-" + threadSlot : name;
-      initMutator(threadSlot);
-      activeMutatorContext = true;
       if (traceAcct) {
         VM.sysWrite("Thread #", RVMThread.getCurrentThreadSlot());
         VM.sysWriteln(" registered mutator for ", threadSlot);
@@ -1547,9 +1545,9 @@ public final class RVMThread extends ThreadContext {
       insertionBarrier = globalViewInsertionBarrier;
       mutatorMustDoubleAllocate = globalViewMutatorMustDoubleAllocate;
       mutatorMustReplicate = globalViewMutatorMustReplicate;
-      VM.sysWriteln("Thread #", this.threadSlot, " Insertion barrier is ", insertionBarrier ? 1 : 0);
-      VM.sysWriteln("Thread #", this.threadSlot, " Double alloc barrier is ", mutatorMustDoubleAllocate ? 1 : 0);
-      VM.sysWriteln("Thread #", this.threadSlot, " Replication barrier is ", mutatorMustReplicate ? 1 : 0);
+      if (Options.verbose.getValue() >= 8) VM.sysWriteln("Thread #", this.threadSlot, " Insertion barrier is ", insertionBarrier ? 1 : 0);
+      if (Options.verbose.getValue() >= 8) VM.sysWriteln("Thread #", this.threadSlot, " Double alloc barrier is ", mutatorMustDoubleAllocate ? 1 : 0);
+      if (Options.verbose.getValue() >= 8) VM.sysWriteln("Thread #", this.threadSlot, " Replication barrier is ", mutatorMustReplicate ? 1 : 0);
 
       initializeJNIEnv();
 
@@ -3412,19 +3410,8 @@ public final class RVMThread extends ThreadContext {
       flushRequested = false;
     }
 
-    if (barrierUpdate && activeMutatorContext) {
-      if (true) VM.sysWriteln("Mutator thread servicing handshake and updating barrier conditions for thread #", this.threadSlot, " with pthreadID ", this.pthread_id);
-      insertionBarrier = MutatorContext.globalViewInsertionBarrier;
-      mutatorMustDoubleAllocate = MutatorContext.globalViewMutatorMustDoubleAllocate;
-      mutatorMustReplicate = MutatorContext.globalViewMutatorMustReplicate;
-      VM.sysWriteln("Thread #", this.threadSlot, " Insertion barrier is ", insertionBarrier ? 1 : 0);
-      VM.sysWriteln("Thread #", this.threadSlot, " Double alloc barrier is ", mutatorMustDoubleAllocate ? 1 : 0);
-      VM.sysWriteln("Thread #", this.threadSlot, " Replication barrier is ", mutatorMustReplicate ? 1 : 0);
-      barrierUpdate = false;
-    }
-
     if (mutatorProcessPhase && activeMutatorContext) {
-      if (true) VM.sysWriteln("Mutator thread on-the-fly processing collection phase");
+      if (Options.verbose.getValue() >= 8) VM.sysWriteln("Mutator thread on-the-fly processing collection phase");
       collectionPhase(Collection.onTheFlyPhase, false); // LPJH: probably shoudn't just pass false here
       mutatorProcessPhase = false;
     }
@@ -3457,7 +3444,7 @@ public final class RVMThread extends ThreadContext {
       int numToHandshake = 0;
       for (int i = 0; i < RVMThread.numThreads; i++) {
         RVMThread t = RVMThread.threads[i];
-        if (true) VM.sysWriteln("blockAllMutators knows about thread ", t.getThreadSlot(), " with pthread_id ", t.pthread_id);
+        if (Options.verbose.getValue() >= 8) VM.sysWriteln("blockAllMutators knows about thread ", t.getThreadSlot(), " with pthread_id ", t.pthread_id);
         if (!t.isCollectorThread() && !t.ignoreHandshakesAndGC()) {
           RVMThread.handshakeThreads[numToHandshake++] = t;
         }
@@ -3469,7 +3456,7 @@ public final class RVMThread extends ThreadContext {
         RVMThread t = RVMThread.handshakeThreads[i];
         t.monitor().lockNoHandshake();
         if (t.blockedFor(RVMThread.gcBlockAdapter) || RVMThread.notRunning(t.asyncBlock(RVMThread.gcBlockAdapter))) {
-          if (true) VM.sysWriteln("blockAllMutators knows thread # does not need blocking ", t.getThreadSlot());
+          if (Options.verbose.getValue() >= 8) VM.sysWriteln("blockAllMutators knows thread # does not need blocking ", t.getThreadSlot());
           // Already blocked or not running, remove.
           RVMThread.handshakeThreads[i--] = RVMThread.handshakeThreads[--numToHandshake];
           RVMThread.handshakeThreads[numToHandshake] = null; // help GC
@@ -3488,7 +3475,7 @@ public final class RVMThread extends ThreadContext {
 
       // (4) Request a block for GC from all other threads.
       for (int i = 0; i < numToHandshake; i++) {
-        if (true) VM.sysWriteln("blockAllMutatorForGC() Waiting for ", RVMThread.handshakeThreads[i].getThreadSlot(), " to block.");
+        if (Options.verbose.getValue() >= 8) VM.sysWriteln("blockAllMutatorsForGC() Waiting for ", RVMThread.handshakeThreads[i].getThreadSlot(), " to block.");
         RVMThread t = RVMThread.handshakeThreads[i];
         RVMThread.observeExecStatusAtSTW(t.block(RVMThread.gcBlockAdapter));
         RVMThread.handshakeThreads[i] = null; // help GC

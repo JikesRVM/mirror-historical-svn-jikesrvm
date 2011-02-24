@@ -98,7 +98,7 @@ import org.vmmagic.pragma.*;
    */
   public abstract void requestMutatorFlush();
 
-  public abstract void requestMutatorUpdateBarriers();
+  public abstract void requestUpdateBarriers();
   
   public abstract void requestMutatorOnTheFlyProcessPhase(short phaseId);
 

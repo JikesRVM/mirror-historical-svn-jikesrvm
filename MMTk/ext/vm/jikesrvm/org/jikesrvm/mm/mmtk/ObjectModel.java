@@ -103,13 +103,10 @@ import org.vmmagic.pragma.*;
     return MemoryManager.validRef(obj);
   }
 
-  public boolean interestingRef(ObjectReference obj) {
-    return MemoryManager.interestingRef(obj);
-  }
-
   public ObjectReference fillInBlankDoubleRelica(ObjectReference from, Address toSpace, int bytes) {
     if (VM.VERIFY_ASSERTIONS) {
       VM.assertions._assert(Sapphire.inFromSpace(from));
+      if (!Sapphire.inToSpace(toSpace)) Log.writeln("Argh bad toSpace address ", toSpace);
       VM.assertions._assert(Sapphire.inToSpace(toSpace));
     }
     TIB tib = org.jikesrvm.objectmodel.ObjectModel.getTIB(from);

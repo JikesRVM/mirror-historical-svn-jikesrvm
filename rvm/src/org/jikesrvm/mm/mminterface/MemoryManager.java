@@ -54,7 +54,6 @@ import org.vmmagic.pragma.Interruptible;
 import org.vmmagic.pragma.NoInline;
 import org.vmmagic.pragma.Pure;
 import org.vmmagic.pragma.Uninterruptible;
-import org.vmmagic.pragma.UninterruptibleNoWarn;
 import org.vmmagic.pragma.Unpreemptible;
 import org.vmmagic.pragma.UnpreemptibleNoWarn;
 import org.vmmagic.unboxed.Address;
@@ -363,7 +362,7 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
    * @return <code>true</code> if <code>a</code> is a prefix of
    * <code>b</code>
    */
-  @UninterruptibleNoWarn  // LPJH: warning not safe!
+  @Interruptible
   private static boolean isPrefix(String a, byte[] b) {
     int aLen = a.length();
     if (aLen > b.length) {
@@ -375,14 +374,6 @@ public final class MemoryManager implements HeapLayoutConstants, Constants {
       }
     }
     return true;
-  }
-
-  public static boolean interestingRef(ObjectReference obj) {
-    if (obj.isNull()) return false;
-    TIB tib = org.jikesrvm.objectmodel.ObjectModel.getTIB(obj);
-    RVMType type = Magic.objectAsType(tib.getType());
-    byte[] typeBA = type.getDescriptor().toByteArray();
-    return (isPrefix("Lorg/jikesrvm/compilers/baseline/ReferenceMaps", typeBA));
   }
 
   /**

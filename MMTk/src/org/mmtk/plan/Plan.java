@@ -12,7 +12,6 @@
  */
 package org.mmtk.plan;
 
-import org.mmtk.plan.sapphire.Sapphire;
 import org.mmtk.policy.MarkSweepSpace;
 import org.mmtk.policy.Space;
 import org.mmtk.policy.ImmortalSpace;
@@ -836,17 +835,6 @@ public abstract class Plan implements Constants {
    * @return true if a collection is required.
    */
   public final boolean poll(boolean spaceFull, Space space) {
-    if (space == Sapphire.toSpace()) {
-      // toSpace allocation must always succeed
-      logPoll(space, "To-space collection requested - ignoring request");
-      return false;
-    }
-
-    if (gcStatus != NOT_IN_GC) {
-      logPoll(space, "Collection requested whilst GC is in progess - ignoring request");
-      return false;
-    }
-
     if (collectionRequired(spaceFull, space)) {
       if (space == metaDataSpace) {
         /* In general we must not trigger a GC on metadata allocation since
@@ -862,7 +850,7 @@ public abstract class Plan implements Constants {
       return true;
     }
 
-    if (concurrentCollectionRequired()) {
+    if (concurrentCollectionRequired(space)) {
       if (space == metaDataSpace) {
         logPoll(space, "Triggering async concurrent collection");
         triggerInternalCollectionRequest();
@@ -870,8 +858,8 @@ public abstract class Plan implements Constants {
       } else {
         logPoll(space, "Triggering concurrent collection");
         triggerInternalCollectionRequest();
-        logPoll(space, "End of triggerInternalCollectionRequest(), about to return true from poll()");
-        return true;
+        logPoll(space, "End of triggerInternalCollectionRequest(), about to return false from poll()");
+        return false;
       }
     }
 
@@ -915,7 +903,7 @@ public abstract class Plan implements Constants {
    *
    * @return True if a collection is requested by the plan.
    */
-  protected boolean concurrentCollectionRequired() {
+  protected boolean concurrentCollectionRequired(Space space) {
     return false;
   }
 

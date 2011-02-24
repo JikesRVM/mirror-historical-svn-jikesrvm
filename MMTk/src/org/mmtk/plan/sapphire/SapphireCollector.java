@@ -118,7 +118,11 @@ public class SapphireCollector extends ConcurrentCollector {
       Plan.loSpace.initializeHeader(to, false);
     if (VM.VERIFY_ASSERTIONS) {
 //      VM.assertions._assert(getCurrentTrace().isLive(from));  // FP is installed after Copy
-      VM.assertions._assert(getCurrentTrace().willNotMoveInCurrentCollection(to));
+      if(!getCurrentTrace().willNotMoveInCurrentCollection(to)) {
+        Log.write("Argh postCopy assertion failure with toSpace copy "); Log.writeln(to);
+        Space.printVMMap();
+        VM.assertions.fail("DEAD");
+      }
     }
   }
 
@@ -155,12 +159,13 @@ public class SapphireCollector extends ConcurrentCollector {
   @Inline
   public void collectionPhase(short phaseId, boolean primary) {
     if (phaseId == Sapphire.PREPARE) {
-      if (Sapphire.currentTrace == 1) {
-        // first trace
+      if (Sapphire.currentTrace == 0) {
+        // about to first trace
         // rebind the copy bump pointer to the appropriate semispace.
         ss.rebind(Sapphire.toSpace());
       } else {
-        // second trace
+        // about to second trace
+        if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(Sapphire.currentTrace == 1);
       }
       los.prepare(true);
       super.collectionPhase(phaseId, primary);

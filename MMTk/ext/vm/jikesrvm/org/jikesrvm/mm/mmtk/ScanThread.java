@@ -28,6 +28,7 @@ import org.jikesrvm.runtime.RuntimeEntrypoints;
 import org.jikesrvm.scheduler.RVMThread;
 import org.mmtk.plan.TraceLocal;
 import org.mmtk.utility.Log;
+import org.mmtk.utility.options.Options;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Uninterruptible;
 import org.vmmagic.pragma.Untraced;
@@ -170,7 +171,8 @@ import org.jikesrvm.ArchitectureSpecific.Registers;
                                  Address gprs, Address topFrame) {
     // figure out if the thread should be scanned at all; if not, exit
     if (thread.getExecStatus()==RVMThread.NEW || thread.getIsAboutToTerminate()) {
-      VM.sysWriteln("scanning thread in either new or terminated state therefore ignoring #", thread.getThreadSlot(),
+      if (Options.verbose.getValue() >= 8)
+        VM.sysWriteln("scanning thread in either new or terminated state therefore ignoring #", thread.getThreadSlot(),
             " with pthreadID ", thread.pthread_id);
       return;
     }
@@ -246,7 +248,7 @@ import org.jikesrvm.ArchitectureSpecific.Registers;
    * performing the scan.
    */
   private void scanThreadInternal(Address gprs, int verbosity) {
-    if (true) {
+    if (Options.verbose.getValue() >= 8) {
       VM.sysWriteln("Scanning thread ",thread.getThreadSlot()," from thread ",RVMThread.getCurrentThreadSlot());
     }
     if (verbosity >= 2) {
@@ -266,7 +268,7 @@ import org.jikesrvm.ArchitectureSpecific.Registers;
 
     /* scan each frame if a non-empty stack */
     if (fp.NE(ArchitectureSpecific.StackframeLayoutConstants.STACKFRAME_SENTINEL_FP)) {
-      if (true) VM.sysWriteln("There is something on the stack for thread #", thread.getThreadSlot());
+      if (Options.verbose.getValue() >= 8) VM.sysWriteln("There is something on the stack for thread #", thread.getThreadSlot());
       prevFp = Address.zero();
       /* At start of loop:
          fp -> frame for method invocation being processed
@@ -280,7 +282,7 @@ import org.jikesrvm.ArchitectureSpecific.Registers;
         fp = Magic.getCallerFramePointer(fp);
       }
     } else {
-      if (true) VM.sysWriteln("No FP for stack of thread #", thread.getThreadSlot());
+      if (Options.verbose.getValue() >= 8) VM.sysWriteln("No FP for stack of thread #", thread.getThreadSlot());
     }
 
     /* If a thread started via createVM or attachVM, base may need scaning */

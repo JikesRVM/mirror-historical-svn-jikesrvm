@@ -19,6 +19,7 @@ import org.mmtk.policy.Space;
 import org.mmtk.utility.ForwardingWord;
 import org.mmtk.utility.Log;
 import org.mmtk.utility.alloc.Allocator;
+import org.mmtk.utility.options.Options;
 import org.mmtk.vm.VM;
 
 import org.vmmagic.unboxed.*;
@@ -99,7 +100,7 @@ public class SapphireMutator extends ConcurrentMutator {
    * @param bytes The size of the space to be allocated (in bytes)
    * @param allocator The allocator number to be used for this allocation
    */
-  // @Inline
+  @Inline
   public void postAlloc(ObjectReference object, ObjectReference typeRef, int bytes, int allocator, int align, int offset) {
     if (allocator == Sapphire.ALLOC_REPLICATING) {
       if (mutatorMustDoubleAllocate) {
@@ -113,18 +114,7 @@ public class SapphireMutator extends ConcurrentMutator {
       }
     } else {
       super.postAlloc(object, typeRef, bytes, allocator);
-      checkAndEnqueueReference(object);
-    }
-    if (VM.VERIFY_ASSERTIONS) {
-      if (VM.objectModel.interestingRef(object)) {
-        Log.write("Post alloc of interestingReference by thread #", getId()); Log.write(" object is "); Log.writeln(object);
-        Log.write("MutatorContext.globalViewMutatorMustDoubleAllocate is "); Log.writeln(MutatorContext.globalViewMutatorMustDoubleAllocate ? 1 :0);
-        Log.write("MutatorContext.globalViewMutatorInsertionBarrier is "); Log.writeln(MutatorContext.globalViewInsertionBarrier ? 1 :0);
-        Log.write("MutatorContext.globalViewMutatorMustReplicate is "); Log.writeln(MutatorContext.globalViewMutatorMustReplicate ? 1 :0);
-        Log.writeln("Insertion barrier is ", insertionBarrier ? 1 : 0);
-        Log.writeln("Double alloc barrier is ", mutatorMustDoubleAllocate ? 1 : 0);
-        Log.writeln("Replication barrier is ", mutatorMustReplicate ? 1 : 0);
-      }
+      checkAndEnqueueReference(object); // could consider using makeAllocAsMarked() but can only do so after insertion barrier is turned on
     }
   }
 
@@ -158,9 +148,9 @@ public class SapphireMutator extends ConcurrentMutator {
   public void collectionPhase(short phaseId, boolean primary) {
     if (phaseId == Sapphire.PREPARE) {
       super.collectionPhase(phaseId, primary);
-      if (Sapphire.currentTrace == 1) {
+      if (Sapphire.currentTrace == 0) {
         // first trace
-      } else if (Sapphire.currentTrace == 2) {
+      } else if (Sapphire.currentTrace == 1) {
         assertRemsetsFlushed();
       } else {
         VM.assertions.fail("Unknown Sapphire.currentTrace value");
@@ -199,7 +189,7 @@ public class SapphireMutator extends ConcurrentMutator {
     }
 
     if (phaseId == Simple.PREPARE_STACKS) {
-      if (true) Log.writeln("Deferring preparing stack until we want to scan thread");
+      if (Options.verbose.getValue() >= 8) Log.writeln("Deferring preparing stack until we want to scan thread");
       // flushRememberedSets(); // shouldn't need to do this here
       return;
     }
@@ -1016,13 +1006,6 @@ public class SapphireMutator extends ConcurrentMutator {
         }
       }
     }
-
-    // if (VM.VERIFY_ASSERTIONS && !ref.isNull()) {
-    // if (VM.objectModel.interestingRef(ref)) {
-    // Log.write("checkAndEnqeueReference called with interesting reference for thread #", getId());
-    // Log.write(" reference is "); Log.write(ref); Log.writeln(" and thread insertion barrier is ", insertionBarrier ? 1 : 0);
-    // }
-    // }
   }
 
   /**

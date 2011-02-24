@@ -56,10 +56,6 @@ public class PreSecondPhaseFromSpaceLinearSanityScan extends LinearScan {
           Log.writeln(" contained references to toSpace");
           VM.assertions.fail("Died during linear sanity scan");
         }
-        // if (VM.objectModel.interestingRef(object)) {
-        // Log.writeln("PreSecondPhaseFromSpaceLinearSanityScan found interesting reference details are:");
-        // VM.objectModel.dumpObject(object);
-        // }
       }
     }
   }

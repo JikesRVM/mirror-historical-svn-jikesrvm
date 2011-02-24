@@ -14,6 +14,7 @@ package org.mmtk.plan.concurrent;
 
 import org.mmtk.plan.Phase;
 import org.mmtk.plan.Simple;
+import org.mmtk.policy.Space;
 import org.mmtk.utility.Log;
 import org.mmtk.utility.options.ConcurrentTrigger;
 import org.mmtk.utility.options.Options;
@@ -46,7 +47,7 @@ public abstract class Concurrent extends Simple {
    */
   protected static final short preemptConcurrentClosure = Phase.createComplex("preeempt-concurrent-trace", null,
       Phase.scheduleSpecial(STOP_MUTATORS),
-      Phase.scheduleGlobal   (GET_WALL_CLOCK_TIME),
+      // Phase.scheduleGlobal (GET_WALL_CLOCK_TIME),
       Phase.scheduleOnTheFlyMutator  (FLUSH_MUTATOR),
       Phase.scheduleCollector(CLOSURE)); // *not* overloaded (which is what we want)
 
@@ -54,10 +55,10 @@ public abstract class Concurrent extends Simple {
    * When we decide to start (or continue) a concurrent collection there are some preparatory phases
    */
   protected static final short doConcurrentTrace = Phase.createComplex("prepare-concurrent-trace", null,
-      Phase.scheduleGlobal (GET_WALL_CLOCK_TIME),
-      Phase.scheduleGlobal (CONSIDER_GROW_HEAP),
+  // Phase.scheduleGlobal (GET_WALL_CLOCK_TIME),
+      // Phase.scheduleGlobal (CONSIDER_GROW_HEAP),
       Phase.scheduleGlobal (RESET_COLLECTION),
-      Phase.scheduleSpecial(RESTART_MUTATORS),
+      // Phase.scheduleSpecial(RESTART_MUTATORS),
       Phase.scheduleYield  (YIELD_TO_CONCURRENT_GC));
 
   public static final short CONCURRENT_CLOSURE = Phase.createConcurrent("concurrent-closure",
@@ -71,12 +72,12 @@ public abstract class Concurrent extends Simple {
       //Phase.scheduleGlobal    (SET_BARRIER_ACTIVE),
       //Phase.scheduleOnTheFlyMutator   (SET_BARRIER_ACTIVE),
       Phase.scheduleCollector (FLUSH_COLLECTOR),
-      Phase.scheduleGlobal    (CONSIDER_GROW_HEAP),
+          // Phase.scheduleGlobal (CONSIDER_GROW_HEAP),
       Phase.scheduleGlobal    (RESET_COLLECTION),
       // mutators still running here
-      Phase.scheduleConcurrent(CONCURRENT_CLOSURE),
-      Phase.scheduleSpecial (STOP_MUTATORS),
-      Phase.scheduleGlobal    (GET_WALL_CLOCK_TIME));
+      Phase.scheduleConcurrent(CONCURRENT_CLOSURE));
+//      Phase.scheduleSpecial (STOP_MUTATORS));
+//      Phase.scheduleGlobal    (GET_WALL_CLOCK_TIME));
       //Phase.scheduleGlobal    (CLEAR_BARRIER_ACTIVE),
       //Phase.scheduleSTWmutator   (CLEAR_BARRIER_ACTIVE));
 
@@ -175,7 +176,7 @@ public abstract class Concurrent extends Simple {
    * @return True if a collection is requested by the plan.
    */
   @Override
-  protected boolean concurrentCollectionRequired() {
+  protected boolean concurrentCollectionRequired(Space space) {
     return !Phase.concurrentPhaseActive() &&
       ((getPagesReserved() * 100) / getTotalPages()) > Options.concurrentTrigger.getValue();
   }

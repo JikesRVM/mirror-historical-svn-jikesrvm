@@ -12,10 +12,8 @@
  */
 package org.mmtk.plan;
 
-import org.mmtk.plan.sapphire.Sapphire;
 import org.mmtk.policy.Space;
 import org.mmtk.utility.Constants;
-import org.mmtk.utility.ForwardingWord;
 import org.mmtk.utility.Log;
 import org.mmtk.utility.deque.*;
 import org.mmtk.utility.options.Options;
@@ -101,28 +99,10 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
         Log.write("Obtained from source: "); Log.writeln(source);
         VM.assertions._assert(Space.isMappedObject(object));
       }
-      // check if the object is one we are interested in
-      // if (VM.objectModel.interestingRef(object)) {
-      // Log.write("processEdge been asked to trace an interestingReference, current trace is ", Sapphire.currentTrace);
-      // Log.write(" reference comes from "); Log.write(source);
-      // Log.write(" and was "); Log.writeln(object);
-      // Log.writeln("Dumping information for source of interestingReference");
-      // VM.objectModel.dumpObject(source);
-      // Log.writeln("Dumping information for interestingReference");
-      // VM.objectModel.dumpObject(object);
-      // }
     }
     ObjectReference newObject = traceObject(object, false);
     if (overwriteReferenceDuringTrace()) {
       VM.activePlan.global().storeObjectReference(slot, newObject);
-    }
-    if (VM.VERIFY_ASSERTIONS) {
-      if (VM.objectModel.interestingRef(object)) {
-        Log.writeln("For interestingReference traceObject in processEdge returned the following reference with current trace ", Sapphire.currentTrace);
-        VM.objectModel.dumpObject(newObject);
-        Log.writeln("Original object was");
-        VM.objectModel.dumpObject(object);
-      }
     }
   }
 
@@ -155,23 +135,10 @@ public abstract class TraceLocal extends TransitiveClosure implements Constants 
     ObjectReference object;
     if (untraced) object = slot.loadObjectReference();
     else     object = VM.activePlan.global().loadObjectReference(slot);
-    // if (VM.objectModel.interestingRef(object)) {
-    // Log.write("processRootEdge been asked to trace an interestingReference, current trace is ", Sapphire.currentTrace);
-    // Log.write(" and ref is "); Log.writeln(object);
-    // Log.writeln("Dumping information for interestingReference");
-    // VM.objectModel.dumpObject(object);
-    // }
     ObjectReference newObject = traceObject(object, true);
     if (overwriteReferenceDuringTrace()) {
       if (untraced) slot.store(newObject);
       else     VM.activePlan.global().storeObjectReference(slot, newObject);
-    }
-    if (VM.objectModel.interestingRef(object)) {
-      Log.writeln("For interestingReference traceObject in processRootEdge returned the following reference with current trace ",
-          Sapphire.currentTrace);
-      VM.objectModel.dumpObject(newObject);
-      Log.writeln("Original object was");
-      VM.objectModel.dumpObject(object);
     }
   }
 

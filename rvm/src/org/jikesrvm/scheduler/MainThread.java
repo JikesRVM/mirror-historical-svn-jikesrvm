@@ -38,7 +38,7 @@ public final class MainThread extends Thread {
   private RVMMethod mainMethod;
   protected boolean launched = false;
 
-  private static final boolean dbg = true; // LPJH: sapphire debugging
+  private static final boolean dbg = false;
 
   /**
    * Create "main" thread.
