@@ -15,6 +15,7 @@ package org.mmtk.plan.sapphire;
 import org.mmtk.plan.*;
 import org.mmtk.plan.concurrent.ConcurrentMutator;
 import org.mmtk.policy.CopyLocal;
+import org.mmtk.policy.SegregatedFreeListSpace;
 import org.mmtk.policy.Space;
 import org.mmtk.utility.ForwardingWord;
 import org.mmtk.utility.Log;
@@ -101,6 +102,7 @@ public class SapphireMutator extends ConcurrentMutator {
    * @param allocator The allocator number to be used for this allocation
    */
   @Inline
+  // postAlloc called for new Scalars and Arrays
   public void postAlloc(ObjectReference object, ObjectReference typeRef, int bytes, int allocator, int align, int offset) {
     if (allocator == Sapphire.ALLOC_REPLICATING) {
       if (mutatorMustDoubleAllocate) {
@@ -109,12 +111,50 @@ public class SapphireMutator extends ConcurrentMutator {
         Address toSpace = toSpaceLocal.alloc(alignedUpBytes, align, offset);
         // Log.write("PostAlloc "); Log.writeln(toSpace.plus(16)); // hard coded nasty hack
         ObjectReference newObject = VM.objectModel.fillInBlankDoubleRelica(object, toSpace, bytes);
+        if (VM.VERIFY_ASSERTIONS) {
+          VM.assertions._assert(Sapphire.inToSpace(toSpace));
+          VM.assertions._assert(Sapphire.inToSpace(newObject));
+        }
         VM.objectModel.writeReplicaPointer(object, newObject); // avoid a load of assertions
         // Log.write("Finished double allocing for "); Log.writeln(object);
       }
+      return;
+    }
+    postAlloc(object, typeRef, bytes, allocator); // not in Sapphire space
+  }
+
+  public void postAlloc(ObjectReference object, ObjectReference typeRef, int bytes, int allocator) {
+    // not in Sapphire space
+    if (mutatorMustDoubleAllocate) { // consider if we need to blacken the object
+      if (allocator == Sapphire.ALLOC_CODE) {
+        Plan.smallCodeSpace.initializeHeader(object, true);
+        boolean result = Sapphire.smallCodeSpace.testAndMark(object);
+        SegregatedFreeListSpace.markBlock(object); // ensure the current block we are allocating into is marked live
+        if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(result);
+      } else if (allocator == Sapphire.ALLOC_NON_MOVING) {
+        Plan.nonMovingSpace.initializeHeader(object, true);
+        boolean result = Sapphire.nonMovingSpace.testAndMark(object);
+        SegregatedFreeListSpace.markBlock(object); // ensure the current block we are allocating into is marked live
+        if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(result);
+      } else if (allocator == Sapphire.ALLOC_LARGE_CODE) {
+        Plan.largeCodeSpace.initializeHeader(object, false);
+      } else if (allocator == Sapphire.ALLOC_LOS) {
+        Plan.loSpace.initializeHeader(object, false);
+      } else if (allocator == Sapphire.ALLOC_IMMORTAL) {
+        Plan.immortalSpace.initializeHeader(object);
+        Sapphire.immortalSpace.makeBlack(object);
+      }
     } else {
-      super.postAlloc(object, typeRef, bytes, allocator);
-      checkAndEnqueueReference(object); // could consider using makeAllocAsMarked() but can only do so after insertion barrier is turned on
+      // don't need to alloc black
+      switch (allocator) {
+      case           Plan.ALLOC_LOS: Plan.loSpace.initializeHeader(object, true); return;
+      case      Plan.ALLOC_IMMORTAL: Plan.immortalSpace.initializeHeader(object);  return;
+      case          Plan.ALLOC_CODE: Plan.smallCodeSpace.initializeHeader(object, true);  return;
+      case    Plan.ALLOC_LARGE_CODE: Plan.largeCodeSpace.initializeHeader(object, true); return;
+      case    Plan.ALLOC_NON_MOVING: Plan.nonMovingSpace.initializeHeader(object, true);  return;
+      default:
+        VM.assertions.fail("No such allocator");
+      }
     }
   }
 
@@ -960,6 +1000,7 @@ public class SapphireMutator extends ConcurrentMutator {
    * Flush per-mutator remembered sets into the global remset pool.
    */
   public final void flushRememberedSets() {
+    if (Options.verbose.getValue() >= 8) Log.writeln("Flushing #", getId());
     mutatorLocalTraceWriteBuffer.flush();
     assertRemsetsFlushed();
   }
@@ -995,7 +1036,8 @@ public class SapphireMutator extends ConcurrentMutator {
       }
 
       if (VM.VERIFY_ASSERTIONS) {
-        if (!ref.isNull() && !Plan.gcInProgress()) {
+        VM.assertions._assert(VM.objectModel.validRef(ref)); // catch inserting a non valid reference
+        if (!Plan.gcInProgress()) {
           if (Space.isInSpace(Sapphire.SS0, ref)) VM.assertions._assert(Sapphire.repSpace0.isLive(ref));
           else if (Space.isInSpace(Sapphire.SS1, ref)) VM.assertions._assert(Sapphire.repSpace1.isLive(ref));
           else if (Space.isInSpace(Sapphire.IMMORTAL,   ref)) VM.assertions._assert(Sapphire.immortalSpace.isLive(ref));

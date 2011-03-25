@@ -24,6 +24,7 @@ import org.vmmagic.unboxed.*;
 @Uninterruptible
 public final class SanityTraceLocal extends TraceLocal {
 
+  private Address current;
   private final SanityChecker sanityChecker;
 
   /**
@@ -39,6 +40,11 @@ public final class SanityTraceLocal extends TraceLocal {
    * Object processing and tracing
    */
 
+  public void scanObject(ObjectReference o) {
+    current = o.toAddress();
+    super.scanObject(o);
+    current = Address.zero();
+  }
   /**
    * This method is the core method during the trace of the object graph.
    * The role of this method is to:
@@ -49,7 +55,7 @@ public final class SanityTraceLocal extends TraceLocal {
    */
   @Inline
   public ObjectReference traceObject(ObjectReference object, boolean root) {
-    sanityChecker.processObject(this, object, root);
+    sanityChecker.processObject(this, current, object, root);
     return object;
   }
 

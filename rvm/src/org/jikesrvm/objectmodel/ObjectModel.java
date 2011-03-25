@@ -19,6 +19,7 @@ import org.jikesrvm.classloader.RVMArray;
 import org.jikesrvm.classloader.RVMClass;
 import org.jikesrvm.classloader.RVMField;
 import org.jikesrvm.classloader.RVMType;
+import org.jikesrvm.mm.mminterface.AlignmentEncoding;
 import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.runtime.Magic;
 import org.jikesrvm.scheduler.Lock;
@@ -146,9 +147,9 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
 
   static {
     if (PACKED) {
-      layout = new FieldLayoutPacked(true, false);
+      layout = new FieldLayoutPacked(true, true);
     } else {
-      layout = new FieldLayoutUnpacked(true, false);
+      layout = new FieldLayoutUnpacked(true, true);
     }
   }
 
@@ -817,12 +818,13 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
    * @param numElements number of elements
    * @param needsIdentityHash needs an identity hash value
    * @param identityHashValue the value for the identity hash
+   * @param alignCode TODO
    * @return Address of object in bootimage (in bytes)
    */
   @Interruptible
-  public static Address allocateArray(BootImageInterface bootImage, RVMArray array, int numElements, boolean needsIdentityHash, int identityHashValue) {
+  public static Address allocateArray(BootImageInterface bootImage, RVMArray array, int numElements, boolean needsIdentityHash, int identityHashValue, int alignCode) {
     int align = getAlignment(array);
-    return allocateArray(bootImage, array, numElements, needsIdentityHash, identityHashValue, align);
+    return allocateArray(bootImage, array, numElements, needsIdentityHash, identityHashValue, align, alignCode);
   }
 
   /**
@@ -835,10 +837,11 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
    * @param numElements number of elements
    * @param needsIdentityHash needs an identity hash value
    * @param identityHashValue the value for the identity hash
+   * @param alignCode TODO
    * @return Address of object in bootimage (in bytes)
    */
   @Interruptible
-  public static Address allocateArray(BootImageInterface bootImage, RVMArray array, int numElements, boolean needsIdentityHash, int identityHashValue, int align) {
+  public static Address allocateArray(BootImageInterface bootImage, RVMArray array, int numElements, boolean needsIdentityHash, int identityHashValue, int align, int alignCode) {
     TIB tib = array.getTypeInformationBlock();
     int size = array.getInstanceSize(numElements);
     if (needsIdentityHash) {
@@ -851,7 +854,9 @@ public class ObjectModel implements JavaHeaderConstants, SizeConstants {
       }
     }
     int offset = getOffsetForAlignment(array, needsIdentityHash);
-    Address ptr = bootImage.allocateDataStorage(size, align, offset);
+    int padding = AlignmentEncoding.padding(alignCode);
+    Address ptr = bootImage.allocateDataStorage(size + padding, align, offset);
+    ptr = AlignmentEncoding.adjustRegion(alignCode, ptr);
     Address ref = JavaHeader.initializeArrayHeader(bootImage, ptr, tib, size, numElements, needsIdentityHash, identityHashValue);
     bootImage.setFullWord(ref.plus(getArrayLengthOffset()), numElements);
     MemoryManager.initializeHeader(bootImage, ref, tib, size, false);

@@ -232,9 +232,9 @@ public abstract class MutatorContext implements Constants {
       switch (allocator) {
       case           Plan.ALLOC_LOS: Plan.loSpace.initializeHeader(ref, true); return;
       case      Plan.ALLOC_IMMORTAL: Plan.immortalSpace.initializeHeader(ref);  return;
-      case          Plan.ALLOC_CODE: Plan.smallCodeSpace.initializeHeader(ref, true); return;
+      case          Plan.ALLOC_CODE: Plan.smallCodeSpace.initializeHeader(ref, true);  return;
       case    Plan.ALLOC_LARGE_CODE: Plan.largeCodeSpace.initializeHeader(ref, true); return;
-      case    Plan.ALLOC_NON_MOVING: Plan.nonMovingSpace.initializeHeader(ref, true); return;
+      case    Plan.ALLOC_NON_MOVING: Plan.nonMovingSpace.initializeHeader(ref, true);  return;
       default:
         VM.assertions.fail("No such allocator");
     }
@@ -262,7 +262,7 @@ public abstract class MutatorContext implements Constants {
     if (Plan.USE_CODE_SPACE && space == Plan.largeCodeSpace) return lgcode;
 
     // Invalid request has been made
-    if (space == Plan.metaDataSpace) {
+    if (space == Plan.metaDataSpace || space == Plan.metaDataSpace1 || space == Plan.metaDataSpace2) {
       VM.assertions.fail("MutatorContext.getAllocatorFromSpace given meta space");
     } else if (space != null) {
       VM.assertions.fail("MutatorContext.getAllocatorFromSpace given invalid space");

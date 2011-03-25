@@ -23,6 +23,8 @@ import org.jikesrvm.VM;
 import org.jikesrvm.compilers.common.CompiledMethods;
 import org.jikesrvm.jni.JNIEnvironment;
 import org.jikesrvm.jni.JNIGlobalRefTable;
+import org.jikesrvm.mm.mminterface.AlignmentEncoding;
+import org.jikesrvm.mm.mminterface.HandInlinedScanning;
 import org.jikesrvm.mm.mminterface.Selected;
 import org.jikesrvm.mm.mminterface.MemoryManagerConstants;
 import org.jikesrvm.mm.mminterface.SpecializedScanMethod;
@@ -49,7 +51,12 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
    */
   @Inline
   public void scanObject(TransitiveClosure trace, ObjectReference object) {
-    SpecializedScanMethod.fallback(object.toObject(), trace);
+    if (HandInlinedScanning.ENABLED) {
+      int tibCode = AlignmentEncoding.getTibCode(object);
+      HandInlinedScanning.scanObject(tibCode, object.toObject(), trace);
+    } else {
+      SpecializedScanMethod.fallback(object.toObject(), trace);
+    }
   }
 
   @Inline
@@ -72,10 +79,15 @@ public final class Scanning extends org.mmtk.vm.Scanning implements Constants {
    */
   @Inline
   public void specializedScanObject(int id, TransitiveClosure trace, ObjectReference object) {
-    if (SpecializedScanMethod.ENABLED) {
-      SpecializedScanMethod.invoke(id, object.toObject(), trace);
+    if (HandInlinedScanning.ENABLED) {
+      int tibCode = AlignmentEncoding.getTibCode(object);
+      HandInlinedScanning.scanObject(tibCode, id, object.toObject(), trace);
     } else {
-      SpecializedScanMethod.fallback(object.toObject(), trace);
+      if (SpecializedScanMethod.ENABLED) {
+        SpecializedScanMethod.invoke(id, object.toObject(), trace);
+      } else {
+        SpecializedScanMethod.fallback(object.toObject(), trace);
+      }
     }
   }
 

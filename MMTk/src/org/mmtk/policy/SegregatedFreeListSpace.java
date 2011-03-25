@@ -815,7 +815,7 @@ public abstract class SegregatedFreeListSpace extends Space implements Constants
    * @param object The object whose blocks liveness is to be set.
    */
   @Inline
-  protected static void markBlock(ObjectReference object) {
+  public static void markBlock(ObjectReference object) {
     BlockAllocator.markBlockMeta(object);
   }
 

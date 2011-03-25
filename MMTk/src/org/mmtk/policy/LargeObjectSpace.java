@@ -171,7 +171,7 @@ public final class LargeObjectSpace extends BaseLargeObjectSpace {
    * @param object The object which has been marked.
    */
   @Inline
-  private void internalMarkObject(ObjectReference object, boolean nurseryObject) {
+  public void internalMarkObject(ObjectReference object, boolean nurseryObject) {
 
     Address cell = VM.objectModel.objectStartRef(object);
     Address node = Treadmill.midPayloadToNode(cell);
@@ -193,7 +193,7 @@ public final class LargeObjectSpace extends BaseLargeObjectSpace {
   @Inline
   public void initializeHeader(ObjectReference object, boolean alloc) {
     byte oldValue = VM.objectModel.readAvailableByte(object);
-    byte newValue = (byte) ((oldValue & ~LOS_BIT_MASK) | markState);
+    byte newValue = (byte) ((oldValue & ~LOS_BIT_MASK) | markState); // when changed?
     if (alloc) newValue |= NURSERY_BIT;
     if (HeaderByte.NEEDS_UNLOGGED_BIT) newValue |= HeaderByte.UNLOGGED_BIT;
     VM.objectModel.writeAvailableByte(object, newValue);

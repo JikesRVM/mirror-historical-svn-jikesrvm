@@ -112,6 +112,7 @@ public class SapphireTraceLocalFirst extends TraceLocal {
         // this work here is necessary because we don't want the insertion barrier to do any work (allocation)
         // therefore the insertion barrier can't mark objects as live so we must do that before we scan the object
         traceObject(v); // the object we just popped is not yet live, mark it as live
+        if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(isLive(v));
         scanObject(v);  // now that we have made the object live, scan it's children
       }
       processRememberedSets();

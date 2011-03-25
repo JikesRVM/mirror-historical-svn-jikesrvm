@@ -498,7 +498,7 @@ public abstract class Phase implements Constants {
       /* Start the timer(s) */
       if (primary) {
         if (resume) {
-          resumeComplexTimers();
+          // resumeComplexTimers();
         }
         if (p.timer != null) p.timer.start();
         if (startComplexTimer > 0) {
@@ -552,7 +552,12 @@ public abstract class Phase implements Constants {
           MutatorContext mutator;
           while ((mutator = VM.activePlan.getNextMutator()) != null) {
             if (VM.DEBUG) VM.debugging.mutatorPhase(phaseId,mutator.getId(),true);
-            if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(VM.collection.isBlockedForGC(mutator));
+            if (VM.VERIFY_ASSERTIONS) {
+              if (!VM.collection.isBlockedForGC(mutator)) {
+                Log.write("Argh expected mutators to be stopped and they weren't, phase is "); Log.writeln(Phase.getName(phaseId));
+              VM.assertions.fail("DEAD");
+              }
+            }
             mutator.collectionPhase(phaseId, primary);
             if (VM.DEBUG) VM.debugging.mutatorPhase(phaseId,mutator.getId(),false);
           }
@@ -579,7 +584,7 @@ public abstract class Phase implements Constants {
           /* We are yielding to a concurrent collection phase */
           if (logDetails) Log.writeln(" Yielding...");
           if (primary) {
-            pauseComplexTimers();
+          // pauseComplexTimers(); //LPJH: disable timers for the moment as we never start them anyway
             /* Concurrent phase, we need to stop gc and set correct phase for the concurrent GC
              * @phaseStackPointer will have the complex phase continueConcurrentScheduledPhase associated with
              *                    the current concurrent phase

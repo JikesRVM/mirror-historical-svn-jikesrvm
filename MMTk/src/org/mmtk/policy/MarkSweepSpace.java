@@ -364,7 +364,7 @@ public final class MarkSweepSpace extends SegregatedFreeListSpace implements Con
    * @param value The value to which the mark bits will be set
    */
   @Inline
-  private boolean testAndMark(ObjectReference object) {
+  public boolean testAndMark(ObjectReference object) {
     byte oldValue, markBits;
     oldValue = VM.objectModel.readAvailableByte(object);
     markBits = (byte) (oldValue & MARK_COUNT_MASK);

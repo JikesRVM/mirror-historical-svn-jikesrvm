@@ -44,6 +44,7 @@ import org.jikesrvm.scheduler.Synchronization;
 import org.jikesrvm.scheduler.RVMThread;
 import org.jikesrvm.runtime.FileSystem;
 import org.jikesrvm.tuningfork.TraceEngine;
+import org.mmtk.policy.Space;
 import org.vmmagic.pragma.Entrypoint;
 import org.vmmagic.pragma.Inline;
 import org.vmmagic.pragma.Interruptible;
@@ -2281,6 +2282,7 @@ public class VM extends Properties implements Constants, ExitStatus {
       VM.sysWriteln("Died in System Thread:");
     else
       VM.sysWriteln("Died in Mutator Thread:");
+    Space.printVMMap();
     RVMThread.traceback(message);
     VM.sysWriteln("Virtual machine state:");
     RVMThread.dumpVirtualMachine();

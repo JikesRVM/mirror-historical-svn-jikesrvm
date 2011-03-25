@@ -84,6 +84,13 @@ import org.vmmagic.pragma.*;
    * @param object The newly allocated object instance whose header we are initializing
    */
   public void initializeHeader(ObjectReference object) {
+    // byte oldValue = VM.objectModel.readAvailableByte(object);
+    // byte newValue = (byte) ((oldValue & GC_MARK_BIT_MASK) | markState);
+    // if (HeaderByte.NEEDS_UNLOGGED_BIT) newValue |= HeaderByte.UNLOGGED_BIT;
+    // VM.objectModel.writeAvailableByte(object, newValue);
+  }
+
+  public void makeBlack(ObjectReference object) {
     byte oldValue = VM.objectModel.readAvailableByte(object);
     byte newValue = (byte) ((oldValue & GC_MARK_BIT_MASK) | markState);
     if (HeaderByte.NEEDS_UNLOGGED_BIT) newValue |= HeaderByte.UNLOGGED_BIT;

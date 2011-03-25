@@ -15,10 +15,10 @@ package org.mmtk.plan.sapphire;
 import org.mmtk.plan.*;
 import org.mmtk.plan.concurrent.ConcurrentCollector;
 import org.mmtk.policy.CopyLocal;
-import org.mmtk.policy.LargeObjectLocal;
 import org.mmtk.policy.Space;
 import org.mmtk.utility.ForwardingWord;
 import org.mmtk.utility.Log;
+import org.mmtk.utility.options.Options;
 import org.mmtk.vm.VM;
 
 import org.vmmagic.unboxed.*;
@@ -33,8 +33,7 @@ public class SapphireCollector extends ConcurrentCollector {
 
   protected final SapphireTraceLocalFirst localFirstTrace;
   protected final SapphireTraceLocalSecond localSecondTrace;
-  protected final CopyLocal ss;
-  protected final LargeObjectLocal los;
+  protected final CopyLocal ss = new CopyLocal();
 
 
   /****************************************************************************
@@ -54,9 +53,6 @@ public class SapphireCollector extends ConcurrentCollector {
    * @param tr The trace to use
    */
   protected SapphireCollector(SapphireTraceLocalFirst tr, SapphireTraceLocalSecond tr2) {
-    ss = new CopyLocal();
-    ss.rebind(Sapphire.toSpace());
-    los = new LargeObjectLocal(Plan.loSpace);
     localFirstTrace = tr;
     localSecondTrace = tr2;
   }
@@ -77,22 +73,14 @@ public class SapphireCollector extends ConcurrentCollector {
    * @return The address of the first byte of the allocated region
    */
   @Inline
-  public Address allocCopy(ObjectReference original, int bytes,
-      int align, int offset, int allocator) {
-    if (allocator == Plan.ALLOC_LOS) {
-      if (VM.VERIFY_ASSERTIONS)
-        VM.assertions._assert(bytes > Plan.MAX_NON_LOS_COPY_BYTES);
-      VM.assertions.fail("Sapphire debugging - should not copy into LOS at present");
-      return los.alloc(bytes, align, offset);
-    } else {
-      if (VM.VERIFY_ASSERTIONS) {
-        // VM.assertions._assert(bytes <= Plan.MAX_NON_LOS_COPY_BYTES); // LPJH: when allow copying to LOS then uncomment this
-        VM.assertions._assert(allocator == Sapphire.ALLOC_REPLICATING);
-      }
-      Address addy =  ss.alloc(bytes, align, offset);
-      // Log.write("AllocCopy "); Log.writeln(addy.plus(16)); // hard coded nasty hack
-      return addy;
+  public Address allocCopy(ObjectReference original, int bytes, int align, int offset, int allocator) {
+    if (VM.VERIFY_ASSERTIONS) {
+      // VM.assertions._assert(bytes <= Plan.MAX_NON_LOS_COPY_BYTES); // LPJH: when allow copying to LOS then uncomment this
+      VM.assertions._assert(allocator == Sapphire.ALLOC_REPLICATING);
     }
+    Address addy = ss.alloc(bytes, align, offset);
+    // Log.write("AllocCopy "); Log.writeln(addy.plus(16)); // hard coded nasty hack
+    return addy;
   }
 
   /**
@@ -111,13 +99,10 @@ public class SapphireCollector extends ConcurrentCollector {
     }
     ForwardingWord.clearForwardingBits(to);
     if (VM.VERIFY_ASSERTIONS) {
+      VM.assertions._assert(allocator == Sapphire.ALLOC_REPLICATING);
       VM.assertions._assert(!ForwardingWord.isBusy(to));
       VM.assertions._assert(!ForwardingWord.isForwarded(to));
-    }
-    if (allocator == Plan.ALLOC_LOS)
-      Plan.loSpace.initializeHeader(to, false);
-    if (VM.VERIFY_ASSERTIONS) {
-//      VM.assertions._assert(getCurrentTrace().isLive(from));  // FP is installed after Copy
+      // VM.assertions._assert(getCurrentTrace().isLive(from)); // FP is installed after Copy
       if(!getCurrentTrace().willNotMoveInCurrentCollection(to)) {
         Log.write("Argh postCopy assertion failure with toSpace copy "); Log.writeln(to);
         Space.printVMMap();
@@ -163,11 +148,14 @@ public class SapphireCollector extends ConcurrentCollector {
         // about to first trace
         // rebind the copy bump pointer to the appropriate semispace.
         ss.rebind(Sapphire.toSpace());
+        if (Options.verbose.getValue() >= 8) {
+          Log.write("Bound collector #", getId());
+          Log.writeln(ss.getSpace().getName());
+        }
       } else {
         // about to second trace
         if (VM.VERIFY_ASSERTIONS) VM.assertions._assert(Sapphire.currentTrace == 1);
       }
-      los.prepare(true);
       super.collectionPhase(phaseId, primary);
       return;
     }
@@ -205,26 +193,50 @@ public class SapphireCollector extends ConcurrentCollector {
 
     if (phaseId == Sapphire.RELEASE) {
       getCurrentTrace().release();
-      los.release(true);
       super.collectionPhase(phaseId, primary);
       return;
     }
 
     if (phaseId == Sapphire.COMPLETE) {
       if (Sapphire.currentTrace == 2) {
-        // second trace
+        // end of gc no more objects to copy
         Sapphire.deadBumpPointersLock.acquire();
-        Sapphire.deadFromSpaceBumpPointers.tackOn(ss);
+        Sapphire.deadFromSpaceBumpPointers.tackOn(ss); // collector allocation now becomes fromSpace allocation
         Sapphire.deadBumpPointersLock.release();
-        ss.reset(); // reset the bump pointer as it will not be used for any more alloc during this GC
-      } else {
-        // current trace 1
+        ss.reset(); // reset the bump pointer
+        if (Options.verbose.getValue() >= 8) {
+          Log.write("Reset collector #", getId());
+          Log.writeln(ss.getSpace().getName());
+        }
       }
       super.collectionPhase(phaseId, primary);
       return;
     }
 
     super.collectionPhase(phaseId, primary);
+  }
+
+  /**
+   * Perform some concurrent collection work.
+   * 
+   * @param phaseId
+   *          The unique phase identifier
+   */
+  @Unpreemptible
+  public void concurrentCollectionPhase(short phaseId) {
+    ss.rebind(Sapphire.toSpace());
+    if (Options.verbose.getValue() >= 8) {
+      Log.write("Bound concurrent collector #", getId());
+      Log.writeln(ss.getSpace().getName());
+    }
+    super.concurrentCollectionPhase(phaseId);
+    Sapphire.deadBumpPointersLock.acquire();
+    Sapphire.deadToSpaceBumpPointers.tackOn(ss); // stuff we concurrently allocated is toSpace
+    Sapphire.deadBumpPointersLock.release();
+    ss.reset();
+    if (Options.verbose.getValue() >= 8) {
+      Log.writeln("Reset concurrent collector and tacked on to deadToSpace #", getId());
+    }
   }
 
 

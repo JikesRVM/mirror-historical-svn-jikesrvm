@@ -123,15 +123,18 @@ public abstract class Simple extends Plan implements Constants {
       Phase.scheduleGlobal     (PREPARE),
       Phase.scheduleCollector  (PREPARE));
 
-  /**
-   * Perform the initial determination of liveness from the roots.
-   */
-  protected static final short rootClosurePhase = Phase.createComplex("initial-closure", null,
+  protected static final short rootScanPhase = Phase.createComplex("root-scan", null,
       Phase.scheduleComplex    (prepareStacks),
       Phase.scheduleCollector(STACK_ROOTS),
       Phase.scheduleGlobal     (STACK_ROOTS),
       Phase.scheduleCollector(ROOTS),
-      Phase.scheduleGlobal     (ROOTS),
+      Phase.scheduleGlobal     (ROOTS));
+  
+  /**
+   * Perform the initial determination of liveness from the roots.
+   */
+  protected static final short rootClosurePhase = Phase.createComplex("initial-closure", null,
+      Phase.scheduleComplex    (rootScanPhase),
       Phase.scheduleGlobal     (CLOSURE),
       Phase.scheduleCollector  (CLOSURE));  // over loaded to concurrentClosure
 
@@ -162,7 +165,7 @@ public abstract class Simple extends Plan implements Constants {
    * Complete closure including reference types and finalizable objects.
    */
   protected static final short completeClosurePhase = Phase.createComplex("release", null,
-      Phase.scheduleSTWmutator    (RELEASE),
+ Phase.scheduleSTWmutator(RELEASE),
       Phase.scheduleCollector  (RELEASE),
       Phase.scheduleGlobal     (RELEASE));
 

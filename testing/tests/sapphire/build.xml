@@ -17,10 +17,10 @@
   <property file="${components.file}"/>
 
   <property name="test.class.path" value="${dacapo.jar}"/>
-  <property name="test.hsqldb.extra.args" value="-showfullversion -Xms250M -Xmx250M -X:gc:verbose=0 -X:gc:threads=1 -X:gc:noFinalizer=true -X:gc:noReferenceTypes=true -X:gc:sanityCheck=false"/>
-  <property name="test.lusearch.extra.args" value="-showfullversion -Xms200M -Xmx200M -X:gc:verbose=0 -X:gc:threads=1 -X:gc:noFinalizer=true -X:gc:noReferenceTypes=true -X:gc:sanityCheck=false"/>
-  <property name="test.xalan.extra.args" value="-showfullversion -Xms200M -Xmx200M -X:gc:verbose=0 -X:gc:threads=1 -X:gc:noFinalizer=true -X:gc:noReferenceTypes=true -X:gc:sanityCheck=false"/>
-  <property name="test.eclipse.extra.args" value="-showfullversion -Xms200M -Xmx200M -X:gc:verbose=0 -X:gc:threads=1 -X:gc:noFinalizer=true -X:gc:noReferenceTypes=true -X:gc:sanityCheck=false"/>
+  <property name="test.hsqldb.extra.args" value="-showfullversion -Xms300M -Xmx300M -X:gc:verbose=0 -X:gc:threads=1 -X:gc:noFinalizer=true -X:gc:noReferenceTypes=true -X:gc:sanityCheck=false"/>
+  <property name="test.lusearch.extra.args" value="-showfullversion -Xms600M -Xmx600M -X:gc:verbose=0 -X:gc:threads=1 -X:gc:noFinalizer=true -X:gc:noReferenceTypes=true -X:gc:sanityCheck=false"/>
+  <property name="test.xalan.extra.args" value="-showfullversion -Xms300M -Xmx300M -X:gc:verbose=0 -X:gc:threads=1 -X:gc:noFinalizer=true -X:gc:noReferenceTypes=true -X:gc:sanityCheck=false"/>
+  <property name="test.eclipse.extra.args" value="-showfullversion -Xms600M -Xmx600M -X:gc:verbose=0 -X:gc:threads=1 -X:gc:noFinalizer=true -X:gc:noReferenceTypes=true -X:gc:sanityCheck=false"/>
   <property name="test.time.limit" value="10000"/>
 
 
@@ -48,60 +48,58 @@
     <test-file name="dacapo.jar" location="${jikesrvm.dir}/.ant.properties"/>
 
     <startResults/>
-
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="1"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="2"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="3"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="4"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="5"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="6"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="7"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="8"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="9"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="10"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="11"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="12"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="13"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="14"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="15"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="16"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="17"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="18"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="19"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="20"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="21"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="22"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="23"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="24"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="25"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="26"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="27"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="28"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="29"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="30"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="31"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="32"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="33"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="34"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="35"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="36"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="37"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="38"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="39"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="40"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="41"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="42"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="43"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="44"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="45"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="46"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="47"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="48"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="49"/>
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="50"/>
+    <!--
     <dacapo name="hsqldb" heapsize="200" size="default" invocation="1"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="2"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="3"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="4"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="5"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="6"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="7"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="8"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="9"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="10"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="11"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="12"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="13"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="14"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="15"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="16"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="17"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="18"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="19"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="20"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="21"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="22"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="23"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="24"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="25"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="26"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="27"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="28"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="29"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="30"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="31"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="32"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="33"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="34"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="35"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="36"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="37"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="38"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="39"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="40"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="41"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="42"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="43"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="44"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="45"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="46"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="47"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="48"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="49"/>
-    <dacapo name="hsqldb" heapsize="200" size="default" invocation="50"/>
-
-
-    <!-- <dacapo name="hsqldb" heapsize="200" size="default" invocation="1"/>
     <dacapo name="lusearch" heapsize="200" size="default" invocation="1"/>
     <dacapo name="xalan" heapsize="200" size="default" invocation="1"/>
     <dacapo name="eclipse" heapsize="200" size="default" invocation="1"/>
@@ -140,8 +138,8 @@
     <dacapo name="hsqldb" heapsize="200" size="default" invocation="10"/>
     <dacapo name="lusearch" heapsize="200" size="default" invocation="10"/>
     <dacapo name="xalan" heapsize="200" size="default" invocation="10"/>
-    <dacapo name="eclipse" heapsize="200" size="default" invocation="10"/> -->
-
+    <dacapo name="eclipse" heapsize="200" size="default" invocation="10"/>
+    -->
     <finishResults/>
   </target>
 

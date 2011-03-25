@@ -37,7 +37,10 @@ public class Sapphire extends Concurrent {
    */
 
   /** True if allocating into the "higher" semispace */
-  public static boolean low = true; // True if allocing to "lower" semispace
+  public static volatile boolean low = true; // True if allocing to "lower" semispace, volatile so collector thread always reads the
+                                             // right value
+
+  public static boolean iuTerminationMustCheckRoots = true;
 
   /** One of the two semi spaces that alternate roles at each collection */
   public static final ReplicatingSpace repSpace0 = new ReplicatingSpace("rep-ss0", VMRequest.create());
@@ -90,8 +93,8 @@ public class Sapphire extends Concurrent {
    * Constructor
    */
   public Sapphire() {
-    globalFirstTrace = new Trace(metaDataSpace);
-    globalSecondTrace = new Trace(metaDataSpace);
+    globalFirstTrace = new Trace(metaDataSpace1);
+    globalSecondTrace = new Trace(metaDataSpace2);
     /**
      * This is the phase that is executed to perform a collection.
      */
@@ -99,19 +102,21 @@ public class Sapphire extends Concurrent {
         Phase.schedulePlaceholder(PRE_SANITY_PLACEHOLDER),
         Phase.scheduleComplex(initPhase),
         Phase.scheduleGlobal(SAPPHIRE_PREPARE_FIRST_TRACE),
-        Phase.scheduleComplex(rootClosurePhase),
-        Phase.scheduleComplex(refTypeClosurePhase),
-        Phase.scheduleComplex(insertionBarrierTerminationClosurePhase),
+        Phase.scheduleOnTheFlyMutator(FLUSH_MUTATOR),
+        Phase.scheduleComplex(transitiveClosure),
+        Phase.scheduleGlobal(INSERTION_BARRIER_TERMINATION_CONDITION),
+        Phase.scheduleSpecial(DISABLE_MUTATORS),
         Phase.scheduleComplex(completeClosurePhase),
-        Phase.scheduleSpecial(DISABLE_MUTATORS), // previous phases stop us but be explict about it
         Phase.schedulePlaceholder(POST_SANITY_PLACEHOLDER),
+        // Phase.scheduleGlobal(SANITY_SET_POSTGC),
+        // Phase.scheduleComplex(sanityBuildPhase),
+        // Phase.scheduleComplex(sanityCheckPhase),
         Phase.scheduleSTWmutator(PREPARE), // STW here to help verify mutators are stopped, change later
         Phase.scheduleGlobal     (PREPARE),
         Phase.scheduleCollector  (PREPARE),
         Phase.scheduleGlobal(SAPPHIRE_PREPARE_SECOND_TRACE),
         Phase.schedulePlaceholder(PRE_SANITY_PLACEHOLDER),
-        Phase.scheduleComplex(rootClosurePhase),
-        Phase.scheduleComplex(refTypeClosurePhase),
+        Phase.scheduleComplex(transitiveClosure),
         Phase.scheduleComplex(forwardPhase),
         Phase.scheduleComplex(completeClosurePhase),
         Phase.schedulePlaceholder(POST_SANITY_PLACEHOLDER),
@@ -120,16 +125,10 @@ public class Sapphire extends Concurrent {
         Phase.scheduleSpecial(ENABLE_MUTATORS));
   }
   
-  protected static final short insertionBarrierTerminationClosurePhase = Phase.createComplex("sapphire-insertion-barrier-termination-closure", null,
-      Phase.scheduleSpecial(DISABLE_MUTATORS),
-      Phase.scheduleOnTheFlyMutator(FLUSH_MUTATOR),
-      Phase.scheduleComplex    (prepareStacks),
-      Phase.scheduleCollector(STACK_ROOTS),
-      Phase.scheduleGlobal     (STACK_ROOTS),
-      Phase.scheduleCollector(ROOTS),
-      Phase.scheduleGlobal     (ROOTS),
-      Phase.scheduleGlobal     (CLOSURE),
-      Phase.scheduleCollector  (CLOSURE),  // over loaded to concurrentClosure
+  protected static final short INSERTION_BARRIER_TERMINATION_CONDITION = Phase.createSimple("insertionBarrierTerminationCondition");
+
+  protected static final short transitiveClosure = Phase.createComplex("transitiveClosure",
+      Phase.scheduleComplex(rootClosurePhase),
       Phase.scheduleComplex(refTypeClosurePhase));
 
   /****************************************************************************
@@ -152,6 +151,7 @@ public class Sapphire extends Concurrent {
       }
       if (Options.verbose.getValue() >= 8) Log.writeln("Switching to 1st trace");
       Sapphire.currentTrace = 1;
+      iuTerminationMustCheckRoots = true;;
       MutatorContext.globalViewInsertionBarrier = true;
       MutatorContext.globalViewMutatorMustDoubleAllocate = false; // must not yet turn on allocation barrier until all threads have
                                                                   // seen insertion barrier - this is required because otherwise new
@@ -167,6 +167,35 @@ public class Sapphire extends Concurrent {
       return;
     }
     
+    if (phaseId == INSERTION_BARRIER_TERMINATION_CONDITION) {
+      if (Options.verbose.getValue() >= 8) {
+        Log.writeln("INSERTION_BARRIER_TERMINATION_CONDITION checking for work");
+        Space.printVMMap();
+      }
+      // first check the global write buffer
+      if (globalFirstTrace.hasWork()) {
+        // found some work in a buffer 
+
+        if (Options.verbose.getValue() >= 8) Log.writeln("INSERTION_BARRIER_TERMINATION_CONDITION globalFirstTrace already contains work, mustCheckRoots will be set true");
+        Phase.pushScheduledPhase(Phase.scheduleGlobal(INSERTION_BARRIER_TERMINATION_CONDITION)); // ensure we will rerun the termination check
+        Phase.pushScheduledPhase(Phase.scheduleComplex(transitiveClosure)); // do another transitive closure
+        iuTerminationMustCheckRoots = true; // we will need to check for work again
+        return;
+      }
+      if (iuTerminationMustCheckRoots) { // do we need to check the roots?
+        if (Options.verbose.getValue() >= 8) Log.writeln("INSERTION_BARRIER_TERMINATION_CONDITION mustCheckRoots true, will scan roots");
+        // in reverse order do...
+        Phase.pushScheduledPhase(Phase.scheduleGlobal(INSERTION_BARRIER_TERMINATION_CONDITION)); // ensure we will rerun the termination check
+        Phase.pushScheduledPhase(Phase.scheduleCollector(FLUSH_COLLECTOR)); // flush collector threads that scanned the stacks
+        Phase.pushScheduledPhase(Phase.scheduleOnTheFlyMutator(FLUSH_MUTATOR)); // flush here so we can tell if there is any work left on the queues
+        Phase.pushScheduledPhase(Phase.scheduleComplex(rootScanPhase)); // do another transitive closure
+        iuTerminationMustCheckRoots = false; // will be set to true if globalFirstTrace finds work
+        return;
+      }
+      if (Options.verbose.getValue() >= 8) Log.writeln("INSERTION_BARRIER_TERMINATION_CONDITION found no work and did not have to scan roots, done");
+      return;
+    }
+
     if (phaseId == PRE_TRACE_LINEAR_SCAN) {
       if (currentTrace == 0) { // run *before* 1st trace
         Log.writeln("Global running preFirstPhaseFromSpaceLinearSanityScan and preFirstPhaseToSpaceLinearSanityScan");
@@ -445,10 +474,10 @@ public class Sapphire extends Concurrent {
     /* Set up the concurrent marking phase */
     replacePhase(Phase.scheduleCollector(CLOSURE), Phase.scheduleComplex(concurrentClosure));
 
-    if (Options.sanityCheck.getValue()) {
-      Log.writeln("Sapphire Collection sanity checking enabled.");
-      replacePhase(Phase.schedulePlaceholder(PRE_SANITY_PLACEHOLDER), Phase.scheduleComplex(preSanityPhase));
-      replacePhase(Phase.schedulePlaceholder(POST_SANITY_PLACEHOLDER), Phase.scheduleComplex(postSanityPhase));
-    }
+    // if (Options.sanityCheck.getValue()) {
+    // Log.writeln("Sapphire Collection sanity checking enabled.");
+    // replacePhase(Phase.schedulePlaceholder(PRE_SANITY_PLACEHOLDER), Phase.scheduleComplex(preSanityPhase));
+    // replacePhase(Phase.schedulePlaceholder(POST_SANITY_PLACEHOLDER), Phase.scheduleComplex(postSanityPhase));
+    // }
   }
 }

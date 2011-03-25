@@ -111,6 +111,8 @@ public abstract class Plan implements Constants {
 
   /** All meta data that is used by MMTk is allocated (and accounted for) in the meta data space. */
   public static final RawPageSpace metaDataSpace = new RawPageSpace("meta", VMRequest.create());
+  public static final RawPageSpace metaDataSpace1 = new RawPageSpace("meta1", VMRequest.create());
+  public static final RawPageSpace metaDataSpace2 = new RawPageSpace("meta2", VMRequest.create());
 
   /** Large objects are allocated into a special large object space. */
   public static final LargeObjectSpace loSpace = new LargeObjectSpace("los", VMRequest.create());
@@ -791,7 +793,7 @@ public abstract class Plan implements Constants {
    * allocation, excluding space reserved for copying.
    */
   public int getPagesUsed() {
-    return loSpace.reservedPages() + immortalSpace.reservedPages() +
+    return loSpace.reservedPages() + // immortalSpace.reservedPages() +
       metaDataSpace.reservedPages() + nonMovingSpace.reservedPages();
   }
 
@@ -836,7 +838,7 @@ public abstract class Plan implements Constants {
    */
   public final boolean poll(boolean spaceFull, Space space) {
     if (collectionRequired(spaceFull, space)) {
-      if (space == metaDataSpace) {
+      if (space == metaDataSpace || space == metaDataSpace1 || space == metaDataSpace2) {
         /* In general we must not trigger a GC on metadata allocation since
          * this is not, in general, in a GC safe point.  Instead we initiate
          * an asynchronous GC, which will occur at the next safe point.
@@ -851,7 +853,11 @@ public abstract class Plan implements Constants {
     }
 
     if (concurrentCollectionRequired(space)) {
-      if (space == metaDataSpace) {
+      if (space == metaDataSpace || space == metaDataSpace2) {
+        logPoll(space, "Triggering async concurrent collection");
+        triggerInternalCollectionRequest();
+        return false;
+      } else if (space == metaDataSpace1) {
         logPoll(space, "Triggering async concurrent collection");
         triggerInternalCollectionRequest();
         return false;

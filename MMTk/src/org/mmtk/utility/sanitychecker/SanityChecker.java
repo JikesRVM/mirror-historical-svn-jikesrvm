@@ -16,8 +16,10 @@ import org.mmtk.plan.Plan;
 import org.mmtk.plan.Trace;
 import org.mmtk.plan.Simple;
 import org.mmtk.plan.TraceLocal;
+import org.mmtk.plan.sapphire.Sapphire;
 import org.mmtk.policy.Space;
 import org.mmtk.utility.Constants;
+import org.mmtk.utility.ForwardingWord;
 import org.mmtk.utility.Log;
 
 import org.mmtk.vm.VM;
@@ -216,7 +218,7 @@ public final class SanityChecker implements Constants {
    * @param object The object to mark.
    * @param root True If the object is a root.
    */
-  public void processObject(TraceLocal trace, ObjectReference object, boolean root) {
+  public void processObject(TraceLocal trace, Address parent, ObjectReference object, boolean root) {
     SanityChecker.referenceCount++;
     if (root) SanityChecker.rootReferenceCount++;
 
@@ -227,6 +229,20 @@ public final class SanityChecker implements Constants {
 
     if (Plan.SCAN_BOOT_IMAGE && Space.isInSpace(Plan.VM_SPACE, object)) {
       return;
+    }
+
+    if (Space.isInSpace(Plan.NON_MOVING, object) && !Plan.nonMovingSpace.isLive(object)) {
+      Log.write("Argh found non moving non live object");
+      VM.objectModel.dumpObject(object);
+      VM.objectModel.dumpObject(parent.toObjectReference());
+      Space.printVMMap();
+    }
+
+    if (Sapphire.inFromSpace(object) && ForwardingWord.getReplicaPointer(object).isNull()) {
+      Log.write("Argh badness ");
+      VM.objectModel.dumpObject(object);
+      VM.objectModel.dumpObject(parent.toObjectReference());
+      Space.printVMMap();
     }
 
     // Get the table entry.

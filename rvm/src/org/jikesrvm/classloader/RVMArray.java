@@ -17,6 +17,7 @@ import static org.jikesrvm.mm.mminterface.Barriers.*;
 import org.jikesrvm.ArchitectureSpecific;
 import org.jikesrvm.VM;
 import org.jikesrvm.Constants;
+import org.jikesrvm.mm.mminterface.HandInlinedScanning;
 import org.jikesrvm.mm.mminterface.Barriers;
 import org.jikesrvm.mm.mminterface.MemoryManager;
 import org.jikesrvm.objectmodel.ObjectModel;
@@ -488,7 +489,9 @@ public final class RVMArray extends RVMType implements Constants, ClassLoaderCon
     // virtual method fields and substituting an appropriate type field.
     //
     TIB javaLangObjectTIB = RVMType.JavaLangObjectType.getTypeInformationBlock();
-    TIB allocatedTib = MemoryManager.newTIB(javaLangObjectTIB.numVirtualMethods());
+
+    int alignCode = elementType.isReferenceType() ? HandInlinedScanning.referenceArray() : HandInlinedScanning.primitiveArray();
+    TIB allocatedTib = MemoryManager.newTIB(javaLangObjectTIB.numVirtualMethods(), alignCode);
     superclassIds = DynamicTypeCheck.buildSuperclassIds(this);
     doesImplement = DynamicTypeCheck.buildDoesImplement(this);
     publishResolved(allocatedTib, superclassIds, doesImplement);
